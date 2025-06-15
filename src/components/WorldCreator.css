@@ -1,5 +1,9 @@
 @import '../css/variables';
+@import '../css/common.css';
 
+/* =====================================================================
+   World Creator Component
+   ===================================================================== */
 .world-creator {
   max-width: 700px;
   margin: 0 auto;
@@ -19,53 +23,32 @@
   padding-bottom: var(--padding-small);
 }
 
-.form-field {
-  margin-bottom: var(--margin-medium);
-}
-
-.field-label {
-  display: block;
-  margin-bottom: var(--margin-small);
+/* =====================================================================
+   World Creator Form Fields
+   ===================================================================== */
+.world-creator .field-label {
   font-weight: 600;
-  color: var(--text-color);
   font-size: 1.1rem;
 }
 
-.field-input,
-.field-textarea,
-.field-select {
-  width: 100%;
-  padding: var(--padding-small) var(--padding-medium);
-  border: var(--border-standard);
-  border-radius: var(--border-radius-small);
-  background-color: var(--background-color-secondary);
-  color: var(--text-color);
-  font-family: var(--font-family-base);
-  font-size: var(--font-size-normal);
-  transition: border-color 0.2s, box-shadow 0.2s;
-  margin-bottom: var(--margin-small);
-}
-
-.field-textarea {
+.world-creator .field-textarea {
   min-height: 100px;
-  resize: vertical;
 }
 
-.field-input:focus,
-.field-textarea:focus,
-.field-select:focus {
-  outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(107, 70, 193, 0.2);
+.world-creator .field-input:focus,
+.world-creator .field-textarea:focus,
+.world-creator .field-select:focus {
   background-color: var(--background-color-primary);
 }
 
-.field-input::placeholder,
-.field-textarea::placeholder {
-  color: var(--text-color-placeholder);
+.world-creator .field-input::placeholder,
+.world-creator .field-textarea::placeholder {
   opacity: 0.7;
 }
 
+/* =====================================================================
+   World Details Section
+   ===================================================================== */
 .detail-row {
   display: flex;
   gap: var(--gap-small);
@@ -104,93 +87,49 @@
   color: var(--accent-color);
 }
 
-.button-group {
-  display: flex;
+/* =====================================================================
+   World Creator Buttons
+   ===================================================================== */
+.world-creator .button-group {
   justify-content: space-between;
-  margin-top: var(--margin-large);
-  gap: var(--gap-medium);
   padding-top: var(--padding-medium);
   border-top: 1px solid var(--border-color);
 }
 
-.button {
+.world-creator .button {
   padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: var(--border-radius-small);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: var(--font-family-base);
   font-size: 1rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   gap: 0.5rem;
 }
 
-.button:active {
-  transform: translateY(1px);
-}
-
-.back-button {
-  background-color: var(--background-color-tertiary);
-  color: var(--text-color);
-}
-
-.back-button:hover {
-  background-color: var(--background-color-hover);
-}
-
-.submit-button {
-  background-color: var(--accent-color);
-  color: white;
-}
-
-.submit-button:hover {
-  background-color: var(--accent-color-hover);
+.world-creator .submit-button:hover {
   transform: translateY(-1px);
 }
 
-.submit-button:disabled {
-  background-color: var(--background-color-disable);
-  color: var(--text-color-placeholder);
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Responsive adjustments */
+/* =====================================================================
+   Responsive Adjustments
+   ===================================================================== */
 @media (max-width: 768px) {
   .world-creator {
     padding: var(--padding-medium);
     margin: 0 var(--margin-small);
   }
-  
+
   .detail-row {
     flex-direction: column;
     gap: var(--gap-small);
   }
-  
+
   .detail-row .field-input:first-child,
   .detail-row .field-input:last-child {
     width: 100%;
     flex: none;
   }
-  
-  .button-group {
-    flex-direction: column;
-  }
-  
-  .button {
-    width: 100%;
-  }
 }
 
-/* Animation for new detail rows */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
+/* =====================================================================
+   Animations
+   ===================================================================== */
 .detail-row {
   animation: fadeIn 0.2s ease-out forwards;
 }

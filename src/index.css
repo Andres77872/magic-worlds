@@ -1,8 +1,15 @@
+/* =====================================================================
+   CSS Variables Import
+   ===================================================================== */
 @import './css/variables/index.css';
 
-/* Global box-sizing and prevent unwanted horizontal scroll */
+/* =====================================================================
+   Reset & Normalize
+   ===================================================================== */
 *, *::before, *::after {
     box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
 html, body, #root {
@@ -11,6 +18,9 @@ html, body, #root {
     scroll-behavior: smooth;
 }
 
+/* =====================================================================
+   Global Typography & Base Styles
+   ===================================================================== */
 :root {
     font-family: var(--font-family-base);
     line-height: var(--line-height-normal);
@@ -24,4 +34,37 @@ html, body, #root {
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-size: var(--font-size-base);
+    color: var(--text-color);
+    background-color: var(--background-color-primary);
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: var(--font-size-base);
+}
+
+/* =====================================================================
+   Accessibility
+   ===================================================================== */
+[aria-hidden="true"] {
+    display: none;
+}
+
+/* =====================================================================
+   Global Animations
+   ===================================================================== */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

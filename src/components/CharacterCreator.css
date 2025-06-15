@@ -1,5 +1,9 @@
 @import '../css/variables';
+@import '../css/common.css';
 
+/* =====================================================================
+   Character Creator Component
+   ===================================================================== */
 .character-creator {
   max-width: 600px;
   margin: 0 auto;
@@ -17,39 +21,9 @@
   font-size: 1.75rem;
 }
 
-.form-field {
-  margin-bottom: var(--margin-medium);
-}
-
-.field-label {
-  display: block;
-  margin-bottom: var(--margin-small);
-  font-weight: 500;
-  color: var(--text-color);
-}
-
-.field-input {
-  width: 100%;
-  padding: var(--padding-small) var(--padding-medium);
-  border: var(--border-standard);
-  border-radius: var(--border-radius-small);
-  background-color: var(--background-color-secondary);
-  color: var(--text-color);
-  font-family: var(--font-family-base);
-  font-size: var(--font-size-normal);
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.field-input:focus {
-  outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(107, 70, 193, 0.2);
-}
-
-.field-input::placeholder {
-  color: var(--text-color-placeholder);
-}
-
+/* =====================================================================
+   Character Stats
+   ===================================================================== */
 .stat-row {
   display: flex;
   gap: var(--gap-small);
@@ -64,72 +38,29 @@
   flex: 1;
 }
 
-.add-stat-button {
+/* Override add-stat-button for this component */
+.character-creator .add-stat-button {
   width: 100%;
   padding: var(--padding-small);
   background-color: var(--background-color-tertiary);
   color: var(--text-color);
   border: var(--border-dashed);
   border-radius: var(--border-radius-small);
-  cursor: pointer;
   font-size: var(--font-size-small);
-  transition: background-color 0.2s;
 }
 
-.add-stat-button:hover {
-  background-color: var(--background-color-hover);
-}
-
-.button-group {
-  display: flex;
-  justify-content: space-between;
-  margin-top: var(--margin-large);
-  gap: var(--gap-medium);
-}
-
-.button {
-  padding: var(--padding-small) var(--padding-large);
-  border: none;
-  border-radius: var(--border-radius-small);
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s, transform 0.1s;
-  font-family: var(--font-family-base);
-  font-size: var(--font-size-normal);
-}
-
-.button:active {
-  transform: translateY(1px);
-}
-
-.back-button {
-  background-color: var(--background-color-tertiary);
-  color: var(--text-color);
-}
-
-.back-button:hover {
-  background-color: var(--background-color-hover);
-}
-
-.submit-button {
-  background-color: var(--accent-color);
-  color: white;
-}
-
-.submit-button:hover {
-  background-color: var(--accent-color-hover);
-}
-
-/* Responsive adjustments */
+/* =====================================================================
+   Responsive Adjustments
+   ===================================================================== */
 @media (max-width: 480px) {
   .character-creator {
     padding: var(--padding-medium);
   }
-  
+
   .button-group {
     flex-direction: column;
   }
-  
+
   .button {
     width: 100%;
   }

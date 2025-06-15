@@ -1,78 +1,11 @@
-.interaction-container {
-    display: grid;
-    grid-template-areas:
-    "back back back"
-    "left center right";
-    grid-template-columns: minmax(240px, 1fr) 2fr minmax(240px, 1fr);
-    grid-template-rows: auto 1fr;
-    gap: var(--gap-large);
-    padding: var(--padding-large);
-    background-color: var(--background-color-secondary);
-    border-radius: var(--border-radius-medium);
-    margin: 0;
-    height: 100%;
-    max-height: 100vh;
-    overflow: hidden;
-}
+/* Import common component styles */
+@import './css/common.css';
 
+/* =====================================================================
+   App Layout Styles
+   ===================================================================== */
 
-.confirm-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: var(--background-transparency-dark);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
-
-.confirm-dialog {
-    background-color: var(--background-color-secondary);
-    padding: var(--padding-large);
-    border-radius: var(--border-radius-medium);
-    box-shadow: var(--box-shadow-dark);
-    max-width: 320px;
-    width: 100%;
-}
-
-.confirm-message {
-    margin-bottom: var(--margin-medium);
-    color: var(--color-messages-error);
-    font-weight: 500;
-}
-
-.confirm-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--gap-medium);
-}
-
-.confirm-button {
-    padding: var(--padding-small) var(--padding-medium);
-    border: var(--border-standard);
-    border-radius: var(--border-radius-small);
-    background-color: var(--background-color-primary);
-    color: var(--text-color);
-    cursor: pointer;
-    transition: var(--transition-colors);
-}
-
-.confirm-button.confirm {
-    background-color: var(--color-messages-error);
-    color: var(--color-brighter);
-}
-
-.confirm-button:hover {
-    background-color: var(--background-color-hover);
-}
-
-.confirm-button.confirm:hover {
-    background-color: var(--color-messages-error);
-}
-
+/* Main app container */
 .app-container {
     display: flex;
     flex-direction: column;
@@ -82,6 +15,40 @@
     height: 100%;
     padding: var(--padding-large);
     background-color: var(--background-color-primary);
+}
+
+/* App header with logo, title, and theme switcher */
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--background-color-primary);
+    padding: var(--padding-small) var(--padding-large);
+    border-bottom: var(--border-standard);
+}
+
+.app-logo {
+    height: var(--font-size-large);
+    cursor: pointer;
+}
+
+.app-title {
+    flex: 1;
+    text-align: center;
+    font-size: var(--font-size-large);
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+/* Main content area below header */
+.app-main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    width: 100%;
+    margin: 0 auto;
+    padding: var(--padding-large);
+    overflow: auto;
 }
 
 /* Theme selector at top */
@@ -108,111 +75,26 @@
     color: var(--text-color);
 }
 
-/* App header with logo, title, and theme switcher */
-.app-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background-color: var(--background-color-primary);
-    padding: var(--padding-small) var(--padding-large);
-    border-bottom: var(--border-standard);
-}
+/* =====================================================================
+   Interaction Layout
+   ===================================================================== */
 
-.app-logo {
-    height: var(--font-size-large);
-    cursor: pointer;
-}
-
-/* This class uses the fadeIn animation from shared.css */
-.fade-in {
-    animation: fadeIn 0.3s ease-in;
-}
-
-.app-title {
-    flex: 1;
-    text-align: center;
-    font-size: var(--font-size-large);
-    font-weight: 600;
-    color: var(--text-color);
-}
-
-/* Main content area below header */
-.app-main {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    width: 100%;
-    /*max-width: 1024px;*/
-    margin: 0 auto;
+.interaction-container {
+    display: grid;
+    grid-template-areas:
+    "back back back"
+    "left center right";
+    grid-template-columns: minmax(240px, 1fr) 2fr minmax(240px, 1fr);
+    grid-template-rows: auto 1fr;
+    gap: var(--gap-large);
     padding: var(--padding-large);
-    overflow: auto;
+    background-color: var(--background-color-secondary);
+    border-radius: var(--border-radius-medium);
+    margin: 0;
+    height: 100%;
+    max-height: 100vh;
+    overflow: hidden;
 }
-
-
-.form-field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap-small);
-}
-
-.field-label {
-    font-weight: 500;
-}
-
-.field-input {
-    padding: var(--padding-small);
-    border: var(--border-standard);
-    border-radius: var(--border-radius-small);
-    background-color: var(--background-color-tertiary);
-    color: var(--text-color);
-}
-
-/* Checkbox list for multi-character selection */
-.checkbox-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap-small);
-}
-
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: var(--gap-small);
-}
-
-.add-stat-button {
-    padding: var(--padding-small) var(--padding-medium);
-    border: none;
-    background: none;
-    color: var(--accent-color);
-    cursor: pointer;
-    align-self: flex-start;
-    transition: var(--transition-colors);
-}
-
-.add-stat-button:hover {
-    color: var(--accent-color-hover);
-}
-
-.button-group {
-    display: flex;
-    gap: var(--gap-medium);
-}
-
-.back-button {
-    grid-area: back;
-    padding: var(--padding-medium);
-    border: var(--border-standard);
-    background-color: var(--background-color-primary);
-    color: var(--text-color);
-    cursor: pointer;
-    transition: var(--transition-colors);
-}
-
-.back-button:hover {
-    background-color: var(--background-color-hover);
-}
-
 
 .left-panel {
     grid-area: left;
@@ -222,60 +104,19 @@
     grid-area: right;
 }
 
-.start-button {
-    padding: var(--padding-small) var(--padding-medium);
-    border: none;
-    border-radius: var(--border-radius-small);
-    background-color: var(--accent-color);
-    color: var(--color-brighter);
-    cursor: pointer;
-    transition: var(--transition-colors);
-}
-
-.start-button:hover {
-    background-color: var(--accent-color-hover);
-}
-
-.edit-button {
-    padding: var(--padding-small) var(--padding-medium);
-    border: var(--border-standard);
-    border-radius: var(--border-radius-small);
-    background-color: var(--accent-color);
-    color: var(--color-brighter);
-    cursor: pointer;
-    transition: var(--transition-colors);
-}
-
-.edit-button:hover {
-    background-color: var(--accent-color-hover);
-}
-
-
-.delete-button {
-    padding: var(--padding-small) var(--padding-medium);
-    border: none;
-    border-radius: var(--border-radius-small);
-    background-color: var(--color-messages-error);
-    color: var(--color-brighter);
-    cursor: pointer;
-    transition: var(--transition-colors);
-}
-
-.delete-button:hover {
-    opacity: 0.8;
-
-}
-
+/* =====================================================================
+   Responsive Design
+   ===================================================================== */
 
 @media (max-width: 768px) {
     .interaction-container {
         grid-template-columns: 1fr;
         grid-template-rows: auto auto auto auto;
         grid-template-areas:
-      "back"
-      "left"
-      "center"
-      "right";
+        "back"
+        "left"
+        "center"
+        "right";
     }
 
     .left-panel,
