@@ -1,5 +1,7 @@
 import {useEffect, useState} from 'react'
 import './App.css'
+import { Header } from './components/Header'
+import type { ThemeOption } from './components/Header'
 import {storage} from './services/storage'
 import type {Adventure, Character, World} from './types'
 import { CharacterCreator } from './components/CharacterCreator'
@@ -12,11 +14,9 @@ import { WorldList } from './components/WorldList'
 import { AdventureInteraction } from './components/AdventureInteraction'
 import { ConfirmDialog } from './components/ConfirmDialog'
 
-type ThemeOption = 'light' | 'dark' | 'system'
-
 export default function App() {
   const [page, setPage] = useState<'landing' | 'character' | 'world' | 'adventure' | 'interaction'>('landing')
-  const [theme, setTheme] = useState<ThemeOption>(() => {
+const [theme, setTheme] = useState<ThemeOption>(() => {
     const stored = localStorage.getItem('theme')
     return stored === 'light' || stored === 'dark' ? stored : 'system'
   })
@@ -119,33 +119,7 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <header className="app-header">
-        <img
-          src="/react.svg"
-          alt="Magic Worlds Logo"
-          className="app-logo"
-          onClick={() => goTo('landing')}
-        />
-        <div className="app-title">Magic Worlds RPG</div>
-        <div className="theme-toggle">
-        <label className="field-label">
-          Theme:
-          <select
-            className="field-input"
-            value={theme}
-            onChange={(e) => {
-              const t = e.target.value as ThemeOption
-              setTheme(t)
-              localStorage.setItem('theme', t)
-            }}
-          >
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </label>
-        </div>
-      </header>
+      <Header theme={theme} setTheme={setTheme} goTo={goTo} />
       <main className="app-main">
         {page === 'landing' && (
           <div className="landing">
