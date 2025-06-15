@@ -4,6 +4,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { CardGrid } from './Card/CardGrid'
 import { Card } from './Card/Card'
 import type { CardOption } from './Card/CardOptions'
+import { EmptyState } from '../common/EmptyState'
 import { FaTrash, FaEdit, FaGlobe } from 'react-icons/fa'
 import './cards.css'
 
@@ -42,22 +43,20 @@ export function WorldList({
         items={worlds}
         loading={loading}
         emptyMessage={
-          <div className="empty-state">
-            <FaGlobe size={32} className="empty-icon" />
-            <p>No worlds created yet</p>
-            <button 
-              className="primary-button" 
-              onClick={() => onEdit({ 
+          <EmptyState
+            icon={<FaGlobe size={32} />}
+            message="No worlds created yet"
+            button={{
+              label: 'Create Your First World',
+              onClick: () => onEdit({ 
                 id: '', 
                 name: 'New World', 
                 type: 'fantasy', 
                 details: {},
                 description: '' 
-              })}
-            >
-              Create Your First World
-            </button>
-          </div>
+              })
+            }}
+          />
         }
         renderCard={(world, idx) => {
           const isDeleting = deletingId === idx

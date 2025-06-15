@@ -4,6 +4,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { CardGrid } from './Card/CardGrid'
 import { Card } from './Card/Card'
 import type { CardOption } from './Card/CardOptions'
+import { EmptyState } from '../common/EmptyState'
 import { FaUser, FaTrash, FaEdit } from 'react-icons/fa'
 import './cards.css'
 
@@ -42,16 +43,14 @@ export function CharacterList({
         items={characters}
         loading={loading}
         emptyMessage={
-          <div className="empty-state">
-            <FaUser size={32} className="empty-icon" />
-            <p>No characters created yet</p>
-            <button 
-              className="primary-button" 
-              onClick={() => onEdit({ id: '', name: '', race: '', stats: {} })}
-            >
-              Create Your First Character
-            </button>
-          </div>
+          <EmptyState
+            icon={<FaUser size={32} />}
+            message="No characters created yet"
+            button={{
+              label: 'Create Your First Character',
+              onClick: () => onEdit({ id: '', name: '', race: '', stats: {} })
+            }}
+          />
         }
         renderCard={(character, idx) => {
           const isDeleting = deletingId === idx

@@ -4,7 +4,8 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { CardGrid } from './Card/CardGrid'
 import { Card } from './Card/Card'
 import type { CardOption } from './Card/CardOptions'
-import { FaTrash, FaPlay, FaEdit } from 'react-icons/fa'
+import { EmptyState } from '../common/EmptyState'
+import { FaTrash, FaPlay, FaEdit, FaCompass } from 'react-icons/fa'
 import './cards.css'
 
 interface InProgressListProps {
@@ -41,10 +42,11 @@ export function InProgressList({
         items={adventures}
         loading={loading}
         emptyMessage={
-          <div className="empty-state">
-            <p>No adventures in progress</p>
-            <p>Start a new adventure from the Templates section!</p>
-          </div>
+          <EmptyState
+            icon={<FaCompass size={32} />}
+            message="No adventures in progress"
+            secondaryText="Start a new adventure from the Templates section!"
+          />
         }
         renderCard={(adventure, idx) => {
           const isDeleting = deletingId === idx

@@ -4,7 +4,8 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { CardGrid } from './Card/CardGrid'
 import { Card } from './Card/Card'
 import type { CardOption } from './Card/CardOptions'
-import { FaPlay, FaTrash, FaEdit } from 'react-icons/fa'
+import { EmptyState } from '../common/EmptyState'
+import { FaPlay, FaTrash, FaEdit, FaPlus } from 'react-icons/fa'
 import './cards.css'
 
 interface TemplateListProps {
@@ -43,11 +44,12 @@ export function TemplateList({
         items={templates}
         loading={loading}
         emptyMessage={
-          <div className="empty-state">
-            <p>No adventure templates yet</p>
-            <button 
-              className="primary-button" 
-              onClick={() => onEdit({ 
+          <EmptyState
+            icon={<FaPlus size={32} />}
+            message="No adventure templates yet"
+            button={{
+              label: 'Create Your First Template',
+              onClick: () => onEdit({ 
                 id: '', 
                 scenario: 'New Adventure', 
                 characters: [],
@@ -60,11 +62,9 @@ export function TemplateList({
                 },
                 turns: [],
                 status: 'draft'
-              })}
-            >
-              Create Your First Template
-            </button>
-          </div>
+              })
+            }}
+          />
         }
         renderCard={(template, idx) => {
           const isDeleting = deletingId === idx
