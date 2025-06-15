@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { FaEllipsisV } from 'react-icons/fa'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { FaEllipsisV, FaTrash, FaEdit, FaPlay, FaExternalLinkAlt } from 'react-icons/fa'
 import './cards.css'
+import { useClickOutside } from '../../hooks/useClickOutside'
 
 export type CardOptionType = 'open' | 'edit' | 'start' | 'delete' | 'custom'
 
@@ -24,6 +25,7 @@ interface CardOptionsProps {
   options: CardOption[]
   align?: 'left' | 'right'
   className?: string
+  disabled?: boolean
 }
 
 /**
@@ -32,34 +34,48 @@ interface CardOptionsProps {
 export function CardOptions({ 
   options, 
   align = 'right',
-  className = '' 
+  className = '',
+  disabled = false
 }: CardOptionsProps) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
+  const [isOpen, setIsOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null!)
+  const buttonRef = useRef<HTMLButtonElement>(null!)
+  
+  // Close menu when clicking outside
+  useClickOutside(
+    menuRef, 
+    () => {
+      if (isOpen) setIsOpen(false);
+    }, 
+    [buttonRef]
+  )
+  
+  // Close menu when pressing Escape
   useEffect(() => {
-    function onBodyClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        e.preventDefault()
+        setIsOpen(false)
+        buttonRef.current?.focus()
       }
     }
-
-    function onEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        setOpen(false)
-      }
-    }
-
-    if (open) {
-      document.addEventListener('click', onBodyClick)
-      document.addEventListener('keydown', onEscape)
-    }
-
-    return () => {
-      document.removeEventListener('click', onBodyClick)
-      document.removeEventListener('keydown', onEscape)
-    }
-  }, [open])
+    
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [isOpen])
+  
+  const toggleMenu = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (disabled) return
+    setIsOpen(prev => !prev)
+  }, [disabled])
+  
+  const handleItemClick = useCallback((e: React.MouseEvent, onClick: () => void) => {
+    e.stopPropagation()
+    if (disabled) return
+    onClick()
+    setIsOpen(false)
+  }, [disabled])
 
   if (options.length === 0) return null
 
@@ -75,51 +91,85 @@ export function CardOptions({
         }}
         disabled={option.disabled}
         aria-label={option.label}
+        type="button"
       >
         {option.icon || option.label}
       </button>
     )
   }
 
+  // Get icon based on option type
+  const getIcon = (type: CardOptionType) => {
+    switch (type) {
+      case 'delete':
+        return <FaTrash aria-hidden="true" />
+      case 'edit':
+        return <FaEdit aria-hidden="true" />
+      case 'start':
+        return <FaPlay aria-hidden="true" />
+      case 'open':
+        return <FaExternalLinkAlt aria-hidden="true" />
+      default:
+        return null
+    }
+  }
+
   return (
-    <div 
-      className={`card-options ${className}`} 
-      ref={ref}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className={`card-options ${className}`}>
       <button
+        ref={buttonRef}
         className="card-options-button"
-        onClick={(e) => {
-          e.stopPropagation()
-          setOpen((o) => !o)
-        }}
-        aria-expanded={open}
-        aria-label="More options"
-        disabled={options.every(opt => opt.disabled)}
+        onClick={toggleMenu}
+        disabled={disabled}
+        aria-label="Card options"
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-controls={`card-options-menu`}
+        aria-disabled={disabled}
+        type="button"
       >
-        <FaEllipsisV />
+        <FaEllipsisV aria-hidden="true" />
       </button>
       
-      {open && (
-        <div className={`card-options-menu ${align}`}>
-          {options.map((option, i) => (
+      <div
+        ref={menuRef}
+        id="card-options-menu"
+        className={`card-options-menu ${align === 'left' ? 'align-left' : ''}`}
+        role="menu"
+        aria-orientation="vertical"
+        aria-hidden={!isOpen}
+        aria-labelledby={`${buttonRef.current?.id || 'card-options-button'}`}
+        data-enter={isOpen ? '' : undefined}
+        style={{
+          position: 'absolute',
+          right: align === 'left' ? 'auto' : 0,
+          left: align === 'left' ? 0 : 'auto'
+        }}
+      >
+        {options.map((option, index) => {
+          const icon = option.icon || getIcon(option.type)
+          const isDanger = option.danger || option.type === 'delete'
+          const isHighlight = ['start', 'open', 'edit'].includes(option.type)
+          
+          return (
             <button
-              key={i}
-              className={`card-options-item ${option.type} ${option.danger ? 'danger' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                setOpen(false)
-                option.onClick()
-              }}
-              disabled={option.disabled}
+              key={`${option.type}-${index}`}
+              className="card-options-item"
+              onClick={(e) => handleItemClick(e, option.onClick)}
+              disabled={option.disabled || disabled}
+              role="menuitem"
+              tabIndex={-1}
+              data-danger={isDanger ? '' : undefined}
+              data-highlight={isHighlight ? '' : undefined}
               aria-label={option.label}
+              type="button"
             >
-              {option.icon && <span className="option-icon">{option.icon}</span>}
-              <span className="option-label">{option.label}</span>
+              {icon && <span className="option-icon" aria-hidden="true">{icon}</span>}
+              <span>{option.label}</span>
             </button>
-          ))}
-        </div>
-      )}
+          )
+        })}
+      </div>
     </div>
   )
 }
