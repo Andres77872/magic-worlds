@@ -91,18 +91,25 @@ export function Card({
       )}
       
       <div className="card-header">
-        <h3 className="card-title">
-          {typeof title === 'string' ? (
-            <span>{title}</span>
-          ) : (
-            title
+        <div className="card-header-content">
+          <h3 className="card-title">
+            {typeof title === 'string' ? (
+              <span>{title}</span>
+            ) : (
+              title
+            )}
+            {onClick && !disabled && (
+              <span className="card-arrow" aria-hidden="true">
+                <FaChevronRight />
+              </span>
+            )}
+          </h3>
+          {actions && actions.length > 0 && (
+            <div className="card-actions-wrapper">
+              <CardOptions options={actions} disabled={disabled} />
+            </div>
           )}
-          {onClick && !disabled && (
-            <span className="card-arrow" aria-hidden="true">
-              <FaChevronRight />
-            </span>
-          )}
-        </h3>
+        </div>
         {subtitle && (
           <div className="card-subtitle">
             {typeof subtitle === 'string' ? (
@@ -120,11 +127,7 @@ export function Card({
         </div>
       )}
       
-      {actions && actions.length > 0 && (
-        <div className="card-actions-wrapper">
-          <CardOptions options={actions} disabled={disabled} />
-        </div>
-      )}
+
     </div>
   )
 }
