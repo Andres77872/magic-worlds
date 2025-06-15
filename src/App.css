@@ -208,6 +208,25 @@
   background-color: var(--accent-color-hover);
 }
 
+.edit-button {
+  padding: var(--padding-small) var(--padding-medium);
+  border: var(--border-standard);
+  border-radius: var(--border-radius-small);
+  background-color: var(--accent-color);
+  color: var(--color-brighter);
+  cursor: pointer;
+  transition: var(--transition-colors);
+}
+.edit-button:hover {
+  background-color: var(--accent-color-hover);
+}
+
+/* Ensure button group has spacing */
+.list-item > div {
+  display: flex;
+  gap: var(--gap-small);
+}
+
 .delete-button {
   padding: var(--padding-small) var(--padding-medium);
   border: none;
@@ -218,7 +237,6 @@
   transition: var(--transition-colors);
 }
 
-.delete-button:hover {
 .delete-button:hover {
   opacity: 0.8;
 }

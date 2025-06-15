@@ -8,15 +8,22 @@ export function AdventureCreator({
   worlds,
   onSubmit,
   onBack,
+  initial,
 }: {
   characters: Character[]
   worlds: World[]
   onSubmit: (a: Adventure) => void
   onBack: () => void
+  initial?: Adventure
 }) {
-  const [scenario, setScenario] = useState('')
-  const [selectedChars, setSelectedChars] = useState<string[]>([])
-  const [selectedWorlds, setSelectedWorlds] = useState<string[]>([])
+  const [id] = useState(initial?.id ?? crypto.randomUUID())
+  const [scenario, setScenario] = useState(initial?.scenario ?? '')
+  const [selectedChars, setSelectedChars] = useState<string[]>(
+    initial ? initial.characters.map((c) => c.name) : [],
+  )
+  const [selectedWorlds, setSelectedWorlds] = useState<string[]>(
+    initial ? initial.worlds.map((w) => w.name) : [],
+  )
 
   const handleCharChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const opts = Array.from(e.target.selectedOptions).map((o) => o.value)
@@ -36,7 +43,7 @@ export function AdventureCreator({
     const chosenWorlds = worlds.filter((w) =>
       selectedWorlds.includes(w.name),
     )
-    onSubmit({ scenario, characters: chosenChars, worlds: chosenWorlds })
+    onSubmit({ id, scenario, characters: chosenChars, worlds: chosenWorlds })
   }
 
   return (

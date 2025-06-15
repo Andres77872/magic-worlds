@@ -6,9 +6,11 @@ import '../App.css'
 export function CharacterList({
   characters,
   onDelete,
+  onEdit,
 }: {
   characters: Character[]
   onDelete: (index: number) => void
+  onEdit: (c: Character) => void
 }) {
   const [pending, setPending] = useState<{
     idx: number
@@ -24,12 +26,20 @@ export function CharacterList({
           {characters.map((c, idx) => (
             <li key={idx} className="list-item">
               <span>{c.name} ({c.race})</span>
-              <button
-                className="delete-button"
-                onClick={() => setPending({ idx, name: c.name })}
-              >
-                Delete
-              </button>
+              <div>
+                <button
+                  className="edit-button"
+                  onClick={() => onEdit(c)}
+                >
+                  Open
+                </button>
+                <button
+                  className="delete-button"
+                  onClick={() => setPending({ idx, name: c.name })}
+                >
+                  Delete
+                </button>
+              </div>
             </li>
           ))}
         </ul>

@@ -6,9 +6,11 @@ import '../App.css'
 export function WorldList({
   worlds,
   onDelete,
+  onEdit,
 }: {
   worlds: World[]
   onDelete: (index: number) => void
+  onEdit: (w: World) => void
 }) {
   const [pending, setPending] = useState<{
     idx: number
@@ -24,12 +26,20 @@ export function WorldList({
           {worlds.map((w, idx) => (
             <li key={idx} className="list-item">
               <span>{w.name} ({w.type})</span>
-              <button
-                className="delete-button"
-                onClick={() => setPending({ idx, name: w.name })}
-              >
-                Delete
-              </button>
+              <div>
+                <button
+                  className="edit-button"
+                  onClick={() => onEdit(w)}
+                >
+                  Open
+                </button>
+                <button
+                  className="delete-button"
+                  onClick={() => setPending({ idx, name: w.name })}
+                >
+                  Delete
+                </button>
+              </div>
             </li>
           ))}
         </ul>

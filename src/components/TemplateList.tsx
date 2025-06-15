@@ -7,10 +7,12 @@ export function TemplateList({
   templates,
   onStart,
   onDelete,
+  onEdit,
 }: {
   templates: Adventure[]
   onStart: (a: Adventure) => void
   onDelete: (index: number) => void
+  onEdit: (a: Adventure) => void
 }) {
   const [pending, setPending] = useState<{
     idx: number
@@ -27,7 +29,16 @@ export function TemplateList({
             <li key={idx} className="list-item">
               <span>{t.scenario}</span>
               <div>
-                <button className="start-button" onClick={() => onStart(t)}>
+                <button
+                  className="edit-button"
+                  onClick={() => onEdit(t)}
+                >
+                  Open
+                </button>
+                <button
+                  className="start-button"
+                  onClick={() => onStart(t)}
+                >
                   Start
                 </button>
                 <button

@@ -6,9 +6,11 @@ import '../App.css'
 export function InProgressList({
   adventures,
   onDelete,
+  onEdit,
 }: {
   adventures: Adventure[]
   onDelete: (index: number) => void
+  onEdit: (a: Adventure) => void
 }) {
   const [pending, setPending] = useState<{
     idx: number
@@ -24,12 +26,20 @@ export function InProgressList({
           {adventures.map((a, idx) => (
             <li key={idx} className="list-item">
               <span>{a.scenario}</span>
-              <button
-                className="delete-button"
-                onClick={() => setPending({ idx, name: a.scenario })}
-              >
-                Delete
-              </button>
+              <div>
+                <button
+                  className="edit-button"
+                  onClick={() => onEdit(a)}
+                >
+                  Open
+                </button>
+                <button
+                  className="delete-button"
+                  onClick={() => setPending({ idx, name: a.scenario })}
+                >
+                  Delete
+                </button>
+              </div>
             </li>
           ))}
         </ul>

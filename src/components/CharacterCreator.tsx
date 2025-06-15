@@ -6,13 +6,18 @@ import '../App.css'
 export function CharacterCreator({
   onSubmit,
   onBack,
+  initial,
 }: {
   onSubmit: (c: Character) => void
   onBack: () => void
+  initial?: Character
 }) {
-  const [name, setName] = useState('')
-  const [race, setRace] = useState('')
-  const [stats, setStats] = useState<{ key: string; value: string }[]>([])
+  const [id] = useState(initial?.id ?? crypto.randomUUID())
+  const [name, setName] = useState(initial?.name ?? '')
+  const [race, setRace] = useState(initial?.race ?? '')
+  const [stats, setStats] = useState<{ key: string; value: string }[]>(
+    initial ? Object.entries(initial.stats).map(([key, value]) => ({ key, value })) : [],
+  )
 
   const addStat = () => setStats((prev) => [...prev, { key: '', value: '' }])
 
@@ -34,7 +39,7 @@ export function CharacterCreator({
       if (cur.key) acc[cur.key] = cur.value
       return acc
     }, {})
-    onSubmit({ name, race, stats: statsRecord })
+    onSubmit({ id, name, race, stats: statsRecord })
   }
 
   return (

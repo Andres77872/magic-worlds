@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import {useEffect, useState} from 'react'
 import './App.css'
-import { storage } from './services/storage'
-import type { Character, World, Adventure } from './types'
+import {storage} from './services/storage'
+import type {Adventure, Character, World} from './types'
 import { CharacterCreator } from './components/CharacterCreator'
 import { WorldCreator } from './components/WorldCreator'
 import { AdventureCreator } from './components/AdventureCreator'
@@ -9,6 +9,7 @@ import { TemplateList } from './components/TemplateList'
 import { InProgressList } from './components/InProgressList'
 import { CharacterList } from './components/CharacterList'
 import { WorldList } from './components/WorldList'
+import { ConfirmDialog } from './components/ConfirmDialog'
 
 export default function App() {
   const [page, setPage] = useState<'landing' | 'character' | 'world' | 'adventure'>('landing')
@@ -17,58 +18,72 @@ export default function App() {
   const [templateAdventures, setTemplateAdventures] = useState<Adventure[]>([])
   const [inProgressAdventures, setInProgressAdventures] = useState<Adventure[]>([])
 
-  const goTo = (next: 'landing' | 'character' | 'world' | 'adventure') => setPage(next)
+  const [editingCharacter, setEditingCharacter] = useState<Character | null>(null)
+  const [editingWorld, setEditingWorld] = useState<World | null>(null)
+  const [editingTemplate, setEditingTemplate] = useState<Adventure | null>(null)
+  const [editingInProgress, setEditingInProgress] = useState<Adventure | null>(null)
+  const [confirmClear, setConfirmClear] = useState(false)
 
-  const addCharacter = async (c: Character) => {
-    const next = [...characters, c]
+    const goTo = (next: 'landing' | 'character' | 'world' | 'adventure') => setPage(next)
+
+  const handleSubmitCharacter = async (c: Character) => {
+    let next: Character[]
+    if (editingCharacter) {
+      next = characters.map((x) => (x.id === c.id ? c : x))
+      setEditingCharacter(null)
+    } else {
+      next = [...characters, c]
+    }
     setCharacters(next)
     await storage.saveCharacters(next)
     setPage('landing')
   }
 
-  const addWorld = async (w: World) => {
-    const next = [...worlds, w]
+  const handleSubmitWorld = async (w: World) => {
+    let next: World[]
+    if (editingWorld) {
+      next = worlds.map((x) => (x.id === w.id ? w : x))
+      setEditingWorld(null)
+    } else {
+      next = [...worlds, w]
+    }
     setWorlds(next)
     await storage.saveWorlds(next)
     setPage('landing')
   }
 
-  const addAdventure = async (a: Adventure) => {
-    const next = [...templateAdventures, a]
+  const handleSubmitTemplate = async (a: Adventure) => {
+    let next: Adventure[]
+    if (editingTemplate) {
+      next = templateAdventures.map((x) => (x.id === a.id ? a : x))
+      setEditingTemplate(null)
+    } else {
+      next = [...templateAdventures, a]
+    }
     setTemplateAdventures(next)
     await storage.saveTemplateAdventures(next)
     setPage('landing')
   }
 
-  const startAdventure = async (a: Adventure) => {
-    const next = [...inProgressAdventures, a]
+  const handleStartOrUpdateInProgress = async (a: Adventure) => {
+    let next: Adventure[]
+    if (editingInProgress) {
+      next = inProgressAdventures.map((x) => (x.id === a.id ? a : x))
+      setEditingInProgress(null)
+    } else {
+      next = [...inProgressAdventures, a]
+    }
     setInProgressAdventures(next)
     await storage.saveInProgressAdventures(next)
   }
 
-  const deleteCharacter = async (idx: number) => {
-    const next = characters.filter((_, i) => i !== idx)
-    setCharacters(next)
-    await storage.saveCharacters(next)
-  }
+    // DeleteCharacter handler is now provided inline in the list
 
-  const deleteWorld = async (idx: number) => {
-    const next = worlds.filter((_, i) => i !== idx)
-    setWorlds(next)
-    await storage.saveWorlds(next)
-  }
+    // DeleteWorld handler is now provided inline in the list
 
-  const deleteTemplate = async (idx: number) => {
-    const next = templateAdventures.filter((_, i) => i !== idx)
-    setTemplateAdventures(next)
-    await storage.saveTemplateAdventures(next)
-  }
+    // DeleteTemplate handler is now provided inline in the list
 
-  const deleteInProgress = async (idx: number) => {
-    const next = inProgressAdventures.filter((_, i) => i !== idx)
-    setInProgressAdventures(next)
-    await storage.saveInProgressAdventures(next)
-  }
+    // DeleteInProgress handler is now provided inline in the list
 
   // Load from browser storage on mount
   useEffect(() => {
@@ -82,25 +97,33 @@ export default function App() {
   return (
     <div className="app-container">
       {page === 'landing' && (
-        <div className="landing">
-          <h1>Magic Worlds RPG</h1>
-          <div className="landing-buttons">
-            <button className="landing-button" onClick={() => goTo('character')}>
-              Create New Character
-            </button>
-            <button className="landing-button" onClick={() => goTo('world')}>
-              Create New World
-            </button>
-            <button className="landing-button" onClick={() => goTo('adventure')}>
-              Create New Adventure
-            </button>
+                <div className="landing">
+                    <h1>Magic Worlds RPG</h1>
+                    <div className="landing-buttons">
+                        <button className="landing-button" onClick={() => goTo('character')}>
+                            Create New Character
+                        </button>
+                        <button className="landing-button" onClick={() => goTo('world')}>
+                            Create New World
+                        </button>
+                        <button className="landing-button" onClick={() => goTo('adventure')}>
+                            Create New Adventure
+                        </button>
           </div>
 
           <div className="list-section">
             <h3>Characters</h3>
             <CharacterList
               characters={characters}
-              onDelete={deleteCharacter}
+              onEdit={(c) => {
+                setEditingCharacter(c)
+                goTo('character')
+              }}
+              onDelete={async (idx) => {
+                const next = characters.filter((_, i) => i !== idx)
+                setCharacters(next)
+                await storage.saveCharacters(next)
+              }}
             />
           </div>
 
@@ -108,7 +131,15 @@ export default function App() {
             <h3>Worlds</h3>
             <WorldList
               worlds={worlds}
-              onDelete={deleteWorld}
+              onEdit={(w) => {
+                setEditingWorld(w)
+                goTo('world')
+              }}
+              onDelete={async (idx) => {
+                const next = worlds.filter((_, i) => i !== idx)
+                setWorlds(next)
+                await storage.saveWorlds(next)
+              }}
             />
           </div>
 
@@ -116,8 +147,16 @@ export default function App() {
             <h3>Adventure Templates</h3>
             <TemplateList
               templates={templateAdventures}
-              onStart={startAdventure}
-              onDelete={deleteTemplate}
+              onEdit={(t) => {
+                setEditingTemplate(t)
+                goTo('adventure')
+              }}
+              onStart={(t) => handleStartOrUpdateInProgress(t)}
+              onDelete={async (idx) => {
+                const next = templateAdventures.filter((_, i) => i !== idx)
+                setTemplateAdventures(next)
+                await storage.saveTemplateAdventures(next)
+              }}
             />
           </div>
 
@@ -125,28 +164,78 @@ export default function App() {
             <h3>Adventures In Progress</h3>
             <InProgressList
               adventures={inProgressAdventures}
-              onDelete={deleteInProgress}
+              onEdit={(a) => {
+                setEditingInProgress(a)
+                goTo('adventure')
+              }}
+              onDelete={async (idx) => {
+                const next = inProgressAdventures.filter((_, i) => i !== idx)
+                setInProgressAdventures(next)
+                await storage.saveInProgressAdventures(next)
+              }}
             />
           </div>
-        </div>
-      )}
+
+          <div className="list-section">
+            <button
+              className="delete-button"
+              onClick={() => setConfirmClear(true)}
+            >
+              Clear All Data
+            </button>
+            <ConfirmDialog
+              visible={confirmClear}
+              message="Delete all stored data for Magic Worlds?"
+              onConfirm={async () => {
+                await storage.clearAll()
+                setCharacters([])
+                setWorlds([])
+                setTemplateAdventures([])
+                setInProgressAdventures([])
+                setConfirmClear(false)
+              }}
+              onCancel={() => setConfirmClear(false)}
+            />
+          </div>
+
+                </div>
+            )}
 
       {page === 'character' && (
-        <CharacterCreator onSubmit={addCharacter} onBack={() => goTo('landing')} />
+        <CharacterCreator
+          onSubmit={handleSubmitCharacter}
+          onBack={() => {
+            setEditingCharacter(null)
+            goTo('landing')
+          }}
+          initial={editingCharacter ?? undefined}
+        />
       )}
 
       {page === 'world' && (
-        <WorldCreator onSubmit={addWorld} onBack={() => goTo('landing')} />
+        <WorldCreator
+          onSubmit={handleSubmitWorld}
+          onBack={() => {
+            setEditingWorld(null)
+            goTo('landing')
+          }}
+          initial={editingWorld ?? undefined}
+        />
       )}
 
       {page === 'adventure' && (
         <AdventureCreator
           characters={characters}
           worlds={worlds}
-          onSubmit={addAdventure}
-          onBack={() => goTo('landing')}
+          onSubmit={handleSubmitTemplate}
+          onBack={() => {
+            setEditingTemplate(null)
+            setEditingInProgress(null)
+            goTo('landing')
+          }}
+          initial={editingTemplate ?? editingInProgress ?? undefined}
         />
       )}
-    </div>
-  )
+        </div>
+    )
 }

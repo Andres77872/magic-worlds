@@ -42,4 +42,12 @@ export const storage = {
   async saveInProgressAdventures(advs: Adventure[]): Promise<void> {
     localStorage.setItem(KEY_IN_PROGRESS, JSON.stringify(advs))
   },
+
+  /** Remove all stored data for this app */
+  async clearAll(): Promise<void> {
+    localStorage.removeItem(KEY_CHARACTERS)
+    localStorage.removeItem(KEY_WORLDS)
+    localStorage.removeItem(KEY_TEMPLATES)
+    localStorage.removeItem(KEY_IN_PROGRESS)
+  },
 }

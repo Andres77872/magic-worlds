@@ -6,13 +6,18 @@ import '../App.css'
 export function WorldCreator({
   onSubmit,
   onBack,
+  initial,
 }: {
   onSubmit: (w: World) => void
   onBack: () => void
+  initial?: World
 }) {
-  const [name, setName] = useState('')
-  const [type, setType] = useState('')
-  const [details, setDetails] = useState<{ key: string; value: string }[]>([])
+  const [id] = useState(initial?.id ?? crypto.randomUUID())
+  const [name, setName] = useState(initial?.name ?? '')
+  const [type, setType] = useState(initial?.type ?? '')
+  const [details, setDetails] = useState<{ key: string; value: string }[]>(
+    initial ? Object.entries(initial.details).map(([key, value]) => ({ key, value })) : [],
+  )
 
   const addDetail = () => setDetails((prev) => [...prev, { key: '', value: '' }])
 
@@ -34,7 +39,7 @@ export function WorldCreator({
       if (cur.key) acc[cur.key] = cur.value
       return acc
     }, {})
-    onSubmit({ name, type, details: detailsRecord })
+    onSubmit({ id, name, type, details: detailsRecord })
   }
 
   return (
