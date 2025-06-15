@@ -1,11 +1,13 @@
+@import './css/variables/index.css';
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-family: var(--font-family-base);
+  line-height: var(--line-height-normal);
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color: var(--text-color);
+  background-color: var(--background-color-website);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
