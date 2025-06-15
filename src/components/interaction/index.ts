@@ -1,5 +1,8 @@
 // Export all interaction components
-export * from './InteractionCenterPanel'
-export * from './InteractionLeftPanel'
-export * from './InteractionRightPanel'
+export { ChatPanel } from './ChatPanel'
+export { InteractionCenterPanel } from './InteractionCenterPanel'
+export { InteractionLeftPanel } from './InteractionLeftPanel'
+export { InteractionRightPanel } from './InteractionRightPanel'
+
+export type { Message } from '../../types'
 export * from './ChatPanel'

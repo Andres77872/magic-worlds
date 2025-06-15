@@ -45,6 +45,7 @@ export interface TurnEntry {
  * A single chat message in the adventure conversation.
  */
 export interface Message {
+  isLoading?: boolean;
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp?: string
