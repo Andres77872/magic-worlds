@@ -27,3 +27,11 @@ export interface TurnEntry {
   user: string
   assistant: string
 }
+
+/**
+ * A single chat message in the adventure conversation.
+ */
+export interface Message {
+  role: 'user' | 'assistant'
+  content: string
+}

@@ -1,19 +1,13 @@
-import { useState, useRef, useEffect } from 'react'
+
+import { useState, useEffect } from 'react'
 import type { FormEvent, Dispatch, SetStateAction } from 'react'
 import '../App.css'
 import { storage } from '../services/storage'
-
+import type { Adventure, TurnEntry, Message } from '../types'
+import { ChatPanel } from './ChatPanel'
 const API_URL = 'https://magic.arz.ai/chat/openai/v1/completion'
 const API_KEY = 'DUMMY_API_KEY'
 const MODEL_ID = 'agt-29122b8b-b1af-4536-84b9-cf1abe02efa5'
-
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-}
-
-
-import type { Adventure, TurnEntry } from '../types'
 
 export function InteractionCenterPanel({
   adventure,
@@ -26,14 +20,11 @@ export function InteractionCenterPanel({
 }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState('')
-  const chatEndRef = useRef<HTMLDivElement | null>(null)
 
-  // Scroll to bottom on new message
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    storage.loadTurns(adventure.id).then(setTurns)
+  }, [adventure.id])
 
-  // On initial load of turns, seed the chat window with past exchanges
   useEffect(() => {
     if (messages.length === 0 && turns.length > 0) {
       const initial: Message[] = turns.flatMap((t) => [
@@ -42,16 +33,14 @@ export function InteractionCenterPanel({
       ])
       setMessages(initial)
     }
-  }, [turns, messages.length])
+  }, [turns])
 
-  // Reset the conversation for this adventure
   const handleReset = () => {
     setMessages([])
     setTurns([])
     storage.saveTurns(adventure.id, [])
   }
 
-  // Handle user form submit and stream AI response
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     const userText = inputValue.trim()
@@ -158,37 +147,12 @@ Respond to the user inputs as the assistant.`
   }
 
   return (
-    <div className="center-panel">
-      <button
-        type="button"
-        className="reset-button"
-        onClick={handleReset}
-      >
-        Reset Adventure
-      </button>
-      <div className="chat-window">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`chat-message ${msg.role}`}>
-            <strong>{msg.role === 'user' ? 'You' : 'AI'}:</strong> {msg.content}
-          </div>
-        ))}
-        <div ref={chatEndRef} />
-      </div>
-      <form
-        onSubmit={handleSubmit}
-        className="chat-input-container"
-      >
-        <input
-          type="text"
-          className="field-input"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Type your message..."
-        />
-        <button type="submit" className="submit-button">
-          Send
-        </button>
-      </form>
-    </div>
+    <ChatPanel
+      messages={messages}
+      inputValue={inputValue}
+      onInputChange={(e) => setInputValue(e.target.value)}
+      onSubmit={handleSubmit}
+      onReset={handleReset}
+    />
   )
 }
