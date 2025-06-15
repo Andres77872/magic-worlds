@@ -1,7 +1,7 @@
 import type {ReactNode} from 'react'
 import {useEffect, useRef} from 'react'
 import {FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaTimes} from 'react-icons/fa'
-import '../App.css'
+import '../styles/App.css'
 
 export type ConfirmVariant = 'danger' | 'warning' | 'info' | 'success'
 

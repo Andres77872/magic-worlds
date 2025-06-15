@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import './App.css'
+import './styles/App.css'
 import type {ThemeOption} from './components/Header'
 import {Header} from './components/Header'
 import {storage} from './services/storage'

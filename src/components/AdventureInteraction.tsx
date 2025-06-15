@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react'
 import type {Adventure, TurnEntry} from '../types'
 import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel} from './interaction'
-import '../App.css'
+import '../styles/App.css'
 import {storage} from '../services/storage'
 
 export function AdventureInteraction({
@@ -56,16 +56,22 @@ export function AdventureInteraction({
 
     return (
         <div className="interaction-container">
-            <button className="back-button" onClick={onBack}>
+            <button className="back-button back-area" onClick={onBack}>
                 ← Back
             </button>
-            <InteractionLeftPanel adventure={adventure}/>
-            <InteractionCenterPanel
-                adventure={adventure}
-                turns={turns}
-                setTurns={setTurns}
-            />
-            <InteractionRightPanel adventure={adventure} turns={turns}/>
+            <div className="left-area">
+                <InteractionLeftPanel adventure={adventure}/>
+            </div>
+            <div className="center-area">
+                <InteractionCenterPanel
+                    adventure={adventure}
+                    turns={turns}
+                    setTurns={setTurns}
+                />
+            </div>
+            <div className="right-area">
+                <InteractionRightPanel adventure={adventure} turns={turns}/>
+            </div>
         </div>
     )
 }

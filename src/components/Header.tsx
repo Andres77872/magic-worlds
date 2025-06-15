@@ -1,6 +1,6 @@
 import type {Dispatch, SetStateAction} from 'react'
 import {useEffect} from 'react'
-import '../App.css'
+import '../styles/App.css'
 
 export type ThemeOption = 'light' | 'dark' | 'system'
 
