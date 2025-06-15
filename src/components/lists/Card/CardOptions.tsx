@@ -128,7 +128,7 @@ export function CardOptions({
                 aria-disabled={disabled}
                 type="button"
             >
-                <FaEllipsisV aria-hidden="true"/>
+                <FaEllipsisV/>
             </button>
 
             <div
