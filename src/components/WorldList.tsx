@@ -25,15 +25,16 @@ export function WorldList({
       {worlds.length === 0 ? (
         <p>No worlds yet.</p>
       ) : (
-        <CardGrid>
-          {worlds.map((w, idx) => {
-            const actions: CardOption[] = [
+        <CardGrid
+          items={worlds}
+          renderCard={(w, idx) => {
+            const options: CardOption[] = [
               { type: 'open', onClick: () => onEdit(w) },
               { type: 'delete', onClick: () => setPending({ idx, name: w.name }) },
             ]
-            return <Card key={w.id} title={`${w.name} (${w.type})`} actions={actions} />
-          })}
-        </CardGrid>
+            return <Card title={`${w.name} (${w.type})`} actions={options} />
+          }}
+        />
       )}
       <ConfirmDialog
         visible={pending !== null}

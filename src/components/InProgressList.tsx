@@ -25,15 +25,16 @@ export function InProgressList({
       {adventures.length === 0 ? (
         <p>No adventures in progress.</p>
       ) : (
-        <CardGrid>
-          {adventures.map((a, idx) => {
-            const actions: CardOption[] = [
+        <CardGrid
+          items={adventures}
+          renderCard={(a, idx) => {
+            const options: CardOption[] = [
               { type: 'open', onClick: () => onEdit(a) },
               { type: 'delete', onClick: () => setPending({ idx, name: a.scenario }) },
             ]
-            return <Card key={a.id} title={a.scenario} actions={actions} />
-          })}
-        </CardGrid>
+            return <Card key={a.id} title={a.scenario} actions={options} />
+          }}
+        />
       )}
       <ConfirmDialog
         visible={pending !== null}

@@ -25,17 +25,16 @@ export function CharacterList({
       {characters.length === 0 ? (
         <p>No characters yet.</p>
       ) : (
-        <CardGrid>
-          {characters.map((c, idx) => {
-            const actions: CardOption[] = [
+        <CardGrid
+          items={characters}
+          renderCard={(c, idx) => {
+            const options: CardOption[] = [
               { type: 'open', onClick: () => onEdit(c) },
               { type: 'delete', onClick: () => setPending({ idx, name: c.name }) },
             ]
-            return (
-              <Card key={c.id} title={`${c.name} (${c.race})`} actions={actions} />
-            )
-          })}
-        </CardGrid>
+            return <Card title={`${c.name} (${c.race})`} actions={options} />
+          }}
+        />
       )}
       <ConfirmDialog
         visible={pending !== null}

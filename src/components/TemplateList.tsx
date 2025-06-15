@@ -27,16 +27,17 @@ export function TemplateList({
       {templates.length === 0 ? (
         <p>No adventure templates yet.</p>
       ) : (
-        <CardGrid>
-          {templates.map((t, idx) => {
-            const actions: CardOption[] = [
+        <CardGrid
+          items={templates}
+          renderCard={(t, idx) => {
+            const options: CardOption[] = [
               { type: 'open', onClick: () => onEdit(t) },
               { type: 'start', onClick: () => onStart(t) },
               { type: 'delete', onClick: () => setPending({ idx, name: t.scenario }) },
             ]
-            return <Card key={t.id} title={t.scenario} actions={actions} />
-          })}
-        </CardGrid>
+            return <Card title={t.scenario} actions={options} />
+          }}
+        />
       )}
       <ConfirmDialog
         visible={pending !== null}
