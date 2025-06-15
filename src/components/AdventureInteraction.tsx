@@ -1,14 +1,10 @@
 import { useState } from 'react'
-import type { Adventure } from '../types'
+import type { Adventure, TurnEntry } from '../types'
 import { InteractionLeftPanel } from './InteractionLeftPanel'
 import { InteractionCenterPanel } from './InteractionCenterPanel'
 import { InteractionRightPanel } from './InteractionRightPanel'
 import '../App.css'
 
-interface TurnEntry {
-  number: number
-  input: string
-}
 
 export function AdventureInteraction({
   adventure,
@@ -17,8 +13,8 @@ export function AdventureInteraction({
   adventure: Adventure
   onBack: () => void
 }) {
-  // Placeholder turns list, starts empty
-  const [turns] = useState<TurnEntry[]>([])
+  // List of completed user/assistant turns
+  const [turns, setTurns] = useState<TurnEntry[]>([])
 
   return (
     <div className="interaction-container">
@@ -26,7 +22,11 @@ export function AdventureInteraction({
         ← Back
       </button>
       <InteractionLeftPanel adventure={adventure} />
-      <InteractionCenterPanel />
+      <InteractionCenterPanel
+        adventure={adventure}
+        turns={turns}
+        setTurns={setTurns}
+      />
       <InteractionRightPanel adventure={adventure} turns={turns} />
     </div>
   )

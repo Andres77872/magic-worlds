@@ -18,3 +18,12 @@ export type Adventure = {
   characters: Character[]
   worlds: World[]
 }
+
+/**
+ * A complete turn of user input and AI response in an adventure.
+ */
+export interface TurnEntry {
+  number: number
+  user: string
+  assistant: string
+}

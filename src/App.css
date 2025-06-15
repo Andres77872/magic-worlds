@@ -82,6 +82,11 @@
 .chat-input-container .field-input {
   flex: 1;
 }
+
+/* Turn summary lines in right panel */
+.turn-summary {
+  margin-left: var(--padding-small);
+}
 .confirm-overlay {
   position: fixed;
   top: 0;
@@ -349,6 +354,23 @@
 }
 
 .delete-button:hover {
+  opacity: 0.8;
+
+}
+
+/* Button to reset the adventure conversation */
+.reset-button {
+  padding: var(--padding-small) var(--padding-medium);
+  border: none;
+  border-radius: var(--border-radius-small);
+  background-color: var(--color-messages-error);
+  color: var(--color-brighter);
+  cursor: pointer;
+  transition: var(--transition-colors);
+  margin-bottom: var(--margin-small);
+}
+
+.reset-button:hover {
   opacity: 0.8;
 }
 

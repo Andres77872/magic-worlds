@@ -1,10 +1,6 @@
-import type { Adventure } from '../types'
+import type { Adventure, TurnEntry } from '../types'
 import '../App.css'
 
-interface TurnEntry {
-  number: number
-  input: string
-}
 
 export function InteractionRightPanel({
   adventure,
@@ -22,11 +18,19 @@ export function InteractionRightPanel({
         <p>No turns yet.</p>
       ) : (
         <ul>
-          {turns.map((t) => (
-            <li key={t.number}>
-              <strong>Turn {t.number}:</strong> {t.input.slice(0, 50)}
-            </li>
-          ))}
+        {turns.map((t) => (
+          <li key={t.number}>
+            <strong>Turn {t.number}:</strong>
+            <div className="turn-summary">
+              <em>You:</em> {t.user.slice(0, 50)}
+              {t.user.length > 50 ? '...' : ''}
+            </div>
+            <div className="turn-summary">
+              <em>AI:</em> {t.assistant.slice(0, 50)}
+              {t.assistant.length > 50 ? '...' : ''}
+            </div>
+          </li>
+        ))}
         </ul>
       )}
     </div>

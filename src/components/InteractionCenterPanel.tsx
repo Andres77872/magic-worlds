@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, Dispatch, SetStateAction } from 'react'
 import '../App.css'
 
 const API_URL = 'https://magic.arz.ai/chat/openai/v1/completion'
@@ -11,7 +11,18 @@ interface Message {
   content: string
 }
 
-export function InteractionCenterPanel() {
+
+import type { Adventure, TurnEntry } from '../types'
+
+export function InteractionCenterPanel({
+  adventure,
+  turns,
+  setTurns,
+}: {
+  adventure: Adventure
+  turns: TurnEntry[]
+  setTurns: Dispatch<SetStateAction<TurnEntry[]>>
+}) {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState('')
   const chatEndRef = useRef<HTMLDivElement | null>(null)
@@ -21,24 +32,50 @@ export function InteractionCenterPanel() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Reset the conversation for this adventure
+  const handleReset = () => {
+    setMessages([])
+    setTurns([])
+  }
+
   // Handle user form submit and stream AI response
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     const userText = inputValue.trim()
     if (!userText) return
-    // Add user message
+    // Add user message locally
     setMessages((msgs) => [...msgs, { role: 'user', content: userText }])
     setInputValue('')
     // Placeholder for AI response
     setMessages((msgs) => [...msgs, { role: 'assistant', content: '' }])
     try {
+      // Build system prompt with adventure details and history
+      const systemPrompt = `You are the game master for an adventure.
+Scenario: ${adventure.scenario}
+Characters: ${adventure.characters.map((c) => c.name).join(', ')}
+Worlds: ${adventure.worlds.map((w) => w.name).join(', ')}
+Respond to the user inputs as the assistant.`
+
+      const history = turns.flatMap((t) => [
+        { role: 'user', content: t.user },
+        { role: 'assistant', content: t.assistant },
+      ])
+
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${API_KEY}`,
         },
-        body: JSON.stringify({ model: MODEL_ID, stream: true, messages: [{ role: 'user', content: userText }] }),
+        body: JSON.stringify({
+          model: MODEL_ID,
+          stream: true,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...history,
+            { role: 'user', content: userText },
+          ],
+        }),
       })
       if (!response.ok || !response.body) {
         throw new Error(`API error: ${response.status} ${response.statusText}`)
@@ -79,6 +116,11 @@ export function InteractionCenterPanel() {
           }
         }
       }
+      // After streaming completes, record this turn
+      setTurns((prev) => [
+        ...prev,
+        { number: prev.length + 1, user: userText, assistant: assistantContent },
+      ])
     } catch (err) {
       console.error('Streaming error', err)
     }
@@ -86,6 +128,13 @@ export function InteractionCenterPanel() {
 
   return (
     <div className="center-panel">
+      <button
+        type="button"
+        className="reset-button"
+        onClick={handleReset}
+      >
+        Reset Adventure
+      </button>
       <div className="chat-window">
         {messages.map((msg, idx) => (
           <div key={idx} className={`chat-message ${msg.role}`}>
@@ -94,7 +143,10 @@ export function InteractionCenterPanel() {
         ))}
         <div ref={chatEndRef} />
       </div>
-      <form onSubmit={handleSubmit} className="chat-input-container">
+      <form
+        onSubmit={handleSubmit}
+        className="chat-input-container"
+      >
         <input
           type="text"
           className="field-input"
