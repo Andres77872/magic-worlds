@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { Adventure } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
-import { ListItemActions } from './ListItemActions'
+import { CardGrid } from './CardGrid'
+import { Card } from './Card'
+import type { ListAction } from './ListItemActions'
 import '../App.css'
 
 export function TemplateList({
@@ -25,25 +27,16 @@ export function TemplateList({
       {templates.length === 0 ? (
         <p>No adventure templates yet.</p>
       ) : (
-        <ul className="list">
-          {templates.map((t, idx) => (
-            <li key={idx} className="list-item">
-              <button
-                className="list-item-link"
-                onClick={() => onEdit(t)}
-              >
-                {t.scenario}
-              </button>
-              <ListItemActions
-                actions={[
-                  { type: 'open', onClick: () => onEdit(t) },
-                  { type: 'start', onClick: () => onStart(t) },
-                  { type: 'delete', onClick: () => setPending({ idx, name: t.scenario }) },
-                ]}
-              />
-            </li>
-          ))}
-        </ul>
+        <CardGrid>
+          {templates.map((t, idx) => {
+            const actions: ListAction[] = [
+              { type: 'open', onClick: () => onEdit(t) },
+              { type: 'start', onClick: () => onStart(t) },
+              { type: 'delete', onClick: () => setPending({ idx, name: t.scenario }) },
+            ]
+            return <Card key={t.id} title={t.scenario} actions={actions} />
+          })}
+        </CardGrid>
       )}
       <ConfirmDialog
         visible={pending !== null}

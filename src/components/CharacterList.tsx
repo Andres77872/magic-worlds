@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { Character } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
-import { ListItemActions } from './ListItemActions'
+import { CardGrid } from './CardGrid'
+import { Card } from './Card'
+import type { ListAction } from './ListItemActions'
 import '../App.css'
 
 export function CharacterList({
@@ -23,24 +25,17 @@ export function CharacterList({
       {characters.length === 0 ? (
         <p>No characters yet.</p>
       ) : (
-        <ul className="list">
-          {characters.map((c, idx) => (
-            <li key={idx} className="list-item">
-              <button
-                className="list-item-link"
-                onClick={() => onEdit(c)}
-              >
-                {c.name} ({c.race})
-              </button>
-              <ListItemActions
-                actions={[
-                  { type: 'open', onClick: () => onEdit(c) },
-                  { type: 'delete', onClick: () => setPending({ idx, name: c.name }) },
-                ]}
-              />
-            </li>
-          ))}
-        </ul>
+        <CardGrid>
+          {characters.map((c, idx) => {
+            const actions: ListAction[] = [
+              { type: 'open', onClick: () => onEdit(c) },
+              { type: 'delete', onClick: () => setPending({ idx, name: c.name }) },
+            ]
+            return (
+              <Card key={c.id} title={`${c.name} (${c.race})`} actions={actions} />
+            )
+          })}
+        </CardGrid>
       )}
       <ConfirmDialog
         visible={pending !== null}

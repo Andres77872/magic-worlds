@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { World } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
-import { ListItemActions } from './ListItemActions'
+import { CardGrid } from './CardGrid'
+import { Card } from './Card'
+import type { ListAction } from './ListItemActions'
 import '../App.css'
 
 export function WorldList({
@@ -23,24 +25,15 @@ export function WorldList({
       {worlds.length === 0 ? (
         <p>No worlds yet.</p>
       ) : (
-        <ul className="list">
-          {worlds.map((w, idx) => (
-            <li key={idx} className="list-item">
-              <button
-                className="list-item-link"
-                onClick={() => onEdit(w)}
-              >
-                {w.name} ({w.type})
-              </button>
-              <ListItemActions
-                actions={[
-                  { type: 'open', onClick: () => onEdit(w) },
-                  { type: 'delete', onClick: () => setPending({ idx, name: w.name }) },
-                ]}
-              />
-            </li>
-          ))}
-        </ul>
+        <CardGrid>
+          {worlds.map((w, idx) => {
+            const actions: ListAction[] = [
+              { type: 'open', onClick: () => onEdit(w) },
+              { type: 'delete', onClick: () => setPending({ idx, name: w.name }) },
+            ]
+            return <Card key={w.id} title={`${w.name} (${w.type})`} actions={actions} />
+          })}
+        </CardGrid>
       )}
       <ConfirmDialog
         visible={pending !== null}

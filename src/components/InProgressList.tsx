@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import type { Adventure } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
+import { CardGrid } from './CardGrid'
+import { Card } from './Card'
+import type { ListAction } from './ListItemActions'
 import '../App.css'
 
 export function InProgressList({
@@ -22,27 +25,15 @@ export function InProgressList({
       {adventures.length === 0 ? (
         <p>No adventures in progress.</p>
       ) : (
-        <ul className="list">
-          {adventures.map((a, idx) => (
-            <li key={idx} className="list-item">
-              <span>{a.scenario}</span>
-              <div>
-                <button
-                  className="edit-button"
-                  onClick={() => onEdit(a)}
-                >
-                  Open
-                </button>
-                <button
-                  className="delete-button"
-                  onClick={() => setPending({ idx, name: a.scenario })}
-                >
-                  Delete
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <CardGrid>
+          {adventures.map((a, idx) => {
+            const actions: ListAction[] = [
+              { type: 'open', onClick: () => onEdit(a) },
+              { type: 'delete', onClick: () => setPending({ idx, name: a.scenario }) },
+            ]
+            return <Card key={a.id} title={a.scenario} actions={actions} />
+          })}
+        </CardGrid>
       )}
       <ConfirmDialog
         visible={pending !== null}
