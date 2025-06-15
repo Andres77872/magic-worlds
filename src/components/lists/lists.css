@@ -1,34 +1,36 @@
 /* ===== Loading States ===== */
 .loading-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 4rem 2rem;
-  min-height: 300px;
-  text-align: center;
-  color: var(--text-color-secondary);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 4rem 2rem;
+    min-height: 300px;
+    text-align: center;
+    color: var(--text-color-secondary);
 }
 
 .loading-container p {
-  margin-top: 1rem;
-  font-size: 1rem;
-  color: var(--text-color-secondary);
+    margin-top: 1rem;
+    font-size: 1rem;
+    color: var(--text-color-secondary);
 }
 
 .loading-spinner {
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--accent-color);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-  flex-shrink: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+    flex-shrink: 0;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* ===== List Components ===== */
@@ -36,190 +38,190 @@
 .world-list,
 .character-list,
 .template-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-medium);
-  padding: var(--padding-medium) 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-medium);
+    padding: var(--padding-medium) 0;
 }
 
 .empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 3rem 1.5rem;
-  background-color: var(--background-color-secondary);
-  border: 1px dashed var(--border-color);
-  border-radius: var(--border-radius-medium);
-  color: var(--text-color-secondary);
-  margin: 1rem 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 3rem 1.5rem;
+    background-color: var(--background-color-secondary);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--border-radius-medium);
+    color: var(--text-color-secondary);
+    margin: 1rem 0;
 }
 
 .empty-icon {
-  color: var(--accent-color);
-  margin-bottom: 1rem;
-  opacity: 0.7;
+    color: var(--accent-color);
+    margin-bottom: 1rem;
+    opacity: 0.7;
 }
 
 /* ===== Card Grid Container ===== */
 .card-grid-container {
-  width: 100%;
-  max-width: 2000px;
-  margin: 0 auto;
-  padding: 0 var(--padding-medium);
+    width: 100%;
+    max-width: 2000px;
+    margin: 0 auto;
+    padding: 0 var(--padding-medium);
 }
 
 /* Search bar */
 .card-grid-search {
-  margin-bottom: 1.5rem;
-  max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
+    margin-bottom: 1.5rem;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .search-input-container {
-  position: relative;
-  display: flex;
-  align-items: center;
+    position: relative;
+    display: flex;
+    align-items: center;
 }
 
 .search-input {
-  width: 100%;
-  padding: 0.75rem 1rem 0.75rem 2.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  font-size: 1rem;
-  background-color: var(--background-color-secondary);
-  color: var(--text-color);
-  transition: all 0.2s ease;
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 2.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    background-color: var(--background-color-secondary);
+    color: var(--text-color);
+    transition: all 0.2s ease;
 }
 
 .search-input:focus {
-  outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.1);
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.1);
 }
 
 .search-icon {
-  position: absolute;
-  left: 1rem;
-  color: var(--text-color-secondary);
+    position: absolute;
+    left: 1rem;
+    color: var(--text-color-secondary);
 }
 
 .search-spinner {
-  position: absolute;
-  right: 1rem;
-  animation: spin 1s linear infinite;
+    position: absolute;
+    right: 1rem;
+    animation: spin 1s linear infinite;
 }
 
 /* ===== Card Grid Layout ===== */
 .card-grid {
-  --min-card-width: 280px;
-  --max-card-width: 1fr;
-  --grid-gap: 1.5rem;
-  
-  display: grid;
-  gap: var(--grid-gap);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--min-card-width)), var(--max-card-width)));
-  margin: var(--margin-large) 0;
-  padding: 0;
-  width: 100%;
+    --min-card-width: 280px;
+    --max-card-width: 1fr;
+    --grid-gap: 1.5rem;
+
+    display: grid;
+    gap: var(--grid-gap);
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--min-card-width)), var(--max-card-width)));
+    margin: var(--margin-large) 0;
+    padding: 0;
+    width: 100%;
 }
 
 @media (min-width: 1200px) {
-  .card-grid {
-    --min-card-width: 320px;
-  }
+    .card-grid {
+        --min-card-width: 320px;
+    }
 }
 
 @media (max-width: 768px) {
-  .card-grid {
-    --grid-gap: 1rem;
-  }
+    .card-grid {
+        --grid-gap: 1rem;
+    }
 }
 
 @media (max-width: 480px) {
-  .card-grid {
-    --min-card-width: 100%;
-  }
+    .card-grid {
+        --min-card-width: 100%;
+    }
 }
 
 /* End of results */
 .end-of-results {
-  text-align: center;
-  color: var(--text-color-secondary);
-  padding: 2rem 0;
-  font-size: 0.9rem;
+    text-align: center;
+    color: var(--text-color-secondary);
+    padding: 2rem 0;
+    font-size: 0.9rem;
 }
 
 /* Load more trigger (for infinite scroll) */
 .load-more-trigger {
-  height: 1px;
-  width: 100%;
-  margin-top: -1px;
-  pointer-events: none;
+    height: 1px;
+    width: 100%;
+    margin-top: -1px;
+    pointer-events: none;
 }
 
 /* Empty state for grid */
 .empty-state {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 1.5rem;
-  text-align: center;
-  color: var(--text-color-secondary);
-  background-color: var(--background-color-secondary);
-  border: 1px dashed var(--border-color);
-  border-radius: var(--border-radius-medium);
-  margin: 1rem 0;
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1.5rem;
+    text-align: center;
+    color: var(--text-color-secondary);
+    background-color: var(--background-color-secondary);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--border-radius-medium);
+    margin: 1rem 0;
 }
 
 .empty-state .empty-icon {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
-  color: var(--accent-color);
-  opacity: 0.7;
-  transition: transform 0.3s ease;
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: var(--accent-color);
+    opacity: 0.7;
+    transition: transform 0.3s ease;
 }
 
 .empty-state:hover .empty-icon {
-  transform: scale(1.05);
+    transform: scale(1.05);
 }
 
 .empty-state h3 {
-  margin: 0 0 0.5rem;
-  color: var(--text-color);
-  font-size: 1.25rem;
-  font-weight: 600;
+    margin: 0 0 0.5rem;
+    color: var(--text-color);
+    font-size: 1.25rem;
+    font-weight: 600;
 }
 
 .empty-state p {
-  margin: 0.5rem 0 1.5rem;
-  max-width: 400px;
-  line-height: 1.6;
-  color: var(--text-color-secondary);
+    margin: 0.5rem 0 1.5rem;
+    max-width: 400px;
+    line-height: 1.6;
+    color: var(--text-color-secondary);
 }
 
 .empty-state .empty-actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  justify-content: center;
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
 }
 
 @media (max-width: 480px) {
-  .empty-state {
-    padding: 2.5rem 1rem;
-  }
-  
-  .empty-state h3 {
-    font-size: 1.1rem;
-  }
-  
-  .empty-state p {
-    font-size: 0.9rem;
-  }
+    .empty-state {
+        padding: 2.5rem 1rem;
+    }
+
+    .empty-state h3 {
+        font-size: 1.1rem;
+    }
+
+    .empty-state p {
+        font-size: 0.9rem;
+    }
 }
