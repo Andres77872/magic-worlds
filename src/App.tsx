@@ -9,10 +9,11 @@ import { TemplateList } from './components/TemplateList'
 import { InProgressList } from './components/InProgressList'
 import { CharacterList } from './components/CharacterList'
 import { WorldList } from './components/WorldList'
+import { AdventureInteraction } from './components/AdventureInteraction'
 import { ConfirmDialog } from './components/ConfirmDialog'
 
 export default function App() {
-  const [page, setPage] = useState<'landing' | 'character' | 'world' | 'adventure'>('landing')
+  const [page, setPage] = useState<'landing' | 'character' | 'world' | 'adventure' | 'interaction'>('landing')
   const [characters, setCharacters] = useState<Character[]>([])
   const [worlds, setWorlds] = useState<World[]>([])
   const [templateAdventures, setTemplateAdventures] = useState<Adventure[]>([])
@@ -24,7 +25,7 @@ export default function App() {
   const [editingInProgress, setEditingInProgress] = useState<Adventure | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
 
-    const goTo = (next: 'landing' | 'character' | 'world' | 'adventure') => setPage(next)
+  const goTo = (next: 'landing' | 'character' | 'world' | 'adventure' | 'interaction') => setPage(next)
 
   const handleSubmitCharacter = async (c: Character) => {
     let next: Character[]
@@ -166,7 +167,7 @@ export default function App() {
               adventures={inProgressAdventures}
               onEdit={(a) => {
                 setEditingInProgress(a)
-                goTo('adventure')
+                goTo('interaction')
               }}
               onDelete={async (idx) => {
                 const next = inProgressAdventures.filter((_, i) => i !== idx)
@@ -234,6 +235,13 @@ export default function App() {
             goTo('landing')
           }}
           initial={editingTemplate ?? editingInProgress ?? undefined}
+        />
+      )}
+
+      {page === 'interaction' && editingInProgress && (
+        <AdventureInteraction
+          adventure={editingInProgress}
+          onBack={() => goTo('landing')}
         />
       )}
         </div>

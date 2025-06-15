@@ -1,3 +1,22 @@
+.interaction-container {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: var(--gap-large);
+  padding: var(--padding-large);
+  background-color: var(--background-color-secondary);
+  border-radius: var(--border-radius-medium);
+  margin: var(--margin-large) 0;
+}
+
+.left-panel,
+.center-panel,
+.right-panel {
+  background-color: var(--background-color-tertiary);
+  padding: var(--padding-medium);
+  border-radius: var(--border-radius-small);
+  overflow-y: auto;
+  max-height: calc(100vh - 200px);
+}
 .confirm-overlay {
   position: fixed;
   top: 0;
