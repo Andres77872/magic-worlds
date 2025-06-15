@@ -269,14 +269,6 @@
   box-shadow: none;
 }
 
-.send-icon {
-  font-size: 0.9rem;
-}
-
-.send-icon.spin {
-  animation: spin 1s linear infinite;
-}
-
 /* ====== RESPONSIVE DESIGN ====== */
 @media (max-width: 768px) {
   .chat-message {

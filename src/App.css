@@ -13,97 +13,8 @@
   height: 100%;
 }
 
-/* Headings in side panels */
-.left-panel h4,
-.right-panel h4 {
-  margin: 0 0 var(--margin-small);
-  font-size: var(--font-size-large);
-}
 
-.left-panel h5,
-.right-panel h5 {
-  margin: var(--margin-medium) 0 var(--margin-small);
-  font-size: var(--font-size-normal);
-}
 
-.left-panel ul,
-.right-panel ul {
-  padding-left: var(--padding-medium);
-}
-
-.center-panel {
-  display: flex;
-  flex-direction: column;
-  font-size: var(--font-size-normal);
-  color: var(--text-color);
-}
-
-.left-panel,
-.right-panel {
-  background-color: var(--background-color-tertiary);
-  padding: var(--padding-medium);
-  border-radius: var(--border-radius-small);
-  overflow-y: auto;
-  height: 100%;
-  border: var(--border-standard);
-  box-shadow: var(--box-shadow-light);
-}
-
-.center-panel {
-  background-color: var(--background-color-tertiary);
-  padding: var(--padding-medium);
-  border-radius: var(--border-radius-small);
-  height: 100%;
-  border: var(--border-standard);
-  box-shadow: var(--box-shadow-light);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* Chat window: shows messages and scrolls */
-.chat-window {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--padding-medium);
-  background-color: var(--background-color-tertiary);
-  border-radius: var(--border-radius-medium);
-  margin-bottom: var(--margin-medium);
-}
-
-/* Individual chat messages */
-.chat-message {
-  margin-bottom: var(--margin-small);
-  display: inline-block;
-  padding: var(--padding-small) var(--padding-medium);
-  border-radius: var(--border-radius-medium);
-  max-width: 80%;
-  line-height: 1.4;
-}
-
-.chat-message.user {
-  text-align: right;
-  background-color: var(--accent-color);
-  color: var(--color-brighter);
-  align-self: flex-end;
-}
-
-.chat-message.assistant {
-  text-align: left;
-  background-color: var(--background-color-secondary);
-  color: var(--text-color);
-  align-self: flex-start;
-}
-
-/* Input area for new messages */
-.chat-input-container {
-  display: flex;
-  gap: var(--gap-small);
-}
-
-.chat-input-container .field-input {
-  flex: 1;
-}
 
 /* Turn summary lines in right panel */
 .turn-summary {
@@ -211,12 +122,7 @@
   height: var(--font-size-large);
   cursor: pointer;
 }
-/* Loading Spinner */
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
+/* Loading Container */
 .loading-container {
   display: flex;
   justify-content: center;
@@ -225,29 +131,7 @@
   width: 100%;
 }
 
-.loading-spinner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  color: var(--text-color);
-}
-
-.loading-spinner .spinner {
-  width: 3rem;
-  height: 3rem;
-  border: 0.4rem solid var(--border-color);
-  border-top: 0.4rem solid var(--accent-color);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-/* Fade in animation */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
+/* This class uses the fadeIn animation from shared.css */
 .fade-in {
   animation: fadeIn 0.3s ease-in;
 }
@@ -395,21 +279,6 @@
 .right-panel {
   grid-area: right;
 }
-
-.submit-button {
-  padding: var(--padding-medium);
-  border: none;
-  border-radius: var(--border-radius-medium);
-  background-color: var(--accent-color);
-  color: var(--color-brighter);
-  cursor: pointer;
-  transition: var(--transition-colors);
-}
-
-.submit-button:hover {
-  background-color: var(--accent-color-hover);
-}
-
 .list-section {
   margin-top: var(--margin-large);
 }
@@ -494,21 +363,6 @@
 
 }
 
-/* Button to reset the adventure conversation */
-.reset-button {
-  padding: var(--padding-small) var(--padding-medium);
-  border: none;
-  border-radius: var(--border-radius-small);
-  background-color: var(--color-messages-error);
-  color: var(--color-brighter);
-  cursor: pointer;
-  transition: var(--transition-colors);
-  margin-bottom: var(--margin-small);
-}
-
-.reset-button:hover {
-  opacity: 0.8;
-}
 
 @media (max-width: 768px) {
   .interaction-container {
