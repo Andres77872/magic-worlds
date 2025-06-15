@@ -225,10 +225,10 @@
   flex-direction: column;
   flex: 1;
   width: 100%;
-  max-width: 1024px;
+  /*max-width: 1024px;*/
   margin: 0 auto;
   padding: var(--padding-large);
-  overflow: hidden;
+  /*overflow: hidden;*/
 }
 
 .landing {
