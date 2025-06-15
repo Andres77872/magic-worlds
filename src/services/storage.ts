@@ -1,4 +1,4 @@
-import type { Character, World, Adventure } from '../types'
+import type { Character, World, Adventure, TurnEntry } from '../types'
 
 const KEY_CHARACTERS = 'mw_characters'
 const KEY_WORLDS = 'mw_worlds'
@@ -55,17 +55,17 @@ export const storage = {
   /**
    * Load saved turns (user/assistant exchanges) for a given adventure.
    */
-  async loadTurns(adventureId: string): Promise<any[]> {
+  async loadTurns(adventureId: string): Promise<TurnEntry[]> {
     const raw = localStorage.getItem(KEY_TURNS)
-    const all = raw ? JSON.parse(raw) : {}
+    const all: Record<string, TurnEntry[]> = raw ? JSON.parse(raw) : {}
     return all[adventureId] ?? []
   },
   /**
    * Persist turns for a given adventure.
    */
-  async saveTurns(adventureId: string, turns: any[]): Promise<void> {
+  async saveTurns(adventureId: string, turns: TurnEntry[]): Promise<void> {
     const raw = localStorage.getItem(KEY_TURNS)
-    const all = raw ? JSON.parse(raw) : {}
+    const all: Record<string, TurnEntry[]> = raw ? JSON.parse(raw) : {}
     all[adventureId] = turns
     localStorage.setItem(KEY_TURNS, JSON.stringify(all))
   },

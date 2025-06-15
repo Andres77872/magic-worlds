@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { FormEvent, Dispatch, SetStateAction } from 'react'
 import '../App.css'
+import { storage } from '../services/storage'
 
 const API_URL = 'https://magic.arz.ai/chat/openai/v1/completion'
 const API_KEY = 'DUMMY_API_KEY'
@@ -47,6 +48,7 @@ export function InteractionCenterPanel({
   const handleReset = () => {
     setMessages([])
     setTurns([])
+    storage.saveTurns(adventure.id, [])
   }
 
   // Handle user form submit and stream AI response
@@ -142,10 +144,14 @@ Respond to the user inputs as the assistant.`
         }
       }
       // After streaming completes, record this turn
-      setTurns((prev) => [
-        ...prev,
-        { number: prev.length + 1, user: userText, assistant: assistantContent },
-      ])
+      setTurns((prev) => {
+        const next = [
+          ...prev,
+          { number: prev.length + 1, user: userText, assistant: assistantContent },
+        ]
+        storage.saveTurns(adventure.id, next)
+        return next
+      })
     } catch (err) {
       console.error('Streaming error', err)
     }

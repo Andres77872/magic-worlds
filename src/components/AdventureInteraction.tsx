@@ -19,9 +19,6 @@ export function AdventureInteraction({
   useEffect(() => {
     storage.loadTurns(adventure.id).then(setTurns)
   }, [adventure.id])
-  useEffect(() => {
-    storage.saveTurns(adventure.id, turns)
-  }, [adventure.id, turns])
 
   return (
     <div className="interaction-container">
