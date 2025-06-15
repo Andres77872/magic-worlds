@@ -7,6 +7,8 @@ import { WorldCreator } from './components/WorldCreator'
 import { AdventureCreator } from './components/AdventureCreator'
 import { TemplateList } from './components/TemplateList'
 import { InProgressList } from './components/InProgressList'
+import { CharacterList } from './components/CharacterList'
+import { WorldList } from './components/WorldList'
 
 export default function App() {
   const [page, setPage] = useState<'landing' | 'character' | 'world' | 'adventure'>('landing')
@@ -17,23 +19,55 @@ export default function App() {
 
   const goTo = (next: 'landing' | 'character' | 'world' | 'adventure') => setPage(next)
 
-  const addCharacter = (c: Character) => {
-    setCharacters((prev) => [...prev, c])
+  const addCharacter = async (c: Character) => {
+    const next = [...characters, c]
+    setCharacters(next)
+    await storage.saveCharacters(next)
     setPage('landing')
   }
 
-  const addWorld = (w: World) => {
-    setWorlds((prev) => [...prev, w])
+  const addWorld = async (w: World) => {
+    const next = [...worlds, w]
+    setWorlds(next)
+    await storage.saveWorlds(next)
     setPage('landing')
   }
 
-  const addAdventure = (a: Adventure) => {
-    setTemplateAdventures((prev) => [...prev, a])
+  const addAdventure = async (a: Adventure) => {
+    const next = [...templateAdventures, a]
+    setTemplateAdventures(next)
+    await storage.saveTemplateAdventures(next)
     setPage('landing')
   }
 
-  const startAdventure = (a: Adventure) => {
-    setInProgressAdventures((prev) => [...prev, a])
+  const startAdventure = async (a: Adventure) => {
+    const next = [...inProgressAdventures, a]
+    setInProgressAdventures(next)
+    await storage.saveInProgressAdventures(next)
+  }
+
+  const deleteCharacter = async (idx: number) => {
+    const next = characters.filter((_, i) => i !== idx)
+    setCharacters(next)
+    await storage.saveCharacters(next)
+  }
+
+  const deleteWorld = async (idx: number) => {
+    const next = worlds.filter((_, i) => i !== idx)
+    setWorlds(next)
+    await storage.saveWorlds(next)
+  }
+
+  const deleteTemplate = async (idx: number) => {
+    const next = templateAdventures.filter((_, i) => i !== idx)
+    setTemplateAdventures(next)
+    await storage.saveTemplateAdventures(next)
+  }
+
+  const deleteInProgress = async (idx: number) => {
+    const next = inProgressAdventures.filter((_, i) => i !== idx)
+    setInProgressAdventures(next)
+    await storage.saveInProgressAdventures(next)
   }
 
   // Load from browser storage on mount
@@ -44,11 +78,6 @@ export default function App() {
     storage.loadInProgressAdventures().then(setInProgressAdventures)
   }, [])
 
-  // Persist changes to browser storage
-  useEffect(() => { storage.saveCharacters(characters) }, [characters])
-  useEffect(() => { storage.saveWorlds(worlds) }, [worlds])
-  useEffect(() => { storage.saveTemplateAdventures(templateAdventures) }, [templateAdventures])
-  useEffect(() => { storage.saveInProgressAdventures(inProgressAdventures) }, [inProgressAdventures])
 
   return (
     <div className="app-container">
@@ -68,13 +97,36 @@ export default function App() {
           </div>
 
           <div className="list-section">
+            <h3>Characters</h3>
+            <CharacterList
+              characters={characters}
+              onDelete={deleteCharacter}
+            />
+          </div>
+
+          <div className="list-section">
+            <h3>Worlds</h3>
+            <WorldList
+              worlds={worlds}
+              onDelete={deleteWorld}
+            />
+          </div>
+
+          <div className="list-section">
             <h3>Adventure Templates</h3>
-            <TemplateList templates={templateAdventures} onStart={startAdventure} />
+            <TemplateList
+              templates={templateAdventures}
+              onStart={startAdventure}
+              onDelete={deleteTemplate}
+            />
           </div>
 
           <div className="list-section">
             <h3>Adventures In Progress</h3>
-            <InProgressList adventures={inProgressAdventures} />
+            <InProgressList
+              adventures={inProgressAdventures}
+              onDelete={deleteInProgress}
+            />
           </div>
         </div>
       )}

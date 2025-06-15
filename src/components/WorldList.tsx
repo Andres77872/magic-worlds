@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import type { Adventure } from '../types'
+import type { World } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
 import '../App.css'
 
-export function InProgressList({
-  adventures,
+export function WorldList({
+  worlds,
   onDelete,
 }: {
-  adventures: Adventure[]
+  worlds: World[]
   onDelete: (index: number) => void
 }) {
   const [pending, setPending] = useState<{
@@ -17,16 +17,16 @@ export function InProgressList({
 
   return (
     <>
-      {adventures.length === 0 ? (
-        <p>No adventures in progress.</p>
+      {worlds.length === 0 ? (
+        <p>No worlds yet.</p>
       ) : (
         <ul className="list">
-          {adventures.map((a, idx) => (
+          {worlds.map((w, idx) => (
             <li key={idx} className="list-item">
-              <span>{a.scenario}</span>
+              <span>{w.name} ({w.type})</span>
               <button
                 className="delete-button"
-                onClick={() => setPending({ idx, name: a.scenario })}
+                onClick={() => setPending({ idx, name: w.name })}
               >
                 Delete
               </button>
@@ -36,7 +36,7 @@ export function InProgressList({
       )}
       <ConfirmDialog
         visible={pending !== null}
-        message={pending ? `Delete in‑progress "${pending.name}"?` : ''}
+        message={pending ? `Delete world "${pending.name}"?` : ''}
         onConfirm={() => {
           onDelete(pending!.idx)
           setPending(null)

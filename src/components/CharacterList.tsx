@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import type { Adventure } from '../types'
+import type { Character } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
 import '../App.css'
 
-export function InProgressList({
-  adventures,
+export function CharacterList({
+  characters,
   onDelete,
 }: {
-  adventures: Adventure[]
+  characters: Character[]
   onDelete: (index: number) => void
 }) {
   const [pending, setPending] = useState<{
@@ -17,16 +17,16 @@ export function InProgressList({
 
   return (
     <>
-      {adventures.length === 0 ? (
-        <p>No adventures in progress.</p>
+      {characters.length === 0 ? (
+        <p>No characters yet.</p>
       ) : (
         <ul className="list">
-          {adventures.map((a, idx) => (
+          {characters.map((c, idx) => (
             <li key={idx} className="list-item">
-              <span>{a.scenario}</span>
+              <span>{c.name} ({c.race})</span>
               <button
                 className="delete-button"
-                onClick={() => setPending({ idx, name: a.scenario })}
+                onClick={() => setPending({ idx, name: c.name })}
               >
                 Delete
               </button>
@@ -36,7 +36,7 @@ export function InProgressList({
       )}
       <ConfirmDialog
         visible={pending !== null}
-        message={pending ? `Delete in‑progress "${pending.name}"?` : ''}
+        message={pending ? `Delete character "${pending.name}"?` : ''}
         onConfirm={() => {
           onDelete(pending!.idx)
           setPending(null)
