@@ -1,5 +1,14 @@
 @import './css/variables/index.css';
 
+/* Global box-sizing and prevent unwanted horizontal scroll */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+html, body {
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
 :root {
   font-family: var(--font-family-base);
   line-height: var(--line-height-normal);

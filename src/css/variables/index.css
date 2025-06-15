@@ -5,7 +5,7 @@
 @import './spacing.css';
 @import './borders.css';
 @import './effects.css';
-@import './components.css';
+/* Component-specific vars not used; import removed */
 
 /* Global styles that were in the original variables.css */
 *::-webkit-scrollbar {
