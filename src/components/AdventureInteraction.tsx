@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import type { Adventure, TurnEntry } from '../types'
-import { InteractionLeftPanel } from './InteractionLeftPanel'
-import { InteractionCenterPanel } from './InteractionCenterPanel'
-import { InteractionRightPanel } from './InteractionRightPanel'
+import { 
+  InteractionLeftPanel, 
+  InteractionCenterPanel, 
+  InteractionRightPanel 
+} from './interaction'
 import '../App.css'
 import { storage } from '../services/storage'
 

@@ -11,8 +11,9 @@ export * from './WorldCreator'
 export * from './AdventureCreator'
 export * from './AdventureInteraction'
 export * from './LandingPage'
+// Interaction components
+export * from './interaction'
+
+// Other components
 export { ConfirmDialog } from './ConfirmDialog'
-export { InteractionLeftPanel } from './InteractionLeftPanel'
-export { InteractionCenterPanel } from './InteractionCenterPanel'
-export { InteractionRightPanel } from './InteractionRightPanel'
 export { AdventureInteraction } from './AdventureInteraction'
