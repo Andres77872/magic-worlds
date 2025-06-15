@@ -2,17 +2,13 @@ import {useEffect, useState} from 'react'
 import './App.css'
 import { Header } from './components/Header'
 import type { ThemeOption } from './components/Header'
-import {storage} from './services/storage'
-import type {Adventure, Character, World} from './types'
+import { storage } from './services/storage'
+import type { Adventure, Character, World } from './types'
 import { CharacterCreator } from './components/CharacterCreator'
 import { WorldCreator } from './components/WorldCreator'
 import { AdventureCreator } from './components/AdventureCreator'
-import { TemplateList } from './components/TemplateList'
-import { InProgressList } from './components/InProgressList'
-import { CharacterList } from './components/CharacterList'
-import { WorldList } from './components/WorldList'
 import { AdventureInteraction } from './components/AdventureInteraction'
-import { ConfirmDialog } from './components/ConfirmDialog'
+import { LandingPage } from './components/LandingPage'
 
 export default function App() {
   const [page, setPage] = useState<'landing' | 'character' | 'world' | 'adventure' | 'interaction'>('landing')
@@ -122,112 +118,64 @@ const [theme, setTheme] = useState<ThemeOption>(() => {
       <Header theme={theme} setTheme={setTheme} goTo={goTo} />
       <main className="app-main">
         {page === 'landing' && (
-          <div className="landing">
-            <div className="landing-buttons">
-                        <button className="landing-button" onClick={() => goTo('character')}>
-                            Create New Character
-                        </button>
-                        <button className="landing-button" onClick={() => goTo('world')}>
-                            Create New World
-                        </button>
-                        <button className="landing-button" onClick={() => goTo('adventure')}>
-                            Create New Adventure
-                        </button>
-          </div>
-
-          <div className="list-section">
-            <h3>Characters</h3>
-            <CharacterList
-              characters={characters}
-              onEdit={(c) => {
-                setEditingCharacter(c)
-                goTo('character')
-              }}
-              onDelete={async (idx) => {
-                const next = characters.filter((_, i) => i !== idx)
-                setCharacters(next)
-                await storage.saveCharacters(next)
-              }}
-            />
-          </div>
-
-          <div className="list-section">
-            <h3>Worlds</h3>
-            <WorldList
-              worlds={worlds}
-              onEdit={(w) => {
-                setEditingWorld(w)
-                goTo('world')
-              }}
-              onDelete={async (idx) => {
-                const next = worlds.filter((_, i) => i !== idx)
-                setWorlds(next)
-                await storage.saveWorlds(next)
-              }}
-            />
-          </div>
-
-          <div className="list-section">
-            <h3>Adventure Templates</h3>
-            <TemplateList
-              templates={templateAdventures}
-              onEdit={(t) => {
-                setEditingTemplate(t)
-                goTo('adventure')
-              }}
-              onStart={(t) => {
-                // Start a fresh in-progress adventure instance
-                const instance: Adventure = { ...t, id: crypto.randomUUID() }
-                handleStartOrUpdateInProgress(instance)
-              }}
-              onDelete={async (idx) => {
-                const next = templateAdventures.filter((_, i) => i !== idx)
-                setTemplateAdventures(next)
-                await storage.saveTemplateAdventures(next)
-              }}
-            />
-          </div>
-
-          <div className="list-section">
-            <h3>Adventures In Progress</h3>
-            <InProgressList
-              adventures={inProgressAdventures}
-              onEdit={(a) => {
-                setEditingInProgress(a)
-                goTo('interaction')
-              }}
-              onDelete={async (idx) => {
-                const next = inProgressAdventures.filter((_, i) => i !== idx)
-                setInProgressAdventures(next)
-                await storage.saveInProgressAdventures(next)
-              }}
-            />
-          </div>
-
-          <div className="list-section">
-            <button
-              className="delete-button"
-              onClick={() => setConfirmClear(true)}
-            >
-              Clear All Data
-            </button>
-            <ConfirmDialog
-              visible={confirmClear}
-              message="Delete all stored data for Magic Worlds?"
-              onConfirm={async () => {
-                await storage.clearAll()
-                setCharacters([])
-                setWorlds([])
-                setTemplateAdventures([])
-                setInProgressAdventures([])
-                setConfirmClear(false)
-              }}
-              onCancel={() => setConfirmClear(false)}
-            />
-          </div>
-
-                </div>
-            )}
+          <LandingPage
+            characters={characters}
+            worlds={worlds}
+            templateAdventures={templateAdventures}
+            inProgressAdventures={inProgressAdventures}
+            onCharacterEdit={(c) => {
+              setEditingCharacter(c)
+              goTo('character')
+            }}
+            onCharacterDelete={async (idx) => {
+              const next = characters.filter((_, i) => i !== idx)
+              setCharacters(next)
+              await storage.saveCharacters(next)
+            }}
+            onWorldEdit={(w) => {
+              setEditingWorld(w)
+              goTo('world')
+            }}
+            onWorldDelete={async (idx) => {
+              const next = worlds.filter((_, i) => i !== idx)
+              setWorlds(next)
+              await storage.saveWorlds(next)
+            }}
+            onTemplateEdit={(t) => {
+              setEditingTemplate(t)
+              goTo('adventure')
+            }}
+            onTemplateStart={(t) => {
+              const instance: Adventure = { ...t, id: crypto.randomUUID() }
+              handleStartOrUpdateInProgress(instance)
+            }}
+            onTemplateDelete={async (idx) => {
+              const next = templateAdventures.filter((_, i) => i !== idx)
+              setTemplateAdventures(next)
+              await storage.saveTemplateAdventures(next)
+            }}
+            onInProgressEdit={(a) => {
+              setEditingInProgress(a)
+              goTo('interaction')
+            }}
+            onInProgressDelete={async (idx) => {
+              const next = inProgressAdventures.filter((_, i) => i !== idx)
+              setInProgressAdventures(next)
+              await storage.saveInProgressAdventures(next)
+            }}
+            onClearAll={async () => {
+              await storage.clearAll()
+              setCharacters([])
+              setWorlds([])
+              setTemplateAdventures([])
+              setInProgressAdventures([])
+              setConfirmClear(false)
+            }}
+            onGoTo={goTo}
+            confirmClear={confirmClear}
+            setConfirmClear={setConfirmClear}
+          />
+        )}
 
       {page === 'character' && (
         <CharacterCreator
