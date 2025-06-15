@@ -119,7 +119,15 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <div className="theme-toggle">
+      <header className="app-header">
+        <img
+          src="/react.svg"
+          alt="Magic Worlds Logo"
+          className="app-logo"
+          onClick={() => goTo('landing')}
+        />
+        <div className="app-title">Magic Worlds RPG</div>
+        <div className="theme-toggle">
         <label className="field-label">
           Theme:
           <select
@@ -136,11 +144,12 @@ export default function App() {
             <option value="dark">Dark</option>
           </select>
         </label>
-      </div>
-      {page === 'landing' && (
-                <div className="landing">
-                    <h1>Magic Worlds RPG</h1>
-                    <div className="landing-buttons">
+        </div>
+      </header>
+      <main className="app-main">
+        {page === 'landing' && (
+          <div className="landing">
+            <div className="landing-buttons">
                         <button className="landing-button" onClick={() => goTo('character')}>
                             Create New Character
                         </button>
@@ -282,12 +291,13 @@ export default function App() {
         />
       )}
 
-      {page === 'interaction' && editingInProgress && (
-        <AdventureInteraction
-          adventure={editingInProgress}
-          onBack={() => goTo('landing')}
-        />
-      )}
-        </div>
-    )
+        {page === 'interaction' && editingInProgress && (
+          <AdventureInteraction
+            adventure={editingInProgress}
+            onBack={() => goTo('landing')}
+          />
+        )}
+      </main>
+    </div>
+  )
 }
