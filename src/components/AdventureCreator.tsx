@@ -25,10 +25,6 @@ export function AdventureCreator({
     initial ? initial.worlds.map((w) => w.name) : [],
   )
 
-  const handleCharChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    const opts = Array.from(e.target.selectedOptions).map((o) => o.value)
-    setSelectedChars(opts)
-  }
 
   const handleWorldChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const opts = Array.from(e.target.selectedOptions).map((o) => o.value)
@@ -59,18 +55,31 @@ export function AdventureCreator({
       </div>
       <div className="form-field">
         <label className="field-label">Choose Characters</label>
-        <select
-          className="field-input"
-          multiple
-          value={selectedChars}
-          onChange={handleCharChange}
-        >
-          {characters.map((c) => (
-            <option key={c.name} value={c.name}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <div className="checkbox-group">
+          {characters.length === 0 ? (
+            <p>No characters available.</p>
+          ) : (
+            characters.map((c) => (
+              <label key={c.id} className="checkbox-label">
+                <input
+                  type="checkbox"
+                  value={c.name}
+                  checked={selectedChars.includes(c.name)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedChars((prev) => [...prev, c.name])
+                    } else {
+                      setSelectedChars((prev) =>
+                        prev.filter((name) => name !== c.name),
+                      )
+                    }
+                  }}
+                />
+                {c.name}
+              </label>
+            ))
+          )}
+        </div>
       </div>
       <div className="form-field">
         <label className="field-label">Choose Worlds</label>

@@ -1,11 +1,43 @@
 .interaction-container {
   display: grid;
-  grid-template-columns: 1fr 2fr 1fr;
+  grid-template-areas:
+    "back back back"
+    "left center right";
+  grid-template-columns: minmax(240px, 1fr) 2fr minmax(240px, 1fr);
+  grid-template-rows: auto 1fr;
   gap: var(--gap-large);
   padding: var(--padding-large);
   background-color: var(--background-color-secondary);
   border-radius: var(--border-radius-medium);
   margin: var(--margin-large) 0;
+}
+
+/* Headings in side panels */
+.left-panel h4,
+.right-panel h4 {
+  margin: 0 0 var(--margin-small);
+  font-size: var(--font-size-large);
+}
+
+.left-panel h5,
+.right-panel h5 {
+  margin: var(--margin-medium) 0 var(--margin-small);
+  font-size: var(--font-size-normal);
+}
+
+.left-panel ul,
+.right-panel ul {
+  padding-left: var(--padding-medium);
+}
+
+/* Center placeholder */
+.center-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-large);
+  color: var(--accent-color);
+  min-height: 200px;
 }
 
 .left-panel,
@@ -16,6 +48,8 @@
   border-radius: var(--border-radius-small);
   overflow-y: auto;
   max-height: calc(100vh - 200px);
+  border: var(--border-standard);
+  box-shadow: var(--box-shadow-light);
 }
 .confirm-overlay {
   position: fixed;
@@ -147,6 +181,19 @@
   color: var(--text-color);
 }
 
+/* Checkbox list for multi-character selection */
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-small);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-small);
+}
+
 .add-stat-button {
   padding: var(--padding-small) var(--padding-medium);
   border: none;
@@ -167,6 +214,7 @@
 }
 
 .back-button {
+  grid-area: back;
   padding: var(--padding-medium);
   border: var(--border-standard);
   background-color: var(--background-color-primary);
@@ -177,6 +225,19 @@
 
 .back-button:hover {
   background-color: var(--background-color-hover);
+}
+
+
+.left-panel {
+  grid-area: left;
+}
+
+.center-panel {
+  grid-area: center;
+}
+
+.right-panel {
+  grid-area: right;
 }
 
 .submit-button {
@@ -258,4 +319,22 @@
 
 .delete-button:hover {
   opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .interaction-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto;
+    grid-template-areas:
+      "back"
+      "left"
+      "center"
+      "right";
+  }
+
+  .left-panel,
+  .center-panel,
+  .right-panel {
+    max-height: none;
+  }
 }
