@@ -12,8 +12,14 @@ import { WorldList } from './components/WorldList'
 import { AdventureInteraction } from './components/AdventureInteraction'
 import { ConfirmDialog } from './components/ConfirmDialog'
 
+type ThemeOption = 'light' | 'dark' | 'system'
+
 export default function App() {
   const [page, setPage] = useState<'landing' | 'character' | 'world' | 'adventure' | 'interaction'>('landing')
+  const [theme, setTheme] = useState<ThemeOption>(() => {
+    const stored = localStorage.getItem('theme')
+    return stored === 'light' || stored === 'dark' ? stored : 'system'
+  })
   const [characters, setCharacters] = useState<Character[]>([])
   const [worlds, setWorlds] = useState<World[]>([])
   const [templateAdventures, setTemplateAdventures] = useState<Adventure[]>([])
@@ -87,6 +93,7 @@ export default function App() {
     // DeleteInProgress handler is now provided inline in the list
 
   // Load from browser storage on mount
+  // Load saved data on mount
   useEffect(() => {
     storage.loadCharacters().then(setCharacters)
     storage.loadWorlds().then(setWorlds)
@@ -94,9 +101,42 @@ export default function App() {
     storage.loadInProgressAdventures().then(setInProgressAdventures)
   }, [])
 
+  // Watch and apply theme setting (with system fallback)
+  useEffect(() => {
+    const apply = (mode: ThemeOption) => {
+      const dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+    }
+    apply(theme)
+    if (theme === 'system') {
+      const mql = window.matchMedia('(prefers-color-scheme: dark)')
+      const listener = () => apply('system')
+      mql.addEventListener('change', listener)
+      return () => mql.removeEventListener('change', listener)
+    }
+  }, [theme])
+
 
   return (
     <div className="app-container">
+      <div className="theme-toggle">
+        <label className="field-label">
+          Theme:
+          <select
+            className="field-input"
+            value={theme}
+            onChange={(e) => {
+              const t = e.target.value as ThemeOption
+              setTheme(t)
+              localStorage.setItem('theme', t)
+            }}
+          >
+            <option value="system">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
+      </div>
       {page === 'landing' && (
                 <div className="landing">
                     <h1>Magic Worlds RPG</h1>
