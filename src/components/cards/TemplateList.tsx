@@ -5,7 +5,7 @@ import { CardGrid } from './CardGrid'
 import { Card } from './Card'
 import type { CardOption } from './CardOptions'
 import { FaPlay, FaTrash, FaEdit } from 'react-icons/fa'
-import '../../App.css'
+import './cards.css'
 
 interface TemplateListProps {
   templates: Adventure[]

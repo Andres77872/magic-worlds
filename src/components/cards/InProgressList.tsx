@@ -5,7 +5,7 @@ import { CardGrid } from './CardGrid'
 import { Card } from './Card'
 import type { CardOption } from './CardOptions'
 import { FaTrash, FaPlay, FaEdit } from 'react-icons/fa'
-import '../../App.css'
+import './cards.css'
 
 interface InProgressListProps {
   adventures: Adventure[]

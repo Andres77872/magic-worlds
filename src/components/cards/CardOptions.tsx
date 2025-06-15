@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { FaEllipsisV } from 'react-icons/fa'
-import '../../App.css'
+import './cards.css'
 
 export type CardOptionType = 'open' | 'edit' | 'start' | 'delete' | 'custom'
 

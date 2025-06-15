@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import '../../App.css'
+import './cards.css'
 
 interface CardGridProps<T> {
   items: T[]

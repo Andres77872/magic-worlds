@@ -5,7 +5,7 @@ import { CardGrid } from './CardGrid'
 import { Card } from './Card'
 import type { CardOption } from './CardOptions'
 import { FaTrash, FaEdit, FaGlobe } from 'react-icons/fa'
-import '../../App.css'
+import './cards.css'
 
 interface WorldListProps {
   worlds: World[]
