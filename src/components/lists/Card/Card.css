@@ -1,19 +1,15 @@
 /* Card Component Styles */
 .card {
-    --card-padding: 1.5rem;
-    --card-border-radius: 12px;
-    --card-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-    --card-hover-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
     background-color: var(--background-color-secondary);
-    border-radius: var(--card-border-radius);
-    box-shadow: var(--card-shadow);
+    border-radius: var(--border-radius-large);
+    box-shadow: var(--box-shadow);
     overflow: hidden;
-    transition: all 0.3s ease;
+    transition: var(--transition-standard);
     position: relative;
     height: 100%;
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--border-color);
+    border: var(--border-standard);
 }
 
 .card.clickable {
@@ -21,12 +17,12 @@
 }
 
 .card:hover {
-    box-shadow: var(--card-hover-shadow);
+    box-shadow: var(--box-shadow-hover);
     transform: translateY(-2px);
 }
 
 .card:focus-visible {
-    outline: 2px solid var(--accent-color);
+    outline: var(--focus-outline);
     outline-offset: 2px;
 }
 
@@ -45,9 +41,9 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: var(--card-padding);
+    padding: var(--padding-large);
     padding-bottom: 0.75rem;
-    gap: 0.75rem;
+    gap: var(--gap-small);
 }
 
 .card-header-content {
@@ -56,14 +52,14 @@
 }
 
 .card-title {
-    font-size: 1.125rem;
+    font-size: var(--font-size-normal);
     font-weight: 600;
-    margin: 0 0 0.25rem;
+    margin: 0 0 var(--padding-small);
     color: var(--text-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--gap-small);
 }
 
 .card-title-text {
@@ -73,7 +69,7 @@
 }
 
 .card-subtitle {
-    font-size: 0.875rem;
+    font-size: var(--font-size-small);
     color: var(--text-color-secondary);
     margin: 0;
     line-height: 1.4;
@@ -94,7 +90,7 @@
 
 /* Card Content */
 .card-content {
-    padding: 0 var(--card-padding) var(--card-padding);
+    padding: 0 var(--padding-large) var(--padding-large);
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -107,7 +103,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(255, 255, 255, 0.8);
+    background-color: var(--background-transparency-light);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -119,10 +115,10 @@
 .card-loading-spinner {
     width: 2rem;
     height: 2rem;
-    border: 3px solid var(--border-color);
+    border: var(--border-standard);
     border-top-color: var(--accent-color);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: var(--spin-animation);
 }
 
 @keyframes spin {
@@ -143,13 +139,13 @@
     background: none;
     border: none;
     color: var(--text-color-secondary);
-    padding: 0.5rem;
-    border-radius: 4px;
+    padding: var(--padding-small);
+    border-radius: var(--border-radius-small);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
+    transition: var(--transition-standard);
     width: 2rem;
     height: 2rem;
 }
@@ -160,7 +156,7 @@
 }
 
 .card-options-button:focus-visible {
-    outline: 2px solid var(--accent-color);
+    outline: var(--focus-outline);
     outline-offset: 2px;
 }
 
@@ -169,16 +165,16 @@
     top: 100%;
     right: 0;
     background: var(--background-color-primary);
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    border-radius: var(--border-radius-medium);
+    box-shadow: var(--box-shadow-dark);
     min-width: 180px;
     z-index: 100;
     overflow: hidden;
     opacity: 0;
     transform: translateY(-10px);
     visibility: hidden;
-    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
-    border: 1px solid var(--border-color);
+    transition: var(--transition-standard);
+    border: var(--border-standard);
 }
 
 .card-options-menu[data-enter] {
@@ -196,15 +192,15 @@
     display: flex;
     align-items: center;
     width: 100%;
-    padding: 0.5rem 1rem;
+    padding: var(--padding-small) var(--padding-medium);
     background: none;
     border: none;
     color: var(--text-color);
     text-align: left;
     cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 0.875rem;
-    gap: 0.5rem;
+    transition: var(--transition-standard);
+    font-size: var(--font-size-small);
+    gap: var(--gap-small);
 }
 
 .card-options-item:hover {
@@ -241,14 +237,14 @@
     background: none;
     border: none;
     color: var(--text-color-secondary);
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+    padding: calc(var(--padding-small) / 2) var(--padding-small);
+    border-radius: var(--border-radius-small);
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    transition: all 0.2s ease;
+    gap: var(--gap-small);
+    font-size: var(--font-size-small);
+    transition: var(--transition-standard);
 }
 
 .card-option-single:hover {
@@ -266,7 +262,7 @@
     );
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
-    border-radius: 4px;
+    border-radius: var(--border-radius-small);
     color: transparent;
     position: relative;
     overflow: hidden;
@@ -284,8 +280,8 @@
 .skeleton-card {
     height: 100%;
     width: 100%;
-    border-radius: var(--card-border-radius);
-    margin-bottom: 1rem;
+    border-radius: var(--border-radius-large);
+    margin-bottom: var(--margin-medium);
 }
 
 /* Visually hidden utility class */
