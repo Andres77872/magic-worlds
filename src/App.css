@@ -11,6 +11,8 @@
     border-radius: var(--border-radius-medium);
     margin: 0;
     height: 100%;
+    max-height: 100vh;
+    overflow: hidden;
 }
 
 
@@ -143,7 +145,7 @@
     /*max-width: 1024px;*/
     margin: 0 auto;
     padding: var(--padding-large);
-    /*overflow: hidden;*/
+    overflow: auto;
 }
 
 .landing {
@@ -262,10 +264,6 @@
     grid-area: left;
 }
 
-.center-panel {
-    grid-area: center;
-}
-
 .right-panel {
     grid-area: right;
 }
@@ -327,7 +325,6 @@
     }
 
     .left-panel,
-    .center-panel,
     .right-panel {
         height: auto;
         max-height: none;

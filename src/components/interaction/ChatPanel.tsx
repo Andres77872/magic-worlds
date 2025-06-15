@@ -73,7 +73,7 @@ export function ChatPanel({
     }
 
     return (
-        <div className="center-panel">
+        <div className="chat-panel">
             <div className="chat-header">
                 <h3>Adventure Chat</h3>
                 <button

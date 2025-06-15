@@ -1,6 +1,15 @@
 /* ChatPanel Component Styles */
 @import './shared.css';
 
+.chat-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: 100vh;
+    overflow: hidden;
+    position: relative;
+}
+
 /* ====== CHAT HEADER ====== */
 .chat-header {
     display: flex;
@@ -63,6 +72,12 @@
     padding: var(--padding-medium);
     background: var(--background-color-primary);
     scroll-behavior: smooth;
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-medium);
+    height: calc(100% - 120px); /* Adjust for header and input area */
+    max-height: calc(100vh - 200px); /* Ensure it doesn't exceed window height */
+    overflow-anchor: none;
 }
 
 .chat-message {
@@ -70,6 +85,7 @@
     max-width: 85%;
     animation: fadeIn 0.3s ease-out;
     transition: var(--transition-standard);
+    flex-shrink: 0;
 }
 
 .chat-message.user {
