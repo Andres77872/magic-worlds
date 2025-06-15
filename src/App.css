@@ -9,7 +9,8 @@
   padding: var(--padding-large);
   background-color: var(--background-color-secondary);
   border-radius: var(--border-radius-medium);
-  margin: var(--margin-large) 0;
+  margin: 0;
+  height: 100%;
 }
 
 /* Headings in side panels */
@@ -35,19 +36,29 @@
   flex-direction: column;
   font-size: var(--font-size-normal);
   color: var(--text-color);
-  min-height: 200px;
 }
 
- .left-panel,
- .center-panel,
- .right-panel {
+.left-panel,
+.right-panel {
   background-color: var(--background-color-tertiary);
   padding: var(--padding-medium);
   border-radius: var(--border-radius-small);
   overflow-y: auto;
-  max-height: calc(100vh - 200px);
+  height: 100%;
   border: var(--border-standard);
   box-shadow: var(--box-shadow-light);
+}
+
+.center-panel {
+  background-color: var(--background-color-tertiary);
+  padding: var(--padding-medium);
+  border-radius: var(--border-radius-small);
+  height: 100%;
+  border: var(--border-standard);
+  box-shadow: var(--box-shadow-light);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* Chat window: shows messages and scrolls */
@@ -160,7 +171,7 @@
   justify-content: flex-start;
   align-items: stretch;
   width: 100%;
-  min-height: 100vh;
+  height: 100%;
   padding: var(--padding-large);
   background-color: var(--background-color-primary);
 }
@@ -210,12 +221,14 @@
 
 /* Main content area below header */
 .app-main {
-  padding: var(--padding-large);
+  display: flex;
+  flex-direction: column;
   flex: 1;
   width: 100%;
   max-width: 1024px;
   margin: 0 auto;
-  overflow-y: auto;
+  padding: var(--padding-large);
+  overflow: hidden;
 }
 
 .landing {
@@ -454,6 +467,7 @@
   .left-panel,
   .center-panel,
   .right-panel {
+    height: auto;
     max-height: none;
   }
 }
