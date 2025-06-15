@@ -1,17 +1,39 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { FaEllipsisV } from 'react-icons/fa'
 import '../App.css'
 
-export type CardOptionType = 'open' | 'edit' | 'start' | 'delete'
-export interface CardOption {
+export type CardOptionType = 'open' | 'edit' | 'start' | 'delete' | 'custom'
+
+export interface CardOptionBase {
   type: CardOptionType
-  label?: string
+  label: string
   onClick: () => void
+  disabled?: boolean
+  icon?: React.ReactNode
+  danger?: boolean
+}
+
+export interface CustomCardOption extends Omit<CardOptionBase, 'type'> {
+  type: 'custom'
+  icon: React.ReactNode
+}
+
+export type CardOption = CardOptionBase | CustomCardOption
+
+interface CardOptionsProps {
+  options: CardOption[]
+  align?: 'left' | 'right'
+  className?: string
 }
 
 /**
- * Dropdown menu for card actions, positioned top-right.
+ * Enhanced dropdown menu for card actions with support for icons and danger actions
  */
-export function CardOptions({ options }: { options: CardOption[] }) {
+export function CardOptions({ 
+  options, 
+  align = 'right',
+  className = '' 
+}: CardOptionsProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -21,31 +43,79 @@ export function CardOptions({ options }: { options: CardOption[] }) {
         setOpen(false)
       }
     }
-    document.addEventListener('click', onBodyClick)
-    return () => document.removeEventListener('click', onBodyClick)
-  }, [])
+
+    function onEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setOpen(false)
+      }
+    }
+
+    if (open) {
+      document.addEventListener('click', onBodyClick)
+      document.addEventListener('keydown', onEscape)
+    }
+
+    return () => {
+      document.removeEventListener('click', onBodyClick)
+      document.removeEventListener('keydown', onEscape)
+    }
+  }, [open])
+
+  if (options.length === 0) return null
+
+  // If there's only one option, render it as a button directly
+  if (options.length === 1) {
+    const option = options[0]
+    return (
+      <button
+        className={`card-option-single ${option.danger ? 'danger' : ''} ${className}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          option.onClick()
+        }}
+        disabled={option.disabled}
+        aria-label={option.label}
+      >
+        {option.icon || option.label}
+      </button>
+    )
+  }
 
   return (
-    <div className="card-options" ref={ref}>
+    <div 
+      className={`card-options ${className}`} 
+      ref={ref}
+      onClick={(e) => e.stopPropagation()}
+    >
       <button
         className="card-options-button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Card options"
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen((o) => !o)
+        }}
+        aria-expanded={open}
+        aria-label="More options"
+        disabled={options.every(opt => opt.disabled)}
       >
-        ⋮
+        <FaEllipsisV />
       </button>
+      
       {open && (
-        <div className="card-options-menu">
-          {options.map((opt, i) => (
+        <div className={`card-options-menu ${align}`}>
+          {options.map((option, i) => (
             <button
               key={i}
-              className={`card-options-item ${opt.type}`}
-              onClick={() => {
+              className={`card-options-item ${option.type} ${option.danger ? 'danger' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
                 setOpen(false)
-                opt.onClick()
+                option.onClick()
               }}
+              disabled={option.disabled}
+              aria-label={option.label}
             >
-              {opt.label ?? opt.type.charAt(0).toUpperCase() + opt.type.slice(1)}
+              {option.icon && <span className="option-icon">{option.icon}</span>}
+              <span className="option-label">{option.label}</span>
             </button>
           ))}
         </div>

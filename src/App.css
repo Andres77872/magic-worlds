@@ -211,6 +211,47 @@
   height: var(--font-size-large);
   cursor: pointer;
 }
+/* Loading Spinner */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 60vh;
+  width: 100%;
+}
+
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  color: var(--text-color);
+}
+
+.loading-spinner .spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 0.4rem solid var(--border-color);
+  border-top: 0.4rem solid var(--accent-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
 .app-title {
   flex: 1;
   text-align: center;
@@ -439,7 +480,6 @@
 
 /* Card grid layout and card styling */
 .card-grid {
-.card-grid {
   display: grid;
   gap: var(--gap-medium);
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -447,18 +487,16 @@
 }
 
 /* Minimalistic card styles */
-/* Minimalistic card styles */
 .card {
   position: relative;
   display: flex;
   flex-direction: column;
   background-color: var(--background-color-tertiary);
-  padding: var(--padding-medium);
-  border: none;
-  border-radius: var(--border-radius-small);
+  border: var(--border-standard);
+  border-radius: var(--border-radius-medium);
   box-shadow: var(--box-shadow-light);
-  transition: box-shadow var(--transition-duration-fast, 0.2s) ease,
-              transform var(--transition-duration-fast, 0.2s) ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  overflow: hidden;
   height: 100%;
 }
 

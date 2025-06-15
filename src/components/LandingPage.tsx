@@ -6,6 +6,7 @@ import { InProgressList } from './InProgressList'
 import { ConfirmDialog } from './ConfirmDialog'
 
 interface LandingPageProps {
+  isLoading: boolean
   characters: Character[]
   worlds: World[]
   templateAdventures: Adventure[]
@@ -20,12 +21,13 @@ interface LandingPageProps {
   onInProgressEdit: (adventure: Adventure) => void
   onInProgressDelete: (index: number) => Promise<void>
   onClearAll: () => void
-  onGoTo: (page: 'character' | 'world' | 'adventure') => void
+  onGoTo: (page: 'landing' | 'character' | 'world' | 'adventure' | 'interaction') => void
   confirmClear: boolean
-  setConfirmClear: (show: boolean) => void
+  setConfirmClear: (value: boolean) => void
 }
 
 export function LandingPage({
+  isLoading,
   characters,
   worlds,
   templateAdventures,
@@ -44,6 +46,17 @@ export function LandingPage({
   confirmClear,
   setConfirmClear,
 }: LandingPageProps) {
+  if (isLoading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner">
+          <span className="spinner" />
+          Loading...
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="landing">
       <div className="landing-buttons">

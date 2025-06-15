@@ -21,19 +21,24 @@ export function InteractionCenterPanel({
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState('')
 
+  // Initialize messages from turns when component mounts or turns change
   useEffect(() => {
-    storage.loadTurns(adventure.id).then(setTurns)
-  }, [adventure.id])
-
-  useEffect(() => {
-    if (messages.length === 0 && turns.length > 0) {
+    if (turns.length > 0 && messages.length === 0) {
       const initial: Message[] = turns.flatMap((t) => [
-        { role: 'user', content: t.user },
-        { role: 'assistant', content: t.assistant },
+        { 
+          role: 'user' as const, 
+          content: t.userInput || '', 
+          timestamp: t.timestamp || new Date().toISOString() 
+        },
+        { 
+          role: 'assistant' as const, 
+          content: t.assistantResponse || '', 
+          timestamp: t.timestamp || new Date().toISOString() 
+        },
       ])
       setMessages(initial)
     }
-  }, [turns])
+  }, [turns, messages.length])
 
   const handleReset = () => {
     setMessages([])
@@ -51,30 +56,34 @@ export function InteractionCenterPanel({
     // Placeholder for AI response
     setMessages((msgs) => [...msgs, { role: 'assistant', content: '' }])
     try {
-      // Build system prompt with full adventure context (scenario, characters, worlds)
+      // Build system prompt with full adventure context (scenario, characters, world)
       const charTags = adventure.characters.map((c) => {
         const statsStr = Object.entries(c.stats)
           .map(([k, v]) => `${k}:${v}`)
           .join(', ')
         return `<character id="${c.id}" name="${c.name}" race="${c.race}" stats="${statsStr}" />`
       }).join('\n')
-      const worldTags = adventure.worlds.map((w) => {
-        const detailsStr = Object.entries(w.details)
-          .map(([k, v]) => `${k}:${v}`)
-          .join(', ')
-        return `<world id="${w.id}" name="${w.name}" type="${w.type}" details="${detailsStr}" />`
-      }).join('\n')
+      
+      const world = adventure.world
+      const worldDetails = world ? Object.entries(world.details)
+        .map(([k, v]) => `${k}:${v}`)
+        .join(', ') : 'No world details'
+      
+      const worldTag = world 
+        ? `<world id="${world.id}" name="${world.name}" type="${world.type}" details="${worldDetails}" />`
+        : '<world>No world defined</world>'
+      
       const systemPrompt = `You are the game master for an adventure.
 Scenario: ${adventure.scenario}
 Characters:
 ${charTags}
-Worlds:
-${worldTags}
+World:
+${worldTag}
 Respond to the user inputs as the assistant.`
 
       const history = turns.flatMap((t) => [
-        { role: 'user', content: t.user },
-        { role: 'assistant', content: t.assistant },
+        { role: 'user' as const, content: t.userInput },
+        { role: 'assistant' as const, content: t.assistantResponse },
       ])
 
       const response = await fetch(API_URL, {
@@ -133,10 +142,17 @@ Respond to the user inputs as the assistant.`
         }
       }
       // After streaming completes, record this turn
+      const timestamp = new Date().toISOString()
       setTurns((prev) => {
         const next = [
           ...prev,
-          { number: prev.length + 1, user: userText, assistant: assistantContent },
+          { 
+            number: prev.length + 1, 
+            userInput: userText, 
+            assistantResponse: assistantContent,
+            timestamp,
+            metadata: {}
+          },
         ]
         storage.saveTurns(adventure.id, next)
         return next

@@ -1,22 +1,33 @@
-export type Character = {
+export interface Character {
   id: string
   name: string
   race: string
-  stats: Record<string, string>
+  class?: string
+  stats: Record<string, string | number>
+  description?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
-export type World = {
+export interface World {
   id: string
   name: string
   type: string
+  description?: string
   details: Record<string, string>
+  createdAt?: string
+  updatedAt?: string
 }
 
-export type Adventure = {
+export interface Adventure {
   id: string
   scenario: string
   characters: Character[]
-  worlds: World[]
+  world?: World  // Single world reference instead of array
+  turns?: TurnEntry[]
+  createdAt?: string
+  updatedAt?: string
+  status?: 'draft' | 'in-progress' | 'completed' | 'archived'
 }
 
 /**
@@ -24,14 +35,30 @@ export type Adventure = {
  */
 export interface TurnEntry {
   number: number
-  user: string
-  assistant: string
+  userInput: string
+  assistantResponse: string
+  timestamp?: string
+  metadata?: Record<string, any>
 }
 
 /**
  * A single chat message in the adventure conversation.
  */
 export interface Message {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: string
+  timestamp?: string
+  metadata?: Record<string, any>
+}
+
+/**
+ * Options for card actions in list views
+ */
+export interface CardOption {
+  type: 'custom' | 'edit' | 'delete' | 'start' | 'open'
+  icon?: React.ReactNode
+  label?: string
+  onClick: () => void
+  disabled?: boolean
+  danger?: boolean
 }

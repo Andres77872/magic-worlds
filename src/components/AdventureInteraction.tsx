@@ -13,12 +13,48 @@ export function AdventureInteraction({
   adventure: Adventure
   onBack: () => void
 }) {
-  // List of completed user/assistant turns
   const [turns, setTurns] = useState<TurnEntry[]>([])
-  // Load + persist turns for continuing adventures
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Load turns from storage when component mounts or adventure changes
   useEffect(() => {
-    storage.loadTurns(adventure.id).then(setTurns)
+    let isMounted = true
+    
+    const loadTurns = async () => {
+      try {
+        setIsLoading(true)
+        const loadedTurns = await storage.loadTurns(adventure.id)
+        if (isMounted) {
+          setTurns(loadedTurns)
+        }
+      } catch (error) {
+        console.error('Failed to load turns:', error)
+        if (isMounted) {
+          setTurns([])
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+    
+    loadTurns()
+    
+    return () => {
+      isMounted = false
+    }
   }, [adventure.id])
+
+  if (isLoading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Loading adventure...</p>
+      </div>
+    )
+  }
+
 
   return (
     <div className="interaction-container">
