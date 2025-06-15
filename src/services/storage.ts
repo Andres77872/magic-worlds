@@ -4,6 +4,7 @@ const KEY_CHARACTERS = 'mw_characters'
 const KEY_WORLDS = 'mw_worlds'
 const KEY_TEMPLATES = 'mw_templates'
 const KEY_IN_PROGRESS = 'mw_inProgress'
+const KEY_TURNS = 'mw_turns'
 
 /**
  * Storage provider abstraction. Uses localStorage for now,
@@ -49,5 +50,23 @@ export const storage = {
     localStorage.removeItem(KEY_WORLDS)
     localStorage.removeItem(KEY_TEMPLATES)
     localStorage.removeItem(KEY_IN_PROGRESS)
+    localStorage.removeItem(KEY_TURNS)
+  },
+  /**
+   * Load saved turns (user/assistant exchanges) for a given adventure.
+   */
+  async loadTurns(adventureId: string): Promise<any[]> {
+    const raw = localStorage.getItem(KEY_TURNS)
+    const all = raw ? JSON.parse(raw) : {}
+    return all[adventureId] ?? []
+  },
+  /**
+   * Persist turns for a given adventure.
+   */
+  async saveTurns(adventureId: string, turns: any[]): Promise<void> {
+    const raw = localStorage.getItem(KEY_TURNS)
+    const all = raw ? JSON.parse(raw) : {}
+    all[adventureId] = turns
+    localStorage.setItem(KEY_TURNS, JSON.stringify(all))
   },
 }

@@ -152,7 +152,11 @@ export default function App() {
                 setEditingTemplate(t)
                 goTo('adventure')
               }}
-              onStart={(t) => handleStartOrUpdateInProgress(t)}
+              onStart={(t) => {
+                // Start a fresh in-progress adventure instance
+                const instance: Adventure = { ...t, id: crypto.randomUUID() }
+                handleStartOrUpdateInProgress(instance)
+              }}
               onDelete={async (idx) => {
                 const next = templateAdventures.filter((_, i) => i !== idx)
                 setTemplateAdventures(next)

@@ -32,6 +32,17 @@ export function InteractionCenterPanel({
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // On initial load of turns, seed the chat window with past exchanges
+  useEffect(() => {
+    if (messages.length === 0 && turns.length > 0) {
+      const initial: Message[] = turns.flatMap((t) => [
+        { role: 'user', content: t.user },
+        { role: 'assistant', content: t.assistant },
+      ])
+      setMessages(initial)
+    }
+  }, [turns, messages.length])
+
   // Reset the conversation for this adventure
   const handleReset = () => {
     setMessages([])

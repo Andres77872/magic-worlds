@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Adventure, TurnEntry } from '../types'
 import { InteractionLeftPanel } from './InteractionLeftPanel'
 import { InteractionCenterPanel } from './InteractionCenterPanel'
 import { InteractionRightPanel } from './InteractionRightPanel'
 import '../App.css'
-
+import { storage } from '../services/storage'
 
 export function AdventureInteraction({
   adventure,
@@ -15,6 +15,13 @@ export function AdventureInteraction({
 }) {
   // List of completed user/assistant turns
   const [turns, setTurns] = useState<TurnEntry[]>([])
+  // Load + persist turns for continuing adventures
+  useEffect(() => {
+    storage.loadTurns(adventure.id).then(setTurns)
+  }, [adventure.id])
+  useEffect(() => {
+    storage.saveTurns(adventure.id, turns)
+  }, [adventure.id, turns])
 
   return (
     <div className="interaction-container">
