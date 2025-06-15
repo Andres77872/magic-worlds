@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FaSearch, FaSpinner } from 'react-icons/fa'
-import './cards.css'
+import './Card.css'
 
 interface CardGridProps<T> {
   items: T[]

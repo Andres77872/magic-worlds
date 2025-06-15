@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useMemo } from 'react'
 import { FaChevronRight } from 'react-icons/fa'
 import { CardOptions, type CardOption } from './CardOptions'
-import './cards.css'
+import './Card.css'
 
 interface CardProps {
   title: React.ReactNode

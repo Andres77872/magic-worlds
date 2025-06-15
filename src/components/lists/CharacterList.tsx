@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import type { Character } from '../../types'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { CardGrid } from './CardGrid'
-import { Card } from './Card'
-import type { CardOption } from './CardOptions'
+import { CardGrid } from './Card/CardGrid'
+import { Card } from './Card/Card'
+import type { CardOption } from './Card/CardOptions'
 import { FaUser, FaTrash, FaEdit } from 'react-icons/fa'
 import './cards.css'
 
