@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { FormEvent, KeyboardEvent, ChangeEvent } from 'react'
-import './Interaction.css'
+import './styles/ChatPanel.css'
 import { FaPaperPlane, FaRedo, FaSpinner } from 'react-icons/fa'
 
 interface Message {

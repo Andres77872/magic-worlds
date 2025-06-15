@@ -1,6 +1,6 @@
 import type {Dispatch, FormEvent, SetStateAction} from 'react'
 import {useEffect, useState} from 'react'
-import './Interaction.css'
+import './styles/InteractionCenterPanel.css'
 import {storage} from '../../services/storage'
 import type {Adventure, Message, TurnEntry} from '../../types'
 import {ChatPanel} from './ChatPanel'

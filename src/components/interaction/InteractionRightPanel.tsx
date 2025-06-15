@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import type {Adventure, TurnEntry} from '../../types'
-import './Interaction.css'
+import './styles/InteractionRightPanel.css'
 import {FaChevronDown, FaChevronUp} from 'react-icons/fa'
 
 export function InteractionRightPanel({

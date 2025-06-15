@@ -1,5 +1,5 @@
 import type { Adventure } from '../../types'
-import './Interaction.css'
+import './styles/InteractionLeftPanel.css'
 import { FaGlobe, FaUsers, FaInfoCircle } from 'react-icons/fa'
 
 export function InteractionLeftPanel({ adventure }: { adventure: Adventure }) {
