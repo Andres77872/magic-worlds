@@ -3,7 +3,7 @@ import type { Adventure } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CardGrid } from './CardGrid'
 import { Card } from './Card'
-import type { ListAction } from './ListItemActions'
+import type { CardOption } from './CardOptions'
 import '../App.css'
 
 export function TemplateList({
@@ -29,7 +29,7 @@ export function TemplateList({
       ) : (
         <CardGrid>
           {templates.map((t, idx) => {
-            const actions: ListAction[] = [
+            const actions: CardOption[] = [
               { type: 'open', onClick: () => onEdit(t) },
               { type: 'start', onClick: () => onStart(t) },
               { type: 'delete', onClick: () => setPending({ idx, name: t.scenario }) },

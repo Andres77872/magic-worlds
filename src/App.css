@@ -439,39 +439,107 @@
 
 /* Card grid layout and card styling */
 .card-grid {
+.card-grid {
   display: grid;
   gap: var(--gap-medium);
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin: var(--margin-large) 0;
 }
 
+/* Minimalistic card styles */
+/* Minimalistic card styles */
 .card {
+  position: relative;
   display: flex;
   flex-direction: column;
   background-color: var(--background-color-tertiary);
   padding: var(--padding-medium);
-  border: var(--border-standard);
+  border: none;
   border-radius: var(--border-radius-small);
   box-shadow: var(--box-shadow-light);
+  transition: box-shadow var(--transition-duration-fast, 0.2s) ease,
+              transform var(--transition-duration-fast, 0.2s) ease;
   height: 100%;
 }
 
+/* Card title styling */
+/* Card title styling */
 .card-header {
   font-size: var(--font-size-large);
-  font-weight: 600;
+  font-weight: 500;
   margin-bottom: var(--margin-small);
-  flex-shrink: 0;
+  color: var(--accent-color);
 }
 
+/* Card content area */
+/* Card content area */
 .card-content {
   flex: 1;
   margin-bottom: var(--margin-small);
   overflow: hidden;
 }
 
-.card > div:last-child {
+/* Card actions at bottom */
+
+/* Lift card on hover */
+/* Lift card on hover */
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--box-shadow-dark);
+}
+
+/* Card options dropdown trigger & menu */
+.card-options {
+  position: absolute;
+  top: var(--padding-small);
+  right: var(--padding-small);
+}
+.card-options-button {
+  background: none;
+  border: none;
+  font-size: var(--font-size-large);
+  cursor: pointer;
+  color: var(--text-color-secondary);
+  padding: var(--padding-small);
+  border-radius: var(--border-radius-small);
+}
+.card-options-button:hover {
+  background-color: var(--background-color-focus);
+}
+.card-options-menu {
+  position: absolute;
+  top: calc(100% + var(--padding-small));
+  right: 0;
+  background-color: var(--background-color-primary);
+  border: var(--border-standard);
+  border-radius: var(--border-radius-small);
+  box-shadow: var(--box-shadow-light);
+  z-index: 10;
   display: flex;
-  gap: var(--gap-small);
-  margin-top: auto;
+  flex-direction: column;
+  min-width: 120px;
+}
+.card-options-item {
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  padding: var(--padding-small) var(--padding-medium);
+  cursor: pointer;
+  color: var(--text-color);
+}
+.card-options-item:hover {
+  background-color: var(--background-color-hover);
+}
+.card-options-item.open,
+.card-options-item.edit {
+  color: var(--accent-color);
+}
+.card-options-item.start {
+  color: var(--accent-color);
+}
+.card-options-item.delete {
+  color: var(--color-messages-error);
 }
 
 .delete-button {

@@ -3,7 +3,7 @@ import type { Adventure } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CardGrid } from './CardGrid'
 import { Card } from './Card'
-import type { ListAction } from './ListItemActions'
+import type { CardOption } from './CardOptions'
 import '../App.css'
 
 export function InProgressList({
@@ -27,7 +27,7 @@ export function InProgressList({
       ) : (
         <CardGrid>
           {adventures.map((a, idx) => {
-            const actions: ListAction[] = [
+            const actions: CardOption[] = [
               { type: 'open', onClick: () => onEdit(a) },
               { type: 'delete', onClick: () => setPending({ idx, name: a.scenario }) },
             ]

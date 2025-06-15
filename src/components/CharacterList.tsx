@@ -3,7 +3,7 @@ import type { Character } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CardGrid } from './CardGrid'
 import { Card } from './Card'
-import type { ListAction } from './ListItemActions'
+import type { CardOption } from './CardOptions'
 import '../App.css'
 
 export function CharacterList({
@@ -27,7 +27,7 @@ export function CharacterList({
       ) : (
         <CardGrid>
           {characters.map((c, idx) => {
-            const actions: ListAction[] = [
+            const actions: CardOption[] = [
               { type: 'open', onClick: () => onEdit(c) },
               { type: 'delete', onClick: () => setPending({ idx, name: c.name }) },
             ]

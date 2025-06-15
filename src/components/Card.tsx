@@ -1,6 +1,6 @@
 import React from 'react'
 import '../App.css'
-import { ListItemActions, type ListAction } from './ListItemActions'
+import { CardOptions, type CardOption } from './CardOptions'
 
 /**
  * Generic card component with title, optional content, and action buttons.
@@ -12,13 +12,13 @@ export function Card({
 }: {
   title: string
   children?: React.ReactNode
-  actions?: ListAction[]
+  actions?: CardOption[]
 }) {
   return (
-    <div className="card">
+    <div className="card" role="listitem">
       <div className="card-header">{title}</div>
       {children && <div className="card-content">{children}</div>}
-      {actions && <ListItemActions actions={actions} />}
+      {actions && <CardOptions options={actions} />}
     </div>
   )
 }

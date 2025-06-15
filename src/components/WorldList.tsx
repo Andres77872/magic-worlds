@@ -3,7 +3,7 @@ import type { World } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CardGrid } from './CardGrid'
 import { Card } from './Card'
-import type { ListAction } from './ListItemActions'
+import type { CardOption } from './CardOptions'
 import '../App.css'
 
 export function WorldList({
@@ -27,7 +27,7 @@ export function WorldList({
       ) : (
         <CardGrid>
           {worlds.map((w, idx) => {
-            const actions: ListAction[] = [
+            const actions: CardOption[] = [
               { type: 'open', onClick: () => onEdit(w) },
               { type: 'delete', onClick: () => setPending({ idx, name: w.name }) },
             ]
