@@ -49,11 +49,25 @@ export function InteractionCenterPanel({
     // Placeholder for AI response
     setMessages((msgs) => [...msgs, { role: 'assistant', content: '' }])
     try {
-      // Build system prompt with adventure details and history
+      // Build system prompt with full adventure context (scenario, characters, worlds)
+      const charTags = adventure.characters.map((c) => {
+        const statsStr = Object.entries(c.stats)
+          .map(([k, v]) => `${k}:${v}`)
+          .join(', ')
+        return `<character id="${c.id}" name="${c.name}" race="${c.race}" stats="${statsStr}" />`
+      }).join('\n')
+      const worldTags = adventure.worlds.map((w) => {
+        const detailsStr = Object.entries(w.details)
+          .map(([k, v]) => `${k}:${v}`)
+          .join(', ')
+        return `<world id="${w.id}" name="${w.name}" type="${w.type}" details="${detailsStr}" />`
+      }).join('\n')
       const systemPrompt = `You are the game master for an adventure.
 Scenario: ${adventure.scenario}
-Characters: ${adventure.characters.map((c) => c.name).join(', ')}
-Worlds: ${adventure.worlds.map((w) => w.name).join(', ')}
+Characters:
+${charTags}
+Worlds:
+${worldTags}
 Respond to the user inputs as the assistant.`
 
       const history = turns.flatMap((t) => [
