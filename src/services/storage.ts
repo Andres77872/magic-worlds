@@ -1,0 +1,45 @@
+import type { Character, World, Adventure } from '../types'
+
+const KEY_CHARACTERS = 'mw_characters'
+const KEY_WORLDS = 'mw_worlds'
+const KEY_TEMPLATES = 'mw_templates'
+const KEY_IN_PROGRESS = 'mw_inProgress'
+
+/**
+ * Storage provider abstraction. Uses localStorage for now,
+ * but methods return Promises so they can be swapped
+ * out for API calls in the future.
+ */
+export const storage = {
+  async loadCharacters(): Promise<Character[]> {
+    const raw = localStorage.getItem(KEY_CHARACTERS)
+    return raw ? JSON.parse(raw) : []
+  },
+  async saveCharacters(chars: Character[]): Promise<void> {
+    localStorage.setItem(KEY_CHARACTERS, JSON.stringify(chars))
+  },
+
+  async loadWorlds(): Promise<World[]> {
+    const raw = localStorage.getItem(KEY_WORLDS)
+    return raw ? JSON.parse(raw) : []
+  },
+  async saveWorlds(worlds: World[]): Promise<void> {
+    localStorage.setItem(KEY_WORLDS, JSON.stringify(worlds))
+  },
+
+  async loadTemplateAdventures(): Promise<Adventure[]> {
+    const raw = localStorage.getItem(KEY_TEMPLATES)
+    return raw ? JSON.parse(raw) : []
+  },
+  async saveTemplateAdventures(advs: Adventure[]): Promise<void> {
+    localStorage.setItem(KEY_TEMPLATES, JSON.stringify(advs))
+  },
+
+  async loadInProgressAdventures(): Promise<Adventure[]> {
+    const raw = localStorage.getItem(KEY_IN_PROGRESS)
+    return raw ? JSON.parse(raw) : []
+  },
+  async saveInProgressAdventures(advs: Adventure[]): Promise<void> {
+    localStorage.setItem(KEY_IN_PROGRESS, JSON.stringify(advs))
+  },
+}

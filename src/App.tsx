@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
+import { storage } from './services/storage'
 import type { Character, World, Adventure } from './types'
 import { CharacterCreator } from './components/CharacterCreator'
 import { WorldCreator } from './components/WorldCreator'
@@ -34,6 +35,20 @@ export default function App() {
   const startAdventure = (a: Adventure) => {
     setInProgressAdventures((prev) => [...prev, a])
   }
+
+  // Load from browser storage on mount
+  useEffect(() => {
+    storage.loadCharacters().then(setCharacters)
+    storage.loadWorlds().then(setWorlds)
+    storage.loadTemplateAdventures().then(setTemplateAdventures)
+    storage.loadInProgressAdventures().then(setInProgressAdventures)
+  }, [])
+
+  // Persist changes to browser storage
+  useEffect(() => { storage.saveCharacters(characters) }, [characters])
+  useEffect(() => { storage.saveWorlds(worlds) }, [worlds])
+  useEffect(() => { storage.saveTemplateAdventures(templateAdventures) }, [templateAdventures])
+  useEffect(() => { storage.saveInProgressAdventures(inProgressAdventures) }, [inProgressAdventures])
 
   return (
     <div className="app-container">
