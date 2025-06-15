@@ -111,7 +111,7 @@ export function CardGrid<T>({
     }
   }, [hasMore, loadingMore, onLoadMore])
 
-  // Animation on scroll for cards
+  // Animation on scroll for lists
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -130,7 +130,7 @@ export function CardGrid<T>({
     return () => observer.disconnect()
   }, [items])
 
-  // Memoize the rendered cards to prevent unnecessary re-renders
+  // Memoize the rendered lists to prevent unnecessary re-renders
   const renderedCards = useMemo(() => {
     return items.map((item, index) => (
       <div 

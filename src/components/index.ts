@@ -2,7 +2,7 @@ export { CharacterCreator } from './CharacterCreator'
 export { WorldCreator } from './WorldCreator'
 export { AdventureCreator } from './AdventureCreator'
 // Card components
-export * from './cards'
+export * from './lists'
 
 // Other component exports
 export * from './Header'
