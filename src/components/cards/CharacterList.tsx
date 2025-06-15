@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import type { Character } from '../types'
-import { ConfirmDialog } from './ConfirmDialog'
+import type { Character } from '../../types'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { CardGrid } from './CardGrid'
 import { Card } from './Card'
 import type { CardOption } from './CardOptions'
 import { FaUser, FaTrash, FaEdit } from 'react-icons/fa'
-import '../App.css'
+import '../../App.css'
 
 interface CharacterListProps {
   characters: Character[]

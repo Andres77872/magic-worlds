@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import type { World } from '../types'
-import { ConfirmDialog } from './ConfirmDialog'
+import type { World } from '../../types'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { CardGrid } from './CardGrid'
 import { Card } from './Card'
 import type { CardOption } from './CardOptions'
 import { FaTrash, FaEdit, FaGlobe } from 'react-icons/fa'
-import '../App.css'
+import '../../App.css'
 
 interface WorldListProps {
   worlds: World[]

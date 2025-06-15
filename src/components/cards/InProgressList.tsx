@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import type { Adventure } from '../types'
-import { ConfirmDialog } from './ConfirmDialog'
+import type { Adventure } from '../../types'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { CardGrid } from './CardGrid'
 import { Card } from './Card'
 import type { CardOption } from './CardOptions'
 import { FaTrash, FaPlay, FaEdit } from 'react-icons/fa'
-import '../App.css'
+import '../../App.css'
 
 interface InProgressListProps {
   adventures: Adventure[]

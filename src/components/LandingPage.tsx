@@ -1,8 +1,5 @@
 import type { Character, World, Adventure } from '../types'
-import { CharacterList } from './CharacterList'
-import { WorldList } from './WorldList'
-import { TemplateList } from './TemplateList'
-import { InProgressList } from './InProgressList'
+import { CharacterList, WorldList, TemplateList, InProgressList } from './cards'
 import { ConfirmDialog } from './ConfirmDialog'
 
 interface LandingPageProps {
