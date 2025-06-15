@@ -1,0 +1,14 @@
+/* spacing.css */
+:root {
+    /* Spacing Variables */
+    --padding-small: 0.5rem;
+    --padding-medium: 1rem;
+    --padding-large: 1.5rem;
+    --margin-small: 0.5rem;
+    --margin-medium: 1rem;
+    --margin-large: 1.5rem;
+    --gap-small: 0.5rem;
+    --gap-medium: 1rem;
+    --gap-large: 1.5rem;
+    --gap-xs: 2rem;
+}
