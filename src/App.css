@@ -422,6 +422,21 @@
   gap: var(--gap-small);
 }
 
+/* Make list item names clickable */
+.list-item-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-size: inherit;
+  color: var(--accent-color);
+  cursor: pointer;
+  text-align: left;
+}
+.list-item-link:hover {
+  text-decoration: underline;
+}
+
 .delete-button {
   padding: var(--padding-small) var(--padding-medium);
   border: none;

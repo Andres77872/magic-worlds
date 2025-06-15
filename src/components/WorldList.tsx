@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { World } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
+import { ListItemActions } from './ListItemActions'
 import '../App.css'
 
 export function WorldList({
@@ -25,21 +26,18 @@ export function WorldList({
         <ul className="list">
           {worlds.map((w, idx) => (
             <li key={idx} className="list-item">
-              <span>{w.name} ({w.type})</span>
-              <div>
-                <button
-                  className="edit-button"
-                  onClick={() => onEdit(w)}
-                >
-                  Open
-                </button>
-                <button
-                  className="delete-button"
-                  onClick={() => setPending({ idx, name: w.name })}
-                >
-                  Delete
-                </button>
-              </div>
+              <button
+                className="list-item-link"
+                onClick={() => onEdit(w)}
+              >
+                {w.name} ({w.type})
+              </button>
+              <ListItemActions
+                actions={[
+                  { type: 'open', onClick: () => onEdit(w) },
+                  { type: 'delete', onClick: () => setPending({ idx, name: w.name }) },
+                ]}
+              />
             </li>
           ))}
         </ul>

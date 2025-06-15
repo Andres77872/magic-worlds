@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Character } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
+import { ListItemActions } from './ListItemActions'
 import '../App.css'
 
 export function CharacterList({
@@ -25,21 +26,18 @@ export function CharacterList({
         <ul className="list">
           {characters.map((c, idx) => (
             <li key={idx} className="list-item">
-              <span>{c.name} ({c.race})</span>
-              <div>
-                <button
-                  className="edit-button"
-                  onClick={() => onEdit(c)}
-                >
-                  Open
-                </button>
-                <button
-                  className="delete-button"
-                  onClick={() => setPending({ idx, name: c.name })}
-                >
-                  Delete
-                </button>
-              </div>
+              <button
+                className="list-item-link"
+                onClick={() => onEdit(c)}
+              >
+                {c.name} ({c.race})
+              </button>
+              <ListItemActions
+                actions={[
+                  { type: 'open', onClick: () => onEdit(c) },
+                  { type: 'delete', onClick: () => setPending({ idx, name: c.name }) },
+                ]}
+              />
             </li>
           ))}
         </ul>

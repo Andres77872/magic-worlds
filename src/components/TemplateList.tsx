@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Adventure } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
+import { ListItemActions } from './ListItemActions'
 import '../App.css'
 
 export function TemplateList({
@@ -27,27 +28,19 @@ export function TemplateList({
         <ul className="list">
           {templates.map((t, idx) => (
             <li key={idx} className="list-item">
-              <span>{t.scenario}</span>
-              <div>
-                <button
-                  className="edit-button"
-                  onClick={() => onEdit(t)}
-                >
-                  Open
-                </button>
-                <button
-                  className="start-button"
-                  onClick={() => onStart(t)}
-                >
-                  Start
-                </button>
-                <button
-                  className="delete-button"
-                  onClick={() => setPending({ idx, name: t.scenario })}
-                >
-                  Delete
-                </button>
-              </div>
+              <button
+                className="list-item-link"
+                onClick={() => onEdit(t)}
+              >
+                {t.scenario}
+              </button>
+              <ListItemActions
+                actions={[
+                  { type: 'open', onClick: () => onEdit(t) },
+                  { type: 'start', onClick: () => onStart(t) },
+                  { type: 'delete', onClick: () => setPending({ idx, name: t.scenario }) },
+                ]}
+              />
             </li>
           ))}
         </ul>
