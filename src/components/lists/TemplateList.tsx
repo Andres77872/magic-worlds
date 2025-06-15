@@ -6,7 +6,7 @@ import { Card } from './Card/Card'
 import type { CardOption } from './Card/CardOptions'
 import { EmptyState } from '../common/EmptyState'
 import { FaPlay, FaTrash, FaEdit, FaPlus } from 'react-icons/fa'
-import './cards.css'
+import './lists.css'
 
 interface TemplateListProps {
   templates: Adventure[]

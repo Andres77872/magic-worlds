@@ -6,7 +6,7 @@ import { Card } from './Card/Card'
 import type { CardOption } from './Card/CardOptions'
 import { EmptyState } from '../common/EmptyState'
 import { FaUser, FaTrash, FaEdit } from 'react-icons/fa'
-import './cards.css'
+import './lists.css'
 
 interface CharacterListProps {
   characters: Character[]
