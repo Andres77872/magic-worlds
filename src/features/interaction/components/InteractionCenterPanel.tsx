@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
-import type { Adventure, TurnEntry } from '../../../shared'
-import { storage } from '../../../infrastructure/storage'
-import { FaSpinner } from 'react-icons/fa'
+import {useEffect, useRef, useState} from 'react'
+import type {Adventure, TurnEntry} from '../../../shared'
+import {storage} from '../../../infrastructure/storage'
+import {FaSpinner} from 'react-icons/fa'
 import './InteractionCenterPanel.css'
 
 // API Configuration
@@ -15,14 +15,14 @@ interface InteractionCenterPanelProps {
     setTurns: (turns: TurnEntry[]) => void
 }
 
-export function InteractionCenterPanel({ adventure, turns, setTurns }: InteractionCenterPanelProps) {
+export function InteractionCenterPanel({adventure, turns, setTurns}: InteractionCenterPanelProps) {
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+        messagesEndRef.current?.scrollIntoView({behavior: 'smooth', block: 'end'})
     }
 
     useEffect(() => {
@@ -42,7 +42,7 @@ export function InteractionCenterPanel({ adventure, turns, setTurns }: Interacti
         if (!input.trim() || isLoading) return
 
         const userInput = input.trim()
-        
+
         const userTurn: TurnEntry = {
             id: crypto.randomUUID(),
             type: 'user',
@@ -68,7 +68,7 @@ export function InteractionCenterPanel({ adventure, turns, setTurns }: Interacti
             setIsLoading(false)
         }
     }
-    
+
     // Process user message and get AI response
     const processUserMessage = async (userText: string, currentTurns: TurnEntry[]) => {
         try {
@@ -137,7 +137,7 @@ Respond to the user inputs as the assistant.`
                 timestamp: new Date().toISOString(),
                 isStreaming: true // Add flag for streaming state
             }
-            
+
             // Add the initial empty AI turn
             const updatedTurns = [...currentTurns, aiTurn]
             setTurns(updatedTurns)
@@ -162,12 +162,12 @@ Respond to the user inputs as the assistant.`
                             const content = parsed.choices?.[0]?.delta?.content || ''
                             if (content) {
                                 assistantResponse += content
-                                
+
                                 // Update the AI turn with the new content
                                 setTurns((current: TurnEntry[]) => {
-                                    const updated = current.map(t => 
-                                        t.id === aiTurn.id 
-                                            ? { ...t, content: assistantResponse } 
+                                    const updated = current.map(t =>
+                                        t.id === aiTurn.id
+                                            ? {...t, content: assistantResponse}
                                             : t
                                     )
                                     return updated
@@ -182,17 +182,17 @@ Respond to the user inputs as the assistant.`
 
             // After streaming completes, update the AI turn to final state
             setTurns((current: TurnEntry[]) => {
-                const finalTurns = current.map(t => 
-                    t.id === aiTurn.id 
-                        ? { ...t, content: assistantResponse, isStreaming: false } 
+                const finalTurns = current.map(t =>
+                    t.id === aiTurn.id
+                        ? {...t, content: assistantResponse, isStreaming: false}
                         : t
                 )
-                
+
                 // Save the final turns to storage
-                storage.saveTurns(adventure.id, finalTurns).catch(err => 
+                storage.saveTurns(adventure.id, finalTurns).catch(err =>
                     console.error('Failed to save turns:', err)
                 )
-                
+
                 return finalTurns
             })
 
@@ -205,14 +205,14 @@ Respond to the user inputs as the assistant.`
 
     return (
         <div className="center-panel">
+            {error && (
+                <div className="error-banner">
+                    {error}
+                    <button onClick={() => setError(null)} className="close-error">×</button>
+                </div>
+            )}
+
             <div className="chat-container">
-                {error && (
-                    <div className="error-banner">
-                        {error}
-                        <button onClick={() => setError(null)} className="close-error">×</button>
-                    </div>
-                )}
-                
                 <div className="messages-area">
                     {turns.length === 0 ? (
                         <div className="welcome-message">
@@ -238,7 +238,7 @@ Respond to the user inputs as the assistant.`
                             </div>
                         ))
                     )}
-                    <div ref={messagesEndRef} />
+                    <div ref={messagesEndRef}/>
                 </div>
 
                 <form onSubmit={handleSubmit} className="input-area">
@@ -251,19 +251,19 @@ Respond to the user inputs as the assistant.`
                         disabled={isLoading}
                     />
                     <div className="input-buttons">
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             className="btn btn-primary"
                             disabled={!input.trim() || isLoading}
                         >
                             {isLoading ? (
                                 <>
-                                    <FaSpinner className="spinner" />
+                                    <FaSpinner className="spinner"/>
                                     Sending...
                                 </>
                             ) : 'Send'}
                         </button>
-                        <button 
+                        <button
                             type="button"
                             className="btn btn-secondary"
                             onClick={handleReset}
@@ -273,14 +273,14 @@ Respond to the user inputs as the assistant.`
                         </button>
                     </div>
                 </form>
-                
-                {isLoading && (
-                    <div className="loading-indicator">
-                        <FaSpinner className="spinner"/>
-                        <span>AI is thinking...</span>
-                    </div>
-                )}
             </div>
+
+            {isLoading && (
+                <div className="loading-indicator">
+                    <FaSpinner className="spinner"/>
+                    <span>AI is thinking...</span>
+                </div>
+            )}
         </div>
     )
 }

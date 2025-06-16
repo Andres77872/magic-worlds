@@ -27,4 +27,7 @@
     --form-gap: var(--gap-medium);
     --content-spacing: var(--padding-large);
     --section-spacing: var(--gap-xs);
+    
+    /* Layout measurements */
+    --header-height: 91px; /* Height of the app header */
 }
