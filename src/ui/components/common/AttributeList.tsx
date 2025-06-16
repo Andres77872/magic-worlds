@@ -1,14 +1,14 @@
 /**
  * AttributeList component
- * Reusable component for managing character attributes
+ * Reusable component for managing attributes for any entity type (characters, worlds, adventures)
  */
 
 import { FaPlus, FaTimes, FaTrashAlt } from 'react-icons/fa';
 import { useState } from 'react';
-import { ConfirmDialog } from '../../../ui/components/ConfirmDialog';
-import './CharacterCreator.css';
+import { ConfirmDialog } from '../ConfirmDialog';
+import './AttributeList.css';
 
-type AttributeType = 'stat' | 'skill' | 'trait' | 'equipment' | 'custom';
+export type AttributeType = 'stat' | 'skill' | 'trait' | 'equipment' | 'detail' | 'custom';
 
 export interface AttributeCategory {
   id: string;
@@ -17,14 +17,23 @@ export interface AttributeCategory {
   description: string;
 }
 
+export interface Attribute {
+  key: string;
+  value: string;
+}
+
 interface AttributeListProps {
   category: AttributeCategory;
-  attributes: { key: string; value: string }[];
+  attributes: Attribute[];
   onAddAttribute: () => void;
   onUpdateAttribute: (index: number, field: 'key' | 'value', value: string) => void;
   onRemoveAttribute: (index: number) => void;
-  onDeleteCategory?: (categoryId: string) => void; // New prop for deleting a category
-  isDeletable?: boolean; // Whether this category can be deleted
+  onDeleteCategory?: (categoryId: string) => void;
+  isDeletable?: boolean;
+  valueIsTextarea?: boolean;
+  keyPlaceholder?: string;
+  valuePlaceholder?: string;
+  addButtonLabel?: string;
 }
 
 export const AttributeList = ({
@@ -34,7 +43,11 @@ export const AttributeList = ({
   onUpdateAttribute,
   onRemoveAttribute,
   onDeleteCategory,
-  isDeletable = false
+  isDeletable = false,
+  valueIsTextarea = false,
+  keyPlaceholder,
+  valuePlaceholder,
+  addButtonLabel
 }: AttributeListProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -48,6 +61,11 @@ export const AttributeList = ({
       onDeleteCategory?.(category.id);
     }
   };
+
+  // Generate placeholders based on category name or use provided ones
+  const defaultKeyPlaceholder = `${category.name.slice(0, -1)} name`;
+  const defaultValuePlaceholder = "Value";
+  const defaultAddButtonLabel = `Add ${category.name.slice(0, -1)}`;
 
   return (
     <div className="attribute-section">
@@ -65,7 +83,7 @@ export const AttributeList = ({
             onClick={onAddAttribute}
             title={`Add a new ${category.name.slice(0, -1)}`}
           >
-            <FaPlus /> Add {category.name.slice(0, -1)}
+            <FaPlus /> {addButtonLabel || defaultAddButtonLabel}
           </button>
           {isDeletable && onDeleteCategory && (
             <button
@@ -92,17 +110,27 @@ export const AttributeList = ({
             <input
               className="field-input attribute-key"
               type="text"
-              placeholder={`${category.name.slice(0, -1)} name`}
+              placeholder={keyPlaceholder || defaultKeyPlaceholder}
               value={attr.key}
               onChange={(e) => onUpdateAttribute(index, 'key', e.target.value)}
             />
-            <input
-              className="field-input attribute-value"
-              type="text"
-              placeholder="Value"
-              value={attr.value}
-              onChange={(e) => onUpdateAttribute(index, 'value', e.target.value)}
-            />
+            {valueIsTextarea ? (
+              <textarea
+                className="field-input attribute-value"
+                placeholder={valuePlaceholder || defaultValuePlaceholder}
+                value={attr.value}
+                onChange={(e) => onUpdateAttribute(index, 'value', e.target.value)}
+                rows={2}
+              />
+            ) : (
+              <input
+                className="field-input attribute-value"
+                type="text"
+                placeholder={valuePlaceholder || defaultValuePlaceholder}
+                value={attr.value}
+                onChange={(e) => onUpdateAttribute(index, 'value', e.target.value)}
+              />
+            )}
             <button
               type="button"
               className="btn btn-danger btn-sm"

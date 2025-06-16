@@ -56,7 +56,7 @@
 .attribute-row {
   display: flex;
   gap: var(--gap-small);
-  align-items: center;
+  align-items: flex-start;
   padding: var(--padding-small);
   border-radius: var(--border-radius-small);
   transition: background-color 0.2s ease;
@@ -67,11 +67,16 @@
 }
 
 .attribute-key {
-  flex: 2;
+  flex: 1;
 }
 
 .attribute-value {
-  flex: 1;
+  flex: 2;
+}
+
+textarea.attribute-value {
+  resize: vertical;
+  min-height: 60px;
 }
 
 .empty-attributes {
@@ -94,6 +99,7 @@
   .attribute-key,
   .attribute-value {
     flex: 1;
+    width: 100%;
     margin-bottom: var(--margin-small);
   }
   

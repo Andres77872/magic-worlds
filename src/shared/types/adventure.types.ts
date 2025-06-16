@@ -11,6 +11,8 @@ export interface Adventure {
     characters: Character[]
     world?: World
     turns?: TurnEntry[]
+    objectives?: Record<string, string>
+    notes?: Record<string, string>
     createdAt?: string
     updatedAt?: string
     status?: AdventureStatus

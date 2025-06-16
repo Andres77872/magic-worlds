@@ -4,55 +4,225 @@
 
 import type { FormEvent, KeyboardEvent } from 'react';
 import { useState, useRef, useEffect } from 'react';
-import type { World } from '../../../shared/types';
+import type { World } from '../../../shared';
 import { useNavigation, useData } from '../../../app/hooks';
 import { storage } from '../../../infrastructure/storage';
+import {type AttributeCategory, AttributeList } from '../../../ui/components/common/AttributeList';
+import { FaPlus } from 'react-icons/fa';
 import './WorldCreator.css';
+
+// Predefined attribute categories for worlds
+const DEFAULT_WORLD_CATEGORIES: AttributeCategory[] = [
+    {
+        id: 'details',
+        name: 'World Details',
+        type: 'detail',
+        description: 'Key information about your world'
+    },
+    {
+        id: 'terrain',
+        name: 'Terrain',
+        type: 'detail',
+        description: 'Geographic features and landscapes of your world'
+    },
+    {
+        id: 'climate',
+        name: 'Climate',
+        type: 'detail',
+        description: 'Weather patterns and environmental conditions'
+    },
+    {
+        id: 'inhabitants',
+        name: 'Inhabitants',
+        type: 'detail',
+        description: 'Races, species, and civilizations that populate your world'
+    }
+];
 
 export function WorldCreator() {
     const { setPage } = useNavigation();
     const { worlds, setWorlds, editingWorld, setEditingWorld } = useData();
     
-    const [id] = useState(editingWorld?.id ?? crypto.randomUUID())
-    const [name, setName] = useState(editingWorld?.name ?? '')
-    const [type, setType] = useState(editingWorld?.type ?? '')
-    const [details, setDetails] = useState<{ key: string; value: string }[]>(
-        editingWorld ? Object.entries(editingWorld.details).map(([key, value]) => ({key, value})) : [],
-    )
+    const [id] = useState(editingWorld?.id ?? crypto.randomUUID());
+    const [name, setName] = useState(editingWorld?.name ?? '');
+    const [type, setType] = useState(editingWorld?.type ?? '');
+    
+    // Custom category management
+    const [showAddCategory, setShowAddCategory] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [newCategoryDescription, setNewCategoryDescription] = useState('');
+    
+    // Initialize attributeCategories from default or existing world data
+    const initializeCategories = () => {
+        if (!editingWorld || !editingWorld.customCategories) {
+            return [...DEFAULT_WORLD_CATEGORIES];
+        }
 
-    const addDetail = () => setDetails((prev) => [...prev, {key: '', value: ''}])
+        // If editing a world with custom categories, add them
+        return [
+            ...DEFAULT_WORLD_CATEGORIES,
+            ...(editingWorld.customCategories || [])
+        ];
+    };
+    
+    // Initialize attributes from existing world or empty structure
+    const initializeAttributes = (categories: AttributeCategory[]) => {
+        if (!editingWorld) {
+            return categories.reduce((acc, category) => {
+                acc[category.id] = [];
+                return acc;
+            }, {} as Record<string, { key: string; value: string }[]>);
+        }
 
-    const updateDetail = (
+        // Map existing world attributes to the new structure
+        const result: Record<string, { key: string; value: string }[]> = {};
+
+        // First handle details which existed in the previous version
+        result.details = Object.entries(editingWorld.details || {}).map(([key, value]) => ({
+            key,
+            value: String(value)
+        }));
+
+        // Handle predefined attribute categories if they exist in the edited world
+        categories.forEach(category => {
+            if (category.id !== 'details' && editingWorld[category.id]) {
+                result[category.id] = Object.entries(editingWorld[category.id] || {}).map(([key, value]) => ({
+                    key,
+                    value: String(value)
+                }));
+            } else if (category.id !== 'details') {
+                result[category.id] = [];
+            }
+        });
+
+        return result;
+    };
+    
+    const [attributeCategories, setAttributeCategories] = useState<AttributeCategory[]>(initializeCategories);
+    const [attributes, setAttributes] = useState<Record<string, { key: string; value: string }[]>>(() =>
+        initializeAttributes(initializeCategories())
+    );
+    
+    // Add a new custom category
+    const addCategory = () => {
+        if (!newCategoryName.trim()) return;
+
+        const id = newCategoryName.toLowerCase().replace(/\s+/g, '-');
+
+        // Check if category with this id already exists
+        if (attributeCategories.some(cat => cat.id === id)) {
+            alert('A category with a similar name already exists. Please use a different name.');
+            return;
+        }
+
+        const newCategory: AttributeCategory = {
+            id,
+            name: newCategoryName.trim(),
+            type: 'custom',
+            description: newCategoryDescription.trim() || `Custom attributes for ${newCategoryName}`
+        };
+
+        // Add the new category
+        setAttributeCategories(prev => [...prev, newCategory]);
+
+        // Initialize empty attributes array for this category
+        setAttributes(prev => ({
+            ...prev,
+            [id]: []
+        }));
+
+        // Reset form
+        setNewCategoryName('');
+        setNewCategoryDescription('');
+        setShowAddCategory(false);
+    };
+    
+    // Delete a category
+    const deleteCategory = (categoryId: string) => {
+        // Find the category to ensure it exists and is custom
+        const categoryToDelete = attributeCategories.find(cat => cat.id === categoryId);
+        if (!categoryToDelete || categoryToDelete.type !== 'custom') return;
+        
+        // Update categories state by filtering out the deleted one
+        setAttributeCategories(prev => 
+            prev.filter(cat => cat.id !== categoryId)
+        );
+        
+        // Update attributes state by removing that category
+        setAttributes(prev => {
+            const newAttributes = {...prev};
+            delete newAttributes[categoryId];
+            return newAttributes;
+        });
+    };
+
+    // Add a new attribute to a category
+    const addAttribute = (categoryId: string) => {
+        setAttributes(prev => ({
+            ...prev,
+            [categoryId]: [...(prev[categoryId] || []), {key: '', value: ''}]
+        }));
+    };
+
+    // Update an attribute
+    const updateAttribute = (
+        categoryId: string,
         index: number,
         field: 'key' | 'value',
         value: string,
     ) => {
-        setDetails((prev) => {
-            const next = [...prev]
-            next[index] = {...next[index], [field]: value}
-            return next
-        })
-    }
+        setAttributes(prev => {
+            const category = [...prev[categoryId]];
+            category[index] = {...category[index], [field]: value};
+            return {...prev, [categoryId]: category};
+        });
+    };
+
+    // Remove an attribute
+    const removeAttribute = (categoryId: string, index: number) => {
+        setAttributes(prev => {
+            const category = prev[categoryId].filter((_, i) => i !== index);
+            return {...prev, [categoryId]: category};
+        });
+    };
 
     const handleSubmit = async (e: FormEvent) => {
-        e.preventDefault()
-        const detailsRecord = details.reduce<Record<string, string>>((acc, cur) => {
-            if (cur.key) acc[cur.key] = cur.value
-            return acc
-        }, {})
+        e.preventDefault();
+        
+        // Extract custom categories to save with world
+        const customCategories = attributeCategories.filter(
+            category => category.type === 'custom'
+        );
+
+        // Convert attributes structure to the format expected by the World type
+        const attributesRecord: Record<string, Record<string, string>> = {};
+
+        Object.entries(attributes).forEach(([categoryId, items]) => {
+            attributesRecord[categoryId] = items.reduce((acc, {key, value}) => {
+                if (key) acc[key] = value;
+                return acc;
+            }, {} as Record<string, string>);
+        });
         
         const world: World = {
             id, 
             name, 
             type, 
-            details: detailsRecord,
+            // Keep details at the top level for backward compatibility
+            details: attributesRecord.details || {},
+            // Add custom categories metadata
+            customCategories,
+            // Add other attribute categories
+            ...Object.fromEntries(
+                Object.entries(attributesRecord).filter(([key]) => key !== 'details')
+            ),
             createdAt: editingWorld?.createdAt ?? new Date().toISOString(),
             updatedAt: new Date().toISOString()
-        }
+        };
         
         const updatedWorlds = editingWorld 
             ? worlds.map(w => w.id === id ? world : w)
-            : [...worlds, world]
+            : [...worlds, world];
             
         try {
             // First save to localStorage
@@ -124,46 +294,89 @@ export function WorldCreator() {
                         />
                     </label>
                 </div>
-
-                <div className="details-section">
-                    <div className="details-header">
-                        <h3>World Details</h3>
+                
+                {/* Attributes sections */}
+                <div className="attributes-container">
+                    <div className="attributes-header">
+                        <h3>World Attributes</h3>
                         <button
                             type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={addDetail}
+                            className="btn btn-accent btn-sm"
+                            onClick={() => setShowAddCategory(prev => !prev)}
                         >
-                            Add Detail
+                            <FaPlus/> Add Category
                         </button>
                     </div>
 
-                    <div className="details-list">
-                        {details.map((detail, index) => (
-                            <div key={index} className="detail-row">
-                                <input
-                                    className="field-input detail-key"
-                                    type="text"
-                                    placeholder="Detail name (e.g., Climate, Government)"
-                                    value={detail.key}
-                                    onChange={(e) => updateDetail(index, 'key', e.target.value)}
-                                />
-                                <textarea
-                                    className="field-input detail-value"
-                                    placeholder="Description"
-                                    value={detail.value}
-                                    onChange={(e) => updateDetail(index, 'value', e.target.value)}
-                                    rows={2}
-                                />
-                                <button
-                                    type="button"
-                                    className="btn btn-danger btn-sm"
-                                    onClick={() => setDetails(prev => prev.filter((_, i) => i !== index))}
-                                >
-                                    Remove
-                                </button>
+                    {/* Add new category form */}
+                    {showAddCategory && (
+                        <div className="add-category-form">
+                            <h4>New Attribute Category</h4>
+                            <div className="category-form-fields">
+                                <div className="field">
+                                    <label className="field-label">
+                                        Category Name:
+                                        <input
+                                            className="field-input"
+                                            type="text"
+                                            value={newCategoryName}
+                                            onChange={(e) => setNewCategoryName(e.target.value)}
+                                            placeholder="e.g., Magic Systems, Factions"
+                                            required
+                                        />
+                                    </label>
+                                </div>
+                                <div className="field">
+                                    <label className="field-label">
+                                        Description (optional):
+                                        <textarea
+                                            className="field-input"
+                                            value={newCategoryDescription}
+                                            onChange={(e) => setNewCategoryDescription(e.target.value)}
+                                            placeholder="What kind of attributes belong in this category?"
+                                            rows={2}
+                                        />
+                                    </label>
+                                </div>
+                                <div className="category-form-actions">
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => setShowAddCategory(false)}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary btn-sm"
+                                        onClick={addCategory}
+                                    >
+                                        Create Category
+                                    </button>
+                                </div>
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    )}
+                
+                    {/* Attribute categories */}
+                    {attributeCategories.map(category => (
+                        <AttributeList
+                            key={category.id}
+                            category={category}
+                            attributes={attributes[category.id] || []}
+                            onAddAttribute={() => addAttribute(category.id)}
+                            onUpdateAttribute={(index, field, value) =>
+                                updateAttribute(category.id, index, field, value)
+                            }
+                            onRemoveAttribute={(index) => removeAttribute(category.id, index)}
+                            onDeleteCategory={() => deleteCategory(category.id)}
+                            isDeletable={category.type === 'custom'}
+                            valueIsTextarea={true}
+                            keyPlaceholder={`${category.name.slice(0, -1)} name`}
+                            valuePlaceholder="Description"
+                            addButtonLabel={`Add ${category.name.slice(0, -1)}`}
+                        />
+                    ))}
                 </div>
 
                 <div className="form-actions">

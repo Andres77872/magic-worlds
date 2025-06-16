@@ -1,13 +1,17 @@
 /* =====================================================================
    Adventure Creator Component
    ===================================================================== */
+
+/* Import the common AttributeList styles */
+@import '../../../ui/components/common/AttributeList.css';
+
 .adventure-creator {
   max-width: 800px;
   margin: 0 auto;
-  padding: var(--gap-xs);
+  padding: var(--padding-medium);
   background: var(--background-color-secondary);
   border-radius: var(--border-radius-small);
-  box-shadow: var(--box-shadow-medium);
+  box-shadow: var(--shadow-md);
   color: var(--text-color);
 }
 
@@ -30,6 +34,143 @@
   display: flex;
   flex-direction: column;
   gap: var(--padding-large);
+}
+
+.field {
+  margin-bottom: var(--padding-medium);
+}
+
+.field-label {
+  display: block;
+  margin-bottom: var(--gap-xs);
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.field-input {
+  width: 100%;
+  padding: var(--padding-small);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  font-size: var(--font-size-regular);
+  background-color: var(--background-color-primary);
+  color: var(--text-color);
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-md);
+}
+
+/* Character and world selection */
+.character-selection,
+.world-selection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  padding: var(--padding-small);
+  background-color: var(--background-color-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+}
+
+.character-option,
+.world-option {
+  padding: var(--padding-xs);
+  transition: background-color 0.2s;
+}
+
+.character-option:hover,
+.world-option:hover {
+  background-color: var(--background-color-tertiary);
+}
+
+.empty-state {
+  padding: var(--padding-small);
+  color: var(--text-color-secondary);
+  display: flex;
+  gap: var(--gap-xs);
+  align-items: center;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: inherit;
+}
+
+/* Attribute Categories Styling */
+.attributes-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-medium);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  padding: var(--padding-medium);
+  background-color: var(--background-color-tertiary);
+}
+
+.attributes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--padding-medium);
+}
+
+.attributes-header h3 {
+  color: var(--accent-color);
+  margin: 0;
+}
+
+.btn-sm {
+  padding: var(--padding-xs) var(--padding-small);
+  font-size: var(--font-size-small);
+}
+
+.btn-accent {
+  background-color: var(--accent-color);
+  color: var(--text-color-inverse);
+  border: none;
+  border-radius: var(--border-radius-small);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+}
+
+.add-category-form {
+  background-color: var(--background-color-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  padding: var(--padding-medium);
+  margin-bottom: var(--padding-medium);
+}
+
+.category-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-medium);
+}
+
+.category-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--padding-medium);
+  margin-top: var(--padding-medium);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--padding-medium);
+  margin-top: var(--padding-large);
+  padding-top: var(--padding-medium);
+  border-top: 1px solid var(--border-color);
 }
 
 .scenario-textarea {
@@ -114,17 +255,23 @@
   opacity: 0.7;
 }
 
-.form-actions {
-  display: flex;
-  gap: var(--padding-medium);
-  justify-content: flex-end;
-  margin-top: var(--padding-large);
-  padding-top: var(--padding-medium);
-  border-top: 1px solid var(--border-color);
-}
-
 /* Responsive Adjustments */
 @media (max-width: 768px) {
+  .adventure-creator {
+    padding: var(--padding-small);
+  }
+  
+  .attributes-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--gap-xs);
+  }
+  
+  .form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
   .adventure-creator {
     margin: var(--padding-medium);
     padding: var(--padding-medium);
@@ -142,9 +289,5 @@
   
   .selected-tags {
     justify-content: center;
-  }
-  
-  .form-actions {
-    flex-direction: column;
   }
 }

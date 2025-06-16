@@ -1,109 +1,138 @@
 /* =====================================================================
    World Creator Component
    ===================================================================== */
+
+/* WorldCreator specific styles */
+@import '../../../ui/components/common/AttributeList.css';
+
 .world-creator {
-  max-width: 700px;
-  margin: 0 auto;
-  padding: var(--gap-xs);
-  background: var(--background-color-secondary);
-  border-radius: var(--border-radius-small);
-  box-shadow: var(--shadow-md);
-  color: var(--text-color);
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-md);
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--padding-medium);
+    background: var(--background-color-secondary);
+    border-radius: var(--border-radius-small);
+    box-shadow: var(--shadow-md);
+    color: var(--text-color);
 }
 
 .world-creator-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--padding-large);
-  padding-bottom: var(--padding-medium);
-  border-bottom: 2px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--padding-large);
+    padding-bottom: var(--padding-medium);
+    border-bottom: 2px solid var(--border-color);
 }
 
 .world-creator-header h2 {
-  color: var(--accent-color);
-  font-size: 1.75rem;
-  margin: 0;
+    color: var(--accent-color);
+    font-size: 1.75rem;
+    margin: 0;
 }
 
 .world-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--padding-large);
+    display: flex;
+    flex-direction: column;
+    gap: var(--padding-large);
 }
 
-.details-section {
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-small);
-  padding: var(--padding-medium);
+.field {
+    margin-bottom: var(--padding-medium);
 }
 
-.details-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--padding-medium);
+.field-label {
+    display: block;
+    margin-bottom: var(--gap-xs);
+    font-weight: 500;
+    color: var(--text-color);
 }
 
-.details-header h3 {
-  margin: 0;
-  color: var(--text-color);
+.field-input {
+    width: 100%;
+    padding: var(--padding-small);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-small);
+    font-size: var(--font-size-regular);
+    background-color: var(--background-color-primary);
+    color: var(--text-color);
 }
 
-.details-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--padding-medium);
-}
-
-.detail-row {
-  display: flex;
-  gap: var(--padding-small);
-  align-items: flex-start;
-}
-
-.detail-key {
-  flex: 1;
-}
-
-.detail-value {
-  flex: 2;
-  min-height: 60px;
-  resize: vertical;
+.field-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-md);
 }
 
 .form-actions {
-  display: flex;
-  gap: var(--padding-medium);
-  justify-content: flex-end;
-  margin-top: var(--padding-large);
-  padding-top: var(--padding-medium);
-  border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--padding-medium);
+    margin-top: var(--padding-large);
+    padding-top: var(--padding-medium);
+    border-top: 1px solid var(--border-color);
+}
+
+/* Attribute Categories Styling */
+.attributes-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--padding-medium);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-small);
+    padding: var(--padding-medium);
+    background-color: var(--background-color-tertiary);
+}
+
+.attributes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--padding-medium);
+}
+
+.btn-sm {
+    padding: var(--padding-xs) var(--padding-small);
+    font-size: var(--font-size-small);
+}
+
+.btn-accent {
+    background-color: var(--accent-color);
+    color: var(--text-color-inverse);
+}
+
+.add-category-form {
+    background-color: var(--background-color-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-small);
+    padding: var(--padding-medium);
+    margin-bottom: var(--padding-medium);
+}
+
+.category-form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--padding-medium);
+}
+
+.category-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--padding-medium);
+    margin-top: var(--padding-medium);
 }
 
 /* Responsive Adjustments */
 @media (max-width: 768px) {
-  .world-creator {
-    margin: var(--padding-medium);
-    padding: var(--padding-medium);
-  }
-  
-  .world-creator-header {
-    flex-direction: column;
-    gap: var(--padding-medium);
-    align-items: stretch;
-  }
-  
-  .detail-row {
-    flex-direction: column;
-  }
-  
-  .detail-key,
-  .detail-value {
-    flex: 1;
-  }
-  
-  .form-actions {
-    flex-direction: column;
-  }
+    .world-creator {
+        padding: var(--padding-small);
+    }
+    
+    .attributes-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--gap-xs);
+    }
 }

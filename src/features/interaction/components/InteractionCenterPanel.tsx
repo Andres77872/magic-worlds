@@ -164,8 +164,8 @@ Respond to the user inputs as the assistant.`
                                 assistantResponse += content
 
                                 // Update the AI turn with the new content
-                                setTurns((current: TurnEntry[]) => {
-                                    const updated = current.map(t =>
+                                setTurns((prevTurns) => {
+                                    const updated = prevTurns.map(t =>
                                         t.id === aiTurn.id
                                             ? {...t, content: assistantResponse}
                                             : t
@@ -181,8 +181,8 @@ Respond to the user inputs as the assistant.`
             }
 
             // After streaming completes, update the AI turn to final state
-            setTurns((current: TurnEntry[]) => {
-                const finalTurns = current.map(t =>
+            setTurns((prevTurns) => {
+                const finalTurns = prevTurns.map(t =>
                     t.id === aiTurn.id
                         ? {...t, content: assistantResponse, isStreaming: false}
                         : t

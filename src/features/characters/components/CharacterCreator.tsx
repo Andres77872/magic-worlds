@@ -9,7 +9,7 @@ import type {Character} from '../../../shared';
 import {useData, useNavigation} from '../../../app/hooks';
 import {storage} from '../../../infrastructure/storage';
 import {FaPlus, FaQuestionCircle} from 'react-icons/fa';
-import {type AttributeCategory, AttributeList} from './AttributeList';
+import {type AttributeCategory, AttributeList} from '../../../ui/components/common/AttributeList';
 import './CharacterCreator.css';
 
 // Predefined attribute categories
