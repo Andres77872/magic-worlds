@@ -3,26 +3,33 @@
  */
 
 import './ConfirmDialog.css'
+import React from 'react'
 
 interface ConfirmDialogProps {
+    visible: boolean
     title: string
-    message: string
+    message: React.ReactNode
     onConfirm: () => void
     onCancel: () => void
-    confirmText?: string
-    cancelText?: string
-    danger?: boolean
+    confirmLabel?: string
+    cancelLabel?: string
+    variant?: 'primary' | 'danger' | 'warning'
+    isProcessing?: boolean
 }
 
 export function ConfirmDialog({
+    visible,
     title,
     message,
     onConfirm,
     onCancel,
-    confirmText = 'Confirm',
-    cancelText = 'Cancel',
-    danger = false
+    confirmLabel = 'Confirm',
+    cancelLabel = 'Cancel',
+    variant = 'primary',
+    isProcessing = false
 }: ConfirmDialogProps) {
+    if (!visible) return null;
+    
     return (
         <div className="confirm-dialog-overlay" onClick={onCancel}>
             <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
@@ -31,21 +38,23 @@ export function ConfirmDialog({
                 </div>
                 
                 <div className="confirm-dialog-body">
-                    <p className="confirm-dialog-message">{message}</p>
+                    <div className="confirm-dialog-message">{message}</div>
                 </div>
                 
                 <div className="confirm-dialog-footer">
                     <button 
                         className="btn btn-secondary"
                         onClick={onCancel}
+                        disabled={isProcessing}
                     >
-                        {cancelText}
+                        {cancelLabel}
                     </button>
                     <button 
-                        className={`btn ${danger ? 'btn-danger' : 'btn-primary'}`}
+                        className={`btn btn-${variant}`}
                         onClick={onConfirm}
+                        disabled={isProcessing}
                     >
-                        {confirmText}
+                        {isProcessing ? 'Processing...' : confirmLabel}
                     </button>
                 </div>
             </div>
