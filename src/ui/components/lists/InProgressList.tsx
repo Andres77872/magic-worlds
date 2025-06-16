@@ -11,6 +11,7 @@ interface InProgressListProps {
     adventures: Adventure[]
     onDelete: (index: number) => Promise<void> | void
     onEdit: (a: Adventure) => void
+    onPlay?: (a: Adventure) => void
     loading?: boolean
 }
 
@@ -18,6 +19,7 @@ export function InProgressList({
                                    adventures,
                                    onDelete,
                                    onEdit,
+                                   onPlay,
                                    loading = false,
                                }: InProgressListProps) {
     const [pending, setPending] = useState<{ idx: number; name: string } | null>(null)
@@ -56,7 +58,7 @@ export function InProgressList({
                             type: 'custom',
                             icon: <FaPlay/>,
                             label: 'Continue',
-                            onClick: () => onEdit(adventure),
+                            onClick: () => onPlay ? onPlay(adventure) : onEdit(adventure),
                             disabled: isDeleting
                         },
                         {
@@ -82,7 +84,7 @@ export function InProgressList({
                             title={adventure.scenario}
                             subtitle={`Characters: ${characterNames} • World: ${adventure.world?.name || 'No world'}`}
                             actions={options}
-                            onClick={() => onEdit(adventure)}
+                            onClick={() => onPlay ? onPlay(adventure) : onEdit(adventure)}
                             className={isDeleting ? 'deleting' : ''}
                         >
                             {adventure.turns && adventure.turns.length > 0 && (
@@ -97,14 +99,24 @@ export function InProgressList({
                 }}
             />
 
-            <ConfirmDialog
-                visible={pending !== null}
-                title="Delete Adventure"
-                message={pending ? `Are you sure you want to delete the adventure "${pending.name}"? This action cannot be undone.` : ''}
-                onConfirm={handleDelete}
-                onCancel={() => setPending(null)}
-                variant="danger"
-            />
+            {pending && (
+                <ConfirmDialog
+                    title="Delete Adventure"
+                    message={
+                        <>
+                            Are you sure you want to delete <strong>{pending.name}</strong>?
+                            <div className="warning-text">This action cannot be undone.</div>
+                        </>
+                    }
+                    visible={true}
+                    confirmLabel="Delete"
+                    cancelLabel="Cancel"
+                    variant="danger"
+                    isProcessing={deletingId !== null}
+                    onConfirm={handleDelete}
+                    onCancel={() => setPending(null)}
+                />
+            )}
         </div>
     )
 }

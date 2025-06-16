@@ -147,6 +147,7 @@ export function LandingPage() {
                     <InProgressList
                         adventures={inProgressAdventures}
                         onEdit={handleInProgressEdit}
+                        onPlay={handleInProgressEdit}
                         onDelete={deleteInProgress}
                     />
                 </div>

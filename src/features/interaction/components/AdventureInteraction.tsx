@@ -4,7 +4,7 @@
 
 import {useEffect, useState} from 'react'
 import type {Adventure, TurnEntry} from '../../../shared/types'
-import { useNavigation } from '../../../app/providers'
+import { useNavigation, useData } from '../../../app/providers'
 import { LoadingSpinner } from '../../../ui/components'
 import { storage } from '../../../infrastructure/storage'
 import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel} from './index'
@@ -12,19 +12,21 @@ import './AdventureInteraction.css'
 
 export function AdventureInteraction() {
     const { previousPage, setPage } = useNavigation()
+    const { editingInProgress } = useData()
     const [currentAdventure, setCurrentAdventure] = useState<Adventure | null>(null)
     const [turns, setTurns] = useState<TurnEntry[]>([])
     const [isLoading, setIsLoading] = useState(true)
 
     // Get adventure from navigation state or redirect back
     useEffect(() => {
-        // In a real implementation, you'd get the adventure ID from route params
-        // For now, we'll just redirect back if no adventure is selected
-        if (!currentAdventure) {
+        // Set the current adventure from the data context
+        if (editingInProgress) {
+            setCurrentAdventure(editingInProgress)
+        } else if (!currentAdventure) {
             setPage('landing')
             return
         }
-    }, [currentAdventure, setPage])
+    }, [editingInProgress, currentAdventure, setPage])
 
     // Load turns from storage when component mounts or adventure changes
     useEffect(() => {
