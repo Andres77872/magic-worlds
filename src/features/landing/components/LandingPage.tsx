@@ -2,12 +2,13 @@
  * Landing page component - moved to features/landing
  */
 
-import { useEffect, useState } from 'react'
-import { useNavigation, useData } from '../../../app/providers'
+import { useState } from 'react'
+import { useNavigation, useData } from '../../../app/hooks'
 import { ConfirmDialog } from '../../../ui/components'
 import { CharacterList, InProgressList, TemplateList, WorldList } from '../../../ui/components/lists'
 import { FiBookOpen, FiGlobe, FiLoader, FiTrash2, FiUserPlus } from 'react-icons/fi'
 import './LandingPage.css'
+import type { Character, World, Adventure } from '../../../shared/types'
 
 export function LandingPage() {
     const { setPage } = useNavigation()
@@ -31,27 +32,27 @@ export function LandingPage() {
     
     const [confirmClear, setConfirmClear] = useState(false)
 
-    const handleCharacterEdit = (character: any) => {
+    const handleCharacterEdit = (character: Character) => {
         editCharacter(character)
         setPage('character')
     }
 
-    const handleWorldEdit = (world: any) => {
+    const handleWorldEdit = (world: World) => {
         editWorld(world)
         setPage('world')
     }
 
-    const handleTemplateEdit = (template: any) => {
+    const handleTemplateEdit = (template: Adventure) => {
         editTemplate(template)
         setPage('adventure')
     }
 
-    const handleTemplateStart = (template: any) => {
+    const handleTemplateStart = (template: Adventure) => {
         startTemplate(template)
         setPage('interaction')
     }
 
-    const handleInProgressEdit = (adventure: any) => {
+    const handleInProgressEdit = (adventure: Adventure) => {
         editInProgress(adventure)
         setPage('interaction')
     }

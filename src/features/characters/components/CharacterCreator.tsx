@@ -5,7 +5,7 @@
 import type { FormEvent, KeyboardEvent } from 'react';
 import { useState, useRef, useEffect } from 'react';
 import type { Character } from '../../../shared/types';
-import { useNavigation, useData } from '../../../app/providers';
+import { useNavigation, useData } from '../../../app/hooks';
 import { storage } from '../../../infrastructure/storage';
 import './CharacterCreator.css';
 

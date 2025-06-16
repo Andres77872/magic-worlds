@@ -2,8 +2,8 @@
  * Theme management provider
  */
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { ThemeOption } from '../../shared/types'
+import { createContext, useEffect, useState, type ReactNode } from 'react'
+import type { ThemeOption } from '../../shared'
 
 interface ThemeContextValue {
     theme: ThemeOption
@@ -38,10 +38,5 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     )
 }
 
-export function useTheme() {
-    const context = useContext(ThemeContext)
-    if (context === undefined) {
-        throw new Error('useTheme must be used within a ThemeProvider')
-    }
-    return context
-}
+// Export the context for use in hooks
+export { ThemeContext }

@@ -5,7 +5,7 @@
 import type {ChangeEvent, FormEvent, KeyboardEvent} from 'react';
 import {useEffect, useRef, useState} from 'react';
 import type {Adventure} from '../../../shared';
-import { useNavigation, useData } from '../../../app/providers';
+import { useNavigation, useData } from '../../../app/hooks';
 import { storage } from '../../../infrastructure/storage';
 import './AdventureCreator.css';
 

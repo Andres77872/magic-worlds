@@ -24,7 +24,7 @@ export interface TurnEntry {
     content: string
     timestamp: string
     isStreaming?: boolean
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
 }
 
 export interface AdventureFormData {

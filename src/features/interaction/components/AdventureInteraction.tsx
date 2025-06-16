@@ -4,7 +4,7 @@
 
 import {useEffect, useState} from 'react'
 import type {Adventure, TurnEntry} from '../../../shared'
-import { useNavigation, useData } from '../../../app/providers'
+import { useNavigation, useData } from '../../../app/hooks'
 import { LoadingSpinner } from '../../../ui/components'
 import { storage } from '../../../infrastructure/storage'
 import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel} from './index'

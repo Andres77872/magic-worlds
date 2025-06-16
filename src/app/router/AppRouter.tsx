@@ -2,7 +2,7 @@
  * Application routing logic
  */
 
-import { useNavigation, useData, useTheme } from '../providers'
+import { useNavigation, useData, useTheme } from '../hooks'
 import { Header } from '../../ui/components/Header'
 import { LandingPage } from '../../features/landing/components/LandingPage'
 import { CharacterCreator } from '../../features/characters/components/CharacterCreator'

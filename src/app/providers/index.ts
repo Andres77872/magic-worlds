@@ -3,6 +3,6 @@
  */
 
 export { AppProvider } from './AppProvider'
-export { ThemeProvider, useTheme } from './ThemeProvider'
-export { NavigationProvider, useNavigation } from './NavigationProvider'
-export { DataProvider, useData } from './DataProvider'
+export { ThemeProvider } from './ThemeProvider'
+export { NavigationProvider } from './NavigationProvider'
+export { DataProvider } from './DataProvider'

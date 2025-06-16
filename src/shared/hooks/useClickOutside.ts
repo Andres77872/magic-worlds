@@ -56,7 +56,7 @@ export function useClickOutside<
             document.removeEventListener('mousedown', listener);
             document.removeEventListener('touchstart', listener);
         };
-    }, [ref, excludeRefs?.join(',')]); // Using join to create a stable dependency array
+    }, [ref, excludeRefs]) // Fixed dependency array by removing the join operation
 }
 
 export default useClickOutside;

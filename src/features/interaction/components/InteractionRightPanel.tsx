@@ -7,7 +7,7 @@ interface InteractionRightPanelProps {
     turns?: TurnEntry[]
 }
 
-export function InteractionRightPanel({ adventure, turns = [] }: InteractionRightPanelProps) {
+export function InteractionRightPanel({turns = [] }: InteractionRightPanelProps) {
     const handleDiceRoll = () => {
         const roll = Math.floor(Math.random() * 20) + 1
         alert(`🎲 You rolled a ${roll}!`)

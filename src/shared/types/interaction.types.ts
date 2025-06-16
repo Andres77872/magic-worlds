@@ -7,7 +7,7 @@ export interface Message {
     role: 'user' | 'assistant' | 'system'
     content: string
     timestamp?: string
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
 }
 
 export type MessageRole = 'user' | 'assistant' | 'system'

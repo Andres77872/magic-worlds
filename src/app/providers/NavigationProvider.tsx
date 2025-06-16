@@ -2,8 +2,8 @@
  * Navigation state management provider
  */
 
-import { createContext, useContext, useState, type ReactNode } from 'react'
-import type { PageType, NavigationState } from '../../shared/types'
+import { createContext, useState, type ReactNode } from 'react'
+import type { PageType, NavigationState } from '../../shared'
 
 interface NavigationContextValue extends NavigationState {
     setPage: (page: PageType) => void
@@ -46,10 +46,5 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
     )
 }
 
-export function useNavigation() {
-    const context = useContext(NavigationContext)
-    if (context === undefined) {
-        throw new Error('useNavigation must be used within a NavigationProvider')
-    }
-    return context
-}
+// Export the context for use in hooks
+export { NavigationContext }

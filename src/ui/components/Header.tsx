@@ -3,7 +3,7 @@
  */
 
 import { useEffect } from 'react'
-import { useTheme, useNavigation } from '../../app/providers'
+import { useTheme, useNavigation } from '../../app/hooks'
 import type { ThemeOption } from '../../shared/types'
 import './Header.css'
 

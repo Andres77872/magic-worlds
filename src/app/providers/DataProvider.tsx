@@ -2,7 +2,7 @@
  * Data management provider for all application entities
  */
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useEffect, useState, type ReactNode } from 'react'
 import type { Character, World, Adventure, LoadingState } from '../../shared'
 import { storage } from '../../infrastructure/storage'
 
@@ -267,10 +267,5 @@ export function DataProvider({ children }: DataProviderProps) {
     )
 }
 
-export function useData() {
-    const context = useContext(DataContext)
-    if (context === undefined) {
-        throw new Error('useData must be used within a DataProvider')
-    }
-    return context
-}
+// Export the context for use in hooks
+export { DataContext }
