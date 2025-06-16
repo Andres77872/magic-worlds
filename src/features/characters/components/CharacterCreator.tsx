@@ -6,6 +6,7 @@ import type { FormEvent, KeyboardEvent } from 'react';
 import { useState, useRef, useEffect } from 'react';
 import type { Character } from '../../../shared/types';
 import { useNavigation, useData } from '../../../app/providers';
+import { storage } from '../../../infrastructure/storage';
 import './CharacterCreator.css';
 
 export function CharacterCreator() {
@@ -33,7 +34,7 @@ export function CharacterCreator() {
         })
     }
 
-    const handleSubmit = (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
         const statsRecord = stats.reduce<Record<string, string>>((acc, cur) => {
             if (cur.key) acc[cur.key] = cur.value
@@ -53,9 +54,17 @@ export function CharacterCreator() {
             ? characters.map(c => c.id === id ? character : c)
             : [...characters, character]
             
-        setCharacters(updatedCharacters)
-        setEditingCharacter(null)
-        setPage('landing')
+        try {
+            // First save to localStorage
+            await storage.saveCharacters(updatedCharacters);
+            // Then update React state
+            setCharacters(updatedCharacters);
+            setEditingCharacter(null);
+            setPage('landing');
+        } catch (error) {
+            console.error('Failed to save character:', error);
+            alert('Failed to save character. Please try again.');
+        }
     }
 
     const handleBack = () => {

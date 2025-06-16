@@ -6,6 +6,7 @@ import type { FormEvent, KeyboardEvent } from 'react';
 import { useState, useRef, useEffect } from 'react';
 import type { World } from '../../../shared/types';
 import { useNavigation, useData } from '../../../app/providers';
+import { storage } from '../../../infrastructure/storage';
 import './WorldCreator.css';
 
 export function WorldCreator() {
@@ -33,7 +34,7 @@ export function WorldCreator() {
         })
     }
 
-    const handleSubmit = (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
         const detailsRecord = details.reduce<Record<string, string>>((acc, cur) => {
             if (cur.key) acc[cur.key] = cur.value
@@ -53,9 +54,17 @@ export function WorldCreator() {
             ? worlds.map(w => w.id === id ? world : w)
             : [...worlds, world]
             
-        setWorlds(updatedWorlds)
-        setEditingWorld(null)
-        setPage('landing')
+        try {
+            // First save to localStorage
+            await storage.saveWorlds(updatedWorlds);
+            // Then update React state
+            setWorlds(updatedWorlds);
+            setEditingWorld(null);
+            setPage('landing');
+        } catch (error) {
+            console.error('Failed to save world:', error);
+            alert('Failed to save world. Please try again.');
+        }
     }
 
     const handleBack = () => {

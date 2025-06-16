@@ -4,21 +4,22 @@
 
 import type {ChangeEvent, FormEvent, KeyboardEvent} from 'react';
 import {useEffect, useRef, useState} from 'react';
-import type {Adventure} from '../../../shared/types';
+import type {Adventure} from '../../../shared';
 import { useNavigation, useData } from '../../../app/providers';
+import { storage } from '../../../infrastructure/storage';
 import './AdventureCreator.css';
 
 export function AdventureCreator() {
     const { setPage } = useNavigation();
-    const { characters, worlds, adventures, setAdventures, editingAdventure, setEditingAdventure } = useData();
+    const { characters, worlds, templateAdventures, setTemplateAdventures, editingTemplate, setEditingTemplate } = useData();
     
-    const [id] = useState(editingAdventure?.id ?? crypto.randomUUID())
-    const [scenario, setScenario] = useState(editingAdventure?.scenario ?? '')
+    const [id] = useState(editingTemplate?.id ?? crypto.randomUUID())
+    const [scenario, setScenario] = useState(editingTemplate?.scenario ?? '')
     const [selectedChars, setSelectedChars] = useState<string[]>(
-        editingAdventure ? editingAdventure.characters.map((c) => c.name) : [],
+        editingTemplate ? editingTemplate.characters.map((c) => c.name) : [],
     )
     const [selectedWorlds, setSelectedWorlds] = useState<string[]>(
-        editingAdventure ? editingAdventure.worlds.map((w) => w.name) : [],
+        editingTemplate ? editingTemplate.worlds.map((w) => w.name) : [],
     )
 
     const handleCharacterChange = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -31,7 +32,7 @@ export function AdventureCreator() {
         setSelectedWorlds(opts)
     }
 
-    const handleSubmit = (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
         const chosenChars = characters.filter((c) =>
             selectedChars.includes(c.name),
@@ -46,21 +47,29 @@ export function AdventureCreator() {
             characters: chosenChars, 
             worlds: chosenWorlds,
             status: 'template',
-            createdAt: editingAdventure?.createdAt ?? new Date().toISOString(),
+            createdAt: editingTemplate?.createdAt ?? new Date().toISOString(),
             updatedAt: new Date().toISOString()
         }
         
-        const updatedAdventures = editingAdventure 
-            ? adventures.map(a => a.id === id ? adventure : a)
-            : [...adventures, adventure]
-            
-        setAdventures(updatedAdventures)
-        setEditingAdventure(null)
-        setPage('landing')
+        const updatedAdventures = editingTemplate 
+            ? templateAdventures.map(a => a.id === id ? adventure : a)
+            : [...templateAdventures, adventure]
+        
+        try {
+            // First save to localStorage
+            await storage.saveTemplateAdventures(updatedAdventures);
+            // Then update React state
+            setTemplateAdventures(updatedAdventures);
+            setEditingTemplate(null);
+            setPage('landing');
+        } catch (error) {
+            console.error('Failed to save adventure:', error);
+            alert('Failed to save adventure. Please try again.');
+        }
     }
 
     const handleBack = () => {
-        setEditingAdventure(null)
+        setEditingTemplate(null)
         setPage('landing')
     }
 
@@ -82,7 +91,7 @@ export function AdventureCreator() {
     return (
         <div className="adventure-creator" onKeyDown={handleKeyDown}>
             <div className="adventure-creator-header">
-                <h2>{editingAdventure ? 'Edit Adventure' : 'Create Adventure'}</h2>
+                <h2>{editingTemplate ? 'Edit Adventure' : 'Create Adventure'}</h2>
                 <button className="btn btn-secondary" onClick={handleBack}>
                     Back
                 </button>
@@ -209,7 +218,7 @@ export function AdventureCreator() {
                         Cancel
                     </button>
                     <button type="submit" className="btn btn-primary">
-                        {editingAdventure ? 'Update Adventure' : 'Create Adventure'}
+                        {editingTemplate ? 'Update Adventure' : 'Create Adventure'}
                     </button>
                 </div>
             </form>

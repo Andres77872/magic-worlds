@@ -2,7 +2,7 @@
  * Storage service - moved from services to infrastructure layer
  */
 
-import type { Character, World, Adventure } from '../../shared/types'
+import type { Character, World, Adventure } from '../../shared'
 
 class StorageService {
     private readonly STORAGE_KEYS = {
