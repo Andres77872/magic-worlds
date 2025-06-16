@@ -2,40 +2,57 @@
    Theme Color Variables: dark vs. light
    ===================================================================== */
 
+/* Import the base tokens first */
+@import url('./tokens.css');
+
 /* Dark theme variables: original dark/grey palette */
 [data-theme="dark"] {
     /* Backgrounds */
-    --background-color-website: #121212;
-    --background-color-primary: #1a1a1a;
-    --background-color-secondary: #242424;
-    --background-color-tertiary: #2c2c2c;
-    --background-color-hover: #333333;
+    --background-color-website: var(--color-grey-900);
+    --background-color-primary: var(--color-grey-800);
+    --background-color-secondary: var(--color-grey-800);
+    --background-color-tertiary: var(--color-grey-700);
+    --background-color-hover: var(--color-grey-700);
     --background-color-focus: #3a3a3a;
-    --background-color-disable: #1e1e1e;
+    --background-color-disable: var(--color-grey-800);
 
     /* Text */
-    --text-color: #f5f5f5;
-    --text-color-secondary: #b0b0b0;
-    --text-color-placeholder: #707070;
+    --text-color: var(--color-grey-50);
+    --text-color-secondary: var(--color-grey-400);
+    --text-color-placeholder: var(--color-grey-500);
 
     /* Borders */
-    --border-color: #333333;
-    --border-color-lighter: #444444;
+    --border-color: var(--color-grey-700);
+    --border-color-lighter: var(--color-grey-600);
 
     /* Accents */
-    --accent-color: #6773a8;
-    --accent-color-hover: #7c88b8;
+    --accent-color: var(--color-purple-500);
+    --accent-color-hover: var(--color-purple-300);
 
     /* Status messages */
-    --color-messages-info: #4a90b4;
-    --color-messages-success: #4d8563;
-    --color-messages-error: #c15c5c;
-    --color-messages-warning: #b58d4a;
+    --color-messages-info: var(--color-blue-500);
+    --color-messages-success: var(--color-green-500);
+    --color-messages-error: var(--color-red-500);
+    --color-messages-warning: var(--color-amber-500);
+    
+    /* Status colors with consistent naming */
+    --color-error: var(--color-red-500);
+    --color-error-hover: var(--color-red-700);
+    --color-error-transparency: rgba(193, 92, 92, 0.3);
+    --color-success: var(--color-green-500);
+    --color-success-hover: var(--color-green-700);
+    --color-success-transparency: rgba(77, 133, 99, 0.3);
+    --color-info: var(--color-blue-500);
+    --color-info-hover: var(--color-blue-700);
+    --color-info-transparency: rgba(74, 144, 180, 0.3);
+    --color-warning: var(--color-amber-500);
+    --color-warning-hover: var(--color-amber-700);
+    --color-warning-transparency: rgba(181, 141, 74, 0.3);
 
     /* Misc */
-    --color-dark: #0a0a0a;
-    --color-hover-secondary: #2a2a2a;
-    --color-footer: #121212;
+    --color-dark: var(--color-grey-900);
+    --color-hover-secondary: var(--color-grey-700);
+    --color-footer: var(--color-grey-900);
     --color-brighter: #ffffff;
 
     /* Transparency */
@@ -48,31 +65,51 @@
 /* Light theme variables: modern light mode */
 [data-theme="light"] {
     /* Backgrounds */
-    --background-color-website: #fafafa;
+    --background-color-website: var(--color-grey-50);
     --background-color-primary: #ffffff;
-    --background-color-secondary: #f0f2f5;
-    --background-color-tertiary: #e4e8ed;
-    --background-color-hover: #e0e4e9;
-    --background-color-focus: #d8dde3;
-    --background-color-disable: #f5f5f5;
+    --background-color-secondary: var(--color-grey-100);
+    --background-color-tertiary: var(--color-grey-200);
+    --background-color-hover: var(--color-grey-200);
+    --background-color-focus: var(--color-grey-300);
+    --background-color-disable: var(--color-grey-100);
 
     /* Text */
-    --text-color: #333333;
-    --text-color-secondary: #555555;
-    --text-color-placeholder: #999999;
+    --text-color: var(--color-grey-700);
+    --text-color-secondary: var(--color-grey-600);
+    --text-color-placeholder: var(--color-grey-500);
 
     /* Borders */
-    --border-color: #dddddd;
-    --border-color-lighter: #eeeeee;
+    --border-color: var(--color-grey-200);
+    --border-color-lighter: var(--color-grey-100);
 
     /* Accents */
-    --accent-color: #6b46c1;
-    --accent-color-hover: #805ad5;
+    --accent-color: var(--color-purple-700);
+    --accent-color-hover: var(--color-purple-800);
+
+    /* Status messages */
+    --color-messages-info: var(--color-blue-700);
+    --color-messages-success: var(--color-green-700);
+    --color-messages-error: var(--color-red-500);
+    --color-messages-warning: var(--color-amber-700);
+    
+    /* Status colors with consistent naming */
+    --color-error: var(--color-red-500);
+    --color-error-hover: var(--color-red-700);
+    --color-error-transparency: rgba(193, 92, 92, 0.15);
+    --color-success: var(--color-green-700);
+    --color-success-hover: var(--color-green-500);
+    --color-success-transparency: rgba(77, 133, 99, 0.15);
+    --color-info: var(--color-blue-700);
+    --color-info-hover: var(--color-blue-500);
+    --color-info-transparency: rgba(74, 144, 180, 0.15);
+    --color-warning: var(--color-amber-700);
+    --color-warning-hover: var(--color-amber-500);
+    --color-warning-transparency: rgba(181, 141, 74, 0.15);
 
     /* Misc */
-    --color-dark: #0a0a0a;
-    --color-hover-secondary: #2a2a2a;
-    --color-footer: #fafafa;
+    --color-dark: var(--color-grey-900);
+    --color-hover-secondary: var(--color-grey-300);
+    --color-footer: var(--color-grey-50);
     --color-brighter: #ffffff;
 
     /* Transparency */
@@ -80,4 +117,11 @@
     --background-transparency-light: rgba(0, 0, 0, 0.3);
     --background-transparency-dark: rgba(0, 0, 0, 0.8);
     --background-transparency: var(--background-transparency-dark);
+}
+
+/* Gradients - available in all themes */
+:root {
+    --gradient-primary: linear-gradient(45deg, var(--accent-color), var(--accent-color-hover));
+    --gradient-dark: linear-gradient(to bottom, var(--color-dark), var(--background-color-primary));
+    --gradient-light: linear-gradient(to bottom, #ffffff, var(--background-color-secondary));
 }

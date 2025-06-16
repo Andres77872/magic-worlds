@@ -1,6 +1,6 @@
 /* borders.css */
 :root {
-    /* Borders */
+    /* Core Borders - preserving existing variables */
     --border-radius-small: 4px;
     --border-radius-medium: 8px;
     --border-radius-large: 16px;
@@ -9,4 +9,16 @@
     --border-focus: 1px solid var(--border-color);
     --border-dashed: 2px dashed var(--border-color-lighter);
     --border-radius: var(--border-radius-small);
+    
+    /* Extended border utilities for consistency */
+    /* These map directly to existing tokens */
+    --border-width-thin: 1px;
+    --border-width-medium: 2px;
+    --border-width-thick: 3px;
+    
+    /* Component specific borders */
+    --input-border: var(--border-standard);
+    --card-border: var(--border-standard);
+    --button-border: var(--border-standard);
+    --modal-border-radius: var(--border-radius-medium);
 }

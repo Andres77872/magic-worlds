@@ -1,10 +1,44 @@
 /* typography.css */
 :root {
-    /* Typography */
+    /* Base Typography */
     --font-family-base: 'Roboto', sans-serif;
     --font-size-base: 16px;
     --font-size-small: 0.875rem;
     --font-size-normal: 1rem;
     --font-size-large: 1.25rem;
     --line-height-normal: 1.5;
+    
+    /* Extended Typography - preserving existing and adding new */
+    /* Font sizes */
+    --font-size-xs: var(--size-xs);
+    --font-size-xl: var(--size-xl);
+    --font-size-2xl: var(--size-2xl);
+    --font-size-3xl: var(--size-3xl);
+    
+    /* Font weights */
+    --font-weight-light: var(--weight-light);
+    --font-weight-normal: var(--weight-normal);
+    --font-weight-medium: var(--weight-medium);
+    --font-weight-semibold: var(--weight-semibold);
+    --font-weight-bold: var(--weight-bold);
+    
+    /* Line heights */
+    --line-height-tight: 1.25;
+    --line-height-loose: 1.75;
+    --line-height-none: 1;
+    
+    /* Letter spacing */
+    --letter-spacing-tighter: -0.05em;
+    --letter-spacing-tight: -0.025em; 
+    --letter-spacing-normal: 0em;
+    --letter-spacing-wide: 0.025em;
+    --letter-spacing-wider: 0.05em;
+    
+    /* Heading styles (convenience combinations) */
+    --heading-1: var(--font-size-3xl) var(--font-weight-bold) var(--line-height-tight);
+    --heading-2: var(--font-size-2xl) var(--font-weight-bold) var(--line-height-tight);
+    --heading-3: var(--font-size-xl) var(--font-weight-semibold) var(--line-height-tight);
+    --heading-4: var(--font-size-large) var(--font-weight-semibold) var(--line-height-tight);
+    --heading-5: var(--font-size-normal) var(--font-weight-medium) var(--line-height-tight);
+    --heading-6: var(--font-size-small) var(--font-weight-medium) var(--line-height-tight);
 }

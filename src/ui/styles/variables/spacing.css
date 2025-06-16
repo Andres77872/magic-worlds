@@ -1,6 +1,6 @@
 /* spacing.css */
 :root {
-    /* Spacing Variables */
+    /* Core Spacing Variables - preserved exactly as they were */
     --padding-small: 0.5rem;
     --padding-medium: 1rem;
     --padding-large: 1.5rem;
@@ -11,4 +11,20 @@
     --gap-medium: 1rem;
     --gap-large: 1.5rem;
     --gap-xs: 2rem;
+    
+    /* Extended spacing variables based on tokens */
+    /* These map to the existing ones for compatibility */
+    --spacing-xs: var(--padding-small);
+    --spacing-sm: var(--padding-small);
+    --spacing-md: var(--padding-medium);
+    --spacing-lg: var(--padding-large);
+    --spacing-xl: var(--gap-xs);
+    
+    /* Component-specific spacing */
+    --card-padding: var(--padding-medium);
+    --button-padding-x: var(--padding-medium);
+    --button-padding-y: var(--padding-small);
+    --form-gap: var(--gap-medium);
+    --content-spacing: var(--padding-large);
+    --section-spacing: var(--gap-xs);
 }

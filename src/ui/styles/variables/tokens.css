@@ -1,0 +1,68 @@
+/* 
+ * Design Tokens
+ * Base values for the magic-worlds design system
+ * These tokens serve as the foundation for our existing variables
+ */
+
+:root {
+  /* Color tokens - base palette */
+  --color-grey-50: #fafafa;
+  --color-grey-100: #f0f2f5;
+  --color-grey-200: #e4e8ed;
+  --color-grey-300: #d8dde3;
+  --color-grey-400: #b0b0b0;
+  --color-grey-500: #707070;
+  --color-grey-600: #555555;
+  --color-grey-700: #333333;
+  --color-grey-800: #242424;
+  --color-grey-900: #121212;
+  
+  /* Purple accent palette */
+  --color-purple-300: #7c88b8;
+  --color-purple-500: #6773a8;
+  --color-purple-700: #6b46c1;
+  --color-purple-800: #805ad5;
+
+  /* Status colors */
+  --color-red-500: #c15c5c;
+  --color-red-700: #b44141;
+  --color-green-500: #4d8563;
+  --color-green-700: #3c6b4e;
+  --color-blue-500: #4a90b4;
+  --color-blue-700: #3a7a9e;
+  --color-amber-500: #b58d4a;
+  --color-amber-700: #9e7938;
+  
+  /* Spacing scale (foundation for padding, margin, gap) */
+  --space-1: 0.25rem;  /* 4px */
+  --space-2: 0.5rem;   /* 8px - maps to small */
+  --space-3: 0.75rem;  /* 12px */
+  --space-4: 1rem;     /* 16px - maps to medium */
+  --space-5: 1.5rem;   /* 24px - maps to large */
+  --space-6: 2rem;     /* 32px - maps to gap-xs */
+  --space-8: 3rem;     /* 48px */
+  --space-10: 4rem;    /* 64px */
+  
+  /* Font size tokens */
+  --size-xs: 0.75rem;   /* 12px */
+  --size-sm: 0.875rem;  /* 14px - maps to font-size-small */
+  --size-base: 1rem;    /* 16px - maps to font-size-normal */
+  --size-lg: 1.125rem;  /* 18px */
+  --size-xl: 1.25rem;   /* 20px - maps to font-size-large */
+  --size-2xl: 1.5rem;   /* 24px */
+  --size-3xl: 1.875rem; /* 30px */
+  --size-4xl: 2.25rem;  /* 36px */
+  
+  /* Font weights */
+  --weight-light: 300;
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  
+  /* Border radius */
+  --radius-sm: 4px;     /* maps to border-radius-small */
+  --radius-md: 8px;     /* maps to border-radius-medium */
+  --radius-lg: 16px;    /* maps to border-radius-large */
+  --radius-full: 9999px;
+}
