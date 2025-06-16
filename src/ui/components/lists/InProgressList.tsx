@@ -90,7 +90,7 @@ export function InProgressList({
                             {adventure.turns && adventure.turns.length > 0 && (
                                 <div className="message-preview">
                                     Last
-                                    action: {adventure.turns[adventure.turns.length - 1].userInput.substring(0, 100)}...
+                                    action: {adventure.turns[adventure.turns.length - 1].content.substring(0, 100)}...
                                 </div>
                             )}
                             {isDeleting && <div className="deleting-overlay">Deleting...</div>}

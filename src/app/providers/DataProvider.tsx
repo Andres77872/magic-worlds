@@ -110,7 +110,7 @@ export function DataProvider({ children }: DataProviderProps) {
             const newInProgressAdventure: Adventure = {
                 ...template,
                 id: crypto.randomUUID(),
-                status: 'in_progress',
+                status: 'in-progress',
                 turns: template.turns || [],
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()

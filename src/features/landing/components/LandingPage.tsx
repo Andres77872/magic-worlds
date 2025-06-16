@@ -166,6 +166,7 @@ export function LandingPage() {
 
             {confirmClear && (
                 <ConfirmDialog
+                    visible={confirmClear}
                     title="Clear All Data"
                     message="Are you sure you want to delete all characters, worlds, and adventures? This action cannot be undone."
                     onConfirm={handleClearAll}

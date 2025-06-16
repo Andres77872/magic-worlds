@@ -31,23 +31,21 @@ export function InteractionLeftPanel({adventure, onBack}: InteractionLeftPanelPr
                     <FaGlobe className="section-icon"/>
                     <h4>Worlds</h4>
                 </div>
-                {adventure.worlds && adventure.worlds.length > 0 ? (
-                    adventure.worlds.map(world => (
-                        <div key={world.id} className="info-card">
-                            <h5 className="world-name">{world.name}</h5>
-                            <span className="world-type">{world.type}</span>
-                            {world.details && Object.keys(world.details).length > 0 && (
-                                <div className="world-details">
-                                    {Object.entries(world.details).map(([key, value]) => (
-                                        <div key={key} className="detail-item">
-                                            <span className="detail-key">{key}:</span>
-                                            <span className="detail-value">{value}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    ))
+                {adventure.world ? (
+                    <div className="info-card">
+                        <h5 className="world-name">{adventure.world.name}</h5>
+                        <span className="world-type">{adventure.world.type}</span>
+                        {adventure.world.details && Object.keys(adventure.world.details).length > 0 && (
+                            <div className="world-details">
+                                {Object.entries(adventure.world.details).map(([key, value]) => (
+                                    <div key={key} className="detail-item">
+                                        <span className="detail-key">{key}:</span>
+                                        <span className="detail-value">{String(value)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 ) : (
                     <div className="info-card">
                         <p className="no-data">No worlds selected</p>

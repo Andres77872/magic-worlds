@@ -19,7 +19,7 @@ export function AdventureCreator() {
         editingTemplate ? editingTemplate.characters.map((c) => c.name) : [],
     )
     const [selectedWorlds, setSelectedWorlds] = useState<string[]>(
-        editingTemplate ? editingTemplate.worlds.map((w) => w.name) : [],
+        editingTemplate && editingTemplate.world ? [editingTemplate.world.name] : [],
     )
 
     const handleCharacterChange = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -37,7 +37,7 @@ export function AdventureCreator() {
         const chosenChars = characters.filter((c) =>
             selectedChars.includes(c.name),
         )
-        const chosenWorlds = worlds.filter((w) =>
+        const chosenWorlds = worlds.filter((w: any) =>
             selectedWorlds.includes(w.name),
         )
         
@@ -45,8 +45,8 @@ export function AdventureCreator() {
             id, 
             scenario, 
             characters: chosenChars, 
-            worlds: chosenWorlds,
-            status: 'template',
+            world: chosenWorlds.length > 0 ? chosenWorlds[0] : undefined,
+            status: 'draft',
             createdAt: editingTemplate?.createdAt ?? new Date().toISOString(),
             updatedAt: new Date().toISOString()
         }

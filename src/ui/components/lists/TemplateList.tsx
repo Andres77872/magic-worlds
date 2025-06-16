@@ -105,7 +105,7 @@ export function TemplateList({
                         >
                             {template.turns && template.turns.length > 0 && (
                                 <div className="message-preview">
-                                    {template.turns[0].userInput.substring(0, 100)}...
+                                    {template.turns[0].content.substring(0, 100)}...
                                 </div>
                             )}
                             {isDeleting && <div className="deleting-overlay">Deleting...</div>}
