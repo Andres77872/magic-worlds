@@ -1,12 +1,13 @@
-import type { Adventure } from '../../../shared/types'
+import type { Adventure, TurnEntry } from '../../../shared'
 import { FaCog, FaDice, FaHistory } from 'react-icons/fa'
 import './InteractionRightPanel.css'
 
 interface InteractionRightPanelProps {
     adventure: Adventure
+    turns?: TurnEntry[]
 }
 
-export function InteractionRightPanel({ adventure }: InteractionRightPanelProps) {
+export function InteractionRightPanel({ adventure, turns = [] }: InteractionRightPanelProps) {
     const handleDiceRoll = () => {
         const roll = Math.floor(Math.random() * 20) + 1
         alert(`🎲 You rolled a ${roll}!`)
@@ -15,6 +16,11 @@ export function InteractionRightPanel({ adventure }: InteractionRightPanelProps)
     const handleSaveAdventure = () => {
         // In a real implementation, this would save the current adventure state
         alert('Adventure progress saved!')
+    }
+
+    // Helper function to truncate text to 50 characters
+    const truncateText = (text: string, maxLength: number = 50): string => {
+        return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text
     }
 
     return (
@@ -40,11 +46,22 @@ export function InteractionRightPanel({ adventure }: InteractionRightPanelProps)
                     <h4>Adventure Log</h4>
                 </div>
                 <div className="log-area">
-                    <div className="log-entry">
-                        <span className="log-time">Started</span>
-                        <span className="log-text">Adventure began</span>
-                    </div>
-                    {/* Additional log entries would be added here */}
+                    {turns.length === 0 ? (
+                        <div className="log-entry log-empty">
+                            <span className="log-text">No adventure logs yet. Start your adventure!</span>
+                        </div>
+                    ) : (
+                        turns.map((turn, index) => (
+                            <div key={turn.id || index} className="log-entry">
+                                <span className="log-time">
+                                    {new Date(turn.timestamp).toLocaleTimeString()} - {turn.type === 'user' ? 'You' : 'AI'}
+                                </span>
+                                <span className={`log-text ${turn.type}`}>
+                                    {truncateText(turn.content)}
+                                </span>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
 

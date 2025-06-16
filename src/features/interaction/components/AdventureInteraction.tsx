@@ -102,6 +102,7 @@ export function AdventureInteraction() {
                 />
                 <InteractionRightPanel 
                     adventure={currentAdventure}
+                    turns={turns}
                 />
             </div>
         </div>

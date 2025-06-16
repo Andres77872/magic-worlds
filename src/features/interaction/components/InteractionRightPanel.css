@@ -68,10 +68,28 @@
 .log-time {
   color: var(--text-color-secondary);
   font-size: 0.8rem;
+  display: flex;
+  justify-content: space-between;
 }
 
 .log-text {
   color: var(--text-color);
+  word-break: break-word;
+}
+
+.log-text.user {
+  color: var(--accent-color);
+  font-weight: var(--font-weight-medium);
+}
+
+.log-text.ai {
+  color: var(--text-color);
+}
+
+.log-empty {
+  color: var(--text-color-secondary);
+  text-align: center;
+  font-style: italic;
 }
 
 .settings-area {
