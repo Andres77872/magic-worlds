@@ -1,0 +1,109 @@
+/* =====================================================================
+   AttributeList Component
+   ===================================================================== */
+
+.attribute-section {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  padding: var(--padding-medium);
+  margin-bottom: var(--margin-medium);
+  background-color: var(--background-color-secondary);
+  transition: box-shadow 0.3s ease;
+}
+
+.attribute-section:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.attribute-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--padding-medium);
+}
+
+.attribute-title-area {
+  flex: 1;
+}
+
+.attribute-title-area h3 {
+  margin: 0 0 var(--margin-small) 0;
+  color: var(--accent-color);
+  font-size: 1.1rem;
+}
+
+.attribute-description {
+  margin: 0;
+  color: var(--text-color-secondary);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.attribute-actions {
+  display: flex;
+  gap: var(--gap-small);
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.attributes-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-small);
+}
+
+.attribute-row {
+  display: flex;
+  gap: var(--gap-small);
+  align-items: center;
+  padding: var(--padding-small);
+  border-radius: var(--border-radius-small);
+  transition: background-color 0.2s ease;
+}
+
+.attribute-row:hover {
+  background-color: var(--background-color-tertiary);
+}
+
+.attribute-key {
+  flex: 2;
+}
+
+.attribute-value {
+  flex: 1;
+}
+
+.empty-attributes {
+  padding: var(--padding-medium);
+  text-align: center;
+  background-color: var(--background-color-tertiary);
+  border-radius: var(--border-radius-small);
+  color: var(--text-color-secondary);
+  font-style: italic;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .attribute-row {
+    flex-direction: column;
+    padding-bottom: var(--padding-small);
+    border-bottom: 1px solid var(--border-color-lighter);
+  }
+  
+  .attribute-key,
+  .attribute-value {
+    flex: 1;
+    margin-bottom: var(--margin-small);
+  }
+  
+  .attribute-header {
+    flex-direction: column;
+    gap: var(--gap-small);
+  }
+  
+  .attribute-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
