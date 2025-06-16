@@ -3,7 +3,7 @@
  */
 
 import {useEffect, useState} from 'react'
-import type {Adventure, TurnEntry} from '../../../shared/types'
+import type {Adventure, TurnEntry} from '../../../shared'
 import { useNavigation, useData } from '../../../app/providers'
 import { LoadingSpinner } from '../../../ui/components'
 import { storage } from '../../../infrastructure/storage'
@@ -17,48 +17,64 @@ export function AdventureInteraction() {
     const [turns, setTurns] = useState<TurnEntry[]>([])
     const [isLoading, setIsLoading] = useState(true)
 
-    // Get adventure from navigation state or redirect back
+    // Get adventure from data context when component mounts
     useEffect(() => {
-        // Set the current adventure from the data context
         if (editingInProgress) {
             setCurrentAdventure(editingInProgress)
-        } else if (!currentAdventure) {
+        } else {
+            // Redirect back if no adventure is selected
             setPage('landing')
-            return
         }
-    }, [editingInProgress, currentAdventure, setPage])
+    }, [editingInProgress, setPage])
 
-    // Load turns from storage when component mounts or adventure changes
+    // Load turns from storage when adventure is available
     useEffect(() => {
         if (!currentAdventure) return
 
         let isMounted = true
+        setIsLoading(true)
 
         const loadTurns = async () => {
             try {
-                setIsLoading(true)
-                const loadedTurns = await storage.loadTurns(currentAdventure.id)
-                if (isMounted) {
-                    setTurns(loadedTurns)
+                // Get turns from the adventure if available, otherwise load from storage
+                if (currentAdventure.turns && currentAdventure.turns.length > 0) {
+                    if (isMounted) {
+                        setTurns(currentAdventure.turns);
+                        setIsLoading(false);
+                    }
+                } else {
+                    // Try to load turns from storage if the adventure doesn't have them
+                    try {
+                        const loadedTurns = await storage.loadTurns(currentAdventure.id);
+                        if (isMounted) {
+                            setTurns(loadedTurns);
+                        }
+                    } catch (error) {
+                        console.error('Failed to load turns, creating empty turns array:', error);
+                        if (isMounted) {
+                            setTurns([]);
+                        }
+                    } finally {
+                        if (isMounted) {
+                            setIsLoading(false);
+                        }
+                    }
                 }
             } catch (error) {
-                console.error('Failed to load turns:', error)
+                console.error('Error processing adventure turns:', error);
                 if (isMounted) {
-                    setTurns([])
-                }
-            } finally {
-                if (isMounted) {
-                    setIsLoading(false)
+                    setTurns([]);
+                    setIsLoading(false);
                 }
             }
         }
 
-        loadTurns()
+        loadTurns();
 
         return () => {
             isMounted = false
         }
-    }, [currentAdventure?.id])
+    }, [currentAdventure])
 
     const handleBack = () => {
         setPage(previousPage || 'landing')

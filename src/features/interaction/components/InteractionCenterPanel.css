@@ -105,21 +105,22 @@
 
 @keyframes typing {
   0%, 60%, 100% {
-    transform: translateY(0);
-    opacity: 0.5;
+    transform: scale(1);
+    opacity: 0.6;
   }
   30% {
-    transform: translateY(-10px);
+    transform: scale(1.2);
     opacity: 1;
   }
 }
 
 .input-area {
   display: flex;
-  gap: var(--padding-small);
   padding: var(--padding-medium);
   border-top: 1px solid var(--border-color);
-  background: var(--background-color-tertiary);
+  background: var(--background-color-primary);
+  gap: var(--padding-small);
+  align-items: center;
 }
 
 .message-input {
@@ -129,16 +130,109 @@
   border-radius: var(--border-radius-small);
   background: var(--background-color-secondary);
   color: var(--text-color);
-  font-size: 1rem;
+  font-size: var(--font-size-base);
+  outline: none;
+  transition: border-color 0.2s ease;
 }
 
 .message-input:focus {
-  outline: none;
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px var(--background-transparency-light);
 }
 
 .message-input:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Error banner */
+.error-banner {
+  padding: var(--padding-medium);
+  background-color: var(--color-error);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: var(--border-radius-small);
+  margin: var(--padding-medium);
+}
+
+.close-error {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  margin-left: var(--padding-medium);
+}
+
+/* Loading indicator */
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-small);
+  color: var(--text-color-secondary);
+  font-size: var(--font-size-small);
+  gap: var(--padding-small);
+  background-color: var(--background-color-primary);
+}
+
+.spinner {
+  animation: spin 1s infinite linear;
+  margin-right: var(--padding-small);
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Input buttons layout */
+.input-buttons {
+  display: flex;
+  gap: var(--padding-small);
+}
+
+.btn {
+  padding: var(--padding-small) var(--padding-medium);
+  border-radius: var(--border-radius-small);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--padding-small);
+  min-width: 80px;
+}
+
+.btn-primary {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-color);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--background-color-tertiary);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--background-color-tertiary);
+}
+
+.btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

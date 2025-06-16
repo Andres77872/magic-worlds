@@ -2,7 +2,7 @@
  * Storage service - moved from services to infrastructure layer
  */
 
-import type { Character, World, Adventure } from '../../shared'
+import type { Character, World, Adventure, TurnEntry } from '../../shared'
 
 class StorageService {
     private readonly STORAGE_KEYS = {
@@ -106,6 +106,38 @@ class StorageService {
 
     async clearInProgressAdventures(): Promise<void> {
         localStorage.removeItem(this.STORAGE_KEYS.IN_PROGRESS_ADVENTURES)
+    }
+
+    // Adventure turns operations
+    async loadTurns(adventureId: string): Promise<TurnEntry[]> {
+        try {
+            const storageKey = `magic-worlds-turns-${adventureId}`
+            const stored = localStorage.getItem(storageKey)
+            return stored ? JSON.parse(stored) : []
+        } catch (error) {
+            console.error(`Failed to load turns for adventure ${adventureId}:`, error)
+            return []
+        }
+    }
+
+    async saveTurns(adventureId: string, turns: TurnEntry[]): Promise<void> {
+        try {
+            const storageKey = `magic-worlds-turns-${adventureId}`
+            localStorage.setItem(storageKey, JSON.stringify(turns))
+        } catch (error) {
+            console.error(`Failed to save turns for adventure ${adventureId}:`, error)
+            throw error
+        }
+    }
+
+    async clearTurns(adventureId: string): Promise<void> {
+        try {
+            const storageKey = `magic-worlds-turns-${adventureId}`
+            localStorage.removeItem(storageKey)
+        } catch (error) {
+            console.error(`Failed to clear turns for adventure ${adventureId}:`, error)
+            throw error
+        }
     }
 }
 

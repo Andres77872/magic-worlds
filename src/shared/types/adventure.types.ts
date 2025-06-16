@@ -19,15 +19,16 @@ export interface Adventure {
 export type AdventureStatus = 'draft' | 'in-progress' | 'completed' | 'archived'
 
 export interface TurnEntry {
-    number: number
-    userInput: string
-    assistantResponse: string
-    timestamp?: string
+    id: string
+    type: 'user' | 'ai' | 'system'
+    content: string
+    timestamp: string
+    isStreaming?: boolean
     metadata?: Record<string, any>
 }
 
 export interface AdventureFormData {
     scenario: string
-    characters: Character[]
-    world?: World
+    characters: string[]
+    world?: string
 }
