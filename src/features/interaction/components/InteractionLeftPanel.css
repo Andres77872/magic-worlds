@@ -1,0 +1,118 @@
+/* =====================================================================
+   Interaction Left Panel
+   ===================================================================== */
+.left-panel {
+  background: var(--color-background-secondary);
+  border-right: 1px solid var(--color-border);
+  padding: var(--spacing-md);
+  overflow-y: auto;
+  height: 100%;
+}
+
+.panel-header {
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.panel-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.section-icon {
+  font-size: 1.1rem;
+}
+
+.section-header h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.info-card {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+}
+
+.info-card:last-child {
+  margin-bottom: 0;
+}
+
+.scenario-text {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.world-name, .character-name {
+  margin: 0 0 var(--spacing-xs) 0;
+  color: var(--color-text);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.world-type, .character-race {
+  display: inline-block;
+  background: var(--color-primary);
+  color: white;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius);
+  font-size: 0.8rem;
+  margin-bottom: var(--spacing-sm);
+}
+
+.world-details, .character-stats {
+  margin-top: var(--spacing-sm);
+}
+
+.detail-item, .stat-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-xs);
+  font-size: 0.9rem;
+}
+
+.detail-key, .stat-key {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.detail-value, .stat-value {
+  color: var(--color-text);
+  text-align: right;
+}
+
+.no-data {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-style: italic;
+  text-align: center;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .left-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+    max-height: 200px;
+  }
+  
+  .panel-section {
+    margin-bottom: var(--spacing-md);
+  }
+  
+  .info-card {
+    padding: var(--spacing-sm);
+  }
+}

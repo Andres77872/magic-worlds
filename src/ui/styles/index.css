@@ -1,0 +1,23 @@
+/**
+ * Main CSS entry point
+ */
+
+@import './App.css';
+
+/* Feature placeholder styles */
+.feature-placeholder {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--spacing-xl);
+    text-align: center;
+}
+
+.feature-placeholder h2 {
+    color: var(--color-primary);
+    margin-bottom: var(--spacing-md);
+}
+
+.feature-placeholder p {
+    color: var(--color-text-secondary);
+    font-style: italic;
+}

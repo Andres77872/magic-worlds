@@ -1,54 +1,100 @@
-# React + TypeScript + Vite
+# Magic Worlds RPG
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React-based fantasy adventure game creator and interaction system with AI-powered storytelling.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Character Creation**: Design detailed RPG characters with stats and backgrounds
+- **World Building**: Create rich, immersive worlds with custom lore and settings  
+- **Adventure Templates**: Build reusable adventure scenarios
+- **Interactive Storytelling**: AI-powered chat-based adventure gameplay
+- **Theme Support**: Light, dark, and system theme options
+- **Local Storage**: Persistent data storage for all your creations
 
-## Expanding the ESLint configuration
+## Architecture
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+This project follows an LLM-optimized architecture with clear separation of concerns:
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```
+src/
+├── app/                    # Application root and providers
+├── features/              # Feature-based organization
+│   ├── characters/        # Character management
+│   ├── worlds/           # World building
+│   ├── adventures/       # Adventure creation
+│   ├── interaction/      # Interactive gameplay
+│   └── landing/          # Landing page
+├── shared/               # Shared utilities and types
+├── ui/                   # Reusable UI components
+└── infrastructure/       # External services
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Getting Started
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Prerequisites
+- Node.js 18+
+- npm or yarn
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
+### Installation
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd magic-worlds
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
 ```
+
+### Build for Production
+
+```bash
+npm run build
+```
+
+## Tech Stack
+
+- **React 19** - UI framework
+- **TypeScript** - Type safety
+- **Vite** - Build tool and dev server
+- **CSS Variables** - Theming system
+- **React Icons** - Icon library
+
+## Development
+
+### Project Structure
+
+- **Features**: Each major feature has its own folder with components, hooks, services, and types
+- **Shared**: Common utilities, types, and hooks used across features
+- **UI**: Reusable components and styling system
+- **Infrastructure**: External services like storage and API clients
+
+### Code Style
+
+- Use TypeScript for all new code
+- Follow React best practices and hooks patterns
+- Keep components small and focused (< 200 lines)
+- Use CSS variables for consistent theming
+- Write self-documenting code with clear naming
+
+### Adding New Features
+
+1. Create a new folder in `src/features/`
+2. Add components, hooks, services, and types as needed
+3. Export from feature's `index.ts` file
+4. Update routing in `AppRouter.tsx`
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes following the project structure
+4. Test your changes
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.

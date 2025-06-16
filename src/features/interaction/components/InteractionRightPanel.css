@@ -1,0 +1,122 @@
+/* =====================================================================
+   Interaction Right Panel
+   ===================================================================== */
+.right-panel {
+  background: var(--color-background-secondary);
+  border-left: 1px solid var(--color-border);
+  padding: var(--spacing-md);
+  overflow-y: auto;
+  height: 100%;
+}
+
+.panel-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.section-icon {
+  font-size: 1.1rem;
+}
+
+.section-header h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.btn-block {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.log-area {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-sm);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.log-entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.9rem;
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-time {
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+.log-text {
+  color: var(--color-text);
+}
+
+.settings-area {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+}
+
+.setting-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.setting-label input[type="checkbox"] {
+  margin: 0;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .right-panel {
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+    max-height: 200px;
+  }
+  
+  .panel-section {
+    margin-bottom: var(--spacing-md);
+  }
+  
+  .action-buttons {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  
+  .btn-block {
+    flex: 1;
+    min-width: 120px;
+  }
+}
