@@ -1,10 +1,12 @@
 /* =====================================================================
-   Character Creator Component
+   Character Components - Consolidated Styles
    ===================================================================== */
+
+/* Character Creator Component Styles */
 .character-creator {
-  max-width: 600px;
+  max-width: 800px;
   margin: 0 auto;
-  padding: var(--gap-xs);
+  padding: var(--padding-medium);
   background: var(--background-color-secondary);
   border-radius: var(--border-radius-small);
   box-shadow: var(--shadow-md);
@@ -30,42 +32,172 @@
   gap: var(--padding-large);
 }
 
-.stats-section {
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-small);
-  padding: var(--padding-medium);
+.character-essentials {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-medium);
+  padding-bottom: var(--padding-medium);
+  border-bottom: 1px solid var(--border-color-lighter);
 }
 
-.stats-header {
+/* Field styling */
+.field {
+  position: relative;
+  margin-bottom: var(--margin-small);
+}
+
+.field-label {
+  display: block;
+  margin-bottom: var(--margin-small);
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.field-input {
+  width: 100%;
+  padding: var(--padding-small);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  background-color: var(--background-color-primary);
+  color: var(--text-color);
+  transition: border-color 0.2s ease;
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-color-hover);
+}
+
+.description-textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+/* Attributes container */
+.attributes-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-medium);
+}
+
+.attributes-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--padding-medium);
+  margin-bottom: var(--margin-medium);
+  padding-bottom: var(--padding-small);
+  border-bottom: 1px solid var(--border-color-lighter);
 }
 
-.stats-header h3 {
-  margin: 0;
+.attributes-header h3 {
   color: var(--text-color);
+  font-size: 1.3rem;
+  margin: 0;
 }
 
-.stats-list {
+/* Add category form */
+.add-category-form {
+  background-color: var(--background-color-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  padding: var(--padding-medium);
+  margin-bottom: var(--margin-medium);
+  box-shadow: var(--shadow-sm);
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.add-category-form h4 {
+  margin-top: 0;
+  margin-bottom: var(--margin-medium);
+  color: var(--accent-color);
+}
+
+.category-form-fields {
   display: flex;
   flex-direction: column;
-  gap: var(--padding-small);
+  gap: var(--gap-medium);
 }
 
-.stat-row {
+.category-form-actions {
   display: flex;
-  gap: var(--padding-small);
+  justify-content: flex-end;
+  gap: var(--gap-medium);
+  margin-top: var(--margin-small);
+}
+
+/* Tooltip system */
+.input-with-tooltip {
+  position: relative;
+  display: flex;
   align-items: center;
 }
 
-.stat-key {
-  flex: 2;
+.tooltip-trigger {
+  position: relative;
+  margin-left: var(--margin-small);
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 4px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
-.stat-value {
-  flex: 1;
+.tooltip-trigger:hover {
+  color: var(--accent-color);
+  background-color: var(--background-color-hover);
+}
+
+.tooltip-trigger-textarea {
+  align-self: flex-start;
+  margin-top: var(--margin-small);
+}
+
+.tooltip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  z-index: 100;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  width: 220px;
+  padding: var(--padding-small);
+  background-color: var(--background-color-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  color: var(--text-color);
+  font-size: 0.85rem;
+  box-shadow: var(--shadow-md);
+  text-align: center;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  pointer-events: none;
+}
+
+/* Add tooltip arrow */
+.tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: var(--border-color) transparent transparent transparent;
+}
+
+.tooltip-trigger:hover .tooltip {
+  visibility: visible;
+  opacity: 1;
 }
 
 .form-actions {
@@ -77,7 +209,148 @@
   border-top: 1px solid var(--border-color);
 }
 
-/* Responsive Adjustments */
+/* Button styling */
+.btn {
+  padding: var(--button-padding-y) var(--button-padding-x);
+  border-radius: var(--border-radius-small);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-small);
+  border: none;
+}
+
+.btn-primary {
+  background-color: var(--accent-color);
+  color: var(--color-brighter);
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-color-hover);
+}
+
+.btn-secondary {
+  background-color: var(--background-color-tertiary);
+  color: var(--text-color);
+}
+
+.btn-secondary:hover {
+  background-color: var(--background-color-hover);
+}
+
+.btn-accent {
+  background-color: var(--background-color-hover);
+  color: var(--accent-color);
+  border: 1px solid var(--accent-color);
+}
+
+.btn-accent:hover {
+  background-color: var(--accent-color);
+  color: var(--color-brighter);
+}
+
+.btn-danger {
+  background-color: var(--color-error);
+  color: var(--color-brighter);
+}
+
+.btn-danger:hover {
+  background-color: var(--color-error-hover);
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* =====================================================================
+   AttributeList Component Specific Styles - Merged
+   ===================================================================== */
+
+.attribute-section {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  padding: var(--padding-medium);
+  margin-bottom: var(--margin-medium);
+  background-color: var(--background-color-secondary);
+  transition: box-shadow 0.3s ease;
+}
+
+.attribute-section:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.attribute-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--padding-medium);
+}
+
+.attribute-title-area {
+  flex: 1;
+}
+
+.attribute-title-area h3 {
+  margin: 0 0 var(--margin-small) 0;
+  color: var(--accent-color);
+  font-size: 1.1rem;
+}
+
+.attribute-description {
+  margin: 0;
+  color: var(--text-color-secondary);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.attribute-actions {
+  display: flex;
+  gap: var(--gap-small);
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.attributes-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-small);
+}
+
+.attribute-row {
+  display: flex;
+  gap: var(--gap-small);
+  align-items: center;
+  padding: var(--padding-small);
+  border-radius: var(--border-radius-small);
+  transition: background-color 0.2s ease;
+}
+
+.attribute-row:hover {
+  background-color: var(--background-color-tertiary);
+}
+
+.attribute-key {
+  flex: 2;
+}
+
+.attribute-value {
+  flex: 1;
+}
+
+.empty-attributes {
+  padding: var(--padding-medium);
+  text-align: center;
+  background-color: var(--background-color-tertiary);
+  border-radius: var(--border-radius-small);
+  color: var(--text-color-secondary);
+  font-style: italic;
+}
+
+/* Responsive styles */
 @media (max-width: 768px) {
   .character-creator {
     margin: var(--padding-medium);
@@ -90,16 +363,43 @@
     align-items: stretch;
   }
   
-  .stat-row {
-    flex-direction: column;
-  }
-  
-  .stat-key,
-  .stat-value {
-    flex: 1;
-  }
-  
   .form-actions {
     flex-direction: column;
+  }
+  
+  .tooltip {
+    width: 200px;
+  }
+  
+  .tooltip-trigger-textarea .tooltip {
+    left: auto;
+    right: 0;
+    transform: translateX(0);
+  }
+  
+  .category-form-actions {
+    flex-direction: column;
+  }
+
+  .attribute-row {
+    flex-direction: column;
+    padding-bottom: var(--padding-small);
+    border-bottom: 1px solid var(--border-color-lighter);
+  }
+  
+  .attribute-key,
+  .attribute-value {
+    flex: 1;
+    margin-bottom: var(--margin-small);
+  }
+  
+  .attribute-header {
+    flex-direction: column;
+    gap: var(--gap-small);
+  }
+  
+  .attribute-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 }

@@ -1,4 +1,4 @@
-Always use the variables css from
+Always use the variables css from, review is is necessary
 /home/andres/WebstormProjects/magic-worlds/src/ui/styles/variables
 
 avoid create new variables
