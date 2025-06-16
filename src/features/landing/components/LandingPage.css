@@ -7,9 +7,9 @@
    ===================================================================== */
 .landing-page {
   min-height: 100vh;
-  padding: var(--spacing-lg);
-  background: var(--color-background);
-  color: var(--color-text);
+  padding: var(--padding-large);
+  background: var(--background-color-secondary);
+  color: var(--text-color);
 }
 
 .loading-container {
@@ -18,13 +18,13 @@
   align-items: center;
   justify-content: center;
   min-height: 50vh;
-  gap: var(--spacing-md);
+  gap: var(--padding-medium);
 }
 
 .loading-spinner {
   font-size: 2rem;
-  color: var(--color-primary);
-  animation: spin 1s linear infinite;
+  color: var(--accent-color);
+  animation: var(--spin-animation);
 }
 
 @keyframes spin {
@@ -34,39 +34,39 @@
 
 .landing-header {
   text-align: center;
-  margin-bottom: var(--spacing-xl);
-  padding-bottom: var(--spacing-lg);
-  border-bottom: 2px solid var(--color-border);
+  margin-bottom: var(--gap-xs);
+  padding-bottom: var(--padding-large);
+  border-bottom: 2px solid var(--border-color);
 }
 
 .landing-header h1 {
-  color: var(--color-primary);
-  margin-bottom: var(--spacing-md);
+  color: var(--accent-color);
+  margin-bottom: var(--padding-medium);
   font-size: 2.5rem;
   font-weight: 700;
 }
 
 .landing-header p {
-  color: var(--color-text-secondary);
+  color: var(--text-color-secondary);
   font-size: 1.1rem;
   max-width: 600px;
   margin: 0 auto;
-  line-height: 1.6;
+  line-height: var(--line-height-normal);
 }
 
 .action-buttons {
   display: flex;
   justify-content: center;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-xl);
+  gap: var(--padding-medium);
+  margin-bottom: var(--gap-xs);
   flex-wrap: wrap;
 }
 
 .action-btn {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md) var(--spacing-lg);
+  gap: var(--padding-small);
+  padding: var(--padding-medium) var(--padding-large);
   font-size: 1rem;
   font-weight: 600;
   min-width: 160px;
@@ -76,15 +76,15 @@
 .content-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: var(--spacing-lg);
-  margin-bottom: var(--spacing-xl);
+  gap: var(--padding-large);
+  margin-bottom: var(--gap-xs);
 }
 
 .content-section {
-  background: var(--color-background-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--border-radius);
-  padding: var(--spacing-lg);
+  background: var(--background-color-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  padding: var(--padding-large);
   min-height: 300px;
 }
 
@@ -92,23 +92,23 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-md);
-  padding-bottom: var(--spacing-sm);
-  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--padding-medium);
+  padding-bottom: var(--padding-small);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .section-header h2 {
   margin: 0;
-  color: var(--color-primary);
+  color: var(--accent-color);
   font-size: 1.3rem;
   font-weight: 600;
 }
 
 .count {
-  background: var(--color-primary);
+  background: var(--accent-color);
   color: white;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--border-radius);
+  padding: var(--padding-small) var(--padding-small);
+  border-radius: var(--border-radius-small);
   font-size: 0.9rem;
   font-weight: 600;
   min-width: 24px;
@@ -118,14 +118,14 @@
 .danger-zone {
   display: flex;
   justify-content: center;
-  padding-top: var(--spacing-lg);
-  border-top: 1px solid var(--color-border);
+  padding-top: var(--padding-large);
+  border-top: 1px solid var(--border-color);
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
   .landing-page {
-    padding: var(--spacing-md);
+    padding: var(--padding-medium);
   }
   
   .landing-header h1 {
@@ -144,6 +144,6 @@
   
   .content-grid {
     grid-template-columns: 1fr;
-    gap: var(--spacing-md);
+    gap: var(--padding-medium);
   }
 }

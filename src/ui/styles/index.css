@@ -8,16 +8,16 @@
 .feature-placeholder {
     max-width: 800px;
     margin: 0 auto;
-    padding: var(--spacing-xl);
+    padding: var(--gap-xs);
     text-align: center;
 }
 
 .feature-placeholder h2 {
-    color: var(--color-primary);
-    margin-bottom: var(--spacing-md);
+    color: var(--accent-color);
+    margin-bottom: var(--padding-medium);
 }
 
 .feature-placeholder p {
-    color: var(--color-text-secondary);
+    color: var(--text-color-secondary);
     font-style: italic;
 }

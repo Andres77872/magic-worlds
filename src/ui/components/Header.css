@@ -6,9 +6,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--spacing-md) var(--spacing-lg);
-    background: var(--color-surface);
-    border-bottom: 1px solid var(--color-border);
+    padding: var(--padding-medium) var(--padding-large);
+    background: var(--background-color-primary);
+    border-bottom: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
 }
 
@@ -23,21 +23,21 @@
 }
 
 .app-title {
-    font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-primary);
+    font-size: var(--font-size-large);
+    font-weight: 700;
+    color: var(--accent-color);
     margin: 0;
 }
 
 .theme-toggle {
     display: flex;
     align-items: center;
-    gap: var(--spacing-sm);
+    gap: var(--padding-small);
 }
 
 .theme-toggle .field-label {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
+    font-size: var(--font-size-small);
+    color: var(--text-color-secondary);
     margin: 0;
 }
 

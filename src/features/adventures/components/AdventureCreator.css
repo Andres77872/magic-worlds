@@ -4,24 +4,24 @@
 .adventure-creator {
   max-width: 800px;
   margin: 0 auto;
-  padding: var(--spacing-xl);
-  background: var(--color-background);
-  border-radius: var(--border-radius);
-  box-shadow: var(--shadow-md);
-  color: var(--color-text);
+  padding: var(--gap-xs);
+  background: var(--background-color-secondary);
+  border-radius: var(--border-radius-small);
+  box-shadow: var(--box-shadow-medium);
+  color: var(--text-color);
 }
 
 .adventure-creator-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-lg);
-  padding-bottom: var(--spacing-md);
-  border-bottom: 2px solid var(--color-border);
+  margin-bottom: var(--padding-large);
+  padding-bottom: var(--padding-medium);
+  border-bottom: 2px solid var(--border-color);
 }
 
 .adventure-creator-header h2 {
-  color: var(--color-primary);
+  color: var(--accent-color);
   font-size: 1.75rem;
   margin: 0;
 }
@@ -29,47 +29,47 @@
 .adventure-form {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
+  gap: var(--padding-large);
 }
 
 .scenario-textarea {
   min-height: 120px;
-  line-height: 1.6;
+  line-height: var(--line-height-normal);
   resize: vertical;
 }
 
 .selection-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-lg);
+  gap: var(--padding-large);
 }
 
 .selection-list {
   min-height: 120px;
-  padding: var(--spacing-sm);
+  padding: var(--padding-small);
 }
 
 .selection-list option {
-  padding: var(--spacing-xs);
+  padding: var(--padding-small);
   margin: 2px 0;
 }
 
 .help-text {
   font-size: 0.9rem;
-  color: var(--color-text-secondary);
+  color: var(--text-color-secondary);
   font-style: italic;
-  margin-top: var(--spacing-xs);
+  margin-top: var(--padding-small);
 }
 
 .selected-items {
-  border: 1px solid var(--color-border);
-  border-radius: var(--border-radius);
-  padding: var(--spacing-md);
-  background: var(--color-background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  padding: var(--padding-medium);
+  background: var(--background-color-tertiary);
 }
 
 .selected-group {
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--padding-medium);
 }
 
 .selected-group:last-child {
@@ -77,25 +77,25 @@
 }
 
 .selected-group h4 {
-  margin: 0 0 var(--spacing-sm) 0;
-  color: var(--color-text);
+  margin: 0 0 var(--padding-small) 0;
+  color: var(--text-color);
   font-size: 1rem;
 }
 
 .selected-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-xs);
+  gap: var(--padding-small);
 }
 
 .selected-tag {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-xs);
-  background: var(--color-primary);
+  gap: var(--padding-small);
+  background: var(--accent-color);
   color: white;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--border-radius);
+  padding: var(--padding-small) var(--padding-small);
+  border-radius: var(--border-radius-small);
   font-size: 0.9rem;
 }
 
@@ -107,7 +107,7 @@
   font-size: 1.2rem;
   line-height: 1;
   padding: 0;
-  margin-left: var(--spacing-xs);
+  margin-left: var(--padding-small);
 }
 
 .remove-tag:hover {
@@ -116,23 +116,23 @@
 
 .form-actions {
   display: flex;
-  gap: var(--spacing-md);
+  gap: var(--padding-medium);
   justify-content: flex-end;
-  margin-top: var(--spacing-lg);
-  padding-top: var(--spacing-md);
-  border-top: 1px solid var(--color-border);
+  margin-top: var(--padding-large);
+  padding-top: var(--padding-medium);
+  border-top: 1px solid var(--border-color);
 }
 
 /* Responsive Adjustments */
 @media (max-width: 768px) {
   .adventure-creator {
-    margin: var(--spacing-md);
-    padding: var(--spacing-md);
+    margin: var(--padding-medium);
+    padding: var(--padding-medium);
   }
   
   .adventure-creator-header {
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--padding-medium);
     align-items: stretch;
   }
   

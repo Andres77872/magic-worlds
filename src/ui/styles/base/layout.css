@@ -5,7 +5,7 @@
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 0 var(--spacing-lg);
+    padding: 0 var(--padding-large);
 }
 
 .flex {
@@ -29,15 +29,15 @@
 }
 
 .gap-sm {
-    gap: var(--spacing-sm);
+    gap: var(--gap-small);
 }
 
 .gap-md {
-    gap: var(--spacing-md);
+    gap: var(--gap-medium);
 }
 
 .gap-lg {
-    gap: var(--spacing-lg);
+    gap: var(--gap-large);
 }
 
 .grid {

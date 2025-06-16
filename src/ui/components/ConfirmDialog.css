@@ -8,16 +8,16 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--background-transparency-standard);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    padding: var(--spacing-lg);
+    padding: var(--padding-large);
 }
 
 .confirm-dialog {
-    background: var(--color-surface);
+    background: var(--background-color-primary);
     border: var(--border-standard);
     border-radius: var(--border-radius-medium);
     box-shadow: var(--shadow-xl);
@@ -29,31 +29,31 @@
 }
 
 .confirm-dialog-header {
-    padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-md);
+    padding: var(--padding-large) var(--padding-large) var(--padding-medium);
     border-bottom: var(--border-standard);
 }
 
 .confirm-dialog-title {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
+    font-size: var(--font-size-large);
+    font-weight: 600;
+    color: var(--text-color);
     margin: 0;
 }
 
 .confirm-dialog-body {
-    padding: var(--spacing-md) var(--spacing-lg);
+    padding: var(--padding-medium) var(--padding-large);
 }
 
 .confirm-dialog-message {
-    color: var(--color-text-secondary);
+    color: var(--text-color-secondary);
     line-height: 1.6;
     margin: 0;
 }
 
 .confirm-dialog-footer {
-    padding: var(--spacing-md) var(--spacing-lg) var(--spacing-lg);
+    padding: var(--padding-medium) var(--padding-large) var(--padding-large);
     display: flex;
-    gap: var(--spacing-md);
+    gap: var(--padding-medium);
     justify-content: flex-end;
     border-top: var(--border-standard);
 }

@@ -15,26 +15,26 @@ html {
 
 body {
     font-family: var(--font-family-base);
-    font-size: var(--font-size-base);
-    line-height: var(--line-height-base);
-    color: var(--color-text-primary);
-    background: var(--color-background);
+    font-size: 1rem;
+    line-height: var(--line-height-normal);
+    color: var(--text-color);
+    background: var(--background-color-secondary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6 {
-    font-weight: var(--font-weight-semibold);
-    line-height: var(--line-height-tight);
-    margin-bottom: var(--spacing-sm);
+    font-weight: 600;
+    line-height: var(--line-height-normal);
+    margin-bottom: var(--padding-small);
 }
 
 p {
-    margin-bottom: var(--spacing-md);
+    margin-bottom: var(--padding-medium);
 }
 
 a {
-    color: var(--color-primary);
+    color: var(--accent-color);
     text-decoration: none;
 }
 

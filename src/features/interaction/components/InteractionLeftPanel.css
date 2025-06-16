@@ -2,29 +2,29 @@
    Interaction Left Panel
    ===================================================================== */
 .left-panel {
-  background: var(--color-background-secondary);
-  border-right: 1px solid var(--color-border);
-  padding: var(--spacing-md);
+  background: var(--background-color-tertiary);
+  border-right: 1px solid var(--border-color);
+  padding: var(--padding-medium);
   overflow-y: auto;
   height: 100%;
 }
 
 .panel-header {
-  margin-bottom: var(--spacing-md);
-  padding-bottom: var(--spacing-sm);
-  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--padding-medium);
+  padding-bottom: var(--padding-small);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .panel-section {
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--padding-large);
 }
 
 .section-header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
-  color: var(--color-primary);
+  gap: var(--padding-small);
+  margin-bottom: var(--padding-medium);
+  color: var(--accent-color);
   font-weight: 600;
 }
 
@@ -38,11 +38,11 @@
 }
 
 .info-card {
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: var(--border-radius);
-  padding: var(--spacing-md);
-  margin-bottom: var(--spacing-sm);
+  background: var(--background-color-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  padding: var(--padding-medium);
+  margin-bottom: var(--padding-small);
 }
 
 .info-card:last-child {
@@ -51,51 +51,51 @@
 
 .scenario-text {
   margin: 0;
-  line-height: 1.5;
-  color: var(--color-text);
+  line-height: var(--line-height-normal);
+  color: var(--text-color);
 }
 
 .world-name, .character-name {
-  margin: 0 0 var(--spacing-xs) 0;
-  color: var(--color-text);
+  margin: 0 0 var(--padding-small) 0;
+  color: var(--text-color);
   font-size: 1rem;
   font-weight: 600;
 }
 
 .world-type, .character-race {
   display: inline-block;
-  background: var(--color-primary);
+  background: var(--accent-color);
   color: white;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--border-radius);
+  padding: var(--padding-small) var(--padding-small);
+  border-radius: var(--border-radius-small);
   font-size: 0.8rem;
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: var(--padding-small);
 }
 
 .world-details, .character-stats {
-  margin-top: var(--spacing-sm);
+  margin-top: var(--padding-small);
 }
 
 .detail-item, .stat-item {
   display: flex;
   justify-content: space-between;
-  margin-bottom: var(--spacing-xs);
+  margin-bottom: var(--padding-small);
   font-size: 0.9rem;
 }
 
 .detail-key, .stat-key {
   font-weight: 500;
-  color: var(--color-text-secondary);
+  color: var(--text-color-secondary);
 }
 
 .detail-value, .stat-value {
-  color: var(--color-text);
+  color: var(--text-color);
   text-align: right;
 }
 
 .no-data {
   margin: 0;
-  color: var(--color-text-secondary);
+  color: var(--text-color-secondary);
   font-style: italic;
   text-align: center;
 }
@@ -104,15 +104,15 @@
 @media (max-width: 768px) {
   .left-panel {
     border-right: none;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--border-color);
     max-height: 200px;
   }
   
   .panel-section {
-    margin-bottom: var(--spacing-md);
+    margin-bottom: var(--padding-medium);
   }
   
   .info-card {
-    padding: var(--spacing-sm);
+    padding: var(--padding-small);
   }
 }

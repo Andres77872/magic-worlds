@@ -8,14 +8,14 @@
     align-items: center;
     justify-content: center;
     min-height: 200px;
-    gap: var(--spacing-md);
+    gap: var(--padding-medium);
 }
 
 .loading-spinner {
-    border: 3px solid var(--color-border);
-    border-top: 3px solid var(--color-primary);
+    border: 3px solid var(--border-color);
+    border-top: 3px solid var(--accent-color);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: var(--spin-animation);
 }
 
 .loading-spinner-small .loading-spinner {
@@ -36,8 +36,8 @@
 }
 
 .loading-message {
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
+    color: var(--text-color-secondary);
+    font-size: var(--font-size-small);
     margin: 0;
 }
 

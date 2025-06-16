@@ -213,11 +213,11 @@
 }
 
 .card-options-item[data-danger] {
-    color: var(--color-messages-error);
+    color: var(--color-error);
 }
 
 .card-options-item[data-danger]:hover {
-    background-color: var(--color-messages-error);
+    background-color: var(--color-error);
 }
 
 .card-options-item[data-highlight] {

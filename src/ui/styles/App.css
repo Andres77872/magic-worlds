@@ -20,9 +20,9 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background: var(--color-background);
-    color: var(--color-text-primary);
-    transition: background-color 0.2s ease, color 0.2s ease;
+    background: var(--background-color-secondary);
+    color: var(--text-color);
+    transition: var(--transition-standard);
 }
 
 .main-content {
@@ -36,16 +36,16 @@
     align-items: center;
     justify-content: center;
     min-height: 50vh;
-    padding: var(--spacing-xl);
+    padding: var(--gap-xs);
     text-align: center;
 }
 
 .error-container h2 {
     color: var(--color-error);
-    margin-bottom: var(--spacing-md);
+    margin-bottom: var(--padding-medium);
 }
 
 .error-container p {
-    color: var(--color-text-secondary);
+    color: var(--text-color-secondary);
     max-width: 500px;
 }

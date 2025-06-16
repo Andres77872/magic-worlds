@@ -4,24 +4,24 @@
 .world-creator {
   max-width: 700px;
   margin: 0 auto;
-  padding: var(--spacing-xl);
-  background: var(--color-background);
-  border-radius: var(--border-radius);
+  padding: var(--gap-xs);
+  background: var(--background-color-secondary);
+  border-radius: var(--border-radius-small);
   box-shadow: var(--shadow-md);
-  color: var(--color-text);
+  color: var(--text-color);
 }
 
 .world-creator-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-lg);
-  padding-bottom: var(--spacing-md);
-  border-bottom: 2px solid var(--color-border);
+  margin-bottom: var(--padding-large);
+  padding-bottom: var(--padding-medium);
+  border-bottom: 2px solid var(--border-color);
 }
 
 .world-creator-header h2 {
-  color: var(--color-primary);
+  color: var(--accent-color);
   font-size: 1.75rem;
   margin: 0;
 }
@@ -29,36 +29,36 @@
 .world-form {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
+  gap: var(--padding-large);
 }
 
 .details-section {
-  border: 1px solid var(--color-border);
-  border-radius: var(--border-radius);
-  padding: var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  padding: var(--padding-medium);
 }
 
 .details-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--padding-medium);
 }
 
 .details-header h3 {
   margin: 0;
-  color: var(--color-text);
+  color: var(--text-color);
 }
 
 .details-list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: var(--padding-medium);
 }
 
 .detail-row {
   display: flex;
-  gap: var(--spacing-sm);
+  gap: var(--padding-small);
   align-items: flex-start;
 }
 
@@ -74,23 +74,23 @@
 
 .form-actions {
   display: flex;
-  gap: var(--spacing-md);
+  gap: var(--padding-medium);
   justify-content: flex-end;
-  margin-top: var(--spacing-lg);
-  padding-top: var(--spacing-md);
-  border-top: 1px solid var(--color-border);
+  margin-top: var(--padding-large);
+  padding-top: var(--padding-medium);
+  border-top: 1px solid var(--border-color);
 }
 
 /* Responsive Adjustments */
 @media (max-width: 768px) {
   .world-creator {
-    margin: var(--spacing-md);
-    padding: var(--spacing-md);
+    margin: var(--padding-medium);
+    padding: var(--padding-medium);
   }
   
   .world-creator-header {
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--padding-medium);
     align-items: stretch;
   }
   

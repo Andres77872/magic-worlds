@@ -5,7 +5,7 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--color-background);
+  background: var(--background-color-website);
 }
 
 .interaction-layout {
