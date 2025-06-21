@@ -1,15 +1,17 @@
 /**
- * App header with logo, title, and theme selector
+ * App header with enhanced UI/UX, magical effects, and theme selector
  */
 
 import { useEffect } from 'react'
 import { useTheme, useNavigation } from '../../app/hooks'
 import type { ThemeOption } from '../../shared/types'
+import { FiMoon, FiSun, FiMonitor } from 'react-icons/fi'
+import { GiMagicSwirl, GiCrystalBall } from 'react-icons/gi'
 import './Header.css'
 
 export function Header() {
     const { theme, setTheme } = useTheme()
-    const { setPage } = useNavigation()
+    const { currentPage, setPage } = useNavigation()
 
     // Apply theme attribute to <html>
     useEffect(() => {
@@ -28,29 +30,70 @@ export function Header() {
         }
     }, [theme])
 
+    const getThemeIcon = () => {
+        switch (theme) {
+            case 'dark': return <FiMoon />
+            case 'light': return <FiSun />
+            case 'system': return <FiMonitor />
+            default: return <FiSun />
+        }
+    }
+
+    const getPageTitle = () => {
+        switch (currentPage) {
+            case 'character': return 'Character Creation'
+            case 'world': return 'World Building'
+            case 'adventure': return 'Adventure Creation'
+            case 'interaction': return 'Active Adventure'
+            default: return 'Dashboard'
+        }
+    }
+
     return (
         <header className="app-header">
-            <img
-                src="/react.svg"
-                alt="Magic Worlds Logo"
-                className="app-logo"
-                onClick={() => setPage('landing')}
-            />
-            <div className="app-title">Magic Worlds RPG</div>
-            <div className="theme-toggle">
-                <label className="field-label">
-                    Theme:
-                    <select
-                        className="field-input"
-                        value={theme}
-                        onChange={(e) => setTheme(e.target.value as ThemeOption)}
+            <div className="header-content">
+                <div className="header-brand">
+                    <button 
+                        className="brand-button hover-magical"
+                        onClick={() => setPage('landing')}
+                        aria-label="Go to home"
                     >
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                        <option value="system">System</option>
-                    </select>
-                </label>
+                        <GiCrystalBall className="app-logo animate-float" />
+                        <div className="brand-text">
+                            <span className="brand-title">Magic Worlds</span>
+                            <span className="brand-subtitle">RPG</span>
+                        </div>
+                    </button>
+                </div>
+
+                <div className="header-center">
+                    <div className="page-indicator">
+                        <GiMagicSwirl className="page-icon animate-pulse" />
+                        <span className="page-title">{getPageTitle()}</span>
+                    </div>
+                </div>
+
+                <div className="header-actions">
+                    <div className="theme-selector">
+                        <button
+                            className="theme-button hover-magical"
+                            onClick={() => {
+                                const themes: ThemeOption[] = ['light', 'dark', 'system']
+                                const currentIndex = themes.indexOf(theme)
+                                const nextIndex = (currentIndex + 1) % themes.length
+                                setTheme(themes[nextIndex])
+                            }}
+                            aria-label={`Current theme: ${theme}`}
+                            title={`Theme: ${theme}`}
+                        >
+                            <span className="theme-icon">{getThemeIcon()}</span>
+                        </button>
+                    </div>
+                </div>
             </div>
+
+            {/* Magical effect border */}
+            <div className="header-border-effect"></div>
         </header>
     )
 }

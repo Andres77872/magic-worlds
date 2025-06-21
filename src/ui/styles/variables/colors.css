@@ -5,50 +5,59 @@
 /* Import the base tokens first */
 @import url('./tokens.css');
 
-/* Dark theme variables: original dark/grey palette */
+/* Dark theme variables: Fantasy dark theme with mystical colors */
 [data-theme="dark"] {
     /* Backgrounds */
-    --background-color-website: var(--color-grey-900);
-    --background-color-primary: var(--color-grey-800);
-    --background-color-secondary: var(--color-grey-800);
-    --background-color-tertiary: var(--color-grey-700);
-    --background-color-hover: var(--color-grey-700);
-    --background-color-focus: #3a3a3a;
-    --background-color-disable: var(--color-grey-800);
+    --background-color-website: #0a0a0f; /* Deep space black */
+    --background-color-primary: #12121a; /* Midnight blue-black */
+    --background-color-secondary: #1a1a25; /* Dark mystic blue */
+    --background-color-tertiary: #252533; /* Twilight grey */
+    --background-color-hover: #2a2a3d; /* Hover state */
+    --background-color-focus: #3a3a52;
+    --background-color-disable: #1f1f2a;
 
     /* Text */
-    --text-color: var(--color-grey-50);
-    --text-color-secondary: var(--color-grey-400);
-    --text-color-placeholder: var(--color-grey-500);
+    --text-color: #e8e6f0; /* Soft moonlight */
+    --text-color-secondary: #a8a6b8; /* Mystic grey */
+    --text-color-placeholder: #6b697d;
 
     /* Borders */
-    --border-color: var(--color-grey-700);
-    --border-color-lighter: var(--color-grey-600);
+    --border-color: #3a3852; /* Mystical border */
+    --border-color-lighter: #4a4866;
 
-    /* Accents */
-    --accent-color: var(--color-purple-500);
-    --accent-color-hover: var(--color-purple-300);
+    /* Accents - Magical purple & gold */
+    --accent-color: #8b5cf6; /* Mystic purple */
+    --accent-color-hover: #a78bfa; /* Lighter purple */
+    --accent-secondary: #f59e0b; /* Dragon gold */
+    --accent-tertiary: #10b981; /* Forest emerald */
 
     /* Status messages */
-    --color-messages-info: var(--color-blue-500);
-    --color-messages-success: var(--color-green-500);
-    --color-messages-error: var(--color-red-500);
-    --color-messages-warning: var(--color-amber-500);
+    --color-messages-info: #60a5fa;
+    --color-messages-success: #34d399;
+    --color-messages-error: #f87171;
+    --color-messages-warning: #fbbf24;
     
     /* Status colors with consistent naming */
-    --color-error: var(--color-red-500);
-    --color-error-hover: var(--color-red-700);
-    --color-error-transparency: rgba(193, 92, 92, 0.3);
-    --color-success: var(--color-green-500);
-    --color-success-hover: var(--color-green-700);
-    --color-success-transparency: rgba(77, 133, 99, 0.3);
-    --color-info: var(--color-blue-500);
-    --color-info-hover: var(--color-blue-700);
-    --color-info-transparency: rgba(74, 144, 180, 0.3);
-    --color-warning: var(--color-amber-500);
-    --color-warning-hover: var(--color-amber-700);
-    --color-warning-transparency: rgba(181, 141, 74, 0.3);
+    --color-error: #ef4444;
+    --color-error-hover: #dc2626;
+    --color-error-transparency: rgba(239, 68, 68, 0.3);
+    --color-success: #10b981;
+    --color-success-hover: #059669;
+    --color-success-transparency: rgba(16, 185, 129, 0.3);
+    --color-info: #3b82f6;
+    --color-info-hover: #2563eb;
+    --color-info-transparency: rgba(59, 130, 246, 0.3);
+    --color-warning: #f59e0b;
+    --color-warning-hover: #d97706;
+    --color-warning-transparency: rgba(245, 158, 11, 0.3);
 
+    /* Magical Elements */
+    --color-magic-glow: #c084fc; /* Bright magic purple */
+    --color-fire: #f97316; /* Dragon fire */
+    --color-ice: #67e8f9; /* Frost blue */
+    --color-nature: #4ade80; /* Nature green */
+    --color-shadow: #1e1b4b; /* Dark magic */
+    
     /* Misc */
     --color-dark: var(--color-grey-900);
     --color-hover-secondary: var(--color-grey-700);
@@ -62,49 +71,58 @@
     --background-transparency: var(--background-transparency-dark);
 }
 
-/* Light theme variables: modern light mode */
+/* Light theme variables: Enchanted light theme */
 [data-theme="light"] {
     /* Backgrounds */
-    --background-color-website: var(--color-grey-50);
+    --background-color-website: #faf9fc; /* Parchment white */
     --background-color-primary: #ffffff;
-    --background-color-secondary: var(--color-grey-100);
-    --background-color-tertiary: var(--color-grey-200);
-    --background-color-hover: var(--color-grey-200);
-    --background-color-focus: var(--color-grey-300);
-    --background-color-disable: var(--color-grey-100);
+    --background-color-secondary: #f3f2f7; /* Light mystic */
+    --background-color-tertiary: #e9e8ef;
+    --background-color-hover: #dddce6;
+    --background-color-focus: #d1d0dd;
+    --background-color-disable: #f8f7fa;
 
     /* Text */
-    --text-color: var(--color-grey-700);
-    --text-color-secondary: var(--color-grey-600);
-    --text-color-placeholder: var(--color-grey-500);
+    --text-color: #1a1523; /* Dark mystic */
+    --text-color-secondary: #4a4458;
+    --text-color-placeholder: #6b657d;
 
     /* Borders */
-    --border-color: var(--color-grey-200);
-    --border-color-lighter: var(--color-grey-100);
+    --border-color: #e0dfe9;
+    --border-color-lighter: #ebe9f2;
 
-    /* Accents */
-    --accent-color: var(--color-purple-700);
-    --accent-color-hover: var(--color-purple-800);
+    /* Accents - Vibrant magical colors */
+    --accent-color: #7c3aed; /* Royal purple */
+    --accent-color-hover: #6d28d9;
+    --accent-secondary: #d97706; /* Ancient gold */
+    --accent-tertiary: #059669; /* Enchanted forest */
 
     /* Status messages */
-    --color-messages-info: var(--color-blue-700);
-    --color-messages-success: var(--color-green-700);
-    --color-messages-error: var(--color-red-500);
-    --color-messages-warning: var(--color-amber-700);
+    --color-messages-info: #2563eb;
+    --color-messages-success: #059669;
+    --color-messages-error: #dc2626;
+    --color-messages-warning: #d97706;
     
     /* Status colors with consistent naming */
-    --color-error: var(--color-red-500);
-    --color-error-hover: var(--color-red-700);
-    --color-error-transparency: rgba(193, 92, 92, 0.15);
-    --color-success: var(--color-green-700);
-    --color-success-hover: var(--color-green-500);
-    --color-success-transparency: rgba(77, 133, 99, 0.15);
-    --color-info: var(--color-blue-700);
-    --color-info-hover: var(--color-blue-500);
-    --color-info-transparency: rgba(74, 144, 180, 0.15);
-    --color-warning: var(--color-amber-700);
-    --color-warning-hover: var(--color-amber-500);
-    --color-warning-transparency: rgba(181, 141, 74, 0.15);
+    --color-error: #dc2626;
+    --color-error-hover: #b91c1c;
+    --color-error-transparency: rgba(220, 38, 38, 0.15);
+    --color-success: #059669;
+    --color-success-hover: #047857;
+    --color-success-transparency: rgba(5, 150, 105, 0.15);
+    --color-info: #2563eb;
+    --color-info-hover: #1d4ed8;
+    --color-info-transparency: rgba(37, 99, 235, 0.15);
+    --color-warning: #d97706;
+    --color-warning-hover: #b45309;
+    --color-warning-transparency: rgba(217, 119, 6, 0.15);
+
+    /* Magical Elements */
+    --color-magic-glow: #a855f7;
+    --color-fire: #ea580c;
+    --color-ice: #0891b2;
+    --color-nature: #16a34a;
+    --color-shadow: #4c1d95;
 
     /* Misc */
     --color-dark: var(--color-grey-900);
@@ -119,9 +137,22 @@
     --background-transparency: var(--background-transparency-dark);
 }
 
-/* Gradients - available in all themes */
+/* Magical Gradients - available in all themes */
 :root {
-    --gradient-primary: linear-gradient(45deg, var(--accent-color), var(--accent-color-hover));
-    --gradient-dark: linear-gradient(to bottom, var(--color-dark), var(--background-color-primary));
-    --gradient-light: linear-gradient(to bottom, #ffffff, var(--background-color-secondary));
+    /* Primary gradients */
+    --gradient-primary: linear-gradient(135deg, var(--accent-color), var(--accent-color-hover));
+    --gradient-magical: linear-gradient(135deg, var(--accent-color) 0%, var(--color-magic-glow) 50%, var(--accent-secondary) 100%);
+    --gradient-fire: linear-gradient(135deg, #f97316 0%, #dc2626 50%, #7c2d12 100%);
+    --gradient-ice: linear-gradient(135deg, #67e8f9 0%, #3b82f6 50%, #1e3a8a 100%);
+    --gradient-nature: linear-gradient(135deg, #4ade80 0%, #16a34a 50%, #14532d 100%);
+    --gradient-shadow: linear-gradient(135deg, #4c1d95 0%, #1e1b4b 50%, #000000 100%);
+    
+    /* Background gradients */
+    --gradient-dark: linear-gradient(180deg, var(--background-color-primary), var(--background-color-secondary));
+    --gradient-light: linear-gradient(180deg, #ffffff, var(--background-color-secondary));
+    --gradient-mystical: radial-gradient(ellipse at top, var(--background-color-tertiary), var(--background-color-primary));
+    
+    /* Special effects */
+    --gradient-glow: radial-gradient(circle, var(--color-magic-glow) 0%, transparent 70%);
+    --gradient-portal: conic-gradient(from 0deg, var(--accent-color), var(--color-magic-glow), var(--accent-secondary), var(--accent-color));
 }
