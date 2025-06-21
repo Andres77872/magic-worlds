@@ -5,9 +5,9 @@
 import { useNavigation, useData, useTheme } from '../hooks'
 import { Header } from '../../ui/components/Header'
 import { LandingPage } from '../../features/landing/components/LandingPage'
-import { CharacterCreator } from '../../features/characters/components/CharacterCreator'
-import { WorldCreator } from '../../features/worlds/components/WorldCreator'
-import { AdventureCreator } from '../../features/adventures/components/AdventureCreator'
+import { CharacterCreator } from '../../features/creation/character/components/CharacterCreator'
+import { WorldCreator } from '../../features/creation/world/components/WorldCreator'
+import { AdventureCreator } from '../../features/creation/adventure/components/AdventureCreator'
 import { AdventureInteraction } from '../../features/interaction/components/AdventureInteraction'
 import { LoadingSpinner } from '../../ui/components/LoadingSpinner'
 
