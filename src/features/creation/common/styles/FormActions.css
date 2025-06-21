@@ -1,0 +1,64 @@
+/* =====================================================================
+   Form Actions - Common Form Actions Styles
+   ===================================================================== */
+
+.creator-form-actions {
+  display: flex;
+  gap: var(--spacing-lg);
+  justify-content: flex-end;
+  margin-top: var(--spacing-xl);
+  padding-top: var(--spacing-lg);
+  border-top: 2px solid var(--border-color);
+  position: relative;
+  animation: formActionsFadeIn 0.4s ease-out 0.4s both;
+}
+
+@keyframes formActionsFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Animated border */
+.creator-form-actions::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--gradient-magical);
+  transition: width 0.6s ease-out;
+}
+
+.creator-form-actions:hover::before {
+  width: 100%;
+}
+
+/* Button disabled states */
+.creator-form-actions .creator-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.creator-form-actions .creator-btn:disabled:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .creator-form-actions {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+  
+  .creator-form-actions .creator-btn {
+    width: 100%;
+  }
+} 

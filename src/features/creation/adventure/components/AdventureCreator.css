@@ -1,0 +1,204 @@
+/* =====================================================================
+   Adventure Creator Component - Specific Styles
+   ===================================================================== */
+
+/* Import common creator styles */
+@import '../../common/styles/CreatorLayout.css';
+@import '../../common/styles/CreatorField.css';
+@import '../../common/styles/AttributeManager.css';
+@import '../../common/styles/FormActions.css';
+
+/* Form structure */
+.creator-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+.creator-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  background: linear-gradient(135deg, 
+    var(--background-color-secondary) 0%, 
+    rgba(var(--color-nature), 0.02) 100%);
+  border-radius: var(--border-radius-medium);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-standard);
+  animation: sectionFadeIn 0.4s ease-out;
+}
+
+@keyframes sectionFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.creator-form-section:hover {
+  border-color: var(--accent-tertiary);
+  box-shadow: var(--shadow-md);
+}
+
+/* Adventure-specific field enhancements */
+.adventure-field-wrapper {
+  position: relative;
+}
+
+.adventure-field-wrapper::after {
+  content: '📜';
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  font-size: 24px;
+  opacity: 0.1;
+  pointer-events: none;
+  transition: opacity var(--transition-standard);
+}
+
+.adventure-field-wrapper:hover::after {
+  opacity: 0.3;
+}
+
+/* Selection section */
+.adventure-selection-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  background: linear-gradient(135deg,
+    var(--background-color-secondary) 0%,
+    rgba(var(--accent-tertiary), 0.03) 100%);
+  border-radius: var(--border-radius-medium);
+  border: 1px solid var(--border-color);
+  animation: selectionFadeIn 0.5s ease-out 0.2s both;
+}
+
+@keyframes selectionFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.adventure-selection-section:hover {
+  border-color: var(--accent-tertiary);
+  box-shadow: var(--shadow-md);
+}
+
+/* Character selection */
+.adventure-character-selection,
+.adventure-world-selection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.adventure-character-options,
+.adventure-world-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  max-height: 200px;
+  overflow-y: auto;
+  padding: var(--spacing-sm);
+  background: var(--background-color-primary);
+  border-radius: var(--border-radius-small);
+  border: 1px solid var(--border-color);
+}
+
+.adventure-character-option,
+.adventure-world-option {
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-small);
+  transition: all var(--transition-standard);
+  cursor: pointer;
+}
+
+.adventure-character-option:hover,
+.adventure-world-option:hover {
+  background: linear-gradient(135deg,
+    var(--background-color-hover) 0%,
+    rgba(var(--accent-tertiary), 0.1) 100%);
+  transform: translateX(4px);
+}
+
+.adventure-checkbox-label,
+.adventure-radio-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  width: 100%;
+}
+
+.adventure-checkbox-text,
+.adventure-radio-text {
+  color: var(--text-color);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Enhanced checkboxes and radios */
+.adventure-checkbox-label input[type="checkbox"],
+.adventure-radio-label input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-tertiary);
+  cursor: pointer;
+}
+
+/* Empty state */
+.adventure-empty-state {
+  text-align: center;
+  padding: var(--spacing-lg);
+  color: var(--text-color-secondary);
+  font-style: italic;
+  background: var(--background-color-tertiary);
+  border-radius: var(--border-radius-small);
+  border: 2px dashed var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.adventure-btn-link {
+  background: none;
+  border: none;
+  color: var(--accent-tertiary);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: inherit;
+  font-weight: var(--font-weight-medium);
+  transition: all var(--transition-standard);
+  border-radius: var(--border-radius-small);
+}
+
+.adventure-btn-link:hover {
+  color: var(--accent-color);
+  text-decoration: none;
+  background: rgba(var(--accent-tertiary), 0.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .adventure-selection-section {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-lg);
+  }
+  
+  .adventure-character-options,
+  .adventure-world-options {
+    max-height: 150px;
+  }
+} 

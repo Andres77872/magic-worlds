@@ -1,0 +1,252 @@
+/* =====================================================================
+   Creator Field - Common Field Styles
+   ===================================================================== */
+
+.creator-field {
+  margin-bottom: var(--spacing-lg);
+  position: relative;
+  animation: fieldFadeIn 0.4s ease-out both;
+}
+
+/* Stagger animation for multiple fields */
+.creator-field:nth-child(1) { animation-delay: 0.1s; }
+.creator-field:nth-child(2) { animation-delay: 0.15s; }
+.creator-field:nth-child(3) { animation-delay: 0.2s; }
+.creator-field:nth-child(4) { animation-delay: 0.25s; }
+
+@keyframes fieldFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.creator-field-label {
+  display: block;
+  margin-bottom: var(--spacing-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-color);
+  font-size: var(--font-size-small);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  transition: color var(--transition-standard);
+}
+
+.creator-field-required {
+  color: var(--color-error);
+  margin-left: var(--spacing-xs);
+}
+
+.creator-field-wrapper {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+}
+
+.creator-field-input-wrapper {
+  flex: 1;
+  position: relative;
+}
+
+/* Common input/textarea styles */
+.creator-field-input,
+.creator-field-textarea {
+  width: 100%;
+  padding: var(--spacing-md);
+  border: 2px solid var(--border-color);
+  border-radius: var(--border-radius-medium);
+  font-size: var(--font-size-normal);
+  background-color: var(--background-color-secondary);
+  color: var(--text-color);
+  font-family: var(--font-family-base);
+  transition: all var(--transition-standard);
+  position: relative;
+}
+
+/* Hover state */
+.creator-field-input:hover,
+.creator-field-textarea:hover {
+  border-color: var(--accent-color);
+  background-color: var(--background-color-tertiary);
+}
+
+/* Focus state with magical glow */
+.creator-field-input:focus,
+.creator-field-textarea:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  background-color: var(--background-color-primary);
+  box-shadow: 0 0 0 3px var(--color-info-transparency),
+              var(--shadow-lg);
+}
+
+/* Textarea specific */
+.creator-field-textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: var(--line-height-normal);
+}
+
+/* Tooltip system */
+.creator-tooltip-trigger {
+  position: relative;
+  color: var(--text-color-secondary);
+  cursor: help;
+  font-size: var(--font-size-normal);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-standard);
+  background: var(--background-color-tertiary);
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.creator-tooltip-trigger:hover {
+  color: var(--accent-color);
+  background: var(--accent-color);
+  color: var(--color-brighter);
+  transform: scale(1.1);
+  box-shadow: var(--shadow-md);
+}
+
+/* Align tooltip trigger with textarea */
+.creator-field-wrapper:has(.creator-field-textarea) .creator-tooltip-trigger {
+  align-self: flex-start;
+  margin-top: var(--spacing-md);
+}
+
+.creator-tooltip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  z-index: 100;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%) translateY(10px);
+  width: 240px;
+  padding: var(--spacing-md);
+  background: linear-gradient(135deg,
+    var(--background-color-tertiary) 0%,
+    var(--background-color-secondary) 100%);
+  border: 2px solid var(--accent-color);
+  border-radius: var(--border-radius-medium);
+  color: var(--text-color);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-normal);
+  text-transform: none;
+  letter-spacing: normal;
+  box-shadow: var(--shadow-xl);
+  text-align: left;
+  transition: all var(--transition-standard);
+  pointer-events: none;
+  line-height: var(--line-height-normal);
+}
+
+/* Tooltip arrow */
+.creator-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -6px;
+  border-width: 6px;
+  border-style: solid;
+  border-color: var(--accent-color) transparent transparent transparent;
+}
+
+.creator-tooltip-trigger:hover .creator-tooltip {
+  visibility: visible;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Special field effects */
+.creator-field-special {
+  position: relative;
+}
+
+.creator-field-special::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--gradient-magical);
+  opacity: 0;
+  transition: opacity var(--transition-standard);
+}
+
+.creator-field-special:hover::after {
+  opacity: 0.5;
+}
+
+.creator-field-special .creator-field-input:focus ~ ::after,
+.creator-field-special .creator-field-textarea:focus ~ ::after {
+  opacity: 1;
+}
+
+/* Validation states */
+.creator-field-input:invalid:not(:focus),
+.creator-field-textarea:invalid:not(:focus) {
+  border-color: var(--color-error);
+}
+
+.creator-field-input:valid:not(:placeholder-shown),
+.creator-field-textarea:valid:not(:placeholder-shown) {
+  border-color: var(--color-success);
+}
+
+/* Disabled state */
+.creator-field-input:disabled,
+.creator-field-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--background-color-disable);
+}
+
+/* Placeholder animation */
+.creator-field-input::placeholder,
+.creator-field-textarea::placeholder {
+  color: var(--text-color-placeholder);
+  transition: opacity var(--transition-standard);
+}
+
+.creator-field-input:focus::placeholder,
+.creator-field-textarea:focus::placeholder {
+  opacity: 0.5;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .creator-field-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .creator-tooltip {
+    width: 200px;
+    left: auto;
+    right: 0;
+    transform: translateX(0) translateY(10px);
+  }
+  
+  .creator-tooltip-trigger:hover .creator-tooltip {
+    transform: translateX(0) translateY(0);
+  }
+  
+  .creator-tooltip::after {
+    left: auto;
+    right: 15px;
+  }
+} 

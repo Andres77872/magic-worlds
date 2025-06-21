@@ -1,46 +1,229 @@
 /**
- * Header component styles
+ * Header styles - Enhanced with magical effects
  */
 
+/* =====================================================================
+   Header Container
+   ===================================================================== */
 .app-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--padding-medium) var(--padding-large);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
     background: var(--background-color-primary);
     border-bottom: 1px solid var(--border-color);
-    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(10px);
+    background: rgba(var(--background-color-primary), 0.95);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--padding-medium) var(--padding-large);
+    position: relative;
+    z-index: 1;
+}
+
+/* =====================================================================
+   Brand Section
+   ===================================================================== */
+.header-brand {
+    flex: 0 0 auto;
+}
+
+.brand-button {
+    display: flex;
+    align-items: center;
+    gap: var(--padding-medium);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--padding-small);
+    border-radius: var(--border-radius-small);
+    transition: all var(--duration-fast) ease;
+}
+
+.brand-button:hover {
+    background: var(--background-color-hover);
 }
 
 .app-logo {
-    height: 40px;
-    cursor: pointer;
-    transition: transform 0.2s ease;
-}
-
-.app-logo:hover {
-    transform: scale(1.05);
-}
-
-.app-title {
-    font-size: var(--font-size-large);
-    font-weight: 700;
+    font-size: 2.5rem;
     color: var(--accent-color);
-    margin: 0;
+    filter: drop-shadow(0 0 10px var(--color-magic-glow));
 }
 
-.theme-toggle {
+.brand-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.brand-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    background: var(--gradient-magical);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+}
+
+.brand-subtitle {
+    font-size: 0.8rem;
+    color: var(--text-color-secondary);
+    font-weight: 500;
+}
+
+/* =====================================================================
+   Center Section
+   ===================================================================== */
+.header-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.page-indicator {
     display: flex;
     align-items: center;
     gap: var(--padding-small);
+    padding: var(--padding-small) var(--padding-large);
+    background: var(--background-color-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 100px;
+    animation: fadeInMagical 0.5s ease;
 }
 
-.theme-toggle .field-label {
-    font-size: var(--font-size-small);
-    color: var(--text-color-secondary);
-    margin: 0;
+.page-icon {
+    font-size: 1.2rem;
+    color: var(--accent-secondary);
 }
 
-.theme-toggle .field-input {
-    min-width: 100px;
+.page-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+/* =====================================================================
+   Actions Section
+   ===================================================================== */
+.header-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--padding-medium);
+}
+
+.theme-selector {
+    position: relative;
+}
+
+.theme-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--background-color-tertiary);
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    transition: all var(--duration-fast) ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.theme-button::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: var(--gradient-magical);
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity var(--duration-fast) ease;
+    z-index: -1;
+}
+
+.theme-button:hover::before {
+    opacity: 1;
+}
+
+.theme-button:hover {
+    transform: scale(1.1);
+    border-color: transparent;
+}
+
+.theme-icon {
+    font-size: 1.2rem;
+    color: var(--accent-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+}
+
+/* =====================================================================
+   Magical Border Effect
+   ===================================================================== */
+.header-border-effect {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--gradient-magical);
+    opacity: 0.5;
+    animation: shimmer 3s linear infinite;
+    background-size: 200% 100%;
+}
+
+/* =====================================================================
+   Responsive Design
+   ===================================================================== */
+@media (max-width: 768px) {
+    .header-content {
+        padding: var(--padding-small) var(--padding-medium);
+    }
+    
+    .app-logo {
+        font-size: 2rem;
+    }
+    
+    .brand-title {
+        font-size: 1rem;
+    }
+    
+    .page-indicator {
+        padding: var(--padding-small) var(--padding-medium);
+    }
+    
+    .page-title {
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .brand-text {
+        display: none;
+    }
+    
+    .page-indicator {
+        padding: var(--padding-small);
+    }
+    
+    .page-title {
+        display: none;
+    }
+    
+    .theme-button {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .theme-icon {
+        font-size: 1rem;
+    }
 }

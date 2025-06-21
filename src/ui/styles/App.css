@@ -8,6 +8,7 @@
 @import './variables/typography.css';
 @import './variables/shadows.css';
 @import './variables/borders.css';
+@import './variables/animations.css';
 
 /* Import base styles */
 @import './base/reset.css';
