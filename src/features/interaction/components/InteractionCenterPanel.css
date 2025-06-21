@@ -12,8 +12,9 @@
   background: var(--background-color-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-small);
-  overflow: hidden;
   position: relative;
+  height: 100%;
+  min-height: 0; /* Important for flex children to respect height constraints */
 }
 
 .center-panel::before {
@@ -24,8 +25,9 @@
   right: 0;
   height: 100px;
   background: var(--gradient-mystical);
-  opacity: 0.05;
+  opacity: 0.03; /* Reduced opacity to prevent interference */
   pointer-events: none;
+  z-index: 0; /* Ensure it's behind content */
 }
 
 /* =====================================================================
@@ -64,6 +66,8 @@
   flex-direction: column;
   position: relative;
   z-index: 1;
+  min-height: 0; /* Important for flex children */
+  overflow: hidden; /* Prevent container overflow */
 }
 
 /* =====================================================================
@@ -72,11 +76,13 @@
 .messages-area {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--padding-large);
   display: flex;
   flex-direction: column;
   gap: var(--padding-medium);
   scroll-behavior: smooth;
+  min-height: 0; /* Important for proper scrolling */
   background: linear-gradient(
     to bottom,
     transparent 0%,
@@ -86,21 +92,32 @@
 
 /* Custom scrollbar */
 .messages-area::-webkit-scrollbar {
-  width: 8px;
+  width: 12px; /* Increased width for better visibility */
 }
 
 .messages-area::-webkit-scrollbar-track {
   background: var(--background-color-tertiary);
-  border-radius: 4px;
+  border-radius: 6px;
+  margin: var(--padding-small) 0; /* Add margin to prevent edge overlap */
 }
 
 .messages-area::-webkit-scrollbar-thumb {
   background: var(--accent-color);
-  border-radius: 4px;
+  border-radius: 6px;
+  border: 2px solid var(--background-color-tertiary); /* Add border for better visibility */
+  background-clip: padding-box; /* Ensure border works properly */
 }
 
 .messages-area::-webkit-scrollbar-thumb:hover {
   background: var(--accent-color-hover);
+  border-color: var(--background-color-secondary);
+}
+
+/* Force scrollbar to always show on desktop */
+@media (min-width: 769px) {
+  .messages-area {
+    overflow-y: scroll; /* Changed from auto to scroll */
+  }
 }
 
 /* =====================================================================
@@ -147,6 +164,7 @@
   align-items: flex-start;
 }
 
+/* Ensure proper stacking context */
 .message-content {
   position: relative;
   padding: var(--padding-medium) var(--padding-large);
@@ -158,6 +176,8 @@
   word-wrap: break-word;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
+  z-index: 1; /* Ensure content is above decorative elements */
+  isolation: isolate; /* Create new stacking context */
 }
 
 .message.user .message-content {
@@ -193,9 +213,11 @@
   width: 200%;
   height: 200%;
   background: var(--gradient-glow);
-  opacity: 0.05;
+  opacity: 0.03; /* Reduced opacity to prevent interference */
   animation: gradientShift 10s ease infinite;
   background-size: 200% 200%;
+  z-index: -1; /* Ensure it's behind text */
+  pointer-events: none;
 }
 
 .message.ai .message-content::after {
@@ -250,17 +272,20 @@
   display: flex;
   gap: var(--padding-medium);
   position: relative;
+  flex-shrink: 0; /* Prevent shrinking */
+  z-index: 2; /* Ensure it stays above messages */
 }
 
 .input-area::before {
   content: '';
   position: absolute;
-  top: 0;
+  top: -2px; /* Adjusted to prevent overlap with border */
   left: 0;
   right: 0;
   height: 2px;
   background: var(--gradient-magical);
   opacity: 0.5;
+  z-index: 1;
 }
 
 .message-input {
@@ -328,7 +353,7 @@
    ===================================================================== */
 .loading-indicator {
   position: absolute;
-  bottom: 100px;
+  bottom: calc(var(--padding-large) * 2 + 60px); /* Position above input area */
   left: 50%;
   transform: translateX(-50%);
   background: var(--background-color-tertiary);
@@ -340,6 +365,7 @@
   gap: var(--padding-medium);
   box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
   animation: float 2s ease-in-out infinite;
+  z-index: 10; /* Ensure it's above content */
 }
 
 .loading-indicator .spinner {

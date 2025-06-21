@@ -164,14 +164,13 @@ Respond to the user inputs as the assistant.`
                                 assistantResponse += content
 
                                 // Update the AI turn with the new content
-                                setTurns((prevTurns) => {
-                                    const updated = prevTurns.map(t =>
-                                        t.id === aiTurn.id
-                                            ? {...t, content: assistantResponse}
-                                            : t
-                                    )
-                                    return updated
-                                })
+                                const currentTurns = [...updatedTurns]
+                                const updated = currentTurns.map((t: TurnEntry) =>
+                                    t.id === aiTurn.id
+                                        ? {...t, content: assistantResponse}
+                                        : t
+                                )
+                                setTurns(updated)
                             }
                         } catch (e) {
                             console.error('Error parsing chunk:', e)
@@ -181,20 +180,18 @@ Respond to the user inputs as the assistant.`
             }
 
             // After streaming completes, update the AI turn to final state
-            setTurns((prevTurns) => {
-                const finalTurns = prevTurns.map(t =>
-                    t.id === aiTurn.id
-                        ? {...t, content: assistantResponse, isStreaming: false}
-                        : t
-                )
+            const finalTurns = updatedTurns.map((t: TurnEntry) =>
+                t.id === aiTurn.id
+                    ? {...t, content: assistantResponse, isStreaming: false}
+                    : t
+            )
+            
+            setTurns(finalTurns)
 
-                // Save the final turns to storage
-                storage.saveTurns(adventure.id, finalTurns).catch(err =>
-                    console.error('Failed to save turns:', err)
-                )
-
-                return finalTurns
-            })
+            // Save the final turns to storage
+            storage.saveTurns(adventure.id, finalTurns).catch(err =>
+                console.error('Failed to save turns:', err)
+            )
 
             setIsLoading(false)
         } catch (err) {
@@ -240,40 +237,40 @@ Respond to the user inputs as the assistant.`
                     )}
                     <div ref={messagesEndRef}/>
                 </div>
-
-                <form onSubmit={handleSubmit} className="input-area">
-                    <input
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder="What do you do next?"
-                        className="message-input"
-                        disabled={isLoading}
-                    />
-                    <div className="input-buttons">
-                        <button
-                            type="submit"
-                            className="btn btn-primary"
-                            disabled={!input.trim() || isLoading}
-                        >
-                            {isLoading ? (
-                                <>
-                                    <FaSpinner className="spinner"/>
-                                    Sending...
-                                </>
-                            ) : 'Send'}
-                        </button>
-                        <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={handleReset}
-                            disabled={isLoading || turns.length === 0}
-                        >
-                            Reset
-                        </button>
-                    </div>
-                </form>
             </div>
+
+            <form onSubmit={handleSubmit} className="input-area">
+                <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="What do you do next?"
+                    className="message-input"
+                    disabled={isLoading}
+                />
+                <div className="input-buttons">
+                    <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={!input.trim() || isLoading}
+                    >
+                        {isLoading ? (
+                            <>
+                                <FaSpinner className="spinner"/>
+                                Sending...
+                            </>
+                        ) : 'Send'}
+                    </button>
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={handleReset}
+                        disabled={isLoading || turns.length === 0}
+                    >
+                        Reset
+                    </button>
+                </div>
+            </form>
 
             {isLoading && (
                 <div className="loading-indicator">
