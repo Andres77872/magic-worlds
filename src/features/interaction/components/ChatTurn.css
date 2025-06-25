@@ -193,6 +193,116 @@
 }
 
 /* =====================================================================
+   Turn Image Styles
+   ===================================================================== */
+.turn-image-container {
+  position: relative;
+  border-radius: var(--border-radius-medium);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  animation: fadeInImage 0.6s ease;
+  max-width: 100%;
+}
+
+/* Assistant content layout - side by side */
+.assistant-content-layout {
+  display: flex;
+  gap: var(--spacing-lg);
+  align-items: flex-start;
+}
+
+/* Assistant image specific styling */
+.assistant-image {
+  flex-shrink: 0;
+  width: 300px;
+  max-width: 40%;
+  order: 2; /* Image on the right */
+}
+
+/* User image styling - simple full width */
+.user .turn-image-container {
+  margin-bottom: var(--spacing-md);
+}
+
+/* Image styling */
+.turn-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  background: var(--background-color-secondary);
+  transition: transform 0.3s ease;
+}
+
+/* Assistant image specific sizing */
+.assistant-image .turn-image {
+  object-fit: cover;
+}
+
+/* Hover effect */
+.turn-image-container:hover .turn-image {
+  transform: scale(1.02);
+}
+
+/* Loading state */
+.turn-image-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--gradient-magical);
+  opacity: 0.1;
+  animation: shimmer 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Image loaded state */
+.turn-image[src] ~ .turn-image-container::before {
+  display: none;
+}
+
+/* Magical border effect for assistant images */
+.assistant .turn-image-container {
+  border: 2px solid transparent;
+  background: linear-gradient(var(--background-color-primary), var(--background-color-primary)) padding-box,
+              var(--gradient-magical) border-box;
+}
+
+[data-theme="light"] .assistant .turn-image-container {
+  box-shadow: 0 8px 24px rgba(168, 85, 247, 0.15);
+}
+
+/* User image styling */
+.user .turn-image-container {
+  border: 2px solid var(--border-color);
+}
+
+[data-theme="light"] .user .turn-image-container {
+  border-color: var(--accent-color);
+  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.1);
+}
+
+/* Image fade-in animation */
+@keyframes fadeInImage {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Adjust assistant text in side-by-side layout */
+.assistant-content-layout .assistant-text {
+  flex: 1;
+  margin-left: 0;
+  margin-right: 0;
+  max-width: none;
+}
+
+/* =====================================================================
    Markdown Styles
    ===================================================================== */
 .markdown-paragraph {
@@ -565,6 +675,25 @@
   .forward-option-button {
     padding: var(--spacing-sm);
   }
+  
+  /* Image adjustments for tablets */
+  .turn-image {
+    max-height: 400px;
+  }
+  
+  .turn-image-container {
+    margin-bottom: var(--spacing-sm);
+  }
+  
+  /* Start transitioning to vertical layout */
+  .assistant-content-layout {
+    gap: var(--spacing-md);
+  }
+  
+  .assistant-image {
+    width: 250px;
+    max-width: 35%;
+  }
 }
 
 @media (max-width: 480px) {
@@ -594,6 +723,48 @@
   
   .markdown-h3 {
     font-size: var(--font-size-normal);
+  }
+  
+  /* Image adjustments for mobile */
+  .turn-image {
+    max-height: 300px;
+  }
+  
+  .turn-image-container {
+    border-radius: var(--border-radius-small);
+    box-shadow: var(--shadow-md);
+  }
+  
+  /* Switch to vertical layout for mobile */
+  .assistant-content-layout {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+  
+  .assistant-image {
+    order: 2; /* Image goes to bottom */
+    width: 100%;
+    max-width: 100%;
+    margin-top: var(--spacing-sm);
+  }
+  
+  .assistant-content-layout .assistant-text {
+    order: 1; /* Text goes to top */
+  }
+}
+
+/* Very small screens - optimize for mobile experience */
+@media (max-width: 360px) {
+  .assistant-image .turn-image {
+    max-height: 250px;
+  }
+  
+  .assistant-content-layout {
+    gap: var(--spacing-xs);
+  }
+  
+  .assistant-image {
+    margin-top: var(--spacing-xs);
   }
 }
 

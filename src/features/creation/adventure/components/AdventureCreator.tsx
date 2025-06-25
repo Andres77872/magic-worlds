@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { Adventure } from '../../../../shared';
 import { useNavigation, useData } from '../../../../app/hooks';
 import { storage } from '../../../../infrastructure/storage';
+import { generateUUID } from '../../../../utils/uuid';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
 import { 
     CreatorLayout, 
@@ -80,7 +81,7 @@ export function AdventureCreator() {
     const { setPage } = useNavigation();
     const { templateAdventures, setTemplateAdventures, editingTemplate, setEditingTemplate, characters, worlds } = useData();
     
-    const [id] = useState(editingTemplate?.id ?? crypto.randomUUID());
+    const [id] = useState(editingTemplate?.id ?? generateUUID());
     const [scenario, setScenario] = useState(editingTemplate?.scenario ?? '');
     const [selectedCharacters, setSelectedCharacters] = useState<string[]>(
         editingTemplate?.characters?.map(c => c.id) ?? []

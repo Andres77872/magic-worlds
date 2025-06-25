@@ -4,6 +4,7 @@ import {storage} from '../../../infrastructure/storage'
 import {FaSpinner} from 'react-icons/fa'
 import {parseForwardOptions, extractForwardOptions} from '../utils/jsonFixer'
 import {ChatTurn} from './ChatTurn'
+import {generateUUID} from '../../../utils/uuid'
 import './InteractionCenterPanel.css'
 
 // API Configuration
@@ -21,6 +22,7 @@ interface ExtendedTurnEntry extends TurnEntry {
     forwardOptions?: ForwardOption[]
     isStreaming?: boolean
     isStreamingForwardOptions?: boolean
+    imageUrl?: string  // Add image URL field
 }
 
 interface InteractionCenterPanelProps {
@@ -80,7 +82,8 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             content: '',
             isStreaming: true,
             forwardOptions: undefined,
-            isStreamingForwardOptions: false
+            isStreamingForwardOptions: false,
+            imageUrl: undefined  // Clear the image URL for regeneration
         }
         
         const updatedTurns = [...truncatedTurns.slice(0, -1), resetAiTurn]
@@ -108,7 +111,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         const userInput = input.trim()
 
         const userTurn: TurnEntry = {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             type: 'user',
             content: userInput,
             timestamp: new Date().toISOString()
@@ -194,7 +197,7 @@ Respond to the user inputs as the assistant.`
 
             // Create a placeholder for the AI response turn OR use existing one for regeneration
             const aiTurn: ExtendedTurnEntry = existingTurn || {
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 type: 'ai',
                 content: '',
                 timestamp: new Date().toISOString(),
@@ -215,6 +218,7 @@ Respond to the user inputs as the assistant.`
             let hasClosedForwardOptions = false
             let thinkBuffer = ''
             let isInsideThink = false
+            let imageUrl: string | undefined = undefined  // Add variable to store image URL
 
             // Process the streamed response
             while (true) {
@@ -231,6 +235,25 @@ Respond to the user inputs as the assistant.`
 
                         try {
                             const parsed = JSON.parse(data)
+                            
+                            // Extract image URL from extras if present
+                            if (parsed.extras && Array.isArray(parsed.extras) && parsed.extras.length > 0) {
+                                const imageData = parsed.extras[0]
+                                if (imageData.png) {
+                                    imageUrl = imageData.png  // Use PNG version
+                                    // You could also use webp or 512 versions:
+                                    // imageUrl = imageData.webp || imageData['512'] || imageData.png
+                                    
+                                    // Update the AI turn with the image URL immediately
+                                    updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
+                                        t.id === aiTurn.id
+                                            ? {...t, imageUrl}
+                                            : t
+                                    )
+                                    setTurns(updatedTurns)
+                                }
+                            }
+                            
                             const content = parsed.choices?.[0]?.delta?.content || ''
                             if (content) {
                                 // Check for special tags (think and forward options)
@@ -353,7 +376,7 @@ Respond to the user inputs as the assistant.`
             // After streaming completes, update the AI turn to final state
             const finalTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
                 t.id === aiTurn.id
-                    ? {...t, content: assistantResponse, isStreaming: false, isStreamingForwardOptions: false}
+                    ? {...t, content: assistantResponse, isStreaming: false, isStreamingForwardOptions: false, imageUrl}
                     : t
             )
             

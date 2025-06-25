@@ -13,6 +13,7 @@ interface ExtendedTurnEntry extends TurnEntry {
     forwardOptions?: ForwardOption[]
     isStreaming?: boolean
     isStreamingForwardOptions?: boolean
+    imageUrl?: string  // Add image URL field
 }
 
 interface ChatTurnProps {
@@ -87,49 +88,76 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick }: Chat
                 
                 <div className="turn-content">
                     {isUser ? (
-                        <div className="turn-text user-text">{turn.content}</div>
+                        // User content - simple layout
+                        <>
+                            {turn.imageUrl && (
+                                <div className="turn-image-container">
+                                    <img 
+                                        src={turn.imageUrl} 
+                                        alt="Generated scene" 
+                                        className="turn-image"
+                                        loading="lazy"
+                                    />
+                                </div>
+                            )}
+                            <div className="turn-text user-text">{turn.content}</div>
+                        </>
                     ) : (
-                        <div className="turn-text assistant-text">
-                            <ReactMarkdown 
-                                remarkPlugins={[remarkGfm]}
-                                components={{
-                                    // Custom rendering for markdown elements
-                                    p: ({children}) => <p className="markdown-paragraph">{children}</p>,
-                                    h1: ({children}) => <h1 className="markdown-h1">{children}</h1>,
-                                    h2: ({children}) => <h2 className="markdown-h2">{children}</h2>,
-                                    h3: ({children}) => <h3 className="markdown-h3">{children}</h3>,
-                                    ul: ({children}) => <ul className="markdown-list">{children}</ul>,
-                                    ol: ({children}) => <ol className="markdown-list markdown-list-ordered">{children}</ol>,
-                                    li: ({children}) => <li className="markdown-list-item">{children}</li>,
-                                    blockquote: ({children}) => <blockquote className="markdown-blockquote">{children}</blockquote>,
-                                    code: ({inline, className, children}: any) => {
-                                        return inline ? (
-                                            <code className="markdown-code-inline">{children}</code>
-                                        ) : (
-                                            <code className={`markdown-code-block ${className || ''}`}>
-                                                {children}
-                                            </code>
-                                        )
-                                    },
-                                    // Actions (italics) - *doing something*
-                                    em: ({children}) => <em className="rp-action">{children}</em>,
-                                    // Thoughts (bold) - **thinking something**
-                                    strong: ({children}) => <strong className="rp-thought">{children}</strong>,
-                                    hr: () => <hr className="markdown-divider" />,
-                                    // Process text nodes for dialogue detection
-                                    text: ({value}: any) => {
-                                        const processed = processTextContent(value);
-                                        return <>{processed}</>;
-                                    },
-                                }}
-                            >
-                                {turn.content}
-                            </ReactMarkdown>
-                            {turn.isStreaming && (
-                                <div className="typing-indicator">
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
+                        // Assistant content - side-by-side layout
+                        <div className="assistant-content-layout">
+                            <div className="turn-text assistant-text">
+                                <ReactMarkdown 
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                        // Custom rendering for markdown elements
+                                        p: ({children}) => <p className="markdown-paragraph">{children}</p>,
+                                        h1: ({children}) => <h1 className="markdown-h1">{children}</h1>,
+                                        h2: ({children}) => <h2 className="markdown-h2">{children}</h2>,
+                                        h3: ({children}) => <h3 className="markdown-h3">{children}</h3>,
+                                        ul: ({children}) => <ul className="markdown-list">{children}</ul>,
+                                        ol: ({children}) => <ol className="markdown-list markdown-list-ordered">{children}</ol>,
+                                        li: ({children}) => <li className="markdown-list-item">{children}</li>,
+                                        blockquote: ({children}) => <blockquote className="markdown-blockquote">{children}</blockquote>,
+                                        code: ({inline, className, children}: any) => {
+                                            return inline ? (
+                                                <code className="markdown-code-inline">{children}</code>
+                                            ) : (
+                                                <code className={`markdown-code-block ${className || ''}`}>
+                                                    {children}
+                                                </code>
+                                            )
+                                        },
+                                        // Actions (italics) - *doing something*
+                                        em: ({children}) => <em className="rp-action">{children}</em>,
+                                        // Thoughts (bold) - **thinking something**
+                                        strong: ({children}) => <strong className="rp-thought">{children}</strong>,
+                                        hr: () => <hr className="markdown-divider" />,
+                                        // Process text nodes for dialogue detection
+                                        text: ({value}: any) => {
+                                            const processed = processTextContent(value);
+                                            return <>{processed}</>;
+                                        },
+                                    }}
+                                >
+                                    {turn.content}
+                                </ReactMarkdown>
+                                {turn.isStreaming && (
+                                    <div className="typing-indicator">
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {turn.imageUrl && (
+                                <div className="turn-image-container assistant-image">
+                                    <img 
+                                        src={turn.imageUrl} 
+                                        alt="Generated scene" 
+                                        className="turn-image"
+                                        loading="lazy"
+                                    />
                                 </div>
                             )}
                         </div>
