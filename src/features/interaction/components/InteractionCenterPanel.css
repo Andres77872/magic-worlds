@@ -2,6 +2,9 @@
  * InteractionCenterPanel styles - Enhanced with immersive roleplay theme
  */
 
+/* Import animation utilities */
+@import url('../../../ui/styles/variables/animations.css');
+
 /* =====================================================================
    Center Panel Container
    ===================================================================== */
@@ -421,82 +424,140 @@
 }
 
 /* =====================================================================
-   Forward Options
+   Forward Options - Simplified UI
    ===================================================================== */
 .forward-options {
-  margin-top: var(--padding-medium);
-  padding: var(--padding-medium);
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
   background: var(--background-color-secondary);
-  border-radius: var(--border-radius-small);
+  border-radius: var(--border-radius-medium);
   border: 1px solid var(--border-color);
-  animation: fadeInMagical 0.3s ease;
+  animation: fadeIn 0.3s ease;
+}
+
+.forward-options-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
 }
 
 .forward-options-title {
-  font-size: 0.875rem;
-  color: var(--text-color-secondary);
-  margin-bottom: var(--padding-small);
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  color: var(--accent-color);
+  font-weight: var(--font-weight-medium);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+/* Simple loading dots */
+.forward-options-loading {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.loading-dot {
+  width: 4px;
+  height: 4px;
+  background: var(--accent-color);
+  border-radius: 50%;
+  opacity: 0.5;
+  animation: simplePulse 1.2s ease-in-out infinite;
+}
+
+.loading-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes simplePulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
 }
 
 .forward-options-list {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--padding-small);
+  gap: var(--spacing-sm);
 }
 
+/* Simplified button style */
 .forward-option-button {
-  padding: var(--padding-small) var(--padding-medium);
+  padding: var(--spacing-sm) var(--spacing-md);
   background: var(--background-color-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-small);
   color: var(--text-color);
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   cursor: pointer;
   transition: all 0.2s ease;
-  position: relative;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  opacity: 0;
+  animation: fadeIn 0.3s ease forwards;
 }
 
-.forward-option-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: var(--gradient-magical);
-  opacity: 0.1;
-  transition: left 0.3s ease;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
+/* Simple arrow */
+.option-arrow {
+  font-size: var(--font-size-sm);
+  color: var(--accent-color);
+  transition: transform 0.2s ease;
+}
+
+.option-text {
+  flex: 1;
+  text-align: left;
+}
+
+/* Simple hover effect */
 .forward-option-button:hover {
   border-color: var(--accent-color);
-  color: var(--accent-color);
+  background: var(--background-color-tertiary);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2);
 }
 
-.forward-option-button:hover::before {
-  left: 0;
+.forward-option-button:hover .option-arrow {
+  transform: translateX(2px);
 }
 
 .forward-option-button:active {
   transform: translateY(0);
-  box-shadow: 0 1px 4px rgba(139, 92, 246, 0.2);
 }
 
-/* Responsive adjustments for forward options */
+/* Responsive adjustments */
 @media (max-width: 768px) {
+  .forward-options {
+    padding: var(--spacing-sm);
+  }
+  
   .forward-options-list {
     flex-direction: column;
   }
   
   .forward-option-button {
     width: 100%;
-    text-align: left;
   }
 }
 

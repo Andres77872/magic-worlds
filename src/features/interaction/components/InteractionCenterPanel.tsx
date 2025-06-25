@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import type {Adventure, TurnEntry} from '../../../shared'
 import {storage} from '../../../infrastructure/storage'
 import {FaSpinner} from 'react-icons/fa'
+import {parseForwardOptions, extractForwardOptions} from '../utils/jsonFixer'
 import './InteractionCenterPanel.css'
 
 // API Configuration
@@ -18,6 +19,7 @@ interface ForwardOption {
 interface ExtendedTurnEntry extends TurnEntry {
     forwardOptions?: ForwardOption[]
     isStreaming?: boolean
+    isStreamingForwardOptions?: boolean
 }
 
 interface InteractionCenterPanelProps {
@@ -151,7 +153,8 @@ Respond to the user inputs as the assistant.`
                 content: '',
                 timestamp: new Date().toISOString(),
                 isStreaming: true, // Add flag for streaming state
-                forwardOptions: undefined
+                forwardOptions: undefined,
+                isStreamingForwardOptions: false
             }
 
             // Add the initial empty AI turn
@@ -194,18 +197,24 @@ Respond to the user inputs as the assistant.`
                                             // Extract the JSON content between the tags
                                             const match = forwardOptionsBuffer.match(/<forward_options>\s*(.*?)\s*<\/forward_options>/s)
                                             if (match && match[1]) {
-                                                try {
-                                                    const forwardOptions = JSON.parse(match[1]) as ForwardOption[]
-                                                    
-                                                    // Update the AI turn with forward options
+                                                const forwardOptions = parseForwardOptions(match[1])
+                                                
+                                                if (forwardOptions && forwardOptions.length > 0) {
+                                                    // Update the AI turn with forward options and stop streaming indicator
                                                     updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
                                                         t.id === aiTurn.id
-                                                            ? {...t, forwardOptions}
+                                                            ? {...t, forwardOptions, isStreamingForwardOptions: false}
                                                             : t
                                                     )
                                                     setTurns(updatedTurns)
-                                                } catch (e) {
-                                                    console.error('Error parsing forward options JSON:', e)
+                                                } else {
+                                                    // No valid options parsed, just stop the streaming indicator
+                                                    updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
+                                                        t.id === aiTurn.id
+                                                            ? {...t, isStreamingForwardOptions: false}
+                                                            : t
+                                                    )
+                                                    setTurns(updatedTurns)
                                                 }
                                             }
                                             
@@ -213,6 +222,22 @@ Respond to the user inputs as the assistant.`
                                             const remainingContent = forwardOptionsBuffer.split('</forward_options>')[1] || ''
                                             assistantResponse += remainingContent
                                             isInsideForwardOptions = false
+                                        } else {
+                                            // While streaming forward options, try to parse partial JSON
+                                            // to show options as they become available
+                                            const partialMatch = forwardOptionsBuffer.match(/<forward_options>\s*(.*)/s)
+                                            if (partialMatch && partialMatch[1]) {
+                                                const partialOptions = extractForwardOptions(partialMatch[1])
+                                                if (partialOptions && partialOptions.length > 0) {
+                                                    // Update with partial options while still streaming
+                                                    updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
+                                                        t.id === aiTurn.id
+                                                            ? {...t, forwardOptions: partialOptions, isStreamingForwardOptions: true}
+                                                            : t
+                                                    )
+                                                    setTurns(updatedTurns)
+                                                }
+                                            }
                                         }
                                     } else if (!isInsideForwardOptions) {
                                         // Check if we're starting a forward options tag
@@ -224,6 +249,14 @@ Respond to the user inputs as the assistant.`
                                             forwardOptionsBuffer = '<forward_options>'
                                             // Remove the tag from the displayed content
                                             assistantResponse = assistantResponse.replace('<forward_options>', '')
+                                            
+                                            // Show the forward options streaming indicator immediately
+                                            updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
+                                                t.id === aiTurn.id
+                                                    ? {...t, isStreamingForwardOptions: true}
+                                                    : t
+                                            )
+                                            setTurns(updatedTurns)
                                         }
                                     } else {
                                         // After closing tag, just append normally
@@ -249,7 +282,7 @@ Respond to the user inputs as the assistant.`
             // After streaming completes, update the AI turn to final state
             const finalTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
                 t.id === aiTurn.id
-                    ? {...t, content: assistantResponse, isStreaming: false}
+                    ? {...t, content: assistantResponse, isStreaming: false, isStreamingForwardOptions: false}
                     : t
             )
             
@@ -296,22 +329,35 @@ Respond to the user inputs as the assistant.`
                                         </div>
                                     )}
                                 </div>
-                                {turn.forwardOptions && turn.forwardOptions.length > 0 && (
+                                {(turn.forwardOptions && turn.forwardOptions.length > 0) || turn.isStreamingForwardOptions ? (
                                     <div className="forward-options">
-                                        <div className="forward-options-title">Suggested actions:</div>
-                                        <div className="forward-options-list">
-                                            {turn.forwardOptions.map((option, index) => (
-                                                <button
-                                                    key={index}
-                                                    className="forward-option-button"
-                                                    onClick={() => handleForwardOptionClick(option.forward_question)}
-                                                >
-                                                    {option.forward_question}
-                                                </button>
-                                            ))}
+                                        <div className="forward-options-header">
+                                            <span className="forward-options-title">Suggested actions</span>
+                                            {turn.isStreamingForwardOptions && (
+                                                <div className="forward-options-loading">
+                                                    <span className="loading-dot"></span>
+                                                    <span className="loading-dot"></span>
+                                                    <span className="loading-dot"></span>
+                                                </div>
+                                            )}
                                         </div>
+                                        {turn.forwardOptions && turn.forwardOptions.length > 0 && (
+                                            <div className="forward-options-list">
+                                                {turn.forwardOptions.map((option, index) => (
+                                                    <button
+                                                        key={index}
+                                                        className="forward-option-button"
+                                                        onClick={() => handleForwardOptionClick(option.forward_question)}
+                                                        style={{animationDelay: `${index * 0.1}s`}}
+                                                    >
+                                                        <span className="option-text">{option.forward_question}</span>
+                                                        <span className="option-arrow">→</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+                                ) : null}
                                 <div className="message-timestamp">
                                     {new Date(turn.timestamp).toLocaleTimeString()}
                                 </div>
