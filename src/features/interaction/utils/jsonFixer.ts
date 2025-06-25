@@ -7,6 +7,27 @@ interface ForwardOption {
 }
 
 /**
+ * Remove markdown code block markers if present
+ */
+function removeCodeBlockMarkers(content: string): string {
+    let cleaned = content.trim()
+    
+    // Remove opening code block marker (```json or just ```)
+    if (cleaned.startsWith('```json')) {
+        cleaned = cleaned.substring(7).trim()
+    } else if (cleaned.startsWith('```')) {
+        cleaned = cleaned.substring(3).trim()
+    }
+    
+    // Remove closing code block marker
+    if (cleaned.endsWith('```')) {
+        cleaned = cleaned.substring(0, cleaned.length - 3).trim()
+    }
+    
+    return cleaned
+}
+
+/**
  * Attempts to fix incomplete JSON by adding missing closing characters
  * and handling common streaming issues
  */
@@ -71,13 +92,16 @@ export function fixIncompleteJSON(jsonStr: string): string {
  * Safely parse forward options JSON with error recovery
  */
 export function parseForwardOptions(jsonStr: string): ForwardOption[] | null {
+    // Remove code block markers if present
+    const cleanedStr = removeCodeBlockMarkers(jsonStr)
+    
     try {
         // First attempt: parse as-is
-        return JSON.parse(jsonStr) as ForwardOption[]
+        return JSON.parse(cleanedStr) as ForwardOption[]
     } catch (e) {
         // Second attempt: fix incomplete JSON
         try {
-            const fixed = fixIncompleteJSON(jsonStr)
+            const fixed = fixIncompleteJSON(cleanedStr)
             const parsed = JSON.parse(fixed) as ForwardOption[]
             
             // Validate the structure
@@ -104,8 +128,11 @@ export function parseForwardOptions(jsonStr: string): ForwardOption[] | null {
  * Extract forward options from a partial or complete forward_options tag content
  */
 export function extractForwardOptions(content: string): ForwardOption[] | null {
+    // Remove code block markers if present
+    const cleanedContent = removeCodeBlockMarkers(content)
+    
     // Try to extract JSON array from the content
-    const jsonMatch = content.match(/\[\s*\{[\s\S]*/)
+    const jsonMatch = cleanedContent.match(/\[\s*\{[\s\S]*/)
     if (!jsonMatch) {
         return null
     }
