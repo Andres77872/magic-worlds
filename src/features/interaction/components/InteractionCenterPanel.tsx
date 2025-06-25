@@ -9,6 +9,17 @@ const API_URL = 'https://magic.arz.ai/chat/openai/v1/completion'
 const API_KEY = 'DUMMY_API_KEY'
 const MODEL_ID = 'agt-29122b8b-b1af-4536-84b9-cf1abe02efa5'
 
+// Forward option interface
+interface ForwardOption {
+    forward_question: string
+}
+
+// Extend TurnEntry to include forward options
+interface ExtendedTurnEntry extends TurnEntry {
+    forwardOptions?: ForwardOption[]
+    isStreaming?: boolean
+}
+
 interface InteractionCenterPanelProps {
     adventure: Adventure
     turns: TurnEntry[]
@@ -35,6 +46,10 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             setError(null)
             storage.saveTurns(adventure.id, [])
         }
+    }
+
+    const handleForwardOptionClick = (option: string) => {
+        setInput(option)
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -130,19 +145,23 @@ Respond to the user inputs as the assistant.`
             if (!reader) throw new Error('No response body')
 
             // Create a placeholder for the AI response turn
-            const aiTurn: TurnEntry = {
+            const aiTurn: ExtendedTurnEntry = {
                 id: crypto.randomUUID(),
                 type: 'ai',
                 content: '',
                 timestamp: new Date().toISOString(),
-                isStreaming: true // Add flag for streaming state
+                isStreaming: true, // Add flag for streaming state
+                forwardOptions: undefined
             }
 
             // Add the initial empty AI turn
-            const updatedTurns = [...currentTurns, aiTurn]
+            let updatedTurns = [...currentTurns, aiTurn]
             setTurns(updatedTurns)
 
             let assistantResponse = ''
+            let forwardOptionsBuffer = ''
+            let isInsideForwardOptions = false
+            let hasClosedForwardOptions = false
 
             // Process the streamed response
             while (true) {
@@ -161,16 +180,64 @@ Respond to the user inputs as the assistant.`
                             const parsed = JSON.parse(data)
                             const content = parsed.choices?.[0]?.delta?.content || ''
                             if (content) {
-                                assistantResponse += content
+                                // Check for forward options tag
+                                for (let i = 0; i < content.length; i++) {
+                                    const char = content[i]
+                                    
+                                    if (isInsideForwardOptions && !hasClosedForwardOptions) {
+                                        forwardOptionsBuffer += char
+                                        
+                                        // Check if we've completed the closing tag
+                                        if (forwardOptionsBuffer.includes('</forward_options>')) {
+                                            hasClosedForwardOptions = true
+                                            
+                                            // Extract the JSON content between the tags
+                                            const match = forwardOptionsBuffer.match(/<forward_options>\s*(.*?)\s*<\/forward_options>/s)
+                                            if (match && match[1]) {
+                                                try {
+                                                    const forwardOptions = JSON.parse(match[1]) as ForwardOption[]
+                                                    
+                                                    // Update the AI turn with forward options
+                                                    updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
+                                                        t.id === aiTurn.id
+                                                            ? {...t, forwardOptions}
+                                                            : t
+                                                    )
+                                                    setTurns(updatedTurns)
+                                                } catch (e) {
+                                                    console.error('Error parsing forward options JSON:', e)
+                                                }
+                                            }
+                                            
+                                            // Continue processing remaining content after the tag
+                                            const remainingContent = forwardOptionsBuffer.split('</forward_options>')[1] || ''
+                                            assistantResponse += remainingContent
+                                            isInsideForwardOptions = false
+                                        }
+                                    } else if (!isInsideForwardOptions) {
+                                        // Check if we're starting a forward options tag
+                                        assistantResponse += char
+                                        
+                                        // Check if we have the start of the forward options tag
+                                        if (assistantResponse.includes('<forward_options>') && !hasClosedForwardOptions) {
+                                            isInsideForwardOptions = true
+                                            forwardOptionsBuffer = '<forward_options>'
+                                            // Remove the tag from the displayed content
+                                            assistantResponse = assistantResponse.replace('<forward_options>', '')
+                                        }
+                                    } else {
+                                        // After closing tag, just append normally
+                                        assistantResponse += char
+                                    }
+                                }
 
-                                // Update the AI turn with the new content
-                                const currentTurns = [...updatedTurns]
-                                const updated = currentTurns.map((t: TurnEntry) =>
+                                // Update the AI turn with the new content (without forward options tags)
+                                updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
                                     t.id === aiTurn.id
                                         ? {...t, content: assistantResponse}
                                         : t
                                 )
-                                setTurns(updated)
+                                setTurns(updatedTurns)
                             }
                         } catch (e) {
                             console.error('Error parsing chunk:', e)
@@ -180,7 +247,7 @@ Respond to the user inputs as the assistant.`
             }
 
             // After streaming completes, update the AI turn to final state
-            const finalTurns = updatedTurns.map((t: TurnEntry) =>
+            const finalTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
                 t.id === aiTurn.id
                     ? {...t, content: assistantResponse, isStreaming: false}
                     : t
@@ -217,7 +284,7 @@ Respond to the user inputs as the assistant.`
                             <p>Type your first action below to begin the story.</p>
                         </div>
                     ) : (
-                        turns.map(turn => (
+                        turns.map((turn: ExtendedTurnEntry) => (
                             <div key={turn.id} className={`message ${turn.type}`}>
                                 <div className="message-content">
                                     {turn.content}
@@ -229,6 +296,22 @@ Respond to the user inputs as the assistant.`
                                         </div>
                                     )}
                                 </div>
+                                {turn.forwardOptions && turn.forwardOptions.length > 0 && (
+                                    <div className="forward-options">
+                                        <div className="forward-options-title">Suggested actions:</div>
+                                        <div className="forward-options-list">
+                                            {turn.forwardOptions.map((option, index) => (
+                                                <button
+                                                    key={index}
+                                                    className="forward-option-button"
+                                                    onClick={() => handleForwardOptionClick(option.forward_question)}
+                                                >
+                                                    {option.forward_question}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="message-timestamp">
                                     {new Date(turn.timestamp).toLocaleTimeString()}
                                 </div>
