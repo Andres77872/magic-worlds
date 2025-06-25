@@ -1,8 +1,6 @@
-import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { TurnEntry } from '../../../shared'
-import { FaSpinner } from 'react-icons/fa'
 import './ChatTurn.css'
 
 // Forward option interface
