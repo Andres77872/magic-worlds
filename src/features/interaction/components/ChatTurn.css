@@ -585,4 +585,105 @@
     opacity: 1;
     transform: translateY(0);
   }
-} 
+}
+
+/* =====================================================================
+   Role-Play Elements
+   ===================================================================== */
+
+/* Dialogue - spoken words in quotes "text" */
+.rp-dialogue {
+  color: var(--accent-color);
+  font-weight: var(--font-weight-medium);
+  position: relative;
+  background: var(--background-color-tertiary);
+  padding: 2px 4px;
+  border-radius: var(--border-radius-small);
+  border-left: 3px solid var(--accent-color);
+  margin: 0 2px;
+  display: inline;
+}
+
+[data-theme="light"] .rp-dialogue {
+  background: var(--background-color-secondary);
+  color: var(--accent-color-hover);
+  border-left-color: var(--color-magic-glow);
+}
+
+/* Actions - italicized text *action* */
+.rp-action {
+  font-style: italic;
+  color: var(--accent-secondary);
+  font-weight: var(--font-weight-medium);
+  position: relative;
+  opacity: 0.9;
+}
+
+.rp-action::before {
+  content: '*';
+  margin-right: 2px;
+  opacity: 0.6;
+}
+
+.rp-action::after {
+  content: '*';
+  margin-left: 2px;
+  opacity: 0.6;
+}
+
+[data-theme="light"] .rp-action {
+  color: var(--accent-secondary);
+}
+
+/* Thoughts - bold text **thought** */
+.rp-thought {
+  font-style: italic;
+  font-weight: var(--font-weight-normal);
+  color: var(--text-color-secondary);
+  background: var(--background-color-tertiary);
+  padding: 2px 6px;
+  border-radius: var(--border-radius-small);
+  border: 1px dashed var(--border-color);
+  position: relative;
+  display: inline;
+  opacity: 0.85;
+}
+
+.rp-thought::before {
+  content: '(';
+  margin-right: 2px;
+  opacity: 0.7;
+  font-style: normal;
+}
+
+.rp-thought::after {
+  content: ')';
+  margin-left: 2px;
+  opacity: 0.7;
+  font-style: normal;
+}
+
+[data-theme="light"] .rp-thought {
+  background: var(--background-color-secondary);
+  border-color: var(--border-color-lighter);
+  color: var(--text-color-secondary);
+}
+
+/* Enhanced contrast for role-play elements */
+.assistant-text .rp-dialogue {
+  background: var(--background-color-primary);
+  box-shadow: 0 1px 3px rgba(139, 92, 246, 0.1);
+}
+
+.assistant-text .rp-action {
+  color: var(--color-fire);
+}
+
+[data-theme="light"] .assistant-text .rp-action {
+  color: var(--color-fire);
+}
+
+.assistant-text .rp-thought {
+  background: var(--background-color-primary);
+  border-color: var(--border-color-lighter);
+}

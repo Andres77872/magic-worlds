@@ -20,6 +20,29 @@ interface ChatTurnProps {
     onForwardOptionClick: (option: string) => void
 }
 
+// Process text nodes to handle dialogue formatting
+function processTextContent(content: string): React.ReactNode[] {
+    const parts = content.split(/("([^"]+)")/g);
+    const result: React.ReactNode[] = [];
+    
+    for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (part.startsWith('"') && part.endsWith('"')) {
+            // This is dialogue
+            result.push(
+                <span key={i} className="rp-dialogue">
+                    {part}
+                </span>
+            );
+        } else if (part.trim()) {
+            // Regular text
+            result.push(part);
+        }
+    }
+    
+    return result.length > 0 ? result : [content];
+}
+
 export function ChatTurn({ turn, onForwardOptionClick }: ChatTurnProps) {
     const isUser = turn.type === 'user'
     
@@ -74,9 +97,16 @@ export function ChatTurn({ turn, onForwardOptionClick }: ChatTurnProps) {
                                             </code>
                                         )
                                     },
-                                    em: ({children}) => <em className="markdown-italic">{children}</em>,
-                                    strong: ({children}) => <strong className="markdown-bold">{children}</strong>,
+                                    // Actions (italics) - *doing something*
+                                    em: ({children}) => <em className="rp-action">{children}</em>,
+                                    // Thoughts (bold) - **thinking something**
+                                    strong: ({children}) => <strong className="rp-thought">{children}</strong>,
                                     hr: () => <hr className="markdown-divider" />,
+                                    // Process text nodes for dialogue detection
+                                    text: ({value}: any) => {
+                                        const processed = processTextContent(value);
+                                        return <>{processed}</>;
+                                    },
                                 }}
                             >
                                 {turn.content}
