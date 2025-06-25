@@ -78,6 +78,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick }: Chat
                                 aria-label="Regenerate response"
                                 title="Regenerate this response"
                             >
+                                <span className="regenerate-icon">↻</span>
                                 <span className="regenerate-text">Regenerate</span>
                             </button>
                         )}

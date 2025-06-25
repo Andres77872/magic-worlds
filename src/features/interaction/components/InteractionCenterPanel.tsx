@@ -69,19 +69,31 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         if (userMessageIndex < 0) return // No user message found
 
         const userMessage = turns[userMessageIndex].content
+        const existingAiTurn = turns[turnIndex] as ExtendedTurnEntry
         
-        // Remove the AI response and any subsequent turns
-        const truncatedTurns = turns.slice(0, turnIndex)
-        setTurns(truncatedTurns)
+        // Remove any subsequent turns but keep the AI turn we're regenerating
+        const truncatedTurns = turns.slice(0, turnIndex + 1)
+        
+        // Reset the AI turn content and set it to streaming
+        const resetAiTurn: ExtendedTurnEntry = {
+            ...existingAiTurn,
+            content: '',
+            isStreaming: true,
+            forwardOptions: undefined,
+            isStreamingForwardOptions: false
+        }
+        
+        const updatedTurns = [...truncatedTurns.slice(0, -1), resetAiTurn]
+        setTurns(updatedTurns)
         setIsLoading(true)
         setError(null)
 
         try {
-            // Save truncated turns
-            await storage.saveTurns(adventure.id, truncatedTurns)
+            // Save updated turns
+            await storage.saveTurns(adventure.id, updatedTurns)
 
-            // Regenerate the response
-            await processUserMessage(userMessage, truncatedTurns)
+            // Regenerate the response using the existing turn
+            await processUserMessage(userMessage, updatedTurns.slice(0, -1), resetAiTurn)
         } catch (error) {
             console.error('Failed to regenerate response:', error)
             setError('Failed to regenerate response. Please try again.')
@@ -122,7 +134,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
     }
 
     // Process user message and get AI response
-    const processUserMessage = async (userText: string, currentTurns: TurnEntry[]) => {
+    const processUserMessage = async (userText: string, currentTurns: TurnEntry[], existingTurn?: ExtendedTurnEntry) => {
         try {
             // Build system prompt with full adventure context (scenario, characters, world)
             const charTags = adventure.characters?.map((c) => {
@@ -150,7 +162,7 @@ ${worldTag}
 Respond to the user inputs as the assistant.`
 
             // Format history for API
-            const history = turns
+            const history = currentTurns
                 .filter(t => t.type === 'user' || t.type === 'ai')
                 .map(t => ({
                     role: t.type === 'user' ? 'user' as const : 'assistant' as const,
@@ -169,7 +181,6 @@ Respond to the user inputs as the assistant.`
                     messages: [
                         {role: 'system', content: systemPrompt},
                         ...history,
-                        {role: 'user', content: userText},
                     ],
                 }),
             })
@@ -181,8 +192,8 @@ Respond to the user inputs as the assistant.`
             const reader = response.body?.getReader()
             if (!reader) throw new Error('No response body')
 
-            // Create a placeholder for the AI response turn
-            const aiTurn: ExtendedTurnEntry = {
+            // Create a placeholder for the AI response turn OR use existing one for regeneration
+            const aiTurn: ExtendedTurnEntry = existingTurn || {
                 id: crypto.randomUUID(),
                 type: 'ai',
                 content: '',
@@ -192,8 +203,10 @@ Respond to the user inputs as the assistant.`
                 isStreamingForwardOptions: false
             }
 
-            // Add the initial empty AI turn
-            let updatedTurns = [...currentTurns, aiTurn]
+            // Add the AI turn (either new or updated existing)
+            let updatedTurns = existingTurn 
+                ? [...currentTurns, existingTurn] 
+                : [...currentTurns, aiTurn]
             setTurns(updatedTurns)
 
             let assistantResponse = ''
