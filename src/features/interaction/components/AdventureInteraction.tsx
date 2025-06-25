@@ -16,6 +16,8 @@ export function AdventureInteraction() {
     const [currentAdventure, setCurrentAdventure] = useState<Adventure | null>(null)
     const [turns, setTurns] = useState<TurnEntry[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false)
+    const [isRightPanelOpen, setIsRightPanelOpen] = useState(false)
 
     // Get adventure from data context when component mounts
     useEffect(() => {
@@ -80,6 +82,31 @@ export function AdventureInteraction() {
         setPage(previousPage || 'landing')
     }
 
+    // Handle panel clicks on mobile
+    const handlePanelBackdropClick = (e: React.MouseEvent) => {
+        // Only close on mobile when clicking the backdrop
+        if (window.innerWidth <= 768) {
+            const target = e.target as HTMLElement
+            if (target.classList.contains('panel-container')) {
+                setIsLeftPanelOpen(false)
+                setIsRightPanelOpen(false)
+            }
+        }
+    }
+
+    // Close panels on escape key
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setIsLeftPanelOpen(false)
+                setIsRightPanelOpen(false)
+            }
+        }
+        
+        document.addEventListener('keydown', handleEscape)
+        return () => document.removeEventListener('keydown', handleEscape)
+    }, [])
+
     if (!currentAdventure) {
         return <LoadingSpinner message="Loading adventure..." />
     }
@@ -91,19 +118,52 @@ export function AdventureInteraction() {
     return (
         <div className="adventure-interaction">
             <div className="interaction-layout">
-                <InteractionLeftPanel 
-                    adventure={currentAdventure} 
-                    onBack={handleBack}
-                />
+                {/* Left Panel Toggle Button */}
+                <button 
+                    className={`panel-toggle panel-toggle-left ${isLeftPanelOpen ? 'active' : ''}`}
+                    onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
+                    aria-label="Toggle adventure details"
+                >
+                    <span className="toggle-icon">☰</span>
+                </button>
+
+                {/* Left Panel */}
+                <div 
+                    className={`panel-container panel-left ${isLeftPanelOpen ? 'open' : ''}`}
+                    onClick={handlePanelBackdropClick}
+                >
+                    <InteractionLeftPanel 
+                        adventure={currentAdventure} 
+                        onBack={handleBack}
+                    />
+                </div>
+
+                {/* Center Panel */}
                 <InteractionCenterPanel 
                     adventure={currentAdventure}
                     turns={turns}
                     setTurns={setTurns}
                 />
-                <InteractionRightPanel 
-                    adventure={currentAdventure}
-                    turns={turns}
-                />
+
+                {/* Right Panel */}
+                <div 
+                    className={`panel-container panel-right ${isRightPanelOpen ? 'open' : ''}`}
+                    onClick={handlePanelBackdropClick}
+                >
+                    <InteractionRightPanel 
+                        adventure={currentAdventure}
+                        turns={turns}
+                    />
+                </div>
+
+                {/* Right Panel Toggle Button */}
+                <button 
+                    className={`panel-toggle panel-toggle-right ${isRightPanelOpen ? 'active' : ''}`}
+                    onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
+                    aria-label="Toggle turn history"
+                >
+                    <span className="toggle-icon">📜</span>
+                </button>
             </div>
         </div>
     )

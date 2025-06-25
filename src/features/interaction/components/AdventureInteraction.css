@@ -1,31 +1,300 @@
 /* =====================================================================
-   Adventure Interaction Component
+   Adventure Interaction Component - Sliding Panels
    ===================================================================== */
 .adventure-interaction {
   height: calc(100vh - var(--header-height));
   display: flex;
   flex-direction: column;
   background: var(--background-color-website);
-}
-
-.interaction-layout {
-  display: grid;
-  grid-template-columns: 300px 1fr 300px;
-  height: 100%;
-  gap: 0;
+  position: relative;
   overflow: hidden;
 }
 
-/* Responsive Adjustments */
-@media (max-width: 1200px) {
-  .interaction-layout {
-    grid-template-columns: 250px 1fr 250px;
+.interaction-layout {
+  display: flex;
+  height: 100%;
+  position: relative;
+  width: 100%;
+}
+
+/* =====================================================================
+   Panel Containers
+   ===================================================================== */
+.panel-container {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: var(--background-color-primary);
+  border: var(--border-standard);
+  box-shadow: var(--shadow-lg);
+  transition: transform var(--duration-normal) var(--ease-smooth);
+  z-index: 10;
+  overflow-y: auto;
+}
+
+/* Left Panel */
+.panel-left {
+  left: 0;
+  width: 320px;
+  border-left: none;
+  border-right: var(--border-standard);
+  transform: translateX(-100%);
+}
+
+.panel-left.open {
+  transform: translateX(0);
+}
+
+/* Right Panel */
+.panel-right {
+  right: 0;
+  width: 320px;
+  border-right: none;
+  border-left: var(--border-standard);
+  transform: translateX(100%);
+}
+
+.panel-right.open {
+  transform: translateX(0);
+}
+
+/* =====================================================================
+   Center Panel
+   ===================================================================== */
+.interaction-center-panel {
+  flex: 1;
+  width: 100%;
+  padding: 0;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* Also support the actual class name used by InteractionCenterPanel */
+.center-panel {
+  flex: 1;
+  width: 100%;
+  padding: 0;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* =====================================================================
+   Toggle Buttons
+   ===================================================================== */
+.panel-toggle {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 80px;
+  background: var(--background-color-secondary);
+  border: var(--border-standard);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-fast) var(--ease-smooth);
+  z-index: 11;
+  padding: 0;
+  font-size: var(--font-size-lg);
+  color: var(--text-color-secondary);
+}
+
+.panel-toggle:hover {
+  background: var(--background-color-hover);
+  color: var(--accent-color);
+  box-shadow: var(--shadow-md);
+}
+
+.panel-toggle:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+.panel-toggle-left {
+  left: 0;
+  border-radius: 0 var(--border-radius-medium) var(--border-radius-medium) 0;
+  border-left: none;
+}
+
+.panel-toggle-left.active {
+  left: 320px;
+  background: var(--accent-color);
+  color: var(--color-brighter);
+}
+
+.panel-toggle-right {
+  right: 0;
+  border-radius: var(--border-radius-medium) 0 0 var(--border-radius-medium);
+  border-right: none;
+}
+
+.panel-toggle-right.active {
+  right: 320px;
+  background: var(--accent-color);
+  color: var(--color-brighter);
+}
+
+.toggle-icon {
+  display: inline-block;
+  transition: transform var(--duration-fast) var(--ease-smooth);
+}
+
+.panel-toggle-left.active .toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* =====================================================================
+   Panel Content Adjustments
+   ===================================================================== */
+.panel-container > * {
+  height: 100%;
+  overflow-y: auto;
+  /* Prevent click propagation to backdrop */
+  pointer-events: auto;
+}
+
+/* Ensure panel children don't trigger backdrop close */
+.panel-container > *:first-child {
+  position: relative;
+  z-index: 1;
+}
+
+/* Add padding to center panel when panels are open */
+.interaction-layout:has(.panel-left.open) .interaction-center-panel,
+.interaction-layout:has(.panel-left.open) .center-panel {
+  padding-left: var(--spacing-md);
+}
+
+.interaction-layout:has(.panel-right.open) .interaction-center-panel,
+.interaction-layout:has(.panel-right.open) .center-panel {
+  padding-right: var(--spacing-md);
+}
+
+/* =====================================================================
+   Responsive Design
+   ===================================================================== */
+@media (max-width: 1024px) {
+  .panel-left,
+  .panel-right {
+    width: 280px;
+  }
+  
+  .panel-toggle-left.active {
+    left: 280px;
+  }
+  
+  .panel-toggle-right.active {
+    right: 280px;
   }
 }
 
 @media (max-width: 768px) {
-  .interaction-layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto;
+  .panel-left,
+  .panel-right {
+    width: 85vw;
+    max-width: 320px;
+  }
+  
+  .panel-toggle-left.active {
+    left: calc(85vw - 40px);
+    max-width: 280px;
+  }
+  
+  .panel-toggle-right.active {
+    right: calc(85vw - 40px);
+    max-width: 280px;
+  }
+  
+  .panel-toggle {
+    width: 36px;
+    height: 72px;
+    font-size: var(--font-size-normal);
+  }
+  
+  /* Only allow one panel open at a time on mobile */
+  .panel-left.open ~ .panel-right.open {
+    transform: translateX(100%);
+  }
+  
+  .panel-right.open ~ .panel-left.open {
+    transform: translateX(-100%);
+  }
+}
+
+@media (max-width: 480px) {
+  .panel-left,
+  .panel-right {
+    width: 100vw;
+  }
+  
+  .panel-toggle-left.active,
+  .panel-toggle-right.active {
+    opacity: 0.8;
+  }
+  
+  /* Add backdrop for mobile */
+  .panel-container.open::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--background-transparency-standard);
+    z-index: -1;
+  }
+}
+
+/* =====================================================================
+   Smooth Scrollbar for Panels
+   ===================================================================== */
+.panel-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-container::-webkit-scrollbar-track {
+  background: var(--background-color-secondary);
+}
+
+.panel-container::-webkit-scrollbar-thumb {
+  background: var(--background-color-hover);
+  border-radius: var(--border-radius-small);
+}
+
+.panel-container::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-color);
+}
+
+/* =====================================================================
+   Dark Theme Adjustments
+   ===================================================================== */
+[data-theme="dark"] .panel-toggle {
+  background: var(--background-color-secondary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .panel-toggle:hover {
+  background: var(--background-color-hover);
+  border-color: var(--accent-color);
+}
+
+[data-theme="dark"] .panel-container {
+  background: var(--background-color-primary);
+  box-shadow: var(--shadow-xl);
+}
+
+/* =====================================================================
+   Accessibility
+   ===================================================================== */
+.panel-toggle:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-container,
+  .panel-toggle,
+  .toggle-icon {
+    transition: none;
   }
 }
