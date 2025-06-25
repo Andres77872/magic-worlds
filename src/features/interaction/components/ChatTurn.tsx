@@ -18,6 +18,7 @@ interface ExtendedTurnEntry extends TurnEntry {
 interface ChatTurnProps {
     turn: ExtendedTurnEntry
     onForwardOptionClick: (option: string) => void
+    onRegenerateClick?: (turnId: string) => void
 }
 
 // Process text nodes to handle dialogue formatting
@@ -43,7 +44,7 @@ function processTextContent(content: string): React.ReactNode[] {
     return result.length > 0 ? result : [content];
 }
 
-export function ChatTurn({ turn, onForwardOptionClick }: ChatTurnProps) {
+export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick }: ChatTurnProps) {
     const isUser = turn.type === 'user'
     
     return (
@@ -63,12 +64,24 @@ export function ChatTurn({ turn, onForwardOptionClick }: ChatTurnProps) {
             <div className="turn-content-wrapper">
                 <div className="turn-header">
                     <span className="turn-role">{isUser ? 'Player' : 'Game Master'}</span>
-                    <span className="turn-timestamp">
-                        {new Date(turn.timestamp).toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                        })}
-                    </span>
+                    <div className="turn-header-actions">
+                        <span className="turn-timestamp">
+                            {new Date(turn.timestamp).toLocaleTimeString([], { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                            })}
+                        </span>
+                        {!isUser && onRegenerateClick && !turn.isStreaming && (
+                            <button 
+                                className="regenerate-button"
+                                onClick={() => onRegenerateClick(turn.id)}
+                                aria-label="Regenerate response"
+                                title="Regenerate this response"
+                            >
+                                <span className="regenerate-text">Regenerate</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
                 
                 <div className="turn-content">

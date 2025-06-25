@@ -55,6 +55,40 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         setInput(option)
     }
 
+    const handleRegenerateResponse = async (turnId: string) => {
+        // Find the turn to regenerate
+        const turnIndex = turns.findIndex(turn => turn.id === turnId)
+        if (turnIndex === -1) return
+
+        // Find the last user message before this AI response
+        let userMessageIndex = turnIndex - 1
+        while (userMessageIndex >= 0 && turns[userMessageIndex].type !== 'user') {
+            userMessageIndex--
+        }
+        
+        if (userMessageIndex < 0) return // No user message found
+
+        const userMessage = turns[userMessageIndex].content
+        
+        // Remove the AI response and any subsequent turns
+        const truncatedTurns = turns.slice(0, turnIndex)
+        setTurns(truncatedTurns)
+        setIsLoading(true)
+        setError(null)
+
+        try {
+            // Save truncated turns
+            await storage.saveTurns(adventure.id, truncatedTurns)
+
+            // Regenerate the response
+            await processUserMessage(userMessage, truncatedTurns)
+        } catch (error) {
+            console.error('Failed to regenerate response:', error)
+            setError('Failed to regenerate response. Please try again.')
+            setIsLoading(false)
+        }
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!input.trim() || isLoading) return
@@ -351,6 +385,7 @@ Respond to the user inputs as the assistant.`
                                 key={turn.id} 
                                 turn={turn} 
                                 onForwardOptionClick={handleForwardOptionClick}
+                                onRegenerateClick={handleRegenerateResponse}
                             />
                         ))
                     )}

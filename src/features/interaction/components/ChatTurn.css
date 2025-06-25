@@ -92,6 +92,12 @@
   gap: var(--spacing-md);
 }
 
+.turn-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
 .turn-role {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
@@ -539,6 +545,19 @@
     max-width: 100% !important;
   }
   
+  .turn-header-actions {
+    gap: var(--spacing-xs);
+  }
+  
+  .regenerate-button {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+  
+  .regenerate-text {
+    display: none; /* Hide text on smaller screens, keep only icon */
+  }
+
   .forward-options-list {
     grid-template-columns: 1fr;
   }
@@ -558,6 +577,11 @@
     flex-direction: column;
     align-items: flex-start;
     gap: var(--spacing-xs);
+  }
+  
+  .turn-header-actions {
+    align-self: flex-end;
+    margin-top: -var(--spacing-xs);
   }
   
   .markdown-h1 {
@@ -686,4 +710,101 @@
 .assistant-text .rp-thought {
   background: var(--background-color-primary);
   border-color: var(--border-color-lighter);
+}
+
+/* =====================================================================
+   Regenerate Button
+   ===================================================================== */
+.regenerate-button {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 4px 8px;
+  background: var(--background-color-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-medium);
+  color: var(--text-color-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all 0.3s var(--ease-magical);
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  animation: fadeIn 0.3s ease forwards;
+  animation-delay: 0.2s;
+}
+
+[data-theme="light"] .regenerate-button {
+  background: var(--background-color-tertiary);
+  border-color: var(--border-color-lighter);
+  box-shadow: var(--shadow-sm);
+}
+
+.regenerate-text {
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  opacity: 0.9;
+}
+
+/* Hover effects */
+.regenerate-button:hover {
+  background: var(--background-color-tertiary);
+  border-color: var(--color-magic-glow);
+  color: var(--color-magic-glow);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(192, 132, 252, 0.2);
+}
+
+[data-theme="light"] .regenerate-button:hover {
+  background: var(--background-color-secondary);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.15);
+}
+
+.regenerate-button:hover {
+  transform: rotate(180deg);
+  color: var(--color-magic-glow);
+}
+
+[data-theme="light"] .regenerate-button:hover {
+  color: var(--accent-color);
+}
+
+/* Active state */
+.regenerate-button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(192, 132, 252, 0.1);
+}
+
+/* Magical shimmer effect on hover */
+.regenerate-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent, 
+    var(--color-magic-glow), 
+    transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.regenerate-button:hover::before {
+  opacity: 0.1;
+  animation: shimmer 1s ease-in-out;
+}
+
+/* Focus state for accessibility */
+.regenerate-button:focus {
+  outline: 2px solid var(--color-magic-glow);
+  outline-offset: 2px;
+}
+
+[data-theme="light"] .regenerate-button:focus {
+  outline-color: var(--accent-color);
 }
