@@ -3,6 +3,7 @@ import type {Adventure, TurnEntry} from '../../../shared'
 import {storage} from '../../../infrastructure/storage'
 import {FaSpinner} from 'react-icons/fa'
 import {parseForwardOptions, extractForwardOptions} from '../utils/jsonFixer'
+import {ChatTurn} from './ChatTurn'
 import './InteractionCenterPanel.css'
 
 // API Configuration
@@ -313,55 +314,21 @@ Respond to the user inputs as the assistant.`
                 <div className="messages-area">
                     {turns.length === 0 ? (
                         <div className="welcome-message">
+                            <div className="welcome-icon">🎭</div>
                             <h3>Welcome to your adventure!</h3>
-                            <p>Type your first action below to begin the story.</p>
+                            <p>You are about to embark on an epic journey. What will your first action be?</p>
+                            <div className="welcome-hint">
+                                <span className="hint-icon">💡</span>
+                                <span>Tip: Be descriptive in your actions to create a more immersive experience!</span>
+                            </div>
                         </div>
                     ) : (
                         turns.map((turn: ExtendedTurnEntry) => (
-                            <div key={turn.id} className={`message ${turn.type}`}>
-                                <div className="message-content">
-                                    {turn.content}
-                                    {turn.isStreaming && (
-                                        <div className="typing-indicator">
-                                            <span></span>
-                                            <span></span>
-                                            <span></span>
-                                        </div>
-                                    )}
-                                </div>
-                                {(turn.forwardOptions && turn.forwardOptions.length > 0) || turn.isStreamingForwardOptions ? (
-                                    <div className="forward-options">
-                                        <div className="forward-options-header">
-                                            <span className="forward-options-title">Suggested actions</span>
-                                            {turn.isStreamingForwardOptions && (
-                                                <div className="forward-options-loading">
-                                                    <span className="loading-dot"></span>
-                                                    <span className="loading-dot"></span>
-                                                    <span className="loading-dot"></span>
-                                                </div>
-                                            )}
-                                        </div>
-                                        {turn.forwardOptions && turn.forwardOptions.length > 0 && (
-                                            <div className="forward-options-list">
-                                                {turn.forwardOptions.map((option, index) => (
-                                                    <button
-                                                        key={index}
-                                                        className="forward-option-button"
-                                                        onClick={() => handleForwardOptionClick(option.forward_question)}
-                                                        style={{animationDelay: `${index * 0.1}s`}}
-                                                    >
-                                                        <span className="option-text">{option.forward_question}</span>
-                                                        <span className="option-arrow">→</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : null}
-                                <div className="message-timestamp">
-                                    {new Date(turn.timestamp).toLocaleTimeString()}
-                                </div>
-                            </div>
+                            <ChatTurn 
+                                key={turn.id} 
+                                turn={turn} 
+                                onForwardOptionClick={handleForwardOptionClick}
+                            />
                         ))
                     )}
                     <div ref={messagesEndRef}/>
