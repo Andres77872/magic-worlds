@@ -166,6 +166,8 @@ Respond to the user inputs as the assistant.`
             let forwardOptionsBuffer = ''
             let isInsideForwardOptions = false
             let hasClosedForwardOptions = false
+            let thinkBuffer = ''
+            let isInsideThink = false
 
             // Process the streamed response
             while (true) {
@@ -184,9 +186,22 @@ Respond to the user inputs as the assistant.`
                             const parsed = JSON.parse(data)
                             const content = parsed.choices?.[0]?.delta?.content || ''
                             if (content) {
-                                // Check for forward options tag
+                                // Check for special tags (think and forward options)
                                 for (let i = 0; i < content.length; i++) {
                                     const char = content[i]
+                                    
+                                    if (isInsideThink) {
+                                        thinkBuffer += char
+                                        
+                                        // Check if we've completed the closing think tag
+                                        if (thinkBuffer.includes('</think>')) {
+                                            // Skip all thinking content - don't add it to assistantResponse
+                                            isInsideThink = false
+                                            thinkBuffer = ''
+                                        }
+                                        // Skip processing while inside think tags
+                                        continue
+                                    }
                                     
                                     if (isInsideForwardOptions && !hasClosedForwardOptions) {
                                         forwardOptionsBuffer += char
@@ -241,8 +256,16 @@ Respond to the user inputs as the assistant.`
                                             }
                                         }
                                     } else if (!isInsideForwardOptions) {
-                                        // Check if we're starting a forward options tag
+                                        // Add character to response buffer
                                         assistantResponse += char
+                                        
+                                        // Check if we're starting a think tag
+                                        if (assistantResponse.includes('<think>')) {
+                                            isInsideThink = true
+                                            thinkBuffer = '<think>'
+                                            // Remove the think tag from the displayed content
+                                            assistantResponse = assistantResponse.replace('<think>', '')
+                                        }
                                         
                                         // Check if we have the start of the forward options tag
                                         if (assistantResponse.includes('<forward_options>') && !hasClosedForwardOptions) {
