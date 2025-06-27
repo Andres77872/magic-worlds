@@ -26,8 +26,8 @@
   position: absolute;
   inset: 0;
   background: var(--gradient-magical);
-  opacity: 0.15;
-  animation: gradientShift 12s ease infinite;
+  opacity: 0.12;
+  animation: gradientShift 15s ease infinite;
   background-size: 400% 400%;
   filter: blur(1px);
 }
@@ -42,7 +42,7 @@
 .landing-floating-icon {
   position: absolute;
   font-size: 3.5rem;
-  opacity: 0.08;
+  opacity: 0.06;
   color: var(--accent-color);
   animation: float 8s ease-in-out infinite;
   filter: drop-shadow(0 0 20px currentColor);
@@ -153,8 +153,8 @@
 .landing-btn-hero:hover {
   transform: translateY(-3px) scale(1.02);
   box-shadow: 
-    0 15px 35px rgba(139, 92, 246, 0.4),
-    0 0 30px rgba(139, 92, 246, 0.3);
+    var(--shadow-xl),
+    0 0 40px rgba(139, 92, 246, 0.4);
   border-color: var(--color-magic-glow);
 }
 
@@ -166,7 +166,7 @@
   transform: translateY(-1px) scale(1.01);
 }
 
-/* Hero Stats - Enhanced */
+/* Enhanced Hero Stats */
 .landing-hero-stats {
   display: flex;
   gap: var(--spacing-lg);
@@ -187,9 +187,11 @@
   min-width: 140px;
   transition: all var(--duration-normal) var(--ease-magical);
   position: relative;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(15px);
+  overflow: hidden;
 }
 
+/* Magical border effect for stat cards */
 .landing-stat-card::before {
   content: '';
   position: absolute;
@@ -203,27 +205,51 @@
   transition: transform var(--duration-normal) ease;
 }
 
+/* Magical glow effect for stat cards */
+.landing-stat-card::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: var(--gradient-glow);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: all var(--duration-normal) ease;
+  pointer-events: none;
+  opacity: 0;
+}
+
 .landing-stat-card:hover {
   transform: translateY(-8px) scale(1.05);
   border-color: var(--accent-color);
+  background: var(--background-color-hover);
   box-shadow: 
-    0 15px 40px rgba(139, 92, 246, 0.25),
-    0 0 20px rgba(139, 92, 246, 0.15);
+    var(--shadow-xl),
+    0 0 30px rgba(139, 92, 246, 0.25);
 }
 
 .landing-stat-card:hover::before {
   transform: scaleX(1);
 }
 
+.landing-stat-card:hover::after {
+  width: 120px;
+  height: 120px;
+  opacity: 0.1;
+}
+
 .landing-stat-icon {
   font-size: 2.5rem;
   color: var(--accent-color);
-  transition: all var(--duration-fast) ease;
+  transition: all var(--duration-normal) ease;
+  position: relative;
 }
 
 .landing-stat-card:hover .landing-stat-icon {
-  transform: scale(1.1);
-  filter: drop-shadow(0 0 10px currentColor);
+  transform: scale(1.15);
+  filter: drop-shadow(0 0 15px currentColor);
 }
 
 .landing-stat-number {
@@ -231,6 +257,12 @@
   font-weight: var(--font-weight-bold);
   color: var(--accent-secondary);
   line-height: 1;
+  transition: all var(--duration-fast) ease;
+}
+
+.landing-stat-card:hover .landing-stat-number {
+  color: var(--accent-color);
+  transform: scale(1.05);
 }
 
 .landing-stat-label {
@@ -239,6 +271,11 @@
   font-weight: var(--font-weight-medium);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
+  text-align: center;
+}
+
+.landing-stat-card:hover .landing-stat-label {
+  color: var(--text-color);
 }
 
 /* Responsive Design */
@@ -285,6 +322,10 @@
     font-size: var(--font-size-base);
     padding: var(--spacing-md) var(--spacing-lg);
   }
+  
+  .landing-hero-stats {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  }
 }
 
 /* Accessibility */
@@ -294,10 +335,31 @@
   .landing-hero-gradient {
     animation: none;
   }
+  
+  .landing-stat-card:hover,
+  .landing-btn-hero:hover {
+    transform: none;
+  }
 }
 
 /* Focus styles for accessibility */
 .landing-btn-hero:focus-visible {
   outline: 3px solid var(--accent-color);
   outline-offset: 2px;
+}
+
+.landing-stat-card:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .landing-stat-card {
+    border-width: 3px;
+  }
+  
+  .landing-btn-hero {
+    border-width: 3px;
+  }
 } 

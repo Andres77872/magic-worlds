@@ -67,7 +67,8 @@
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
   .landing-loading-spinner,
-  .landing-particle {
+  .landing-particle,
+  .landing-loading-text {
     animation: none;
   }
 } 

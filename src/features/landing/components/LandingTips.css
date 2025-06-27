@@ -27,8 +27,8 @@
   bottom: -10px;
   left: 50%;
   transform: translateX(-50%);
-  width: 60px;
-  height: 3px;
+  width: 80px;
+  height: 4px;
   background: var(--gradient-primary);
   border-radius: var(--radius-sm);
 }
@@ -49,15 +49,56 @@
   border-radius: var(--radius-lg);
   text-align: center;
   transition: all var(--duration-normal) var(--ease-magical);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(15px);
+  overflow: hidden;
+}
+
+/* Magical border effect */
+.landing-tip-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--gradient-primary);
+  transform: scaleX(0);
+  transition: transform var(--duration-normal) ease;
+}
+
+/* Magical glow effect */
+.landing-tip-card::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: var(--gradient-glow);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: all var(--duration-normal) ease;
+  pointer-events: none;
+  opacity: 0;
 }
 
 .landing-tip-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-5px) scale(1.02);
   border-color: var(--accent-color);
+  background: var(--background-color-hover);
   box-shadow: 
-    0 15px 35px rgba(139, 92, 246, 0.15),
-    0 0 20px rgba(139, 92, 246, 0.1);
+    var(--shadow-xl),
+    0 0 30px rgba(139, 92, 246, 0.2);
+}
+
+.landing-tip-card:hover::before {
+  transform: scaleX(1);
+}
+
+.landing-tip-card:hover::after {
+  width: 150px;
+  height: 150px;
+  opacity: 0.1;
 }
 
 .landing-tip-number {
@@ -75,7 +116,15 @@
   justify-content: center;
   font-weight: var(--font-weight-bold);
   font-size: var(--font-size-lg);
-  box-shadow: 0 5px 15px rgba(139, 92, 246, 0.3);
+  box-shadow: var(--shadow-md);
+  transition: all var(--duration-normal) ease;
+}
+
+.landing-tip-card:hover .landing-tip-number {
+  transform: translateX(-50%) scale(1.1);
+  box-shadow: 
+    var(--shadow-lg),
+    0 0 20px rgba(139, 92, 246, 0.4);
 }
 
 .landing-tip-card h3 {
@@ -84,11 +133,17 @@
   color: var(--accent-color);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
+  transition: all var(--duration-fast) ease;
+}
+
+.landing-tip-card:hover h3 {
+  color: var(--text-color);
+  transform: translateY(-2px);
 }
 
 .landing-tip-card p {
   color: var(--text-color-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
 }
 
@@ -97,5 +152,39 @@
   .landing-tips-grid {
     grid-template-columns: 1fr;
     gap: var(--spacing-md);
+  }
+  
+  .landing-tip-card {
+    padding: var(--spacing-lg);
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-tips-section {
+    padding: var(--spacing-lg) var(--spacing-md);
+  }
+}
+
+/* Accessibility */
+.landing-tip-card:focus-visible {
+  outline: 3px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .landing-tip-card {
+    border-width: 3px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .landing-tip-card {
+    transition: none;
+  }
+  
+  .landing-tip-card:hover {
+    transform: none;
   }
 } 

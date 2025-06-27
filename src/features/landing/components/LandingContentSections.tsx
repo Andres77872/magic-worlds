@@ -20,7 +20,7 @@ interface LandingContentSectionsProps {
     onInProgressDelete: (index: number) => void | Promise<void>
 }
 
-// Empty state component for better UX
+// Enhanced empty state component with better UX
 interface EmptyStateProps {
     icon: React.ReactNode
     title: string
@@ -31,7 +31,7 @@ interface EmptyStateProps {
 
 function EmptyState({ icon, title, message, actionText, onAction }: EmptyStateProps) {
     return (
-        <div className="landing-content-panel-empty">
+        <div className="landing-content-panel-empty animate-entrance">
             <div className="landing-empty-icon" aria-hidden="true">
                 {icon}
             </div>
@@ -39,7 +39,7 @@ function EmptyState({ icon, title, message, actionText, onAction }: EmptyStatePr
             <p className="landing-empty-message">{message}</p>
             {actionText && onAction && (
                 <button 
-                    className="btn btn-primary hover-magical" 
+                    className="btn btn-primary hover-magical click-sparkle" 
                     onClick={onAction}
                     style={{ marginTop: 'var(--spacing-lg)' }}
                 >
@@ -67,7 +67,7 @@ export function LandingContentSections({
 }: LandingContentSectionsProps) {
     const [activeSection, setActiveSection] = useState<'characters' | 'worlds' | 'templates' | 'inprogress'>('inprogress')
 
-    // Tab configuration for better maintainability
+    // Enhanced tab configuration with better accessibility and theming
     const tabs = [
         {
             id: 'inprogress' as const,
@@ -119,46 +119,54 @@ export function LandingContentSections({
         switch (activeSection) {
             case 'characters':
                 return characters.length > 0 ? (
-                    <CharacterList
-                        characters={characters}
-                        onEdit={onCharacterEdit}
-                        onDelete={onCharacterDelete}
-                    />
+                    <div className="animate-entrance">
+                        <CharacterList
+                            characters={characters}
+                            onEdit={onCharacterEdit}
+                            onDelete={onCharacterDelete}
+                        />
+                    </div>
                 ) : (
                     <EmptyState {...tabs.find(tab => tab.id === 'characters')!.emptyState} />
                 )
 
             case 'worlds':
                 return worlds.length > 0 ? (
-                    <WorldList
-                        worlds={worlds}
-                        onEdit={onWorldEdit}
-                        onDelete={onWorldDelete}
-                    />
+                    <div className="animate-entrance">
+                        <WorldList
+                            worlds={worlds}
+                            onEdit={onWorldEdit}
+                            onDelete={onWorldDelete}
+                        />
+                    </div>
                 ) : (
                     <EmptyState {...tabs.find(tab => tab.id === 'worlds')!.emptyState} />
                 )
 
             case 'templates':
                 return templateAdventures.length > 0 ? (
-                    <TemplateList
-                        templates={templateAdventures}
-                        onEdit={onTemplateEdit}
-                        onStart={onTemplateStart}
-                        onDelete={onTemplateDelete}
-                    />
+                    <div className="animate-entrance">
+                        <TemplateList
+                            templates={templateAdventures}
+                            onEdit={onTemplateEdit}
+                            onStart={onTemplateStart}
+                            onDelete={onTemplateDelete}
+                        />
+                    </div>
                 ) : (
                     <EmptyState {...tabs.find(tab => tab.id === 'templates')!.emptyState} />
                 )
 
             case 'inprogress':
                 return inProgressAdventures.length > 0 ? (
-                    <InProgressList
-                        adventures={inProgressAdventures}
-                        onEdit={onInProgressEdit}
-                        onPlay={onInProgressEdit}
-                        onDelete={onInProgressDelete}
-                    />
+                    <div className="animate-entrance">
+                        <InProgressList
+                            adventures={inProgressAdventures}
+                            onEdit={onInProgressEdit}
+                            onPlay={onInProgressEdit}
+                            onDelete={onInProgressDelete}
+                        />
+                    </div>
                 ) : (
                     <EmptyState {...tabs.find(tab => tab.id === 'inprogress')!.emptyState} />
                 )
@@ -169,15 +177,15 @@ export function LandingContentSections({
     }
 
     return (
-        <section className="landing-content-sections" aria-labelledby="content-sections-title">
+        <section className="landing-content-sections animate-entrance" aria-labelledby="content-sections-title">
             <h2 className="sr-only" id="content-sections-title">Your Content</h2>
             
-            {/* Section Tabs */}
+            {/* Enhanced Section Tabs */}
             <div className="landing-section-tabs" role="tablist" aria-label="Content sections">
                 {tabs.map((tab) => (
                     <button 
                         key={tab.id}
-                        className={`landing-tab-button ${activeSection === tab.id ? 'active' : ''}`}
+                        className={`landing-tab-button hover-magical ${activeSection === tab.id ? 'active' : ''}`}
                         onClick={() => setActiveSection(tab.id)}
                         role="tab"
                         aria-selected={activeSection === tab.id}
@@ -193,8 +201,8 @@ export function LandingContentSections({
                 ))}
             </div>
 
-            {/* Tab Content */}
-            <div className="landing-tab-content animate-entrance">
+            {/* Enhanced Tab Content */}
+            <div className="landing-tab-content">
                 <div 
                     className="landing-content-panel"
                     role="tabpanel"
