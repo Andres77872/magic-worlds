@@ -106,7 +106,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                         </span>
                         {onEditClick && !isEditing && !turn.isStreaming && (
                             <button 
-                                className="interaction-btn interaction-btn--small interaction-focusable"
+                                className="interaction-btn interaction-btn--primary interaction-focusable"
                                 onClick={handleEditStart}
                                 aria-label="Edit message"
                                 title="Edit this message"
@@ -117,7 +117,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                         )}
                         {!isUser && onRegenerateClick && !turn.isStreaming && !isEditing && (
                             <button 
-                                className="interaction-btn interaction-btn--small interaction-focusable"
+                                className="interaction-btn interaction-btn--secondary interaction-focusable"
                                 onClick={() => onRegenerateClick(turn.id)}
                                 aria-label="Regenerate response"
                                 title="Regenerate this response"
