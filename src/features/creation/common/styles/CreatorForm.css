@@ -1,0 +1,64 @@
+/* =====================================================================
+   Creator Form - Common Styles
+   ===================================================================== */
+
+.creator-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+.creator-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-medium);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-standard);
+  animation: sectionFadeIn 0.4s ease-out;
+}
+
+@keyframes sectionFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.creator-form-section--fire {
+  background: linear-gradient(135deg, 
+    var(--background-color-secondary) 0%, 
+    rgba(var(--color-fire), 0.02) 100%);
+}
+
+.creator-form-section--fire:hover {
+  border-color: var(--color-fire);
+  box-shadow: var(--shadow-md);
+}
+
+.creator-form-section--nature {
+  background: linear-gradient(135deg, 
+    var(--background-color-secondary) 0%, 
+    rgba(var(--color-nature), 0.02) 100%);
+}
+
+.creator-form-section--nature:hover {
+  border-color: var(--accent-tertiary);
+  box-shadow: var(--shadow-md);
+}
+
+.creator-form-section--magical {
+  background: linear-gradient(135deg, 
+    var(--background-color-secondary) 0%, 
+    rgba(var(--accent-color), 0.02) 100%);
+}
+
+.creator-form-section--magical:hover {
+  border-color: var(--accent-color);
+  box-shadow: var(--shadow-md);
+} 
