@@ -28,7 +28,7 @@
   left: 50%;
   transform: translateX(-50%);
   width: 80px;
-  height: 4px;
+  height: 3px;
   background: var(--gradient-primary);
   border-radius: var(--radius-sm);
 }
@@ -45,7 +45,7 @@
   position: relative;
   padding: var(--spacing-xl);
   background: var(--background-color-tertiary);
-  border: 2px solid var(--border-color);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: center;
   transition: all var(--duration-normal) var(--ease-magical);
@@ -53,20 +53,21 @@
   overflow: hidden;
 }
 
-/* Magical border effect */
+/* Subtle border effect */
 .landing-tip-card::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 2px;
   background: var(--gradient-primary);
   transform: scaleX(0);
   transition: transform var(--duration-normal) ease;
+  opacity: 0.8;
 }
 
-/* Magical glow effect */
+/* Very subtle glow effect */
 .landing-tip-card::after {
   content: '';
   position: absolute;
@@ -83,12 +84,10 @@
 }
 
 .landing-tip-card:hover {
-  transform: translateY(-5px) scale(1.02);
-  border-color: var(--accent-color);
+  transform: translateY(-3px) scale(1.01);
+  border-color: var(--border-color-lighter);
   background: var(--background-color-hover);
-  box-shadow: 
-    var(--shadow-xl),
-    0 0 30px rgba(139, 92, 246, 0.2);
+  box-shadow: var(--shadow-lg);
 }
 
 .landing-tip-card:hover::before {
@@ -96,9 +95,9 @@
 }
 
 .landing-tip-card:hover::after {
-  width: 150px;
-  height: 150px;
-  opacity: 0.1;
+  width: 120px;
+  height: 120px;
+  opacity: 0.03;
 }
 
 .landing-tip-number {
@@ -116,15 +115,13 @@
   justify-content: center;
   font-weight: var(--font-weight-bold);
   font-size: var(--font-size-lg);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
   transition: all var(--duration-normal) ease;
 }
 
 .landing-tip-card:hover .landing-tip-number {
-  transform: translateX(-50%) scale(1.1);
-  box-shadow: 
-    var(--shadow-lg),
-    0 0 20px rgba(139, 92, 246, 0.4);
+  transform: translateX(-50%) scale(1.05);
+  box-shadow: var(--shadow-md);
 }
 
 .landing-tip-card h3 {
@@ -138,7 +135,7 @@
 
 .landing-tip-card:hover h3 {
   color: var(--text-color);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .landing-tip-card p {
@@ -167,14 +164,14 @@
 
 /* Accessibility */
 .landing-tip-card:focus-visible {
-  outline: 3px solid var(--accent-color);
+  outline: 2px solid var(--accent-color);
   outline-offset: 2px;
 }
 
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   .landing-tip-card {
-    border-width: 3px;
+    border-width: 2px;
   }
 }
 

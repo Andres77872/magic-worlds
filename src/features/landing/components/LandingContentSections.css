@@ -75,9 +75,9 @@
 .landing-tab-button:hover {
   color: var(--text-color);
   background: var(--background-color-hover);
-  border-color: var(--accent-color);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  border-color: var(--border-color-lighter);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .landing-tab-button:hover::before {
@@ -110,7 +110,7 @@
 }
 
 .landing-tab-button:hover .landing-tab-count {
-  transform: scale(1.1);
+  transform: scale(1.05);
   box-shadow: var(--shadow-md);
 }
 
@@ -128,7 +128,7 @@
   backdrop-filter: blur(20px);
   position: relative;
   overflow: hidden;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
   transition: all var(--duration-normal) ease;
 }
 
@@ -138,9 +138,10 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
+  height: 3px;
   background: var(--gradient-primary);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  opacity: 0.7;
 }
 
 .landing-content-panel::after {
@@ -151,17 +152,16 @@
   width: 200%;
   height: 200%;
   background: var(--gradient-glow);
-  opacity: 0.02;
+  opacity: 0.01;
   pointer-events: none;
   animation: float 8s ease-in-out infinite;
 }
 
-/* Enhanced Content Panel States */
+/* Enhanced Content Panel States - More subtle hover */
 .landing-content-panel:hover {
-  border-color: var(--accent-color);
-  box-shadow: 
-    var(--shadow-xl),
-    0 0 30px rgba(139, 92, 246, 0.1);
+  border-color: var(--border-color-lighter);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
 }
 
 /* Empty State Styling */
@@ -212,11 +212,11 @@
   padding: 0;
 }
 
-/* Magical Card Design System */
+/* Improved Card Design System - More subtle effects */
 .landing-content-panel .magical-card,
 .landing-content-panel .card {
   background: var(--background-color-tertiary);
-  border: 2px solid var(--border-color);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: var(--spacing-lg);
   transition: all var(--duration-normal) var(--ease-magical);
@@ -225,7 +225,7 @@
   backdrop-filter: blur(10px);
 }
 
-/* Magical border effect */
+/* Subtle border effect */
 .landing-content-panel .magical-card::before,
 .landing-content-panel .card::before {
   content: '';
@@ -233,13 +233,14 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 2px;
   background: var(--gradient-primary);
   transform: scaleX(0);
   transition: transform var(--duration-normal) ease;
+  opacity: 0.8;
 }
 
-/* Magical glow effect */
+/* Very subtle glow effect */
 .landing-content-panel .magical-card::after,
 .landing-content-panel .card::after {
   content: '';
@@ -258,12 +259,10 @@
 
 .landing-content-panel .magical-card:hover,
 .landing-content-panel .card:hover {
-  transform: translateY(-4px) scale(1.02);
-  border-color: var(--accent-color);
+  transform: translateY(-2px) scale(1.01);
+  border-color: var(--border-color-lighter);
   background: var(--background-color-hover);
-  box-shadow: 
-    var(--shadow-xl),
-    0 0 30px rgba(139, 92, 246, 0.2);
+  box-shadow: var(--shadow-lg);
 }
 
 .landing-content-panel .magical-card:hover::before,
@@ -273,9 +272,9 @@
 
 .landing-content-panel .magical-card:hover::after,
 .landing-content-panel .card:hover::after {
-  width: 200px;
-  height: 200px;
-  opacity: 0.1;
+  width: 150px;
+  height: 150px;
+  opacity: 0.03;
 }
 
 /* Card Content Styling */
@@ -343,12 +342,12 @@
   border-radius: var(--radius-sm);
   transition: all var(--duration-fast) var(--ease-magical);
   font-weight: var(--font-weight-medium);
-  border: 2px solid transparent;
+  border: 1px solid transparent;
 }
 
 .landing-content-panel .btn:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .landing-content-panel .btn-primary {
@@ -357,9 +356,8 @@
 }
 
 .landing-content-panel .btn-primary:hover {
-  box-shadow: 
-    var(--shadow-lg),
-    0 0 20px rgba(139, 92, 246, 0.3);
+  box-shadow: var(--shadow-md);
+  opacity: 0.9;
 }
 
 .landing-content-panel .btn-secondary {
@@ -370,8 +368,8 @@
 
 .landing-content-panel .btn-secondary:hover {
   background: var(--background-color-hover);
-  border-color: var(--accent-color);
-  color: var(--accent-color);
+  border-color: var(--border-color-lighter);
+  color: var(--text-color);
 }
 
 /* Responsive Design */
@@ -419,7 +417,7 @@
 
 /* Accessibility */
 .landing-tab-button:focus-visible {
-  outline: 3px solid var(--accent-color);
+  outline: 2px solid var(--accent-color);
   outline-offset: 2px;
 }
 
@@ -431,15 +429,15 @@
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   .landing-tab-button {
-    border-width: 3px;
+    border-width: 2px;
   }
   
   .landing-tab-button.active {
-    border-width: 4px;
+    border-width: 3px;
   }
   
   .landing-content-panel .card {
-    border-width: 3px;
+    border-width: 2px;
   }
 }
 

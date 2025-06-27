@@ -8,7 +8,7 @@
 .landing-footer {
   padding: var(--spacing-xl) var(--spacing-lg);
   text-align: center;
-  border-top: 2px solid var(--border-color);
+  border-top: 1px solid var(--border-color);
   margin-top: auto;
   position: relative;
   z-index: 2;
@@ -22,7 +22,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 2px;
   background: var(--gradient-primary);
   opacity: 0.5;
 }
@@ -30,12 +30,12 @@
 .landing-footer .btn {
   transition: all var(--duration-normal) var(--ease-magical);
   font-weight: var(--font-weight-medium);
-  border: 2px solid transparent;
+  border: 1px solid transparent;
 }
 
 .landing-footer .btn:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .landing-footer .btn-danger {
@@ -44,9 +44,8 @@
 }
 
 .landing-footer .btn-danger:hover {
-  box-shadow: 
-    var(--shadow-lg),
-    0 0 20px rgba(239, 68, 68, 0.3);
+  box-shadow: var(--shadow-lg);
+  opacity: 0.9;
 }
 
 @media (max-width: 480px) {

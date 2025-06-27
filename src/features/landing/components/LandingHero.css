@@ -26,7 +26,7 @@
   position: absolute;
   inset: 0;
   background: var(--gradient-magical);
-  opacity: 0.12;
+  opacity: 0.08;
   animation: gradientShift 15s ease infinite;
   background-size: 400% 400%;
   filter: blur(1px);
@@ -42,7 +42,7 @@
 .landing-floating-icon {
   position: absolute;
   font-size: 3.5rem;
-  opacity: 0.06;
+  opacity: 0.04;
   color: var(--accent-color);
   animation: float 8s ease-in-out infinite;
   filter: drop-shadow(0 0 20px currentColor);
@@ -123,7 +123,7 @@
   padding: var(--spacing-md) var(--spacing-xl);
   min-width: 280px;
   background: var(--gradient-primary);
-  border: 2px solid transparent;
+  border: 1px solid transparent;
   border-radius: var(--radius-lg);
   color: white;
   cursor: pointer;
@@ -151,15 +151,13 @@
 }
 
 .landing-btn-hero:hover {
-  transform: translateY(-3px) scale(1.02);
-  box-shadow: 
-    var(--shadow-xl),
-    0 0 40px rgba(139, 92, 246, 0.4);
-  border-color: var(--color-magic-glow);
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .landing-btn-hero:hover::before {
-  opacity: 0.4;
+  opacity: 0.2;
 }
 
 .landing-btn-hero:active {
@@ -182,7 +180,7 @@
   gap: var(--spacing-sm);
   padding: var(--spacing-lg);
   background: var(--background-color-tertiary);
-  border: 2px solid var(--border-color);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   min-width: 140px;
   transition: all var(--duration-normal) var(--ease-magical);
@@ -191,21 +189,22 @@
   overflow: hidden;
 }
 
-/* Magical border effect for stat cards */
+/* Subtle border effect for stat cards */
 .landing-stat-card::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 2px;
   background: var(--gradient-primary);
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   transform: scaleX(0);
   transition: transform var(--duration-normal) ease;
+  opacity: 0.8;
 }
 
-/* Magical glow effect for stat cards */
+/* Very subtle glow effect for stat cards */
 .landing-stat-card::after {
   content: '';
   position: absolute;
@@ -222,12 +221,10 @@
 }
 
 .landing-stat-card:hover {
-  transform: translateY(-8px) scale(1.05);
-  border-color: var(--accent-color);
+  transform: translateY(-4px) scale(1.02);
+  border-color: var(--border-color-lighter);
   background: var(--background-color-hover);
-  box-shadow: 
-    var(--shadow-xl),
-    0 0 30px rgba(139, 92, 246, 0.25);
+  box-shadow: var(--shadow-lg);
 }
 
 .landing-stat-card:hover::before {
@@ -235,9 +232,9 @@
 }
 
 .landing-stat-card:hover::after {
-  width: 120px;
-  height: 120px;
-  opacity: 0.1;
+  width: 100px;
+  height: 100px;
+  opacity: 0.05;
 }
 
 .landing-stat-icon {
@@ -248,8 +245,8 @@
 }
 
 .landing-stat-card:hover .landing-stat-icon {
-  transform: scale(1.15);
-  filter: drop-shadow(0 0 15px currentColor);
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 10px currentColor);
 }
 
 .landing-stat-number {
@@ -262,7 +259,7 @@
 
 .landing-stat-card:hover .landing-stat-number {
   color: var(--accent-color);
-  transform: scale(1.05);
+  transform: scale(1.02);
 }
 
 .landing-stat-label {
@@ -344,7 +341,7 @@
 
 /* Focus styles for accessibility */
 .landing-btn-hero:focus-visible {
-  outline: 3px solid var(--accent-color);
+  outline: 2px solid var(--accent-color);
   outline-offset: 2px;
 }
 
@@ -356,10 +353,10 @@
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   .landing-stat-card {
-    border-width: 3px;
+    border-width: 2px;
   }
   
   .landing-btn-hero {
-    border-width: 3px;
+    border-width: 2px;
   }
 } 

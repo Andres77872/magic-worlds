@@ -14,7 +14,7 @@
   position: relative;
 }
 
-/* Enhanced magical background particles */
+/* Enhanced magical background particles - More subtle */
 .landing-page::before {
   content: '';
   position: fixed;
@@ -26,13 +26,13 @@
     radial-gradient(circle at 20% 20%, var(--color-magic-glow) 0%, transparent 50%),
     radial-gradient(circle at 80% 80%, var(--accent-secondary) 0%, transparent 50%),
     radial-gradient(circle at 40% 40%, var(--accent-tertiary) 0%, transparent 50%);
-  opacity: 0.02;
+  opacity: 0.01;
   pointer-events: none;
   z-index: 0;
   animation: float 20s ease-in-out infinite;
 }
 
-/* Additional magical ambiance */
+/* Additional magical ambiance - More subtle */
 .landing-page::after {
   content: '';
   position: fixed;
@@ -41,7 +41,7 @@
   width: 100%;
   height: 100%;
   background: var(--gradient-portal);
-  opacity: 0.01;
+  opacity: 0.005;
   pointer-events: none;
   z-index: 0;
   animation: portalRotate 30s linear infinite;
@@ -76,11 +76,11 @@
   .landing-action-card,
   .landing-stat-card,
   .landing-tip-card {
-    border-width: 3px;
+    border-width: 2px;
   }
   
   .landing-tab-button.active {
-    border-bottom-width: 4px;
+    border-bottom-width: 3px;
   }
   
   .landing-page {

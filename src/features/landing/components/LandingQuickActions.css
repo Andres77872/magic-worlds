@@ -28,7 +28,7 @@
   left: 50%;
   transform: translateX(-50%);
   width: 80px;
-  height: 4px;
+  height: 3px;
   background: var(--gradient-primary);
   border-radius: var(--radius-sm);
 }
@@ -41,12 +41,12 @@
   margin: 0 auto;
 }
 
-/* Enhanced Magical Action Cards */
+/* Enhanced Action Cards with Subtle Effects */
 .landing-action-card {
   position: relative;
   padding: var(--spacing-xl);
   background: var(--background-color-tertiary);
-  border: 2px solid var(--border-color);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: center;
   cursor: pointer;
@@ -59,20 +59,21 @@
   min-height: 240px;
 }
 
-/* Magical border gradient effect */
+/* Subtle border gradient effect */
 .landing-action-card::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
+  height: 3px;
   background: var(--gradient-primary);
   transform: translateX(-100%);
   transition: transform var(--duration-normal) ease;
+  opacity: 0.8;
 }
 
-/* Magical glow effect */
+/* Very subtle glow effect */
 .landing-action-card::after {
   content: '';
   position: absolute;
@@ -92,39 +93,28 @@
 }
 
 .landing-action-card:hover::after {
-  opacity: 0.15;
+  opacity: 0.03;
   transform: scale(1.2);
 }
 
 .landing-action-card:hover {
-  transform: translateY(-8px) scale(1.02);
-  border-color: var(--accent-color);
+  transform: translateY(-4px) scale(1.01);
+  border-color: var(--border-color-lighter);
   background: var(--background-color-hover);
-  box-shadow: 
-    var(--shadow-xl),
-    0 0 40px rgba(139, 92, 246, 0.25);
+  box-shadow: var(--shadow-lg);
 }
 
-/* Specific card type hover colors */
+/* Specific card type hover colors - More subtle */
 .landing-action-card.character-card:hover { 
-  border-color: var(--accent-color);
-  box-shadow: 
-    var(--shadow-xl),
-    0 0 40px rgba(139, 92, 246, 0.25);
+  border-color: var(--border-color-lighter);
 }
 
 .landing-action-card.world-card:hover { 
-  border-color: var(--accent-secondary);
-  box-shadow: 
-    var(--shadow-xl),
-    0 0 40px rgba(245, 158, 11, 0.25);
+  border-color: var(--border-color-lighter);
 }
 
 .landing-action-card.adventure-card:hover { 
-  border-color: var(--accent-tertiary);
-  box-shadow: 
-    var(--shadow-xl),
-    0 0 40px rgba(16, 185, 129, 0.25);
+  border-color: var(--border-color-lighter);
 }
 
 /* Enhanced Icon Styling */
@@ -150,12 +140,12 @@
 }
 
 .landing-action-card:hover .landing-card-icon {
-  transform: scale(1.15) rotate(5deg);
-  filter: drop-shadow(0 0 20px currentColor);
+  transform: scale(1.1) rotate(2deg);
+  filter: drop-shadow(0 0 15px currentColor);
 }
 
 .landing-action-card:hover .landing-card-icon::after {
-  opacity: 0.3;
+  opacity: 0.1;
 }
 
 /* Card type specific icon colors */
@@ -183,7 +173,7 @@
 
 .landing-action-card:hover h3 {
   color: var(--accent-color);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .landing-action-card p {
@@ -200,7 +190,7 @@
 
 /* Enhanced interaction feedback */
 .landing-action-card:active {
-  transform: translateY(-4px) scale(0.98);
+  transform: translateY(-2px) scale(0.99);
 }
 
 /* Loading state for cards */
@@ -252,18 +242,18 @@
 
 /* Focus styles for accessibility */
 .landing-action-card:focus-visible {
-  outline: 3px solid var(--accent-color);
+  outline: 2px solid var(--accent-color);
   outline-offset: 2px;
 }
 
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   .landing-action-card {
-    border-width: 3px;
+    border-width: 2px;
   }
   
   .landing-action-card:hover {
-    border-width: 4px;
+    border-width: 3px;
   }
 }
 
