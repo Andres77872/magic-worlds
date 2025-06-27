@@ -28,6 +28,7 @@
     /* Accents - Magical purple & gold */
     --accent-color: #8b5cf6; /* Mystic purple */
     --accent-color-hover: #a78bfa; /* Lighter purple */
+    --accent-color-transparency: rgba(139, 92, 246, 0.2); /* Mystic purple with transparency */
     --accent-secondary: #f59e0b; /* Dragon gold */
     --accent-tertiary: #10b981; /* Forest emerald */
 
@@ -94,6 +95,7 @@
     /* Accents - Vibrant magical colors */
     --accent-color: #7c3aed; /* Royal purple */
     --accent-color-hover: #6d28d9;
+    --accent-color-transparency: rgba(124, 58, 237, 0.15); /* Royal purple with transparency */
     --accent-secondary: #d97706; /* Ancient gold */
     --accent-tertiary: #059669; /* Enchanted forest */
 

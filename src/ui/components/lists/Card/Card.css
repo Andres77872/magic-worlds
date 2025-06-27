@@ -20,6 +20,7 @@
     box-shadow: var(--shadow-md);
     transform: translateY(-2px);
     border-color: var(--border-color-lighter);
+    background-color: var(--background-color-hover);
 }
 
 .card:focus-visible {
@@ -35,6 +36,7 @@
 
 .card.highlight {
     border: 2px solid var(--accent-color);
+    box-shadow: 0 0 0 1px var(--accent-color), var(--shadow-md);
 }
 
 /* Card Header */
@@ -61,6 +63,7 @@
     justify-content: space-between;
     align-items: center;
     gap: var(--spacing-sm);
+    line-height: var(--line-height-tight);
 }
 
 .card-title-text {
@@ -79,14 +82,16 @@
 .card-arrow {
     color: var(--text-color-secondary);
     opacity: 0;
-    transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease;
+    transition: all var(--duration-fast) var(--ease-magical);
     flex-shrink: 0;
+    font-size: var(--font-size-sm);
 }
 
 .card:hover .card-arrow,
 .card:focus-visible .card-arrow {
-    opacity: 1;
+    opacity: 0.8;
     transform: translateX(2px);
+    color: var(--accent-color);
 }
 
 /* Card Content */
@@ -111,6 +116,7 @@
     align-items: center;
     z-index: 10;
     backdrop-filter: blur(2px);
+    border-radius: var(--radius-lg);
 }
 
 .card-loading-spinner {
@@ -122,42 +128,80 @@
     animation: magicalSpin 1s linear infinite;
 }
 
-/* Card Options */
+/* Enhanced Card Options */
 .card-options {
     position: relative;
     margin-left: auto;
-    margin-top: calc(var(--spacing-sm) * -1);
-    margin-right: calc(var(--spacing-sm) * -1);
+    margin-top: calc(var(--spacing-sm) * -0.5);
+    margin-right: calc(var(--spacing-sm) * -0.5);
 }
 
 .card-options-button {
-    background: none;
-    border: none;
+    background: var(--background-color-tertiary);
+    border: 1px solid var(--border-color);
     color: var(--text-color-secondary);
     padding: var(--spacing-sm);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all var(--duration-fast) ease;
-    width: 2rem;
-    height: 2rem;
+    transition: all var(--duration-fast) var(--ease-magical);
+    width: 2.25rem;
+    height: 2.25rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.card-options-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--gradient-glow);
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-magical);
+    border-radius: var(--radius-sm);
 }
 
 .card-options-button:hover {
     background-color: var(--background-color-hover);
-    color: var(--text-color);
+    color: var(--accent-color);
+    border-color: var(--border-color-lighter);
+    transform: scale(1.05);
+    box-shadow: var(--shadow-sm);
+}
+
+.card-options-button:hover::before {
+    opacity: 0.1;
 }
 
 .card-options-button:focus-visible {
     outline: 2px solid var(--accent-color);
     outline-offset: 2px;
+    background-color: var(--background-color-hover);
+    color: var(--accent-color);
+}
+
+.card-options-button:active {
+    transform: scale(0.95);
+}
+
+.card-options-button svg {
+    position: relative;
+    z-index: 1;
+    transition: transform var(--duration-fast) var(--ease-magical);
+}
+
+.card-options-button:hover svg {
+    transform: rotate(90deg);
 }
 
 .card-options-menu {
     position: absolute;
-    top: 100%;
+    top: calc(100% + var(--spacing-sm));
     right: 0;
     background: var(--background-color-primary);
     border-radius: var(--radius-md);
@@ -166,15 +210,16 @@
     z-index: 100;
     overflow: hidden;
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-10px) scale(0.95);
     visibility: hidden;
-    transition: all var(--duration-fast) ease;
+    transition: all var(--duration-fast) var(--ease-magical);
     border: 1px solid var(--border-color);
+    backdrop-filter: blur(8px);
 }
 
 .card-options-menu[data-enter] {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
     visibility: visible;
 }
 
@@ -193,18 +238,22 @@
     color: var(--text-color);
     text-align: left;
     cursor: pointer;
-    transition: all var(--duration-fast) ease;
+    transition: all var(--duration-fast) var(--ease-magical);
     font-size: var(--font-size-sm);
     gap: var(--spacing-sm);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-tight);
 }
 
 .card-options-item:hover {
     background-color: var(--background-color-hover);
+    color: var(--accent-color);
 }
 
 .card-options-item:focus-visible {
     outline: none;
     background-color: var(--background-color-hover);
+    color: var(--accent-color);
 }
 
 .card-options-item[data-danger] {
@@ -218,7 +267,7 @@
 
 .card-options-item[data-highlight] {
     color: var(--accent-color);
-    font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-semibold);
 }
 
 .card-options-item .option-icon {
@@ -227,33 +276,50 @@
     justify-content: center;
     width: 1.25rem;
     flex-shrink: 0;
+    font-size: var(--font-size-sm);
 }
 
 .card-option-single {
-    background: none;
-    border: none;
+    background: var(--background-color-tertiary);
+    border: 1px solid var(--border-color);
     color: var(--text-color-secondary);
-    padding: calc(var(--spacing-sm) / 2) var(--spacing-sm);
-    border-radius: var(--radius-sm);
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
     cursor: pointer;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: var(--spacing-sm);
     font-size: var(--font-size-sm);
-    transition: all var(--duration-fast) ease;
+    font-weight: var(--font-weight-medium);
+    transition: all var(--duration-fast) var(--ease-magical);
+    min-width: 2.25rem;
+    height: 2.25rem;
 }
 
 .card-option-single:hover {
     background-color: var(--background-color-hover);
     color: var(--accent-color);
+    border-color: var(--border-color-lighter);
+    transform: scale(1.05);
+    box-shadow: var(--shadow-sm);
 }
 
-/* Skeleton loading */
+.card-option-single:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.card-option-single:active {
+    transform: scale(0.95);
+}
+
+/* Enhanced skeleton loading */
 .skeleton {
     background: linear-gradient(
             90deg,
             var(--background-color-secondary) 25%,
-            rgba(255, 255, 255, 0.1) 50%,
+            var(--background-color-hover) 50%,
             var(--background-color-secondary) 75%
     );
     background-size: 200% 100%;
@@ -271,6 +337,140 @@
     margin-bottom: var(--spacing-md);
 }
 
+/* Card Grid Styles */
+.card-grid-container {
+    width: 100%;
+}
+
+.card-grid-search {
+    margin-bottom: var(--spacing-lg);
+}
+
+.search-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    max-width: 400px;
+}
+
+.search-input {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    padding-left: 2.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: var(--background-color-secondary);
+    color: var(--text-color);
+    font-size: var(--font-size-sm);
+    transition: all var(--duration-fast) var(--ease-magical);
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--accent-color-transparency);
+    background-color: var(--background-color-primary);
+}
+
+.search-input::placeholder {
+    color: var(--text-color-placeholder);
+}
+
+.search-icon {
+    position: absolute;
+    left: var(--spacing-sm);
+    color: var(--text-color-secondary);
+    font-size: var(--font-size-sm);
+    z-index: 1;
+}
+
+.search-spinner {
+    position: absolute;
+    right: var(--spacing-sm);
+    color: var(--accent-color);
+    animation: magicalSpin 1s linear infinite;
+}
+
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--spacing-lg);
+    width: 100%;
+}
+
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xl);
+    color: var(--text-color-secondary);
+    gap: var(--spacing-md);
+}
+
+.loading-spinner {
+    font-size: 2rem;
+    color: var(--accent-color);
+    animation: magicalSpin 1s linear infinite;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xl);
+    text-align: center;
+    color: var(--text-color-secondary);
+    gap: var(--spacing-md);
+}
+
+.empty-icon {
+    color: var(--text-color-placeholder);
+    opacity: 0.5;
+    margin-bottom: var(--spacing-sm);
+}
+
+.empty-state h3 {
+    color: var(--text-color);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+}
+
+.empty-state p {
+    font-size: var(--font-size-sm);
+    margin: 0;
+    max-width: 300px;
+}
+
+.load-more-trigger {
+    height: 1px;
+    width: 100%;
+}
+
+.end-of-results {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: var(--spacing-lg);
+    color: var(--text-color-secondary);
+    font-size: var(--font-size-sm);
+    border-top: 1px solid var(--border-color);
+    margin-top: var(--spacing-lg);
+}
+
+/* Card entrance animation */
+.card {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeInMagical 0.6s var(--ease-magical) forwards;
+}
+
+.card.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
 /* Visually hidden utility class */
 .visually-hidden {
     position: absolute;
@@ -282,4 +482,84 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-grid {
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: var(--spacing-md);
+    }
+    
+    .card-header {
+        padding: var(--spacing-md);
+        padding-bottom: var(--spacing-sm);
+    }
+    
+    .card-content {
+        padding: 0 var(--spacing-md) var(--spacing-md);
+    }
+}
+
+.search-clear {
+    position: absolute;
+    right: var(--spacing-sm);
+    background: none;
+    border: none;
+    color: var(--text-color-secondary);
+    cursor: pointer;
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    transition: all var(--duration-fast) var(--ease-magical);
+    font-size: 1.25rem;
+    line-height: 1;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.search-clear:hover {
+    background-color: var(--background-color-hover);
+    color: var(--accent-color);
+}
+
+.search-clear:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.card-wrapper {
+    display: contents;
+}
+
+/* Enhanced spacing for search input when clear button is present */
+.search-input-container:has(.search-clear) .search-input {
+    padding-right: 3rem;
+}
+
+/* CSS fallback for browsers that don't support :has() */
+.search-input-container .search-input {
+    padding-right: 2.5rem;
+}
+
+.search-input-container .search-clear + .search-input,
+.search-input-container .search-input:placeholder-shown ~ .search-clear {
+    padding-right: 3rem;
+}
+
+/* Ensure proper z-index for search elements */
+.search-input-container .search-clear {
+    z-index: 2;
+}
+
+.search-input-container .search-spinner {
+    right: 3rem;
+    z-index: 1;
+}
+
+/* When both clear and spinner are present */
+.search-input-container:has(.search-clear) .search-spinner {
+    right: 3.5rem;
 }
