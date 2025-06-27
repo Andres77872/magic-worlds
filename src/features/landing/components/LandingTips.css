@@ -44,13 +44,14 @@
 .landing-tip-card {
   position: relative;
   padding: var(--spacing-xl);
+  padding-top: calc(var(--spacing-xl) + 20px);
   background: var(--background-color-tertiary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: center;
   transition: all var(--duration-normal) var(--ease-magical);
   backdrop-filter: blur(15px);
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Subtle border effect */
@@ -117,6 +118,7 @@
   font-size: var(--font-size-lg);
   box-shadow: var(--shadow-sm);
   transition: all var(--duration-normal) ease;
+  z-index: 10;
 }
 
 .landing-tip-card:hover .landing-tip-number {
