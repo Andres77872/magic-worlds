@@ -1,0 +1,382 @@
+/**
+ * ChatMessage styles - Message content with markdown and roleplay formatting
+ */
+
+/* Import shared utilities */
+@import '../styles/shared-utilities.css';
+
+/* =====================================================================
+   Chat Message Container
+   ===================================================================== */
+.chat-message {
+  position: relative;
+}
+
+.chat-message__text {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--border-radius-medium);
+  position: relative;
+  line-height: var(--line-height-normal);
+  word-wrap: break-word;
+  transition: all var(--duration-fast) var(--ease-smooth);
+}
+
+/* User message styling */
+.chat-message--user .chat-message__text {
+  background: var(--background-color-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  margin-left: 0;
+  margin-right: auto;
+  max-width: 85%;
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="light"] .chat-message--user .chat-message__text {
+  background: var(--background-color-secondary);
+  border-color: var(--accent-color);
+  border-width: 2px;
+}
+
+/* Assistant message styling */
+.chat-message--assistant {
+  background: var(--background-color-secondary);
+  border: 1px solid var(--border-color-lighter);
+  color: var(--text-color);
+  margin-right: 0;
+  margin-left: auto;
+  max-width: 90%;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--border-radius-medium);
+  line-height: var(--line-height-normal);
+  word-wrap: break-word;
+}
+
+[data-theme="light"] .chat-message--assistant {
+  background: linear-gradient(135deg, 
+    var(--background-color-primary) 0%, 
+    var(--background-color-secondary) 100%);
+  border: 2px solid var(--color-magic-glow);
+  box-shadow: 0 4px 15px rgba(168, 85, 247, 0.1);
+}
+
+/* Magical glow effect for assistant messages */
+.chat-message--assistant::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: var(--gradient-glow);
+  opacity: 0.05;
+  animation: gradientShift 10s ease infinite;
+  pointer-events: none;
+}
+
+[data-theme="light"] .chat-message--assistant::before {
+  opacity: 0.02;
+}
+
+/* =====================================================================
+   Markdown Styles
+   ===================================================================== */
+.markdown-paragraph {
+  margin: 0 0 var(--spacing-sm) 0;
+  line-height: var(--line-height-normal);
+}
+
+.markdown-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.markdown-h1,
+.markdown-h2,
+.markdown-h3 {
+  font-weight: var(--font-weight-bold);
+  margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+  line-height: var(--line-height-tight);
+}
+
+.markdown-h1:first-child,
+.markdown-h2:first-child,
+.markdown-h3:first-child {
+  margin-top: 0;
+}
+
+.markdown-h1 {
+  font-size: var(--font-size-2xl);
+  color: var(--accent-color);
+}
+
+.markdown-h2 {
+  font-size: var(--font-size-xl);
+  color: var(--color-magic-glow);
+}
+
+.markdown-h3 {
+  font-size: var(--font-size-lg);
+  color: var(--text-color);
+}
+
+/* Lists */
+.markdown-list {
+  margin: var(--spacing-sm) 0;
+  padding-left: var(--spacing-lg);
+}
+
+.markdown-list-item {
+  margin: var(--spacing-xs) 0;
+  line-height: var(--line-height-normal);
+}
+
+.markdown-list-item::marker {
+  color: var(--accent-color);
+}
+
+/* Blockquotes */
+.markdown-blockquote {
+  margin: var(--spacing-md) 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-left: 4px solid var(--accent-color);
+  background: var(--background-color-tertiary);
+  font-style: italic;
+  color: var(--text-color-secondary);
+  border-radius: var(--border-radius-small);
+}
+
+[data-theme="light"] .markdown-blockquote {
+  background: var(--background-color-secondary);
+  border-left-color: var(--color-magic-glow);
+}
+
+/* Code */
+.markdown-code-inline {
+  background: var(--background-color-tertiary);
+  color: var(--accent-color);
+  padding: 2px 6px;
+  border-radius: var(--border-radius-small);
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.9em;
+  border: 1px solid var(--border-color);
+}
+
+[data-theme="light"] .markdown-code-inline {
+  background: var(--background-color-secondary);
+  color: var(--accent-color-hover);
+  border-color: var(--border-color-lighter);
+}
+
+.markdown-code-block {
+  display: block;
+  background: var(--background-color-primary);
+  color: var(--text-color);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-small);
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.9em;
+  overflow-x: auto;
+  margin: var(--spacing-sm) 0;
+  border: 1px solid var(--border-color);
+  white-space: pre-wrap;
+}
+
+[data-theme="light"] .markdown-code-block {
+  background: var(--background-color-tertiary);
+  border-color: var(--border-color-lighter);
+}
+
+/* Emphasis */
+.markdown-italic {
+  font-style: italic;
+  color: var(--text-color-secondary);
+}
+
+.markdown-bold {
+  font-weight: var(--font-weight-bold);
+  color: var(--text-color);
+}
+
+/* Divider */
+.markdown-divider {
+  margin: var(--spacing-lg) 0;
+  border: none;
+  height: 2px;
+  background: var(--gradient-magical);
+  opacity: 0.3;
+  border-radius: 1px;
+}
+
+/* =====================================================================
+   Role-Play Elements
+   ===================================================================== */
+
+/* Dialogue - spoken words in quotes "text" */
+.rp-dialogue {
+  color: var(--accent-color);
+  font-weight: var(--font-weight-medium);
+  position: relative;
+  background: var(--background-color-tertiary);
+  padding: 2px 4px;
+  border-radius: var(--border-radius-small);
+  border-left: 3px solid var(--accent-color);
+  margin: 0 2px;
+  display: inline;
+}
+
+[data-theme="light"] .rp-dialogue {
+  background: var(--background-color-secondary);
+  color: var(--accent-color-hover);
+  border-left-color: var(--color-magic-glow);
+}
+
+/* Actions - italicized text *action* */
+.rp-action {
+  font-style: italic;
+  color: var(--accent-secondary);
+  font-weight: var(--font-weight-medium);
+  position: relative;
+  opacity: 0.9;
+}
+
+.rp-action::before {
+  content: '*';
+  margin-right: 2px;
+  opacity: 0.6;
+}
+
+.rp-action::after {
+  content: '*';
+  margin-left: 2px;
+  opacity: 0.6;
+}
+
+[data-theme="light"] .rp-action {
+  color: var(--accent-secondary);
+}
+
+/* Thoughts - bold text **thought** */
+.rp-thought {
+  font-style: italic;
+  font-weight: var(--font-weight-normal);
+  color: var(--text-color-secondary);
+  background: var(--background-color-tertiary);
+  padding: 2px 6px;
+  border-radius: var(--border-radius-small);
+  border: 1px dashed var(--border-color);
+  position: relative;
+  display: inline;
+  opacity: 0.85;
+}
+
+.rp-thought::before {
+  content: '(';
+  margin-right: 2px;
+  opacity: 0.7;
+  font-style: normal;
+}
+
+.rp-thought::after {
+  content: ')';
+  margin-left: 2px;
+  opacity: 0.7;
+  font-style: normal;
+}
+
+[data-theme="light"] .rp-thought {
+  background: var(--background-color-secondary);
+  border-color: var(--border-color-lighter);
+  color: var(--text-color-secondary);
+}
+
+/* Enhanced contrast for role-play elements in assistant messages */
+.chat-message--assistant .rp-dialogue {
+  background: var(--background-color-primary);
+  box-shadow: 0 1px 3px rgba(139, 92, 246, 0.1);
+}
+
+.chat-message--assistant .rp-action {
+  color: var(--color-fire);
+}
+
+[data-theme="light"] .chat-message--assistant .rp-action {
+  color: var(--color-fire);
+}
+
+.chat-message--assistant .rp-thought {
+  background: var(--background-color-primary);
+  border-color: var(--border-color-lighter);
+}
+
+/* =====================================================================
+   Typing Indicator
+   ===================================================================== */
+.typing-indicator {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  background: var(--color-magic-glow);
+  border-radius: 50%;
+  animation: orbBounce 1.4s ease-in-out infinite;
+  box-shadow: 0 0 10px var(--color-magic-glow);
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* =====================================================================
+   Responsive Design
+   ===================================================================== */
+@media (max-width: 768px) {
+  .chat-message__text,
+  .chat-message--assistant {
+    padding: var(--spacing-sm) var(--spacing-md);
+    max-width: 100% !important;
+  }
+  
+  .markdown-h1 {
+    font-size: var(--font-size-xl);
+  }
+  
+  .markdown-h2 {
+    font-size: var(--font-size-lg);
+  }
+  
+  .markdown-h3 {
+    font-size: var(--font-size-normal);
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-message__text,
+  .chat-message--assistant {
+    padding: var(--spacing-sm);
+  }
+  
+  .markdown-h1 {
+    font-size: var(--font-size-lg);
+  }
+  
+  .markdown-h2 {
+    font-size: var(--font-size-normal);
+  }
+  
+  .markdown-h3 {
+    font-size: var(--font-size-sm);
+  }
+} 
