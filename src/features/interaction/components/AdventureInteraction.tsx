@@ -87,7 +87,7 @@ export function AdventureInteraction() {
         // Only close on mobile when clicking the backdrop
         if (window.innerWidth <= 768) {
             const target = e.target as HTMLElement
-            if (target.classList.contains('panel-container')) {
+            if (target.classList.contains('adventure-interaction__panel')) {
                 setIsLeftPanelOpen(false)
                 setIsRightPanelOpen(false)
             }
@@ -120,49 +120,57 @@ export function AdventureInteraction() {
             <div className="interaction-layout">
                 {/* Left Panel Toggle Button */}
                 <button 
-                    className={`panel-toggle panel-toggle-left ${isLeftPanelOpen ? 'active' : ''}`}
+                    className={`adventure-interaction__toggle adventure-interaction__toggle--left interaction-focusable ${isLeftPanelOpen ? 'is-active' : ''}`}
                     onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
                     aria-label="Toggle adventure details"
+                    aria-expanded={isLeftPanelOpen}
                 >
-                    <span className="toggle-icon">☰</span>
+                    <span className="adventure-interaction__toggle-icon">☰</span>
                 </button>
 
                 {/* Left Panel */}
                 <div 
-                    className={`panel-container panel-left ${isLeftPanelOpen ? 'open' : ''}`}
+                    className={`adventure-interaction__panel adventure-interaction__panel--left ${isLeftPanelOpen ? 'is-open' : ''}`}
                     onClick={handlePanelBackdropClick}
                 >
-                    <InteractionLeftPanel 
-                        adventure={currentAdventure} 
-                        onBack={handleBack}
-                    />
+                    <div className="adventure-interaction__panel-content interaction-scrollbar">
+                        <InteractionLeftPanel 
+                            adventure={currentAdventure} 
+                            onBack={handleBack}
+                        />
+                    </div>
                 </div>
 
                 {/* Center Panel */}
-                <InteractionCenterPanel 
-                    adventure={currentAdventure}
-                    turns={turns}
-                    setTurns={setTurns}
-                />
+                <div className={`adventure-interaction__center ${isLeftPanelOpen ? 'adventure-interaction__center--left-open' : ''} ${isRightPanelOpen ? 'adventure-interaction__center--right-open' : ''}`}>
+                    <InteractionCenterPanel 
+                        adventure={currentAdventure}
+                        turns={turns}
+                        setTurns={setTurns}
+                    />
+                </div>
 
                 {/* Right Panel */}
                 <div 
-                    className={`panel-container panel-right ${isRightPanelOpen ? 'open' : ''}`}
+                    className={`adventure-interaction__panel adventure-interaction__panel--right ${isRightPanelOpen ? 'is-open' : ''}`}
                     onClick={handlePanelBackdropClick}
                 >
-                    <InteractionRightPanel 
-                        adventure={currentAdventure}
-                        turns={turns}
-                    />
+                    <div className="adventure-interaction__panel-content interaction-scrollbar">
+                        <InteractionRightPanel 
+                            adventure={currentAdventure}
+                            turns={turns}
+                        />
+                    </div>
                 </div>
 
                 {/* Right Panel Toggle Button */}
                 <button 
-                    className={`panel-toggle panel-toggle-right ${isRightPanelOpen ? 'active' : ''}`}
+                    className={`adventure-interaction__toggle adventure-interaction__toggle--right interaction-focusable ${isRightPanelOpen ? 'is-active' : ''}`}
                     onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
                     aria-label="Toggle turn history"
+                    aria-expanded={isRightPanelOpen}
                 >
-                    <span className="toggle-icon">📜</span>
+                    <span className="adventure-interaction__toggle-icon">📜</span>
                 </button>
             </div>
         </div>

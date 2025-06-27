@@ -81,24 +81,24 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
     }
     
     return (
-        <div className={`chat-turn ${isUser ? 'user' : 'assistant'}`}>
-            <div className="turn-avatar">
+        <div className={`chat-turn chat-turn--${isUser ? 'user' : 'assistant'} interaction-fade-in`}>
+            <div className="chat-turn__avatar">
                 {isUser ? (
-                    <div className="avatar-user" aria-label="Player">
+                    <div className="chat-turn__avatar-icon chat-turn__avatar-icon--user" aria-label="Player">
                         <span>P</span>
                     </div>
                 ) : (
-                    <div className="avatar-assistant" aria-label="Game Master">
+                    <div className="chat-turn__avatar-icon chat-turn__avatar-icon--assistant" aria-label="Game Master">
                         <span>GM</span>
                     </div>
                 )}
             </div>
             
-            <div className="turn-content-wrapper">
-                <div className="turn-header">
-                    <span className="turn-role">{isUser ? 'Player' : 'Game Master'}</span>
-                    <div className="turn-header-actions">
-                        <span className="turn-timestamp">
+            <div className="chat-turn__content-wrapper">
+                <div className="chat-turn__header">
+                    <span className="chat-turn__role">{isUser ? 'Player' : 'Game Master'}</span>
+                    <div className="chat-turn__header-actions">
+                        <span className="chat-turn__timestamp">
                             {new Date(turn.timestamp).toLocaleTimeString([], { 
                                 hour: '2-digit', 
                                 minute: '2-digit' 
@@ -106,41 +106,41 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                         </span>
                         {onEditClick && !isEditing && !turn.isStreaming && (
                             <button 
-                                className="edit-button"
+                                className="interaction-btn interaction-btn--small interaction-focusable"
                                 onClick={handleEditStart}
                                 aria-label="Edit message"
                                 title="Edit this message"
                             >
                                 <span className="edit-icon">✏️</span>
-                                <span className="edit-text">Edit</span>
+                                <span className="interaction-hide-mobile">Edit</span>
                             </button>
                         )}
                         {!isUser && onRegenerateClick && !turn.isStreaming && !isEditing && (
                             <button 
-                                className="regenerate-button"
+                                className="interaction-btn interaction-btn--small interaction-focusable"
                                 onClick={() => onRegenerateClick(turn.id)}
                                 aria-label="Regenerate response"
                                 title="Regenerate this response"
                             >
                                 <span className="regenerate-icon">↻</span>
-                                <span className="regenerate-text">Regenerate</span>
+                                <span className="interaction-hide-mobile">Regenerate</span>
                             </button>
                         )}
                         {onDeleteClick && !turn.isStreaming && !isEditing && (
                             <button 
-                                className="delete-button"
+                                className="interaction-btn interaction-btn--small interaction-btn--danger interaction-focusable"
                                 onClick={() => onDeleteClick(turn.id)}
                                 aria-label="Delete message"
                                 title="Delete this message"
                             >
                                 <span className="delete-icon">🗑️</span>
-                                <span className="delete-text">Delete</span>
+                                <span className="interaction-hide-mobile">Delete</span>
                             </button>
                         )}
                     </div>
                 </div>
                 
-                <div className="turn-content">
+                <div className="chat-turn__content">
                     {isUser ? (
                         // User content - simple layout with edit functionality
                         <>
@@ -157,7 +157,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                             {isEditing ? (
                                 <div className="edit-container">
                                     <textarea
-                                        className="edit-textarea"
+                                        className="edit-textarea interaction-focusable"
                                         value={editContent}
                                         onChange={(e) => setEditContent(e.target.value)}
                                         onKeyDown={handleKeyDown}
@@ -167,23 +167,23 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                     />
                                     <div className="edit-actions">
                                         <button 
-                                            className="btn btn-primary btn-sm"
+                                            className="interaction-btn interaction-btn--primary interaction-btn--small"
                                             onClick={handleEditSave}
                                             disabled={!editContent.trim()}
                                         >
                                             Save
                                         </button>
                                         <button 
-                                            className="btn btn-secondary btn-sm"
+                                            className="interaction-btn interaction-btn--secondary interaction-btn--small"
                                             onClick={handleEditCancel}
                                         >
                                             Cancel
                                         </button>
-                                        <span className="edit-hint">Ctrl+Enter to save, Escape to cancel</span>
+                                        <span className="edit-hint interaction-text--small interaction-text--secondary">Ctrl+Enter to save, Escape to cancel</span>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="turn-text user-text">{turn.content}</div>
+                                <div className="chat-turn__text chat-turn__text--user">{turn.content}</div>
                             )}
                         </>
                     ) : (
@@ -192,7 +192,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                             {isEditing ? (
                                 <div className="edit-container">
                                     <textarea
-                                        className="edit-textarea"
+                                        className="edit-textarea interaction-focusable"
                                         value={editContent}
                                         onChange={(e) => setEditContent(e.target.value)}
                                         onKeyDown={handleKeyDown}
@@ -202,24 +202,24 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                     />
                                     <div className="edit-actions">
                                         <button 
-                                            className="btn btn-primary btn-sm"
+                                            className="interaction-btn interaction-btn--primary interaction-btn--small"
                                             onClick={handleEditSave}
                                             disabled={!editContent.trim()}
                                         >
                                             Save
                                         </button>
                                         <button 
-                                            className="btn btn-secondary btn-sm"
+                                            className="interaction-btn interaction-btn--secondary interaction-btn--small"
                                             onClick={handleEditCancel}
                                         >
                                             Cancel
                                         </button>
-                                        <span className="edit-hint">Ctrl+Enter to save, Escape to cancel</span>
+                                        <span className="edit-hint interaction-text--small interaction-text--secondary">Ctrl+Enter to save, Escape to cancel</span>
                                     </div>
                                 </div>
                             ) : (
                                 <div className="assistant-content-layout">
-                                    <div className="turn-text assistant-text">
+                                    <div className="chat-turn__text chat-turn__text--assistant">
                                         <ReactMarkdown 
                                             remarkPlugins={[remarkGfm]}
                                             components={{
@@ -282,14 +282,14 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                 
                 {/* Forward Options */}
                 {(turn.forwardOptions && turn.forwardOptions.length > 0) || turn.isStreamingForwardOptions ? (
-                    <div className="forward-options">
+                    <div className="forward-options interaction-shimmer">
                         <div className="forward-options-header">
                             <span className="forward-options-title">Suggested Actions</span>
                             {turn.isStreamingForwardOptions && (
-                                <div className="forward-options-loading">
-                                    <span className="loading-dot"></span>
-                                    <span className="loading-dot"></span>
-                                    <span className="loading-dot"></span>
+                                <div className="interaction-loading__dots">
+                                    <span className="interaction-loading__dot"></span>
+                                    <span className="interaction-loading__dot"></span>
+                                    <span className="interaction-loading__dot"></span>
                                 </div>
                             )}
                         </div>
@@ -298,7 +298,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                 {turn.forwardOptions.map((option, index) => (
                                     <button
                                         key={index}
-                                        className="forward-option-button"
+                                        className="forward-option-button interaction-focusable"
                                         onClick={() => onForwardOptionClick(option.forward_question)}
                                         style={{animationDelay: `${index * 0.1}s`}}
                                     >

@@ -557,23 +557,29 @@ Respond to the user inputs as the assistant.`
     }
 
     return (
-        <div className="center-panel">
+        <div className="center-panel interaction-flex-column">
             {error && (
-                <div className="error-banner">
-                    {error}
-                    <button onClick={() => setError(null)} className="close-error">×</button>
+                <div className="center-panel__error-banner">
+                    <span>{error}</span>
+                    <button 
+                        onClick={() => setError(null)} 
+                        className="center-panel__error-close interaction-focusable"
+                        aria-label="Close error message"
+                    >
+                        ×
+                    </button>
                 </div>
             )}
 
-            <div className="chat-container">
-                <div className="messages-area">
+            <div className="center-panel__chat-container interaction-flex-column interaction-flex-1">
+                <div className="center-panel__messages-area interaction-scrollbar">
                     {turns.length === 0 ? (
-                        <div className="welcome-message">
-                            <div className="welcome-icon">🎭</div>
-                            <h3>Welcome to your adventure!</h3>
-                            <p>You are about to embark on an epic journey. What will your first action be?</p>
-                            <div className="welcome-hint">
-                                <span className="hint-icon">💡</span>
+                        <div className="center-panel__welcome">
+                            <div className="center-panel__welcome-icon">🎭</div>
+                            <h3 className="center-panel__welcome-title">Welcome to your adventure!</h3>
+                            <p className="center-panel__welcome-text">You are about to embark on an epic journey. What will your first action be?</p>
+                            <div className="center-panel__welcome-hint">
+                                <span className="center-panel__hint-icon">💡</span>
                                 <span>Tip: Be descriptive in your actions to create a more immersive experience!</span>
                             </div>
                         </div>
@@ -590,22 +596,22 @@ Respond to the user inputs as the assistant.`
                                 />
                             ))}
                             {canGenerateResponse && (
-                                <div className="generate-response-suggestion">
-                                    <div className="suggestion-content">
-                                        <span className="suggestion-icon">🎭</span>
-                                        <div className="suggestion-text">
-                                            <span className="suggestion-title">Waiting for Game Master response</span>
-                                            <span className="suggestion-subtitle">Click to generate an AI response (optional)</span>
+                                <div className="center-panel__generate-suggestion">
+                                    <div className="center-panel__suggestion-content">
+                                        <span className="center-panel__suggestion-icon">🎭</span>
+                                        <div className="center-panel__suggestion-text">
+                                            <span className="center-panel__suggestion-title">Waiting for Game Master response</span>
+                                            <span className="center-panel__suggestion-subtitle">Click to generate an AI response (optional)</span>
                                         </div>
                                         <button
                                             type="button"
-                                            className="btn btn-generate-response-inline"
+                                            className="interaction-btn interaction-btn--primary interaction-focusable"
                                             onClick={handleGenerateResponse}
                                             disabled={isLoading}
                                         >
                                             {isLoading ? (
                                                 <>
-                                                    <FaSpinner className="spinner"/>
+                                                    <FaSpinner className="interaction-loading__spinner"/>
                                                     Generating...
                                                 </>
                                             ) : 'Generate Response'}
@@ -619,31 +625,31 @@ Respond to the user inputs as the assistant.`
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="input-area">
+            <form onSubmit={handleSubmit} className="center-panel__input-area">
                 <input
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="What do you do next?"
-                    className="message-input"
+                    className="center-panel__message-input interaction-focusable"
                     disabled={isLoading}
                 />
-                <div className="input-buttons">
+                <div className="center-panel__input-buttons">
                     <button
                         type="submit"
-                        className="btn btn-primary"
+                        className="interaction-btn interaction-btn--primary interaction-focusable"
                         disabled={!input.trim() || isLoading}
                     >
                         {isLoading ? (
                             <>
-                                <FaSpinner className="spinner"/>
+                                <FaSpinner className="interaction-loading__spinner"/>
                                 Sending...
                             </>
                         ) : 'Send'}
                     </button>
                     <button
                         type="button"
-                        className="btn btn-secondary"
+                        className="interaction-btn interaction-btn--secondary interaction-focusable"
                         onClick={handleReset}
                         disabled={isLoading || turns.length === 0}
                     >
@@ -653,9 +659,9 @@ Respond to the user inputs as the assistant.`
             </form>
 
             {isLoading && (
-                <div className="loading-indicator">
-                    <FaSpinner className="spinner"/>
-                    <span>AI is thinking...</span>
+                <div className="center-panel__loading">
+                    <FaSpinner className="center-panel__loading-spinner"/>
+                    <span className="center-panel__loading-text">AI is thinking...</span>
                 </div>
             )}
         </div>

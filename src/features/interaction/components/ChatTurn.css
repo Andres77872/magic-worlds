@@ -2,6 +2,9 @@
  * ChatTurn styles - Enhanced role-play chat message styling
  */
 
+/* Import shared utilities */
+@import '../styles/shared-utilities.css';
+
 /* =====================================================================
    Chat Turn Container
    ===================================================================== */
@@ -9,10 +12,11 @@
   display: flex;
   gap: var(--spacing-md);
   padding: var(--spacing-lg);
-  animation: fadeInMagical 0.5s ease;
+  animation: fadeInMagical var(--duration-normal) var(--ease-magical);
   position: relative;
   border-radius: var(--border-radius-medium);
   margin-bottom: var(--spacing-md);
+  transition: background var(--duration-fast) var(--ease-smooth);
 }
 
 /* Hover effect for better interactivity */
@@ -23,13 +27,12 @@
 /* =====================================================================
    Avatar Styles
    ===================================================================== */
-.turn-avatar {
+.chat-turn__avatar {
   flex-shrink: 0;
   position: relative;
 }
 
-.avatar-user,
-.avatar-assistant {
+.chat-turn__avatar-icon {
   width: 42px;
   height: 42px;
   border-radius: 50%;
@@ -41,17 +44,17 @@
   position: relative;
   overflow: hidden;
   box-shadow: var(--shadow-md);
-  transition: all 0.3s ease;
+  transition: all var(--duration-fast) var(--ease-magical);
 }
 
 /* Player avatar */
-.avatar-user {
+.chat-turn__avatar-icon--user {
   background: var(--gradient-primary);
-  color: white;
+  color: var(--color-brighter);
   border: 2px solid var(--accent-color);
 }
 
-.avatar-user::before {
+.chat-turn__avatar-icon--user::before {
   content: '';
   position: absolute;
   inset: -50%;
@@ -60,13 +63,13 @@
 }
 
 /* Game Master avatar */
-.avatar-assistant {
+.chat-turn__avatar-icon--assistant {
   background: var(--gradient-magical);
-  color: white;
+  color: var(--color-brighter);
   border: 2px solid var(--color-magic-glow);
 }
 
-.avatar-assistant::before {
+.chat-turn__avatar-icon--assistant::before {
   content: '';
   position: absolute;
   inset: -50%;
@@ -78,13 +81,13 @@
 /* =====================================================================
    Content Wrapper
    ===================================================================== */
-.turn-content-wrapper {
+.chat-turn__content-wrapper {
   flex: 1;
   min-width: 0; /* Prevent overflow */
 }
 
 /* Turn Header */
-.turn-header {
+.chat-turn__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -92,13 +95,13 @@
   gap: var(--spacing-md);
 }
 
-.turn-header-actions {
+.chat-turn__header-actions {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
 }
 
-.turn-role {
+.chat-turn__role {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
@@ -106,15 +109,15 @@
   opacity: 0.9;
 }
 
-.chat-turn.user .turn-role {
+.chat-turn--user .chat-turn__role {
   color: var(--accent-color);
 }
 
-.chat-turn.assistant .turn-role {
+.chat-turn--assistant .chat-turn__role {
   color: var(--color-magic-glow);
 }
 
-.turn-timestamp {
+.chat-turn__timestamp {
   font-size: var(--font-size-xs);
   color: var(--text-color-secondary);
   opacity: 0.7;
@@ -123,21 +126,21 @@
 /* =====================================================================
    Turn Content
    ===================================================================== */
-.turn-content {
+.chat-turn__content {
   position: relative;
 }
 
-.turn-text {
+.chat-turn__text {
   padding: var(--spacing-md) var(--spacing-lg);
   border-radius: var(--border-radius-medium);
   position: relative;
   line-height: var(--line-height-normal);
   word-wrap: break-word;
-  transition: all 0.2s ease;
+  transition: all var(--duration-fast) var(--ease-smooth);
 }
 
 /* User text styling */
-.user-text {
+.chat-turn__text--user {
   background: var(--background-color-tertiary);
   border: 1px solid var(--border-color);
   color: var(--text-color);
@@ -147,14 +150,14 @@
   box-shadow: var(--shadow-sm);
 }
 
-[data-theme="light"] .user-text {
+[data-theme="light"] .chat-turn__text--user {
   background: var(--background-color-secondary);
   border-color: var(--accent-color);
   border-width: 2px;
 }
 
 /* Assistant text styling */
-.assistant-text {
+.chat-turn__text--assistant {
   background: var(--background-color-secondary);
   border: 1px solid var(--border-color-lighter);
   color: var(--text-color);
@@ -166,7 +169,7 @@
   box-shadow: var(--shadow-md);
 }
 
-[data-theme="light"] .assistant-text {
+[data-theme="light"] .chat-turn__text--assistant {
   background: linear-gradient(135deg, 
     var(--background-color-primary) 0%, 
     var(--background-color-secondary) 100%);
@@ -175,7 +178,7 @@
 }
 
 /* Magical glow effect for assistant messages */
-.assistant-text::before {
+.chat-turn__text--assistant::before {
   content: '';
   position: absolute;
   top: -50%;
@@ -188,7 +191,7 @@
   pointer-events: none;
 }
 
-[data-theme="light"] .assistant-text::before {
+[data-theme="light"] .chat-turn__text--assistant::before {
   opacity: 0.02;
 }
 
@@ -643,19 +646,18 @@
     padding: var(--spacing-md);
   }
   
-  .avatar-user,
-  .avatar-assistant {
+  .chat-turn__avatar-icon {
     width: 36px;
     height: 36px;
     font-size: var(--font-size-normal);
   }
   
-  .turn-text {
+  .chat-turn__text {
     padding: var(--spacing-sm) var(--spacing-md);
     max-width: 100% !important;
   }
   
-  .turn-header-actions {
+  .chat-turn__header-actions {
     gap: var(--spacing-xs);
   }
   
@@ -704,13 +706,13 @@
     padding: var(--spacing-sm);
   }
   
-  .turn-header {
+  .chat-turn__header {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--spacing-xs);
   }
   
-  .turn-header-actions {
+  .chat-turn__header-actions {
     align-self: flex-end;
     margin-top: -var(--spacing-xs);
   }
@@ -867,20 +869,20 @@
 }
 
 /* Enhanced contrast for role-play elements */
-.assistant-text .rp-dialogue {
+.chat-turn__text--assistant .rp-dialogue {
   background: var(--background-color-primary);
   box-shadow: 0 1px 3px rgba(139, 92, 246, 0.1);
 }
 
-.assistant-text .rp-action {
+.chat-turn__text--assistant .rp-action {
   color: var(--color-fire);
 }
 
-[data-theme="light"] .assistant-text .rp-action {
+[data-theme="light"] .chat-turn__text--assistant .rp-action {
   color: var(--color-fire);
 }
 
-.assistant-text .rp-thought {
+.chat-turn__text--assistant .rp-thought {
   background: var(--background-color-primary);
   border-color: var(--border-color-lighter);
 }
