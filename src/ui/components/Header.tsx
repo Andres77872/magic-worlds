@@ -5,7 +5,7 @@
 import { useEffect } from 'react'
 import { useTheme, useNavigation } from '../../app/hooks'
 import type { ThemeOption } from '../../shared/types'
-import { FiMoon, FiSun, FiMonitor } from 'react-icons/fi'
+import { FiMoon, FiSun, FiMonitor, FiGithub } from 'react-icons/fi'
 import { GiMagicSwirl, GiCrystalBall } from 'react-icons/gi'
 import './Header.css'
 
@@ -74,6 +74,19 @@ export function Header() {
                 </div>
 
                 <div className="header-actions">
+                    <div className="github-link">
+                        <a
+                            href="https://github.com/Andres77872/magic-worlds"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="github-button hover-magical"
+                            aria-label="View source code on GitHub"
+                            title="View on GitHub"
+                        >
+                            <FiGithub className="github-icon" />
+                        </a>
+                    </div>
+                    
                     <div className="theme-selector">
                         <button
                             className="theme-button hover-magical"

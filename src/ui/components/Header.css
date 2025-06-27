@@ -117,6 +117,55 @@
     gap: var(--padding-medium);
 }
 
+.github-link {
+    position: relative;
+}
+
+.github-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--background-color-tertiary);
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    transition: all var(--duration-fast) ease;
+    position: relative;
+    overflow: hidden;
+    text-decoration: none;
+}
+
+.github-button::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: var(--gradient-magical);
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity var(--duration-fast) ease;
+    z-index: -1;
+}
+
+.github-button:hover::before {
+    opacity: 1;
+}
+
+.github-button:hover {
+    transform: scale(1.1);
+    border-color: transparent;
+}
+
+.github-icon {
+    font-size: 1.2rem;
+    color: var(--accent-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+}
+
 .theme-selector {
     position: relative;
 }
@@ -218,11 +267,13 @@
         display: none;
     }
     
+    .github-button,
     .theme-button {
         width: 36px;
         height: 36px;
     }
     
+    .github-icon,
     .theme-icon {
         font-size: 1rem;
     }
