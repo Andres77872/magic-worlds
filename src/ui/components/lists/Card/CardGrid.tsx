@@ -46,8 +46,8 @@ const DefaultEmptyState = ({
     description?: string
     action?: React.ReactNode
 }) => (
-    <div className="empty-state" role="region" aria-label="Empty state">
-        <div className="empty-icon">
+    <div className="card-grid__empty-state" role="region" aria-label="Empty state">
+        <div className="card-grid__empty-icon">
             <FaSearch size={48} aria-hidden="true"/>
         </div>
         <h3>{title}</h3>
@@ -63,6 +63,7 @@ const DefaultEmptyState = ({
 export function CardGrid<T>({
                                 items,
                                 renderCard,
+                                emptyMessage,
                                 emptyStateTitle = 'No items found',
                                 emptyStateDescription = 'There are no items to display at the moment.',
                                 emptyStateAction,
@@ -191,7 +192,7 @@ export function CardGrid<T>({
             <div className="loading-container" role="status" aria-live="polite">
                 {loadingComponent || (
                     <>
-                        <FaSpinner className="loading-spinner" aria-hidden="true"/>
+                        <FaSpinner className="card-grid__loading-spinner" aria-hidden="true"/>
                         <p>Loading items...</p>
                         <span className="visually-hidden">Loading content, please wait...</span>
                     </>
@@ -203,6 +204,9 @@ export function CardGrid<T>({
     // Enhanced empty state
     const isEmpty = items.length === 0 && !loading
     if (isEmpty && showEmptyState) {
+        if (emptyMessage) {
+            return <>{emptyMessage}</>
+        }
         return (
             <DefaultEmptyState
                 title={emptyStateTitle}
@@ -216,8 +220,8 @@ export function CardGrid<T>({
         <div className="card-grid-container" data-testid={testId}>
             {onSearch && (
                 <div className="card-grid-search" role="search">
-                    <div className="search-input-container">
-                        <FaSearch className="search-icon" aria-hidden="true"/>
+                    <div className="card-search-input-container">
+                        <FaSearch className="card-search-icon" aria-hidden="true"/>
                         <input
                             ref={searchInputRef}
                             type="text"
@@ -225,13 +229,13 @@ export function CardGrid<T>({
                             value={searchQuery}
                             onChange={handleSearchChange}
                             onKeyDown={handleSearchKeyDown}
-                            className="search-input"
+                            className="card-search-input"
                             aria-label="Search items"
                             data-testid="card-grid-search-input"
                         />
                         {isSearching && (
                             <FaSpinner 
-                                className="search-spinner" 
+                                className="card-search-spinner" 
                                 aria-hidden="true"
                                 data-testid="search-spinner"
                             />
@@ -240,7 +244,7 @@ export function CardGrid<T>({
                             <button
                                 type="button"
                                 onClick={handleClearSearch}
-                                className="search-clear"
+                                className="card-search-clear"
                                 aria-label="Clear search"
                                 data-testid="search-clear"
                             >

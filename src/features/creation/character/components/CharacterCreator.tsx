@@ -290,7 +290,7 @@ export function CharacterCreator() {
             isLoading={isSubmitting}
         >
             <form onSubmit={handleSubmit} className="creator-form" onKeyDown={handleKeyDown}>
-                <div className="creator-form-section character-essentials">
+                <div className="creator-form-section creator-form-section--fire character-essentials">
                     <CreatorField 
                         label="Name:" 
                         htmlFor="character-name" 

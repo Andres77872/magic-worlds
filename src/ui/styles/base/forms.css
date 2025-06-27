@@ -67,36 +67,3 @@ select.field-input {
     color: var(--color-error);
     margin-top: var(--padding-small);
 }
-
-/* Success state */
-.field-input.success {
-    border-color: var(--color-success);
-}
-
-.field-input.success:focus {
-    box-shadow: 0 0 0 3px var(--color-success-transparency);
-}
-
-/* Input group */
-.input-group {
-    display: flex;
-    align-items: stretch;
-}
-
-.input-group .field-input {
-    border-radius: 0;
-}
-
-.input-group .field-input:first-child {
-    border-top-left-radius: var(--border-radius-small);
-    border-bottom-left-radius: var(--border-radius-small);
-}
-
-.input-group .field-input:last-child {
-    border-top-right-radius: var(--border-radius-small);
-    border-bottom-right-radius: var(--border-radius-small);
-}
-
-.input-group .field-input:not(:last-child) {
-    border-right: none;
-}

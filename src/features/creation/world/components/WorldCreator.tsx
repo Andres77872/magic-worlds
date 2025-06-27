@@ -275,7 +275,7 @@ export function WorldCreator() {
             isLoading={isSubmitting}
         >
             <form onSubmit={handleSubmit} className="creator-form" onKeyDown={handleKeyDown}>
-                <div className="creator-form-section">
+                <div className="creator-form-section creator-form-section--magical">
                     <CreatorField label="Name:" htmlFor="world-name" required>
                         <CreatorInput
                             id="world-name"

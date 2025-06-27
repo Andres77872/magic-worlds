@@ -346,14 +346,14 @@
     margin-bottom: var(--spacing-lg);
 }
 
-.search-input-container {
+.card-search-input-container {
     position: relative;
     display: flex;
     align-items: center;
     max-width: 400px;
 }
 
-.search-input {
+.card-search-input {
     width: 100%;
     padding: var(--spacing-sm) var(--spacing-md);
     padding-left: 2.5rem;
@@ -365,18 +365,18 @@
     transition: all var(--duration-fast) var(--ease-magical);
 }
 
-.search-input:focus {
+.card-search-input:focus {
     outline: none;
     border-color: var(--accent-color);
     box-shadow: 0 0 0 3px var(--accent-color-transparency);
     background-color: var(--background-color-primary);
 }
 
-.search-input::placeholder {
+.card-search-input::placeholder {
     color: var(--text-color-placeholder);
 }
 
-.search-icon {
+.card-search-icon {
     position: absolute;
     left: var(--spacing-sm);
     color: var(--text-color-secondary);
@@ -384,7 +384,7 @@
     z-index: 1;
 }
 
-.search-spinner {
+.card-search-spinner {
     position: absolute;
     right: var(--spacing-sm);
     color: var(--accent-color);
@@ -408,13 +408,13 @@
     gap: var(--spacing-md);
 }
 
-.loading-spinner {
+.card-grid__loading-spinner {
     font-size: 2rem;
     color: var(--accent-color);
     animation: magicalSpin 1s linear infinite;
 }
 
-.empty-state {
+.card-grid__empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -425,20 +425,20 @@
     gap: var(--spacing-md);
 }
 
-.empty-icon {
+.card-grid__empty-icon {
     color: var(--text-color-placeholder);
     opacity: 0.5;
     margin-bottom: var(--spacing-sm);
 }
 
-.empty-state h3 {
+.card-grid__empty-state h3 {
     color: var(--text-color);
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-semibold);
     margin: 0;
 }
 
-.empty-state p {
+.card-grid__empty-state p {
     font-size: var(--font-size-sm);
     margin: 0;
     max-width: 300px;
@@ -501,7 +501,7 @@
     }
 }
 
-.search-clear {
+.card-search-clear {
     position: absolute;
     right: var(--spacing-sm);
     background: none;
@@ -520,12 +520,12 @@
     justify-content: center;
 }
 
-.search-clear:hover {
+.card-search-clear:hover {
     background-color: var(--background-color-hover);
     color: var(--accent-color);
 }
 
-.search-clear:focus-visible {
+.card-search-clear:focus-visible {
     outline: 2px solid var(--accent-color);
     outline-offset: 2px;
 }
@@ -535,31 +535,26 @@
 }
 
 /* Enhanced spacing for search input when clear button is present */
-.search-input-container:has(.search-clear) .search-input {
+.card-search-input-container:has(.card-search-clear) .card-search-input {
     padding-right: 3rem;
 }
 
 /* CSS fallback for browsers that don't support :has() */
-.search-input-container .search-input {
+.card-search-input-container .card-search-input {
     padding-right: 2.5rem;
 }
 
-.search-input-container .search-clear + .search-input,
-.search-input-container .search-input:placeholder-shown ~ .search-clear {
+.card-search-input-container .card-search-clear + .card-search-input,
+.card-search-input-container .card-search-input:placeholder-shown ~ .card-search-clear {
     padding-right: 3rem;
 }
 
 /* Ensure proper z-index for search elements */
-.search-input-container .search-clear {
+.card-search-input-container .card-search-clear {
     z-index: 2;
 }
 
-.search-input-container .search-spinner {
+.card-search-input-container .card-search-spinner {
     right: 3rem;
     z-index: 1;
-}
-
-/* When both clear and spinner are present */
-.search-input-container:has(.search-clear) .search-spinner {
-    right: 3.5rem;
 }

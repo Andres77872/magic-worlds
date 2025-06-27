@@ -288,7 +288,7 @@ export function AdventureCreator() {
             isLoading={isSubmitting}
         >
             <form onSubmit={handleSubmit} className="creator-form" onKeyDown={handleKeyDown}>
-                <div className="creator-form-section">
+                <div className="creator-form-section creator-form-section--nature">
                     <CreatorField label="Scenario:" htmlFor="adventure-scenario" required>
                         <div className="adventure-field-wrapper">
                             <CreatorTextarea

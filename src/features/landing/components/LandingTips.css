@@ -5,32 +5,13 @@
 /* =====================================================================
    Tips Section - Enhanced
    ===================================================================== */
+@import './LandingSection.css';
+
 .landing-tips-section {
   padding: var(--spacing-xl) var(--spacing-lg);
   margin-bottom: var(--spacing-xl);
   position: relative;
   z-index: 2;
-}
-
-.landing-section-title {
-  text-align: center;
-  font-size: clamp(1.8rem, 5vw, 2.5rem);
-  font-weight: var(--font-weight-bold);
-  margin-bottom: var(--spacing-xl);
-  color: var(--accent-color);
-  position: relative;
-}
-
-.landing-section-title::after {
-  content: '';
-  position: absolute;
-  bottom: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80px;
-  height: 3px;
-  background: var(--gradient-primary);
-  border-radius: var(--radius-sm);
 }
 
 .landing-tips-grid {
