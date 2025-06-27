@@ -64,7 +64,6 @@ export function fixIncompleteJSON(jsonStr: string): string {
                 
                 // Check if we need to close the object
                 const inObject = counts.openBraces > counts.closeBraces
-                const inArray = counts.openBrackets > counts.closeBrackets
                 
                 if (inObject && !fixed.trim().endsWith('}')) {
                     fixed += '}'

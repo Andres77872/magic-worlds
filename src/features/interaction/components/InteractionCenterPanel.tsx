@@ -137,7 +137,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
     }
 
     // Process user message and get AI response
-    const processUserMessage = async (userText: string, currentTurns: TurnEntry[], existingTurn?: ExtendedTurnEntry) => {
+    const processUserMessage = async (_userText: string, currentTurns: TurnEntry[], existingTurn?: ExtendedTurnEntry) => {
         try {
             // Build system prompt with full adventure context (scenario, characters, world)
             const charTags = adventure.characters?.map((c) => {
