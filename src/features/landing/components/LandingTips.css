@@ -1,0 +1,170 @@
+/**
+ * Landing Tips Component Styles
+ */
+
+/* =====================================================================
+   Tips Section - Enhanced
+   ===================================================================== */
+@import './LandingSection.css';
+
+.landing-tips-section {
+  padding: var(--spacing-xl) var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  position: relative;
+  z-index: 2;
+}
+
+.landing-tips-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--spacing-lg);
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.landing-tip-card {
+  position: relative;
+  padding: var(--spacing-xl);
+  padding-top: calc(var(--spacing-xl) + 20px);
+  background: var(--background-color-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  transition: all var(--duration-normal) var(--ease-magical);
+  backdrop-filter: blur(15px);
+  overflow: visible;
+}
+
+/* Subtle border effect */
+.landing-tip-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--gradient-primary);
+  transform: scaleX(0);
+  transition: transform var(--duration-normal) ease;
+  opacity: 0.8;
+}
+
+/* Very subtle glow effect */
+.landing-tip-card::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: var(--gradient-glow);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: all var(--duration-normal) ease;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.landing-tip-card:hover {
+  transform: translateY(-3px) scale(1.01);
+  border-color: var(--border-color-lighter);
+  background: var(--background-color-hover);
+  box-shadow: var(--shadow-lg);
+}
+
+.landing-tip-card:hover::before {
+  transform: scaleX(1);
+}
+
+.landing-tip-card:hover::after {
+  width: 120px;
+  height: 120px;
+  opacity: 0.03;
+}
+
+.landing-tip-number {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 40px;
+  background: var(--gradient-primary);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-normal) ease;
+  z-index: 10;
+}
+
+.landing-tip-card:hover .landing-tip-number {
+  transform: translateX(-50%) scale(1.05);
+  box-shadow: var(--shadow-md);
+}
+
+.landing-tip-card h3 {
+  margin-top: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  color: var(--accent-color);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  transition: all var(--duration-fast) ease;
+}
+
+.landing-tip-card:hover h3 {
+  color: var(--text-color);
+  transform: translateY(-1px);
+}
+
+.landing-tip-card p {
+  color: var(--text-color-secondary);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .landing-tips-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+  
+  .landing-tip-card {
+    padding: var(--spacing-lg);
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-tips-section {
+    padding: var(--spacing-lg) var(--spacing-md);
+  }
+}
+
+/* Accessibility */
+.landing-tip-card:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .landing-tip-card {
+    border-width: 2px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .landing-tip-card {
+    transition: none;
+  }
+  
+  .landing-tip-card:hover {
+    transform: none;
+  }
+} 

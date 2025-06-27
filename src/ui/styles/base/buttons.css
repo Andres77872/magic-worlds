@@ -92,36 +92,8 @@
     border-color: var(--color-error-hover);
 }
 
-/* Success button */
-.btn-success {
-    background: var(--color-success);
-    color: white;
-    border-color: var(--color-success);
-}
-
-.btn-success:hover:not(:disabled) {
-    background: var(--color-success-hover);
-    border-color: var(--color-success-hover);
-}
-
 /* Button sizes */
 .btn-sm {
     padding: var(--padding-small) var(--padding-small);
     font-size: 0.75rem;
-}
-
-.btn-lg {
-    padding: var(--padding-medium) var(--padding-large);
-    font-size: 1rem;
-}
-
-/* Icon button */
-.btn-icon {
-    padding: var(--padding-small);
-    aspect-ratio: 1;
-}
-
-/* Full width button */
-.btn-full {
-    width: 100%;
 }

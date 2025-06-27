@@ -1,0 +1,144 @@
+/**
+ * ChatTurn styles - Main container for chat turns
+ */
+
+/* Import shared utilities */
+@import '../styles/shared-utilities.css';
+
+/* =====================================================================
+   Chat Turn Container
+   ===================================================================== */
+.chat-turn {
+  display: flex;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  animation: fadeInMagical var(--duration-normal) var(--ease-magical);
+  position: relative;
+  border-radius: var(--border-radius-medium);
+  margin-bottom: var(--spacing-md);
+  transition: background var(--duration-fast) var(--ease-smooth);
+}
+
+/* Hover effect for better interactivity */
+.chat-turn:hover {
+  background: var(--background-color-secondary);
+}
+
+
+/* =====================================================================
+   Content Wrapper
+   ===================================================================== */
+.chat-turn__content-wrapper {
+  flex: 1;
+  min-width: 0; /* Prevent overflow */
+}
+
+/* Turn Header */
+.chat-turn__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+  gap: var(--spacing-md);
+}
+
+.chat-turn__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.chat-turn__role {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  opacity: 0.9;
+}
+
+.chat-turn--user .chat-turn__role {
+  color: var(--accent-color);
+}
+
+.chat-turn--assistant .chat-turn__role {
+  color: var(--color-magic-glow);
+}
+
+.chat-turn__timestamp {
+  font-size: var(--font-size-xs);
+  color: var(--text-color-secondary);
+  opacity: 0.7;
+}
+
+/* =====================================================================
+   Content Layout
+   ===================================================================== */
+.chat-turn__content {
+  position: relative;
+}
+
+/* Assistant content layout - side by side */
+.assistant-content-layout {
+  display: flex;
+  gap: var(--spacing-lg);
+  align-items: flex-start;
+}
+
+/* Adjust assistant text in side-by-side layout */
+.assistant-content-layout .assistant-text {
+  flex: 1;
+  margin-left: 0;
+  margin-right: 0;
+  max-width: none;
+}
+
+/* =====================================================================
+   Responsive Design
+   ===================================================================== */
+@media (max-width: 768px) {
+  .chat-turn {
+    padding: var(--spacing-md);
+  }
+  
+  .chat-turn__header-actions {
+    gap: var(--spacing-xs);
+  }
+  
+  /* Start transitioning to vertical layout */
+  .assistant-content-layout {
+    gap: var(--spacing-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-turn {
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+  }
+  
+  .chat-turn__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+  
+  .chat-turn__header-actions {
+    align-self: flex-end;
+    margin-top: var(--spacing-xs);
+  }
+  
+  /* Switch to vertical layout for mobile */
+  .assistant-content-layout {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+}
+
+/* Very small screens - optimize for mobile experience */
+@media (max-width: 360px) {
+  .assistant-content-layout {
+    gap: var(--spacing-xs);
+  }
+}
+
+

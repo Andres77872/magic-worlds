@@ -11,25 +11,25 @@
     gap: var(--padding-medium);
 }
 
-.loading-spinner {
+.loading-spinner__spinner {
     border: 3px solid var(--border-color);
     border-top: 3px solid var(--accent-color);
     border-radius: 50%;
     animation: var(--spin-animation);
 }
 
-.loading-spinner-small .loading-spinner {
+.loading-spinner-small .loading-spinner__spinner {
     width: 24px;
     height: 24px;
     border-width: 2px;
 }
 
-.loading-spinner-medium .loading-spinner {
+.loading-spinner-medium .loading-spinner__spinner {
     width: 40px;
     height: 40px;
 }
 
-.loading-spinner-large .loading-spinner {
+.loading-spinner-large .loading-spinner__spinner {
     width: 60px;
     height: 60px;
     border-width: 4px;

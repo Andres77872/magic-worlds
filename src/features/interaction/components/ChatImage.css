@@ -1,0 +1,146 @@
+/**
+ * ChatImage styles - Image display for chat turns
+ */
+
+/* Import shared utilities */
+@import '../styles/shared-utilities.css';
+
+/* =====================================================================
+   Chat Image Container
+   ===================================================================== */
+.chat-image {
+  position: relative;
+  border-radius: var(--border-radius-medium);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  animation: fadeInImage 0.6s ease;
+  max-width: 100%;
+}
+
+/* Assistant image specific styling */
+.chat-image--assistant {
+  flex-shrink: 0;
+  width: 300px;
+  max-width: 40%;
+  order: 2; /* Image on the right */
+  border: 2px solid transparent;
+  background: linear-gradient(var(--background-color-primary), var(--background-color-primary)) padding-box,
+              var(--gradient-magical) border-box;
+}
+
+[data-theme="light"] .chat-image--assistant {
+  box-shadow: 0 8px 24px rgba(168, 85, 247, 0.15);
+}
+
+/* User image styling */
+.chat-image--user {
+  margin-bottom: var(--spacing-md);
+  border: 2px solid var(--border-color);
+}
+
+[data-theme="light"] .chat-image--user {
+  border-color: var(--accent-color);
+  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.1);
+}
+
+/* =====================================================================
+   Image Element
+   ===================================================================== */
+.chat-image__img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  background: var(--background-color-secondary);
+  transition: transform 0.3s ease;
+}
+
+/* Assistant image specific sizing */
+.chat-image--assistant .chat-image__img {
+  object-fit: cover;
+}
+
+/* Hover effect */
+.chat-image:hover .chat-image__img {
+  transform: scale(1.02);
+}
+
+/* =====================================================================
+   Loading State
+   ===================================================================== */
+.chat-image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--gradient-magical);
+  opacity: 0.1;
+  animation: shimmer 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Image loaded state */
+.chat-image__img[src] ~ .chat-image::before {
+  display: none;
+}
+
+/* =====================================================================
+   Animations
+   ===================================================================== */
+@keyframes fadeInImage {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =====================================================================
+   Responsive Design
+   ===================================================================== */
+@media (max-width: 768px) {
+  .chat-image__img {
+    max-height: 400px;
+  }
+  
+  .chat-image {
+    margin-bottom: var(--spacing-sm);
+  }
+  
+  .chat-image--assistant {
+    width: 250px;
+    max-width: 35%;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-image__img {
+    max-height: 300px;
+  }
+  
+  .chat-image {
+    border-radius: var(--border-radius-small);
+    box-shadow: var(--shadow-md);
+  }
+  
+  .chat-image--assistant {
+    order: 2; /* Image goes to bottom */
+    width: 100%;
+    max-width: 100%;
+    margin-top: var(--spacing-sm);
+  }
+}
+
+/* Very small screens - optimize for mobile experience */
+@media (max-width: 360px) {
+  .chat-image--assistant .chat-image__img {
+    max-height: 250px;
+  }
+  
+  .chat-image--assistant {
+    margin-top: var(--spacing-xs);
+  }
+} 

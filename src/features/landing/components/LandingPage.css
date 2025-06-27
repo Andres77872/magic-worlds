@@ -1,498 +1,102 @@
 /**
- * Landing page styles - Enhanced with magical UI/UX
+ * Landing Page Main Layout Styles
+ * Component-specific styles are in their respective CSS files
  */
 
 /* =====================================================================
-   Landing Page Component - Enhanced
+   Landing Page Root
    ===================================================================== */
 .landing-page {
   min-height: 100vh;
   background: var(--gradient-mystical);
   color: var(--text-color);
   overflow-x: hidden;
-}
-
-/* =====================================================================
-   Loading State
-   ===================================================================== */
-.loading-container.magical-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  gap: var(--padding-large);
-  background: var(--gradient-mystical);
-}
-
-.loading-spinner.magical-spin {
-  font-size: 4rem;
-  color: var(--color-magic-glow);
-  animation: magicalSpin 2s linear infinite, magicalGlow 2s ease-in-out infinite;
-}
-
-.loading-text {
-  font-size: 1.2rem;
-  color: var(--text-color-secondary);
-  animation: pulse 2s ease-in-out infinite;
-}
-
-.loading-particles {
   position: relative;
-  width: 200px;
-  height: 40px;
 }
 
-.particle {
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  background: var(--color-magic-glow);
-  border-radius: 50%;
-  animation: float 3s ease-in-out infinite;
-}
-
-.particle:nth-child(1) { left: 25%; animation-delay: 0s; }
-.particle:nth-child(2) { left: 50%; animation-delay: 1s; }
-.particle:nth-child(3) { left: 75%; animation-delay: 2s; }
-
-/* =====================================================================
-   Hero Section
-   ===================================================================== */
-.hero-section {
-  position: relative;
-  min-height: 60vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--gap-xs) var(--padding-large);
-  margin-bottom: var(--gap-xs);
-  overflow: hidden;
-}
-
-.hero-background {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
-.hero-gradient {
-  position: absolute;
-  inset: 0;
-  background: var(--gradient-magical);
-  opacity: 0.1;
-  animation: gradientShift 10s ease infinite;
-  background-size: 200% 200%;
-}
-
-.floating-elements {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.floating-icon {
-  position: absolute;
-  font-size: 3rem;
-  opacity: 0.1;
-  color: var(--accent-color);
-}
-
-.floating-icon.dragon { top: 20%; right: 15%; }
-.floating-icon.castle { bottom: 30%; left: 10%; }
-.floating-icon.scroll { top: 40%; left: 20%; }
-
-.hero-content {
-  position: relative;
-  z-index: 1;
-  text-align: center;
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.hero-title {
-  margin-bottom: var(--padding-medium);
-}
-
-.title-line {
-  display: block;
-  font-size: 3.5rem;
-  font-weight: 800;
-  background: var(--gradient-magical);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: var(--padding-small);
-  animation: shimmer 3s linear infinite;
-  background-size: 200% 100%;
-}
-
-.title-subtitle {
-  display: block;
-  font-size: 1.5rem;
-  font-weight: 400;
-  color: var(--text-color-secondary);
-  font-style: italic;
-}
-
-.hero-description {
-  font-size: 1.1rem;
-  color: var(--text-color-secondary);
-  line-height: var(--line-height-normal);
-  margin-bottom: var(--gap-xs);
-}
-
-.hero-cta {
-  margin-top: var(--gap-xs);
-}
-
-.btn-hero {
-  font-size: 1.2rem;
-  padding: var(--padding-medium) var(--gap-xs);
-  min-width: 250px;
-  background: var(--gradient-primary);
-  border: none;
-  position: relative;
-  overflow: hidden;
-}
-
-.btn-hero::before {
+/* Enhanced magical background particles - More subtle */
+.landing-page::before {
   content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: var(--gradient-glow);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.btn-hero:hover::before {
-  opacity: 0.3;
-}
-
-/* Hero Stats */
-.hero-stats {
-  display: flex;
-  gap: var(--padding-large);
-  justify-content: center;
-  margin-top: var(--gap-xs);
-  flex-wrap: wrap;
-}
-
-.stat-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--padding-small);
-  padding: var(--padding-medium);
-  background: var(--background-color-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-small);
-  min-width: 120px;
-  transition: all var(--duration-fast) ease;
-}
-
-.stat-card:hover {
-  transform: translateY(-5px);
-  border-color: var(--accent-color);
-  box-shadow: 0 10px 30px rgba(139, 92, 246, 0.2);
-}
-
-.stat-icon {
-  font-size: 2rem;
-  color: var(--accent-color);
-}
-
-.stat-number {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--accent-secondary);
-}
-
-.stat-label {
-  font-size: 0.9rem;
-  color: var(--text-color-secondary);
-}
-
-/* =====================================================================
-   Quick Actions Section
-   ===================================================================== */
-.quick-actions {
-  padding: var(--gap-xs) var(--padding-large);
-  margin-bottom: var(--gap-xs);
-}
-
-.section-title {
-  text-align: center;
-  font-size: 2rem;
-  margin-bottom: var(--gap-xs);
-  color: var(--accent-color);
-}
-
-.action-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--padding-large);
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-.action-card {
-  position: relative;
-  padding: var(--gap-xs);
-  background: var(--background-color-tertiary);
-  border: 2px solid var(--border-color);
-  border-radius: var(--border-radius-small);
-  text-align: center;
-  cursor: pointer;
-  transition: all var(--duration-fast) ease;
-  overflow: hidden;
-}
-
-.action-card::before {
-  content: '';
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  height: 4px;
-  background: var(--gradient-primary);
-  transform: translateX(-100%);
-  transition: transform var(--duration-normal) ease;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(circle at 20% 20%, var(--color-magic-glow) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, var(--accent-secondary) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, var(--accent-tertiary) 0%, transparent 50%);
+  opacity: 0.01;
+  pointer-events: none;
+  z-index: 0;
+  animation: float 20s ease-in-out infinite;
 }
 
-.action-card:hover::before {
-  transform: translateX(0);
-}
-
-.action-card:hover {
-  transform: translateY(-5px);
-  border-color: var(--accent-color);
-  background: var(--background-color-hover);
-}
-
-.character-card:hover { border-color: var(--accent-color); }
-.world-card:hover { border-color: var(--accent-secondary); }
-.adventure-card:hover { border-color: var(--accent-tertiary); }
-
-.card-icon {
-  font-size: 3rem;
-  margin-bottom: var(--padding-medium);
-  color: var(--accent-color);
-  display: flex;
-  justify-content: center;
-  animation: pulse 3s ease-in-out infinite;
-}
-
-.action-card h3 {
-  font-size: 1.3rem;
-  margin-bottom: var(--padding-small);
-  color: var(--text-color);
-}
-
-.action-card p {
-  color: var(--text-color-secondary);
-  line-height: var(--line-height-normal);
-}
-
-.card-decoration {
-  position: absolute;
-  bottom: -50px;
-  right: -50px;
-  width: 100px;
-  height: 100px;
-  background: var(--gradient-glow);
-  border-radius: 50%;
-  opacity: 0.1;
-  transition: all var(--duration-normal) ease;
-}
-
-.action-card:hover .card-decoration {
-  transform: scale(1.5);
-  opacity: 0.2;
+/* Additional magical ambiance - More subtle */
+.landing-page::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--gradient-portal);
+  opacity: 0.005;
+  pointer-events: none;
+  z-index: 0;
+  animation: portalRotate 30s linear infinite;
 }
 
 /* =====================================================================
-   Content Sections with Tabs
+   Accessibility Enhancements
    ===================================================================== */
-.content-sections {
-  padding: var(--gap-xs) var(--padding-large);
-  margin-bottom: var(--gap-xs);
-}
-
-.section-tabs {
-  display: flex;
-  gap: var(--padding-small);
-  margin-bottom: var(--padding-large);
-  border-bottom: 2px solid var(--border-color);
-  overflow-x: auto;
-}
-
-.tab-button {
-  display: flex;
-  align-items: center;
-  gap: var(--padding-small);
-  padding: var(--padding-medium) var(--padding-large);
-  background: none;
-  border: none;
-  border-bottom: 3px solid transparent;
-  color: var(--text-color-secondary);
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all var(--duration-fast) ease;
-  white-space: nowrap;
-}
-
-.tab-button:hover {
-  color: var(--text-color);
-  background: var(--background-color-hover);
-}
-
-.tab-button.active {
-  color: var(--accent-color);
-  border-bottom-color: var(--accent-color);
-}
-
-.tab-count {
-  padding: 2px 8px;
-  background: var(--accent-color);
-  color: white;
-  border-radius: var(--border-radius-small);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.tab-content {
-  min-height: 400px;
-}
-
-.content-panel {
-  background: var(--background-color-tertiary);
-  border-radius: var(--border-radius-small);
-  padding: var(--padding-large);
-  min-height: 300px;
-}
-
-/* =====================================================================
-   Tips Section
-   ===================================================================== */
-.tips-section {
-  padding: var(--gap-xs) var(--padding-large);
-  margin-bottom: var(--gap-xs);
-}
-
-.tips-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--padding-large);
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.tip-card {
-  position: relative;
-  padding: var(--padding-large);
-  background: var(--background-color-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-small);
-  text-align: center;
-}
-
-.tip-number {
-  position: absolute;
-  top: -15px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 30px;
-  height: 30px;
-  background: var(--gradient-primary);
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-}
-
-.tip-card h3 {
-  margin-bottom: var(--padding-small);
-  color: var(--accent-color);
-}
-
-.tip-card p {
-  color: var(--text-color-secondary);
-  font-size: 0.9rem;
-  line-height: var(--line-height-normal);
-}
-
-/* =====================================================================
-   Footer
-   ===================================================================== */
-.landing-footer {
-  padding: var(--padding-large);
-  text-align: center;
-  border-top: 1px solid var(--border-color);
-  margin-top: auto;
-}
-
-/* =====================================================================
-   Responsive Design
-   ===================================================================== */
-@media (max-width: 768px) {
-  .hero-section {
-    min-height: 50vh;
-    padding: var(--padding-large) var(--padding-medium);
+@media (prefers-reduced-motion: reduce) {
+  .landing-floating-icon,
+  .landing-loading-spinner,
+  .landing-particle {
+    animation: none;
   }
   
-  .title-line {
-    font-size: 2.5rem;
+  .landing-title-line {
+    animation: none;
   }
   
-  .title-subtitle {
-    font-size: 1.2rem;
+  .landing-hero-gradient {
+    animation: none;
   }
   
-  .hero-stats {
-    gap: var(--padding-medium);
+  .landing-page::before,
+  .landing-page::after {
+    animation: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .landing-action-card,
+  .landing-stat-card,
+  .landing-tip-card {
+    border-width: 2px;
   }
   
-  .stat-card {
-    min-width: 100px;
+  .landing-tab-button.active {
+    border-bottom-width: 3px;
   }
   
-  .action-cards {
-    grid-template-columns: 1fr;
-    gap: var(--padding-medium);
+  .landing-page {
+    background: var(--background-color-primary);
   }
   
-  .section-tabs {
-    overflow-x: scroll;
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  .tab-button {
-    font-size: 0.9rem;
-    padding: var(--padding-small) var(--padding-medium);
-  }
-  
-  .floating-icon {
+  .landing-page::before,
+  .landing-page::after {
     display: none;
   }
 }
 
-@media (max-width: 480px) {
-  .title-line {
-    font-size: 2rem;
+/* Print styles */
+@media print {
+  .landing-page::before,
+  .landing-page::after {
+    display: none;
   }
-  
-  .hero-description {
-    font-size: 1rem;
-  }
-  
-  .btn-hero {
-    width: 100%;
-    font-size: 1rem;
-  }
-}
+} 

@@ -1,15 +1,15 @@
 /* Card Component Styles */
 .card {
     background-color: var(--background-color-secondary);
-    border-radius: var(--border-radius-large);
-    box-shadow: var(--box-shadow);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
     overflow: hidden;
-    transition: var(--transition-standard);
+    transition: all var(--duration-fast) var(--ease-magical);
     position: relative;
     height: 100%;
     display: flex;
     flex-direction: column;
-    border: var(--border-standard);
+    border: 1px solid var(--border-color);
 }
 
 .card.clickable {
@@ -17,12 +17,14 @@
 }
 
 .card:hover {
-    box-shadow: var(--box-shadow-hover);
+    box-shadow: var(--shadow-md);
     transform: translateY(-2px);
+    border-color: var(--border-color-lighter);
+    background-color: var(--background-color-hover);
 }
 
 .card:focus-visible {
-    outline: var(--focus-outline);
+    outline: 2px solid var(--accent-color);
     outline-offset: 2px;
 }
 
@@ -34,6 +36,7 @@
 
 .card.highlight {
     border: 2px solid var(--accent-color);
+    box-shadow: 0 0 0 1px var(--accent-color), var(--shadow-md);
 }
 
 /* Card Header */
@@ -41,9 +44,9 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: var(--padding-large);
-    padding-bottom: 0.75rem;
-    gap: var(--gap-small);
+    padding: var(--spacing-lg);
+    padding-bottom: var(--spacing-md);
+    gap: var(--spacing-sm);
 }
 
 .card-header-content {
@@ -52,14 +55,15 @@
 }
 
 .card-title {
-    font-size: var(--font-size-normal);
-    font-weight: 600;
-    margin: 0 0 var(--padding-small);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    margin: 0 0 var(--spacing-sm);
     color: var(--text-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: var(--gap-small);
+    gap: var(--spacing-sm);
+    line-height: var(--line-height-tight);
 }
 
 .card-title-text {
@@ -69,28 +73,30 @@
 }
 
 .card-subtitle {
-    font-size: var(--font-size-small);
+    font-size: var(--font-size-sm);
     color: var(--text-color-secondary);
     margin: 0;
-    line-height: 1.4;
+    line-height: var(--line-height-normal);
 }
 
 .card-arrow {
     color: var(--text-color-secondary);
     opacity: 0;
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition: all var(--duration-fast) var(--ease-magical);
     flex-shrink: 0;
+    font-size: var(--font-size-sm);
 }
 
 .card:hover .card-arrow,
 .card:focus-visible .card-arrow {
-    opacity: 1;
+    opacity: 0.8;
     transform: translateX(2px);
+    color: var(--accent-color);
 }
 
 /* Card Content */
 .card-content {
-    padding: 0 var(--padding-large) var(--padding-large);
+    padding: 0 var(--spacing-lg) var(--spacing-lg);
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -110,76 +116,110 @@
     align-items: center;
     z-index: 10;
     backdrop-filter: blur(2px);
+    border-radius: var(--radius-lg);
 }
 
 .card-loading-spinner {
     width: 2rem;
     height: 2rem;
-    border: var(--border-standard);
+    border: 2px solid var(--border-color);
     border-top-color: var(--accent-color);
     border-radius: 50%;
-    animation: var(--spin-animation);
+    animation: magicalSpin 1s linear infinite;
 }
 
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-/* Card Options */
+/* Enhanced Card Options */
 .card-options {
     position: relative;
     margin-left: auto;
-    margin-top: -0.5rem;
-    margin-right: -0.5rem;
+    margin-top: calc(var(--spacing-sm) * -0.5);
+    margin-right: calc(var(--spacing-sm) * -0.5);
 }
 
 .card-options-button {
-    background: none;
-    border: none;
+    background: var(--background-color-tertiary);
+    border: 1px solid var(--border-color);
     color: var(--text-color-secondary);
-    padding: var(--padding-small);
-    border-radius: var(--border-radius-small);
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: var(--transition-standard);
-    width: 2rem;
-    height: 2rem;
+    transition: all var(--duration-fast) var(--ease-magical);
+    width: 2.25rem;
+    height: 2.25rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.card-options-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--gradient-glow);
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-magical);
+    border-radius: var(--radius-sm);
 }
 
 .card-options-button:hover {
     background-color: var(--background-color-hover);
-    color: var(--text-color);
+    color: var(--accent-color);
+    border-color: var(--border-color-lighter);
+    transform: scale(1.05);
+    box-shadow: var(--shadow-sm);
+}
+
+.card-options-button:hover::before {
+    opacity: 0.1;
 }
 
 .card-options-button:focus-visible {
-    outline: var(--focus-outline);
+    outline: 2px solid var(--accent-color);
     outline-offset: 2px;
+    background-color: var(--background-color-hover);
+    color: var(--accent-color);
+}
+
+.card-options-button:active {
+    transform: scale(0.95);
+}
+
+.card-options-button svg {
+    position: relative;
+    z-index: 1;
+    transition: transform var(--duration-fast) var(--ease-magical);
+}
+
+.card-options-button:hover svg {
+    transform: rotate(90deg);
 }
 
 .card-options-menu {
     position: absolute;
-    top: 100%;
+    top: calc(100% + var(--spacing-sm));
     right: 0;
     background: var(--background-color-primary);
-    border-radius: var(--border-radius-medium);
-    box-shadow: var(--box-shadow-dark);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
     min-width: 180px;
     z-index: 100;
     overflow: hidden;
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-10px) scale(0.95);
     visibility: hidden;
-    transition: var(--transition-standard);
-    border: var(--border-standard);
+    transition: all var(--duration-fast) var(--ease-magical);
+    border: 1px solid var(--border-color);
+    backdrop-filter: blur(8px);
 }
 
 .card-options-menu[data-enter] {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
     visibility: visible;
 }
 
@@ -192,24 +232,28 @@
     display: flex;
     align-items: center;
     width: 100%;
-    padding: var(--padding-small) var(--padding-medium);
+    padding: var(--spacing-sm) var(--spacing-md);
     background: none;
     border: none;
     color: var(--text-color);
     text-align: left;
     cursor: pointer;
-    transition: var(--transition-standard);
-    font-size: var(--font-size-small);
-    gap: var(--gap-small);
+    transition: all var(--duration-fast) var(--ease-magical);
+    font-size: var(--font-size-sm);
+    gap: var(--spacing-sm);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-tight);
 }
 
 .card-options-item:hover {
     background-color: var(--background-color-hover);
+    color: var(--accent-color);
 }
 
 .card-options-item:focus-visible {
     outline: none;
     background-color: var(--background-color-hover);
+    color: var(--accent-color);
 }
 
 .card-options-item[data-danger] {
@@ -217,12 +261,13 @@
 }
 
 .card-options-item[data-danger]:hover {
-    background-color: var(--color-error);
+    background-color: var(--color-error-transparency);
+    color: var(--color-error);
 }
 
 .card-options-item[data-highlight] {
     color: var(--accent-color);
-    font-weight: 500;
+    font-weight: var(--font-weight-semibold);
 }
 
 .card-options-item .option-icon {
@@ -231,57 +276,199 @@
     justify-content: center;
     width: 1.25rem;
     flex-shrink: 0;
+    font-size: var(--font-size-sm);
 }
 
 .card-option-single {
-    background: none;
-    border: none;
+    background: var(--background-color-tertiary);
+    border: 1px solid var(--border-color);
     color: var(--text-color-secondary);
-    padding: calc(var(--padding-small) / 2) var(--padding-small);
-    border-radius: var(--border-radius-small);
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: var(--gap-small);
-    font-size: var(--font-size-small);
-    transition: var(--transition-standard);
+    justify-content: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    transition: all var(--duration-fast) var(--ease-magical);
+    min-width: 2.25rem;
+    height: 2.25rem;
 }
 
 .card-option-single:hover {
     background-color: var(--background-color-hover);
     color: var(--accent-color);
+    border-color: var(--border-color-lighter);
+    transform: scale(1.05);
+    box-shadow: var(--shadow-sm);
 }
 
-/* Skeleton loading */
+.card-option-single:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.card-option-single:active {
+    transform: scale(0.95);
+}
+
+/* Enhanced skeleton loading */
 .skeleton {
     background: linear-gradient(
             90deg,
             var(--background-color-secondary) 25%,
-            rgba(255, 255, 255, 0.1) 50%,
+            var(--background-color-hover) 50%,
             var(--background-color-secondary) 75%
     );
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
-    border-radius: var(--border-radius-small);
+    border-radius: var(--radius-sm);
     color: transparent;
     position: relative;
     overflow: hidden;
 }
 
-@keyframes shimmer {
-    0% {
-        background-position: 200% 0;
-    }
-    100% {
-        background-position: -200% 0;
-    }
-}
-
 .skeleton-card {
     height: 100%;
     width: 100%;
-    border-radius: var(--border-radius-large);
-    margin-bottom: var(--margin-medium);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--spacing-md);
+}
+
+/* Card Grid Styles */
+.card-grid-container {
+    width: 100%;
+}
+
+.card-grid-search {
+    margin-bottom: var(--spacing-lg);
+}
+
+.card-search-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    max-width: 400px;
+}
+
+.card-search-input {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    padding-left: 2.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: var(--background-color-secondary);
+    color: var(--text-color);
+    font-size: var(--font-size-sm);
+    transition: all var(--duration-fast) var(--ease-magical);
+}
+
+.card-search-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--accent-color-transparency);
+    background-color: var(--background-color-primary);
+}
+
+.card-search-input::placeholder {
+    color: var(--text-color-placeholder);
+}
+
+.card-search-icon {
+    position: absolute;
+    left: var(--spacing-sm);
+    color: var(--text-color-secondary);
+    font-size: var(--font-size-sm);
+    z-index: 1;
+}
+
+.card-search-spinner {
+    position: absolute;
+    right: var(--spacing-sm);
+    color: var(--accent-color);
+    animation: magicalSpin 1s linear infinite;
+}
+
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--spacing-lg);
+    width: 100%;
+}
+
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xl);
+    color: var(--text-color-secondary);
+    gap: var(--spacing-md);
+}
+
+.card-grid__loading-spinner {
+    font-size: 2rem;
+    color: var(--accent-color);
+    animation: magicalSpin 1s linear infinite;
+}
+
+.card-grid__empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xl);
+    text-align: center;
+    color: var(--text-color-secondary);
+    gap: var(--spacing-md);
+}
+
+.card-grid__empty-icon {
+    color: var(--text-color-placeholder);
+    opacity: 0.5;
+    margin-bottom: var(--spacing-sm);
+}
+
+.card-grid__empty-state h3 {
+    color: var(--text-color);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+}
+
+.card-grid__empty-state p {
+    font-size: var(--font-size-sm);
+    margin: 0;
+    max-width: 300px;
+}
+
+.load-more-trigger {
+    height: 1px;
+    width: 100%;
+}
+
+.end-of-results {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: var(--spacing-lg);
+    color: var(--text-color-secondary);
+    font-size: var(--font-size-sm);
+    border-top: 1px solid var(--border-color);
+    margin-top: var(--spacing-lg);
+}
+
+/* Card entrance animation */
+.card {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeInMagical 0.6s var(--ease-magical) forwards;
+}
+
+.card.visible {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 /* Visually hidden utility class */
@@ -295,4 +482,79 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-grid {
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: var(--spacing-md);
+    }
+    
+    .card-header {
+        padding: var(--spacing-md);
+        padding-bottom: var(--spacing-sm);
+    }
+    
+    .card-content {
+        padding: 0 var(--spacing-md) var(--spacing-md);
+    }
+}
+
+.card-search-clear {
+    position: absolute;
+    right: var(--spacing-sm);
+    background: none;
+    border: none;
+    color: var(--text-color-secondary);
+    cursor: pointer;
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    transition: all var(--duration-fast) var(--ease-magical);
+    font-size: 1.25rem;
+    line-height: 1;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.card-search-clear:hover {
+    background-color: var(--background-color-hover);
+    color: var(--accent-color);
+}
+
+.card-search-clear:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.card-wrapper {
+    display: contents;
+}
+
+/* Enhanced spacing for search input when clear button is present */
+.card-search-input-container:has(.card-search-clear) .card-search-input {
+    padding-right: 3rem;
+}
+
+/* CSS fallback for browsers that don't support :has() */
+.card-search-input-container .card-search-input {
+    padding-right: 2.5rem;
+}
+
+.card-search-input-container .card-search-clear + .card-search-input,
+.card-search-input-container .card-search-input:placeholder-shown ~ .card-search-clear {
+    padding-right: 3rem;
+}
+
+/* Ensure proper z-index for search elements */
+.card-search-input-container .card-search-clear {
+    z-index: 2;
+}
+
+.card-search-input-container .card-search-spinner {
+    right: 3rem;
+    z-index: 1;
 }

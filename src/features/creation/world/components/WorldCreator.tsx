@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { World } from '../../../../shared';
 import { useNavigation, useData } from '../../../../app/hooks';
 import { storage } from '../../../../infrastructure/storage';
+import { generateUUID } from '../../../../utils/uuid';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
 import { 
     CreatorLayout, 
@@ -49,7 +50,7 @@ export function WorldCreator() {
     const { setPage } = useNavigation();
     const { worlds, setWorlds, editingWorld, setEditingWorld } = useData();
     
-    const [id] = useState(editingWorld?.id ?? crypto.randomUUID());
+    const [id] = useState(editingWorld?.id ?? generateUUID());
     const [name, setName] = useState(editingWorld?.name ?? '');
     const [type, setType] = useState(editingWorld?.type ?? '');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -274,7 +275,7 @@ export function WorldCreator() {
             isLoading={isSubmitting}
         >
             <form onSubmit={handleSubmit} className="creator-form" onKeyDown={handleKeyDown}>
-                <div className="creator-form-section">
+                <div className="creator-form-section creator-form-section--magical">
                     <CreatorField label="Name:" htmlFor="world-name" required>
                         <CreatorInput
                             id="world-name"

@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { Character } from '../../../../shared';
 import { useNavigation, useData } from '../../../../app/hooks';
 import { storage } from '../../../../infrastructure/storage';
+import { generateUUID } from '../../../../utils/uuid';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
 import { 
     CreatorLayout, 
@@ -50,7 +51,7 @@ export function CharacterCreator() {
     const { setPage } = useNavigation();
     const { characters, setCharacters, editingCharacter, setEditingCharacter } = useData();
     
-    const [id] = useState(editingCharacter?.id ?? crypto.randomUUID());
+    const [id] = useState(editingCharacter?.id ?? generateUUID());
     const [name, setName] = useState(editingCharacter?.name ?? '');
     const [race, setRace] = useState(editingCharacter?.race ?? '');
     const [description, setDescription] = useState(editingCharacter?.description ?? '');
@@ -289,7 +290,7 @@ export function CharacterCreator() {
             isLoading={isSubmitting}
         >
             <form onSubmit={handleSubmit} className="creator-form" onKeyDown={handleKeyDown}>
-                <div className="creator-form-section character-essentials">
+                <div className="creator-form-section creator-form-section--fire character-essentials">
                     <CreatorField 
                         label="Name:" 
                         htmlFor="character-name" 

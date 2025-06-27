@@ -26,13 +26,13 @@ export function EmptyState({
                                className = '',
                            }: EmptyStateProps) {
     return (
-        <div className={`empty-state ${className}`}>
-            {icon && <div className="empty-icon">{icon}</div>}
+        <div className={`common-empty-state ${className}`}>
+            {icon && <div className="common-empty-state__icon">{icon}</div>}
             <h3>{message}</h3>
             {secondaryText && <p>{secondaryText}</p>}
             {button && (
                 <button
-                    className={`primary-button ${button.className || ''}`}
+                    className={`btn btn-primary ${button.className || ''}`}
                     onClick={button.onClick}
                 >
                     {button.label}

@@ -1,0 +1,363 @@
+/* =====================================================================
+   Shared Utilities for Interaction Components
+   ===================================================================== */
+
+/* =====================================================================
+   Layout Utilities
+   ===================================================================== */
+.interaction-layout {
+  display: flex;
+  height: 100%;
+  position: relative;
+  width: 100%;
+}
+
+.interaction-flex-column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.interaction-flex-1 {
+  flex: 1;
+  min-width: 0;
+}
+
+/* =====================================================================
+   Panel Utilities
+   ===================================================================== */
+.interaction-panel {
+  background: var(--background-color-primary);
+  border: var(--border-standard);
+  overflow-y: auto;
+  height: 100%;
+  position: relative;
+}
+
+.interaction-panel--secondary {
+  background: var(--background-color-tertiary);
+}
+
+.interaction-panel__header {
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: var(--border-standard);
+}
+
+.interaction-panel__section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.interaction-panel__section:last-child {
+  margin-bottom: 0;
+}
+
+.interaction-panel__section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  color: var(--accent-color);
+  font-weight: var(--font-weight-semibold);
+}
+
+.interaction-panel__section-icon {
+  font-size: var(--font-size-lg);
+}
+
+/* =====================================================================
+   Card Utilities
+   ===================================================================== */
+.interaction-card {
+  background: var(--background-color-secondary);
+  border: var(--border-standard);
+  border-radius: var(--border-radius-medium);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  transition: all var(--duration-fast) var(--ease-smooth);
+}
+
+[data-theme="light"] .interaction-card {
+  box-shadow: var(--shadow-sm);
+}
+
+.interaction-card:last-child {
+  margin-bottom: 0;
+}
+
+.interaction-card:hover {
+  border-color: var(--accent-color);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+/* =====================================================================
+   Button Utilities
+   ===================================================================== */
+.interaction-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius-medium);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-magical);
+  position: relative;
+  overflow: hidden;
+  border: var(--border-standard);
+}
+
+.interaction-btn--primary {
+  background: var(--gradient-primary);
+  border: none;
+  color: var(--color-brighter);
+  box-shadow: var(--shadow-md);
+}
+
+.interaction-btn--secondary {
+  background: var(--background-color-secondary);
+  color: var(--text-color);
+}
+
+.interaction-btn--danger {
+  background: var(--background-color-secondary);
+  color: var(--text-color-secondary);
+}
+
+.interaction-btn--danger:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
+  background: var(--color-error-transparency);
+}
+
+.interaction-btn--block {
+  width: 100%;
+}
+
+.interaction-btn--small {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+}
+
+.interaction-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.interaction-btn:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+.interaction-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* =====================================================================
+   Text Utilities
+   ===================================================================== */
+.interaction-text--primary {
+  color: var(--text-color);
+  font-size: var(--font-size-normal);
+  line-height: var(--line-height-normal);
+}
+
+.interaction-text--secondary {
+  color: var(--text-color-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.interaction-text--small {
+  font-size: var(--font-size-xs);
+}
+
+.interaction-text--large {
+  font-size: var(--font-size-lg);
+}
+
+.interaction-text--accent {
+  color: var(--accent-color);
+}
+
+.interaction-text--error {
+  color: var(--color-error);
+}
+
+.interaction-text--italic {
+  font-style: italic;
+}
+
+.interaction-text--bold {
+  font-weight: var(--font-weight-bold);
+}
+
+.interaction-text--uppercase {
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+/* =====================================================================
+   Animation Utilities
+   ===================================================================== */
+.interaction-fade-in {
+  animation: fadeInMagical var(--duration-normal) var(--ease-magical);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.interaction-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.interaction-shimmer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent, 
+    var(--color-magic-glow), 
+    transparent);
+  opacity: 0.1;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+.interaction-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.interaction-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* =====================================================================
+   Loading States
+   ===================================================================== */
+.interaction-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.interaction-loading__spinner {
+  animation: magicalSpin 1s linear infinite;
+  color: var(--accent-color);
+}
+
+.interaction-loading__dots {
+  display: flex;
+  gap: 4px;
+}
+
+.interaction-loading__dot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-color);
+  border-radius: 50%;
+  animation: orbBounce 1.4s ease-in-out infinite;
+}
+
+.interaction-loading__dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.interaction-loading__dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* =====================================================================
+   Scrollbar Styling
+   ===================================================================== */
+.interaction-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--background-color-hover) var(--background-color-secondary);
+}
+
+.interaction-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.interaction-scrollbar::-webkit-scrollbar-track {
+  background: var(--background-color-secondary);
+  border-radius: var(--border-radius-small);
+}
+
+.interaction-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--background-color-hover);
+  border-radius: var(--border-radius-small);
+  border: 2px solid var(--background-color-secondary);
+}
+
+.interaction-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-color);
+}
+
+/* =====================================================================
+   Responsive Utilities
+   ===================================================================== */
+@media (max-width: 768px) {
+  .interaction-hide-mobile {
+    display: none;
+  }
+  
+  .interaction-panel__section {
+    margin-bottom: var(--spacing-md);
+  }
+  
+  .interaction-card {
+    padding: var(--spacing-sm);
+  }
+}
+
+@media (max-width: 480px) {
+  .interaction-hide-small {
+    display: none;
+  }
+  
+  .interaction-text--small-mobile {
+    font-size: var(--font-size-xs);
+  }
+}
+
+/* =====================================================================
+   Focus States
+   ===================================================================== */
+.interaction-focusable:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: 2px;
+}
+
+/* =====================================================================
+   Theme Adjustments
+   ===================================================================== */
+[data-theme="light"] .interaction-panel {
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .interaction-btn--primary {
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.2);
+}
+
+[data-theme="light"] .interaction-btn--primary:hover {
+  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.3);
+} 

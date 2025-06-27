@@ -1,4 +1,4 @@
-.empty-state {
+.common-empty-state {
     grid-column: 1 / -1;
     display: flex;
     flex-direction: column;
@@ -15,7 +15,7 @@
     box-sizing: border-box;
 }
 
-.empty-icon {
+.common-empty-state__icon {
     font-size: 2.5rem;
     margin-bottom: var(--margin-medium);
     color: var(--accent-color);
@@ -26,42 +26,34 @@
     justify-content: center;
 }
 
-.empty-state:hover .empty-icon {
+.common-empty-state:hover .common-empty-state__icon {
     transform: scale(1.05);
 }
 
-.empty-state h3 {
+.common-empty-state h3 {
     margin: 0 0 var(--margin-small);
     color: var(--text-color);
     font-size: var(--font-size-large);
     font-weight: 600;
 }
 
-.empty-state p {
+.common-empty-state p {
     margin: var(--margin-small) 0 var(--margin-medium);
     max-width: 400px;
     line-height: var(--line-height-normal);
     color: var(--text-color-secondary);
 }
 
-.empty-state .empty-actions {
-    display: flex;
-    gap: var(--gap-small);
-    flex-wrap: wrap;
-    justify-content: center;
-    margin-top: var(--margin-medium);
-}
-
 @media (max-width: 480px) {
-    .empty-state {
+    .common-empty-state {
         padding: 2.5rem var(--padding-medium);
     }
 
-    .empty-state h3 {
+    .common-empty-state h3 {
         font-size: 1.1rem;
     }
 
-    .empty-state p {
+    .common-empty-state p {
         font-size: 0.9rem;
     }
 }

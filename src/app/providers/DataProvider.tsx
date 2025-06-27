@@ -5,6 +5,7 @@
 import { createContext, useEffect, useState, type ReactNode } from 'react'
 import type { Character, World, Adventure, LoadingState } from '../../shared'
 import { storage } from '../../infrastructure/storage'
+import { generateUUID } from '../../utils/uuid'
 
 interface DataContextValue {
     // Characters
@@ -109,7 +110,7 @@ export function DataProvider({ children }: DataProviderProps) {
             // Create a new in-progress adventure based on the template
             const newInProgressAdventure: Adventure = {
                 ...template,
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 status: 'in-progress',
                 turns: template.turns || [],
                 createdAt: new Date().toISOString(),
