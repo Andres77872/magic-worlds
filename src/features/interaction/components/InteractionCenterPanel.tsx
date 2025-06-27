@@ -45,6 +45,9 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         scrollToBottom()
     }, [turns])
 
+    // Check if we can generate an AI response (last message is from user)
+    const canGenerateResponse = turns.length > 0 && turns[turns.length - 1].type === 'user' && !isLoading
+
     const handleReset = () => {
         if (window.confirm('Are you sure you want to reset this adventure? This will clear all conversation history.')) {
             setTurns([])
@@ -153,6 +156,59 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         } catch (error) {
             console.error('Failed to edit turn:', error)
             setError('Failed to edit message. Please try again.')
+        }
+    }
+
+    const handleGenerateResponse = async () => {
+        if (!canGenerateResponse) return
+
+        const lastUserTurn = turns[turns.length - 1]
+        const userMessage = lastUserTurn.content
+
+        // Create new AI turn
+        const aiTurn: ExtendedTurnEntry = {
+            id: generateUUID(),
+            type: 'ai',
+            content: '',
+            timestamp: new Date().toISOString(),
+            isStreaming: false,
+            forwardOptions: undefined,
+            isStreamingForwardOptions: false
+        }
+
+        const newTurns = [...turns, aiTurn]
+        setTurns(newTurns)
+        setIsLoading(true)
+        setError(null)
+
+        try {
+            // Save turns with empty AI turn
+            await storage.saveTurns(adventure.id, newTurns)
+
+            // Process the message with LLM API using the last user message
+            await processUserMessage(userMessage, newTurns.slice(0, -1), aiTurn)
+        } catch (error) {
+            console.error('Failed to generate response:', error)
+            setError('Failed to generate response. Please try again.')
+            setIsLoading(false)
+            
+            // Reset streaming states on the AI turn when processing fails
+            const failedTurns = newTurns.map((t: ExtendedTurnEntry) =>
+                t.id === aiTurn.id
+                    ? {
+                        ...t,
+                        isStreaming: false,
+                        isStreamingForwardOptions: false,
+                        content: '' // Keep content empty so regeneration button stays visible
+                    }
+                    : t
+            )
+            setTurns(failedTurns)
+            
+            // Save the failed state to storage
+            storage.saveTurns(adventure.id, failedTurns).catch(err =>
+                console.error('Failed to save failed turns:', err)
+            )
         }
     }
 
@@ -514,16 +570,42 @@ Respond to the user inputs as the assistant.`
                             </div>
                         </div>
                     ) : (
-                        turns.map((turn: ExtendedTurnEntry) => (
-                            <ChatTurn 
-                                key={turn.id} 
-                                turn={turn} 
-                                onForwardOptionClick={handleForwardOptionClick}
-                                onRegenerateClick={handleRegenerateResponse}
-                                onDeleteClick={handleDeleteTurn}
-                                onEditClick={handleEditTurn}
-                            />
-                        ))
+                        <>
+                            {turns.map((turn: ExtendedTurnEntry) => (
+                                <ChatTurn 
+                                    key={turn.id} 
+                                    turn={turn} 
+                                    onForwardOptionClick={handleForwardOptionClick}
+                                    onRegenerateClick={handleRegenerateResponse}
+                                    onDeleteClick={handleDeleteTurn}
+                                    onEditClick={handleEditTurn}
+                                />
+                            ))}
+                            {canGenerateResponse && (
+                                <div className="generate-response-suggestion">
+                                    <div className="suggestion-content">
+                                        <span className="suggestion-icon">🎭</span>
+                                        <div className="suggestion-text">
+                                            <span className="suggestion-title">Waiting for Game Master response</span>
+                                            <span className="suggestion-subtitle">Click to generate an AI response (optional)</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="btn btn-generate-response-inline"
+                                            onClick={handleGenerateResponse}
+                                            disabled={isLoading}
+                                        >
+                                            {isLoading ? (
+                                                <>
+                                                    <FaSpinner className="spinner"/>
+                                                    Generating...
+                                                </>
+                                            ) : 'Generate Response'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
                     <div ref={messagesEndRef}/>
                 </div>
