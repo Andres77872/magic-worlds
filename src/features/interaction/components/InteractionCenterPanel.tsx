@@ -101,6 +101,24 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             console.error('Failed to regenerate response:', error)
             setError('Failed to regenerate response. Please try again.')
             setIsLoading(false)
+            
+            // Reset streaming states on the AI turn when regeneration fails
+            const failedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
+                t.id === resetAiTurn.id
+                    ? {
+                        ...t,
+                        isStreaming: false,
+                        isStreamingForwardOptions: false,
+                        content: '' // Keep content empty so regeneration button stays visible
+                    }
+                    : t
+            )
+            setTurns(failedTurns)
+            
+            // Save the failed state to storage
+            storage.saveTurns(adventure.id, failedTurns).catch(err =>
+                console.error('Failed to save failed turns:', err)
+            )
         }
     }
 
@@ -117,22 +135,65 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             timestamp: new Date().toISOString()
         }
 
-        const newTurns = [...turns, userTurn]
+        // Check if the last turn is an empty AI turn from a previous error
+        const lastTurn = turns[turns.length - 1] as ExtendedTurnEntry
+        const hasEmptyAiTurn = lastTurn && lastTurn.type === 'ai' && lastTurn.content === ''
+
+        let newTurns: TurnEntry[]
+        let existingAiTurn: ExtendedTurnEntry | undefined
+
+        if (hasEmptyAiTurn) {
+            // Reuse the existing empty AI turn
+            newTurns = [...turns.slice(0, -1), userTurn, lastTurn]
+            existingAiTurn = lastTurn
+        } else {
+            // Create new AI turn
+            const aiTurn: ExtendedTurnEntry = {
+                id: generateUUID(),
+                type: 'ai',
+                content: '',
+                timestamp: new Date().toISOString(),
+                isStreaming: false,
+                forwardOptions: undefined,
+                isStreamingForwardOptions: false
+            }
+            newTurns = [...turns, userTurn, aiTurn]
+            existingAiTurn = aiTurn
+        }
+
         setTurns(newTurns)
         setInput('')
         setIsLoading(true)
         setError(null)
 
         try {
-            // Save user turn
+            // Save turns with empty AI turn
             await storage.saveTurns(adventure.id, newTurns)
 
             // Process the message with LLM API
-            await processUserMessage(userInput, newTurns)
+            await processUserMessage(userInput, newTurns.slice(0, -1), existingAiTurn)
         } catch (error) {
             console.error('Failed to process message:', error)
             setError('Failed to process your message. Please try again.')
             setIsLoading(false)
+            
+            // Reset streaming states on the AI turn when processing fails
+            const failedTurns = newTurns.map((t: ExtendedTurnEntry) =>
+                t.id === existingAiTurn.id
+                    ? {
+                        ...t,
+                        isStreaming: false,
+                        isStreamingForwardOptions: false,
+                        content: '' // Keep content empty so regeneration button stays visible
+                    }
+                    : t
+            )
+            setTurns(failedTurns)
+            
+            // Save the failed state to storage
+            storage.saveTurns(adventure.id, failedTurns).catch(err =>
+                console.error('Failed to save failed turns:', err)
+            )
         }
     }
 
@@ -195,21 +256,23 @@ Respond to the user inputs as the assistant.`
             const reader = response.body?.getReader()
             if (!reader) throw new Error('No response body')
 
-            // Create a placeholder for the AI response turn OR use existing one for regeneration
-            const aiTurn: ExtendedTurnEntry = existingTurn || {
-                id: generateUUID(),
-                type: 'ai',
+            // Use the existing AI turn that was passed in
+            if (!existingTurn) {
+                throw new Error('No AI turn provided for processing')
+            }
+
+            const aiTurn = existingTurn
+
+            // Set the AI turn to streaming state and add it to the turns
+            const streamingAiTurn: ExtendedTurnEntry = {
+                ...aiTurn,
+                isStreaming: true,
                 content: '',
-                timestamp: new Date().toISOString(),
-                isStreaming: true, // Add flag for streaming state
                 forwardOptions: undefined,
                 isStreamingForwardOptions: false
             }
 
-            // Add the AI turn (either new or updated existing)
-            let updatedTurns = existingTurn 
-                ? [...currentTurns, existingTurn] 
-                : [...currentTurns, aiTurn]
+            let updatedTurns = [...currentTurns, streamingAiTurn]
             setTurns(updatedTurns)
 
             let assistantResponse = ''
@@ -390,6 +453,7 @@ Respond to the user inputs as the assistant.`
             setIsLoading(false)
         } catch (err) {
             console.error('Error processing message:', err)
+            setIsLoading(false)
             throw err
         }
     }
