@@ -24,14 +24,6 @@
   background: var(--background-color-secondary);
 }
 
-/* User and assistant variations */
-.chat-turn--user {
-  /* User-specific styling if needed */
-}
-
-.chat-turn--assistant {
-  /* Assistant-specific styling if needed */
-}
 
 /* =====================================================================
    Content Wrapper
