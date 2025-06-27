@@ -1,0 +1,165 @@
+/**
+ * Landing Quick Actions Component Styles
+ */
+
+/* =====================================================================
+   Quick Actions Section - Enhanced
+   ===================================================================== */
+.landing-quick-actions {
+  padding: var(--spacing-xl) var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  position: relative;
+  z-index: 2;
+}
+
+.landing-section-title {
+  text-align: center;
+  font-size: clamp(1.8rem, 5vw, 2.5rem);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--spacing-xl);
+  color: var(--accent-color);
+  position: relative;
+}
+
+.landing-section-title::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 3px;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-sm);
+}
+
+.landing-action-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--spacing-lg);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.landing-action-card {
+  position: relative;
+  padding: var(--spacing-xl);
+  background: var(--background-color-tertiary);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-magical);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.landing-action-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--gradient-primary);
+  transform: translateX(-100%);
+  transition: transform var(--duration-normal) ease;
+}
+
+.landing-action-card::after {
+  content: '';
+  position: absolute;
+  bottom: -50px;
+  right: -50px;
+  width: 100px;
+  height: 100px;
+  background: var(--gradient-glow);
+  border-radius: 50%;
+  opacity: 0.05;
+  transition: all var(--duration-normal) ease;
+}
+
+.landing-action-card:hover::before {
+  transform: translateX(0);
+}
+
+.landing-action-card:hover::after {
+  transform: scale(1.5);
+  opacity: 0.15;
+}
+
+.landing-action-card:hover {
+  transform: translateY(-10px) scale(1.02);
+  border-color: var(--accent-color);
+  background: var(--background-color-hover);
+  box-shadow: 
+    0 20px 50px rgba(139, 92, 246, 0.2),
+    0 0 30px rgba(139, 92, 246, 0.1);
+}
+
+.landing-action-card.character-card:hover { 
+  border-color: var(--accent-color); 
+}
+.landing-action-card.world-card:hover { 
+  border-color: var(--accent-secondary); 
+}
+.landing-action-card.adventure-card:hover { 
+  border-color: var(--accent-tertiary); 
+}
+
+.landing-card-icon {
+  font-size: 4rem;
+  margin-bottom: var(--spacing-lg);
+  color: var(--accent-color);
+  display: flex;
+  justify-content: center;
+  animation: pulse 4s ease-in-out infinite;
+  transition: all var(--duration-normal) ease;
+}
+
+.landing-action-card:hover .landing-card-icon {
+  transform: scale(1.1) rotate(5deg);
+  filter: drop-shadow(0 0 20px currentColor);
+}
+
+.landing-action-card h3 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-sm);
+  color: var(--text-color);
+  transition: color var(--duration-fast) ease;
+}
+
+.landing-action-card:hover h3 {
+  color: var(--accent-color);
+}
+
+.landing-action-card p {
+  color: var(--text-color-secondary);
+  line-height: var(--line-height-normal);
+  font-size: var(--font-size-base);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .landing-action-cards {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+  
+  .landing-action-card {
+    padding: var(--spacing-lg);
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-card-icon {
+    font-size: 3rem;
+  }
+}
+
+/* Focus styles for accessibility */
+.landing-action-card:focus-visible {
+  outline: 3px solid var(--accent-color);
+  outline-offset: 2px;
+} 

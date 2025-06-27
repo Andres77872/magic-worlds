@@ -1,0 +1,16 @@
+/**
+ * Landing Footer Component Styles
+ */
+
+/* =====================================================================
+   Footer - Enhanced
+   ===================================================================== */
+.landing-footer {
+  padding: var(--spacing-lg);
+  text-align: center;
+  border-top: 1px solid var(--border-color);
+  margin-top: auto;
+  position: relative;
+  z-index: 2;
+  backdrop-filter: blur(10px);
+} 
