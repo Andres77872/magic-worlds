@@ -122,6 +122,23 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         }
     }
 
+    const handleDeleteTurn = async (turnId: string) => {
+        if (!window.confirm('Are you sure you want to delete this message?')) {
+            return
+        }
+
+        try {
+            const updatedTurns = turns.filter(turn => turn.id !== turnId)
+            setTurns(updatedTurns)
+            
+            // Save the updated turns to storage
+            await storage.saveTurns(adventure.id, updatedTurns)
+        } catch (error) {
+            console.error('Failed to delete turn:', error)
+            setError('Failed to delete message. Please try again.')
+        }
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!input.trim() || isLoading) return
@@ -486,6 +503,7 @@ Respond to the user inputs as the assistant.`
                                 turn={turn} 
                                 onForwardOptionClick={handleForwardOptionClick}
                                 onRegenerateClick={handleRegenerateResponse}
+                                onDeleteClick={handleDeleteTurn}
                             />
                         ))
                     )}

@@ -20,6 +20,7 @@ interface ChatTurnProps {
     turn: ExtendedTurnEntry
     onForwardOptionClick: (option: string) => void
     onRegenerateClick?: (turnId: string) => void
+    onDeleteClick?: (turnId: string) => void
 }
 
 // Process text nodes to handle dialogue formatting
@@ -45,7 +46,7 @@ function processTextContent(content: string): React.ReactNode[] {
     return result.length > 0 ? result : [content];
 }
 
-export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick }: ChatTurnProps) {
+export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick }: ChatTurnProps) {
     const isUser = turn.type === 'user'
     
     return (
@@ -81,6 +82,17 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick }: Chat
                             >
                                 <span className="regenerate-icon">↻</span>
                                 <span className="regenerate-text">Regenerate</span>
+                            </button>
+                        )}
+                        {onDeleteClick && !turn.isStreaming && (
+                            <button 
+                                className="delete-button"
+                                onClick={() => onDeleteClick(turn.id)}
+                                aria-label="Delete message"
+                                title="Delete this message"
+                            >
+                                <span className="delete-icon">🗑️</span>
+                                <span className="delete-text">Delete</span>
                             </button>
                         )}
                     </div>

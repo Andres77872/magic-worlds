@@ -20,6 +20,9 @@
   min-height: 0;
   overflow: hidden;
   box-shadow: var(--shadow-lg);
+  width: 100%;
+  padding: 0;
+  overflow-y: auto;
 }
 
 [data-theme="light"] .center-panel {
