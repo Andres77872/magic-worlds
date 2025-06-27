@@ -70,13 +70,16 @@ export function LandingPage() {
 
     if (isLoading) {
         return (
-            <div className="loading-container magical-loading">
-                <GiMagicSwirl className="loading-spinner magical-spin" />
-                <p className="loading-text">Summoning your magical worlds...</p>
-                <div className="loading-particles">
-                    <span className="particle"></span>
-                    <span className="particle"></span>
-                    <span className="particle"></span>
+            <div className="landing-loading-container" role="status" aria-live="polite">
+                <GiMagicSwirl 
+                    className="landing-loading-spinner" 
+                    aria-hidden="true"
+                />
+                <p className="landing-loading-text">Summoning your magical worlds...</p>
+                <div className="landing-loading-particles" aria-hidden="true">
+                    <span className="landing-particle"></span>
+                    <span className="landing-particle"></span>
+                    <span className="landing-particle"></span>
                 </div>
             </div>
         )
@@ -85,51 +88,55 @@ export function LandingPage() {
     return (
         <div className="landing-page">
             {/* Hero Section */}
-            <section className="hero-section animate-entrance">
-                <div className="hero-background">
-                    <div className="hero-gradient"></div>
-                    <div className="floating-elements">
-                        <GiDragonHead className="floating-icon dragon animate-float" />
-                        <GiCastle className="floating-icon castle animate-float" style={{animationDelay: '2s'}} />
-                        <GiScrollQuill className="floating-icon scroll animate-float" style={{animationDelay: '4s'}} />
+            <section className="landing-hero-section animate-entrance" aria-labelledby="hero-title">
+                <div className="landing-hero-background" aria-hidden="true">
+                    <div className="landing-hero-gradient"></div>
+                    <div className="landing-floating-elements">
+                        <GiDragonHead className="landing-floating-icon dragon animate-float" />
+                        <GiCastle className="landing-floating-icon castle animate-float" style={{animationDelay: '2s'}} />
+                        <GiScrollQuill className="landing-floating-icon scroll animate-float" style={{animationDelay: '4s'}} />
                     </div>
                 </div>
                 
-                <div className="hero-content">
-                    <h1 className="hero-title">
-                        <span className="title-line">🌟 Magic Worlds</span>
-                        <span className="title-subtitle">Forge Your Legend</span>
+                <div className="landing-hero-content">
+                    <h1 className="landing-hero-title" id="hero-title">
+                        <span className="landing-title-line">🌟 Magic Worlds</span>
+                        <span className="landing-title-subtitle">Forge Your Legend</span>
                     </h1>
-                    <p className="hero-description">
-                        Create epic characters, build mystical worlds, and embark on AI-powered adventures
+                    <p className="landing-hero-description">
+                        Create epic characters, build mystical worlds, and embark on AI-powered adventures that bring your imagination to life
                     </p>
                     
                     {!hasContent ? (
-                        <div className="hero-cta">
+                        <div className="landing-hero-cta">
                             <button 
-                                className="btn btn-hero btn-primary hover-magical click-sparkle"
+                                className="landing-btn-hero btn btn-primary hover-magical click-sparkle"
                                 onClick={() => setPage('character')}
+                                aria-describedby="cta-description"
                             >
-                                <FiZap />
+                                <FiZap aria-hidden="true" />
                                 Start Your First Adventure
                             </button>
+                            <p id="cta-description" className="sr-only">
+                                Begin your journey by creating your first character
+                            </p>
                         </div>
                     ) : (
-                        <div className="hero-stats">
-                            <div className="stat-card">
-                                <FiUserPlus className="stat-icon" />
-                                <span className="stat-number">{characters.length}</span>
-                                <span className="stat-label">Heroes</span>
+                        <div className="landing-hero-stats" role="region" aria-label="Your magical world statistics">
+                            <div className="landing-stat-card">
+                                <FiUserPlus className="landing-stat-icon" aria-hidden="true" />
+                                <span className="landing-stat-number">{characters.length}</span>
+                                <span className="landing-stat-label">Heroes</span>
                             </div>
-                            <div className="stat-card">
-                                <FiGlobe className="stat-icon" />
-                                <span className="stat-number">{worlds.length}</span>
-                                <span className="stat-label">Worlds</span>
+                            <div className="landing-stat-card">
+                                <FiGlobe className="landing-stat-icon" aria-hidden="true" />
+                                <span className="landing-stat-number">{worlds.length}</span>
+                                <span className="landing-stat-label">Worlds</span>
                             </div>
-                            <div className="stat-card">
-                                <FiBookOpen className="stat-icon" />
-                                <span className="stat-number">{totalAdventures}</span>
-                                <span className="stat-label">Adventures</span>
+                            <div className="landing-stat-card">
+                                <FiBookOpen className="landing-stat-icon" aria-hidden="true" />
+                                <span className="landing-stat-number">{totalAdventures}</span>
+                                <span className="landing-stat-label">Adventures</span>
                             </div>
                         </div>
                     )}
@@ -137,93 +144,116 @@ export function LandingPage() {
             </section>
 
             {/* Quick Actions */}
-            <section className="quick-actions">
-                <h2 className="section-title">Begin Your Journey</h2>
-                <div className="action-cards">
+            <section className="landing-quick-actions" aria-labelledby="quick-actions-title">
+                <h2 className="landing-section-title" id="quick-actions-title">Begin Your Journey</h2>
+                <div className="landing-action-cards" role="group" aria-label="Quick action buttons">
                     <button 
-                        className="action-card character-card hover-magical animate-entrance"
+                        className="landing-action-card character-card hover-magical animate-entrance"
                         onClick={() => setPage('character')}
                         style={{animationDelay: '0.1s'}}
+                        aria-describedby="character-description"
                     >
-                        <div className="card-icon">
+                        <div className="landing-card-icon" aria-hidden="true">
                             <FiUserPlus />
                         </div>
                         <h3>Create Character</h3>
-                        <p>Forge a legendary hero with unique traits and abilities</p>
-                        <div className="card-decoration"></div>
+                        <p id="character-description">Forge a legendary hero with unique traits, abilities, and a compelling backstory</p>
                     </button>
                     
                     <button 
-                        className="action-card world-card hover-magical animate-entrance"
+                        className="landing-action-card world-card hover-magical animate-entrance"
                         onClick={() => setPage('world')}
                         style={{animationDelay: '0.2s'}}
+                        aria-describedby="world-description"
                     >
-                        <div className="card-icon">
+                        <div className="landing-card-icon" aria-hidden="true">
                             <FiGlobe />
                         </div>
                         <h3>Build World</h3>
-                        <p>Design mystical realms filled with wonder and danger</p>
-                        <div className="card-decoration"></div>
+                        <p id="world-description">Design mystical realms filled with wonder, danger, and endless possibilities</p>
                     </button>
                     
                     <button 
-                        className="action-card adventure-card hover-magical animate-entrance"
+                        className="landing-action-card adventure-card hover-magical animate-entrance"
                         onClick={() => setPage('adventure')}
                         style={{animationDelay: '0.3s'}}
+                        aria-describedby="adventure-description"
                     >
-                        <div className="card-icon">
+                        <div className="landing-card-icon" aria-hidden="true">
                             <FiBookOpen />
                         </div>
                         <h3>Create Adventure</h3>
-                        <p>Craft epic quests and thrilling storylines</p>
-                        <div className="card-decoration"></div>
+                        <p id="adventure-description">Craft epic quests, thrilling storylines, and memorable encounters</p>
                     </button>
                 </div>
             </section>
 
             {/* Content Sections */}
             {hasContent && (
-                <section className="content-sections">
+                <section className="landing-content-sections" aria-labelledby="content-sections-title">
+                    <h2 className="sr-only" id="content-sections-title">Your Content</h2>
+                    
                     {/* Section Tabs */}
-                    <div className="section-tabs">
+                    <div className="landing-section-tabs" role="tablist" aria-label="Content sections">
                         <button 
-                            className={`tab-button ${activeSection === 'inprogress' ? 'active' : ''}`}
+                            className={`landing-tab-button ${activeSection === 'inprogress' ? 'active' : ''}`}
                             onClick={() => setActiveSection('inprogress')}
+                            role="tab"
+                            aria-selected={activeSection === 'inprogress'}
+                            aria-controls="inprogress-panel"
+                            id="inprogress-tab"
                         >
-                            <FiPlay />
+                            <FiPlay aria-hidden="true" />
                             Active Adventures
-                            <span className="tab-count">{inProgressAdventures.length}</span>
+                            <span className="landing-tab-count">{inProgressAdventures.length}</span>
                         </button>
                         <button 
-                            className={`tab-button ${activeSection === 'characters' ? 'active' : ''}`}
+                            className={`landing-tab-button ${activeSection === 'characters' ? 'active' : ''}`}
                             onClick={() => setActiveSection('characters')}
+                            role="tab"
+                            aria-selected={activeSection === 'characters'}
+                            aria-controls="characters-panel"
+                            id="characters-tab"
                         >
-                            <FiUserPlus />
+                            <FiUserPlus aria-hidden="true" />
                             Characters
-                            <span className="tab-count">{characters.length}</span>
+                            <span className="landing-tab-count">{characters.length}</span>
                         </button>
                         <button 
-                            className={`tab-button ${activeSection === 'worlds' ? 'active' : ''}`}
+                            className={`landing-tab-button ${activeSection === 'worlds' ? 'active' : ''}`}
                             onClick={() => setActiveSection('worlds')}
+                            role="tab"
+                            aria-selected={activeSection === 'worlds'}
+                            aria-controls="worlds-panel"
+                            id="worlds-tab"
                         >
-                            <FiGlobe />
+                            <FiGlobe aria-hidden="true" />
                             Worlds
-                            <span className="tab-count">{worlds.length}</span>
+                            <span className="landing-tab-count">{worlds.length}</span>
                         </button>
                         <button 
-                            className={`tab-button ${activeSection === 'templates' ? 'active' : ''}`}
+                            className={`landing-tab-button ${activeSection === 'templates' ? 'active' : ''}`}
                             onClick={() => setActiveSection('templates')}
+                            role="tab"
+                            aria-selected={activeSection === 'templates'}
+                            aria-controls="templates-panel"
+                            id="templates-tab"
                         >
-                            <FiBookOpen />
+                            <FiBookOpen aria-hidden="true" />
                             Templates
-                            <span className="tab-count">{templateAdventures.length}</span>
+                            <span className="landing-tab-count">{templateAdventures.length}</span>
                         </button>
                     </div>
 
                     {/* Tab Content */}
-                    <div className="tab-content animate-entrance">
+                    <div className="landing-tab-content animate-entrance">
                         {activeSection === 'characters' && (
-                            <div className="content-panel">
+                            <div 
+                                className="landing-content-panel"
+                                role="tabpanel"
+                                aria-labelledby="characters-tab"
+                                id="characters-panel"
+                            >
                                 <CharacterList
                                     characters={characters}
                                     onEdit={handleCharacterEdit}
@@ -233,7 +263,12 @@ export function LandingPage() {
                         )}
 
                         {activeSection === 'worlds' && (
-                            <div className="content-panel">
+                            <div 
+                                className="landing-content-panel"
+                                role="tabpanel"
+                                aria-labelledby="worlds-tab"
+                                id="worlds-panel"
+                            >
                                 <WorldList
                                     worlds={worlds}
                                     onEdit={handleWorldEdit}
@@ -243,7 +278,12 @@ export function LandingPage() {
                         )}
 
                         {activeSection === 'templates' && (
-                            <div className="content-panel">
+                            <div 
+                                className="landing-content-panel"
+                                role="tabpanel"
+                                aria-labelledby="templates-tab"
+                                id="templates-panel"
+                            >
                                 <TemplateList
                                     templates={templateAdventures}
                                     onEdit={handleTemplateEdit}
@@ -254,7 +294,12 @@ export function LandingPage() {
                         )}
 
                         {activeSection === 'inprogress' && (
-                            <div className="content-panel">
+                            <div 
+                                className="landing-content-panel"
+                                role="tabpanel"
+                                aria-labelledby="inprogress-tab"
+                                id="inprogress-panel"
+                            >
                                 <InProgressList
                                     adventures={inProgressAdventures}
                                     onEdit={handleInProgressEdit}
@@ -269,23 +314,23 @@ export function LandingPage() {
 
             {/* Tips Section for New Users */}
             {!hasContent && (
-                <section className="tips-section animate-entrance">
-                    <h2 className="section-title">How to Get Started</h2>
-                    <div className="tips-grid">
-                        <div className="tip-card">
-                            <div className="tip-number">1</div>
+                <section className="landing-tips-section animate-entrance" aria-labelledby="tips-title">
+                    <h2 className="landing-section-title" id="tips-title">How to Get Started</h2>
+                    <div className="landing-tips-grid">
+                        <div className="landing-tip-card">
+                            <div className="landing-tip-number" aria-hidden="true">1</div>
                             <h3>Create Your Hero</h3>
-                            <p>Design a character with unique stats, skills, and backstory</p>
+                            <p>Design a character with unique stats, skills, and backstory that will shape your adventures</p>
                         </div>
-                        <div className="tip-card">
-                            <div className="tip-number">2</div>
+                        <div className="landing-tip-card">
+                            <div className="landing-tip-number" aria-hidden="true">2</div>
                             <h3>Build Your World</h3>
-                            <p>Craft the setting where your adventures will unfold</p>
+                            <p>Craft the setting where your adventures will unfold, complete with lore and atmosphere</p>
                         </div>
-                        <div className="tip-card">
-                            <div className="tip-number">3</div>
+                        <div className="landing-tip-card">
+                            <div className="landing-tip-number" aria-hidden="true">3</div>
                             <h3>Start an Adventure</h3>
-                            <p>Launch into an AI-powered story with your character</p>
+                            <p>Launch into an AI-powered story with your character and watch the magic unfold</p>
                         </div>
                     </div>
                 </section>
@@ -297,11 +342,15 @@ export function LandingPage() {
                     <button 
                         className="btn btn-danger btn-sm"
                         onClick={() => setConfirmClear(true)}
+                        aria-describedby="clear-warning"
                     >
-                        <FiTrash2 />
+                        <FiTrash2 aria-hidden="true" />
                         Clear All Data
                     </button>
                 )}
+                <p id="clear-warning" className="sr-only">
+                    This action will permanently delete all your characters, worlds, and adventures
+                </p>
             </footer>
 
             {confirmClear && (
