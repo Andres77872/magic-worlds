@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useState } from 'react'
 import type { TurnEntry } from '../../../shared'
 import './ChatTurn.css'
 
@@ -21,6 +22,7 @@ interface ChatTurnProps {
     onForwardOptionClick: (option: string) => void
     onRegenerateClick?: (turnId: string) => void
     onDeleteClick?: (turnId: string) => void
+    onEditClick?: (turnId: string, newContent: string) => void
 }
 
 // Process text nodes to handle dialogue formatting
@@ -46,8 +48,37 @@ function processTextContent(content: string): React.ReactNode[] {
     return result.length > 0 ? result : [content];
 }
 
-export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick }: ChatTurnProps) {
+export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onEditClick }: ChatTurnProps) {
     const isUser = turn.type === 'user'
+    const [isEditing, setIsEditing] = useState(false)
+    const [editContent, setEditContent] = useState(turn.content)
+    
+    const handleEditStart = () => {
+        setIsEditing(true)
+        setEditContent(turn.content)
+    }
+    
+    const handleEditSave = () => {
+        if (onEditClick && editContent.trim() !== turn.content) {
+            onEditClick(turn.id, editContent.trim())
+        }
+        setIsEditing(false)
+    }
+    
+    const handleEditCancel = () => {
+        setEditContent(turn.content)
+        setIsEditing(false)
+    }
+    
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault()
+            handleEditSave()
+        } else if (e.key === 'Escape') {
+            e.preventDefault()
+            handleEditCancel()
+        }
+    }
     
     return (
         <div className={`chat-turn ${isUser ? 'user' : 'assistant'}`}>
@@ -73,6 +104,17 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                 minute: '2-digit' 
                             })}
                         </span>
+                        {isUser && onEditClick && !isEditing && (
+                            <button 
+                                className="edit-button"
+                                onClick={handleEditStart}
+                                aria-label="Edit message"
+                                title="Edit this message"
+                            >
+                                <span className="edit-icon">✏️</span>
+                                <span className="edit-text">Edit</span>
+                            </button>
+                        )}
                         {!isUser && onRegenerateClick && !turn.isStreaming && (
                             <button 
                                 className="regenerate-button"
@@ -84,7 +126,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                 <span className="regenerate-text">Regenerate</span>
                             </button>
                         )}
-                        {onDeleteClick && !turn.isStreaming && (
+                        {onDeleteClick && !turn.isStreaming && !isEditing && (
                             <button 
                                 className="delete-button"
                                 onClick={() => onDeleteClick(turn.id)}
@@ -100,7 +142,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                 
                 <div className="turn-content">
                     {isUser ? (
-                        // User content - simple layout
+                        // User content - simple layout with edit functionality
                         <>
                             {turn.imageUrl && (
                                 <div className="turn-image-container">
@@ -112,7 +154,37 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                     />
                                 </div>
                             )}
-                            <div className="turn-text user-text">{turn.content}</div>
+                            {isEditing ? (
+                                <div className="edit-container">
+                                    <textarea
+                                        className="edit-textarea"
+                                        value={editContent}
+                                        onChange={(e) => setEditContent(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder="Enter your action..."
+                                        autoFocus
+                                        rows={3}
+                                    />
+                                    <div className="edit-actions">
+                                        <button 
+                                            className="btn btn-primary btn-sm"
+                                            onClick={handleEditSave}
+                                            disabled={!editContent.trim()}
+                                        >
+                                            Save
+                                        </button>
+                                        <button 
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={handleEditCancel}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <span className="edit-hint">Ctrl+Enter to save, Escape to cancel</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="turn-text user-text">{turn.content}</div>
+                            )}
                         </>
                     ) : (
                         // Assistant content - side-by-side layout

@@ -139,6 +139,23 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         }
     }
 
+    const handleEditTurn = async (turnId: string, newContent: string) => {
+        try {
+            const updatedTurns = turns.map(turn => 
+                turn.id === turnId 
+                    ? { ...turn, content: newContent, timestamp: new Date().toISOString() }
+                    : turn
+            )
+            setTurns(updatedTurns)
+            
+            // Save the updated turns to storage
+            await storage.saveTurns(adventure.id, updatedTurns)
+        } catch (error) {
+            console.error('Failed to edit turn:', error)
+            setError('Failed to edit message. Please try again.')
+        }
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!input.trim() || isLoading) return
@@ -504,6 +521,7 @@ Respond to the user inputs as the assistant.`
                                 onForwardOptionClick={handleForwardOptionClick}
                                 onRegenerateClick={handleRegenerateResponse}
                                 onDeleteClick={handleDeleteTurn}
+                                onEditClick={handleEditTurn}
                             />
                         ))
                     )}

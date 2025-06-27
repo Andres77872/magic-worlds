@@ -1075,4 +1075,281 @@
   outline-offset: 2px;
 }
 
+/* =====================================================================
+   Edit Button
+   ===================================================================== */
+.edit-button {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 4px 8px;
+  background: var(--background-color-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-medium);
+  color: var(--text-color-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all 0.3s var(--ease-magical);
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  animation: fadeIn 0.3s ease forwards;
+  animation-delay: 0.1s;
+}
+
+[data-theme="light"] .edit-button {
+  background: var(--background-color-tertiary);
+  border-color: var(--border-color-lighter);
+  box-shadow: var(--shadow-sm);
+}
+
+.edit-text {
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  opacity: 0.9;
+}
+
+.edit-icon {
+  transition: transform 0.3s ease;
+}
+
+/* Hover effects */
+.edit-button:hover {
+  background: var(--background-color-tertiary);
+  border-color: var(--color-magic-glow);
+  color: var(--color-magic-glow);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(192, 132, 252, 0.2);
+}
+
+[data-theme="light"] .edit-button:hover {
+  background: var(--background-color-secondary);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.15);
+}
+
+.edit-button:hover .edit-icon {
+  transform: scale(1.1);
+  color: var(--color-magic-glow);
+}
+
+[data-theme="light"] .edit-button:hover .edit-icon {
+  color: var(--accent-color);
+}
+
+/* Active state */
+.edit-button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(192, 132, 252, 0.1);
+}
+
+/* Magical shimmer effect on hover */
+.edit-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent, 
+    var(--color-magic-glow), 
+    transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.edit-button:hover::before {
+  opacity: 0.1;
+  animation: shimmer 1s ease-in-out;
+}
+
+/* Focus state for accessibility */
+.edit-button:focus {
+  outline: 2px solid var(--color-magic-glow);
+  outline-offset: 2px;
+}
+
+[data-theme="light"] .edit-button:focus {
+  outline-color: var(--accent-color);
+}
+
+/* =====================================================================
+   Edit Container
+   ===================================================================== */
+.edit-container {
+  background: var(--background-color-secondary);
+  border: 2px solid var(--accent-color);
+  border-radius: var(--border-radius-medium);
+  padding: var(--spacing-md);
+  animation: fadeIn 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+[data-theme="light"] .edit-container {
+  background: var(--background-color-primary);
+  border-color: var(--color-magic-glow);
+  box-shadow: 0 4px 15px rgba(168, 85, 247, 0.1);
+}
+
+/* Magical glow effect for edit container */
+.edit-container::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: var(--gradient-glow);
+  opacity: 0.05;
+  animation: gradientShift 10s ease infinite;
+  pointer-events: none;
+}
+
+[data-theme="light"] .edit-container::before {
+  opacity: 0.02;
+}
+
+.edit-textarea {
+  width: 100%;
+  background: var(--background-color-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-small);
+  color: var(--text-color);
+  font-size: var(--font-size-normal);
+  font-family: inherit;
+  line-height: var(--line-height-normal);
+  padding: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  resize: vertical;
+  min-height: 80px;
+  transition: all 0.3s ease;
+}
+
+[data-theme="light"] .edit-textarea {
+  background: var(--background-color-primary);
+  border-color: var(--border-color-lighter);
+}
+
+.edit-textarea:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px var(--color-magic-glow);
+}
+
+[data-theme="light"] .edit-textarea:focus {
+  border-color: var(--color-magic-glow);
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.2);
+}
+
+.edit-textarea::placeholder {
+  color: var(--text-color-placeholder);
+  font-style: italic;
+}
+
+/* =====================================================================
+   Edit Actions
+   ===================================================================== */
+.edit-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.edit-actions .btn {
+  font-size: var(--font-size-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  min-width: 60px;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  font-weight: var(--font-weight-medium);
+}
+
+.edit-actions .btn-primary {
+  background: var(--gradient-primary);
+  border: none;
+  color: white;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+[data-theme="light"] .edit-actions .btn-primary {
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.2);
+}
+
+.edit-actions .btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+.edit-actions .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2);
+}
+
+.edit-actions .btn-secondary {
+  background: var(--background-color-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+[data-theme="light"] .edit-actions .btn-secondary {
+  background: var(--background-color-secondary);
+  border-color: var(--border-color-lighter);
+}
+
+.edit-actions .btn-secondary:hover {
+  border-color: var(--accent-color);
+  background: var(--background-color-hover);
+  transform: translateY(-1px);
+}
+
+.edit-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-color-secondary);
+  font-style: italic;
+  margin-left: auto;
+  opacity: 0.8;
+}
+
+/* =====================================================================
+   Responsive Design for Edit Elements
+   ===================================================================== */
+@media (max-width: 768px) {
+  .edit-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .edit-actions .btn {
+    width: 100%;
+    margin-bottom: var(--spacing-xs);
+  }
+  
+  .edit-hint {
+    margin-left: 0;
+    text-align: center;
+    margin-top: var(--spacing-xs);
+  }
+  
+  .edit-text {
+    display: none; /* Hide text on smaller screens, keep only icon */
+  }
+}
+
+@media (max-width: 480px) {
+  .edit-container {
+    padding: var(--spacing-sm);
+  }
+  
+  .edit-textarea {
+    min-height: 60px;
+  }
+}
+
 
