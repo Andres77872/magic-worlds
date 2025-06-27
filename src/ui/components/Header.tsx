@@ -4,7 +4,7 @@
 
 import { useEffect } from 'react'
 import { useTheme, useNavigation } from '../../app/hooks'
-import type { ThemeOption } from '../../shared/types'
+import type { ThemeOption } from '../../shared'
 import { FiMoon, FiSun, FiMonitor, FiGithub } from 'react-icons/fi'
 import { GiMagicSwirl, GiCrystalBall } from 'react-icons/gi'
 import './Header.css'

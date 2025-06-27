@@ -1,4 +1,4 @@
-import type {Adventure} from '../../../shared/types'
+import type {Adventure} from '../../../shared'
 import './InteractionLeftPanel.css'
 import {FaGlobe, FaInfoCircle, FaUsers} from 'react-icons/fa'
 

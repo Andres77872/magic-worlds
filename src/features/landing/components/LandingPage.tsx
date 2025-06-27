@@ -13,7 +13,7 @@ import {
     LandingFooter 
 } from './'
 import './LandingPage.css'
-import type { Character, World, Adventure } from '../../../shared/types'
+import type { Character, World, Adventure } from '../../../shared'
 
 export function LandingPage() {
     const { setPage } = useNavigation()

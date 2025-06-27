@@ -124,7 +124,7 @@
   
   .chat-turn__header-actions {
     align-self: flex-end;
-    margin-top: -var(--spacing-xs);
+    margin-top: var(--spacing-xs);
   }
   
   /* Switch to vertical layout for mobile */

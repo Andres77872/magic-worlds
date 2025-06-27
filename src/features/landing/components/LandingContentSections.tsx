@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { FiBookOpen, FiGlobe, FiPlay, FiUserPlus, FiUsers, FiMapPin, FiFileText, FiZap } from 'react-icons/fi'
-import { CharacterList, InProgressList, TemplateList, WorldList } from '../../../ui/components/lists'
-import type { Character, World, Adventure } from '../../../shared/types'
+import { CharacterList, InProgressList, TemplateList, WorldList } from '../../../ui/components'
+import type { Character, World, Adventure } from '../../../shared'
 import './LandingContentSections.css'
 
 interface LandingContentSectionsProps {

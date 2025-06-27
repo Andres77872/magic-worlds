@@ -40,9 +40,9 @@ export function fixIncompleteJSON(jsonStr: string): string {
     // Count opening and closing characters
     const counts = {
         openBrackets: (fixed.match(/\[/g) || []).length,
-        closeBrackets: (fixed.match(/\]/g) || []).length,
+        closeBrackets: (fixed.match(/]/g) || []).length,
         openBraces: (fixed.match(/\{/g) || []).length,
-        closeBraces: (fixed.match(/\}/g) || []).length,
+        closeBraces: (fixed.match(/}/g) || []).length,
         quotes: (fixed.match(/"/g) || []).length
     }
     
