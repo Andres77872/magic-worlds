@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FiBookOpen, FiGlobe, FiPlay, FiUserPlus } from 'react-icons/fi'
+import { FiBookOpen, FiGlobe, FiPlay, FiUserPlus, FiUsers, FiMapPin, FiFileText, FiZap } from 'react-icons/fi'
 import { CharacterList, InProgressList, TemplateList, WorldList } from '../../../ui/components/lists'
 import type { Character, World, Adventure } from '../../../shared/types'
 import './LandingContentSections.css'
@@ -20,6 +20,36 @@ interface LandingContentSectionsProps {
     onInProgressDelete: (index: number) => void | Promise<void>
 }
 
+// Empty state component for better UX
+interface EmptyStateProps {
+    icon: React.ReactNode
+    title: string
+    message: string
+    actionText?: string
+    onAction?: () => void
+}
+
+function EmptyState({ icon, title, message, actionText, onAction }: EmptyStateProps) {
+    return (
+        <div className="landing-content-panel-empty">
+            <div className="landing-empty-icon" aria-hidden="true">
+                {icon}
+            </div>
+            <h3 className="landing-empty-title">{title}</h3>
+            <p className="landing-empty-message">{message}</p>
+            {actionText && onAction && (
+                <button 
+                    className="btn btn-primary hover-magical" 
+                    onClick={onAction}
+                    style={{ marginTop: 'var(--spacing-lg)' }}
+                >
+                    {actionText}
+                </button>
+            )}
+        </div>
+    )
+}
+
 export function LandingContentSections({
     characters,
     worlds,
@@ -37,125 +67,143 @@ export function LandingContentSections({
 }: LandingContentSectionsProps) {
     const [activeSection, setActiveSection] = useState<'characters' | 'worlds' | 'templates' | 'inprogress'>('inprogress')
 
+    // Tab configuration for better maintainability
+    const tabs = [
+        {
+            id: 'inprogress' as const,
+            label: 'Active Adventures',
+            icon: <FiPlay aria-hidden="true" />,
+            count: inProgressAdventures.length,
+            emptyState: {
+                icon: <FiZap />,
+                title: 'No Active Adventures',
+                message: 'Start your first adventure by creating a template or jumping into an existing story. Your epic journey awaits!'
+            }
+        },
+        {
+            id: 'characters' as const,
+            label: 'Characters',
+            icon: <FiUserPlus aria-hidden="true" />,
+            count: characters.length,
+            emptyState: {
+                icon: <FiUsers />,
+                title: 'No Characters Created',
+                message: 'Create your first hero! Design a character with unique traits, abilities, and backstory to start your adventures.'
+            }
+        },
+        {
+            id: 'worlds' as const,
+            label: 'Worlds',
+            icon: <FiGlobe aria-hidden="true" />,
+            count: worlds.length,
+            emptyState: {
+                icon: <FiMapPin />,
+                title: 'No Worlds Built',
+                message: 'Build mystical realms filled with wonder and danger. Create the perfect setting for your adventures to unfold.'
+            }
+        },
+        {
+            id: 'templates' as const,
+            label: 'Templates',
+            icon: <FiBookOpen aria-hidden="true" />,
+            count: templateAdventures.length,
+            emptyState: {
+                icon: <FiFileText />,
+                title: 'No Adventure Templates',
+                message: 'Create adventure templates to quickly start new stories. Design quests, encounters, and storylines for reuse.'
+            }
+        }
+    ]
+
+    const renderTabContent = () => {
+        switch (activeSection) {
+            case 'characters':
+                return characters.length > 0 ? (
+                    <CharacterList
+                        characters={characters}
+                        onEdit={onCharacterEdit}
+                        onDelete={onCharacterDelete}
+                    />
+                ) : (
+                    <EmptyState {...tabs.find(tab => tab.id === 'characters')!.emptyState} />
+                )
+
+            case 'worlds':
+                return worlds.length > 0 ? (
+                    <WorldList
+                        worlds={worlds}
+                        onEdit={onWorldEdit}
+                        onDelete={onWorldDelete}
+                    />
+                ) : (
+                    <EmptyState {...tabs.find(tab => tab.id === 'worlds')!.emptyState} />
+                )
+
+            case 'templates':
+                return templateAdventures.length > 0 ? (
+                    <TemplateList
+                        templates={templateAdventures}
+                        onEdit={onTemplateEdit}
+                        onStart={onTemplateStart}
+                        onDelete={onTemplateDelete}
+                    />
+                ) : (
+                    <EmptyState {...tabs.find(tab => tab.id === 'templates')!.emptyState} />
+                )
+
+            case 'inprogress':
+                return inProgressAdventures.length > 0 ? (
+                    <InProgressList
+                        adventures={inProgressAdventures}
+                        onEdit={onInProgressEdit}
+                        onPlay={onInProgressEdit}
+                        onDelete={onInProgressDelete}
+                    />
+                ) : (
+                    <EmptyState {...tabs.find(tab => tab.id === 'inprogress')!.emptyState} />
+                )
+
+            default:
+                return null
+        }
+    }
+
     return (
         <section className="landing-content-sections" aria-labelledby="content-sections-title">
             <h2 className="sr-only" id="content-sections-title">Your Content</h2>
             
             {/* Section Tabs */}
             <div className="landing-section-tabs" role="tablist" aria-label="Content sections">
-                <button 
-                    className={`landing-tab-button ${activeSection === 'inprogress' ? 'active' : ''}`}
-                    onClick={() => setActiveSection('inprogress')}
-                    role="tab"
-                    aria-selected={activeSection === 'inprogress'}
-                    aria-controls="inprogress-panel"
-                    id="inprogress-tab"
-                >
-                    <FiPlay aria-hidden="true" />
-                    Active Adventures
-                    <span className="landing-tab-count">{inProgressAdventures.length}</span>
-                </button>
-                <button 
-                    className={`landing-tab-button ${activeSection === 'characters' ? 'active' : ''}`}
-                    onClick={() => setActiveSection('characters')}
-                    role="tab"
-                    aria-selected={activeSection === 'characters'}
-                    aria-controls="characters-panel"
-                    id="characters-tab"
-                >
-                    <FiUserPlus aria-hidden="true" />
-                    Characters
-                    <span className="landing-tab-count">{characters.length}</span>
-                </button>
-                <button 
-                    className={`landing-tab-button ${activeSection === 'worlds' ? 'active' : ''}`}
-                    onClick={() => setActiveSection('worlds')}
-                    role="tab"
-                    aria-selected={activeSection === 'worlds'}
-                    aria-controls="worlds-panel"
-                    id="worlds-tab"
-                >
-                    <FiGlobe aria-hidden="true" />
-                    Worlds
-                    <span className="landing-tab-count">{worlds.length}</span>
-                </button>
-                <button 
-                    className={`landing-tab-button ${activeSection === 'templates' ? 'active' : ''}`}
-                    onClick={() => setActiveSection('templates')}
-                    role="tab"
-                    aria-selected={activeSection === 'templates'}
-                    aria-controls="templates-panel"
-                    id="templates-tab"
-                >
-                    <FiBookOpen aria-hidden="true" />
-                    Templates
-                    <span className="landing-tab-count">{templateAdventures.length}</span>
-                </button>
+                {tabs.map((tab) => (
+                    <button 
+                        key={tab.id}
+                        className={`landing-tab-button ${activeSection === tab.id ? 'active' : ''}`}
+                        onClick={() => setActiveSection(tab.id)}
+                        role="tab"
+                        aria-selected={activeSection === tab.id}
+                        aria-controls={`${tab.id}-panel`}
+                        id={`${tab.id}-tab`}
+                    >
+                        {tab.icon}
+                        {tab.label}
+                        <span className="landing-tab-count" aria-label={`${tab.count} items`}>
+                            {tab.count}
+                        </span>
+                    </button>
+                ))}
             </div>
 
             {/* Tab Content */}
             <div className="landing-tab-content animate-entrance">
-                {activeSection === 'characters' && (
-                    <div 
-                        className="landing-content-panel"
-                        role="tabpanel"
-                        aria-labelledby="characters-tab"
-                        id="characters-panel"
-                    >
-                        <CharacterList
-                            characters={characters}
-                            onEdit={onCharacterEdit}
-                            onDelete={onCharacterDelete}
-                        />
-                    </div>
-                )}
-
-                {activeSection === 'worlds' && (
-                    <div 
-                        className="landing-content-panel"
-                        role="tabpanel"
-                        aria-labelledby="worlds-tab"
-                        id="worlds-panel"
-                    >
-                        <WorldList
-                            worlds={worlds}
-                            onEdit={onWorldEdit}
-                            onDelete={onWorldDelete}
-                        />
-                    </div>
-                )}
-
-                {activeSection === 'templates' && (
-                    <div 
-                        className="landing-content-panel"
-                        role="tabpanel"
-                        aria-labelledby="templates-tab"
-                        id="templates-panel"
-                    >
-                        <TemplateList
-                            templates={templateAdventures}
-                            onEdit={onTemplateEdit}
-                            onStart={onTemplateStart}
-                            onDelete={onTemplateDelete}
-                        />
-                    </div>
-                )}
-
-                {activeSection === 'inprogress' && (
-                    <div 
-                        className="landing-content-panel"
-                        role="tabpanel"
-                        aria-labelledby="inprogress-tab"
-                        id="inprogress-panel"
-                    >
-                        <InProgressList
-                            adventures={inProgressAdventures}
-                            onEdit={onInProgressEdit}
-                            onPlay={onInProgressEdit}
-                            onDelete={onInProgressDelete}
-                        />
-                    </div>
-                )}
+                <div 
+                    className="landing-content-panel"
+                    role="tabpanel"
+                    aria-labelledby={`${activeSection}-tab`}
+                    id={`${activeSection}-panel`}
+                    key={activeSection} // Force re-render for animation
+                >
+                    {renderTabContent()}
+                </div>
             </div>
         </section>
     )
