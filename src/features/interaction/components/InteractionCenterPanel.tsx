@@ -76,6 +76,11 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         const userMessage = turns[userMessageIndex].content
         const existingAiTurn = turns[turnIndex] as ExtendedTurnEntry
         
+        // Store the original content in case we need to restore it on error
+        const originalContent = existingAiTurn.content
+        const originalForwardOptions = existingAiTurn.forwardOptions
+        const originalImageUrl = existingAiTurn.imageUrl
+        
         // Remove any subsequent turns but keep the AI turn we're regenerating
         const truncatedTurns = turns.slice(0, turnIndex + 1)
         
@@ -106,13 +111,16 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             setIsLoading(false)
             
             // Reset streaming states on the AI turn when regeneration fails
+            // If there was original content, restore it; otherwise keep it empty for regeneration
             const failedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
                 t.id === resetAiTurn.id
                     ? {
                         ...t,
                         isStreaming: false,
                         isStreamingForwardOptions: false,
-                        content: '' // Keep content empty so regeneration button stays visible
+                        content: originalContent || '', // Restore original content if it existed
+                        forwardOptions: originalContent ? originalForwardOptions : undefined, // Restore forward options if content existed
+                        imageUrl: originalContent ? originalImageUrl : undefined // Restore image URL if content existed
                     }
                     : t
             )
