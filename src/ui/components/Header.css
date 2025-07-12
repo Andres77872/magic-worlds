@@ -117,6 +117,101 @@
     gap: var(--padding-medium);
 }
 
+.auth-section {
+    display: flex;
+    align-items: center;
+    gap: var(--padding-small);
+}
+
+.user-menu {
+    display: flex;
+    align-items: center;
+    gap: var(--padding-small);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: var(--padding-small);
+    padding: var(--padding-small) var(--padding-medium);
+    border-radius: var(--border-radius-small);
+    background: var(--background-color-tertiary);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+.user-icon {
+    font-size: 1rem;
+    color: var(--accent-color);
+}
+
+.username {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.login-button {
+    display: flex;
+    align-items: center;
+    gap: var(--padding-small);
+    padding: var(--padding-small) var(--padding-medium);
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius-small);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--duration-fast) ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.login-button::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--gradient-magical);
+    opacity: 0;
+    transition: opacity var(--duration-fast) ease;
+    z-index: -1;
+}
+
+.login-button:hover::before {
+    opacity: 1;
+}
+
+.login-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.login-icon {
+    font-size: 1rem;
+}
+
+.logout-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-small);
+    cursor: pointer;
+    transition: all var(--duration-fast) ease;
+    color: var(--text-color-secondary);
+}
+
+.logout-button:hover {
+    background: var(--color-danger-light);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+    transform: translateY(-1px);
+}
+
 .github-link {
     position: relative;
 }
@@ -236,21 +331,29 @@
     .header-content {
         padding: var(--padding-small) var(--padding-medium);
     }
-    
+
     .app-logo {
         font-size: 2rem;
     }
-    
+
     .brand-title {
         font-size: 1rem;
     }
-    
+
     .page-indicator {
         padding: var(--padding-small) var(--padding-medium);
     }
-    
+
     .page-title {
         font-size: 0.8rem;
+    }
+    
+    .login-button span {
+        display: none;
+    }
+    
+    .user-info .username {
+        display: none;
     }
 }
 

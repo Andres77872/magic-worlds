@@ -4,6 +4,7 @@
 
 export { Header } from './Header'
 export { LoadingSpinner } from './LoadingSpinner'
+export { LoginModal } from './LoginModal'
 export { ConfirmDialog } from './ConfirmDialog'
 
 // List components

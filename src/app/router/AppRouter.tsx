@@ -2,8 +2,9 @@
  * Application routing logic
  */
 
-import { useNavigation, useData, useTheme } from '../hooks'
+import { useNavigation, useData, useTheme, useAuth } from '../hooks'
 import { Header } from '../../ui/components/Header'
+import { LoginModal } from '../../ui/components/LoginModal'
 import { LandingPage } from '../../features/landing/components/LandingPage'
 import { CharacterCreator } from '../../features/creation/character/components/CharacterCreator'
 import { WorldCreator } from '../../features/creation/world/components/WorldCreator'
@@ -15,6 +16,7 @@ export function AppRouter() {
     const { currentPage } = useNavigation()
     const { loadingState } = useData()
     const { theme } = useTheme()
+    const { isLoginModalOpen, closeLoginModal } = useAuth()
 
     if (loadingState.isLoading) {
         return <LoadingSpinner />
@@ -39,6 +41,12 @@ export function AppRouter() {
                 {currentPage === 'adventure' && <AdventureCreator />}
                 {currentPage === 'interaction' && <AdventureInteraction />}
             </main>
+            
+            {/* Global Login Modal */}
+            <LoginModal 
+                isOpen={isLoginModalOpen}
+                onClose={closeLoginModal}
+            />
         </div>
     )
 }

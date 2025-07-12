@@ -7,6 +7,22 @@
 
 /* Dark theme variables: Fantasy dark theme with mystical colors */
 [data-theme="dark"] {
+    /* Component-specific variable mappings */
+    --bg-primary: var(--background-color-primary);
+    --bg-secondary: var(--background-color-secondary);
+    --bg-tertiary: var(--background-color-tertiary);
+    --text-primary: var(--text-color);
+    --text-secondary: var(--text-color-secondary);
+    --text-tertiary: var(--text-color-placeholder);
+    --accent-primary: var(--accent-color);
+    --accent-secondary: var(--accent-secondary);
+    --accent-primary-hover: var(--accent-color-hover);
+    --accent-primary-alpha: var(--accent-color-transparency);
+    --border-radius-sm: var(--border-radius-small);
+    --border-radius-md: var(--border-radius-medium);
+    --border-radius-lg: var(--border-radius-large);
+    --color-danger: var(--color-error);
+    --color-danger-light: var(--color-error-transparency);
     /* Backgrounds */
     --background-color-website: #0a0a0f; /* Deep space black */
     --background-color-primary: #12121a; /* Midnight blue-black */
@@ -51,6 +67,14 @@
     --color-warning: #f59e0b;
     --color-warning-hover: #d97706;
     --color-warning-transparency: rgba(245, 158, 11, 0.3);
+    
+    /* Warning and Error Background/Border for components */
+    --warning-bg: rgba(245, 158, 11, 0.1);
+    --warning-border: rgba(245, 158, 11, 0.3);
+    --warning-text: #f59e0b;
+    --error-bg: rgba(239, 68, 68, 0.1);
+    --error-border: rgba(239, 68, 68, 0.3);
+    --error-text: #ef4444;
 
     /* Magical Elements */
     --color-magic-glow: #c084fc; /* Bright magic purple */
@@ -74,6 +98,22 @@
 
 /* Light theme variables: Enchanted light theme */
 [data-theme="light"] {
+    /* Component-specific variable mappings */
+    --bg-primary: var(--background-color-primary);
+    --bg-secondary: var(--background-color-secondary);
+    --bg-tertiary: var(--background-color-tertiary);
+    --text-primary: var(--text-color);
+    --text-secondary: var(--text-color-secondary);
+    --text-tertiary: var(--text-color-placeholder);
+    --accent-primary: var(--accent-color);
+    --accent-secondary: var(--accent-secondary);
+    --accent-primary-hover: var(--accent-color-hover);
+    --accent-primary-alpha: var(--accent-color-transparency);
+    --border-radius-sm: var(--border-radius-small);
+    --border-radius-md: var(--border-radius-medium);
+    --border-radius-lg: var(--border-radius-large);
+    --color-danger: var(--color-error);
+    --color-danger-light: var(--color-error-transparency);
     /* Backgrounds */
     --background-color-website: #faf9fc; /* Parchment white */
     --background-color-primary: #ffffff;
@@ -118,6 +158,14 @@
     --color-warning: #d97706;
     --color-warning-hover: #b45309;
     --color-warning-transparency: rgba(217, 119, 6, 0.15);
+    
+    /* Warning and Error Background/Border for components */
+    --warning-bg: rgba(217, 119, 6, 0.1);
+    --warning-border: rgba(217, 119, 6, 0.3);
+    --warning-text: #d97706;
+    --error-bg: rgba(220, 38, 38, 0.1);
+    --error-border: rgba(220, 38, 38, 0.3);
+    --error-text: #dc2626;
 
     /* Magical Elements */
     --color-magic-glow: #a855f7;

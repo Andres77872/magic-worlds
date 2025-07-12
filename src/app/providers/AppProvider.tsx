@@ -3,9 +3,10 @@
  */
 
 import type { ReactNode } from 'react'
-import { ThemeProvider } from './ThemeProvider'
+import { AuthProvider } from './AuthProvider'
 import { DataProvider } from './DataProvider'
 import { NavigationProvider } from './NavigationProvider'
+import { ThemeProvider } from './ThemeProvider'
 
 interface AppProviderProps {
     children: ReactNode
@@ -14,11 +15,13 @@ interface AppProviderProps {
 export function AppProvider({ children }: AppProviderProps) {
     return (
         <ThemeProvider>
-            <NavigationProvider>
-                <DataProvider>
-                    {children}
-                </DataProvider>
-            </NavigationProvider>
+            <AuthProvider>
+                <NavigationProvider>
+                    <DataProvider>
+                        {children}
+                    </DataProvider>
+                </NavigationProvider>
+            </AuthProvider>
         </ThemeProvider>
     )
 }

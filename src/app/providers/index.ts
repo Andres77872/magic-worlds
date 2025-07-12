@@ -3,6 +3,7 @@
  */
 
 export { AppProvider } from './AppProvider'
-export { ThemeProvider } from './ThemeProvider'
-export { NavigationProvider } from './NavigationProvider'
+export { AuthProvider } from './AuthProvider'
 export { DataProvider } from './DataProvider'
+export { NavigationProvider } from './NavigationProvider'
+export { ThemeProvider } from './ThemeProvider'

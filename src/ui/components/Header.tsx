@@ -3,15 +3,16 @@
  */
 
 import { useEffect } from 'react'
-import { useTheme, useNavigation } from '../../app/hooks'
+import { useTheme, useNavigation, useAuth } from '../../app/hooks'
 import type { ThemeOption } from '../../shared'
-import { FiMoon, FiSun, FiMonitor, FiGithub } from 'react-icons/fi'
+import { FiMoon, FiSun, FiMonitor, FiGithub, FiLogIn, FiLogOut, FiUser } from 'react-icons/fi'
 import { GiMagicSwirl, GiCrystalBall } from 'react-icons/gi'
 import './Header.css'
 
 export function Header() {
     const { theme, setTheme } = useTheme()
     const { currentPage, setPage } = useNavigation()
+    const { isAuthenticated, user, logout, openLoginModal } = useAuth()
 
     // Apply theme attribute to <html>
     useEffect(() => {
@@ -74,6 +75,35 @@ export function Header() {
                 </div>
 
                 <div className="header-actions">
+                    <div className="auth-section">
+                        {isAuthenticated ? (
+                            <div className="user-menu">
+                                <div className="user-info">
+                                    <FiUser className="user-icon" />
+                                    <span className="username">{user?.username}</span>
+                                </div>
+                                <button
+                                    className="logout-button hover-magical"
+                                    onClick={logout}
+                                    aria-label="Logout"
+                                    title="Logout"
+                                >
+                                    <FiLogOut className="logout-icon" />
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                className="login-button hover-magical"
+                                onClick={openLoginModal}
+                                aria-label="Login"
+                                title="Login"
+                            >
+                                <FiLogIn className="login-icon" />
+                                <span>Login</span>
+                            </button>
+                        )}
+                    </div>
+                    
                     <div className="github-link">
                         <a
                             href="https://github.com/Andres77872/magic-worlds"
