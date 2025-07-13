@@ -125,12 +125,15 @@ export function WorldCreator() {
             description: description || `Custom attributes for ${name}`
         };
 
-        // Add the new category to customCategories state first
-        const updatedCustomCategories = [...customCategories, newCategory];
-        setCustomCategories(updatedCustomCategories);
+        // Add the new category to customCategories state using functional update
+        setCustomCategories(prev => [...prev, newCategory]);
         
-        // Then update attributeCategories with the updated custom categories
-        setAttributeCategories([...DEFAULT_WORLD_CATEGORIES, ...updatedCustomCategories]);
+        // Then update attributeCategories with the functional update pattern
+        setAttributeCategories(prev => [
+            ...DEFAULT_WORLD_CATEGORIES,
+            ...prev.filter(cat => cat.type === 'custom'),
+            newCategory
+        ]);
 
         // Initialize empty attributes array for this category
         setAttributes(prev => ({

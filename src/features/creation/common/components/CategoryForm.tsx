@@ -102,8 +102,14 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
                     Cancel
                 </button>
                 <button
-                    type="submit"
+                    type={useFormWrapper ? "submit" : "button"}
                     className="creator-btn creator-btn-primary creator-btn-sm"
+                    onClick={useFormWrapper ? undefined : (e) => {
+                        e.preventDefault();
+                        if (name.trim()) {
+                            onSubmit(name.trim(), description.trim());
+                        }
+                    }}
                 >
                     Create Category
                 </button>
