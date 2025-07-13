@@ -17,6 +17,7 @@ import {
     AttributeManager,
     FormActions 
 } from '../../common/components';
+import { CategoryService } from '../../common/services';
 import './CharacterCreator.css';
 
 // Predefined attribute categories for characters
@@ -121,38 +122,50 @@ export function CharacterCreator() {
         initializeAttributes()
     );
     
-    // Add a new custom category
-    const addCategory = (name: string, description: string) => {
-        const id = name.toLowerCase().replace(/\s+/g, '-');
-
-        // Check if category with this id already exists
-        if (attributeCategories.some(cat => cat.id === id)) {
-            alert('A category with a similar name already exists. Please use a different name.');
-            return;
+    // Load custom categories from editing character using CategoryService
+    useEffect(() => {
+        if (editingCharacter) {
+            const savedCustomCategories = CategoryService.loadCategories(editingCharacter, 'stats');
+            
+            if (savedCustomCategories.length > 0) {
+                setCustomCategories(savedCustomCategories);
+                
+                // Update all categories
+                setAttributeCategories([
+                    ...DEFAULT_CHARACTER_CATEGORIES,
+                    ...savedCustomCategories
+                ]);
+                
+                // Initialize attributes for all categories using CategoryService
+                const allCategories = [...DEFAULT_CHARACTER_CATEGORIES, ...savedCustomCategories];
+                const initializedAttributes = CategoryService.initializeAttributes(
+                    editingCharacter,
+                    allCategories,
+                    'stats'
+                );
+                
+                setAttributes(initializedAttributes);
+            }
         }
+    }, [editingCharacter]);
 
-        const newCategory: AttributeCategory = {
-            id,
-            name,
-            type: 'custom',
-            description: description || `Custom attributes for ${name}`
-        };
-
-        // Add the new category to customCategories state using functional update
+    // Add a new custom category using CategoryService
+    const addCategory = (name: string, description: string) => {
+        const newCategory = CategoryService.createCategory(name, description);
+        
+        // Add the new category to customCategories state
         setCustomCategories(prev => [...prev, newCategory]);
         
-        // Then update attributeCategories with the functional update pattern
-        setAttributeCategories(prev => [
-            ...DEFAULT_CHARACTER_CATEGORIES,
-            ...prev.filter(cat => cat.type === 'custom'),
-            newCategory
-        ]);
-
+        // Update attributeCategories
+        setAttributeCategories(prev => [...prev, newCategory]);
+        
         // Initialize empty attributes array for this category
         setAttributes(prev => ({
             ...prev,
-            [id]: []
+            [newCategory.id]: []
         }));
+        
+        return newCategory.id;
     };
     
     // Delete a category
@@ -212,51 +225,44 @@ export function CharacterCreator() {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+        if (!name || !race) return;
+        
         setIsSubmitting(true);
         
         try {
-            // Flatten all attributes into stats and additional properties
-            const allStats: Record<string, string> = {};
-            const additionalProps: Record<string, Record<string, string>> = {};
-            
-            // Process attributes
-            Object.entries(attributes).forEach(([categoryId, items]) => {
-                if (categoryId === 'stats') {
-                    // Stats go directly into the stats object
-                    items.forEach(({key, value}) => {
-                        if (key) allStats[key] = value;
-                    });
-                } else {
-                    // Other categories become separate properties
-                    const categoryData: Record<string, string> = {};
-                    items.forEach(({key, value}) => {
-                        if (key) categoryData[key] = value;
-                    });
-                    if (Object.keys(categoryData).length > 0) {
-                        additionalProps[categoryId] = categoryData;
-                    }
-                }
-            });
-            
-            // Store custom category metadata in stats
-            if (customCategories.length > 0) {
-                allStats._customCategories = JSON.stringify(customCategories);
-            }
-            
-            const character: Character = {
-                id,
-                name,
-                race,
+            // Prepare character data structure
+            let characterData: Character = {
+                id, 
+                name, 
+                race, 
                 description,
-                stats: allStats,
-                ...additionalProps,
+                stats: {},
+                skills: {},
+                traits: {},
+                equipment: {},
                 createdAt: editingCharacter?.createdAt ?? new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
             
+            // Save custom categories metadata using CategoryService
+            if (customCategories.length > 0) {
+                characterData = CategoryService.saveCategories(characterData, customCategories, 'stats') as Character;
+            }
+            
+            // Save attributes for all categories using CategoryService
+            Object.keys(attributes).forEach(categoryId => {
+                characterData = CategoryService.saveAttributes(
+                    characterData,
+                    categoryId,
+                    attributes[categoryId]?.filter(attr => attr.key && attr.value) || [],
+                    'stats'
+                ) as Character;
+            });
+            
+            // Save to storage and update app state
             const updatedCharacters = editingCharacter 
-                ? characters.map(c => c.id === id ? character : c)
-                : [...characters, character];
+                ? characters.map(c => c.id === id ? characterData : c)
+                : [...characters, characterData];
                 
             // First save to localStorage
             await storage.saveCharacters(updatedCharacters);
@@ -288,27 +294,28 @@ export function CharacterCreator() {
 
     // Load custom categories from editing character
     useEffect(() => {
-        if (editingCharacter && editingCharacter.stats && editingCharacter.stats._customCategories) {
-            try {
-                const savedCustomCategories = JSON.parse(editingCharacter.stats._customCategories as string) as AttributeCategory[];
+        // Load custom categories from existing character using CategoryService
+        if (editingCharacter) {
+            const savedCustomCategories = CategoryService.loadCategories(editingCharacter, 'stats');
+            
+            if (savedCustomCategories.length > 0) {
                 setCustomCategories(savedCustomCategories);
-                setAttributeCategories([...DEFAULT_CHARACTER_CATEGORIES, ...savedCustomCategories]);
                 
-                // Load attributes for custom categories
-                const newAttributes = { ...attributes };
-                savedCustomCategories.forEach(category => {
-                    const categoryData = (editingCharacter as any)[category.id];
-                    if (categoryData && typeof categoryData === 'object') {
-                        newAttributes[category.id] = Object.entries(categoryData)
-                            .map(([key, value]) => ({
-                                key,
-                                value: typeof value === 'string' ? value : String(value)
-                            }));
-                    }
-                });
-                setAttributes(newAttributes);
-            } catch (error) {
-                console.error('Error loading custom categories:', error);
+                // Update all categories
+                setAttributeCategories([
+                    ...DEFAULT_CHARACTER_CATEGORIES,
+                    ...savedCustomCategories
+                ]);
+                
+                // Initialize attributes for all categories using CategoryService
+                const allCategories = [...DEFAULT_CHARACTER_CATEGORIES, ...savedCustomCategories];
+                const initializedAttributes = CategoryService.initializeAttributes(
+                    editingCharacter,
+                    allCategories,
+                    'stats'
+                );
+                
+                setAttributes(initializedAttributes);
             }
         }
     }, [editingCharacter]);

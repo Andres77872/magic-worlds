@@ -6,7 +6,6 @@ import type { FormEvent, KeyboardEvent } from 'react';
 import { useState, useRef, useEffect } from 'react';
 import type { Adventure } from '../../../../shared';
 import { useNavigation, useData } from '../../../../app/hooks';
-import { storage } from '../../../../infrastructure/storage';
 import { generateUUID } from '../../../../utils/uuid';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
 import { 
@@ -16,6 +15,7 @@ import {
     AttributeManager,
     FormActions 
 } from '../../common/components';
+import { CategoryService } from '../../common/services';
 import './AdventureCreator.css';
 
 // Predefined adventure attribute categories
@@ -130,34 +130,52 @@ export function AdventureCreator() {
         initializeAttributes()
     );
     
-    // Add a new custom category
-    const addCategory = (name: string, description: string) => {
-        const id = name.toLowerCase().replace(/\s+/g, '-');
-
-        // Check if category with this id already exists
-        if (attributeCategories.some(cat => cat.id === id)) {
-            alert('A category with a similar name already exists. Please use a different name.');
-            return;
+    // Effect for loading custom categories from editing adventure using CategoryService
+    useEffect(() => {
+        if (editingTemplate) {
+            const savedCustomCategories = CategoryService.loadCategories(editingTemplate, 'details');
+            
+            if (savedCustomCategories.length > 0) {
+                setCustomCategories(savedCustomCategories);
+                
+                // Update all categories list
+                setAttributeCategories([
+                    ...DEFAULT_ADVENTURE_CATEGORIES,
+                    ...savedCustomCategories
+                ]);
+                
+                // Initialize attributes for all categories using CategoryService
+                const allCategories = [...DEFAULT_ADVENTURE_CATEGORIES, ...savedCustomCategories];
+                const initializedAttributes = CategoryService.initializeAttributes(
+                    editingTemplate,
+                    allCategories,
+                    'details'
+                );
+                
+                setAttributes(initializedAttributes);
+            }
         }
+    }, [editingTemplate]);
 
-        const newCategory: AttributeCategory = {
-            id,
-            name,
-            type: 'custom',
-            description: description || `Custom attributes for ${name}`
-        };
-
-        // Add the new category
+    // Add a new custom category using CategoryService
+    const addCategory = (name: string, description: string) => {
+        const newCategory = CategoryService.createCategory(name, description);
+        
+        // Add the new category to customCategories state
         setCustomCategories(prev => [...prev, newCategory]);
+        
+        // Add to all categories
         setAttributeCategories(prev => [...prev, newCategory]);
-
+        
         // Initialize empty attributes array for this category
         setAttributes(prev => ({
             ...prev,
-            [id]: []
+            [newCategory.id]: []
         }));
+        
+        return newCategory.id;
     };
-    
+
     // Delete a category
     const deleteCategory = (categoryId: string) => {
         // Find the category to ensure it exists and is custom
@@ -216,36 +234,36 @@ export function AdventureCreator() {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+        if (!scenario) return;
+        
         setIsSubmitting(true);
         
         try {
-            // Convert attributes structure to the format expected by the Adventure type
-            const attributesRecord: Record<string, Record<string, string>> = {};
-
-            Object.entries(attributes).forEach(([categoryId, items]) => {
-                attributesRecord[categoryId] = items.reduce((acc, {key, value}) => {
-                    if (key) acc[key] = value;
-                    return acc;
-                }, {} as Record<string, string>);
-            });
-            
-            const adventure: Adventure = {
+            // Prepare adventure data with selected characters and world
+            let adventure: Adventure = {
                 id,
                 scenario,
-                characters: characters.filter(c => selectedCharacters.includes(c.id)),
-                world: worlds.find(w => w.id === selectedWorld),
+                characters: selectedCharacters.map(charId => 
+                    characters.find(c => c.id === charId)!
+                ),
+                world: selectedWorld ? worlds.find(w => w.id === selectedWorld) : undefined,
                 createdAt: editingTemplate?.createdAt ?? new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
-                // Add all attribute categories to the adventure
-                ...attributesRecord
+                // Initialize empty objects for base categories that are in the interface
+                objectives: {},
+                notes: {}
             };
             
-            const updatedAdventures = editingTemplate
-                ? templateAdventures.map((a: Adventure) => a.id === id ? adventure : a)
-                : [...templateAdventures, adventure];
-                
-            await storage.saveTemplateAdventures(updatedAdventures);
-            setTemplateAdventures(updatedAdventures);
+            // Use centralized CategoryService to save the adventure, custom categories, and attributes
+            const updatedTemplates = await CategoryService.saveAdventure(
+                adventure,
+                templateAdventures,
+                customCategories,
+                attributes
+            );
+            
+            // Update React state
+            setTemplateAdventures(updatedTemplates);
             setEditingTemplate(null);
             setPage('landing');
         } catch (error) {
