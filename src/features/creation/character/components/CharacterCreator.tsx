@@ -83,6 +83,35 @@ export function CharacterCreator() {
                     key,
                     value: typeof value === 'string' || typeof value === 'number' ? String(value) : ''
                 }));
+            
+            // Load other categories (skills, traits, equipment, etc)
+            DEFAULT_CHARACTER_CATEGORIES.forEach(category => {
+                if (category.id !== 'stats' && editingCharacter[category.id]) {
+                    result[category.id] = Object.entries(editingCharacter[category.id] || {})
+                        .map(([key, value]) => ({
+                            key,
+                            value: typeof value === 'string' || typeof value === 'number' ? String(value) : ''
+                        }));
+                }
+            });
+            
+            // Load custom categories if they exist
+            if (editingCharacter.stats?._customCategories) {
+                try {
+                    const customCats = JSON.parse(editingCharacter.stats._customCategories);
+                    customCats.forEach((category: AttributeCategory) => {
+                        if (editingCharacter[category.id]) {
+                            result[category.id] = Object.entries(editingCharacter[category.id] || {})
+                                .map(([key, value]) => ({
+                                    key,
+                                    value: typeof value === 'string' || typeof value === 'number' ? String(value) : ''
+                                }));
+                        }
+                    });
+                } catch (err) {
+                    console.error('Failed to parse custom categories:', err);
+                }
+            }
         }
 
         return result;
