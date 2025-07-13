@@ -1,11 +1,13 @@
 import { FiBookOpen, FiGlobe, FiUserPlus, FiZap } from 'react-icons/fi'
+import { FiPenTool } from 'react-icons/fi'
 import { GiCastle, GiDragonHead, GiScrollQuill } from 'react-icons/gi'
 import './LandingHero.css'
 
 interface LandingHeroProps {
     charactersCount: number
     worldsCount: number
-    totalAdventures: number
+    templatesCount: number
+    activeAdventures: number
     hasContent: boolean
     onStartJourney: () => void
 }
@@ -13,7 +15,8 @@ interface LandingHeroProps {
 export function LandingHero({ 
     charactersCount, 
     worldsCount, 
-    totalAdventures, 
+    templatesCount, 
+    activeAdventures, 
     hasContent, 
     onStartJourney 
 }: LandingHeroProps) {
@@ -65,8 +68,13 @@ export function LandingHero({
                         </div>
                         <div className="landing-stat-card">
                             <FiBookOpen className="landing-stat-icon" aria-hidden="true" />
-                            <span className="landing-stat-number">{totalAdventures}</span>
-                            <span className="landing-stat-label">Adventures</span>
+                            <span className="landing-stat-number">{templatesCount}</span>
+                            <span className="landing-stat-label">Templates</span>
+                        </div>
+                        <div className="landing-stat-card">
+                            <FiPenTool className="landing-stat-icon" aria-hidden="true" />
+                            <span className="landing-stat-number">{activeAdventures}</span>
+                            <span className="landing-stat-label">Active Adventures</span>
                         </div>
                     </div>
                 )}
