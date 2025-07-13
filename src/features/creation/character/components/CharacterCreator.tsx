@@ -99,7 +99,7 @@ export function CharacterCreator() {
             // Load custom categories if they exist
             if (editingCharacter.stats?._customCategories) {
                 try {
-                    const customCats = JSON.parse(editingCharacter.stats._customCategories);
+                    const customCats = JSON.parse(String(editingCharacter.stats._customCategories));
                     customCats.forEach((category: AttributeCategory) => {
                         if (editingCharacter[category.id]) {
                             result[category.id] = Object.entries(editingCharacter[category.id] || {})

@@ -92,15 +92,16 @@ export function Header() {
                                 </button>
                             </div>
                         ) : (
-                            <button
-                                className="login-button hover-magical"
-                                onClick={openLoginModal}
-                                aria-label="Login"
-                                title="Login"
-                            >
-                                <FiLogIn className="login-icon" />
-                                <span>Login</span>
-                            </button>
+                            <div className="login-link">
+                                <button
+                                    className="login-button hover-magical"
+                                    onClick={openLoginModal}
+                                    aria-label="Login"
+                                    title="Login"
+                                >
+                                    <span className="login-icon"><FiLogIn /></span>
+                                </button>
+                            </div>
                         )}
                     </div>
                     
