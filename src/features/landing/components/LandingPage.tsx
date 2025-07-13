@@ -62,8 +62,8 @@ export function LandingPage() {
     }
 
     // Calculate stats for the hero section
-    const totalAdventures = templateAdventures.length + inProgressAdventures.length
-    const hasContent = characters.length > 0 || worlds.length > 0 || totalAdventures > 0
+    const hasContent = characters.length > 0 || worlds.length > 0 || 
+        templateAdventures.length > 0 || inProgressAdventures.length > 0
 
     if (isLoading) {
         return <LandingLoading />
@@ -74,9 +74,12 @@ export function LandingPage() {
             <LandingHero
                 charactersCount={characters.length}
                 worldsCount={worlds.length}
-                totalAdventures={totalAdventures}
+                templatesCount={templateAdventures.length}
+                activeAdventures={inProgressAdventures.length}
                 hasContent={hasContent}
                 onStartJourney={() => setPage('character')}
+                lastActiveAdventure={inProgressAdventures.length > 0 ? inProgressAdventures[0] : undefined}
+                onContinueAdventure={handleInProgressEdit}
             />
 
             <LandingQuickActions

@@ -6,7 +6,6 @@ import type { FormEvent, KeyboardEvent } from 'react';
 import { useState, useRef, useEffect } from 'react';
 import type { World } from '../../../../shared';
 import { useNavigation, useData } from '../../../../app/hooks';
-import { storage } from '../../../../infrastructure/storage';
 import { generateUUID } from '../../../../utils/uuid';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
 import { 
@@ -16,6 +15,7 @@ import {
     AttributeManager,
     FormActions 
 } from '../../common/components';
+import { CategoryService } from '../../common/services';
 import './WorldCreator.css';
 
 // Predefined attribute categories for worlds
@@ -81,6 +81,24 @@ export function WorldCreator() {
                     key,
                     value: String(value)
                 }));
+            
+            // Load other default categories (terrain, climate, inhabitants)
+            DEFAULT_WORLD_CATEGORIES.forEach(category => {
+                const categoryId = category.id;
+                if (categoryId !== 'details' && 
+                    categoryId in editingWorld && 
+                    typeof editingWorld[categoryId as keyof World] === 'object') {
+                    
+                    // Type-safe access using dynamic key
+                    const categoryData = editingWorld[categoryId as keyof World] as Record<string, string>;
+                    
+                    result[categoryId] = Object.entries(categoryData)
+                        .map(([key, value]) => ({
+                            key,
+                            value: typeof value === 'string' ? value : String(value)
+                        }));
+                }
+            });
         }
 
         return result;
@@ -90,47 +108,40 @@ export function WorldCreator() {
         initializeAttributes()
     );
     
-    // Add a new custom category
+    // Add a new custom category using CategoryService
     const addCategory = (name: string, description: string) => {
-        const id = name.toLowerCase().replace(/\s+/g, '-');
-
-        // Check if category with this id already exists
-        if (attributeCategories.some(cat => cat.id === id)) {
-            alert('A category with a similar name already exists. Please use a different name.');
-            return;
-        }
-
-        const newCategory: AttributeCategory = {
-            id,
-            name,
-            type: 'custom',
-            description: description || `Custom attributes for ${name}`
-        };
-
-        // Add the new category
+        const newCategory = CategoryService.createCategory(name, description);
+        
+        // Add the new category to customCategories state
         setCustomCategories(prev => [...prev, newCategory]);
+        
+        // Update attributeCategories
         setAttributeCategories(prev => [...prev, newCategory]);
 
         // Initialize empty attributes array for this category
         setAttributes(prev => ({
             ...prev,
-            [id]: []
+            [newCategory.id]: []
         }));
+        
+        return newCategory.id;
     };
     
     // Delete a category
     const deleteCategory = (categoryId: string) => {
         // Find the category to ensure it exists and is custom
         const categoryToDelete = attributeCategories.find(cat => cat.id === categoryId);
-        if (!categoryToDelete || categoryToDelete.type !== 'custom') return;
+        if (!categoryToDelete || categoryToDelete.type !== 'custom') {
+            console.warn('Cannot delete default categories');
+            return;
+        }
         
-        // Update custom categories
-        setCustomCategories(prev => prev.filter(cat => cat.id !== categoryId));
+        // Update custom categories first
+        const updatedCustomCategories = customCategories.filter(cat => cat.id !== categoryId);
+        setCustomCategories(updatedCustomCategories);
         
-        // Update all categories
-        setAttributeCategories(prev => 
-            prev.filter(cat => cat.id !== categoryId)
-        );
+        // Then update attributeCategories with DEFAULT_WORLD_CATEGORIES and updated custom categories
+        setAttributeCategories([...DEFAULT_WORLD_CATEGORIES, ...updatedCustomCategories]);
         
         // Update attributes state by removing that category
         setAttributes(prev => {
@@ -140,8 +151,9 @@ export function WorldCreator() {
         });
     };
 
-    // Add a new attribute to a category
+    // Add a new attribute to a category (works for both default and custom categories)
     const addAttribute = (categoryId: string) => {
+        // Add the new attribute to the specified category
         setAttributes(prev => ({
             ...prev,
             [categoryId]: [...(prev[categoryId] || []), {key: '', value: ''}]
@@ -170,46 +182,33 @@ export function WorldCreator() {
         });
     };
 
+    // Handle form submission using CategoryService for saving categories and their attributes
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+        if (!name || !type) return;
+        
         setIsSubmitting(true);
         
         try {
-            // Flatten all attributes into a single details object
-            const allDetails: Record<string, string> = {};
-            
-            // Add all attributes to details
-            Object.entries(attributes).forEach(([categoryId, items]) => {
-                items.forEach(({key, value}) => {
-                    if (key) {
-                        // Prefix non-detail attributes with category for organization
-                        const prefixedKey = categoryId === 'details' ? key : `${categoryId}_${key}`;
-                        allDetails[prefixedKey] = value;
-                    }
-                });
-            });
-            
-            // Store custom category metadata in details
-            if (customCategories.length > 0) {
-                allDetails._customCategories = JSON.stringify(customCategories);
-            }
-            
-            const world: World = {
+            // Prepare world data structure
+            let worldData: World = {
                 id, 
                 name, 
                 type, 
-                details: allDetails,
+                details: {},
                 createdAt: editingWorld?.createdAt ?? new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
             
-            const updatedWorlds = editingWorld 
-                ? worlds.map(w => w.id === id ? world : w)
-                : [...worlds, world];
-                
-            // First save to localStorage
-            await storage.saveWorlds(updatedWorlds);
-            // Then update React state
+            // Use centralized CategoryService to save the world, custom categories, and attributes
+            const updatedWorlds = await CategoryService.saveWorld(
+                worldData,
+                worlds,
+                customCategories,
+                attributes
+            );
+            
+            // Update React state
             setWorlds(updatedWorlds);
             setEditingWorld(null);
             setPage('landing');
@@ -235,27 +234,30 @@ export function WorldCreator() {
         }
     }, []);
 
-    // Load custom categories from editing world
     useEffect(() => {
-        if (editingWorld && editingWorld.details._customCategories) {
-            try {
-                const savedCustomCategories = JSON.parse(editingWorld.details._customCategories) as AttributeCategory[];
+        // Load custom categories from existing world if available using CategoryService
+        if (editingWorld) {
+            // Load custom categories using CategoryService
+            const savedCustomCategories = CategoryService.loadCategories(editingWorld);
+            
+            if (savedCustomCategories.length > 0) {
                 setCustomCategories(savedCustomCategories);
-                setAttributeCategories([...DEFAULT_WORLD_CATEGORIES, ...savedCustomCategories]);
                 
-                // Load attributes for custom categories
-                const newAttributes = { ...attributes };
-                savedCustomCategories.forEach(category => {
-                    newAttributes[category.id] = Object.entries(editingWorld.details)
-                        .filter(([key]) => key.startsWith(`${category.id}_`))
-                        .map(([key, value]) => ({
-                            key: key.replace(`${category.id}_`, ''),
-                            value
-                        }));
-                });
-                setAttributes(newAttributes);
-            } catch (error) {
-                console.error('Error loading custom categories:', error);
+                // Update all categories
+                setAttributeCategories([
+                    ...DEFAULT_WORLD_CATEGORIES,
+                    ...savedCustomCategories
+                ]);
+                
+                // Initialize attributes for all categories using CategoryService
+                const allCategories = [...DEFAULT_WORLD_CATEGORIES, ...savedCustomCategories];
+                const initializedAttributes = CategoryService.initializeAttributes(
+                    editingWorld,
+                    allCategories,
+                    'details'
+                );
+                
+                setAttributes(initializedAttributes);
             }
         }
     }, [editingWorld]);

@@ -1,21 +1,29 @@
 import { FiBookOpen, FiGlobe, FiUserPlus, FiZap } from 'react-icons/fi'
+import { FiPenTool, FiPlay } from 'react-icons/fi'
 import { GiCastle, GiDragonHead, GiScrollQuill } from 'react-icons/gi'
 import './LandingHero.css'
+import type { Adventure } from '../../../shared'
 
 interface LandingHeroProps {
     charactersCount: number
     worldsCount: number
-    totalAdventures: number
+    templatesCount: number
+    activeAdventures: number
     hasContent: boolean
     onStartJourney: () => void
+    lastActiveAdventure?: Adventure
+    onContinueAdventure?: (adventure: Adventure) => void
 }
 
 export function LandingHero({ 
     charactersCount, 
     worldsCount, 
-    totalAdventures, 
+    templatesCount, 
+    activeAdventures, 
     hasContent, 
-    onStartJourney 
+    onStartJourney,
+    lastActiveAdventure,
+    onContinueAdventure
 }: LandingHeroProps) {
     return (
         <section className="landing-hero-section animate-entrance" aria-labelledby="hero-title">
@@ -52,23 +60,51 @@ export function LandingHero({
                         </p>
                     </div>
                 ) : (
-                    <div className="landing-hero-stats" role="region" aria-label="Your magical world statistics">
-                        <div className="landing-stat-card">
-                            <FiUserPlus className="landing-stat-icon" aria-hidden="true" />
-                            <span className="landing-stat-number">{charactersCount}</span>
-                            <span className="landing-stat-label">Heroes</span>
+                    <>
+                        <div className="landing-hero-stats" role="region" aria-label="Your magical world statistics">
+                            <div className="landing-stat-card">
+                                <FiUserPlus className="landing-stat-icon" aria-hidden="true" />
+                                <span className="landing-stat-number">{charactersCount}</span>
+                                <span className="landing-stat-label">Heroes</span>
+                            </div>
+                            <div className="landing-stat-card">
+                                <FiGlobe className="landing-stat-icon" aria-hidden="true" />
+                                <span className="landing-stat-number">{worldsCount}</span>
+                                <span className="landing-stat-label">Worlds</span>
+                            </div>
+                            <div className="landing-stat-card">
+                                <FiBookOpen className="landing-stat-icon" aria-hidden="true" />
+                                <span className="landing-stat-number">{templatesCount}</span>
+                                <span className="landing-stat-label">Templates</span>
+                            </div>
+                            <div className="landing-stat-card">
+                                <FiPenTool className="landing-stat-icon" aria-hidden="true" />
+                                <span className="landing-stat-number">{activeAdventures}</span>
+                                <span className="landing-stat-label">Active Adventures</span>
+                            </div>
                         </div>
-                        <div className="landing-stat-card">
-                            <FiGlobe className="landing-stat-icon" aria-hidden="true" />
-                            <span className="landing-stat-number">{worldsCount}</span>
-                            <span className="landing-stat-label">Worlds</span>
-                        </div>
-                        <div className="landing-stat-card">
-                            <FiBookOpen className="landing-stat-icon" aria-hidden="true" />
-                            <span className="landing-stat-number">{totalAdventures}</span>
-                            <span className="landing-stat-label">Adventures</span>
-                        </div>
-                    </div>
+                        
+                        {lastActiveAdventure && onContinueAdventure && (
+                            <div className="landing-adventure-card-container" role="region" aria-label="Your last active adventure">
+                                <div className="landing-adventure-card">
+                                    <div className="landing-adventure-content">
+                                        <h3 className="landing-adventure-title">Your Active Adventure</h3>
+                                        <p className="landing-adventure-description">
+                                            {lastActiveAdventure.scenario || 'Continue your magical journey...'}
+                                        </p>
+                                    </div>
+                                    <button 
+                                        className="landing-adventure-btn btn btn-primary hover-magical"
+                                        onClick={() => onContinueAdventure(lastActiveAdventure)}
+                                        aria-label="Continue your active adventure"
+                                    >
+                                        <FiPlay aria-hidden="true" />
+                                        Continue Adventure
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </section>
