@@ -67,12 +67,14 @@ export function AttributeManager({
             </div>
 
             {showAddCategory && (
-                <CategoryForm
-                    onSubmit={handleAddCategory}
-                    onCancel={() => setShowAddCategory(false)}
-                    theme={theme}
-                    useFormWrapper={false}
-                />
+                <div onClick={(e) => e.stopPropagation()} className="category-form-container">
+                    <CategoryForm
+                        onSubmit={handleAddCategory}
+                        onCancel={() => setShowAddCategory(false)}
+                        theme={theme}
+                        useFormWrapper={true}
+                    />
+                </div>
             )}
 
             <div className="attribute-categories">

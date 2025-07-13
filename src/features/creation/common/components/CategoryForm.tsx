@@ -23,6 +23,7 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        e.stopPropagation(); // Prevent the event from bubbling up to parent forms
         if (name.trim()) {
             onSubmit(name.trim(), description.trim());
         }

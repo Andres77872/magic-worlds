@@ -143,7 +143,10 @@ export function WorldCreator() {
     const deleteCategory = (categoryId: string) => {
         // Find the category to ensure it exists and is custom
         const categoryToDelete = attributeCategories.find(cat => cat.id === categoryId);
-        if (!categoryToDelete || categoryToDelete.type !== 'custom') return;
+        if (!categoryToDelete || categoryToDelete.type !== 'custom') {
+            console.warn('Cannot delete default categories');
+            return;
+        }
         
         // Update custom categories first
         const updatedCustomCategories = customCategories.filter(cat => cat.id !== categoryId);
@@ -160,8 +163,9 @@ export function WorldCreator() {
         });
     };
 
-    // Add a new attribute to a category
+    // Add a new attribute to a category (works for both default and custom categories)
     const addAttribute = (categoryId: string) => {
+        // Add the new attribute to the specified category
         setAttributes(prev => ({
             ...prev,
             [categoryId]: [...(prev[categoryId] || []), {key: '', value: ''}]

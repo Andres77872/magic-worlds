@@ -162,7 +162,10 @@ export function AdventureCreator() {
     const deleteCategory = (categoryId: string) => {
         // Find the category to ensure it exists and is custom
         const categoryToDelete = attributeCategories.find(cat => cat.id === categoryId);
-        if (!categoryToDelete || DEFAULT_ADVENTURE_CATEGORIES.some(c => c.id === categoryId)) return;
+        if (!categoryToDelete || DEFAULT_ADVENTURE_CATEGORIES.some(c => c.id === categoryId)) {
+            console.warn('Cannot delete default categories');
+            return;
+        }
         
         // Update custom categories
         setCustomCategories(prev => prev.filter(cat => cat.id !== categoryId));
@@ -180,8 +183,9 @@ export function AdventureCreator() {
         });
     };
 
-    // Add a new attribute to a category
+    // Add a new attribute to a category (works for both default and custom categories)
     const addAttribute = (categoryId: string) => {
+        // Add the new attribute to the specified category
         setAttributes(prev => ({
             ...prev,
             [categoryId]: [...(prev[categoryId] || []), {key: '', value: ''}]
