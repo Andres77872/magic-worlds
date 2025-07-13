@@ -78,6 +78,8 @@ export function LandingPage() {
                 activeAdventures={inProgressAdventures.length}
                 hasContent={hasContent}
                 onStartJourney={() => setPage('character')}
+                lastActiveAdventure={inProgressAdventures.length > 0 ? inProgressAdventures[0] : undefined}
+                onContinueAdventure={handleInProgressEdit}
             />
 
             <LandingQuickActions
