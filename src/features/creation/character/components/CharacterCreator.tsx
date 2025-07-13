@@ -225,9 +225,12 @@ export function CharacterCreator() {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
-        if (!name || !race) return;
-        
         setIsSubmitting(true);
+        
+        if (!name || !race) {
+            setIsSubmitting(false);
+            return;
+        }
         
         try {
             // Prepare character data structure
@@ -291,34 +294,6 @@ export function CharacterCreator() {
             nameInputRef.current.focus();
         }
     }, []);
-
-    // Load custom categories from editing character
-    useEffect(() => {
-        // Load custom categories from existing character using CategoryService
-        if (editingCharacter) {
-            const savedCustomCategories = CategoryService.loadCategories(editingCharacter, 'stats');
-            
-            if (savedCustomCategories.length > 0) {
-                setCustomCategories(savedCustomCategories);
-                
-                // Update all categories
-                setAttributeCategories([
-                    ...DEFAULT_CHARACTER_CATEGORIES,
-                    ...savedCustomCategories
-                ]);
-                
-                // Initialize attributes for all categories using CategoryService
-                const allCategories = [...DEFAULT_CHARACTER_CATEGORIES, ...savedCustomCategories];
-                const initializedAttributes = CategoryService.initializeAttributes(
-                    editingCharacter,
-                    allCategories,
-                    'stats'
-                );
-                
-                setAttributes(initializedAttributes);
-            }
-        }
-    }, [editingCharacter]);
 
     const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && !isSubmitting) {
