@@ -4,7 +4,7 @@
 
 import type { FormEvent, KeyboardEvent } from 'react';
 import { useState, useRef, useEffect } from 'react';
-import type { Adventure } from '../../../../shared';
+import type { Adventure, Character } from '../../../../shared';
 import { useNavigation, useData } from '../../../../app/hooks';
 import { generateUUID } from '../../../../utils/uuid';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
@@ -243,9 +243,9 @@ export function AdventureCreator() {
             let adventure: Adventure = {
                 id,
                 scenario,
-                characters: selectedCharacters.map(charId => 
-                    characters.find(c => c.id === charId)!
-                ),
+                characters: selectedCharacters
+                    .map(charId => characters.find(c => c.id === charId))
+                    .filter((character): character is Character => character !== undefined),
                 world: selectedWorld ? worlds.find(w => w.id === selectedWorld) : undefined,
                 createdAt: editingTemplate?.createdAt ?? new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
