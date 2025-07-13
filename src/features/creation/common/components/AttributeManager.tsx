@@ -71,6 +71,7 @@ export function AttributeManager({
                     onSubmit={handleAddCategory}
                     onCancel={() => setShowAddCategory(false)}
                     theme={theme}
+                    useFormWrapper={false}
                 />
             )}
 

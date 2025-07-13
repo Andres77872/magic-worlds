@@ -81,6 +81,24 @@ export function WorldCreator() {
                     key,
                     value: String(value)
                 }));
+            
+            // Load other default categories (terrain, climate, inhabitants)
+            DEFAULT_WORLD_CATEGORIES.forEach(category => {
+                const categoryId = category.id;
+                if (categoryId !== 'details' && 
+                    categoryId in editingWorld && 
+                    typeof editingWorld[categoryId as keyof World] === 'object') {
+                    
+                    // Type-safe access using dynamic key
+                    const categoryData = editingWorld[categoryId as keyof World] as Record<string, string>;
+                    
+                    result[categoryId] = Object.entries(categoryData)
+                        .map(([key, value]) => ({
+                            key,
+                            value: typeof value === 'string' ? value : String(value)
+                        }));
+                }
+            });
         }
 
         return result;
@@ -107,9 +125,12 @@ export function WorldCreator() {
             description: description || `Custom attributes for ${name}`
         };
 
-        // Add the new category
-        setCustomCategories(prev => [...prev, newCategory]);
-        setAttributeCategories(prev => [...prev, newCategory]);
+        // Add the new category to customCategories state first
+        const updatedCustomCategories = [...customCategories, newCategory];
+        setCustomCategories(updatedCustomCategories);
+        
+        // Then update attributeCategories with the updated custom categories
+        setAttributeCategories([...DEFAULT_WORLD_CATEGORIES, ...updatedCustomCategories]);
 
         // Initialize empty attributes array for this category
         setAttributes(prev => ({
@@ -124,13 +145,12 @@ export function WorldCreator() {
         const categoryToDelete = attributeCategories.find(cat => cat.id === categoryId);
         if (!categoryToDelete || categoryToDelete.type !== 'custom') return;
         
-        // Update custom categories
-        setCustomCategories(prev => prev.filter(cat => cat.id !== categoryId));
+        // Update custom categories first
+        const updatedCustomCategories = customCategories.filter(cat => cat.id !== categoryId);
+        setCustomCategories(updatedCustomCategories);
         
-        // Update all categories
-        setAttributeCategories(prev => 
-            prev.filter(cat => cat.id !== categoryId)
-        );
+        // Then update attributeCategories with DEFAULT_WORLD_CATEGORIES and updated custom categories
+        setAttributeCategories([...DEFAULT_WORLD_CATEGORIES, ...updatedCustomCategories]);
         
         // Update attributes state by removing that category
         setAttributes(prev => {
@@ -175,30 +195,40 @@ export function WorldCreator() {
         setIsSubmitting(true);
         
         try {
-            // Flatten all attributes into a single details object
-            const allDetails: Record<string, string> = {};
+            // Create separate objects for each category
+            const details: Record<string, string> = {};
+            const additionalProps: Record<string, Record<string, string>> = {};
             
-            // Add all attributes to details
+            // Process attributes by category
             Object.entries(attributes).forEach(([categoryId, items]) => {
-                items.forEach(({key, value}) => {
-                    if (key) {
-                        // Prefix non-detail attributes with category for organization
-                        const prefixedKey = categoryId === 'details' ? key : `${categoryId}_${key}`;
-                        allDetails[prefixedKey] = value;
+                if (categoryId === 'details') {
+                    // Details go directly into the details object
+                    items.forEach(({key, value}) => {
+                        if (key) details[key] = value;
+                    });
+                } else {
+                    // Other categories become separate properties
+                    const categoryData: Record<string, string> = {};
+                    items.forEach(({key, value}) => {
+                        if (key) categoryData[key] = value;
+                    });
+                    if (Object.keys(categoryData).length > 0) {
+                        additionalProps[categoryId] = categoryData;
                     }
-                });
+                }
             });
             
             // Store custom category metadata in details
             if (customCategories.length > 0) {
-                allDetails._customCategories = JSON.stringify(customCategories);
+                details._customCategories = JSON.stringify(customCategories);
             }
             
             const world: World = {
                 id, 
                 name, 
                 type, 
-                details: allDetails,
+                details,
+                ...additionalProps,
                 createdAt: editingWorld?.createdAt ?? new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };

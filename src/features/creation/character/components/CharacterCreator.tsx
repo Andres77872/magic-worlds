@@ -138,9 +138,12 @@ export function CharacterCreator() {
             description: description || `Custom attributes for ${name}`
         };
 
-        // Add the new category
-        setCustomCategories(prev => [...prev, newCategory]);
-        setAttributeCategories(prev => [...prev, newCategory]);
+        // Add the new category to customCategories state first
+        const updatedCustomCategories = [...customCategories, newCategory];
+        setCustomCategories(updatedCustomCategories);
+        
+        // Then update attributeCategories with the updated custom categories
+        setAttributeCategories([...DEFAULT_CHARACTER_CATEGORIES, ...updatedCustomCategories]);
 
         // Initialize empty attributes array for this category
         setAttributes(prev => ({
@@ -155,13 +158,12 @@ export function CharacterCreator() {
         const categoryToDelete = attributeCategories.find(cat => cat.id === categoryId);
         if (!categoryToDelete || categoryToDelete.type !== 'custom') return;
         
-        // Update custom categories
-        setCustomCategories(prev => prev.filter(cat => cat.id !== categoryId));
+        // Update custom categories first
+        const updatedCustomCategories = customCategories.filter(cat => cat.id !== categoryId);
+        setCustomCategories(updatedCustomCategories);
         
-        // Update all categories
-        setAttributeCategories(prev => 
-            prev.filter(cat => cat.id !== categoryId)
-        );
+        // Then update attributeCategories with DEFAULT_CHARACTER_CATEGORIES and updated custom categories
+        setAttributeCategories([...DEFAULT_CHARACTER_CATEGORIES, ...updatedCustomCategories]);
         
         // Update attributes state by removing that category
         setAttributes(prev => {
