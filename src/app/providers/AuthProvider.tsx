@@ -4,6 +4,7 @@
 
 import { createContext, useEffect, useState, type ReactNode } from 'react'
 import type { AuthState, LoginCredentials, LoginResponse, User, Project } from '../../shared'
+import { tokenService } from '../../infrastructure'
 
 interface AuthContextValue extends AuthState {
     login: (credentials: LoginCredentials) => Promise<boolean>
@@ -12,6 +13,8 @@ interface AuthContextValue extends AuthState {
     isLoginModalOpen: boolean
     openLoginModal: () => void
     closeLoginModal: () => void
+    getProvisionalToken: () => string | null
+    ensureProvisionalToken: () => Promise<string>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -122,6 +125,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setError(null)
     }
 
+    const getProvisionalToken = () => {
+        return tokenService.getProvisionalToken()
+    }
+
+    const ensureProvisionalToken = async () => {
+        return await tokenService.ensureProvisionalToken()
+    }
+
     const value: AuthContextValue = {
         isAuthenticated,
         user,
@@ -134,7 +145,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         logout,
         clearError,
         openLoginModal,
-        closeLoginModal
+        closeLoginModal,
+        getProvisionalToken,
+        ensureProvisionalToken
     }
 
     return (

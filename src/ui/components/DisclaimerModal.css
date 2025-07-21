@@ -1,0 +1,302 @@
+/**
+ * Disclaimer Modal styles with magical effects
+ */
+
+.disclaimer-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--background-transparency);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeInMagical var(--duration-fast) ease-out;
+    padding: var(--padding-medium);
+}
+
+.disclaimer-modal-container {
+    background: var(--background-color-primary);
+    border-radius: var(--border-radius-large);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-xl);
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideInPortal var(--duration-normal) var(--ease-bounce);
+    position: relative;
+    overflow: hidden;
+}
+
+.disclaimer-modal-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--gradient-magical);
+    animation: shimmer 2s infinite;
+}
+
+.disclaimer-modal-header {
+    padding: var(--padding-large);
+    border-bottom: 1px solid var(--border-color);
+    text-align: center;
+    background: linear-gradient(135deg, var(--background-color-secondary), var(--background-color-primary));
+}
+
+.disclaimer-modal-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap-medium);
+}
+
+.disclaimer-modal-icon {
+    font-size: 2.5rem;
+    color: var(--accent-color);
+    animation: float 3s ease-in-out infinite;
+}
+
+.disclaimer-modal-title h2 {
+    margin: 0;
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-color);
+    background: var(--gradient-magical);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.disclaimer-modal-body {
+    padding: var(--padding-large);
+    overflow-y: auto;
+}
+
+.disclaimer-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-large);
+}
+
+.disclaimer-notice {
+    background: var(--color-warning-transparency);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--border-radius-medium);
+    padding: var(--padding-medium);
+    display: flex;
+    align-items: center;
+    gap: var(--gap-medium);
+}
+
+.notice-icon {
+    color: var(--color-warning);
+    font-size: var(--font-size-2xl);
+    flex-shrink: 0;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.disclaimer-notice h3 {
+    margin: 0;
+    color: var(--color-warning);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+}
+
+.disclaimer-points {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-medium);
+}
+
+.disclaimer-point {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gap-medium);
+    padding: var(--padding-medium);
+    background: var(--background-color-secondary);
+    border-radius: var(--border-radius-medium);
+    border-left: 3px solid var(--accent-color);
+    transition: var(--transition-standard);
+}
+
+.disclaimer-point:hover {
+    background: var(--background-color-tertiary);
+    transform: translateX(2px);
+}
+
+.disclaimer-point.warning-point {
+    border-left-color: var(--color-error);
+    background: var(--color-error-transparency);
+}
+
+.disclaimer-point.warning-point:hover {
+    background: rgba(239, 68, 68, 0.15);
+}
+
+.point-icon {
+    font-size: var(--font-size-xl);
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+}
+
+.disclaimer-point p {
+    margin: 0;
+    color: var(--text-color);
+    font-size: var(--font-size-normal);
+    line-height: var(--line-height-normal);
+}
+
+.disclaimer-point strong {
+    color: var(--accent-color);
+    font-weight: var(--font-weight-semibold);
+}
+
+.disclaimer-point.warning-point strong {
+    color: var(--color-error);
+}
+
+.disclaimer-actions {
+    margin-top: var(--margin-large);
+    padding-top: var(--padding-large);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-medium);
+}
+
+.accept-button,
+.reject-button {
+    padding: var(--padding-medium) var(--padding-large);
+    border-radius: var(--border-radius-medium);
+    font-size: var(--font-size-normal);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: var(--transition-standard);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap-small);
+    position: relative;
+    overflow: hidden;
+    border: none;
+}
+
+.accept-button {
+    background: var(--accent-color);
+    color: white;
+    order: 1;
+}
+
+.accept-button:hover {
+    background: var(--accent-color-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.accept-button::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: var(--gradient-glow);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: all var(--duration-normal) ease;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 0;
+}
+
+.accept-button:hover::before {
+    width: 300%;
+    height: 300%;
+    opacity: 0.1;
+}
+
+.reject-button {
+    background: var(--background-color-secondary);
+    color: var(--text-color-secondary);
+    border: 1px solid var(--border-color);
+    order: 2;
+}
+
+.reject-button:hover {
+    background: var(--background-color-tertiary);
+    color: var(--text-color);
+    border-color: var(--color-error);
+}
+
+/* Responsive design */
+@media (max-width: 640px) {
+    .disclaimer-modal-overlay {
+        padding: var(--padding-small);
+    }
+    
+    .disclaimer-modal-container {
+        max-width: none;
+        max-height: 95vh;
+    }
+    
+    .disclaimer-modal-header {
+        padding: var(--padding-medium);
+    }
+    
+    .disclaimer-modal-body {
+        padding: var(--padding-medium);
+    }
+    
+    .disclaimer-modal-title {
+        flex-direction: column;
+        gap: var(--gap-small);
+    }
+    
+    .disclaimer-modal-title h2 {
+        font-size: var(--font-size-2xl);
+    }
+    
+    .disclaimer-modal-icon {
+        font-size: 2rem;
+    }
+    
+    .disclaimer-point {
+        padding: var(--padding-small);
+        gap: var(--gap-small);
+    }
+    
+    .disclaimer-point p {
+        font-size: var(--font-size-small);
+    }
+    
+    .point-icon {
+        font-size: var(--font-size-lg);
+    }
+    
+    .disclaimer-actions {
+        gap: var(--gap-small);
+    }
+    
+    .accept-button,
+    .reject-button {
+        padding: var(--padding-small) var(--padding-medium);
+        font-size: var(--font-size-small);
+    }
+}
+
+@media (max-width: 480px) {
+    .disclaimer-modal-title h2 {
+        font-size: var(--font-size-xl);
+    }
+    
+    .disclaimer-notice h3 {
+        font-size: var(--font-size-lg);
+    }
+} 
