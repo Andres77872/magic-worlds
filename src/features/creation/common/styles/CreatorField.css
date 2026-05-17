@@ -1,11 +1,11 @@
 /* =====================================================================
-   Creator Field - Common Field Styles
+   Creator Field - Modern shadcn-like design
    ===================================================================== */
 
 .creator-field {
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--space-6);
   position: relative;
-  animation: fieldFadeIn 0.4s ease-out both;
+  animation: fieldFadeIn 0.4s var(--ease-smooth) both;
 }
 
 /* Stagger animation for multiple fields */
@@ -27,25 +27,25 @@
 
 .creator-field-label {
   display: block;
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: var(--space-2);
   font-weight: var(--font-weight-semibold);
   color: var(--text-color);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-sm);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
-  transition: color var(--transition-standard);
+  transition: color var(--duration-fast) var(--ease-smooth);
 }
 
 .creator-field-required {
   color: var(--color-error);
-  margin-left: var(--spacing-xs);
+  margin-left: var(--space-1);
 }
 
 .creator-field-wrapper {
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
 }
 
 .creator-field-input-wrapper {
@@ -57,14 +57,14 @@
 .creator-field-input,
 .creator-field-textarea {
   width: 100%;
-  padding: var(--spacing-md);
-  border: 2px solid var(--border-color);
-  border-radius: var(--border-radius-medium);
-  font-size: var(--font-size-normal);
-  background-color: var(--background-color-secondary);
+  padding: var(--space-3);
+  border: var(--border-width-medium) solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  background: var(--background-color-secondary);
   color: var(--text-color);
   font-family: var(--font-family-base);
-  transition: all var(--transition-standard);
+  transition: all var(--duration-fast) var(--ease-smooth);
   position: relative;
 }
 
@@ -72,17 +72,16 @@
 .creator-field-input:hover,
 .creator-field-textarea:hover {
   border-color: var(--accent-color);
-  background-color: var(--background-color-tertiary);
+  background: var(--background-color-tertiary);
 }
 
-/* Focus state with magical glow */
+/* Focus state */
 .creator-field-input:focus,
 .creator-field-textarea:focus {
   outline: none;
   border-color: var(--accent-color);
-  background-color: var(--background-color-primary);
-  box-shadow: 0 0 0 3px var(--color-info-transparency),
-              var(--shadow-lg);
+  background: var(--background-color-primary);
+  box-shadow: 0 0 0 3px var(--accent-color-transparency), var(--shadow-lg);
 }
 
 /* Textarea specific */
@@ -97,24 +96,23 @@
   position: relative;
   color: var(--text-color-secondary);
   cursor: help;
-  font-size: var(--font-size-normal);
+  font-size: var(--font-size-base);
   width: 24px;
   height: 24px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-standard);
+  transition: all var(--duration-fast) var(--ease-smooth);
   background: var(--background-color-tertiary);
-  border: 1px solid var(--border-color);
+  border: var(--border-width-thin) solid var(--border-color);
   flex-shrink: 0;
   align-self: center;
 }
 
 .creator-tooltip-trigger:hover {
-  color: var(--accent-color);
+  color: white;
   background: var(--accent-color);
-  color: var(--color-brighter);
   transform: scale(1.1);
   box-shadow: var(--shadow-md);
 }
@@ -122,7 +120,7 @@
 /* Align tooltip trigger with textarea */
 .creator-field-wrapper:has(.creator-field-textarea) .creator-tooltip-trigger {
   align-self: flex-start;
-  margin-top: var(--spacing-md);
+  margin-top: var(--space-3);
 }
 
 .creator-tooltip {
@@ -134,20 +132,20 @@
   bottom: calc(100% + 10px);
   transform: translateX(-50%) translateY(10px);
   width: 240px;
-  padding: var(--spacing-md);
+  padding: var(--space-3);
   background: linear-gradient(135deg,
     var(--background-color-tertiary) 0%,
     var(--background-color-secondary) 100%);
-  border: 2px solid var(--accent-color);
-  border-radius: var(--border-radius-medium);
+  border: var(--border-width-medium) solid var(--accent-color);
+  border-radius: var(--radius-md);
   color: var(--text-color);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-normal);
   text-transform: none;
   letter-spacing: normal;
   box-shadow: var(--shadow-xl);
   text-align: left;
-  transition: all var(--transition-standard);
+  transition: all var(--duration-fast) var(--ease-smooth);
   pointer-events: none;
   line-height: var(--line-height-normal);
 }
@@ -210,16 +208,16 @@
 /* Disabled state */
 .creator-field-input:disabled,
 .creator-field-textarea:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
-  background-color: var(--background-color-disable);
+  background: var(--background-color-disable);
 }
 
 /* Placeholder animation */
 .creator-field-input::placeholder,
 .creator-field-textarea::placeholder {
   color: var(--text-color-placeholder);
-  transition: opacity var(--transition-standard);
+  transition: opacity var(--duration-fast) var(--ease-smooth);
 }
 
 .creator-field-input:focus::placeholder,

@@ -4,8 +4,9 @@
 
 import type { FormEvent, KeyboardEvent } from 'react';
 import { useState, useRef, useEffect } from 'react';
-import type { Adventure, Character } from '../../../../shared';
+import type { Adventure, Character, World } from '../../../../shared';
 import { useNavigation, useData } from '../../../../app/hooks';
+import { apiService } from '../../../../infrastructure/api';
 import { generateUUID } from '../../../../utils/uuid';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
 import { 
@@ -79,7 +80,42 @@ function getAddButtonLabel(categoryId: string): string {
 
 export function AdventureCreator() {
     const { setPage } = useNavigation();
-    const { templateAdventures, setTemplateAdventures, editingTemplate, setEditingTemplate, characters, worlds } = useData();
+    const { templateAdventures, setTemplateAdventures, editingTemplate, setEditingTemplate } = useData();
+    
+    // Fetch characters and worlds from API instead of using useData
+    const [characters, setCharacters] = useState<Character[]>([]);
+    const [worlds, setWorlds] = useState<World[]>([]);
+    const [loadingData, setLoadingData] = useState(true);
+    
+    // Fetch characters and worlds from API on mount
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                setLoadingData(true);
+                console.log('[AdventureCreator] Fetching characters and worlds from API...');
+                const [charactersData, worldsData] = await Promise.all([
+                    apiService.getCharacters(),
+                    apiService.getWorlds()
+                ]);
+                console.log('[AdventureCreator] API response:', { charactersData, worldsData });
+                setCharacters(charactersData);
+                setWorlds(worldsData);
+            } catch (error) {
+                console.error('[AdventureCreator] Failed to fetch data:', error);
+            } finally {
+                setLoadingData(false);
+            }
+        };
+        
+        fetchData();
+    }, []);
+    
+    console.log('[AdventureCreator] Current state:', {
+        characters,
+        worlds,
+        charactersCount: characters.length,
+        worldsCount: worlds.length
+    });
     
     const [id] = useState(editingTemplate?.id ?? generateUUID());
     const [scenario, setScenario] = useState(editingTemplate?.scenario ?? '');
@@ -326,82 +362,88 @@ export function AdventureCreator() {
                 </div>
 
                 <div className="adventure-selection-section">
-                    <div className="adventure-character-selection">
-                        <CreatorField label="Characters:">
-                            {characters.length === 0 ? (
-                                <div className="adventure-empty-state">
-                                    No characters available. 
-                                    <button 
-                                        type="button" 
-                                        className="adventure-btn-link" 
-                                        onClick={() => setPage('character')}
-                                    >
-                                        Create one
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="adventure-character-options">
-                                    {characters.map(character => (
-                                        <div key={character.id} className="adventure-character-option">
-                                            <label className="adventure-checkbox-label">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={selectedCharacters.includes(character.id)}
-                                                    onChange={(e) => handleCharacterChange(character.id, e.target.checked)}
-                                                />
-                                                <span className="adventure-checkbox-text">{character.name}</span>
-                                            </label>
+                    {loadingData ? (
+                        <div className="adventure-loading-state">Loading characters and worlds...</div>
+                    ) : (
+                        <>
+                            <div className="adventure-character-selection">
+                                <CreatorField label="Characters:">
+                                    {characters.length === 0 ? (
+                                        <div className="adventure-empty-state">
+                                            No characters available. 
+                                            <button 
+                                                type="button" 
+                                                className="adventure-btn-link" 
+                                                onClick={() => setPage('character')}
+                                            >
+                                                Create one
+                                            </button>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </CreatorField>
-                    </div>
+                                    ) : (
+                                        <div className="adventure-character-options">
+                                            {characters.map(character => (
+                                                <div key={character.id} className="adventure-character-option">
+                                                    <label className="adventure-checkbox-label">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={selectedCharacters.includes(character.id)}
+                                                            onChange={(e) => handleCharacterChange(character.id, e.target.checked)}
+                                                        />
+                                                        <span className="adventure-checkbox-text">{character.name}</span>
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </CreatorField>
+                            </div>
 
-                    <div className="adventure-world-selection">
-                        <CreatorField label="World (optional):">
-                            <div className="adventure-world-options">
-                                <div className="adventure-world-option">
-                                    <label className="adventure-radio-label">
-                                        <input 
-                                            type="radio" 
-                                            name="world" 
-                                            checked={!selectedWorld}
-                                            onChange={() => setSelectedWorld(undefined)}
-                                        />
-                                        <span className="adventure-radio-text">None</span>
-                                    </label>
-                                </div>
-                                
-                                {worlds.length === 0 ? (
-                                    <div className="adventure-empty-state">
-                                        No worlds available. 
-                                        <button 
-                                            type="button" 
-                                            className="adventure-btn-link" 
-                                            onClick={() => setPage('world')}
-                                        >
-                                            Create one
-                                        </button>
-                                    </div>
-                                ) : (
-                                    worlds.map(world => (
-                                        <div key={world.id} className="adventure-world-option">
+                            <div className="adventure-world-selection">
+                                <CreatorField label="World (optional):">
+                                    <div className="adventure-world-options">
+                                        <div className="adventure-world-option">
                                             <label className="adventure-radio-label">
                                                 <input 
                                                     type="radio" 
                                                     name="world" 
-                                                    checked={selectedWorld === world.id}
-                                                    onChange={() => setSelectedWorld(world.id)}
+                                                    checked={!selectedWorld}
+                                                    onChange={() => setSelectedWorld(undefined)}
                                                 />
-                                                <span className="adventure-radio-text">{world.name}</span>
+                                                <span className="adventure-radio-text">None</span>
                                             </label>
                                         </div>
-                                    ))
-                                )}
+                                        
+                                        {worlds.length === 0 ? (
+                                            <div className="adventure-empty-state">
+                                                No worlds available. 
+                                                <button 
+                                                    type="button" 
+                                                    className="adventure-btn-link" 
+                                                    onClick={() => setPage('world')}
+                                                >
+                                                    Create one
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            worlds.map(world => (
+                                                <div key={world.id} className="adventure-world-option">
+                                                    <label className="adventure-radio-label">
+                                                        <input 
+                                                            type="radio" 
+                                                            name="world" 
+                                                            checked={selectedWorld === world.id}
+                                                            onChange={() => setSelectedWorld(world.id)}
+                                                        />
+                                                        <span className="adventure-radio-text">{world.name}</span>
+                                                    </label>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </CreatorField>
                             </div>
-                        </CreatorField>
-                    </div>
+                        </>
+                    )}
                 </div>
                 
                 <AttributeManager

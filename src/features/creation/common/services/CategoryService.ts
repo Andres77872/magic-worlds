@@ -8,7 +8,7 @@
 
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
 import { generateUUID } from '../../../../utils/uuid';
-import { storage } from '../../../../infrastructure/storage';
+import { apiService } from '../../../../infrastructure/api';
 import type { World, Adventure, Character } from '../../../../shared';
 
 // Interface for the base entity that will have categories
@@ -216,7 +216,7 @@ export class CategoryService {
     }
     
     /**
-     * Save a world entity to storage
+     * Save a world entity via API
      * @param world The world entity to save
      * @param existingWorlds Optional array of existing worlds
      * @param customCategories Optional custom categories to save with the world
@@ -253,8 +253,8 @@ export class CategoryService {
                 ? existingWorlds.map(w => w.id === world.id ? world : w)
                 : [...existingWorlds, world];
             
-            // Save to storage
-            await storage.saveWorlds(updatedWorlds);
+            // Save via API - the API call is handled by the creator component
+            // This method now just returns the updated list for state management
             return updatedWorlds;
         } catch (error) {
             console.error('Failed to save world:', error);
@@ -263,7 +263,7 @@ export class CategoryService {
     }
     
     /**
-     * Save an adventure entity to storage
+     * Save an adventure entity via API
      * @param adventure The adventure entity to save
      * @param existingAdventures Optional array of existing adventures
      * @param customCategories Optional custom categories to save with the adventure
@@ -300,8 +300,8 @@ export class CategoryService {
                 ? existingAdventures.map(a => a.id === adventure.id ? adventure : a)
                 : [...existingAdventures, adventure];
             
-            // Save to storage
-            await storage.saveTemplateAdventures(updatedAdventures);
+            // Save via API - the API call is handled by the creator component
+            // This method now just returns the updated list for state management
             return updatedAdventures;
         } catch (error) {
             console.error('Failed to save adventure:', error);
@@ -310,7 +310,7 @@ export class CategoryService {
     }
     
     /**
-     * Save a character entity to storage
+     * Save a character entity via API
      * @param character The character entity to save
      * @param existingCharacters Optional array of existing characters
      * @param customCategories Optional custom categories to save with the character
@@ -347,8 +347,8 @@ export class CategoryService {
                 ? existingCharacters.map(c => c.id === character.id ? character : c)
                 : [...existingCharacters, character];
             
-            // Save to storage
-            await storage.saveCharacters(updatedCharacters);
+            // Save via API - the API call is handled by the creator component
+            // This method now just returns the updated list for state management
             return updatedCharacters;
         } catch (error) {
             console.error('Failed to save character:', error);
@@ -357,18 +357,18 @@ export class CategoryService {
     }
     
     /**
-     * Load entities from storage
+     * Load entities from API
      * @param type The type of entity to load ('world', 'adventure', or 'character')
      */
     static async loadEntities(type: 'world' | 'adventure' | 'character'): Promise<any[]> {
         try {
             switch (type) {
                 case 'world':
-                    return await storage.loadWorlds();
+                    return await apiService.getWorlds();
                 case 'adventure':
-                    return await storage.loadTemplateAdventures();
+                    return await apiService.getAdventureTemplates();
                 case 'character':
-                    return await storage.loadCharacters();
+                    return await apiService.getCharacters();
                 default:
                     throw new Error(`Unsupported entity type: ${type}`);
             }

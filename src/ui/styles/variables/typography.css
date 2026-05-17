@@ -1,23 +1,37 @@
 /* typography.css */
 :root {
-    /* Base Typography */
+    /* Modern font scale */
+    --font-size-xs: 0.75rem;
+    --font-size-sm: 0.875rem;
+    --font-size-base: 1rem;
+    --font-size-lg: 1.125rem;
+    --font-size-xl: 1.25rem;
+    --font-size-2xl: 1.5rem;
+    --font-size-3xl: 1.875rem;
+    --font-size-4xl: 2.25rem;
+    --font-size-5xl: 3rem;
+    
+    /* Preserve existing variables for compatibility */
     --font-family-base: 'Roboto', sans-serif;
-    --font-size-base: 16px;
-    --font-size-small: 0.875rem;
-    --font-size-sm: var(--font-size-small);
-    --font-size-normal: 1rem;
-    --font-size-large: 1.25rem;
-    --font-size-lg: var(--font-size-large);
+    --font-size-small: var(--font-size-sm);
+    --font-size-normal: var(--font-size-base);
+    --font-size-large: var(--font-size-xl);
     --line-height-normal: 1.5;
     
     /* Extended Typography - preserving existing and adding new */
-    /* Font sizes */
-    --font-size-xs: var(--size-xs);
-    --font-size-xl: var(--size-xl);
-    --font-size-2xl: var(--size-2xl);
-    --font-size-3xl: var(--size-3xl);
+    --size-xs: var(--font-size-xs);
+    --size-xl: var(--font-size-xl);
+    --size-2xl: var(--font-size-2xl);
+    --size-3xl: var(--font-size-3xl);
     
     /* Font weights */
+    --weight-light: 300;
+    --weight-normal: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+    --weight-bold: 700;
+    
+    /* Font weights - preserve existing */
     --font-weight-light: var(--weight-light);
     --font-weight-normal: var(--weight-normal);
     --font-weight-medium: var(--weight-medium);
@@ -25,22 +39,26 @@
     --font-weight-bold: var(--weight-bold);
     
     /* Line heights */
-    --line-height-tight: 1.25;
-    --line-height-loose: 1.75;
     --line-height-none: 1;
+    --line-height-tight: 1.25;
+    --line-height-snug: 1.375;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.625;
+    --line-height-loose: 1.75;
     
     /* Letter spacing */
     --letter-spacing-tighter: -0.05em;
-    --letter-spacing-tight: -0.025em; 
+    --letter-spacing-tight: -0.025em;
     --letter-spacing-normal: 0em;
     --letter-spacing-wide: 0.025em;
     --letter-spacing-wider: 0.05em;
+    --letter-spacing-widest: 0.1em;
     
     /* Heading styles (convenience combinations) */
-    --heading-1: var(--font-size-3xl) var(--font-weight-bold) var(--line-height-tight);
-    --heading-2: var(--font-size-2xl) var(--font-weight-bold) var(--line-height-tight);
-    --heading-3: var(--font-size-xl) var(--font-weight-semibold) var(--line-height-tight);
-    --heading-4: var(--font-size-large) var(--font-weight-semibold) var(--line-height-tight);
-    --heading-5: var(--font-size-normal) var(--font-weight-medium) var(--line-height-tight);
-    --heading-6: var(--font-size-small) var(--font-weight-medium) var(--line-height-tight);
+    --heading-1: var(--font-size-5xl) var(--font-weight-bold) var(--line-height-tight);
+    --heading-2: var(--font-size-4xl) var(--font-weight-bold) var(--line-height-tight);
+    --heading-3: var(--font-size-3xl) var(--font-weight-semibold) var(--line-height-tight);
+    --heading-4: var(--font-size-2xl) var(--font-weight-semibold) var(--line-height-tight);
+    --heading-5: var(--font-size-xl) var(--font-weight-medium) var(--line-height-tight);
+    --heading-6: var(--font-size-base) var(--font-weight-medium) var(--line-height-tight);
 }

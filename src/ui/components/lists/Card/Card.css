@@ -1,15 +1,17 @@
-/* Card Component Styles */
+/* Card Component Styles - Modern shadcn-like design */
 .card {
-    background-color: var(--background-color-secondary);
+    background: var(--background-color-secondary);
+    border: var(--card-border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     overflow: hidden;
-    transition: all var(--duration-fast) var(--ease-magical);
+    transition: border-color var(--duration-fast) var(--ease-smooth),
+                box-shadow var(--duration-fast) var(--ease-smooth),
+                background-color var(--duration-fast) var(--ease-smooth);
     position: relative;
     height: 100%;
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--border-color);
 }
 
 .card.clickable {
@@ -18,24 +20,23 @@
 
 .card:hover {
     box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
     border-color: var(--border-color-lighter);
-    background-color: var(--background-color-hover);
+    background: var(--background-color-hover);
 }
 
 .card:focus-visible {
-    outline: 2px solid var(--accent-color);
-    outline-offset: 2px;
+    outline: var(--border-width-medium) solid var(--accent-color);
+    outline-offset: var(--space-1);
 }
 
 .card.disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
     pointer-events: none;
 }
 
 .card.highlight {
-    border: 2px solid var(--accent-color);
+    border: var(--border-width-thick) solid var(--accent-color);
     box-shadow: 0 0 0 1px var(--accent-color), var(--shadow-md);
 }
 
@@ -44,9 +45,9 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: var(--spacing-lg);
-    padding-bottom: var(--spacing-md);
-    gap: var(--spacing-sm);
+    padding: var(--space-6);
+    padding-bottom: var(--space-4);
+    gap: var(--space-2);
 }
 
 .card-header-content {
@@ -57,12 +58,12 @@
 .card-title {
     font-size: var(--font-size-base);
     font-weight: var(--font-weight-semibold);
-    margin: 0 0 var(--spacing-sm);
+    margin: 0 0 var(--space-2);
     color: var(--text-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: var(--spacing-sm);
+    gap: var(--space-2);
     line-height: var(--line-height-tight);
 }
 
@@ -82,21 +83,23 @@
 .card-arrow {
     color: var(--text-color-secondary);
     opacity: 0;
-    transition: all var(--duration-fast) var(--ease-magical);
+    transition: opacity var(--duration-fast) var(--ease-smooth),
+                transform var(--duration-fast) var(--ease-smooth),
+                color var(--duration-fast) var(--ease-smooth);
     flex-shrink: 0;
     font-size: var(--font-size-sm);
 }
 
 .card:hover .card-arrow,
 .card:focus-visible .card-arrow {
-    opacity: 0.8;
-    transform: translateX(2px);
+    opacity: 1;
+    transform: translateX(4px);
     color: var(--accent-color);
 }
 
 /* Card Content */
 .card-content {
-    padding: 0 var(--spacing-lg) var(--spacing-lg);
+    padding: 0 var(--space-6) var(--space-6);
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -109,22 +112,22 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: var(--background-transparency-light);
+    background: var(--background-transparency-light);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     z-index: 10;
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(4px);
     border-radius: var(--radius-lg);
 }
 
 .card-loading-spinner {
     width: 2rem;
     height: 2rem;
-    border: 2px solid var(--border-color);
+    border: var(--border-width-medium) solid var(--border-color);
     border-top-color: var(--accent-color);
-    border-radius: 50%;
+    border-radius: var(--radius-full);
     animation: magicalSpin 1s linear infinite;
 }
 
@@ -132,56 +135,40 @@
 .card-options {
     position: relative;
     margin-left: auto;
-    margin-top: calc(var(--spacing-sm) * -0.5);
-    margin-right: calc(var(--spacing-sm) * -0.5);
+    margin-top: calc(var(--space-2) * -0.5);
+    margin-right: calc(var(--space-2) * -0.5);
 }
 
 .card-options-button {
     background: var(--background-color-tertiary);
-    border: 1px solid var(--border-color);
+    border: var(--border-width-thin) solid var(--border-color);
     color: var(--text-color-secondary);
-    padding: var(--spacing-sm);
+    padding: var(--space-2);
     border-radius: var(--radius-md);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all var(--duration-fast) var(--ease-magical);
+    transition: background-color var(--duration-fast) var(--ease-smooth),
+                color var(--duration-fast) var(--ease-smooth),
+                border-color var(--duration-fast) var(--ease-smooth),
+                transform var(--duration-fast) var(--ease-smooth);
     width: 2.25rem;
     height: 2.25rem;
     position: relative;
     overflow: hidden;
 }
 
-.card-options-button::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--gradient-glow);
-    opacity: 0;
-    transition: opacity var(--duration-fast) var(--ease-magical);
-    border-radius: var(--radius-sm);
-}
-
 .card-options-button:hover {
-    background-color: var(--background-color-hover);
+    background: var(--background-color-hover);
     color: var(--accent-color);
     border-color: var(--border-color-lighter);
-    transform: scale(1.05);
-    box-shadow: var(--shadow-sm);
-}
-
-.card-options-button:hover::before {
-    opacity: 0.1;
 }
 
 .card-options-button:focus-visible {
-    outline: 2px solid var(--accent-color);
-    outline-offset: 2px;
-    background-color: var(--background-color-hover);
+    outline: var(--border-width-medium) solid var(--accent-color);
+    outline-offset: var(--space-0-5);
+    background: var(--background-color-hover);
     color: var(--accent-color);
 }
 
@@ -192,7 +179,7 @@
 .card-options-button svg {
     position: relative;
     z-index: 1;
-    transition: transform var(--duration-fast) var(--ease-magical);
+    transition: transform var(--duration-fast) var(--ease-smooth);
 }
 
 .card-options-button:hover svg {
@@ -201,7 +188,7 @@
 
 .card-options-menu {
     position: absolute;
-    top: calc(100% + var(--spacing-sm));
+    top: calc(100% + var(--space-2));
     right: 0;
     background: var(--background-color-primary);
     border-radius: var(--radius-md);
@@ -212,8 +199,8 @@
     opacity: 0;
     transform: translateY(-10px) scale(0.95);
     visibility: hidden;
-    transition: all var(--duration-fast) var(--ease-magical);
-    border: 1px solid var(--border-color);
+    transition: all var(--duration-fast) var(--ease-smooth);
+    border: var(--card-border);
     backdrop-filter: blur(8px);
 }
 
@@ -232,27 +219,28 @@
     display: flex;
     align-items: center;
     width: 100%;
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: var(--space-2) var(--space-4);
     background: none;
     border: none;
     color: var(--text-color);
     text-align: left;
     cursor: pointer;
-    transition: all var(--duration-fast) var(--ease-magical);
+    transition: background-color var(--duration-fast) var(--ease-smooth),
+                color var(--duration-fast) var(--ease-smooth);
     font-size: var(--font-size-sm);
-    gap: var(--spacing-sm);
+    gap: var(--space-2);
     font-weight: var(--font-weight-medium);
     line-height: var(--line-height-tight);
 }
 
 .card-options-item:hover {
-    background-color: var(--background-color-hover);
+    background: var(--background-color-hover);
     color: var(--accent-color);
 }
 
 .card-options-item:focus-visible {
     outline: none;
-    background-color: var(--background-color-hover);
+    background: var(--background-color-hover);
     color: var(--accent-color);
 }
 
@@ -261,7 +249,7 @@
 }
 
 .card-options-item[data-danger]:hover {
-    background-color: var(--color-error-transparency);
+    background: var(--color-error-transparency);
     color: var(--color-error);
 }
 
@@ -281,33 +269,34 @@
 
 .card-option-single {
     background: var(--background-color-tertiary);
-    border: 1px solid var(--border-color);
+    border: var(--border-width-thin) solid var(--border-color);
     color: var(--text-color-secondary);
-    padding: var(--spacing-sm);
+    padding: var(--space-2);
     border-radius: var(--radius-md);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--spacing-sm);
+    gap: var(--space-2);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-medium);
-    transition: all var(--duration-fast) var(--ease-magical);
+    transition: background-color var(--duration-fast) var(--ease-smooth),
+                color var(--duration-fast) var(--ease-smooth),
+                border-color var(--duration-fast) var(--ease-smooth),
+                transform var(--duration-fast) var(--ease-smooth);
     min-width: 2.25rem;
     height: 2.25rem;
 }
 
 .card-option-single:hover {
-    background-color: var(--background-color-hover);
+    background: var(--background-color-hover);
     color: var(--accent-color);
     border-color: var(--border-color-lighter);
-    transform: scale(1.05);
-    box-shadow: var(--shadow-sm);
 }
 
 .card-option-single:focus-visible {
-    outline: 2px solid var(--accent-color);
-    outline-offset: 2px;
+    outline: var(--border-width-medium) solid var(--accent-color);
+    outline-offset: var(--space-0-5);
 }
 
 .card-option-single:active {
@@ -317,10 +306,10 @@
 /* Enhanced skeleton loading */
 .skeleton {
     background: linear-gradient(
-            90deg,
-            var(--background-color-secondary) 25%,
-            var(--background-color-hover) 50%,
-            var(--background-color-secondary) 75%
+        90deg,
+        var(--background-color-secondary) 25%,
+        var(--background-color-hover) 50%,
+        var(--background-color-secondary) 75%
     );
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
@@ -334,7 +323,7 @@
     height: 100%;
     width: 100%;
     border-radius: var(--radius-lg);
-    margin-bottom: var(--spacing-md);
+    margin-bottom: var(--space-4);
 }
 
 /* Card Grid Styles */
@@ -343,7 +332,7 @@
 }
 
 .card-grid-search {
-    margin-bottom: var(--spacing-lg);
+    margin-bottom: var(--space-6);
 }
 
 .card-search-input-container {
@@ -355,21 +344,23 @@
 
 .card-search-input {
     width: 100%;
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: var(--space-2) var(--space-4);
     padding-left: 2.5rem;
-    border: 1px solid var(--border-color);
+    border: var(--input-border);
     border-radius: var(--radius-md);
-    background-color: var(--background-color-secondary);
+    background: var(--background-color-secondary);
     color: var(--text-color);
     font-size: var(--font-size-sm);
-    transition: all var(--duration-fast) var(--ease-magical);
+    transition: border-color var(--duration-fast) var(--ease-smooth),
+                box-shadow var(--duration-fast) var(--ease-smooth),
+                background-color var(--duration-fast) var(--ease-smooth);
 }
 
 .card-search-input:focus {
     outline: none;
     border-color: var(--accent-color);
     box-shadow: 0 0 0 3px var(--accent-color-transparency);
-    background-color: var(--background-color-primary);
+    background: var(--background-color-primary);
 }
 
 .card-search-input::placeholder {
@@ -378,7 +369,7 @@
 
 .card-search-icon {
     position: absolute;
-    left: var(--spacing-sm);
+    left: var(--space-2);
     color: var(--text-color-secondary);
     font-size: var(--font-size-sm);
     z-index: 1;
@@ -386,7 +377,7 @@
 
 .card-search-spinner {
     position: absolute;
-    right: var(--spacing-sm);
+    right: var(--space-2);
     color: var(--accent-color);
     animation: magicalSpin 1s linear infinite;
 }
@@ -394,7 +385,7 @@
 .card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: var(--spacing-lg);
+    gap: var(--space-6);
     width: 100%;
 }
 
@@ -403,9 +394,9 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: var(--spacing-xl);
+    padding: var(--space-8);
     color: var(--text-color-secondary);
-    gap: var(--spacing-md);
+    gap: var(--space-4);
 }
 
 .card-grid__loading-spinner {
@@ -419,16 +410,16 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: var(--spacing-xl);
+    padding: var(--space-8);
     text-align: center;
     color: var(--text-color-secondary);
-    gap: var(--spacing-md);
+    gap: var(--space-4);
 }
 
 .card-grid__empty-icon {
     color: var(--text-color-placeholder);
     opacity: 0.5;
-    margin-bottom: var(--spacing-sm);
+    margin-bottom: var(--space-2);
 }
 
 .card-grid__empty-state h3 {
@@ -452,23 +443,11 @@
 .end-of-results {
     grid-column: 1 / -1;
     text-align: center;
-    padding: var(--spacing-lg);
+    padding: var(--space-6);
     color: var(--text-color-secondary);
     font-size: var(--font-size-sm);
-    border-top: 1px solid var(--border-color);
-    margin-top: var(--spacing-lg);
-}
-
-/* Card entrance animation */
-.card {
-    opacity: 0;
-    transform: translateY(20px);
-    animation: fadeInMagical 0.6s var(--ease-magical) forwards;
-}
-
-.card.visible {
-    opacity: 1;
-    transform: translateY(0);
+    border-top: var(--border-width-thin) solid var(--border-color);
+    margin-top: var(--space-6);
 }
 
 /* Visually hidden utility class */
@@ -488,29 +467,30 @@
 @media (max-width: 768px) {
     .card-grid {
         grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: var(--spacing-md);
+        gap: var(--space-4);
     }
     
     .card-header {
-        padding: var(--spacing-md);
-        padding-bottom: var(--spacing-sm);
+        padding: var(--space-4);
+        padding-bottom: var(--space-2);
     }
     
     .card-content {
-        padding: 0 var(--spacing-md) var(--spacing-md);
+        padding: 0 var(--space-4) var(--space-4);
     }
 }
 
 .card-search-clear {
     position: absolute;
-    right: var(--spacing-sm);
+    right: var(--space-2);
     background: none;
     border: none;
     color: var(--text-color-secondary);
     cursor: pointer;
-    padding: var(--spacing-sm);
+    padding: var(--space-2);
     border-radius: var(--radius-sm);
-    transition: all var(--duration-fast) var(--ease-magical);
+    transition: background-color var(--duration-fast) var(--ease-smooth),
+                color var(--duration-fast) var(--ease-smooth);
     font-size: 1.25rem;
     line-height: 1;
     width: 2rem;
@@ -521,13 +501,13 @@
 }
 
 .card-search-clear:hover {
-    background-color: var(--background-color-hover);
+    background: var(--background-color-hover);
     color: var(--accent-color);
 }
 
 .card-search-clear:focus-visible {
-    outline: 2px solid var(--accent-color);
-    outline-offset: 2px;
+    outline: var(--border-width-medium) solid var(--accent-color);
+    outline-offset: var(--space-0-5);
 }
 
 .card-wrapper {

@@ -1,56 +1,66 @@
 /**
- * Form component styles
+ * Form component styles - Modern shadcn-like design
  */
 
 .field {
-    margin-bottom: var(--padding-medium);
+    margin-bottom: var(--space-4);
 }
 
 .field-label {
     display: block;
-    font-size: var(--font-size-small);
-    font-weight: 500;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
     color: var(--text-color);
-    margin-bottom: var(--padding-small);
+    margin-bottom: var(--space-2);
 }
 
 .field-input {
     width: 100%;
-    padding: var(--padding-small) var(--padding-medium);
-    font-size: 1rem;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-base);
     line-height: var(--line-height-normal);
     color: var(--text-color);
     background: var(--background-color-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-small);
-    transition: var(--transition-standard);
+    border: var(--input-border);
+    border-radius: var(--radius-md);
+    transition: all var(--duration-fast) var(--ease-smooth);
+}
+
+.field-input::placeholder {
+    color: var(--text-color-placeholder);
+}
+
+.field-input:hover:not(:disabled) {
+    border-color: var(--border-color-lighter);
 }
 
 .field-input:focus {
     outline: none;
     border-color: var(--accent-color);
-    box-shadow: 0 0 0 3px var(--background-transparency-light);
+    box-shadow: 0 0 0 3px var(--accent-color-transparency);
 }
 
 .field-input:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
     background: var(--background-color-secondary);
-}
-
-.field-input::placeholder {
-    color: var(--text-color-secondary);
 }
 
 /* Textarea specific styles */
 textarea.field-input {
     resize: vertical;
-    min-height: 100px;
+    min-height: 120px;
 }
 
 /* Select specific styles */
 select.field-input {
     cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right var(--space-2) center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: var(--space-10);
 }
 
 /* Error state */
@@ -63,7 +73,17 @@ select.field-input {
 }
 
 .field-error {
-    font-size: 0.75rem;
+    font-size: var(--font-size-xs);
     color: var(--color-error);
-    margin-top: var(--padding-small);
+    margin-top: var(--space-1-5);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+/* Helper text */
+.field-helper {
+    font-size: var(--font-size-xs);
+    color: var(--text-color-secondary);
+    margin-top: var(--space-1-5);
 }

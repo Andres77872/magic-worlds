@@ -1,24 +1,33 @@
 /* borders.css */
 :root {
-    /* Core Borders - preserving existing variables */
-    --border-radius-small: 4px;
-    --border-radius-medium: 8px;
-    --border-radius-large: 16px;
-    --border-standard: 1px solid var(--border-color);
-    --border-hover: 1px solid var(--border-color);
-    --border-focus: 1px solid var(--border-color);
-    --border-dashed: 2px dashed var(--border-color-lighter);
-    --border-radius: var(--border-radius-small);
+    /* Core Border Radius - Modern shadcn-like scale */
+    --radius-sm: 0.375rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+    --radius-2xl: 1.5rem;
+    --radius-full: 9999px;
     
-    /* Extended border utilities for consistency */
-    /* These map directly to existing tokens */
+    /* Preserve existing variables for compatibility */
+    --border-radius-small: var(--radius-sm);
+    --border-radius-medium: var(--radius-md);
+    --border-radius-large: var(--radius-lg);
+    
+    /* Border Widths */
     --border-width-thin: 1px;
-    --border-width-medium: 2px;
-    --border-width-thick: 3px;
+    --border-width-medium: 1.5px;
+    --border-width-thick: 2px;
+    
+    /* Border Styles */
+    --border-standard: var(--border-width-medium) solid var(--border-color);
+    --border-hover: var(--border-width-thin) solid var(--border-color-lighter);
+    --border-focus: var(--border-width-thick) solid var(--accent-color);
+    --border-dashed: var(--border-width-medium) dashed var(--border-color-lighter);
+    --border-radius: var(--radius-md);
     
     /* Component specific borders */
     --input-border: var(--border-standard);
-    --card-border: var(--border-standard);
-    --button-border: var(--border-standard);
-    --modal-border-radius: var(--border-radius-medium);
+    --card-border: var(--border-width-thin) solid var(--border-color);
+    --button-border: var(--border-width-thin) solid transparent;
+    --modal-border-radius: var(--radius-lg);
 }

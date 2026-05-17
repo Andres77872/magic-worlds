@@ -61,7 +61,7 @@ export function LandingPage() {
         setPage('interaction')
     }
 
-    // Calculate stats for the hero section
+    // Calculate stats for content sections (still needed for local storage data)
     const hasContent = characters.length > 0 || worlds.length > 0 || 
         templateAdventures.length > 0 || inProgressAdventures.length > 0
 
@@ -72,11 +72,7 @@ export function LandingPage() {
     return (
         <div className="landing-page">
             <LandingHero
-                charactersCount={characters.length}
-                worldsCount={worlds.length}
-                templatesCount={templateAdventures.length}
                 activeAdventures={inProgressAdventures.length}
-                hasContent={hasContent}
                 onStartJourney={() => setPage('character')}
                 lastActiveAdventure={inProgressAdventures.length > 0 ? inProgressAdventures[0] : undefined}
                 onContinueAdventure={handleInProgressEdit}
@@ -88,23 +84,19 @@ export function LandingPage() {
                 onCreateAdventure={() => setPage('adventure')}
             />
 
-            {hasContent && (
-                <LandingContentSections
-                    characters={characters}
-                    worlds={worlds}
-                    templateAdventures={templateAdventures}
-                    inProgressAdventures={inProgressAdventures}
-                    onCharacterEdit={handleCharacterEdit}
-                    onCharacterDelete={deleteCharacter}
-                    onWorldEdit={handleWorldEdit}
-                    onWorldDelete={deleteWorld}
-                    onTemplateEdit={handleTemplateEdit}
-                    onTemplateStart={handleTemplateStart}
-                    onTemplateDelete={deleteTemplate}
-                    onInProgressEdit={handleInProgressEdit}
-                    onInProgressDelete={deleteInProgress}
-                />
-            )}
+            <LandingContentSections
+                templateAdventures={templateAdventures}
+                inProgressAdventures={inProgressAdventures}
+                onCharacterEdit={handleCharacterEdit}
+                onCharacterDelete={deleteCharacter}
+                onWorldEdit={handleWorldEdit}
+                onWorldDelete={deleteWorld}
+                onTemplateEdit={handleTemplateEdit}
+                onTemplateStart={handleTemplateStart}
+                onTemplateDelete={deleteTemplate}
+                onInProgressEdit={handleInProgressEdit}
+                onInProgressDelete={deleteInProgress}
+            />
 
             {!hasContent && <LandingTips />}
 

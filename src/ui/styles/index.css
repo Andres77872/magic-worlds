@@ -4,6 +4,24 @@
 
 @import './App.css';
 
+/* Global styles for the entire app, regardless of components loaded */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--background-color-secondary);
+    color: var(--text-color);
+    font-family: var(--font-family);
+    line-height: var(--line-height);
+}
+
+#root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
 /* Feature placeholder styles */
 .feature-placeholder {
     max-width: 800px;

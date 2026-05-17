@@ -4,10 +4,8 @@
 
 import type { FormEvent, KeyboardEvent } from 'react';
 import { useState, useRef, useEffect } from 'react';
-import type { Character } from '../../../../shared';
 import { useNavigation, useData } from '../../../../app/hooks';
-import { storage } from '../../../../infrastructure/storage';
-import { generateUUID } from '../../../../utils/uuid';
+import { apiService } from '../../../../infrastructure/api';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
 import { 
     CreatorLayout, 
@@ -19,6 +17,18 @@ import {
 } from '../../common/components';
 import { CategoryService } from '../../common/services';
 import './CharacterCreator.css';
+
+// Interface for character creation API request
+interface CharacterCreationRequest {
+    name: string;
+    race: string;
+    description: string;
+    category: Array<{
+        name: string;
+        description: string;
+        attributes: Array<Record<string, string>>;
+    }>;
+}
 
 // Predefined attribute categories for characters
 const DEFAULT_CHARACTER_CATEGORIES: AttributeCategory[] = [
@@ -48,11 +58,36 @@ const DEFAULT_CHARACTER_CATEGORIES: AttributeCategory[] = [
     }
 ];
 
+// Helper function to transform character data to API format
+const transformToApiFormat = (
+    name: string,
+    race: string,
+    description: string,
+    attributes: Record<string, { key: string; value: string }[]>,
+    attributeCategories: AttributeCategory[]
+): CharacterCreationRequest => {
+    const categories = attributeCategories
+        .filter(category => attributes[category.id] && attributes[category.id].length > 0)
+        .map(category => ({
+            name: category.name,
+            description: category.description,
+            attributes: attributes[category.id]
+                .filter(attr => attr.key && attr.value)
+                .map(attr => ({ [attr.key]: attr.value }))
+        }))
+        .filter(category => category.attributes.length > 0);
+
+    return {
+        name,
+        race,
+        description,
+        category: categories
+    };
+};
+
 export function CharacterCreator() {
     const { setPage } = useNavigation();
-    const { characters, setCharacters, editingCharacter, setEditingCharacter } = useData();
-    
-    const [id] = useState(editingCharacter?.id ?? generateUUID());
+    const { editingCharacter, setEditingCharacter } = useData();
     const [name, setName] = useState(editingCharacter?.name ?? '');
     const [race, setRace] = useState(editingCharacter?.race ?? '');
     const [description, setDescription] = useState(editingCharacter?.description ?? '');
@@ -233,49 +268,36 @@ export function CharacterCreator() {
         }
         
         try {
-            // Prepare character data structure
-            let characterData: Character = {
-                id, 
-                name, 
-                race, 
+            // Transform data to API format
+            const apiPayload = transformToApiFormat(
+                name,
+                race,
                 description,
-                stats: {},
-                skills: {},
-                traits: {},
-                equipment: {},
-                createdAt: editingCharacter?.createdAt ?? new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
+                attributes,
+                attributeCategories
+            );
             
-            // Save custom categories metadata using CategoryService
-            if (customCategories.length > 0) {
-                characterData = CategoryService.saveCategories(characterData, customCategories, 'stats') as Character;
+            let result;
+            
+            if (editingCharacter) {
+                // Update existing character
+                result = await apiService.updateCharacter(editingCharacter.id, apiPayload);
+            } else {
+                // Create new character
+                result = await apiService.createCharacter(apiPayload);
             }
             
-            // Save attributes for all categories using CategoryService
-            Object.keys(attributes).forEach(categoryId => {
-                characterData = CategoryService.saveAttributes(
-                    characterData,
-                    categoryId,
-                    attributes[categoryId]?.filter(attr => attr.key && attr.value) || [],
-                    'stats'
-                ) as Character;
-            });
+            // Only use the id from the response, ignore other debug fields
+            const characterId = result.id;
             
-            // Save to storage and update app state
-            const updatedCharacters = editingCharacter 
-                ? characters.map(c => c.id === id ? characterData : c)
-                : [...characters, characterData];
-                
-            // First save to localStorage
-            await storage.saveCharacters(updatedCharacters);
-            // Then update React state
-            setCharacters(updatedCharacters);
+            console.log(`Character ${editingCharacter ? 'updated' : 'created'} successfully with ID:`, characterId);
+            
+            // Navigate back to landing page
             setEditingCharacter(null);
             setPage('landing');
         } catch (error) {
-            console.error('Failed to save character:', error);
-            alert('Failed to save character. Please try again.');
+            console.error(`Failed to ${editingCharacter ? 'update' : 'create'} character:`, error);
+            alert(`Failed to ${editingCharacter ? 'update' : 'create'} character. Please try again.`);
         } finally {
             setIsSubmitting(false);
         }

@@ -1,12 +1,12 @@
-/* ===== List Components ===== */
+/* List Components - Modern shadcn-like design */
 .in-progress-list,
 .world-list,
 .character-list,
 .template-list {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-medium);
-    padding: var(--padding-medium) 0;
+    gap: var(--space-4);
+    padding: var(--space-4) 0;
 }
 
 /* Specific styles for cards within lists */
@@ -21,9 +21,9 @@
     font-style: italic;
     color: var(--text-color-secondary);
     font-size: var(--font-size-sm);
-    border-top: 1px dashed var(--border-color);
-    padding-top: var(--spacing-sm);
-    margin-top: var(--spacing-sm);
+    border-top: var(--border-width-thin) dashed var(--border-color);
+    padding-top: var(--space-2);
+    margin-top: var(--space-2);
 }
 
 .deleting {
@@ -41,13 +41,13 @@
     align-items: center;
     justify-content: center;
     font-weight: var(--font-weight-medium);
-    border-radius: var(--border-radius-large);
+    border-radius: var(--radius-lg);
     z-index: 1;
 }
 
 .warning-text {
     color: var(--color-messages-warning);
-    font-weight: 500;
-    margin-top: var(--margin-small);
+    font-weight: var(--font-weight-medium);
+    margin-top: var(--space-2);
     font-size: var(--font-size-sm);
 }

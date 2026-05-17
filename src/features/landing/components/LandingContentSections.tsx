@@ -1,18 +1,19 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FiBookOpen, FiGlobe, FiPlay, FiUserPlus, FiUsers, FiMapPin, FiFileText, FiZap } from 'react-icons/fi'
 import { CharacterList, InProgressList, TemplateList, WorldList } from '../../../ui/components'
 import type { Character, World, Adventure } from '../../../shared'
+import { useUserData } from '../../../app/hooks'
+import { apiService } from '../../../infrastructure/api'
+import { mapApiTemplatesToAdventures } from '../../../utils/apiMappers'
 import './LandingContentSections.css'
 
 interface LandingContentSectionsProps {
-    characters: Character[]
-    worlds: World[]
     templateAdventures: Adventure[]
     inProgressAdventures: Adventure[]
     onCharacterEdit: (character: Character) => void
-    onCharacterDelete: (index: number) => void | Promise<void>
+    onCharacterDelete: (id: string) => void | Promise<void>
     onWorldEdit: (world: World) => void
-    onWorldDelete: (index: number) => void | Promise<void>
+    onWorldDelete: (id: string) => void | Promise<void>
     onTemplateEdit: (template: Adventure) => void
     onTemplateStart: (template: Adventure) => void
     onTemplateDelete: (index: number) => void | Promise<void>
@@ -51,8 +52,6 @@ function EmptyState({ icon, title, message, actionText, onAction }: EmptyStatePr
 }
 
 export function LandingContentSections({
-    characters,
-    worlds,
     templateAdventures,
     inProgressAdventures,
     onCharacterEdit,
@@ -66,8 +65,69 @@ export function LandingContentSections({
     onInProgressDelete
 }: LandingContentSectionsProps) {
     const [activeSection, setActiveSection] = useState<'characters' | 'worlds' | 'templates' | 'inprogress'>('inprogress')
+    const [characters, setCharacters] = useState<Character[]>([])
+    const [worlds, setWorlds] = useState<World[]>([])
+    const [apiTemplates, setApiTemplates] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    
+    // Get user data from API to determine if tabs should be shown
+    const { userData, isLoading: userDataLoading } = useUserData()
+    
+    // Fetch characters, worlds, and templates from API
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                setLoading(true)
+                setError(null)
+                
+                // Use the apiService to fetch data from the API
+                const [charactersData, worldsData, templatesData] = await Promise.all([
+                    apiService.getCharacters(),
+                    apiService.getWorlds(),
+                    apiService.getAdventureTemplates()
+                ])
+
+                setCharacters(charactersData || [])
+                setWorlds(worldsData || [])
+                setApiTemplates(templatesData || [])
+            } catch (err) {
+                console.error('Error fetching data:', err)
+                setError(err instanceof Error ? err.message : 'Failed to fetch data')
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        fetchData()
+    }, [])
+
+    // Check if any content exists based on API data or local data
+    const hasApiContent = userData && (
+        userData.card_counts.character > 0 ||
+        userData.card_counts.world > 0 ||
+        userData.card_counts.adventure_template > 0
+    )
+    
+    // Also check local data for fallback
+    const hasLocalContent = characters.length > 0 || worlds.length > 0 || 
+        templateAdventures.length > 0 || inProgressAdventures.length > 0
+    
+    // Merge API templates with local templates (prefer API data)
+    const mergedTemplates = apiTemplates.length > 0 
+        ? mapApiTemplatesToAdventures(apiTemplates) 
+        : templateAdventures
+    
+    // Show tabs if we have API content, local content, or still loading API data
+    const shouldShowTabs = userDataLoading || hasApiContent || hasLocalContent
+    
+    // Don't render if no content at all (safe to return here - after all hooks)
+    if (!shouldShowTabs) {
+        return null
+    }
 
     // Enhanced tab configuration with better accessibility and theming
+    // Use API data counts when available, fallback to local state
     const tabs = [
         {
             id: 'inprogress' as const,
@@ -84,7 +144,7 @@ export function LandingContentSections({
             id: 'characters' as const,
             label: 'Characters',
             icon: <FiUserPlus aria-hidden="true" />,
-            count: characters.length,
+            count: userData?.card_counts?.character ?? characters.length,
             emptyState: {
                 icon: <FiUsers />,
                 title: 'No Characters Created',
@@ -95,7 +155,7 @@ export function LandingContentSections({
             id: 'worlds' as const,
             label: 'Worlds',
             icon: <FiGlobe aria-hidden="true" />,
-            count: worlds.length,
+            count: userData?.card_counts?.world ?? worlds.length,
             emptyState: {
                 icon: <FiMapPin />,
                 title: 'No Worlds Built',
@@ -106,7 +166,7 @@ export function LandingContentSections({
             id: 'templates' as const,
             label: 'Templates',
             icon: <FiBookOpen aria-hidden="true" />,
-            count: templateAdventures.length,
+            count: userData?.card_counts?.adventure_template ?? mergedTemplates.length,
             emptyState: {
                 icon: <FiFileText />,
                 title: 'No Adventure Templates',
@@ -118,12 +178,38 @@ export function LandingContentSections({
     const renderTabContent = () => {
         switch (activeSection) {
             case 'characters':
+                if (loading) {
+                    return (
+                        <div className="landing-content-panel-loading">
+                            <div className="loading-spinner" aria-label="Loading characters"></div>
+                            <p>Loading characters...</p>
+                        </div>
+                    )
+                }
+                if (error) {
+                    return (
+                        <div className="landing-content-panel-error">
+                            <p>Error loading characters: {error}</p>
+                            <button 
+                                className="btn btn-secondary" 
+                                onClick={() => window.location.reload()}
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    )
+                }
                 return characters.length > 0 ? (
                     <div className="animate-entrance">
                         <CharacterList
                             characters={characters}
                             onEdit={onCharacterEdit}
-                            onDelete={onCharacterDelete}
+                            onDelete={(index) => {
+                                const character = characters[index]
+                                if (character?.id) {
+                                    onCharacterDelete(character.id)
+                                }
+                            }}
                         />
                     </div>
                 ) : (
@@ -131,12 +217,38 @@ export function LandingContentSections({
                 )
 
             case 'worlds':
+                if (loading) {
+                    return (
+                        <div className="landing-content-panel-loading">
+                            <div className="loading-spinner" aria-label="Loading worlds"></div>
+                            <p>Loading worlds...</p>
+                        </div>
+                    )
+                }
+                if (error) {
+                    return (
+                        <div className="landing-content-panel-error">
+                            <p>Error loading worlds: {error}</p>
+                            <button 
+                                className="btn btn-secondary" 
+                                onClick={() => window.location.reload()}
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    )
+                }
                 return worlds.length > 0 ? (
                     <div className="animate-entrance">
                         <WorldList
                             worlds={worlds}
                             onEdit={onWorldEdit}
-                            onDelete={onWorldDelete}
+                            onDelete={(index) => {
+                                const world = worlds[index]
+                                if (world?.id) {
+                                    onWorldDelete(world.id)
+                                }
+                            }}
                         />
                     </div>
                 ) : (
@@ -144,10 +256,10 @@ export function LandingContentSections({
                 )
 
             case 'templates':
-                return templateAdventures.length > 0 ? (
+                return mergedTemplates.length > 0 ? (
                     <div className="animate-entrance">
                         <TemplateList
-                            templates={templateAdventures}
+                            templates={mergedTemplates}
                             onEdit={onTemplateEdit}
                             onStart={onTemplateStart}
                             onDelete={onTemplateDelete}

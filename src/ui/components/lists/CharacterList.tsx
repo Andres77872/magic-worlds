@@ -72,7 +72,7 @@ export function CharacterList({
                         },
                     ]
 
-                    const stats = Object.entries(character.stats)
+                    const stats = Object.entries(character.stats ?? {})
                         .map(([key, value]) => `${key}: ${value}`)
                         .join(' • ')
 

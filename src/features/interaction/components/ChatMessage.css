@@ -1,5 +1,5 @@
 /**
- * ChatMessage styles - Message content with markdown and roleplay formatting
+ * ChatMessage styles - Modern shadcn-like design
  */
 
 /* Import shared utilities */
@@ -13,8 +13,8 @@
 }
 
 .chat-message__text {
-  padding: var(--spacing-md) var(--spacing-lg);
-  border-radius: var(--border-radius-medium);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-lg);
   position: relative;
   line-height: var(--line-height-normal);
   word-wrap: break-word;
@@ -24,7 +24,7 @@
 /* User message styling */
 .chat-message--user .chat-message__text {
   background: var(--background-color-tertiary);
-  border: 1px solid var(--border-color);
+  border: var(--border-width-thin) solid var(--border-color);
   color: var(--text-color);
   margin-left: 0;
   margin-right: auto;
@@ -35,13 +35,13 @@
 [data-theme="light"] .chat-message--user .chat-message__text {
   background: var(--background-color-secondary);
   border-color: var(--accent-color);
-  border-width: 2px;
+  border-width: var(--border-width-medium);
 }
 
 /* Assistant message styling */
 .chat-message--assistant {
   background: var(--background-color-secondary);
-  border: 1px solid var(--border-color-lighter);
+  border: var(--border-width-thin) solid var(--border-color-lighter);
   color: var(--text-color);
   margin-right: 0;
   margin-left: auto;
@@ -49,8 +49,8 @@
   position: relative;
   overflow: hidden;
   box-shadow: var(--shadow-md);
-  padding: var(--spacing-md) var(--spacing-lg);
-  border-radius: var(--border-radius-medium);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-lg);
   line-height: var(--line-height-normal);
   word-wrap: break-word;
 }
@@ -59,8 +59,8 @@
   background: linear-gradient(135deg, 
     var(--background-color-primary) 0%, 
     var(--background-color-secondary) 100%);
-  border: 2px solid var(--color-magic-glow);
-  box-shadow: 0 4px 15px rgba(168, 85, 247, 0.1);
+  border: var(--border-width-medium) solid var(--color-magic-glow);
+  box-shadow: var(--shadow-lg);
 }
 
 /* Magical glow effect for assistant messages */
@@ -81,11 +81,9 @@
   opacity: 0.02;
 }
 
-/* =====================================================================
-   Markdown Styles
-   ===================================================================== */
+/* Markdown Styles */
 .markdown-paragraph {
-  margin: 0 0 var(--spacing-sm) 0;
+  margin: 0 0 var(--space-2) 0;
   line-height: var(--line-height-normal);
 }
 
@@ -98,7 +96,7 @@
 .markdown-h2,
 .markdown-h3 {
   font-weight: var(--font-weight-bold);
-  margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+  margin: var(--space-4) 0 var(--space-2) 0;
   line-height: var(--line-height-tight);
 }
 
@@ -125,12 +123,12 @@
 
 /* Lists */
 .markdown-list {
-  margin: var(--spacing-sm) 0;
-  padding-left: var(--spacing-lg);
+  margin: var(--space-2) 0;
+  padding-left: var(--space-6);
 }
 
 .markdown-list-item {
-  margin: var(--spacing-xs) 0;
+  margin: var(--space-1) 0;
   line-height: var(--line-height-normal);
 }
 
@@ -140,13 +138,13 @@
 
 /* Blockquotes */
 .markdown-blockquote {
-  margin: var(--spacing-md) 0;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-left: 4px solid var(--accent-color);
+  margin: var(--space-4) 0;
+  padding: var(--space-2) var(--space-4);
+  border-left: var(--border-width-thick) solid var(--accent-color);
   background: var(--background-color-tertiary);
   font-style: italic;
   color: var(--text-color-secondary);
-  border-radius: var(--border-radius-small);
+  border-radius: var(--radius-sm);
 }
 
 [data-theme="light"] .markdown-blockquote {
@@ -158,11 +156,11 @@
 .markdown-code-inline {
   background: var(--background-color-tertiary);
   color: var(--accent-color);
-  padding: 2px 6px;
-  border-radius: var(--border-radius-small);
+  padding: var(--space-0-5) var(--space-1-5);
+  border-radius: var(--radius-sm);
   font-family: 'Fira Code', 'Consolas', monospace;
   font-size: 0.9em;
-  border: 1px solid var(--border-color);
+  border: var(--border-width-thin) solid var(--border-color);
 }
 
 [data-theme="light"] .markdown-code-inline {
@@ -175,13 +173,13 @@
   display: block;
   background: var(--background-color-primary);
   color: var(--text-color);
-  padding: var(--spacing-md);
-  border-radius: var(--border-radius-small);
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
   font-family: 'Fira Code', 'Consolas', monospace;
   font-size: 0.9em;
   overflow-x: auto;
-  margin: var(--spacing-sm) 0;
-  border: 1px solid var(--border-color);
+  margin: var(--space-2) 0;
+  border: var(--border-width-thin) solid var(--border-color);
   white-space: pre-wrap;
 }
 
@@ -203,12 +201,12 @@
 
 /* Divider */
 .markdown-divider {
-  margin: var(--spacing-lg) 0;
+  margin: var(--space-6) 0;
   border: none;
-  height: 2px;
+  height: var(--border-width-thin);
   background: var(--gradient-magical);
   opacity: 0.3;
-  border-radius: 1px;
+  border-radius: var(--radius-sm);
 }
 
 /* =====================================================================
@@ -221,10 +219,10 @@
   font-weight: var(--font-weight-medium);
   position: relative;
   background: var(--background-color-tertiary);
-  padding: 2px 4px;
-  border-radius: var(--border-radius-small);
-  border-left: 3px solid var(--accent-color);
-  margin: 0 2px;
+  padding: var(--space-0-5) var(--space-1);
+  border-radius: var(--radius-sm);
+  border-left: var(--border-width-medium) solid var(--accent-color);
+  margin: 0 var(--space-0-5);
   display: inline;
 }
 
@@ -245,13 +243,13 @@
 
 .rp-action::before {
   content: '*';
-  margin-right: 2px;
+  margin-right: var(--space-0-5);
   opacity: 0.6;
 }
 
 .rp-action::after {
   content: '*';
-  margin-left: 2px;
+  margin-left: var(--space-0-5);
   opacity: 0.6;
 }
 
@@ -265,9 +263,9 @@
   font-weight: var(--font-weight-normal);
   color: var(--text-color-secondary);
   background: var(--background-color-tertiary);
-  padding: 2px 6px;
-  border-radius: var(--border-radius-small);
-  border: 1px dashed var(--border-color);
+  padding: var(--space-0-5) var(--space-1-5);
+  border-radius: var(--radius-sm);
+  border: var(--border-width-thin) dashed var(--border-color);
   position: relative;
   display: inline;
   opacity: 0.85;
@@ -275,14 +273,14 @@
 
 .rp-thought::before {
   content: '(';
-  margin-right: 2px;
+  margin-right: var(--space-0-5);
   opacity: 0.7;
   font-style: normal;
 }
 
 .rp-thought::after {
   content: ')';
-  margin-left: 2px;
+  margin-left: var(--space-0-5);
   opacity: 0.7;
   font-style: normal;
 }
@@ -296,7 +294,7 @@
 /* Enhanced contrast for role-play elements in assistant messages */
 .chat-message--assistant .rp-dialogue {
   background: var(--background-color-primary);
-  box-shadow: 0 1px 3px rgba(139, 92, 246, 0.1);
+  box-shadow: var(--shadow-sm);
 }
 
 .chat-message--assistant .rp-action {
@@ -317,8 +315,8 @@
    ===================================================================== */
 .typing-indicator {
   display: inline-flex;
-  gap: 4px;
-  margin-left: 8px;
+  gap: var(--space-1);
+  margin-left: var(--space-2);
   vertical-align: middle;
 }
 
@@ -326,9 +324,9 @@
   width: 8px;
   height: 8px;
   background: var(--color-magic-glow);
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   animation: orbBounce 1.4s ease-in-out infinite;
-  box-shadow: 0 0 10px var(--color-magic-glow);
+  box-shadow: var(--shadow-sm);
 }
 
 .typing-indicator span:nth-child(2) {
@@ -345,7 +343,7 @@
 @media (max-width: 768px) {
   .chat-message__text,
   .chat-message--assistant {
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: var(--space-3) var(--space-4);
     max-width: 100% !important;
   }
   
@@ -358,14 +356,14 @@
   }
   
   .markdown-h3 {
-    font-size: var(--font-size-normal);
+    font-size: var(--font-size-base);
   }
 }
 
 @media (max-width: 480px) {
   .chat-message__text,
   .chat-message--assistant {
-    padding: var(--spacing-sm);
+    padding: var(--space-2) var(--space-3);
   }
   
   .markdown-h1 {
@@ -373,7 +371,7 @@
   }
   
   .markdown-h2 {
-    font-size: var(--font-size-normal);
+    font-size: var(--font-size-base);
   }
   
   .markdown-h3 {

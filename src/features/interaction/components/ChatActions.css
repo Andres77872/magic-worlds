@@ -1,5 +1,5 @@
 /**
- * ChatActions styles - Action buttons for chat turns
+ * ChatActions styles - Modern shadcn-like design
  */
 
 /* Import shared utilities */
@@ -11,7 +11,7 @@
 .chat-actions {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
 }
 
 /* =====================================================================
@@ -20,20 +20,20 @@
 .chat-actions__btn {
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
-  padding: 4px 8px;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
   background: var(--background-color-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-medium);
+  border: var(--border-width-thin) solid var(--border-color);
+  border-radius: var(--radius-md);
   color: var(--text-color-secondary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.3s var(--ease-magical);
+  transition: all var(--duration-fast) var(--ease-smooth);
   position: relative;
   overflow: hidden;
   opacity: 0;
-  animation: fadeIn 0.3s ease forwards;
+  animation: fadeIn 0.3s var(--ease-smooth) forwards;
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
 }
@@ -63,15 +63,14 @@
   background: var(--background-color-tertiary);
   border-color: var(--color-magic-glow);
   color: var(--color-magic-glow);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(192, 132, 252, 0.2);
+  box-shadow: var(--shadow-sm);
 }
 
 [data-theme="light"] .chat-actions__btn--edit:hover {
   background: var(--background-color-secondary);
   border-color: var(--accent-color);
   color: var(--accent-color);
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.15);
+  box-shadow: var(--shadow-md);
 }
 
 .chat-actions__btn--edit:hover .chat-actions__icon {
@@ -94,15 +93,14 @@
   background: var(--background-color-tertiary);
   border-color: var(--color-magic-glow);
   color: var(--color-magic-glow);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(192, 132, 252, 0.2);
+  box-shadow: var(--shadow-sm);
 }
 
 [data-theme="light"] .chat-actions__btn--regenerate:hover {
   background: var(--background-color-secondary);
   border-color: var(--accent-color);
   color: var(--accent-color);
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.15);
+  box-shadow: var(--shadow-md);
 }
 
 .chat-actions__btn--regenerate:hover .chat-actions__icon {
@@ -124,15 +122,14 @@
   background: var(--background-color-tertiary);
   border-color: var(--color-error);
   color: var(--color-error);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+  box-shadow: var(--shadow-sm);
 }
 
 [data-theme="light"] .chat-actions__btn--delete:hover {
   background: var(--background-color-secondary);
   border-color: var(--color-error);
   color: var(--color-error);
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15);
+  box-shadow: var(--shadow-md);
 }
 
 .chat-actions__btn--delete:hover .chat-actions__icon {
@@ -164,12 +161,12 @@
    Active and Focus States
    ===================================================================== */
 .chat-actions__btn:active {
-  transform: translateY(0);
+  transform: scale(0.95);
 }
 
 .chat-actions__btn:focus {
-  outline: 2px solid var(--color-magic-glow);
-  outline-offset: 2px;
+ outline: var(--border-width-thick) solid var(--color-magic-glow);
+  outline-offset: var(--space-0-5);
 }
 
 [data-theme="light"] .chat-actions__btn:focus {
@@ -185,11 +182,11 @@
    ===================================================================== */
 @media (max-width: 768px) {
   .chat-actions {
-    gap: var(--spacing-xs);
+    gap: var(--space-1);
   }
   
   .chat-actions__btn {
-    padding: 3px 6px;
+    padding: var(--space-0-5) var(--space-1-5);
     font-size: 10px;
   }
 } 

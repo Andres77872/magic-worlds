@@ -2,7 +2,7 @@
  * Disclaimer Modal component for app usage terms
  */
 
-import { FiX, FiAlertTriangle, FiCheck, FiExternalLink } from 'react-icons/fi'
+import { FiAlertTriangle, FiCheck, FiExternalLink, FiInfo, FiShield, FiZap } from 'react-icons/fi'
 import { GiMagicSwirl } from 'react-icons/gi'
 import './DisclaimerModal.css'
 
@@ -12,96 +12,132 @@ interface DisclaimerModalProps {
     onReject: () => void
 }
 
-export function DisclaimerModal({ isOpen, onAccept, onReject }: DisclaimerModalProps) {
+interface DisclaimerPoint {
+    icon: React.ReactNode
+    title: string
+    description: string
+    isWarning?: boolean
+}
+
+const disclaimerPoints: DisclaimerPoint[] = [
+    {
+        icon: <FiAlertTriangle />,
+        title: 'Alpha Development',
+        description: 'This app is under active development and may change significantly in future updates.',
+        isWarning: false
+    },
+    {
+        icon: <FiInfo />,
+        title: 'Free Credits',
+        description: 'The service is currently free while I can afford it and during development phase.',
+        isWarning: false
+    },
+    {
+        icon: <FiShield />,
+        title: 'No Ads',
+        description: 'No advertisements are shown at the moment.',
+        isWarning: false
+    },
+    {
+        icon: <FiInfo />,
+        title: 'Data Storage',
+        description: 'Your conversations will be saved on my server for functionality purposes.',
+        isWarning: false
+    },
+    {
+        icon: <FiZap />,
+        title: 'AI Providers',
+        description: 'This app uses various LLM (Large Language Model) providers to generate content.',
+        isWarning: false
+    },
+    {
+        icon: <FiShield />,
+        title: 'No Account Required',
+        description: 'No user account is required at the moment - you can use the app anonymously.',
+        isWarning: false
+    },
+    {
+        icon: <FiZap />,
+        title: 'Session Token',
+        description: 'If you accept, a temporary access token will be created for your session, stored locally, and is unique per user.',
+        isWarning: false
+    },
+    {
+        icon: <FiAlertTriangle />,
+        title: 'No Guarantee',
+        description: 'This service is provided as-is with no guarantees of availability, data persistence, or functionality.',
+        isWarning: true
+    }
+]
+
+export function DisclaimerModal({ isOpen, onAccept }: DisclaimerModalProps) {
     const handleOverlayClick = (e: React.MouseEvent) => {
         if (e.target === e.currentTarget) {
-            // Don't allow closing by clicking overlay - force user to make a choice
             return
         }
     }
 
     const handleReject = () => {
-        // Redirect to arizmendi.io
         window.location.href = 'https://arizmendi.io/'
     }
 
     if (!isOpen) return null
 
     return (
-        <div className="disclaimer-modal-overlay" onClick={handleOverlayClick}>
+        <div className="disclaimer-modal-overlay" onClick={handleOverlayClick} role="dialog" aria-modal="true" aria-labelledby="disclaimer-title">
             <div className="disclaimer-modal-container" onClick={e => e.stopPropagation()}>
                 <div className="disclaimer-modal-header">
                     <div className="disclaimer-modal-title">
-                        <GiMagicSwirl className="disclaimer-modal-icon" />
-                        <h2>Welcome to Magic Worlds</h2>
+                        <GiMagicSwirl className="disclaimer-modal-icon" aria-hidden="true" />
+                        <h2 id="disclaimer-title">Welcome to Magic Worlds</h2>
                     </div>
+                    <p className="disclaimer-modal-subtitle">
+                        Before you begin, please review the following information
+                    </p>
                 </div>
 
                 <div className="disclaimer-modal-body">
-                    {/* Main disclaimer content */}
                     <div className="disclaimer-content">
-                        <div className="disclaimer-notice">
-                            <FiAlertTriangle className="notice-icon" />
-                            <h3>Important Development Notice</h3>
+                        <div className="disclaimer-notice" role="alert">
+                            <FiAlertTriangle className="disclaimer-notice-icon" aria-hidden="true" />
+                            <div className="disclaimer-notice-content">
+                                <h3>Important Development Notice</h3>
+                                <p>Please read and understand the terms below before continuing</p>
+                            </div>
                         </div>
                         
                         <div className="disclaimer-points">
-                            <div className="disclaimer-point">
-                                <span className="point-icon">⚠️</span>
-                                <p><strong>Alpha Development:</strong> This app is under active development and may change significantly in future updates.</p>
-                            </div>
-                            
-                            <div className="disclaimer-point">
-                                <span className="point-icon">💰</span>
-                                <p><strong>Free Credits:</strong> The service is currently free while I can afford it and during development phase.</p>
-                            </div>
-                            
-                            <div className="disclaimer-point">
-                                <span className="point-icon">🚫</span>
-                                <p><strong>No Ads:</strong> No advertisements are shown at the moment.</p>
-                            </div>
-                            
-                            <div className="disclaimer-point">
-                                <span className="point-icon">💾</span>
-                                <p><strong>Data Storage:</strong> Your conversations will be saved on my server for functionality purposes.</p>
-                            </div>
-                            
-                            <div className="disclaimer-point">
-                                <span className="point-icon">🤖</span>
-                                <p><strong>AI Providers:</strong> This app uses various LLM (Large Language Model) providers to generate content.</p>
-                            </div>
-                            
-                            <div className="disclaimer-point">
-                                <span className="point-icon">👤</span>
-                                <p><strong>No Account Required:</strong> No user account is required at the moment - you can use the app anonymously.</p>
-                            </div>
-                            
-                            <div className="disclaimer-point">
-                                <span className="point-icon">⚡</span>
-                                <p><strong>Session Token:</strong> If you accept, a temporary access token will be created for your session, stored locally, and is unique per user.</p>
-                            </div>
-                            
-                            <div className="disclaimer-point warning-point">
-                                <span className="point-icon">🚨</span>
-                                <p><strong>No Guarantee:</strong> This service is provided as-is with no guarantees of availability, data persistence, or functionality.</p>
-                            </div>
+                            {disclaimerPoints.map((point, index) => (
+                                <div 
+                                    key={index} 
+                                    className={`disclaimer-point ${point.isWarning ? 'disclaimer-point--warning' : ''}`}
+                                >
+                                    <span className="disclaimer-point-icon" aria-hidden="true">{point.icon}</span>
+                                    <div className="disclaimer-point-content">
+                                        <h4>{point.title}</h4>
+                                        <p>{point.description}</p>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
 
-                    <div className="disclaimer-actions">
+                    <div className="disclaimer-modal-actions">
                         <button 
-                            className="reject-button"
+                            className="disclaimer-modal-button disclaimer-modal-button--reject"
                             onClick={handleReject}
+                            type="button"
                         >
-                            <FiExternalLink />
-                            I Don't Accept - Take me to arizmendi.io
+                            <FiExternalLink aria-hidden="true" />
+                            I Don't Accept
                         </button>
                         
                         <button 
-                            className="accept-button"
+                            className="disclaimer-modal-button disclaimer-modal-button--accept"
                             onClick={onAccept}
+                            type="button"
                         >
-                            <FiCheck />
+                            <FiCheck aria-hidden="true" />
                             I Accept - Start Using Magic Worlds
                         </button>
                     </div>

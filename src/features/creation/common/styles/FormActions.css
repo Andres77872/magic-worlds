@@ -1,16 +1,16 @@
 /* =====================================================================
-   Form Actions - Common Form Actions Styles
+   Form Actions - Modern shadcn-like design
    ===================================================================== */
 
 .creator-form-actions {
   display: flex;
-  gap: var(--spacing-lg);
+  gap: var(--space-4);
   justify-content: flex-end;
-  margin-top: var(--spacing-xl);
-  padding-top: var(--spacing-lg);
-  border-top: 2px solid var(--border-color);
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: var(--border-width-thick) solid var(--border-color);
   position: relative;
-  animation: formActionsFadeIn 0.4s ease-out 0.4s both;
+  animation: formActionsFadeIn 0.4s var(--ease-smooth) 0.4s both;
 }
 
 @keyframes formActionsFadeIn {
@@ -28,12 +28,12 @@
 .creator-form-actions::before {
   content: '';
   position: absolute;
-  top: -2px;
+  top: calc(var(--border-width-thick) * -1);
   left: 0;
   width: 0;
-  height: 2px;
+  height: var(--border-width-thick);
   background: var(--gradient-magical);
-  transition: width 0.6s ease-out;
+  transition: width 0.6s var(--ease-smooth);
 }
 
 .creator-form-actions:hover::before {
@@ -42,9 +42,8 @@
 
 /* Button disabled states */
 .creator-form-actions .creator-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
-  transform: none !important;
 }
 
 .creator-form-actions .creator-btn:disabled:hover {
@@ -55,7 +54,7 @@
 @media (max-width: 768px) {
   .creator-form-actions {
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--space-3);
   }
   
   .creator-form-actions .creator-btn {

@@ -24,8 +24,8 @@ interface AuthProviderProps {
 }
 
 const AUTH_API_URL = 'https://auth-v2.arz.ai/auth/login'
-const TOKEN_STORAGE_KEY = 'magic_worlds_token'
-const USER_STORAGE_KEY = 'magic_worlds_user'
+const TOKEN_STORAGE_KEY = 'magic_worlds:token'
+const USER_STORAGE_KEY = 'magic_worlds:user'
 
 export function AuthProvider({ children }: AuthProviderProps) {
     const [isAuthenticated, setIsAuthenticated] = useState(false)

@@ -18,12 +18,12 @@ interface ThemeProviderProps {
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
     const [theme, setTheme] = useState<ThemeOption>(() => {
-        const stored = localStorage.getItem('theme')
+        const stored = localStorage.getItem('magic_worlds:theme')
         return stored === 'light' || stored === 'dark' ? stored : 'system'
     })
 
     useEffect(() => {
-        localStorage.setItem('theme', theme)
+        localStorage.setItem('magic_worlds:theme', theme)
     }, [theme])
 
     const value: ThemeContextValue = {

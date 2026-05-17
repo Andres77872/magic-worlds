@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
 import type {Adventure, TurnEntry} from '../../../shared'
-import {storage} from '../../../infrastructure/storage'
+import {apiService} from '../../../infrastructure/api'
 import {FaSpinner} from 'react-icons/fa'
 import {parseForwardOptions, extractForwardOptions} from '../utils/jsonFixer'
 import {ChatTurn} from './ChatTurn'
@@ -37,6 +37,19 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
     const [error, setError] = useState<string | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
+    // Helper function to save turns via adventure sessions API
+    const saveTurnsToApi = async (adventureId: string, turnsToSave: TurnEntry[]) => {
+        try {
+            const sessionId = Number(adventureId)
+            if (!isNaN(sessionId)) {
+                const turnState = JSON.stringify({ turns: turnsToSave })
+                await apiService.updateAdventureSession(sessionId, turnState)
+            }
+        } catch (err) {
+            console.error('Failed to save turns to API:', err)
+        }
+    }
+
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({behavior: 'smooth', block: 'end'})
     }
@@ -52,7 +65,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         if (window.confirm('Are you sure you want to reset this adventure? This will clear all conversation history.')) {
             setTurns([])
             setError(null)
-            storage.saveTurns(adventure.id, [])
+            saveTurnsToApi(adventure.id, [])
         }
     }
 
@@ -101,7 +114,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
 
         try {
             // Save updated turns
-            await storage.saveTurns(adventure.id, updatedTurns)
+            await saveTurnsToApi(adventure.id, updatedTurns)
 
             // Regenerate the response using the existing turn
             await processUserMessage(userMessage, updatedTurns.slice(0, -1), resetAiTurn)
@@ -127,7 +140,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             setTurns(failedTurns)
             
             // Save the failed state to storage
-            storage.saveTurns(adventure.id, failedTurns).catch(err =>
+            saveTurnsToApi(adventure.id, failedTurns).catch(err =>
                 console.error('Failed to save failed turns:', err)
             )
         }
@@ -143,7 +156,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             setTurns(updatedTurns)
             
             // Save the updated turns to storage
-            await storage.saveTurns(adventure.id, updatedTurns)
+            await saveTurnsToApi(adventure.id, updatedTurns)
         } catch (error) {
             console.error('Failed to delete turn:', error)
             setError('Failed to delete message. Please try again.')
@@ -160,7 +173,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             setTurns(updatedTurns)
             
             // Save the updated turns to storage
-            await storage.saveTurns(adventure.id, updatedTurns)
+            await saveTurnsToApi(adventure.id, updatedTurns)
         } catch (error) {
             console.error('Failed to edit turn:', error)
             setError('Failed to edit message. Please try again.')
@@ -191,7 +204,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
 
         try {
             // Save turns with empty AI turn
-            await storage.saveTurns(adventure.id, newTurns)
+            await saveTurnsToApi(adventure.id, newTurns)
 
             // Process the message with LLM API using the last user message
             await processUserMessage(userMessage, newTurns.slice(0, -1), aiTurn)
@@ -214,7 +227,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             setTurns(failedTurns)
             
             // Save the failed state to storage
-            storage.saveTurns(adventure.id, failedTurns).catch(err =>
+            saveTurnsToApi(adventure.id, failedTurns).catch(err =>
                 console.error('Failed to save failed turns:', err)
             )
         }
@@ -266,7 +279,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
 
         try {
             // Save turns with empty AI turn
-            await storage.saveTurns(adventure.id, newTurns)
+            await saveTurnsToApi(adventure.id, newTurns)
 
             // Process the message with LLM API
             await processUserMessage(userInput, newTurns.slice(0, -1), existingAiTurn)
@@ -289,7 +302,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             setTurns(failedTurns)
             
             // Save the failed state to storage
-            storage.saveTurns(adventure.id, failedTurns).catch(err =>
+            saveTurnsToApi(adventure.id, failedTurns).catch(err =>
                 console.error('Failed to save failed turns:', err)
             )
         }
@@ -544,7 +557,7 @@ Respond to the user inputs as the assistant.`
             setTurns(finalTurns)
 
             // Save the final turns to storage
-            storage.saveTurns(adventure.id, finalTurns).catch(err =>
+            saveTurnsToApi(adventure.id, finalTurns).catch(err =>
                 console.error('Failed to save turns:', err)
             )
 

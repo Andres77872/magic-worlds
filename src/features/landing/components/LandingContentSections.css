@@ -1,22 +1,22 @@
 /**
- * Landing Content Sections Component Styles
+ * Landing Content Sections Component Styles - Modern shadcn-like design
  */
 
 /* =====================================================================
    Content Sections with Tabs - Enhanced
    ===================================================================== */
 .landing-content-sections {
-  padding: var(--spacing-xl) var(--spacing-lg);
-  margin-bottom: var(--spacing-xl);
+  padding: var(--space-8) var(--space-6);
+  margin-bottom: var(--space-8);
   position: relative;
   z-index: 2;
 }
 
 .landing-section-tabs {
   display: flex;
-  gap: var(--spacing-xs);
-  margin-bottom: var(--spacing-xl);
-  border-bottom: 1px solid var(--border-color);
+  gap: var(--space-2);
+  margin-bottom: var(--space-8);
+  border-bottom: var(--border-width-thin) solid var(--border-color);
   overflow-x: auto;
   padding-bottom: 0;
   scrollbar-width: none;
@@ -30,7 +30,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 2px;
+  height: var(--border-width-thin);
   background: var(--gradient-primary);
   opacity: 0.2;
 }
@@ -42,21 +42,21 @@
 .landing-tab-button {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md) var(--spacing-lg);
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
   background: var(--background-color-tertiary);
-  border: 2px solid var(--border-color);
+  border: var(--border-width-medium) solid var(--border-color);
   border-bottom: none;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   color: var(--text-color-secondary);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-magical);
+  transition: all var(--duration-fast) var(--ease-smooth);
   white-space: nowrap;
   position: relative;
   backdrop-filter: blur(10px);
-  margin-bottom: -2px;
+  margin-bottom: calc(var(--border-width-medium) * -1);
 }
 
 .landing-tab-button::before {
@@ -65,7 +65,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: var(--border-width-thick);
   background: var(--gradient-primary);
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   transform: scaleX(0);
@@ -76,7 +76,6 @@
   color: var(--text-color);
   background: var(--background-color-hover);
   border-color: var(--border-color-lighter);
-  transform: translateY(-1px);
   box-shadow: var(--shadow-sm);
 }
 
@@ -97,7 +96,7 @@
 }
 
 .landing-tab-count {
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--space-1) var(--space-2);
   background: var(--gradient-primary);
   color: white;
   border-radius: var(--radius-md);
@@ -121,9 +120,9 @@
 
 .landing-content-panel {
   background: var(--background-color-primary);
-  border: 2px solid var(--border-color);
+  border: var(--border-width-medium) solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-xl);
+  padding: var(--space-8);
   min-height: 400px;
   backdrop-filter: blur(20px);
   position: relative;
@@ -138,7 +137,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: var(--border-width-thick);
   background: var(--gradient-primary);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   opacity: 0.7;
@@ -157,11 +156,9 @@
   animation: float 8s ease-in-out infinite;
 }
 
-/* Enhanced Content Panel States - More subtle hover */
 .landing-content-panel:hover {
   border-color: var(--border-color-lighter);
   box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
 }
 
 /* Empty State Styling */
@@ -171,7 +168,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: var(--spacing-xl);
+  padding: var(--space-8);
   color: var(--text-color-secondary);
   min-height: 300px;
 }
@@ -180,7 +177,7 @@
   font-size: 4rem;
   color: var(--accent-color);
   opacity: 0.5;
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--space-6);
   animation: pulse 3s ease-in-out infinite;
 }
 
@@ -188,13 +185,70 @@
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   color: var(--text-color);
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: var(--space-2);
 }
 
 .landing-empty-message {
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
   max-width: 400px;
+}
+
+/* Loading State Styling */
+.landing-content-panel-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-8);
+  color: var(--text-color-secondary);
+  min-height: 300px;
+  gap: var(--space-6);
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: var(--border-width-medium) solid var(--border-color);
+  border-top: var(--border-width-medium) solid var(--accent-color);
+  border-radius: var(--radius-full);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.landing-content-panel-loading p {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  margin: 0;
+}
+
+/* Error State Styling */
+.landing-content-panel-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-8);
+  color: var(--text-color-secondary);
+  min-height: 300px;
+  gap: var(--space-6);
+}
+
+.landing-content-panel-error p {
+  font-size: var(--font-size-base);
+  color: var(--color-error);
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.landing-content-panel-error .btn {
+  margin-top: var(--space-4);
 }
 
 /* Enhanced Card Styling for Lists */
@@ -208,24 +262,22 @@
 .landing-content-panel .list-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--spacing-lg);
+  gap: var(--space-6);
   padding: 0;
 }
 
-/* Improved Card Design System - More subtle effects */
 .landing-content-panel .magical-card,
 .landing-content-panel .card {
   background: var(--background-color-tertiary);
-  border: 1px solid var(--border-color);
+  border: var(--card-border);
   border-radius: var(--radius-md);
-  padding: var(--spacing-lg);
-  transition: all var(--duration-normal) var(--ease-magical);
+  padding: var(--space-6);
+  transition: all var(--duration-normal) var(--ease-smooth);
   position: relative;
   overflow: hidden;
   backdrop-filter: blur(10px);
 }
 
-/* Subtle border effect */
 .landing-content-panel .magical-card::before,
 .landing-content-panel .card::before {
   content: '';
@@ -233,14 +285,13 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 2px;
+  height: var(--border-width-thin);
   background: var(--gradient-primary);
   transform: scaleX(0);
   transition: transform var(--duration-normal) ease;
   opacity: 0.8;
 }
 
-/* Very subtle glow effect */
 .landing-content-panel .magical-card::after,
 .landing-content-panel .card::after {
   content: '';
@@ -259,7 +310,6 @@
 
 .landing-content-panel .magical-card:hover,
 .landing-content-panel .card:hover {
-  transform: translateY(-2px) scale(1.01);
   border-color: var(--border-color-lighter);
   background: var(--background-color-hover);
   box-shadow: var(--shadow-lg);
@@ -282,9 +332,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--spacing-md);
-  padding-bottom: var(--spacing-sm);
-  border-bottom: 1px solid var(--border-color-lighter);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--border-width-thin) solid var(--border-color-lighter);
 }
 
 .landing-content-panel .card-title {
@@ -302,25 +352,25 @@
 .landing-content-panel .card-content {
   color: var(--text-color-secondary);
   line-height: var(--line-height-normal);
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--space-4);
 }
 
 .landing-content-panel .card-meta {
   font-size: var(--font-size-sm);
   color: var(--text-color-secondary);
-  margin-top: var(--spacing-md);
-  padding-top: var(--spacing-sm);
-  border-top: 1px solid var(--border-color-lighter);
+  margin-top: var(--space-4);
+  padding-top: var(--space-2);
+  border-top: var(--border-width-thin) solid var(--border-color-lighter);
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
 }
 
 .landing-content-panel .card-status {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-xs) var(--spacing-sm);
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
   background: var(--gradient-primary);
   color: white;
   border-radius: var(--radius-sm);
@@ -330,23 +380,22 @@
 
 /* Enhanced Button Styling within Cards */
 .landing-content-panel .card-actions {
-  margin-top: var(--spacing-md);
+  margin-top: var(--space-4);
   display: flex;
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
 .landing-content-panel .btn {
   font-size: var(--font-size-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-sm);
-  transition: all var(--duration-fast) var(--ease-magical);
+  transition: all var(--duration-fast) var(--ease-smooth);
   font-weight: var(--font-weight-medium);
-  border: 1px solid transparent;
+  border: var(--border-width-thin) solid transparent;
 }
 
 .landing-content-panel .btn:hover {
-  transform: translateY(-1px);
   box-shadow: var(--shadow-sm);
 }
 
@@ -375,23 +424,23 @@
 /* Responsive Design */
 @media (max-width: 768px) {
   .landing-content-sections {
-    padding: var(--spacing-lg) var(--spacing-md);
+    padding: var(--space-6) var(--space-4);
   }
   
   .landing-section-tabs {
     overflow-x: scroll;
     -webkit-overflow-scrolling: touch;
-    gap: var(--spacing-xs);
+    gap: var(--space-2);
   }
   
   .landing-tab-button {
     font-size: var(--font-size-sm);
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: var(--space-2) var(--space-4);
     min-width: 120px;
   }
   
   .landing-content-panel {
-    padding: var(--spacing-lg);
+    padding: var(--space-6);
   }
   
   .landing-content-panel .list-grid {
@@ -401,16 +450,16 @@
 
 @media (max-width: 480px) {
   .landing-content-panel {
-    padding: var(--spacing-md);
+    padding: var(--space-4);
   }
   
   .landing-tab-button {
-    padding: var(--spacing-sm);
+    padding: var(--space-2);
     font-size: var(--font-size-xs);
   }
   
   .landing-tab-count {
-    padding: 2px var(--spacing-xs);
+    padding: 2px var(--space-1);
     font-size: 10px;
   }
 }
@@ -429,15 +478,15 @@
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   .landing-tab-button {
-    border-width: 2px;
+    border-width: var(--border-width-thick);
   }
   
   .landing-tab-button.active {
-    border-width: 3px;
+    border-width: var(--border-width-thick);
   }
   
   .landing-content-panel .card {
-    border-width: 2px;
+    border-width: var(--border-width-medium);
   }
 }
 
@@ -449,10 +498,5 @@
   .landing-empty-icon {
     transition: none;
     animation: none;
-  }
-  
-  .landing-tab-button:hover,
-  .landing-content-panel .card:hover {
-    transform: none;
   }
 } 

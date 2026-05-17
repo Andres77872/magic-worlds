@@ -6,7 +6,7 @@ import {useEffect, useState} from 'react'
 import type {Adventure, TurnEntry} from '../../../shared'
 import { useNavigation, useData } from '../../../app/hooks'
 import { LoadingSpinner } from '../../../ui/components'
-import { storage } from '../../../infrastructure/storage'
+import { apiService } from '../../../infrastructure/api'
 import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel} from './index'
 import './AdventureInteraction.css'
 
@@ -29,7 +29,7 @@ export function AdventureInteraction() {
         }
     }, [editingInProgress, setPage])
 
-    // Load turns from storage when adventure is available
+    // Load turns from API when adventure is available
     useEffect(() => {
         if (!currentAdventure) return
 
@@ -38,21 +38,29 @@ export function AdventureInteraction() {
 
         const loadTurns = async () => {
             try {
-                // Get turns from the adventure if available, otherwise load from storage
+                // Get turns from the adventure if available, otherwise load from API
                 if (currentAdventure.turns && currentAdventure.turns.length > 0) {
                     if (isMounted) {
                         setTurns(currentAdventure.turns);
                         setIsLoading(false);
                     }
                 } else {
-                    // Try to load turns from storage if the adventure doesn't have them
+                    // Try to load turns from API if the adventure doesn't have them
                     try {
-                        const loadedTurns = await storage.loadTurns(currentAdventure.id);
-                        if (isMounted) {
-                            setTurns(loadedTurns);
+                        const sessionId = Number(currentAdventure.id);
+                        if (!isNaN(sessionId)) {
+                            const session = await apiService.getAdventureSession(sessionId);
+                            const lastTurn = session.adventure_last_turn ? JSON.parse(session.adventure_last_turn) : {};
+                            if (isMounted) {
+                                setTurns(lastTurn.turns || []);
+                            }
+                        } else {
+                            if (isMounted) {
+                                setTurns([]);
+                            }
                         }
                     } catch (error) {
-                        console.error('Failed to load turns, creating empty turns array:', error);
+                        console.error('Failed to load turns from API, creating empty turns array:', error);
                         if (isMounted) {
                             setTurns([]);
                         }

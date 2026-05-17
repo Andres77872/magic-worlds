@@ -1,19 +1,20 @@
 /* =====================================================================
-   Creator Layout - Common Styles for All Creator Views
+   Creator Layout - Modern shadcn-like design
    ===================================================================== */
 
 .creator-layout {
   max-width: 900px;
-  margin: var(--spacing-xl) auto;
-  padding: var(--spacing-xl);
+  margin: var(--space-8) auto;
+  padding: var(--space-8);
   background: var(--background-color-primary);
-  border-radius: var(--border-radius-large);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-xl);
   color: var(--text-color);
   position: relative;
   overflow: hidden;
-  animation: creatorFadeIn 0.6s ease-out;
+  animation: creatorFadeIn 0.6s var(--ease-smooth);
   min-height: 600px;
+  border: var(--card-border);
 }
 
 /* Background effects for different themes */
@@ -27,7 +28,7 @@
   opacity: 0.02;
   transform: rotate(45deg);
   pointer-events: none;
-  transition: opacity var(--transition-standard);
+  transition: opacity var(--duration-normal);
 }
 
 /* Theme-specific background gradients */
@@ -62,12 +63,13 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-xl);
-  padding-bottom: var(--spacing-lg);
-  border-bottom: 2px solid transparent;
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-6);
+  border-bottom: var(--border-width-thick) solid transparent;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
   -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
-  mask-composite: exclude;
   position: relative;
 }
 
@@ -88,34 +90,12 @@
 .creator-title {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   margin: 0;
   letter-spacing: var(--letter-spacing-tight);
   position: relative;
-}
-
-/* Theme-specific title gradients */
-.creator-theme-magical .creator-title-text {
-  background: var(--gradient-magical);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.creator-theme-fire .creator-title-text {
-  background: var(--gradient-fire);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.creator-theme-nature .creator-title-text {
-  background: var(--gradient-nature);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 .creator-icon {
@@ -134,7 +114,7 @@
 
 /* Content area */
 .creator-content {
-  animation: contentSlideIn 0.6s ease-out 0.2s both;
+  animation: contentSlideIn 0.6s var(--ease-smooth) 0.2s both;
 }
 
 @keyframes contentSlideIn {
@@ -150,17 +130,18 @@
 
 /* Common button styles */
 .creator-btn {
-  padding: var(--button-padding-y) var(--button-padding-x);
-  border-radius: var(--border-radius-medium);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all var(--transition-standard);
+  transition: all var(--duration-fast) var(--ease-smooth);
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  border: none;
+  gap: var(--space-2);
+  border: var(--border-width-thin) solid transparent;
   position: relative;
   overflow: hidden;
+  font-size: var(--font-size-sm);
 }
 
 /* Ripple effect */
@@ -185,52 +166,49 @@
 /* Button variants */
 .creator-btn-primary {
   background: var(--accent-color);
-  color: var(--color-brighter);
+  color: white;
   box-shadow: var(--shadow-md);
 }
 
 .creator-btn-primary:hover {
   background: var(--accent-color-hover);
-  transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
 
 .creator-btn-secondary {
-  background-color: var(--background-color-tertiary);
+  background: var(--background-color-tertiary);
   color: var(--text-color);
-  border: 2px solid var(--border-color);
+  border-color: var(--border-color);
 }
 
 .creator-btn-secondary:hover {
-  background-color: var(--background-color-hover);
+  background: var(--background-color-hover);
   border-color: var(--accent-color);
   color: var(--accent-color);
 }
 
 .creator-btn-accent {
   background: linear-gradient(135deg, var(--accent-color), var(--accent-secondary));
-  color: var(--color-brighter);
+  color: white;
   box-shadow: var(--shadow-md);
 }
 
 .creator-btn-accent:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: var(--shadow-lg), 0 5px 15px var(--color-info-transparency);
+  box-shadow: var(--shadow-lg);
 }
 
 .creator-btn-danger {
   background: linear-gradient(135deg, var(--color-error), var(--color-error-hover));
-  color: var(--color-brighter);
+  color: white;
 }
 
 .creator-btn-danger:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg), 0 5px 15px var(--color-error-transparency);
+  box-shadow: var(--shadow-lg);
 }
 
 .creator-btn-sm {
-  padding: calc(var(--button-padding-y) * 0.75) calc(var(--button-padding-x) * 0.75);
-  font-size: var(--font-size-small);
+  padding: var(--space-1-5) var(--space-3);
+  font-size: var(--font-size-xs);
 }
 
 /* Loading state */
@@ -247,25 +225,10 @@
   transform: translate(-50%, -50%);
   width: 40px;
   height: 40px;
-  border: 3px solid var(--accent-color);
+  border: var(--border-width-medium) solid var(--accent-color);
   border-top-color: transparent;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   animation: creatorSpinner 0.8s linear infinite;
-}
-
-/* Theme-specific loading animations */
-.creator-theme-fire.is-loading::after {
-  content: '🎭';
-  border: none;
-  font-size: 48px;
-  animation: characterSpinner 1s ease-in-out infinite;
-}
-
-.creator-theme-nature.is-loading::after {
-  content: '🧭';
-  border: none;
-  font-size: 48px;
-  animation: compassSpin 2s linear infinite;
 }
 
 @keyframes creatorSpinner {
@@ -312,15 +275,15 @@
 /* Responsive */
 @media (max-width: 768px) {
   .creator-layout {
-    margin: var(--spacing-md);
-    padding: var(--spacing-lg);
-    border-radius: var(--border-radius-medium);
+    margin: var(--space-4);
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
   }
   
   .creator-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--spacing-md);
+    gap: var(--space-4);
   }
   
   .creator-title {
