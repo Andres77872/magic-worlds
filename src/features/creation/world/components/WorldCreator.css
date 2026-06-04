@@ -11,7 +11,7 @@
 
 /* World-specific field enhancements */
 #world-name {
-  font-size: var(--font-size-large);
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-medium);
 }
 

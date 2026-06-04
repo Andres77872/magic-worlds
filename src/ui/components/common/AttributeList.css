@@ -4,9 +4,9 @@
 
 .attribute-section {
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-small);
-  padding: var(--padding-medium);
-  margin-bottom: var(--margin-medium);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
   background-color: var(--background-color-secondary);
   transition: box-shadow 0.3s ease;
 }
@@ -19,7 +19,7 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: var(--padding-medium);
+  margin-bottom: var(--space-4);
 }
 
 .attribute-title-area {
@@ -27,7 +27,7 @@
 }
 
 .attribute-title-area h3 {
-  margin: 0 0 var(--margin-small) 0;
+  margin: 0 0 var(--space-2) 0;
   color: var(--accent-color);
   font-size: 1.1rem;
 }
@@ -41,7 +41,7 @@
 
 .attribute-actions {
   display: flex;
-  gap: var(--gap-small);
+  gap: var(--space-2);
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -50,15 +50,15 @@
 .attributes-list {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-small);
+  gap: var(--space-2);
 }
 
 .attribute-row {
   display: flex;
-  gap: var(--gap-small);
+  gap: var(--space-2);
   align-items: flex-start;
-  padding: var(--padding-small);
-  border-radius: var(--border-radius-small);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
   transition: background-color 0.2s ease;
 }
 
@@ -80,10 +80,10 @@ textarea.attribute-value {
 }
 
 .empty-attributes {
-  padding: var(--padding-medium);
+  padding: var(--space-4);
   text-align: center;
   background-color: var(--background-color-tertiary);
-  border-radius: var(--border-radius-small);
+  border-radius: var(--radius-sm);
   color: var(--text-color-secondary);
   font-style: italic;
 }
@@ -92,7 +92,7 @@ textarea.attribute-value {
 @media (max-width: 768px) {
   .attribute-row {
     flex-direction: column;
-    padding-bottom: var(--padding-small);
+    padding-bottom: var(--space-2);
     border-bottom: 1px solid var(--border-color-lighter);
   }
   
@@ -100,12 +100,12 @@ textarea.attribute-value {
   .attribute-value {
     flex: 1;
     width: 100%;
-    margin-bottom: var(--margin-small);
+    margin-bottom: var(--space-2);
   }
   
   .attribute-header {
     flex-direction: column;
-    gap: var(--gap-small);
+    gap: var(--space-2);
   }
   
   .attribute-actions {

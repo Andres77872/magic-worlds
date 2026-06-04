@@ -21,7 +21,7 @@ export function FormActions({
         <div className="creator-form-actions">
             <button 
                 type="button" 
-                className="creator-btn creator-btn-secondary" 
+                className="btn btn-secondary" 
                 onClick={onCancel}
                 disabled={isSubmitting}
             >
@@ -29,7 +29,7 @@ export function FormActions({
             </button>
             <button 
                 type="submit" 
-                className="creator-btn creator-btn-primary"
+                className="btn btn-primary"
                 disabled={isSubmitting}
             >
                 {isSubmitting ? 'Saving...' : submitLabel}

@@ -16,15 +16,13 @@ export function ForwardOptions({ options, isStreaming, onOptionClick }: ForwardO
     }
 
     return (
-        <div className="forward-options interaction-shimmer">
+        <div className="forward-options">
             <div className="forward-options__header">
                 <span className="forward-options__title">Suggested Actions</span>
                 {isStreaming && (
-                    <div className="interaction-loading__dots">
-                        <span className="interaction-loading__dot"></span>
-                        <span className="interaction-loading__dot"></span>
-                        <span className="interaction-loading__dot"></span>
-                    </div>
+                    <span style={{fontSize: 'var(--font-size-xs)', color: 'var(--accent-color)'}}>
+                        Generating...
+                    </span>
                 )}
             </div>
             {options && options.length > 0 && (
@@ -32,7 +30,7 @@ export function ForwardOptions({ options, isStreaming, onOptionClick }: ForwardO
                     {options.map((option, index) => (
                         <button
                             key={index}
-                            className="forward-options__button interaction-focusable"
+                            className="forward-options__button"
                             onClick={() => onOptionClick(option.forward_question)}
                             style={{animationDelay: `${index * 0.1}s`}}
                         >

@@ -12,9 +12,4 @@
     --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
     
-    /* Preserve existing shadow variables for compatibility */
-    --box-shadow-small: var(--shadow-sm);
-    --box-shadow-medium: var(--shadow-md);
-    --box-shadow-large: var(--shadow-lg);
-    --box-shadow-xl: var(--shadow-xl);
 }

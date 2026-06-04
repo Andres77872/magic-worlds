@@ -5,7 +5,7 @@
 import type { FormEvent, KeyboardEvent } from 'react';
 import { useState, useRef, useEffect } from 'react';
 import type { World } from '../../../../shared';
-import { useNavigation, useData } from '../../../../app/hooks';
+import { useNavigation, useData, useAuth } from '../../../../app/hooks';
 import { apiService } from '../../../../infrastructure/api';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
 import { 
@@ -89,6 +89,7 @@ const transformToApiFormat = (
 export function WorldCreator() {
     const { setPage } = useNavigation();
     const { editingWorld, setEditingWorld } = useData();
+    const { isAuthenticated, openLoginModal } = useAuth();
     
     const [name, setName] = useState(editingWorld?.name ?? '');
     const [type, setType] = useState(editingWorld?.type ?? '');
@@ -225,6 +226,13 @@ export function WorldCreator() {
     // Handle form submission using API endpoints
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+
+        // Gate behind auth — unauthenticated users cannot create/edit worlds
+        if (!isAuthenticated) {
+            openLoginModal();
+            return;
+        }
+
         setIsSubmitting(true);
         
         if (!name || !type) {
@@ -320,12 +328,11 @@ export function WorldCreator() {
         <CreatorLayout
             title={editingWorld ? 'Edit World' : 'Create World'}
             icon="✨"
-            theme="magical"
             onBack={handleBack}
             isLoading={isSubmitting}
         >
             <form onSubmit={handleSubmit} className="creator-form" onKeyDown={handleKeyDown}>
-                <div className="creator-form-section creator-form-section--magical">
+                <div className="creator-form-section">
                     <CreatorField label="Name:" htmlFor="world-name" required>
                         <CreatorInput
                             id="world-name"
@@ -367,7 +374,6 @@ export function WorldCreator() {
                     onAddAttribute={addAttribute}
                     onUpdateAttribute={updateAttribute}
                     onRemoveAttribute={removeAttribute}
-                    theme="magical"
                     categoryConfig={{
                         details: {
                             keyPlaceholder: 'Detail name',

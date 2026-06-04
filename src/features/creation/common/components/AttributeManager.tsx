@@ -19,7 +19,6 @@ export interface AttributeManagerProps {
     onAddAttribute: (categoryId: string) => void;
     onUpdateAttribute: (categoryId: string, index: number, field: 'key' | 'value', value: string) => void;
     onRemoveAttribute: (categoryId: string, index: number) => void;
-    theme?: 'magical' | 'fire' | 'nature';
     categoryConfig?: {
         [categoryId: string]: {
             keyPlaceholder?: string;
@@ -40,7 +39,6 @@ export function AttributeManager({
     onAddAttribute,
     onUpdateAttribute,
     onRemoveAttribute,
-    theme = 'magical',
     categoryConfig = {}
 }: AttributeManagerProps) {
     const [showAddCategory, setShowAddCategory] = useState(false);
@@ -51,7 +49,7 @@ export function AttributeManager({
     };
 
     return (
-        <div className={`attribute-manager attribute-manager-${theme}`}>
+        <div className="attribute-manager">
             <div className="attribute-manager-header">
                 <h3 className="attribute-manager-title">
                     {icon && <span className="attribute-manager-icon">{icon}</span>}
@@ -59,7 +57,7 @@ export function AttributeManager({
                 </h3>
                 <button
                     type="button"
-                    className="creator-btn creator-btn-accent creator-btn-sm"
+                    className="btn btn-primary btn-sm"
                     onClick={() => setShowAddCategory(prev => !prev)}
                 >
                     <FaPlus /> Add Category
@@ -71,7 +69,6 @@ export function AttributeManager({
                     <CategoryForm
                         onSubmit={handleAddCategory}
                         onCancel={() => setShowAddCategory(false)}
-                        theme={theme}
                         useFormWrapper={false}
                     />
                 </div>

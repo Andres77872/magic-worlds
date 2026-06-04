@@ -1,5 +1,4 @@
 import React, {useCallback, useMemo, useState} from 'react'
-import {FaChevronRight} from 'react-icons/fa'
 import {type CardOption, CardOptions} from './CardOptions'
 import './Card.css'
 
@@ -118,11 +117,7 @@ export function Card({
                         ) : (
                             title
                         )}
-                        {isInteractive && (
-                            <span className="card-arrow" aria-hidden="true">
-                                <FaChevronRight/>
-                            </span>
-                        )}
+
                     </h3>
                     {subtitle && (
                         <div id={descriptionId} className="card-subtitle">

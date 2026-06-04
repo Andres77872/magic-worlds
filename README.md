@@ -32,8 +32,8 @@ src/
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+
-- npm or yarn
+- Node.js `^20.19.0 || ^22.13.0 || >=24` (required by Vite 8 and ESLint 10; enforced via `engines` + `.npmrc` `engine-strict`)
+- [pnpm](https://pnpm.io) 11.x — pinned via the `packageManager` field in `package.json`. Run `corepack enable` once and the correct pnpm version is activated automatically; otherwise install it with `npm install -g pnpm@11`.
 
 ### Installation
 
@@ -43,16 +43,16 @@ git clone <repository-url>
 cd magic-worlds
 
 # Install dependencies
-npm install
+pnpm install
 
 # Start development server
-npm run dev
+pnpm dev
 ```
 
 ### Build for Production
 
 ```bash
-npm run build
+pnpm build
 ```
 
 ## Tech Stack

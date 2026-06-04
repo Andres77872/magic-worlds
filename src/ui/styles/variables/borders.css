@@ -8,25 +8,12 @@
     --radius-2xl: 1.5rem;
     --radius-full: 9999px;
     
-    /* Preserve existing variables for compatibility */
-    --border-radius-small: var(--radius-sm);
-    --border-radius-medium: var(--radius-md);
-    --border-radius-large: var(--radius-lg);
-    
     /* Border Widths */
     --border-width-thin: 1px;
-    --border-width-medium: 1.5px;
-    --border-width-thick: 2px;
-    
-    /* Border Styles */
-    --border-standard: var(--border-width-medium) solid var(--border-color);
-    --border-hover: var(--border-width-thin) solid var(--border-color-lighter);
-    --border-focus: var(--border-width-thick) solid var(--accent-color);
-    --border-dashed: var(--border-width-medium) dashed var(--border-color-lighter);
-    --border-radius: var(--radius-md);
+    --border-width-medium: 1px;
     
     /* Component specific borders */
-    --input-border: var(--border-standard);
+    --input-border: var(--border-width-medium) solid var(--border-color);
     --card-border: var(--border-width-thin) solid var(--border-color);
     --button-border: var(--border-width-thin) solid transparent;
     --modal-border-radius: var(--radius-lg);

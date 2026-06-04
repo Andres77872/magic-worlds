@@ -17,9 +17,8 @@ export function LandingQuickActions({
             <h2 className="landing-section-title" id="quick-actions-title">Begin Your Journey</h2>
             <div className="landing-action-cards" role="group" aria-label="Quick action buttons">
                 <button 
-                    className="landing-action-card character-card hover-magical animate-entrance"
+                    className="landing-action-card character-card"
                     onClick={onCreateCharacter}
-                    style={{animationDelay: '0.1s'}}
                     aria-describedby="character-description"
                 >
                     <div className="landing-card-icon" aria-hidden="true">
@@ -30,9 +29,8 @@ export function LandingQuickActions({
                 </button>
                 
                 <button 
-                    className="landing-action-card world-card hover-magical animate-entrance"
+                    className="landing-action-card world-card"
                     onClick={onBuildWorld}
-                    style={{animationDelay: '0.2s'}}
                     aria-describedby="world-description"
                 >
                     <div className="landing-card-icon" aria-hidden="true">
@@ -43,9 +41,8 @@ export function LandingQuickActions({
                 </button>
                 
                 <button 
-                    className="landing-action-card adventure-card hover-magical animate-entrance"
+                    className="landing-action-card adventure-card"
                     onClick={onCreateAdventure}
-                    style={{animationDelay: '0.3s'}}
                     aria-describedby="adventure-description"
                 >
                     <div className="landing-card-icon" aria-hidden="true">

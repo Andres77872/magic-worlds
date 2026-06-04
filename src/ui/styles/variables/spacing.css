@@ -23,33 +23,6 @@
     --space-20: 5rem;
     --space-24: 6rem;
     
-    /* Preserve existing variables for compatibility */
-    --padding-small: var(--space-2);
-    --padding-medium: var(--space-4);
-    --padding-large: var(--space-6);
-    --margin-small: var(--space-2);
-    --margin-medium: var(--space-4);
-    --margin-large: var(--space-6);
-    --gap-small: var(--space-2);
-    --gap-medium: var(--space-4);
-    --gap-large: var(--space-6);
-    --gap-xs: var(--space-8);
-    
-    /* Extended spacing variables based on tokens */
-    --spacing-xs: var(--space-2);
-    --spacing-sm: var(--space-2);
-    --spacing-md: var(--space-4);
-    --spacing-lg: var(--space-6);
-    --spacing-xl: var(--space-8);
-    
-    /* Component-specific spacing */
-    --card-padding: var(--space-4);
-    --button-padding-x: var(--space-4);
-    --button-padding-y: var(--space-2);
-    --form-gap: var(--space-4);
-    --content-spacing: var(--space-6);
-    --section-spacing: var(--space-8);
-    
     /* Layout measurements */
-    --header-height: 91px;
+    --header-height: 64px;
 }

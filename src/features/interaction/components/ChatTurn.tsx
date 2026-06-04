@@ -49,7 +49,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
     }
     
     return (
-        <div className={`chat-turn chat-turn--${isUser ? 'user' : 'assistant'} interaction-fade-in`}>
+        <div className={`chat-turn chat-turn--${isUser ? 'user' : 'assistant'}`}>
             <ChatAvatar isUser={isUser} />
             
             <div className="chat-turn__content-wrapper">

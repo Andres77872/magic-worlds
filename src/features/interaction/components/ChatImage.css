@@ -2,15 +2,14 @@
  * ChatImage styles - Image display for chat turns
  */
 
-/* Import shared utilities */
-@import '../styles/shared-utilities.css';
+
 
 /* =====================================================================
    Chat Image Container
    ===================================================================== */
 .chat-image {
   position: relative;
-  border-radius: var(--border-radius-medium);
+  border-radius: var(--radius-md);
   overflow: hidden;
   box-shadow: var(--shadow-lg);
   animation: fadeInImage 0.6s ease;
@@ -23,9 +22,7 @@
   width: 300px;
   max-width: 40%;
   order: 2; /* Image on the right */
-  border: 2px solid transparent;
-  background: linear-gradient(var(--background-color-primary), var(--background-color-primary)) padding-box,
-              var(--gradient-magical) border-box;
+  border: 2px solid var(--accent-color);
 }
 
 [data-theme="light"] .chat-image--assistant {
@@ -34,7 +31,7 @@
 
 /* User image styling */
 .chat-image--user {
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--space-4);
   border: 2px solid var(--border-color);
 }
 
@@ -72,8 +69,8 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--gradient-magical);
-  opacity: 0.1;
+  background: var(--accent-color);
+  opacity: 0.05;
   animation: shimmer 2s ease-in-out infinite;
   pointer-events: none;
   z-index: 1;
@@ -107,7 +104,7 @@
   }
   
   .chat-image {
-    margin-bottom: var(--spacing-sm);
+    margin-bottom: var(--space-2);
   }
   
   .chat-image--assistant {
@@ -122,7 +119,7 @@
   }
   
   .chat-image {
-    border-radius: var(--border-radius-small);
+    border-radius: var(--radius-sm);
     box-shadow: var(--shadow-md);
   }
   
@@ -130,7 +127,7 @@
     order: 2; /* Image goes to bottom */
     width: 100%;
     max-width: 100%;
-    margin-top: var(--spacing-sm);
+    margin-top: var(--space-2);
   }
 }
 
@@ -141,6 +138,6 @@
   }
   
   .chat-image--assistant {
-    margin-top: var(--spacing-xs);
+    margin-top: var(--space-1);
   }
 } 

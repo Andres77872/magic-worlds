@@ -4,7 +4,7 @@
 
 import type { FormEvent, KeyboardEvent } from 'react';
 import { useState, useRef, useEffect } from 'react';
-import { useNavigation, useData } from '../../../../app/hooks';
+import { useNavigation, useData, useAuth } from '../../../../app/hooks';
 import { apiService } from '../../../../infrastructure/api';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
 import { 
@@ -88,6 +88,7 @@ const transformToApiFormat = (
 export function CharacterCreator() {
     const { setPage } = useNavigation();
     const { editingCharacter, setEditingCharacter } = useData();
+    const { isAuthenticated, openLoginModal } = useAuth();
     const [name, setName] = useState(editingCharacter?.name ?? '');
     const [race, setRace] = useState(editingCharacter?.race ?? '');
     const [description, setDescription] = useState(editingCharacter?.description ?? '');
@@ -260,6 +261,13 @@ export function CharacterCreator() {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+
+        // Gate behind auth — unauthenticated users cannot create/edit characters
+        if (!isAuthenticated) {
+            openLoginModal();
+            return;
+        }
+
         setIsSubmitting(true);
         
         if (!name || !race) {
@@ -327,12 +335,11 @@ export function CharacterCreator() {
         <CreatorLayout
             title={editingCharacter ? 'Edit Character' : 'Create Character'}
             icon="🎭"
-            theme="fire"
             onBack={handleBack}
             isLoading={isSubmitting}
         >
             <form onSubmit={handleSubmit} className="creator-form" onKeyDown={handleKeyDown}>
-                <div className="creator-form-section creator-form-section--fire character-essentials">
+                <div className="creator-form-section character-essentials">
                     <CreatorField 
                         label="Name:" 
                         htmlFor="character-name" 
@@ -387,7 +394,6 @@ export function CharacterCreator() {
                     onAddAttribute={addAttribute}
                     onUpdateAttribute={updateAttribute}
                     onRemoveAttribute={removeAttribute}
-                    theme="fire"
                     categoryConfig={{
                         stats: {
                             keyPlaceholder: 'Stat name',

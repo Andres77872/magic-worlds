@@ -1,16 +1,12 @@
 import {useEffect, useRef, useState} from 'react'
 import type {Adventure, TurnEntry} from '../../../shared'
 import {apiService} from '../../../infrastructure/api'
+import {useAuth} from '../../../app/hooks'
 import {FaSpinner} from 'react-icons/fa'
 import {parseForwardOptions, extractForwardOptions} from '../utils/jsonFixer'
 import {ChatTurn} from './ChatTurn'
 import {generateUUID} from '../../../utils/uuid'
 import './InteractionCenterPanel.css'
-
-// API Configuration
-const API_URL = 'https://magic.arz.ai/chat/openai/v1/completion'
-const API_KEY = 'DUMMY_API_KEY'
-const MODEL_ID = 'agt-29122b8b-b1af-4536-84b9-cf1abe02efa5'
 
 // Forward option interface
 interface ForwardOption {
@@ -34,6 +30,7 @@ interface InteractionCenterPanelProps {
 export function InteractionCenterPanel({adventure, turns, setTurns}: InteractionCenterPanelProps) {
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
+    const { isAuthenticated, openLoginModal } = useAuth()
     const [error, setError] = useState<string | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -344,21 +341,23 @@ Respond to the user inputs as the assistant.`
                     content: t.content
                 }));
 
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${API_KEY}`,
-                },
-                body: JSON.stringify({
-                    model: MODEL_ID,
-                    stream: true,
-                    messages: [
-                        {role: 'system', content: systemPrompt},
-                        ...history,
-                    ],
-                }),
-            })
+            // Gate behind auth — unauthenticated users cannot use AI chat
+            if (!isAuthenticated) {
+                openLoginModal()
+                throw new Error('Authentication required for AI chat')
+            }
+
+            const sessionId = Number(adventure.id)
+            if (isNaN(sessionId)) {
+                throw new Error('Invalid adventure session ID')
+            }
+
+            const messages = [
+                {role: 'system' as const, content: systemPrompt},
+                ...history,
+            ]
+
+            const response = await apiService.sendChatMessage(sessionId, messages)
 
             if (!response.ok) {
                 throw new Error(`API request failed with status ${response.status}`)
@@ -570,13 +569,13 @@ Respond to the user inputs as the assistant.`
     }
 
     return (
-        <div className="center-panel interaction-flex-column">
+        <div className="center-panel flex-col">
             {error && (
                 <div className="center-panel__error-banner">
                     <span>{error}</span>
                     <button 
                         onClick={() => setError(null)} 
-                        className="center-panel__error-close interaction-focusable"
+                        className="center-panel__error-close"
                         aria-label="Close error message"
                     >
                         ×
@@ -584,8 +583,8 @@ Respond to the user inputs as the assistant.`
                 </div>
             )}
 
-            <div className="center-panel__chat-container interaction-flex-column interaction-flex-1">
-                <div className="center-panel__messages-area interaction-scrollbar">
+            <div className="center-panel__chat-container flex-col flex-1">
+                <div className="center-panel__messages-area">
                     {turns.length === 0 ? (
                         <div className="center-panel__welcome">
                             <div className="center-panel__welcome-icon">🎭</div>
@@ -618,13 +617,13 @@ Respond to the user inputs as the assistant.`
                                         </div>
                                         <button
                                             type="button"
-                                            className="interaction-btn interaction-btn--primary interaction-focusable"
+                                            className="btn btn-primary"
                                             onClick={handleGenerateResponse}
                                             disabled={isLoading}
                                         >
                                             {isLoading ? (
                                                 <>
-                                                    <FaSpinner className="interaction-loading__spinner"/>
+                                                    <FaSpinner style={{animation: 'spin 1s linear infinite'}}/>
                                                     Generating...
                                                 </>
                                             ) : 'Generate Response'}
@@ -644,25 +643,25 @@ Respond to the user inputs as the assistant.`
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="What do you do next?"
-                    className="center-panel__message-input interaction-focusable"
+                    className="center-panel__message-input"
                     disabled={isLoading}
                 />
                 <div className="center-panel__input-buttons">
                     <button
                         type="submit"
-                        className="interaction-btn interaction-btn--primary interaction-focusable"
+                        className="btn btn-primary"
                         disabled={!input.trim() || isLoading}
                     >
                         {isLoading ? (
                             <>
-                                <FaSpinner className="interaction-loading__spinner"/>
+                                <FaSpinner style={{animation: 'spin 1s linear infinite'}}/>
                                 Sending...
                             </>
                         ) : 'Send'}
                     </button>
                     <button
                         type="button"
-                        className="interaction-btn interaction-btn--secondary interaction-focusable"
+                        className="btn btn-secondary"
                         onClick={handleReset}
                         disabled={isLoading || turns.length === 0}
                     >

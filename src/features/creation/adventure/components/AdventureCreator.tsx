@@ -5,7 +5,7 @@
 import type { FormEvent, KeyboardEvent } from 'react';
 import { useState, useRef, useEffect } from 'react';
 import type { Adventure, Character, World } from '../../../../shared';
-import { useNavigation, useData } from '../../../../app/hooks';
+import { useNavigation, useData, useAuth } from '../../../../app/hooks';
 import { apiService } from '../../../../infrastructure/api';
 import { generateUUID } from '../../../../utils/uuid';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
@@ -125,6 +125,7 @@ export function AdventureCreator() {
     const [selectedWorld, setSelectedWorld] = useState<string | undefined>(
         editingTemplate?.world?.id
     );
+    const { isAuthenticated, openLoginModal } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     // Store custom categories separately
@@ -270,6 +271,13 @@ export function AdventureCreator() {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+
+        // Gate behind auth — unauthenticated users cannot create/edit adventures
+        if (!isAuthenticated) {
+            openLoginModal();
+            return;
+        }
+
         if (!scenario) return;
         
         setIsSubmitting(true);
@@ -341,12 +349,11 @@ export function AdventureCreator() {
         <CreatorLayout
             title={editingTemplate ? 'Edit Adventure' : 'Create Adventure'}
             icon="🗺️"
-            theme="nature"
             onBack={handleBack}
             isLoading={isSubmitting}
         >
             <form onSubmit={handleSubmit} className="creator-form" onKeyDown={handleKeyDown}>
-                <div className="creator-form-section creator-form-section--nature">
+                <div className="creator-form-section">
                     <CreatorField label="Scenario:" htmlFor="adventure-scenario" required>
                         <div className="adventure-field-wrapper">
                             <CreatorTextarea
@@ -456,7 +463,6 @@ export function AdventureCreator() {
                     onAddAttribute={addAttribute}
                     onUpdateAttribute={updateAttribute}
                     onRemoveAttribute={removeAttribute}
-                    theme="nature"
                     categoryConfig={Object.fromEntries(
                         attributeCategories.map(category => [
                             category.id,

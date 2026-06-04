@@ -36,7 +36,7 @@ export function EditMode({ initialContent, isUser, onSave, onCancel }: EditModeP
     return (
         <div className="edit-mode">
             <textarea
-                className="edit-mode__textarea interaction-focusable"
+                className="edit-mode__textarea"
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -50,19 +50,19 @@ export function EditMode({ initialContent, isUser, onSave, onCancel }: EditModeP
             />
             <div className="edit-mode__actions">
                 <button 
-                    className="interaction-btn interaction-btn--primary interaction-btn--small"
+                    className="btn btn-primary btn-sm"
                     onClick={handleSave}
                     disabled={!editContent.trim()}
                 >
                     Save
                 </button>
                 <button 
-                    className="interaction-btn interaction-btn--secondary interaction-btn--small"
+                    className="btn btn-secondary btn-sm"
                     onClick={onCancel}
                 >
                     Cancel
                 </button>
-                <span className="edit-mode__hint interaction-text--small interaction-text--secondary">
+                <span className="edit-mode__hint" style={{fontSize: 'var(--font-size-xs)', color: 'var(--text-color-secondary)', fontStyle: 'italic', opacity: 0.8}}>
                     Ctrl+Enter to save, Escape to cancel
                 </span>
             </div>

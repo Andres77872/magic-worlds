@@ -5,24 +5,6 @@
 .creator-field {
   margin-bottom: var(--space-6);
   position: relative;
-  animation: fieldFadeIn 0.4s var(--ease-smooth) both;
-}
-
-/* Stagger animation for multiple fields */
-.creator-field:nth-child(1) { animation-delay: 0.1s; }
-.creator-field:nth-child(2) { animation-delay: 0.15s; }
-.creator-field:nth-child(3) { animation-delay: 0.2s; }
-.creator-field:nth-child(4) { animation-delay: 0.25s; }
-
-@keyframes fieldFadeIn {
-  from {
-    opacity: 0;
-    transform: translateX(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
 }
 
 .creator-field-label {
@@ -133,10 +115,8 @@
   transform: translateX(-50%) translateY(10px);
   width: 240px;
   padding: var(--space-3);
-  background: linear-gradient(135deg,
-    var(--background-color-tertiary) 0%,
-    var(--background-color-secondary) 100%);
-  border: var(--border-width-medium) solid var(--accent-color);
+  background: var(--background-color-tertiary);
+  border: var(--border-width-thin) solid var(--accent-color);
   border-radius: var(--radius-md);
   color: var(--text-color);
   font-size: var(--font-size-sm);
@@ -168,41 +148,10 @@
   transform: translateX(-50%) translateY(0);
 }
 
-/* Special field effects */
-.creator-field-special {
-  position: relative;
-}
-
-.creator-field-special::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--gradient-magical);
-  opacity: 0;
-  transition: opacity var(--transition-standard);
-}
-
-.creator-field-special:hover::after {
-  opacity: 0.5;
-}
-
-.creator-field-special .creator-field-input:focus ~ ::after,
-.creator-field-special .creator-field-textarea:focus ~ ::after {
-  opacity: 1;
-}
-
-/* Validation states */
+/* Validation state */
 .creator-field-input:invalid:not(:focus),
 .creator-field-textarea:invalid:not(:focus) {
   border-color: var(--color-error);
-}
-
-.creator-field-input:valid:not(:placeholder-shown),
-.creator-field-textarea:valid:not(:placeholder-shown) {
-  border-color: var(--color-success);
 }
 
 /* Disabled state */

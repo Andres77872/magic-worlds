@@ -31,13 +31,24 @@ export function useAdventureSessions(): UseAdventureSessionsReturn {
         try {
             setIsLoading(true)
             setError(null)
-            
+
             const data = await apiService.getAdventureSessions()
             setSessions(data || [])
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to fetch adventure sessions'
-            setError(errorMessage)
-            console.error('Error fetching adventure sessions:', err)
+            const token = localStorage.getItem('magic_worlds:token')
+            const isAuthError = !token || (err instanceof Error && (
+                err.message.includes('401') || err.message.includes('Unauthorized')
+            ))
+
+            if (isAuthError) {
+                // Gracefully handle auth errors — no error state, just empty data
+                setSessions([])
+            } else {
+                // Only set error for genuine failures (network, 500, etc.)
+                const errorMessage = err instanceof Error ? err.message : 'Failed to fetch adventure sessions'
+                setError(errorMessage)
+                console.error('Error fetching adventure sessions:', err)
+            }
         } finally {
             setIsLoading(false)
         }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { FiBookOpen, FiGlobe, FiPlay, FiUserPlus, FiUsers, FiMapPin, FiFileText, FiZap } from 'react-icons/fi'
 import { CharacterList, InProgressList, TemplateList, WorldList } from '../../../ui/components'
 import type { Character, World, Adventure } from '../../../shared'
-import { useUserData } from '../../../app/hooks'
+import { useUserData, useAuth } from '../../../app/hooks'
 import { apiService } from '../../../infrastructure/api'
 import { mapApiTemplatesToAdventures } from '../../../utils/apiMappers'
 import './LandingContentSections.css'
@@ -32,7 +32,7 @@ interface EmptyStateProps {
 
 function EmptyState({ icon, title, message, actionText, onAction }: EmptyStateProps) {
     return (
-        <div className="landing-content-panel-empty animate-entrance">
+        <div className="landing-content-panel-empty">
             <div className="landing-empty-icon" aria-hidden="true">
                 {icon}
             </div>
@@ -40,9 +40,8 @@ function EmptyState({ icon, title, message, actionText, onAction }: EmptyStatePr
             <p className="landing-empty-message">{message}</p>
             {actionText && onAction && (
                 <button 
-                    className="btn btn-primary hover-magical click-sparkle" 
+                    className="btn btn-primary" 
                     onClick={onAction}
-                    style={{ marginTop: 'var(--spacing-lg)' }}
                 >
                     {actionText}
                 </button>
@@ -73,10 +72,20 @@ export function LandingContentSections({
     
     // Get user data from API to determine if tabs should be shown
     const { userData, isLoading: userDataLoading } = useUserData()
+    const { isAuthenticated } = useAuth()
     
     // Fetch characters, worlds, and templates from API
     useEffect(() => {
         const fetchData = async () => {
+            // Skip API calls if not authenticated — show empty state
+            if (!isAuthenticated) {
+                setCharacters([])
+                setWorlds([])
+                setApiTemplates([])
+                setLoading(false)
+                return
+            }
+
             try {
                 setLoading(true)
                 setError(null)
@@ -100,7 +109,7 @@ export function LandingContentSections({
         }
 
         fetchData()
-    }, [])
+    }, [isAuthenticated])
 
     // Check if any content exists based on API data or local data
     const hasApiContent = userData && (
@@ -200,7 +209,7 @@ export function LandingContentSections({
                     )
                 }
                 return characters.length > 0 ? (
-                    <div className="animate-entrance">
+                    <div>
                         <CharacterList
                             characters={characters}
                             onEdit={onCharacterEdit}
@@ -239,7 +248,7 @@ export function LandingContentSections({
                     )
                 }
                 return worlds.length > 0 ? (
-                    <div className="animate-entrance">
+                    <div>
                         <WorldList
                             worlds={worlds}
                             onEdit={onWorldEdit}
@@ -257,7 +266,7 @@ export function LandingContentSections({
 
             case 'templates':
                 return mergedTemplates.length > 0 ? (
-                    <div className="animate-entrance">
+                    <div>
                         <TemplateList
                             templates={mergedTemplates}
                             onEdit={onTemplateEdit}
@@ -271,7 +280,7 @@ export function LandingContentSections({
 
             case 'inprogress':
                 return inProgressAdventures.length > 0 ? (
-                    <div className="animate-entrance">
+                    <div>
                         <InProgressList
                             adventures={inProgressAdventures}
                             onEdit={onInProgressEdit}
@@ -289,7 +298,7 @@ export function LandingContentSections({
     }
 
     return (
-        <section className="landing-content-sections animate-entrance" aria-labelledby="content-sections-title">
+        <section className="landing-content-sections" aria-labelledby="content-sections-title">
             <h2 className="sr-only" id="content-sections-title">Your Content</h2>
             
             {/* Enhanced Section Tabs */}
@@ -297,7 +306,7 @@ export function LandingContentSections({
                 {tabs.map((tab) => (
                     <button 
                         key={tab.id}
-                        className={`landing-tab-button hover-magical ${activeSection === tab.id ? 'active' : ''}`}
+                        className={`landing-tab-button ${activeSection === tab.id ? 'active' : ''}`}
                         onClick={() => setActiveSection(tab.id)}
                         role="tab"
                         aria-selected={activeSection === tab.id}

@@ -8,14 +8,14 @@
     align-items: center;
     justify-content: center;
     min-height: 200px;
-    gap: var(--padding-medium);
+    gap: var(--space-4);
 }
 
 .loading-spinner__spinner {
     border: 3px solid var(--border-color);
     border-top: 3px solid var(--accent-color);
     border-radius: 50%;
-    animation: var(--spin-animation);
+    animation: spin 1s linear infinite;
 }
 
 .loading-spinner-small .loading-spinner__spinner {
@@ -37,11 +37,6 @@
 
 .loading-message {
     color: var(--text-color-secondary);
-    font-size: var(--font-size-small);
+    font-size: var(--font-size-sm);
     margin: 0;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
 }

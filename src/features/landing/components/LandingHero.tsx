@@ -1,6 +1,4 @@
-import { FiBookOpen, FiGlobe, FiUserPlus, FiZap } from 'react-icons/fi'
-import { FiPenTool, FiPlay } from 'react-icons/fi'
-import { GiCastle, GiDragonHead, GiScrollQuill } from 'react-icons/gi'
+import { FiBookOpen, FiGlobe, FiUserPlus, FiZap, FiPenTool, FiPlay } from 'react-icons/fi'
 import './LandingHero.css'
 import type { Adventure } from '../../../shared'
 import { useUserData, useAdventureSessions } from '../../../app/hooks'
@@ -34,15 +32,8 @@ export function LandingHero({
     // Show loading state while fetching user data
     if (userDataLoading) {
         return (
-            <section className="landing-hero-section animate-entrance" aria-labelledby="hero-title">
-                <div className="landing-hero-background" aria-hidden="true">
-                    <div className="landing-hero-gradient"></div>
-                    <div className="landing-floating-elements">
-                        <GiDragonHead className="landing-floating-icon dragon animate-float" />
-                        <GiCastle className="landing-floating-icon castle animate-float" style={{animationDelay: '2s'}} />
-                        <GiScrollQuill className="landing-floating-icon scroll animate-float" style={{animationDelay: '4s'}} />
-                    </div>
-                </div>
+            <section className="landing-hero-section" aria-labelledby="hero-title">
+                <div className="landing-hero-background" aria-hidden="true" />
                 <div className="landing-hero-content">
                     <h1 className="landing-hero-title" id="hero-title">
                         <span className="landing-title-line">🌟 Magic Worlds</span>
@@ -56,15 +47,8 @@ export function LandingHero({
     // Show error state if user data failed to load
     if (userDataError) {
         return (
-            <section className="landing-hero-section animate-entrance" aria-labelledby="hero-title">
-                <div className="landing-hero-background" aria-hidden="true">
-                    <div className="landing-hero-gradient"></div>
-                    <div className="landing-floating-elements">
-                        <GiDragonHead className="landing-floating-icon dragon animate-float" />
-                        <GiCastle className="landing-floating-icon castle animate-float" style={{animationDelay: '2s'}} />
-                        <GiScrollQuill className="landing-floating-icon scroll animate-float" style={{animationDelay: '4s'}} />
-                    </div>
-                </div>
+            <section className="landing-hero-section" aria-labelledby="hero-title">
+                <div className="landing-hero-background" aria-hidden="true" />
                 <div className="landing-hero-content">
                     <h1 className="landing-hero-title" id="hero-title">
                         <span className="landing-title-line">🌟 Magic Worlds</span>
@@ -75,7 +59,7 @@ export function LandingHero({
                     </p>
                     <div className="landing-hero-cta">
                         <button 
-                            className="landing-btn-hero btn btn-primary hover-magical click-sparkle"
+                            className="landing-btn-hero btn btn-primary"
                             onClick={onStartJourney}
                             aria-describedby="cta-description"
                         >
@@ -91,15 +75,8 @@ export function LandingHero({
         )
     }
     return (
-        <section className="landing-hero-section animate-entrance" aria-labelledby="hero-title">
-            <div className="landing-hero-background" aria-hidden="true">
-                <div className="landing-hero-gradient"></div>
-                <div className="landing-floating-elements">
-                    <GiDragonHead className="landing-floating-icon dragon animate-float" />
-                    <GiCastle className="landing-floating-icon castle animate-float" style={{animationDelay: '2s'}} />
-                    <GiScrollQuill className="landing-floating-icon scroll animate-float" style={{animationDelay: '4s'}} />
-                </div>
-            </div>
+        <section className="landing-hero-section" aria-labelledby="hero-title">
+            <div className="landing-hero-background" aria-hidden="true" />
             
             <div className="landing-hero-content">
                 <h1 className="landing-hero-title" id="hero-title">
@@ -113,7 +90,7 @@ export function LandingHero({
                 {!hasContent ? (
                     <div className="landing-hero-cta">
                         <button 
-                            className="landing-btn-hero btn btn-primary hover-magical click-sparkle"
+                            className="landing-btn-hero btn btn-primary"
                             onClick={onStartJourney}
                             aria-describedby="cta-description"
                         >
@@ -159,7 +136,7 @@ export function LandingHero({
                                         </p>
                                     </div>
                                     <button 
-                                        className="landing-adventure-btn btn btn-primary hover-magical"
+                                        className="landing-adventure-btn btn btn-primary"
                                         onClick={() => onContinueAdventure(lastActiveAdventure)}
                                         aria-label="Continue your active adventure"
                                     >

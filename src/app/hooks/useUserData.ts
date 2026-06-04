@@ -21,11 +21,13 @@ export function useUserData(): UseUserDataReturn {
         try {
             setIsLoading(true)
             setError(null)
-            
-            // Get token from localStorage
-            const token = localStorage.getItem('magic_worlds:access_token')
+
+            // Get token from localStorage — gracefully handle missing token
+            const token = localStorage.getItem('magic_worlds:token')
             if (!token) {
-                throw new Error('No access token found')
+                setUserData(null)
+                setIsLoading(false)
+                return
             }
 
             const data = await apiService.getUserData(token)

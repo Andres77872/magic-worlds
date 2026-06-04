@@ -9,45 +9,12 @@
   margin-top: var(--space-8);
   padding-top: var(--space-6);
   border-top: var(--border-width-thick) solid var(--border-color);
-  position: relative;
-  animation: formActionsFadeIn 0.4s var(--ease-smooth) 0.4s both;
-}
-
-@keyframes formActionsFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Animated border */
-.creator-form-actions::before {
-  content: '';
-  position: absolute;
-  top: calc(var(--border-width-thick) * -1);
-  left: 0;
-  width: 0;
-  height: var(--border-width-thick);
-  background: var(--gradient-magical);
-  transition: width 0.6s var(--ease-smooth);
-}
-
-.creator-form-actions:hover::before {
-  width: 100%;
 }
 
 /* Button disabled states */
-.creator-form-actions .creator-btn:disabled {
+.creator-form-actions .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.creator-form-actions .creator-btn:disabled:hover {
-  box-shadow: var(--shadow-md);
 }
 
 /* Responsive */
@@ -57,7 +24,7 @@
     gap: var(--space-3);
   }
   
-  .creator-form-actions .creator-btn {
+  .creator-form-actions .btn {
     width: 100%;
   }
 } 

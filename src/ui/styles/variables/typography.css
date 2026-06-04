@@ -12,8 +12,7 @@
     --font-size-5xl: 3rem;
     
     /* Preserve existing variables for compatibility */
-    --font-family-base: 'Roboto', sans-serif;
-    --font-size-small: var(--font-size-sm);
+    --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
     --font-size-normal: var(--font-size-base);
     --font-size-large: var(--font-size-xl);
     --line-height-normal: 1.5;

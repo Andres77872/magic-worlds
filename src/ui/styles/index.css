@@ -26,13 +26,13 @@ html, body {
 .feature-placeholder {
     max-width: 800px;
     margin: 0 auto;
-    padding: var(--gap-xs);
+    padding: var(--space-1-5);
     text-align: center;
 }
 
 .feature-placeholder h2 {
     color: var(--accent-color);
-    margin-bottom: var(--padding-medium);
+    margin-bottom: var(--space-4);
 }
 
 .feature-placeholder p {

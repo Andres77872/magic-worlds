@@ -23,7 +23,7 @@
     flex-direction: column;
     background: var(--background-color-secondary);
     color: var(--text-color);
-    transition: var(--transition-standard);
+    transition: all var(--duration-fast) var(--ease-smooth);
 }
 
 .main-content {
@@ -37,13 +37,13 @@
     align-items: center;
     justify-content: center;
     min-height: 50vh;
-    padding: var(--gap-xs);
+    padding: var(--space-1-5);
     text-align: center;
 }
 
 .error-container h2 {
     color: var(--color-error);
-    margin-bottom: var(--padding-medium);
+    margin-bottom: var(--space-4);
 }
 
 .error-container p {

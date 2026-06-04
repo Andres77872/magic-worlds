@@ -26,11 +26,11 @@ body {
 h1, h2, h3, h4, h5, h6 {
     font-weight: 600;
     line-height: var(--line-height-normal);
-    margin-bottom: var(--padding-small);
+    margin-bottom: var(--space-2);
 }
 
 p {
-    margin-bottom: var(--padding-medium);
+    margin-bottom: var(--space-4);
 }
 
 a {

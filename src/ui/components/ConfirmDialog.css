@@ -13,35 +13,34 @@
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    padding: var(--padding-large);
+    padding: var(--space-6);
 }
 
 .confirm-dialog {
     background: var(--background-color-primary);
-    border: var(--border-standard);
-    border-radius: var(--border-radius-medium);
+    border: var(--border-width-thin) solid var(--border-color);
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow-xl);
     max-width: 500px;
     width: 100%;
     max-height: 90vh;
     overflow: hidden;
-    animation: confirmDialogSlideIn 0.2s ease-out;
 }
 
 .confirm-dialog-header {
-    padding: var(--padding-large) var(--padding-large) var(--padding-medium);
-    border-bottom: var(--border-standard);
+    padding: var(--space-6) var(--space-6) var(--space-4);
+    border-bottom: var(--border-width-thin) solid var(--border-color);
 }
 
 .confirm-dialog-title {
-    font-size: var(--font-size-large);
+    font-size: var(--font-size-xl);
     font-weight: 600;
     color: var(--text-color);
     margin: 0;
 }
 
 .confirm-dialog-body {
-    padding: var(--padding-medium) var(--padding-large);
+    padding: var(--space-4) var(--space-6);
 }
 
 .confirm-dialog-message {
@@ -53,7 +52,7 @@
 .warning-text {
     color: var(--color-messages-warning);
     font-weight: 500;
-    margin-top: var(--padding-medium);
+    margin-top: var(--space-4);
 }
 
 .confirm-dialog-message strong {
@@ -62,11 +61,11 @@
 }
 
 .confirm-dialog-footer {
-    padding: var(--padding-medium) var(--padding-large) var(--padding-large);
+    padding: var(--space-4) var(--space-6) var(--space-6);
     display: flex;
-    gap: var(--padding-medium);
+    gap: var(--space-4);
     justify-content: flex-end;
-    border-top: var(--border-standard);
+    border-top: var(--border-width-thin) solid var(--border-color);
 }
 
 /* Button styles for confirmation dialog */
@@ -90,17 +89,6 @@
 .btn-warning:hover:not(:disabled) {
     background-color: var(--color-warning-hover);
     border-color: var(--color-warning-hover);
-}
-
-@keyframes confirmDialogSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-20px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
 }
 
 @media (max-width: 768px) {

@@ -80,23 +80,6 @@
     line-height: var(--line-height-normal);
 }
 
-.card-arrow {
-    color: var(--text-color-secondary);
-    opacity: 0;
-    transition: opacity var(--duration-fast) var(--ease-smooth),
-                transform var(--duration-fast) var(--ease-smooth),
-                color var(--duration-fast) var(--ease-smooth);
-    flex-shrink: 0;
-    font-size: var(--font-size-sm);
-}
-
-.card:hover .card-arrow,
-.card:focus-visible .card-arrow {
-    opacity: 1;
-    transform: translateX(4px);
-    color: var(--accent-color);
-}
-
 /* Card Content */
 .card-content {
     padding: 0 var(--space-6) var(--space-6);
@@ -118,7 +101,6 @@
     justify-content: center;
     align-items: center;
     z-index: 10;
-    backdrop-filter: blur(4px);
     border-radius: var(--radius-lg);
 }
 
@@ -128,7 +110,7 @@
     border: var(--border-width-medium) solid var(--border-color);
     border-top-color: var(--accent-color);
     border-radius: var(--radius-full);
-    animation: magicalSpin 1s linear infinite;
+    animation: spin 1s linear infinite;
 }
 
 /* Enhanced Card Options */
@@ -201,7 +183,6 @@
     visibility: hidden;
     transition: all var(--duration-fast) var(--ease-smooth);
     border: var(--card-border);
-    backdrop-filter: blur(8px);
 }
 
 .card-options-menu[data-enter] {
@@ -379,7 +360,7 @@
     position: absolute;
     right: var(--space-2);
     color: var(--accent-color);
-    animation: magicalSpin 1s linear infinite;
+    animation: spin 1s linear infinite;
 }
 
 .card-grid {
@@ -402,7 +383,7 @@
 .card-grid__loading-spinner {
     font-size: 2rem;
     color: var(--accent-color);
-    animation: magicalSpin 1s linear infinite;
+    animation: spin 1s linear infinite;
 }
 
 .card-grid__empty-state {

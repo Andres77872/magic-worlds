@@ -57,7 +57,7 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
     return (
         <FormWrapper 
             {...(useFormWrapper ? { onSubmit: handleSubmit } : {})}
-            className={`category-form category-form-${theme}`}>
+            className="category-form">
 
             <h4 className="category-form-title">
                 New {theme === 'nature' ? 'Adventure Component' : 'Attribute Category'}
@@ -96,14 +96,14 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
             <div className="category-form-actions">
                 <button
                     type="button"
-                    className="creator-btn creator-btn-secondary creator-btn-sm"
+                    className="btn btn-secondary btn-sm"
                     onClick={onCancel}
                 >
                     Cancel
                 </button>
                 <button
                     type={useFormWrapper ? "submit" : "button"}
-                    className="creator-btn creator-btn-primary creator-btn-sm"
+                    className="btn btn-primary btn-sm"
                     onClick={useFormWrapper ? undefined : (e) => {
                         e.preventDefault();
                         if (name.trim()) {

@@ -4,23 +4,23 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: var(--margin-large) var(--margin-medium);
+    padding: var(--space-6) var(--space-4);
     text-align: center;
     color: var(--text-color-secondary);
     background-color: var(--background-color-secondary);
     border: 1px dashed var(--border-color);
-    border-radius: var(--border-radius-medium);
-    margin: var(--margin-medium) 0;
+    border-radius: var(--radius-md);
+    margin: var(--space-4) 0;
     width: 100%;
     box-sizing: border-box;
 }
 
 .common-empty-state__icon {
     font-size: 2.5rem;
-    margin-bottom: var(--margin-medium);
+    margin-bottom: var(--space-4);
     color: var(--accent-color);
     opacity: 0.7;
-    transition: var(--transition-standard);
+    transition: transform var(--duration-fast) var(--ease-smooth);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -31,14 +31,14 @@
 }
 
 .common-empty-state h3 {
-    margin: 0 0 var(--margin-small);
+    margin: 0 0 var(--space-2);
     color: var(--text-color);
-    font-size: var(--font-size-large);
+    font-size: var(--font-size-xl);
     font-weight: 600;
 }
 
 .common-empty-state p {
-    margin: var(--margin-small) 0 var(--margin-medium);
+    margin: var(--space-2) 0 var(--space-4);
     max-width: 400px;
     line-height: var(--line-height-normal);
     color: var(--text-color-secondary);
@@ -46,7 +46,7 @@
 
 @media (max-width: 480px) {
     .common-empty-state {
-        padding: 2.5rem var(--padding-medium);
+        padding: var(--space-10) var(--space-4);
     }
 
     .common-empty-state h3 {

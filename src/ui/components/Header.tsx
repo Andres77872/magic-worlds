@@ -55,11 +55,11 @@ export function Header() {
             <div className="header-content">
                 <div className="header-brand">
                     <button 
-                        className="brand-button hover-magical"
+                        className="brand-button"
                         onClick={() => setPage('landing')}
                         aria-label="Go to home"
                     >
-                        <GiCrystalBall className="app-logo animate-float" />
+                        <GiCrystalBall className="app-logo" />
                         <div className="brand-text">
                             <span className="brand-title">Magic Worlds</span>
                             <span className="brand-subtitle">RPG</span>
@@ -69,7 +69,7 @@ export function Header() {
 
                 <div className="header-center">
                     <div className="page-indicator">
-                        <GiMagicSwirl className="page-icon animate-pulse" />
+                        <GiMagicSwirl className="page-icon" />
                         <span className="page-title">{getPageTitle()}</span>
                     </div>
                 </div>
@@ -83,7 +83,7 @@ export function Header() {
                                     <span className="username">{user?.username}</span>
                                 </div>
                                 <button
-                                    className="logout-button hover-magical"
+                                    className="logout-button"
                                     onClick={logout}
                                     aria-label="Logout"
                                     title="Logout"
@@ -94,7 +94,7 @@ export function Header() {
                         ) : (
                             <div className="login-link">
                                 <button
-                                    className="login-button hover-magical"
+                                    className="login-button"
                                     onClick={openLoginModal}
                                     aria-label="Login"
                                     title="Login"
@@ -110,7 +110,7 @@ export function Header() {
                             href="https://github.com/Andres77872/magic-worlds"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="github-button hover-magical"
+                            className="github-button"
                             aria-label="View source code on GitHub"
                             title="View on GitHub"
                         >
@@ -120,7 +120,7 @@ export function Header() {
                     
                     <div className="theme-selector">
                         <button
-                            className="theme-button hover-magical"
+                            className="theme-button"
                             onClick={() => {
                                 const themes: ThemeOption[] = ['light', 'dark', 'system']
                                 const currentIndex = themes.indexOf(theme)
@@ -136,8 +136,6 @@ export function Header() {
                 </div>
             </div>
 
-            {/* Magical effect border */}
-            <div className="header-border-effect"></div>
         </header>
     )
 }

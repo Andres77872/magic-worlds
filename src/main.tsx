@@ -1,9 +1,7 @@
-import {StrictMode, useState, useEffect, useRef} from 'react'
+import {StrictMode} from 'react'
 import {createRoot} from 'react-dom/client'
 import './ui/styles/index.css'
 import App from './app/App.tsx'
-import { tokenService } from './infrastructure'
-import { DisclaimerModal } from './ui/components'
 
 const initializeTheme = () => {
     const stored = localStorage.getItem('magic_worlds:theme')
@@ -13,77 +11,23 @@ const initializeTheme = () => {
 
 initializeTheme()
 
-// App wrapper component to handle disclaimer modal
-function AppWrapper() {
-    const [showDisclaimer, setShowDisclaimer] = useState(false)
-    const [isInitialized, setIsInitialized] = useState(false)
-    const initStarted = useRef(false)
-
-    useEffect(() => {
-        // Guard against StrictMode double-render
-        if (initStarted.current) {
-            return
-        }
-        initStarted.current = true
-        
-        const initializeApp = async () => {
-            const shouldShowDisclaimer = tokenService.shouldShowDisclaimer()
-            
-            if (shouldShowDisclaimer) {
-                setShowDisclaimer(true)
-                setIsInitialized(true)
-            } else {
-                try {
-                    await initializeProvisionalToken()
-                } catch (error) {
-                    console.error('Failed to initialize provisional token:', error)
-                }
-                setIsInitialized(true)
-            }
-        }
-        
-        initializeApp()
-    }, [])
-
-    const initializeProvisionalToken = async () => {
-        try {
-            await tokenService.ensureProvisionalToken()
-        } catch (error) {
-            console.error('Failed to initialize provisional token:', error)
-            // Continue with app initialization even if token fetch fails
-            // The app should still be functional for basic operations
-        }
-    }
-
-    const handleDisclaimerAccept = async () => {
-        tokenService.setDisclaimerAccepted()
-        setShowDisclaimer(false)
-        await initializeProvisionalToken()
-    }
-
-    const handleDisclaimerReject = () => {
-        // DisclaimerModal handles the redirect internally
-    }
-
-    if (!isInitialized) {
-        return null // or a loading spinner
-    }
-
-    return (
-        <>
-            {!showDisclaimer && <App />}
-            <DisclaimerModal 
-                isOpen={showDisclaimer}
-                onAccept={handleDisclaimerAccept}
-                onReject={handleDisclaimerReject}
-            />
-        </>
-    )
+// Stale key cleanup: remove old auth system keys
+const staleKeys = [
+    'magic_worlds:access_token',
+    'magic_worlds:disclaimer_accepted',
+]
+for (const key of staleKeys) {
+    localStorage.removeItem(key)
 }
 
-// Initialize and render the app
+// If user data exists but no token, it's orphaned — clear it
+if (localStorage.getItem('magic_worlds:user') && !localStorage.getItem('magic_worlds:token')) {
+    localStorage.removeItem('magic_worlds:user')
+}
+
+// Initialize and render the app — no gating, no disclaimer, no token pre-fetching
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
-        <AppWrapper />
+        <App />
     </StrictMode>,
 )

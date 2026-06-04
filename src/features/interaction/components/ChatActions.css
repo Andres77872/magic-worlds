@@ -2,8 +2,7 @@
  * ChatActions styles - Modern shadcn-like design
  */
 
-/* Import shared utilities */
-@import '../styles/shared-utilities.css';
+
 
 /* =====================================================================
    Chat Actions Container
@@ -33,7 +32,7 @@
   position: relative;
   overflow: hidden;
   opacity: 0;
-  animation: fadeIn 0.3s var(--ease-smooth) forwards;
+  animation: fadeInMagical 0.3s var(--ease-smooth) forwards;
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
 }
@@ -138,26 +137,6 @@
 }
 
 /* =====================================================================
-   Shimmer Effects
-   ===================================================================== */
-.chat-actions__btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, currentColor, transparent);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.chat-actions__btn:hover::before {
-  opacity: 0.1;
-  animation: shimmer 1s ease-in-out;
-}
-
-/* =====================================================================
    Active and Focus States
    ===================================================================== */
 .chat-actions__btn:active {
@@ -188,5 +167,9 @@
   .chat-actions__btn {
     padding: var(--space-0-5) var(--space-1-5);
     font-size: 10px;
+  }
+
+  .chat-actions__hide-mobile {
+    display: none;
   }
 } 

@@ -95,10 +95,6 @@
 .gap-6 { gap: var(--space-6); }
 .gap-8 { gap: var(--space-8); }
 
-/* Legacy gap variables for compatibility */
-.gap-sm { gap: var(--gap-small); }
-.gap-md { gap: var(--gap-medium); }
-.gap-lg { gap: var(--gap-large); }
 
 /* Grid utilities */
 .grid {

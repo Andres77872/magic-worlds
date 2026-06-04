@@ -1,9 +1,9 @@
 /**
- * Landing Content Sections Component Styles - Modern shadcn-like design
+ * Landing Content Sections Component Styles
  */
 
 /* =====================================================================
-   Content Sections with Tabs - Enhanced
+   Content Sections with Tabs
    ===================================================================== */
 .landing-content-sections {
   padding: var(--space-8) var(--space-6);
@@ -21,18 +21,6 @@
   padding-bottom: 0;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  position: relative;
-}
-
-.landing-section-tabs::before {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: var(--border-width-thin);
-  background: var(--gradient-primary);
-  opacity: 0.2;
 }
 
 .landing-section-tabs::-webkit-scrollbar {
@@ -52,35 +40,17 @@
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-smooth);
+  transition: color var(--duration-fast) var(--ease-smooth),
+              background-color var(--duration-fast) var(--ease-smooth),
+              border-color var(--duration-fast) var(--ease-smooth);
   white-space: nowrap;
-  position: relative;
-  backdrop-filter: blur(10px);
   margin-bottom: calc(var(--border-width-medium) * -1);
-}
-
-.landing-tab-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--border-width-thick);
-  background: var(--gradient-primary);
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  transform: scaleX(0);
-  transition: transform var(--duration-fast) ease;
 }
 
 .landing-tab-button:hover {
   color: var(--text-color);
   background: var(--background-color-hover);
   border-color: var(--border-color-lighter);
-  box-shadow: var(--shadow-sm);
-}
-
-.landing-tab-button:hover::before {
-  transform: scaleX(1);
 }
 
 .landing-tab-button.active {
@@ -91,26 +61,15 @@
   z-index: 1;
 }
 
-.landing-tab-button.active::before {
-  transform: scaleX(1);
-}
-
 .landing-tab-count {
   padding: var(--space-1) var(--space-2);
-  background: var(--gradient-primary);
+  background: var(--accent-color);
   color: white;
   border-radius: var(--radius-md);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   min-width: 24px;
   text-align: center;
-  box-shadow: var(--shadow-sm);
-  transition: all var(--duration-fast) ease;
-}
-
-.landing-tab-button:hover .landing-tab-count {
-  transform: scale(1.05);
-  box-shadow: var(--shadow-md);
 }
 
 .landing-tab-content {
@@ -124,36 +83,9 @@
   border-radius: var(--radius-lg);
   padding: var(--space-8);
   min-height: 400px;
-  backdrop-filter: blur(20px);
-  position: relative;
-  overflow: hidden;
   box-shadow: var(--shadow-md);
-  transition: all var(--duration-normal) ease;
-}
-
-.landing-content-panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--border-width-thick);
-  background: var(--gradient-primary);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  opacity: 0.7;
-}
-
-.landing-content-panel::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -50%;
-  width: 200%;
-  height: 200%;
-  background: var(--gradient-glow);
-  opacity: 0.01;
-  pointer-events: none;
-  animation: float 8s ease-in-out infinite;
+  transition: border-color var(--duration-fast) var(--ease-smooth),
+              box-shadow var(--duration-fast) var(--ease-smooth);
 }
 
 .landing-content-panel:hover {
@@ -216,11 +148,6 @@
   animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
 .landing-content-panel-loading p {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
@@ -272,40 +199,9 @@
   border: var(--card-border);
   border-radius: var(--radius-md);
   padding: var(--space-6);
-  transition: all var(--duration-normal) var(--ease-smooth);
-  position: relative;
-  overflow: hidden;
-  backdrop-filter: blur(10px);
-}
-
-.landing-content-panel .magical-card::before,
-.landing-content-panel .card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--border-width-thin);
-  background: var(--gradient-primary);
-  transform: scaleX(0);
-  transition: transform var(--duration-normal) ease;
-  opacity: 0.8;
-}
-
-.landing-content-panel .magical-card::after,
-.landing-content-panel .card::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  background: var(--gradient-glow);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  transition: all var(--duration-normal) ease;
-  pointer-events: none;
-  opacity: 0;
+  transition: border-color var(--duration-fast) var(--ease-smooth),
+              background-color var(--duration-fast) var(--ease-smooth),
+              box-shadow var(--duration-fast) var(--ease-smooth);
 }
 
 .landing-content-panel .magical-card:hover,
@@ -313,18 +209,6 @@
   border-color: var(--border-color-lighter);
   background: var(--background-color-hover);
   box-shadow: var(--shadow-lg);
-}
-
-.landing-content-panel .magical-card:hover::before,
-.landing-content-panel .card:hover::before {
-  transform: scaleX(1);
-}
-
-.landing-content-panel .magical-card:hover::after,
-.landing-content-panel .card:hover::after {
-  width: 150px;
-  height: 150px;
-  opacity: 0.03;
 }
 
 /* Card Content Styling */
@@ -371,7 +255,7 @@
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-1) var(--space-2);
-  background: var(--gradient-primary);
+  background: var(--accent-color);
   color: white;
   border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
@@ -400,7 +284,7 @@
 }
 
 .landing-content-panel .btn-primary {
-  background: var(--gradient-primary);
+  background: var(--accent-color);
   color: white;
 }
 
@@ -498,5 +382,10 @@
   .landing-empty-icon {
     transition: none;
     animation: none;
+  }
+  
+  .landing-tab-button:hover,
+  .landing-content-panel:hover {
+    transform: none;
   }
 } 

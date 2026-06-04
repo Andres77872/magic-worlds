@@ -1,5 +1,5 @@
 /**
- * Header styles - Enhanced with magical effects
+ * Header styles
  */
 
 /* =====================================================================
@@ -11,15 +11,13 @@
     z-index: 1000;
     background: var(--background-color-primary);
     border-bottom: 1px solid var(--border-color);
-    backdrop-filter: blur(10px);
-    background: rgba(var(--background-color-primary), 0.95);
 }
 
 .header-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--padding-medium) var(--padding-large);
+    padding: var(--space-4) var(--space-6);
     position: relative;
     z-index: 1;
 }
@@ -34,12 +32,12 @@
 .brand-button {
     display: flex;
     align-items: center;
-    gap: var(--padding-medium);
+    gap: var(--space-4);
     background: none;
     border: none;
     cursor: pointer;
-    padding: var(--padding-small);
-    border-radius: var(--border-radius-small);
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
     transition: all var(--duration-fast) ease;
 }
 
@@ -62,10 +60,7 @@
 .brand-title {
     font-size: 1.2rem;
     font-weight: 700;
-    background: var(--gradient-magical);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--accent-color);
     line-height: 1.2;
 }
 
@@ -88,8 +83,8 @@
 .page-indicator {
     display: flex;
     align-items: center;
-    gap: var(--padding-small);
-    padding: var(--padding-small) var(--padding-large);
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-6);
     background: var(--background-color-tertiary);
     border: 1px solid var(--border-color);
     border-radius: 100px;
@@ -114,27 +109,27 @@
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: var(--padding-medium);
+    gap: var(--space-4);
 }
 
 .auth-section {
     display: flex;
     align-items: center;
-    gap: var(--padding-small);
+    gap: var(--space-2);
 }
 
 .user-menu {
     display: flex;
     align-items: center;
-    gap: var(--padding-small);
+    gap: var(--space-2);
 }
 
 .user-info {
     display: flex;
     align-items: center;
-    gap: var(--padding-small);
-    padding: var(--padding-small) var(--padding-medium);
-    border-radius: var(--border-radius-small);
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-sm);
     background: var(--background-color-tertiary);
     color: var(--text-color);
     border: 1px solid var(--border-color);
@@ -170,24 +165,9 @@
     overflow: hidden;
 }
 
-.login-button::before {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    background: var(--gradient-magical);
-    border-radius: 50%;
-    opacity: 0;
-    transition: opacity var(--duration-fast) ease;
-    z-index: -1;
-}
-
-.login-button:hover::before {
-    opacity: 1;
-}
-
 .login-button:hover {
-    transform: scale(1.1);
-    border-color: transparent;
+    border-color: var(--accent-color);
+    background: var(--background-color-hover);
 }
 
 .login-icon {
@@ -207,7 +187,7 @@
     height: 40px;
     background: none;
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-small);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all var(--duration-fast) ease;
     color: var(--text-color-secondary);
@@ -240,24 +220,9 @@
     text-decoration: none;
 }
 
-.github-button::before {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    background: var(--gradient-magical);
-    border-radius: 50%;
-    opacity: 0;
-    transition: opacity var(--duration-fast) ease;
-    z-index: -1;
-}
-
-.github-button:hover::before {
-    opacity: 1;
-}
-
 .github-button:hover {
-    transform: scale(1.1);
-    border-color: transparent;
+    background: var(--background-color-hover);
+    border-color: var(--accent-color);
 }
 
 .github-icon {
@@ -288,24 +253,9 @@
     overflow: hidden;
 }
 
-.theme-button::before {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    background: var(--gradient-magical);
-    border-radius: 50%;
-    opacity: 0;
-    transition: opacity var(--duration-fast) ease;
-    z-index: -1;
-}
-
-.theme-button:hover::before {
-    opacity: 1;
-}
-
 .theme-button:hover {
-    transform: scale(1.1);
-    border-color: transparent;
+    background: var(--background-color-hover);
+    border-color: var(--accent-color);
 }
 
 .theme-icon {
@@ -318,26 +268,11 @@
 }
 
 /* =====================================================================
-   Magical Border Effect
-   ===================================================================== */
-.header-border-effect {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--gradient-magical);
-    opacity: 0.5;
-    animation: shimmer 3s linear infinite;
-    background-size: 200% 100%;
-}
-
-/* =====================================================================
    Responsive Design
    ===================================================================== */
 @media (max-width: 768px) {
     .header-content {
-        padding: var(--padding-small) var(--padding-medium);
+        padding: var(--space-2) var(--space-4);
     }
 
     .app-logo {
@@ -349,7 +284,7 @@
     }
 
     .page-indicator {
-        padding: var(--padding-small) var(--padding-medium);
+        padding: var(--space-2) var(--space-4);
     }
 
     .page-title {
@@ -371,7 +306,7 @@
     }
     
     .page-indicator {
-        padding: var(--padding-small);
+        padding: var(--space-2);
     }
     
     .page-title {

@@ -14,7 +14,7 @@ interface LoginModalProps {
 }
 
 export function LoginModal({ isOpen, onClose }: LoginModalProps) {
-    const { login, isLoading, error, clearError } = useAuth()
+    const { login, register, isLoading, error, clearError } = useAuth()
     const [isLoginMode, setIsLoginMode] = useState(true)
     const [showPassword, setShowPassword] = useState(false)
     const [credentials, setCredentials] = useState({
@@ -24,11 +24,14 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        let success: boolean
         if (isLoginMode) {
-            const success = await login(credentials)
-            if (success) {
-                handleClose()
-            }
+            success = await login(credentials)
+        } else {
+            success = await register(credentials)
+        }
+        if (success) {
+            handleClose()
         }
     }
 
@@ -140,7 +143,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                         <button 
                             type="submit" 
                             className="submit-button"
-                            disabled={isLoading || !isLoginMode}
+                            disabled={isLoading}
                         >
                             {isLoading ? (
                                 <>
@@ -149,7 +152,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                                 </>
                             ) : (
                                 <>
-                                    {isLoginMode ? 'Login' : 'Register (Coming Soon)'}
+                                    {isLoginMode ? 'Login' : 'Register'}
                                 </>
                             )}
                         </button>
@@ -166,11 +169,6 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                                 {isLoginMode ? 'Register' : 'Login'}
                             </button>
                         </p>
-                        {!isLoginMode && (
-                            <p className="register-notice">
-                                Registration is currently disabled during alpha development.
-                            </p>
-                        )}
                     </div>
                 </div>
             </div>

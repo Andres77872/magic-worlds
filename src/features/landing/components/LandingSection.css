@@ -6,19 +6,6 @@
   text-align: center;
   font-size: clamp(1.8rem, 5vw, 2.5rem);
   font-weight: var(--font-weight-bold);
-  margin-bottom: var(--spacing-xl);
+  margin-bottom: var(--space-12);
   color: var(--accent-color);
-  position: relative;
-}
-
-.landing-section-title::after {
-  content: '';
-  position: absolute;
-  bottom: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80px;
-  height: 3px;
-  background: var(--gradient-primary);
-  border-radius: var(--radius-sm);
 } 

@@ -3,7 +3,7 @@
  * Refactored into modular components for better maintainability
  */
 
-import { useNavigation, useData } from '../../../app/hooks'
+import { useNavigation, useData, useAuth } from '../../../app/hooks'
 import { 
     LandingLoading, 
     LandingHero, 
@@ -17,6 +17,7 @@ import type { Character, World, Adventure } from '../../../shared'
 
 export function LandingPage() {
     const { setPage } = useNavigation()
+    const { isAuthenticated, openLoginModal } = useAuth()
     const { 
         characters, 
         worlds, 
@@ -35,28 +36,48 @@ export function LandingPage() {
         clearAllData
     } = useData()
 
-    // Event handlers
+    // Event handlers — all gated behind authentication
     const handleCharacterEdit = (character: Character) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            return
+        }
         editCharacter(character)
         setPage('character')
     }
 
     const handleWorldEdit = (world: World) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            return
+        }
         editWorld(world)
         setPage('world')
     }
 
     const handleTemplateEdit = (template: Adventure) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            return
+        }
         editTemplate(template)
         setPage('adventure')
     }
 
     const handleTemplateStart = (template: Adventure) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            return
+        }
         startTemplate(template)
         setPage('interaction')
     }
 
     const handleInProgressEdit = (adventure: Adventure) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            return
+        }
         editInProgress(adventure)
         setPage('interaction')
     }
@@ -73,15 +94,39 @@ export function LandingPage() {
         <div className="landing-page">
             <LandingHero
                 activeAdventures={inProgressAdventures.length}
-                onStartJourney={() => setPage('character')}
+                onStartJourney={() => {
+                    if (!isAuthenticated) {
+                        openLoginModal()
+                        return
+                    }
+                    setPage('character')
+                }}
                 lastActiveAdventure={inProgressAdventures.length > 0 ? inProgressAdventures[0] : undefined}
                 onContinueAdventure={handleInProgressEdit}
             />
 
             <LandingQuickActions
-                onCreateCharacter={() => setPage('character')}
-                onBuildWorld={() => setPage('world')}
-                onCreateAdventure={() => setPage('adventure')}
+                onCreateCharacter={() => {
+                    if (!isAuthenticated) {
+                        openLoginModal()
+                        return
+                    }
+                    setPage('character')
+                }}
+                onBuildWorld={() => {
+                    if (!isAuthenticated) {
+                        openLoginModal()
+                        return
+                    }
+                    setPage('world')
+                }}
+                onCreateAdventure={() => {
+                    if (!isAuthenticated) {
+                        openLoginModal()
+                        return
+                    }
+                    setPage('adventure')
+                }}
             />
 
             <LandingContentSections

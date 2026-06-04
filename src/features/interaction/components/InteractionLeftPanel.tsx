@@ -9,33 +9,33 @@ interface InteractionLeftPanelProps {
 
 export function InteractionLeftPanel({adventure, onBack}: InteractionLeftPanelProps) {
     return (
-        <div className="left-panel interaction-panel interaction-panel--secondary">
-            <div className="interaction-panel__header">
+        <div className="left-panel">
+            <div className="left-panel__section-header">
                 <button 
-                    className="left-panel__back-button interaction-btn interaction-btn--secondary interaction-focusable"
+                    className="left-panel__back-button btn btn-secondary"
                     onClick={onBack}
                 >
                     ← Back to Adventures
                 </button>
             </div>
             
-            <div className="interaction-panel__section">
-                <div className="interaction-panel__section-header">
-                    <FaInfoCircle className="interaction-panel__section-icon"/>
+            <div className="left-panel__section">
+                <div className="left-panel__section-header">
+                    <FaInfoCircle />
                     <h4>Adventure Scenario</h4>
                 </div>
-                <div className="interaction-card interaction-shimmer">
+                <div className="left-panel__card">
                     <p className="left-panel__scenario-text">{adventure.scenario}</p>
                 </div>
             </div>
 
-            <div className="interaction-panel__section">
-                <div className="interaction-panel__section-header">
-                    <FaGlobe className="interaction-panel__section-icon"/>
+            <div className="left-panel__section">
+                <div className="left-panel__section-header">
+                    <FaGlobe />
                     <h4>World Setting</h4>
                 </div>
                 {adventure.world ? (
-                    <div className="interaction-card">
+                    <div className="left-panel__card">
                         <h5 className="left-panel__world-name">{adventure.world.name}</h5>
                         <span className="left-panel__world-type">{adventure.world.type}</span>
                         {adventure.world.details && Object.keys(adventure.world.details).length > 0 && (
@@ -50,20 +50,20 @@ export function InteractionLeftPanel({adventure, onBack}: InteractionLeftPanelPr
                         )}
                     </div>
                 ) : (
-                    <div className="interaction-card">
+                    <div className="left-panel__card">
                         <p className="left-panel__no-data">No world selected</p>
                     </div>
                 )}
             </div>
 
-            <div className="interaction-panel__section">
-                <div className="interaction-panel__section-header">
-                    <FaUsers className="interaction-panel__section-icon"/>
+            <div className="left-panel__section">
+                <div className="left-panel__section-header">
+                    <FaUsers />
                     <h4>Characters</h4>
                 </div>
                 {adventure.characters && adventure.characters.length > 0 ? (
                     adventure.characters.map(character => (
-                        <div key={character.id} className="interaction-card interaction-card--character">
+                        <div key={character.id} className="left-panel__card">
                             <h5 className="left-panel__character-name">{character.name}</h5>
                             <span className="left-panel__character-race">{character.race}</span>
                             {character.stats && Object.keys(character.stats).length > 0 && (
@@ -79,7 +79,7 @@ export function InteractionLeftPanel({adventure, onBack}: InteractionLeftPanelPr
                         </div>
                     ))
                 ) : (
-                    <div className="interaction-card">
+                    <div className="left-panel__card">
                         <p className="left-panel__no-data">No characters selected</p>
                     </div>
                 )}

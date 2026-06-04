@@ -2,19 +2,18 @@
  * ForwardOptions styles - Suggested action options for chat turns
  */
 
-/* Import shared utilities */
-@import '../styles/shared-utilities.css';
+
 
 /* =====================================================================
    Forward Options Container
    ===================================================================== */
 .forward-options {
-  margin-top: var(--spacing-md);
-  padding: var(--spacing-md);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
   background: var(--background-color-tertiary);
-  border-radius: var(--border-radius-medium);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  animation: fadeIn 0.3s ease;
+  animation: fadeInMagical 0.3s ease;
   position: relative;
   overflow: hidden;
 }
@@ -24,30 +23,14 @@
   border: 2px solid var(--border-color-lighter);
 }
 
-/* Magical shimmer effect */
-.forward-options::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, 
-    transparent, 
-    var(--color-magic-glow), 
-    transparent);
-  opacity: 0.1;
-  animation: shimmer 3s ease-in-out infinite;
-}
-
 /* =====================================================================
    Header
    ===================================================================== */
 .forward-options__header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-sm);
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
 }
 
 .forward-options__title {
@@ -58,7 +41,7 @@
   letter-spacing: var(--letter-spacing-wide);
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
+  gap: var(--space-1);
 }
 
 .forward-options__title::before {
@@ -72,26 +55,26 @@
 .forward-options__list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
 }
 
 /* =====================================================================
    Option Button
    ===================================================================== */
 .forward-options__button {
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--space-2) var(--space-4);
   background: var(--background-color-primary);
   border: 2px solid var(--border-color);
-  border-radius: var(--border-radius-medium);
+  border-radius: var(--radius-md);
   color: var(--text-color);
   font-size: var(--font-size-sm);
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
   opacity: 0;
-  animation: fadeIn 0.3s ease forwards;
+  animation: fadeInMagical 0.3s ease forwards;
   position: relative;
   overflow: hidden;
   text-align: left;
@@ -143,15 +126,6 @@
   transform: translateX(4px);
 }
 
-.forward-options__button:hover::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--gradient-magical);
-  opacity: 0.1;
-  animation: shimmer 1s ease-in-out;
-}
-
 .forward-options__button:active {
   transform: translateY(0);
 }
@@ -165,24 +139,24 @@
   }
   
   .forward-options__button {
-    padding: var(--spacing-sm);
+    padding: var(--space-2);
   }
 }
 
 @media (max-width: 480px) {
   .forward-options {
-    padding: var(--spacing-sm);
-    margin-top: var(--spacing-sm);
+    padding: var(--space-2);
+    margin-top: var(--space-2);
   }
   
   .forward-options__header {
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--spacing-xs);
+  gap: var(--space-1);
   }
   
   .forward-options__button {
-    padding: var(--spacing-xs) var(--spacing-sm);
+    padding: var(--space-1) var(--space-2);
     font-size: var(--font-size-xs);
   }
 } 

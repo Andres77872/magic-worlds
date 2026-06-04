@@ -1,19 +1,11 @@
 /* =====================================================================
    Interaction Right Panel
    ===================================================================== */
-@import '../styles/shared-utilities.css';
 
 .right-panel {
-  padding: var(--spacing-md);
+  padding: var(--space-4);
   height: 100%;
 }
-
-/* Using shared utility classes from shared-utilities.css */
-/* The following classes are now provided by shared utilities:
-   - .interaction-panel__section
-   - .interaction-panel__section-header
-   - .interaction-panel__section-icon
-*/
 
 /* =====================================================================
    Action Buttons Section
@@ -21,39 +13,15 @@
 .right-panel__action-buttons {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
 }
 
 .right-panel__action-button {
   width: 100%;
   justify-content: flex-start;
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
   position: relative;
   overflow: hidden;
-}
-
-/* Dice roll animation on hover */
-.right-panel__action-button--dice:hover .right-panel__button-icon {
-  animation: orbBounce 0.6s ease-in-out;
-}
-
-/* Save button shimmer effect */
-.right-panel__action-button--save::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(255, 255, 255, 0.2), 
-    transparent);
-  transition: left 0.5s ease;
-}
-
-.right-panel__action-button--save:hover::before {
-  left: 100%;
 }
 
 .right-panel__button-icon {
@@ -66,9 +34,9 @@
    ===================================================================== */
 .right-panel__log-area {
   background: var(--background-color-secondary);
-  border: var(--border-standard);
-  border-radius: var(--border-radius-medium);
-  padding: var(--spacing-sm);
+  border: var(--border-width-thin) solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
   max-height: 300px;
   overflow-y: auto;
   position: relative;
@@ -85,12 +53,12 @@
 
 .right-panel__log-area::-webkit-scrollbar-track {
   background: var(--background-color-tertiary);
-  border-radius: var(--border-radius-small);
+  border-radius: var(--radius-sm);
 }
 
 .right-panel__log-area::-webkit-scrollbar-thumb {
   background: var(--accent-color);
-  border-radius: var(--border-radius-small);
+  border-radius: var(--radius-sm);
   opacity: 0.5;
 }
 
@@ -102,13 +70,13 @@
 .right-panel__log-entry {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-sm);
+  gap: var(--space-1);
+  padding: var(--space-2);
   border-bottom: 1px solid var(--border-color-lighter);
   font-size: var(--font-size-sm);
   transition: background var(--duration-fast) var(--ease-smooth);
-  border-radius: var(--border-radius-small);
-  margin-bottom: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-1);
 }
 
 .right-panel__log-entry:last-child {
@@ -151,7 +119,7 @@
 /* Empty log state */
 .right-panel__log-empty {
   text-align: center;
-  padding: var(--spacing-xl) var(--spacing-md);
+  padding: var(--space-8) var(--space-4);
   color: var(--text-color-secondary);
   font-style: italic;
   opacity: 0.7;
@@ -159,7 +127,7 @@
 
 .right-panel__log-empty-icon {
   font-size: var(--font-size-2xl);
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: var(--space-2);
   opacity: 0.5;
 }
 
@@ -169,15 +137,15 @@
 .right-panel__settings-area {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
 }
 
 .right-panel__setting-item {
   display: flex;
   align-items: center;
-  padding: var(--spacing-sm);
+  padding: var(--space-2);
   background: var(--background-color-secondary);
-  border-radius: var(--border-radius-small);
+  border-radius: var(--radius-sm);
   transition: all var(--duration-fast) var(--ease-smooth);
   border: 1px solid transparent;
 }
@@ -185,13 +153,12 @@
 .right-panel__setting-item:hover {
   background: var(--background-color-tertiary);
   border-color: var(--accent-color);
-  transform: translateX(4px);
 }
 
 .right-panel__setting-label {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
   cursor: pointer;
   font-size: var(--font-size-sm);
   color: var(--text-color);
@@ -215,7 +182,7 @@
    ===================================================================== */
 @media (max-width: 768px) {
   .right-panel {
-    padding: var(--spacing-sm);
+    padding: var(--space-2);
   }
   
   .right-panel__action-buttons {
@@ -236,7 +203,7 @@
 @media (max-width: 480px) {
   .right-panel__action-button {
     font-size: var(--font-size-xs);
-    padding: var(--spacing-xs) var(--spacing-sm);
+    padding: var(--space-1) var(--space-2);
   }
   
   .right-panel__button-icon {
@@ -252,11 +219,64 @@
    Accessibility
    ===================================================================== */
 .right-panel__setting-checkbox:focus-visible {
-  outline: var(--focus-outline);
+  outline: 2px solid var(--accent-color);
   outline-offset: 2px;
 }
 
 .right-panel__action-button:focus-visible {
-  outline: var(--focus-outline);
+  outline: 2px solid var(--accent-color);
   outline-offset: 2px;
+}
+
+/* =====================================================================
+   Scoped panel utility classes (replacing shared-utilities.css)
+   ===================================================================== */
+.right-panel__section {
+  margin-bottom: var(--space-4);
+}
+
+.right-panel__section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.right-panel__section-header h4 {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-color-secondary);
+}
+
+.right-panel__section-header svg {
+  font-size: var(--font-size-normal);
+  color: var(--accent-color);
+  flex-shrink: 0;
+}
+
+.right-panel__scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.right-panel__scrollbar::-webkit-scrollbar-track {
+  background: var(--background-color-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+.right-panel__scrollbar::-webkit-scrollbar-thumb {
+  background: var(--accent-color);
+  border-radius: var(--radius-sm);
+}
+
+.right-panel__scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-color-hover);
+}
+
+@media (max-width: 768px) {
+  .right-panel__hide-mobile {
+    display: none;
+  }
 }

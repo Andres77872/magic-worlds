@@ -22,13 +22,10 @@ export function AppRouter() {
         return <LoadingSpinner />
     }
 
+    // Log data loading errors to console for debugging but do NOT block the UI
+    // The landing page handles empty/missing data gracefully
     if (loadingState.error) {
-        return (
-            <div className="error-container">
-                <h2>Error Loading Application</h2>
-                <p>{loadingState.error}</p>
-            </div>
-        )
+        console.error('[AppRouter] Data loading error (non-blocking):', loadingState.error)
     }
 
     return (

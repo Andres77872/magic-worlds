@@ -5,7 +5,8 @@
 
 import { createContext, useEffect, useState, useRef, type ReactNode } from 'react'
 import type { Character, World, Adventure, LoadingState } from '../../shared'
-import { apiService, tokenService } from '../../infrastructure'
+import { apiService } from '../../infrastructure'
+import { useAuth } from '../hooks'
 
 interface DataContextValue {
     // Characters
@@ -76,6 +77,9 @@ export function DataProvider({ children }: DataProviderProps) {
     const [loadingState, setLoadingState] = useState<LoadingState>({ isLoading: true })
     const [confirmClear, setConfirmClear] = useState(false)
     
+    // Auth state for graceful degradation
+    const { isAuthenticated, openLoginModal } = useAuth()
+
     // Ref to prevent duplicate data loading (React StrictMode double-render)
     const isDataLoaded = useRef(false)
     
@@ -85,6 +89,10 @@ export function DataProvider({ children }: DataProviderProps) {
     }
     
     const deleteCharacter = async (index: number) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to delete characters')
+        }
         try {
             const characterToDelete = characters[index]
             if (characterToDelete?.id) {
@@ -105,6 +113,10 @@ export function DataProvider({ children }: DataProviderProps) {
     }
     
     const deleteWorld = async (index: number) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to delete worlds')
+        }
         try {
             const worldToDelete = worlds[index]
             if (worldToDelete?.id) {
@@ -125,6 +137,10 @@ export function DataProvider({ children }: DataProviderProps) {
     }
     
     const startTemplate = async (template: Adventure) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to start adventures')
+        }
         try {
             // Create a new adventure session via API
             const session = await apiService.createAdventureSession(template.id)
@@ -155,6 +171,10 @@ export function DataProvider({ children }: DataProviderProps) {
     }
     
     const deleteTemplate = async (index: number) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to delete adventure templates')
+        }
         try {
             const templateToDelete = templateAdventures[index]
             if (templateToDelete?.id) {
@@ -175,6 +195,10 @@ export function DataProvider({ children }: DataProviderProps) {
     }
     
     const deleteInProgress = async (index: number) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to delete adventures')
+        }
         try {
             const adventureToDelete = inProgressAdventures[index]
             if (adventureToDelete?.id) {
@@ -191,11 +215,19 @@ export function DataProvider({ children }: DataProviderProps) {
 
     const loadData = async () => {
         try {
+            // If not authenticated, skip API calls entirely — render empty state gracefully
+            if (!isAuthenticated) {
+                console.log('[DataProvider] User not authenticated — skipping data load, rendering empty state')
+                setCharacters([])
+                setWorlds([])
+                setTemplateAdventures([])
+                setInProgressAdventures([])
+                setLoadingState({ isLoading: false })
+                return
+            }
+
             setLoadingState({ isLoading: true })
             console.log('[DataProvider] Starting to load data from API...')
-            
-            // First ensure we have a valid token
-            await tokenService.ensureProvisionalToken()
             
             const [
                 loadedCharacters,
@@ -278,6 +310,10 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const clearAllData = async () => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to clear data')
+        }
         // Note: Clearing all data via API would require deleting each item individually
         // For now, we just clear the local state - data remains on server
         try {

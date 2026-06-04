@@ -2,8 +2,7 @@
  * ChatMessage styles - Modern shadcn-like design
  */
 
-/* Import shared utilities */
-@import '../styles/shared-utilities.css';
+
 
 /* =====================================================================
    Chat Message Container
@@ -56,29 +55,9 @@
 }
 
 [data-theme="light"] .chat-message--assistant {
-  background: linear-gradient(135deg, 
-    var(--background-color-primary) 0%, 
-    var(--background-color-secondary) 100%);
+  background: var(--background-color-primary);
   border: var(--border-width-medium) solid var(--color-magic-glow);
   box-shadow: var(--shadow-lg);
-}
-
-/* Magical glow effect for assistant messages */
-.chat-message--assistant::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: var(--gradient-glow);
-  opacity: 0.05;
-  animation: gradientShift 10s ease infinite;
-  pointer-events: none;
-}
-
-[data-theme="light"] .chat-message--assistant::before {
-  opacity: 0.02;
 }
 
 /* Markdown Styles */
@@ -204,7 +183,7 @@
   margin: var(--space-6) 0;
   border: none;
   height: var(--border-width-thin);
-  background: var(--gradient-magical);
+  background: var(--border-color);
   opacity: 0.3;
   border-radius: var(--radius-sm);
 }
@@ -325,8 +304,7 @@
   height: 8px;
   background: var(--color-magic-glow);
   border-radius: var(--radius-full);
-  animation: orbBounce 1.4s ease-in-out infinite;
-  box-shadow: var(--shadow-sm);
+  animation: pulse 1.4s ease-in-out infinite;
 }
 
 .typing-indicator span:nth-child(2) {

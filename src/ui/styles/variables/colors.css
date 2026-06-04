@@ -18,9 +18,9 @@
     --accent-secondary: var(--accent-secondary);
     --accent-primary-hover: var(--accent-color-hover);
     --accent-primary-alpha: var(--accent-color-transparency);
-    --border-radius-sm: var(--border-radius-small);
-    --border-radius-md: var(--border-radius-medium);
-    --border-radius-lg: var(--border-radius-large);
+    --border-radius-sm: var(--radius-sm);
+    --border-radius-md: var(--radius-md);
+    --border-radius-lg: var(--radius-lg);
     --color-danger: var(--color-error);
     --color-danger-light: var(--color-error-transparency);
     /* Backgrounds */
@@ -109,9 +109,9 @@
     --accent-secondary: var(--accent-secondary);
     --accent-primary-hover: var(--accent-color-hover);
     --accent-primary-alpha: var(--accent-color-transparency);
-    --border-radius-sm: var(--border-radius-small);
-    --border-radius-md: var(--border-radius-medium);
-    --border-radius-lg: var(--border-radius-large);
+    --border-radius-sm: var(--radius-sm);
+    --border-radius-md: var(--radius-md);
+    --border-radius-lg: var(--radius-lg);
     --color-danger: var(--color-error);
     --color-danger-light: var(--color-error-transparency);
     /* Backgrounds */
@@ -191,18 +191,11 @@
 :root {
     /* Primary gradients */
     --gradient-primary: linear-gradient(135deg, var(--accent-color), var(--accent-color-hover));
-    --gradient-magical: linear-gradient(135deg, var(--accent-color) 0%, var(--color-magic-glow) 50%, var(--accent-secondary) 100%);
-    --gradient-fire: linear-gradient(135deg, #f97316 0%, #dc2626 50%, #7c2d12 100%);
-    --gradient-ice: linear-gradient(135deg, #67e8f9 0%, #3b82f6 50%, #1e3a8a 100%);
-    --gradient-nature: linear-gradient(135deg, #4ade80 0%, #16a34a 50%, #14532d 100%);
-    --gradient-shadow: linear-gradient(135deg, #4c1d95 0%, #1e1b4b 50%, #000000 100%);
     
     /* Background gradients */
     --gradient-dark: linear-gradient(180deg, var(--background-color-primary), var(--background-color-secondary));
     --gradient-light: linear-gradient(180deg, #ffffff, var(--background-color-secondary));
-    --gradient-mystical: radial-gradient(ellipse at top, var(--background-color-tertiary), var(--background-color-primary));
     
     /* Special effects */
     --gradient-glow: radial-gradient(circle, var(--color-magic-glow) 0%, transparent 70%);
-    --gradient-portal: conic-gradient(from 0deg, var(--accent-color), var(--color-magic-glow), var(--accent-secondary), var(--accent-color));
 }

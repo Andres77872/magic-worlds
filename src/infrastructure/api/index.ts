@@ -12,8 +12,16 @@ export interface UserData {
     }
 }
 
+import type {
+    LoginCredentials,
+    LoginResponse,
+    RegisterData,
+    RegisterResponse,
+    ChatMessage,
+} from '../../shared/types/auth.types'
+
 // Get API base URL from environment, fallback to default
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8010'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8010'
 
 class ApiService {
     private baseUrl: string
@@ -50,7 +58,19 @@ class ApiService {
 
         try {
             const response = await fetch(url, config)
-            
+
+            // Centralized 401 handling
+            if (response.status === 401) {
+                localStorage.removeItem('magic_worlds:token')
+                localStorage.removeItem('magic_worlds:user')
+                window.dispatchEvent(new CustomEvent('auth:expired'))
+                // Return empty typed response for data-fetching methods
+                if (parseAsJson) {
+                    return {} as T
+                }
+                return '' as T
+            }
+
             if (!response.ok) {
                 const errorText = await response.text()
                 console.error('API Error Response:', {
@@ -73,15 +93,6 @@ class ApiService {
     }
 
     /**
-     * Get a provisional access token
-     */
-    async getProvisionalToken(): Promise<string> {
-        return this.request<string>('/auth/provisional-token', {
-            method: 'POST'
-        }, false)
-    }
-
-    /**
      * Make authenticated requests with token
      */
     async authenticatedRequest<T>(
@@ -93,7 +104,7 @@ class ApiService {
             ...options,
             headers: {
                 ...options.headers,
-                'Authorization': `Bearer ${token}`
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             }
         })
     }
@@ -108,12 +119,48 @@ class ApiService {
     }
 
     /**
-     * Get the stored access token from localStorage
+     * Login via the API proxy
+     */
+    async login(credentials: LoginCredentials): Promise<LoginResponse> {
+        return this.request<LoginResponse>('/auth/login', {
+            method: 'POST',
+            body: credentials as unknown as BodyInit
+        })
+    }
+
+    /**
+     * Register via the API proxy
+     */
+    async register(data: RegisterData): Promise<RegisterResponse> {
+        return this.request<RegisterResponse>('/auth/register', {
+            method: 'POST',
+            body: data as unknown as BodyInit
+        })
+    }
+
+    /**
+     * Send a chat message via the API proxy (SSE streaming)
+     */
+    async sendChatMessage(sessionId: number, messages: ChatMessage[]): Promise<Response> {
+        const token = this.getStoredToken()
+        const url = `${this.baseUrl}/adventure-sessions/${sessionId}/chat`
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ messages })
+        })
+    }
+
+    /**
+     * Get the stored token from localStorage
      */
     private getStoredToken(): string {
-        const token = localStorage.getItem('magic_worlds:access_token')
+        const token = localStorage.getItem('magic_worlds:token')
         if (!token) {
-            throw new Error('No access token found in localStorage')
+            return ''
         }
         return token.replace(/"/g, '') // Remove quotes from token
     }
@@ -360,4 +407,4 @@ class ApiService {
 }
 
 export const apiService = new ApiService()
-export type { ApiService } 
+export type { ApiService }
