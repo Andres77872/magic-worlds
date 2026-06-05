@@ -1,13 +1,12 @@
-import { useState, useEffect } from 'react'
-import { FiBookOpen, FiGlobe, FiPlay, FiUserPlus, FiUsers, FiMapPin, FiFileText, FiZap } from 'react-icons/fi'
+import { useState } from 'react'
+import { BookOpen, FileText, Globe, MapPin, Play, Users, UserPlus, Zap } from 'lucide-react'
 import { CharacterList, InProgressList, TemplateList, WorldList } from '../../../ui/components'
 import type { Character, World, Adventure } from '../../../shared'
-import { useUserData, useAuth } from '../../../app/hooks'
-import { apiService } from '../../../infrastructure/api'
-import { mapApiTemplatesToAdventures } from '../../../utils/apiMappers'
-import './LandingContentSections.css'
+import { Badge, Icon } from '../../../ui/primitives'
 
 interface LandingContentSectionsProps {
+    characters: Character[]
+    worlds: World[]
     templateAdventures: Adventure[]
     inProgressAdventures: Adventure[]
     onCharacterEdit: (character: Character) => void
@@ -21,36 +20,27 @@ interface LandingContentSectionsProps {
     onInProgressDelete: (index: number) => void | Promise<void>
 }
 
-// Enhanced empty state component with better UX
 interface EmptyStateProps {
     icon: React.ReactNode
     title: string
     message: string
-    actionText?: string
-    onAction?: () => void
 }
 
-function EmptyState({ icon, title, message, actionText, onAction }: EmptyStateProps) {
+function EmptyState({ icon, title, message }: EmptyStateProps) {
     return (
-        <div className="landing-content-panel-empty">
-            <div className="landing-empty-icon" aria-hidden="true">
+        <div className="flex min-h-[300px] flex-col items-center justify-center p-8 text-center text-parchment-200">
+            <div className="mb-6 text-parchment-500 [&_svg]:h-16 [&_svg]:w-16" aria-hidden="true">
                 {icon}
             </div>
-            <h3 className="landing-empty-title">{title}</h3>
-            <p className="landing-empty-message">{message}</p>
-            {actionText && onAction && (
-                <button 
-                    className="btn btn-primary" 
-                    onClick={onAction}
-                >
-                    {actionText}
-                </button>
-            )}
+            <h3 className="mb-2 font-display text-h3 font-semibold text-parchment-50">{title}</h3>
+            <p className="max-w-[400px] text-body leading-normal text-parchment-200">{message}</p>
         </div>
     )
 }
 
 export function LandingContentSections({
+    characters,
+    worlds,
     templateAdventures,
     inProgressAdventures,
     onCharacterEdit,
@@ -61,235 +51,116 @@ export function LandingContentSections({
     onTemplateStart,
     onTemplateDelete,
     onInProgressEdit,
-    onInProgressDelete
+    onInProgressDelete,
 }: LandingContentSectionsProps) {
     const [activeSection, setActiveSection] = useState<'characters' | 'worlds' | 'templates' | 'inprogress'>('inprogress')
-    const [characters, setCharacters] = useState<Character[]>([])
-    const [worlds, setWorlds] = useState<World[]>([])
-    const [apiTemplates, setApiTemplates] = useState<any[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
-    
-    // Get user data from API to determine if tabs should be shown
-    const { userData, isLoading: userDataLoading } = useUserData()
-    const { isAuthenticated } = useAuth()
-    
-    // Fetch characters, worlds, and templates from API
-    useEffect(() => {
-        const fetchData = async () => {
-            // Skip API calls if not authenticated — show empty state
-            if (!isAuthenticated) {
-                setCharacters([])
-                setWorlds([])
-                setApiTemplates([])
-                setLoading(false)
-                return
-            }
 
-            try {
-                setLoading(true)
-                setError(null)
-                
-                // Use the apiService to fetch data from the API
-                const [charactersData, worldsData, templatesData] = await Promise.all([
-                    apiService.getCharacters(),
-                    apiService.getWorlds(),
-                    apiService.getAdventureTemplates()
-                ])
+    const hasContent =
+        characters.length > 0 || worlds.length > 0 || templateAdventures.length > 0 || inProgressAdventures.length > 0
 
-                setCharacters(charactersData || [])
-                setWorlds(worldsData || [])
-                setApiTemplates(templatesData || [])
-            } catch (err) {
-                console.error('Error fetching data:', err)
-                setError(err instanceof Error ? err.message : 'Failed to fetch data')
-            } finally {
-                setLoading(false)
-            }
-        }
-
-        fetchData()
-    }, [isAuthenticated])
-
-    // Check if any content exists based on API data or local data
-    const hasApiContent = userData && (
-        userData.card_counts.character > 0 ||
-        userData.card_counts.world > 0 ||
-        userData.card_counts.adventure_template > 0
-    )
-    
-    // Also check local data for fallback
-    const hasLocalContent = characters.length > 0 || worlds.length > 0 || 
-        templateAdventures.length > 0 || inProgressAdventures.length > 0
-    
-    // Merge API templates with local templates (prefer API data)
-    const mergedTemplates = apiTemplates.length > 0 
-        ? mapApiTemplatesToAdventures(apiTemplates) 
-        : templateAdventures
-    
-    // Show tabs if we have API content, local content, or still loading API data
-    const shouldShowTabs = userDataLoading || hasApiContent || hasLocalContent
-    
-    // Don't render if no content at all (safe to return here - after all hooks)
-    if (!shouldShowTabs) {
+    if (!hasContent) {
         return null
     }
 
-    // Enhanced tab configuration with better accessibility and theming
-    // Use API data counts when available, fallback to local state
     const tabs = [
         {
             id: 'inprogress' as const,
             label: 'Active Adventures',
-            icon: <FiPlay aria-hidden="true" />,
+            icon: <Icon icon={Play} size={18} />,
             count: inProgressAdventures.length,
             emptyState: {
-                icon: <FiZap />,
+                icon: <Icon icon={Zap} />,
                 title: 'No Active Adventures',
-                message: 'Start your first adventure by creating a template or jumping into an existing story. Your epic journey awaits!'
-            }
+                message: 'Start your first adventure from a template or jump into an existing story. Your epic journey awaits!',
+            },
         },
         {
             id: 'characters' as const,
             label: 'Characters',
-            icon: <FiUserPlus aria-hidden="true" />,
-            count: userData?.card_counts?.character ?? characters.length,
+            icon: <Icon icon={UserPlus} size={18} />,
+            count: characters.length,
             emptyState: {
-                icon: <FiUsers />,
+                icon: <Icon icon={Users} />,
                 title: 'No Characters Created',
-                message: 'Create your first hero! Design a character with unique traits, abilities, and backstory to start your adventures.'
-            }
+                message: 'Create your first hero — design a character with unique traits, abilities, and backstory.',
+            },
         },
         {
             id: 'worlds' as const,
             label: 'Worlds',
-            icon: <FiGlobe aria-hidden="true" />,
-            count: userData?.card_counts?.world ?? worlds.length,
+            icon: <Icon icon={Globe} size={18} />,
+            count: worlds.length,
             emptyState: {
-                icon: <FiMapPin />,
+                icon: <Icon icon={MapPin} />,
                 title: 'No Worlds Built',
-                message: 'Build mystical realms filled with wonder and danger. Create the perfect setting for your adventures to unfold.'
-            }
+                message: 'Build mystical realms filled with wonder and danger — the perfect setting for your adventures.',
+            },
         },
         {
             id: 'templates' as const,
             label: 'Templates',
-            icon: <FiBookOpen aria-hidden="true" />,
-            count: userData?.card_counts?.adventure_template ?? mergedTemplates.length,
+            icon: <Icon icon={BookOpen} size={18} />,
+            count: templateAdventures.length,
             emptyState: {
-                icon: <FiFileText />,
+                icon: <Icon icon={FileText} />,
                 title: 'No Adventure Templates',
-                message: 'Create adventure templates to quickly start new stories. Design quests, encounters, and storylines for reuse.'
-            }
-        }
+                message: 'Create adventure templates to quickly start new stories — quests, encounters, and storylines for reuse.',
+            },
+        },
     ]
 
     const renderTabContent = () => {
         switch (activeSection) {
             case 'characters':
-                if (loading) {
-                    return (
-                        <div className="landing-content-panel-loading">
-                            <div className="loading-spinner" aria-label="Loading characters"></div>
-                            <p>Loading characters...</p>
-                        </div>
-                    )
-                }
-                if (error) {
-                    return (
-                        <div className="landing-content-panel-error">
-                            <p>Error loading characters: {error}</p>
-                            <button 
-                                className="btn btn-secondary" 
-                                onClick={() => window.location.reload()}
-                            >
-                                Retry
-                            </button>
-                        </div>
-                    )
-                }
                 return characters.length > 0 ? (
-                    <div>
-                        <CharacterList
-                            characters={characters}
-                            onEdit={onCharacterEdit}
-                            onDelete={(index) => {
-                                const character = characters[index]
-                                if (character?.id) {
-                                    onCharacterDelete(character.id)
-                                }
-                            }}
-                        />
-                    </div>
+                    <CharacterList
+                        characters={characters}
+                        onEdit={onCharacterEdit}
+                        onDelete={(index) => {
+                            const character = characters[index]
+                            if (character?.id) onCharacterDelete(character.id)
+                        }}
+                    />
                 ) : (
-                    <EmptyState {...tabs.find(tab => tab.id === 'characters')!.emptyState} />
+                    <EmptyState {...tabs[1].emptyState} />
                 )
 
             case 'worlds':
-                if (loading) {
-                    return (
-                        <div className="landing-content-panel-loading">
-                            <div className="loading-spinner" aria-label="Loading worlds"></div>
-                            <p>Loading worlds...</p>
-                        </div>
-                    )
-                }
-                if (error) {
-                    return (
-                        <div className="landing-content-panel-error">
-                            <p>Error loading worlds: {error}</p>
-                            <button 
-                                className="btn btn-secondary" 
-                                onClick={() => window.location.reload()}
-                            >
-                                Retry
-                            </button>
-                        </div>
-                    )
-                }
                 return worlds.length > 0 ? (
-                    <div>
-                        <WorldList
-                            worlds={worlds}
-                            onEdit={onWorldEdit}
-                            onDelete={(index) => {
-                                const world = worlds[index]
-                                if (world?.id) {
-                                    onWorldDelete(world.id)
-                                }
-                            }}
-                        />
-                    </div>
+                    <WorldList
+                        worlds={worlds}
+                        onEdit={onWorldEdit}
+                        onDelete={(index) => {
+                            const world = worlds[index]
+                            if (world?.id) onWorldDelete(world.id)
+                        }}
+                    />
                 ) : (
-                    <EmptyState {...tabs.find(tab => tab.id === 'worlds')!.emptyState} />
+                    <EmptyState {...tabs[2].emptyState} />
                 )
 
             case 'templates':
-                return mergedTemplates.length > 0 ? (
-                    <div>
-                        <TemplateList
-                            templates={mergedTemplates}
-                            onEdit={onTemplateEdit}
-                            onStart={onTemplateStart}
-                            onDelete={onTemplateDelete}
-                        />
-                    </div>
+                return templateAdventures.length > 0 ? (
+                    <TemplateList
+                        templates={templateAdventures}
+                        onEdit={onTemplateEdit}
+                        onStart={onTemplateStart}
+                        onDelete={onTemplateDelete}
+                    />
                 ) : (
-                    <EmptyState {...tabs.find(tab => tab.id === 'templates')!.emptyState} />
+                    <EmptyState {...tabs[3].emptyState} />
                 )
 
             case 'inprogress':
                 return inProgressAdventures.length > 0 ? (
-                    <div>
-                        <InProgressList
-                            adventures={inProgressAdventures}
-                            onEdit={onInProgressEdit}
-                            onPlay={onInProgressEdit}
-                            onDelete={onInProgressDelete}
-                        />
-                    </div>
+                    <InProgressList
+                        adventures={inProgressAdventures}
+                        onEdit={onInProgressEdit}
+                        onPlay={onInProgressEdit}
+                        onDelete={onInProgressDelete}
+                    />
                 ) : (
-                    <EmptyState {...tabs.find(tab => tab.id === 'inprogress')!.emptyState} />
+                    <EmptyState {...tabs[0].emptyState} />
                 )
 
             default:
@@ -298,42 +169,50 @@ export function LandingContentSections({
     }
 
     return (
-        <section className="landing-content-sections" aria-labelledby="content-sections-title">
+        <section className="relative z-[2] px-4 py-8 sm:px-6" aria-labelledby="content-sections-title">
             <h2 className="sr-only" id="content-sections-title">Your Content</h2>
-            
-            {/* Enhanced Section Tabs */}
-            <div className="landing-section-tabs" role="tablist" aria-label="Content sections">
-                {tabs.map((tab) => (
-                    <button 
-                        key={tab.id}
-                        className={`landing-tab-button ${activeSection === tab.id ? 'active' : ''}`}
-                        onClick={() => setActiveSection(tab.id)}
-                        role="tab"
-                        aria-selected={activeSection === tab.id}
-                        aria-controls={`${tab.id}-panel`}
-                        id={`${tab.id}-tab`}
-                    >
-                        {tab.icon}
-                        {tab.label}
-                        <span className="landing-tab-count" aria-label={`${tab.count} items`}>
-                            {tab.count}
-                        </span>
-                    </button>
-                ))}
+
+            <div
+                className="mb-8 flex gap-2 overflow-x-auto border-b border-parchment-50/10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                role="tablist"
+                aria-label="Content sections"
+            >
+                {tabs.map((tab) => {
+                    const isActive = activeSection === tab.id
+                    return (
+                        <button
+                            key={tab.id}
+                            className={[
+                                'mb-[-1px] flex min-w-[120px] cursor-pointer items-center gap-2 whitespace-nowrap rounded-t-md border border-b-0 px-4 py-2 text-body font-medium transition-all md:px-6 md:py-4',
+                                isActive
+                                    ? 'z-[1] border-ember-500/45 bg-ink-800 font-semibold text-ember-500'
+                                    : 'border-parchment-50/10 bg-ink-700 text-parchment-200 hover:border-ember-500/45 hover:bg-ink-600 hover:text-parchment-50',
+                            ].join(' ')}
+                            onClick={() => setActiveSection(tab.id)}
+                            role="tab"
+                            aria-selected={isActive}
+                            aria-controls={`${tab.id}-panel`}
+                            id={`${tab.id}-tab`}
+                        >
+                            {tab.icon}
+                            {tab.label}
+                            <Badge tone={isActive ? 'ember' : 'neutral'} className="min-w-6 justify-center" aria-label={`${tab.count} items`}>
+                                {tab.count}
+                            </Badge>
+                        </button>
+                    )
+                })}
             </div>
 
-            {/* Enhanced Tab Content */}
-            <div className="landing-tab-content">
-                <div 
-                    className="landing-content-panel"
-                    role="tabpanel"
-                    aria-labelledby={`${activeSection}-tab`}
-                    id={`${activeSection}-panel`}
-                    key={activeSection} // Force re-render for animation
-                >
-                    {renderTabContent()}
-                </div>
+            <div
+                className="min-h-[400px] rounded-lg border border-parchment-50/10 bg-ink-800 p-4 transition-all hover:border-ember-500/45 md:p-8"
+                role="tabpanel"
+                aria-labelledby={`${activeSection}-tab`}
+                id={`${activeSection}-panel`}
+                key={activeSection}
+            >
+                {renderTabContent()}
             </div>
         </section>
     )
-} 
+}

@@ -10,9 +10,8 @@ import {
     LandingQuickActions, 
     LandingContentSections, 
     LandingTips, 
-    LandingFooter 
+    LandingFooter
 } from './'
-import './LandingPage.css'
 import type { Character, World, Adventure } from '../../../shared'
 
 export function LandingPage() {
@@ -91,9 +90,13 @@ export function LandingPage() {
     }
 
     return (
-        <div className="landing-page">
+        <div className="relative flex min-h-screen flex-col overflow-x-hidden bg-ink-800 text-parchment-50 [&>section]:mb-16">
             <LandingHero
+                charactersCount={characters.length}
+                worldsCount={worlds.length}
+                templatesCount={templateAdventures.length}
                 activeAdventures={inProgressAdventures.length}
+                isLoading={isLoading}
                 onStartJourney={() => {
                     if (!isAuthenticated) {
                         openLoginModal()
@@ -130,6 +133,8 @@ export function LandingPage() {
             />
 
             <LandingContentSections
+                characters={characters}
+                worlds={worlds}
                 templateAdventures={templateAdventures}
                 inProgressAdventures={inProgressAdventures}
                 onCharacterEdit={handleCharacterEdit}

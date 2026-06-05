@@ -3,7 +3,7 @@
  * Uses API for data persistence instead of localStorage
  */
 
-import { createContext, useEffect, useState, useRef, type ReactNode } from 'react'
+import { createContext, useEffect, useState, type ReactNode } from 'react'
 import type { Character, World, Adventure, LoadingState } from '../../shared'
 import { apiService } from '../../infrastructure'
 import { useAuth } from '../hooks'
@@ -15,7 +15,7 @@ interface DataContextValue {
     editingCharacter: Character | null
     setEditingCharacter: (character: Character | null) => void
     editCharacter: (character: Character) => void
-    deleteCharacter: (index: number) => Promise<void>
+    deleteCharacter: (id: string) => Promise<void>
     
     // Worlds
     worlds: World[]
@@ -23,7 +23,7 @@ interface DataContextValue {
     editingWorld: World | null
     setEditingWorld: (world: World | null) => void
     editWorld: (world: World) => void
-    deleteWorld: (index: number) => Promise<void>
+    deleteWorld: (id: string) => Promise<void>
     
     // Adventures
     templateAdventures: Adventure[]
@@ -80,27 +80,19 @@ export function DataProvider({ children }: DataProviderProps) {
     // Auth state for graceful degradation
     const { isAuthenticated, openLoginModal } = useAuth()
 
-    // Ref to prevent duplicate data loading (React StrictMode double-render)
-    const isDataLoaded = useRef(false)
-    
     // Character actions
     const editCharacter = (character: Character) => {
         setEditingCharacter(character)
     }
     
-    const deleteCharacter = async (index: number) => {
+    const deleteCharacter = async (id: string) => {
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to delete characters')
         }
         try {
-            const characterToDelete = characters[index]
-            if (characterToDelete?.id) {
-                await apiService.deleteCharacter(characterToDelete.id)
-            }
-            const newCharacters = [...characters]
-            newCharacters.splice(index, 1)
-            setCharacters(newCharacters)
+            await apiService.deleteCharacter(id)
+            setCharacters(characters.filter(character => character.id !== id))
         } catch (error) {
             console.error('Failed to delete character:', error)
             throw error
@@ -112,19 +104,14 @@ export function DataProvider({ children }: DataProviderProps) {
         setEditingWorld(world)
     }
     
-    const deleteWorld = async (index: number) => {
+    const deleteWorld = async (id: string) => {
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to delete worlds')
         }
         try {
-            const worldToDelete = worlds[index]
-            if (worldToDelete?.id) {
-                await apiService.deleteWorld(worldToDelete.id)
-            }
-            const newWorlds = [...worlds]
-            newWorlds.splice(index, 1)
-            setWorlds(newWorlds)
+            await apiService.deleteWorld(id)
+            setWorlds(worlds.filter(world => world.id !== id))
         } catch (error) {
             console.error('Failed to delete world:', error)
             throw error
@@ -277,19 +264,31 @@ export function DataProvider({ children }: DataProviderProps) {
                 category: template.category
             }))
 
-            // Transform sessions to in-progress adventures
+            // Parse the saved {turns} cache safely (the API also rewrites this
+            // field with its own projection — fall back to empty turns).
+            const parseTurns = (raw?: string) => {
+                if (!raw) return []
+                try {
+                    const parsed = JSON.parse(raw)
+                    return Array.isArray(parsed?.turns) ? parsed.turns : []
+                } catch {
+                    return []
+                }
+            }
+
+            // Transform sessions to in-progress adventures, enriching scenario /
+            // cast / world from the originating template when available.
             const transformedInProgress = (loadedSessions || []).map((session: any) => {
-                const lastTurn = session.adventure_last_turn ? JSON.parse(session.adventure_last_turn) : {}
+                const template = transformedTemplates.find((t: { id: string }) => t.id === session.adventure_template)
                 return {
                     id: String(session.adventure_id),
-                    scenario: `Adventure Session ${session.adventure_id}`,
-                    characters: [],
-                    turns: lastTurn.turns || [],
+                    scenario: template?.scenario || `Adventure Session ${session.adventure_id}`,
+                    characters: template?.characters ?? [],
+                    world: template?.world,
+                    turns: parseTurns(session.adventure_last_turn),
                     status: 'in-progress' as const,
                     createdAt: session.adventure_created_at,
                     updatedAt: session.adventure_last_update,
-                    _templateId: session.adventure_template,
-                    _sessionData: session
                 }
             })
 
@@ -355,14 +354,11 @@ export function DataProvider({ children }: DataProviderProps) {
         }
     }
 
-    // Load data on mount (with guard against StrictMode double-render)
+    // Load data on mount and whenever auth state changes (login / logout).
     useEffect(() => {
-        if (isDataLoaded.current) {
-            return
-        }
-        isDataLoaded.current = true
         loadData()
-    }, [])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated])
     
     // Extract isLoading and error from loadingState
     const { isLoading = false, error = null } = loadingState

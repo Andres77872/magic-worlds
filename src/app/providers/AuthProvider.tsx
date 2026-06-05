@@ -118,26 +118,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
         try {
             const response = await apiService.register(data)
 
-            if (response.success) {
-                // Register may return session_token in some configurations
-                if (response.user) {
-                    setUser(response.user)
-                }
-                // If register also returns a token, store it
-                if ('session_token' in response && response.session_token) {
-                    const resp = response as { session_token: string }
-                    setToken(resp.session_token)
-                    localStorage.setItem(TOKEN_STORAGE_KEY, resp.session_token)
-                }
+            // Some providers return a session_token on register; most (incl.
+            // api.auth) do not. If we got one, use it; otherwise auto-login with
+            // the same credentials so the user ends up authenticated with a
+            // valid Bearer token instead of a tokenless "authenticated" state.
+            const tokenFromRegister =
+                'session_token' in response
+                    ? (response as { session_token?: string }).session_token
+                    : undefined
+
+            if (tokenFromRegister) {
+                setToken(tokenFromRegister)
+                if (response.user) setUser(response.user)
+                setProjects([])
+                setIsAuthenticated(true)
+                localStorage.setItem(TOKEN_STORAGE_KEY, tokenFromRegister)
                 if (response.user) {
                     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.user))
                 }
-                setIsAuthenticated(true)
                 return true
-            } else {
-                setError(response.message || 'Registration failed')
-                return false
             }
+
+            // No token on register → log in to obtain one.
+            return await login({ username: data.username, password: data.password })
         } catch (error) {
             if (error instanceof TypeError && error.message === 'Failed to fetch') {
                 setError('Registration service unavailable')

@@ -3,14 +3,15 @@
  */
 
 import { useState } from 'react';
-import { FaPlus } from 'react-icons/fa';
+import { Plus } from 'lucide-react';
+import { Button, Icon, SectionHeader } from '@/ui/primitives';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
 import { AttributeList } from '../../../../ui/components/common/AttributeList';
 import { CategoryForm } from './CategoryForm';
-import '../styles/AttributeManager.css';
 
 export interface AttributeManagerProps {
     title: string;
+    subtitle?: string;
     icon?: string;
     categories: AttributeCategory[];
     attributes: Record<string, { key: string; value: string }[]>;
@@ -31,6 +32,7 @@ export interface AttributeManagerProps {
 
 export function AttributeManager({
     title,
+    subtitle,
     icon,
     categories,
     attributes,
@@ -49,23 +51,33 @@ export function AttributeManager({
     };
 
     return (
-        <div className="attribute-manager">
-            <div className="attribute-manager-header">
-                <h3 className="attribute-manager-title">
-                    {icon && <span className="attribute-manager-icon">{icon}</span>}
-                    {title}
-                </h3>
-                <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={() => setShowAddCategory(prev => !prev)}
-                >
-                    <FaPlus /> Add Category
-                </button>
+        <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2 border-b-2 border-parchment-50/10 pb-4">
+                <SectionHeader
+                    title={
+                        <span className="flex items-center gap-2">
+                            {icon && <span className="text-xl">{icon}</span>}
+                            {title}
+                        </span>
+                    }
+                    className="max-sm:flex-col max-sm:items-start max-sm:gap-4"
+                    right={
+                        <Button
+                            kind="secondary"
+                            size="sm"
+                            onClick={() => setShowAddCategory(prev => !prev)}
+                            iconLeft={<Icon icon={Plus} size={16} />}
+                            className="max-sm:w-full"
+                        >
+                            Add Category
+                        </Button>
+                    }
+                />
+                {subtitle && <p className="font-narrative text-sm text-parchment-400">{subtitle}</p>}
             </div>
 
             {showAddCategory && (
-                <div onClick={(e) => e.stopPropagation()} className="category-form-container">
+                <div onClick={(e) => e.stopPropagation()}>
                     <CategoryForm
                         onSubmit={handleAddCategory}
                         onCancel={() => setShowAddCategory(false)}
@@ -74,12 +86,12 @@ export function AttributeManager({
                 </div>
             )}
 
-            <div className="attribute-categories">
+            <div className="flex flex-col gap-6">
                 {categories.map(category => {
                     const config = categoryConfig[category.id] || {};
-                    
+
                     return (
-                        <div key={category.id} className="attribute-category-wrapper">
+                        <div key={category.id}>
                             <AttributeList
                                 category={category}
                                 attributes={attributes[category.id] || []}

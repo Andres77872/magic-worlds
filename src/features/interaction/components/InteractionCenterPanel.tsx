@@ -2,11 +2,11 @@ import {useEffect, useRef, useState} from 'react'
 import type {Adventure, TurnEntry} from '../../../shared'
 import {apiService} from '../../../infrastructure/api'
 import {useAuth} from '../../../app/hooks'
-import {FaSpinner} from 'react-icons/fa'
+import {Loader2, Send, Sparkles} from 'lucide-react'
+import {Button, controlClass, cx} from '../../../ui/primitives'
 import {parseForwardOptions, extractForwardOptions} from '../utils/jsonFixer'
 import {ChatTurn} from './ChatTurn'
 import {generateUUID} from '../../../utils/uuid'
-import './InteractionCenterPanel.css'
 
 // Forward option interface
 interface ForwardOption {
@@ -569,13 +569,13 @@ Respond to the user inputs as the assistant.`
     }
 
     return (
-        <div className="center-panel flex-col">
+        <div className="flex h-full flex-col bg-ink-800">
             {error && (
-                <div className="center-panel__error-banner">
+                <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-md border border-blood-500/30 bg-blood-500/10 px-4 py-2 text-[14px] text-blood-500">
                     <span>{error}</span>
-                    <button 
-                        onClick={() => setError(null)} 
-                        className="center-panel__error-close"
+                    <button
+                        onClick={() => setError(null)}
+                        className="text-lg leading-none text-blood-500/80 hover:text-blood-500"
                         aria-label="Close error message"
                     >
                         ×
@@ -583,24 +583,27 @@ Respond to the user inputs as the assistant.`
                 </div>
             )}
 
-            <div className="center-panel__chat-container flex-col flex-1">
-                <div className="center-panel__messages-area">
+            <div className="flex-1 overflow-y-auto">
+                <div className="mx-auto w-full max-w-[760px] px-4 py-6 md:px-6">
                     {turns.length === 0 ? (
-                        <div className="center-panel__welcome">
-                            <div className="center-panel__welcome-icon">🎭</div>
-                            <h3 className="center-panel__welcome-title">Welcome to your adventure!</h3>
-                            <p className="center-panel__welcome-text">You are about to embark on an epic journey. What will your first action be?</p>
-                            <div className="center-panel__welcome-hint">
-                                <span className="center-panel__hint-icon">💡</span>
-                                <span>Tip: Be descriptive in your actions to create a more immersive experience!</span>
+                        <div className="flex flex-col items-center gap-4 py-16 text-center">
+                            <h3 className="font-display text-[28px] font-semibold text-parchment-50">
+                                Welcome to your adventure
+                            </h3>
+                            <p className="max-w-md font-narrative text-[17px] leading-relaxed text-parchment-200">
+                                You are about to embark on an epic journey. What will your first action be?
+                            </p>
+                            <div className="mt-2 flex items-center gap-2 rounded-full border border-parchment-50/10 bg-ink-700 px-4 py-2 text-[13px] text-parchment-400">
+                                <Sparkles size={15} className="text-arcane-300" />
+                                <span>Be descriptive in your actions to create a more immersive experience.</span>
                             </div>
                         </div>
                     ) : (
                         <>
                             {turns.map((turn: ExtendedTurnEntry) => (
-                                <ChatTurn 
-                                    key={turn.id} 
-                                    turn={turn} 
+                                <ChatTurn
+                                    key={turn.id}
+                                    turn={turn}
                                     onForwardOptionClick={handleForwardOptionClick}
                                     onRegenerateClick={handleRegenerateResponse}
                                     onDeleteClick={handleDeleteTurn}
@@ -608,74 +611,67 @@ Respond to the user inputs as the assistant.`
                                 />
                             ))}
                             {canGenerateResponse && (
-                                <div className="center-panel__generate-suggestion">
-                                    <div className="center-panel__suggestion-content">
-                                        <span className="center-panel__suggestion-icon">🎭</span>
-                                        <div className="center-panel__suggestion-text">
-                                            <span className="center-panel__suggestion-title">Waiting for Game Master response</span>
-                                            <span className="center-panel__suggestion-subtitle">Click to generate an AI response (optional)</span>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            className="btn btn-primary"
-                                            onClick={handleGenerateResponse}
-                                            disabled={isLoading}
-                                        >
-                                            {isLoading ? (
-                                                <>
-                                                    <FaSpinner style={{animation: 'spin 1s linear infinite'}}/>
-                                                    Generating...
-                                                </>
-                                            ) : 'Generate Response'}
-                                        </button>
+                                <div className="my-4 flex items-center gap-3 rounded-xl border border-parchment-50/10 bg-ink-700 p-4">
+                                    <Sparkles size={18} className="shrink-0 text-arcane-300" />
+                                    <div className="flex flex-1 flex-col">
+                                        <span className="text-[14px] font-semibold text-parchment-50">
+                                            Waiting for Game Master response
+                                        </span>
+                                        <span className="text-[13px] text-parchment-400">
+                                            Click to generate an AI response (optional)
+                                        </span>
                                     </div>
+                                    <Button
+                                        onClick={handleGenerateResponse}
+                                        disabled={isLoading}
+                                        iconLeft={isLoading ? <Loader2 size={16} className="animate-spin" /> : undefined}
+                                    >
+                                        {isLoading ? 'Generating…' : 'Generate Response'}
+                                    </Button>
                                 </div>
                             )}
                         </>
                     )}
-                    <div ref={messagesEndRef}/>
+                    <div ref={messagesEndRef} />
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="center-panel__input-area">
-                <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="What do you do next?"
-                    className="center-panel__message-input"
-                    disabled={isLoading}
-                />
-                <div className="center-panel__input-buttons">
-                    <button
+            <div className="border-t border-parchment-50/10 bg-ink-900/40 backdrop-blur-md">
+                <form
+                    onSubmit={handleSubmit}
+                    className="mx-auto flex w-full max-w-[760px] items-center gap-2 px-4 py-3 md:px-6"
+                >
+                    <input
+                        type="text"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        placeholder="What do you do next?"
+                        className={cx(controlClass, 'flex-1')}
+                        disabled={isLoading}
+                    />
+                    <Button
                         type="submit"
-                        className="btn btn-primary"
                         disabled={!input.trim() || isLoading}
+                        iconLeft={isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                     >
-                        {isLoading ? (
-                            <>
-                                <FaSpinner style={{animation: 'spin 1s linear infinite'}}/>
-                                Sending...
-                            </>
-                        ) : 'Send'}
-                    </button>
-                    <button
+                        {isLoading ? 'Sending…' : 'Send'}
+                    </Button>
+                    <Button
                         type="button"
-                        className="btn btn-secondary"
+                        kind="secondary"
                         onClick={handleReset}
                         disabled={isLoading || turns.length === 0}
                     >
                         Reset
-                    </button>
-                </div>
-            </form>
-
-            {isLoading && (
-                <div className="center-panel__loading">
-                    <FaSpinner className="center-panel__loading-spinner"/>
-                    <span className="center-panel__loading-text">AI is thinking...</span>
-                </div>
-            )}
+                    </Button>
+                </form>
+                {isLoading && (
+                    <div className="mx-auto flex w-full max-w-[760px] items-center gap-2 px-4 pb-3 text-[13px] text-arcane-300 md:px-6">
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>The Game Master is weaving the tale…</span>
+                    </div>
+                )}
+            </div>
         </div>
     )
 }

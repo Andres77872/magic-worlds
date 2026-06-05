@@ -4,11 +4,12 @@
 
 import {useEffect, useState} from 'react'
 import type {Adventure, TurnEntry} from '../../../shared'
+import { Menu, ScrollText } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '../../../app/hooks'
 import { LoadingSpinner } from '../../../ui/components'
 import { apiService } from '../../../infrastructure/api'
+import { cx, IconButton } from '../../../ui/primitives'
 import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel} from './index'
-import './AdventureInteraction.css'
 
 export function AdventureInteraction() {
     const { previousPage, setPage } = useNavigation()
@@ -138,64 +139,61 @@ export function AdventureInteraction() {
         return <LoadingSpinner message="Loading adventure turns..." />
     }
 
+    const toggleBtn = 'absolute top-3 z-30 border border-parchment-50/10 bg-ink-700/80 backdrop-blur lg:hidden'
+    // Mobile drawer: the panel element is a full-screen backdrop (its class is the
+    // close-on-click hook); the inner content slides in. On lg+ it docks inline.
+    const panelBase =
+        'adventure-interaction__panel fixed inset-0 z-20 bg-ink-900/60 backdrop-blur-sm transition-opacity ' +
+        'lg:static lg:inset-auto lg:z-auto lg:w-[320px] lg:shrink-0 lg:bg-transparent lg:backdrop-blur-none lg:opacity-100 lg:pointer-events-auto'
+    const panelContent =
+        'h-full w-[320px] max-w-[85%] overflow-y-auto bg-ink-900 transition-transform lg:max-w-none lg:translate-x-0'
+
     return (
-        <div className="adventure-interaction">
-            <div className="adventure-interaction__layout">
-                {/* Left Panel Toggle Button */}
-                <button 
-                    className={`adventure-interaction__toggle adventure-interaction__toggle--left ${isLeftPanelOpen ? 'is-active' : ''}`}
-                    onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
-                    aria-label="Toggle adventure details"
-                    aria-expanded={isLeftPanelOpen}
-                >
-                    <span className="adventure-interaction__toggle-icon">☰</span>
-                </button>
+        <div className="relative flex h-[calc(100vh-4rem)] overflow-hidden bg-ink-800">
+            {/* Left Panel Toggle Button (mobile) */}
+            <IconButton
+                label="Toggle adventure details"
+                className={cx(toggleBtn, 'left-3', isLeftPanelOpen && 'border-ember-500/45 text-ember-400')}
+                onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
+                aria-expanded={isLeftPanelOpen}
+            >
+                <Menu size={18} strokeWidth={1.75} />
+            </IconButton>
 
-                {/* Left Panel */}
-                <div 
-                    className={`adventure-interaction__panel adventure-interaction__panel--left ${isLeftPanelOpen ? 'is-open' : ''}`}
-                    onClick={handlePanelBackdropClick}
-                >
-                    <div className="adventure-interaction__panel-content">
-                        <InteractionLeftPanel 
-                            adventure={currentAdventure} 
-                            onBack={handleBack}
-                        />
-                    </div>
+            {/* Left Panel */}
+            <div
+                className={cx(panelBase, isLeftPanelOpen ? 'opacity-100' : 'pointer-events-none opacity-0 lg:opacity-100 lg:pointer-events-auto')}
+                onClick={handlePanelBackdropClick}
+            >
+                <div className={cx(panelContent, 'border-r border-parchment-50/10', isLeftPanelOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0')}>
+                    <InteractionLeftPanel adventure={currentAdventure} onBack={handleBack} />
                 </div>
-
-                {/* Center Panel */}
-                <div className={`adventure-interaction__center ${isLeftPanelOpen ? 'adventure-interaction__center--left-open' : ''} ${isRightPanelOpen ? 'adventure-interaction__center--right-open' : ''}`}>
-                    <InteractionCenterPanel 
-                        adventure={currentAdventure}
-                        turns={turns}
-                        setTurns={setTurns}
-                    />
-                </div>
-
-                {/* Right Panel */}
-                <div 
-                    className={`adventure-interaction__panel adventure-interaction__panel--right ${isRightPanelOpen ? 'is-open' : ''}`}
-                    onClick={handlePanelBackdropClick}
-                >
-                    <div className="adventure-interaction__panel-content">
-                        <InteractionRightPanel 
-                            adventure={currentAdventure}
-                            turns={turns}
-                        />
-                    </div>
-                </div>
-
-                {/* Right Panel Toggle Button */}
-                <button 
-                    className={`adventure-interaction__toggle adventure-interaction__toggle--right ${isRightPanelOpen ? 'is-active' : ''}`}
-                    onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
-                    aria-label="Toggle turn history"
-                    aria-expanded={isRightPanelOpen}
-                >
-                    <span className="adventure-interaction__toggle-icon">📜</span>
-                </button>
             </div>
+
+            {/* Center Panel */}
+            <div className="min-w-0 flex-1">
+                <InteractionCenterPanel adventure={currentAdventure} turns={turns} setTurns={setTurns} />
+            </div>
+
+            {/* Right Panel */}
+            <div
+                className={cx(panelBase, isRightPanelOpen ? 'opacity-100' : 'pointer-events-none opacity-0 lg:opacity-100 lg:pointer-events-auto')}
+                onClick={handlePanelBackdropClick}
+            >
+                <div className={cx(panelContent, 'ml-auto border-l border-parchment-50/10', isRightPanelOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0')}>
+                    <InteractionRightPanel adventure={currentAdventure} turns={turns} />
+                </div>
+            </div>
+
+            {/* Right Panel Toggle Button (mobile) */}
+            <IconButton
+                label="Toggle turn history"
+                className={cx(toggleBtn, 'right-3', isRightPanelOpen && 'border-ember-500/45 text-ember-400')}
+                onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
+                aria-expanded={isRightPanelOpen}
+            >
+                <ScrollText size={18} strokeWidth={1.75} />
+            </IconButton>
         </div>
     )
 }

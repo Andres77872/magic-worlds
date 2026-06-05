@@ -15,6 +15,8 @@ export interface Character {
     traits?: Record<string, string>
     equipment?: Record<string, string>
     customCategories?: AttributeCategory[]
+    /** API attribute groups (name + description + key/value attributes). */
+    category?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }>
 
     [key: string]: any // Allow dynamic attribute categories
     createdAt?: string

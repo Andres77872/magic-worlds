@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { FiTrash2 } from 'react-icons/fi'
+import { Trash2 } from 'lucide-react'
 import { ConfirmDialog } from '../../../ui/components'
-import './LandingFooter.css'
+import { Button, Icon } from '../../../ui/primitives'
 
 interface LandingFooterProps {
     hasContent: boolean
@@ -18,16 +18,17 @@ export function LandingFooter({ hasContent, onClearAll }: LandingFooterProps) {
 
     return (
         <>
-            <footer className="landing-footer">
+            <footer className="relative z-[2] mt-auto border-t border-parchment-50/10 bg-ink-900 px-4 py-12 text-center sm:px-6">
                 {hasContent && (
-                    <button 
-                        className="btn btn-danger btn-sm"
+                    <Button
+                        kind="danger"
+                        size="sm"
                         onClick={() => setConfirmClear(true)}
                         aria-describedby="clear-warning"
+                        iconLeft={<Icon icon={Trash2} size={16} />}
                     >
-                        <FiTrash2 aria-hidden="true" />
                         Clear All Data
-                    </button>
+                    </Button>
                 )}
                 <p id="clear-warning" className="sr-only">
                     This action will permanently delete all your characters, worlds, and adventures
@@ -45,4 +46,4 @@ export function LandingFooter({ hasContent, onClearAll }: LandingFooterProps) {
             )}
         </>
     )
-} 
+}

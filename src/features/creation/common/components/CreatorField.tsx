@@ -1,15 +1,16 @@
 /**
- * Common field component for creator forms
+ * Common field component for creator forms — delegates to the Reverie <Field>
+ * primitive. Help text is shown inline (no floating popover that can overflow).
  */
 
 import type { ReactNode } from 'react';
-import { FaQuestionCircle } from 'react-icons/fa';
-import '../styles/CreatorField.css';
+import { Field, Input, Textarea } from '@/ui/primitives';
 
 export interface CreatorFieldProps {
     label: string;
     htmlFor?: string;
     required?: boolean;
+    /** Optional helper text rendered inline beneath the control. */
     tooltip?: string;
     children: ReactNode;
     className?: string;
@@ -23,26 +24,17 @@ export function CreatorField({
     children,
     className = ''
 }: CreatorFieldProps) {
+    const labelNode = (
+        <>
+            {label}
+            {required && <span className="ml-1 text-blood-500">*</span>}
+        </>
+    );
+
     return (
-        <div className={`creator-field ${className}`}>
-            <label className="creator-field-label" htmlFor={htmlFor}>
-                {label}
-                {required && <span className="creator-field-required">*</span>}
-            </label>
-            <div className="creator-field-wrapper">
-                <div className="creator-field-input-wrapper">
-                    {children}
-                </div>
-                {tooltip && (
-                    <span className="creator-tooltip-trigger">
-                        <FaQuestionCircle />
-                        <div className="creator-tooltip">
-                            {tooltip}
-                        </div>
-                    </span>
-                )}
-            </div>
-        </div>
+        <Field label={labelNode} htmlFor={htmlFor} helper={tooltip} className={className}>
+            {children}
+        </Field>
     );
 }
 
@@ -69,9 +61,9 @@ export function CreatorInput({
     className = ''
 }: InputProps) {
     return (
-        <input
+        <Input
             id={id}
-            className={`creator-field-input ${className}`}
+            className={className}
             type={type}
             value={value}
             onChange={(e) => onChange(e.target.value)}
@@ -93,9 +85,9 @@ export function CreatorTextarea({
     className = ''
 }: InputProps) {
     return (
-        <textarea
+        <Textarea
             id={id}
-            className={`creator-field-textarea ${className}`}
+            className={`leading-normal ${className}`}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
@@ -104,4 +96,4 @@ export function CreatorTextarea({
             rows={rows}
         />
     );
-} 
+}

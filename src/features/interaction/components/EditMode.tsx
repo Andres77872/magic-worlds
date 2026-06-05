@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import './EditMode.css'
+import { Button, Textarea } from '../../../ui/primitives'
 
 interface EditModeProps {
     initialContent: string
@@ -10,11 +10,11 @@ interface EditModeProps {
 
 export function EditMode({ initialContent, isUser, onSave, onCancel }: EditModeProps) {
     const [editContent, setEditContent] = useState(initialContent)
-    
+
     useEffect(() => {
         setEditContent(initialContent)
     }, [initialContent])
-    
+
     const handleSave = () => {
         if (editContent.trim() !== initialContent) {
             onSave(editContent.trim())
@@ -22,7 +22,7 @@ export function EditMode({ initialContent, isUser, onSave, onCancel }: EditModeP
             onCancel()
         }
     }
-    
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
             e.preventDefault()
@@ -32,40 +32,32 @@ export function EditMode({ initialContent, isUser, onSave, onCancel }: EditModeP
             onCancel()
         }
     }
-    
+
     return (
-        <div className="edit-mode">
-            <textarea
-                className="edit-mode__textarea"
+        <div className="flex flex-col gap-2">
+            <Textarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={
-                    isUser 
-                        ? "Enter your action..." 
-                        : "Enter the assistant response (markdown supported)..."
+                    isUser
+                        ? 'Enter your action...'
+                        : 'Enter the assistant response (markdown supported)...'
                 }
                 autoFocus
                 rows={isUser ? 3 : 8}
             />
-            <div className="edit-mode__actions">
-                <button 
-                    className="btn btn-primary btn-sm"
-                    onClick={handleSave}
-                    disabled={!editContent.trim()}
-                >
+            <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" onClick={handleSave} disabled={!editContent.trim()}>
                     Save
-                </button>
-                <button 
-                    className="btn btn-secondary btn-sm"
-                    onClick={onCancel}
-                >
+                </Button>
+                <Button kind="secondary" size="sm" onClick={onCancel}>
                     Cancel
-                </button>
-                <span className="edit-mode__hint" style={{fontSize: 'var(--font-size-xs)', color: 'var(--text-color-secondary)', fontStyle: 'italic', opacity: 0.8}}>
+                </Button>
+                <span className="text-[12px] italic text-parchment-400">
                     Ctrl+Enter to save, Escape to cancel
                 </span>
             </div>
         </div>
     )
-} 
+}

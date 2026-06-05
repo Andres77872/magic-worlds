@@ -3,8 +3,9 @@
  */
 
 import { useState } from 'react';
+import { FolderPlus } from 'lucide-react';
+import { Button, SectionHeader } from '@/ui/primitives';
 import { CreatorField, CreatorInput, CreatorTextarea } from './CreatorField';
-import '../styles/CategoryForm.css';
 
 export interface CategoryFormProps {
     /**
@@ -55,15 +56,17 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
     const FormWrapper = useFormWrapper ? 'form' : 'div';
     
     return (
-        <FormWrapper 
+        <FormWrapper
             {...(useFormWrapper ? { onSubmit: handleSubmit } : {})}
-            className="category-form">
+            className="relative mb-6 rounded-md border border-parchment-50/20 bg-ink-600 p-6 max-sm:p-4">
 
-            <h4 className="category-form-title">
-                New {theme === 'nature' ? 'Adventure Component' : 'Attribute Category'}
-            </h4>
-            
-            <div className="category-form-fields">
+            <SectionHeader
+                icon={FolderPlus}
+                title={`New ${theme === 'nature' ? 'Adventure Component' : 'Attribute Category'}`}
+                className="mb-6"
+            />
+
+            <div className="flex flex-col gap-6">
                 <CreatorField 
                     label="Category Name:" 
                     htmlFor="category-name"
@@ -93,26 +96,29 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
                 </CreatorField>
             </div>
 
-            <div className="category-form-actions">
-                <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
+            <div className="mt-6 flex justify-end gap-4 border-t border-parchment-50/10 pt-6 max-sm:flex-col max-sm:gap-2">
+                <Button
+                    kind="secondary"
+                    size="sm"
                     onClick={onCancel}
+                    className="max-sm:w-full"
                 >
                     Cancel
-                </button>
-                <button
+                </Button>
+                <Button
+                    kind="primary"
+                    size="sm"
                     type={useFormWrapper ? "submit" : "button"}
-                    className="btn btn-primary btn-sm"
                     onClick={useFormWrapper ? undefined : (e) => {
                         e.preventDefault();
                         if (name.trim()) {
                             onSubmit(name.trim(), description.trim());
                         }
                     }}
+                    className="max-sm:w-full"
                 >
                     Create Category
-                </button>
+                </Button>
             </div>
         </FormWrapper>
     );

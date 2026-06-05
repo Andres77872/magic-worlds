@@ -4,8 +4,8 @@ import {ConfirmDialog} from '../ConfirmDialog'
 import {Card, CardGrid} from './Card'
 import type {CardOption} from './Card'
 import {EmptyState} from '../common/EmptyState'
-import {FaEdit, FaGlobe, FaTrash} from 'react-icons/fa'
-import './lists.css'
+import {Globe, Pencil, Trash2} from 'lucide-react'
+import {Icon, Tag} from '@/ui/primitives'
 
 interface WorldListProps {
     worlds: World[]
@@ -37,13 +37,13 @@ export function WorldList({
 
 
     return (
-        <div className="world-list">
+        <div className="flex flex-col gap-4 py-4">
             <CardGrid
                 items={worlds}
                 loading={loading}
                 emptyMessage={
                     <EmptyState
-                        icon={<FaGlobe size={32}/>}
+                        icon={<Icon icon={Globe} size={32}/>}
                         message="No worlds created yet"
                         button={{
                             label: 'Create Your First World',
@@ -63,14 +63,14 @@ export function WorldList({
                     const options: CardOption[] = [
                         {
                             type: 'custom',
-                            icon: <FaEdit/>,
+                            icon: <Icon icon={Pencil} size={15}/>,
                             label: 'Edit',
                             onClick: () => onEdit(world),
                             disabled: isDeleting
                         },
                         {
                             type: 'custom',
-                            icon: <FaTrash/>,
+                            icon: <Icon icon={Trash2} size={15}/>,
                             label: 'Delete',
                             onClick: () => setPending({idx, name: world.name}),
                             disabled: isDeleting,
@@ -81,13 +81,26 @@ export function WorldList({
                     return (
                         <Card
                             key={world.id}
-                            title={`${world.name} (${world.type})`}
-                            subtitle={world.description ? world.description.substring(0, 100) + (world.description.length > 100 ? '...' : '') : 'No description'}
+                            title={world.name}
+                            subtitle={
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    {world.type && <Tag>{world.type}</Tag>}
+                                </div>
+                            }
                             actions={options}
                             onClick={() => onEdit(world)}
-                            className={isDeleting ? 'deleting' : ''}
+                            className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >
-                            {isDeleting && <div className="deleting-overlay">Deleting...</div>}
+                            <p className="m-0 font-narrative text-sm leading-normal text-parchment-400">
+                                {world.description
+                                    ? world.description.substring(0, 100) + (world.description.length > 100 ? '...' : '')
+                                    : 'No description'}
+                            </p>
+                            {isDeleting && (
+                                <div className="absolute inset-0 z-[1] flex items-center justify-center bg-ink-900/70 font-medium text-parchment-50">
+                                    Deleting...
+                                </div>
+                            )}
                         </Card>
                     )
                 }}

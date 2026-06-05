@@ -1,6 +1,6 @@
-import React, {useCallback, useMemo, useState} from 'react'
+import React, {useCallback, useMemo} from 'react'
 import {type CardOption, CardOptions} from './CardOptions'
-import './Card.css'
+import {Card as Surface, cx, Portrait} from '@/ui/primitives'
 
 interface CardProps {
     title: React.ReactNode
@@ -18,8 +18,10 @@ interface CardProps {
 }
 
 /**
- * Modern Card component with clean, minimal design
- * Focused on accessibility and simplicity
+ * Domain card composed from the Reverie `Card` surface + `Portrait` header.
+ * The title seeds the portrait initial/gradient and is overlaid in the
+ * display face; the subtitle reads as narrative parchment text. All props
+ * (highlight / disabled / onClick / loading / options) and a11y are preserved.
  */
 export function Card({
                          title,
@@ -35,7 +37,6 @@ export function Card({
                          'data-testid': testId = 'card',
                      }: CardProps) {
     const cardOptions = options || actions
-    const [isHovered, setIsHovered] = useState(false)
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
         if (disabled) return
@@ -51,26 +52,7 @@ export function Card({
         }
     }, [onClick, disabled])
 
-    const handleMouseEnter = useCallback(() => {
-        if (!disabled) {
-            setIsHovered(true)
-        }
-    }, [disabled])
-
-    const handleMouseLeave = useCallback(() => {
-        if (!disabled) {
-            setIsHovered(false)
-        }
-    }, [disabled])
-
-    const cardClasses = useMemo(() => [
-        'card',
-        onClick && !disabled ? 'clickable' : '',
-        disabled ? 'disabled' : '',
-        isHovered ? 'hover' : '',
-        highlight ? 'highlight' : '',
-        className,
-    ].filter(Boolean).join(' '), [onClick, disabled, isHovered, highlight, className])
+    const isInteractive = Boolean(onClick) && !disabled
 
     const titleId = useMemo(() => `card-title-${Math.random().toString(36).substr(2, 9)}`, [])
     const descriptionId = useMemo(() =>
@@ -78,15 +60,20 @@ export function Card({
         [subtitle]
     )
 
-    const isInteractive = onClick && !disabled
+    // Seed the portrait gradient/initial from the title text when available.
+    const portraitName = typeof title === 'string' ? title : ''
 
     return (
-        <article
-            className={cardClasses}
+        <Surface
+            interactive={isInteractive}
+            className={cx(
+                'group relative flex h-full flex-col',
+                highlight && 'border-ember-500/45 ring-1 ring-ember-500/45',
+                disabled && 'pointer-events-none cursor-not-allowed opacity-50',
+                className,
+            )}
             onClick={isInteractive ? handleClick : undefined}
             onKeyDown={isInteractive ? handleKeyDown : undefined}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
             data-testid={testId}
             role={isInteractive ? 'button' : 'article'}
             tabIndex={isInteractive ? 0 : undefined}
@@ -96,52 +83,59 @@ export function Card({
             aria-busy={isLoading || undefined}
         >
             {isLoading && (
-                <div 
-                    className="card-loading-overlay" 
-                    role="alert" 
+                <div
+                    className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-ink-900/60"
+                    role="alert"
                     aria-live="polite"
                     aria-label="Loading card content"
                 >
-                    <div className="card-loading-spinner" aria-hidden="true"/>
-                    <span className="visually-hidden">Loading...</span>
+                    <div
+                        className="h-8 w-8 animate-spin rounded-full border-2 border-parchment-50/20 border-t-ember-500"
+                        aria-hidden="true"
+                    />
+                    <span className="sr-only">Loading...</span>
                 </div>
             )}
 
-            <header className="card-header">
-                <div className="card-header-content">
-                    <h3 id={titleId} className="card-title">
-                        {typeof title === 'string' ? (
-                            <span className="card-title-text" title={title}>
-                                {title}
-                            </span>
-                        ) : (
-                            title
-                        )}
-
-                    </h3>
-                    {subtitle && (
-                        <div id={descriptionId} className="card-subtitle">
-                            {subtitle}
-                        </div>
-                    )}
-                </div>
-                
+            <Portrait name={portraitName} height={120}>
                 {cardOptions && cardOptions.length > 0 && (
-                    <div className="card-options">
-                        <CardOptions 
+                    <div className="absolute right-2 top-2 z-[2]">
+                        <CardOptions
                             options={cardOptions}
                             disabled={disabled}
                             aria-label="Card actions"
                         />
                     </div>
                 )}
-            </header>
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                    <h3
+                        id={titleId}
+                        className="m-0 font-display text-lg font-semibold leading-tight text-parchment-50"
+                    >
+                        {typeof title === 'string' ? (
+                            <span className="block overflow-hidden text-ellipsis whitespace-nowrap" title={title}>
+                                {title}
+                            </span>
+                        ) : (
+                            title
+                        )}
+                    </h3>
+                    {subtitle && (
+                        <div
+                            id={descriptionId}
+                            className="m-0 mt-1 font-narrative text-sm leading-normal text-parchment-400"
+                        >
+                            {subtitle}
+                        </div>
+                    )}
+                </div>
+            </Portrait>
 
             {children && (
-                <div className="card-content" role="region" aria-label="Card content">
+                <div className="flex flex-1 flex-col p-4" role="region" aria-label="Card content">
                     {children}
                 </div>
             )}
-        </article>
+        </Surface>
     )
 }

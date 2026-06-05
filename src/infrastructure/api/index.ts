@@ -2,16 +2,6 @@
  * API infrastructure - centralized API request handling
  */
 
-// User data types
-export interface UserData {
-    user_usage: number
-    card_counts: {
-        character: number
-        adventure_template: number
-        world: number
-    }
-}
-
 import type {
     LoginCredentials,
     LoginResponse,
@@ -36,7 +26,8 @@ class ApiService {
     private async request<T>(
         endpoint: string,
         options: RequestInit = {},
-        parseAsJson: boolean = true
+        parseAsJson: boolean = true,
+        isAuthEndpoint: boolean = false
     ): Promise<T> {
         const url = `${this.baseUrl}${endpoint}`
         
@@ -59,26 +50,25 @@ class ApiService {
         try {
             const response = await fetch(url, config)
 
-            // Centralized 401 handling
-            if (response.status === 401) {
+            // Session-expiry handling applies ONLY to already-authenticated
+            // requests — never to login/register, whose 401/400/422 responses
+            // must surface to the user as the real error message.
+            if (response.status === 401 && !isAuthEndpoint) {
                 localStorage.removeItem('magic_worlds:token')
                 localStorage.removeItem('magic_worlds:user')
                 window.dispatchEvent(new CustomEvent('auth:expired'))
-                // Return empty typed response for data-fetching methods
-                if (parseAsJson) {
-                    return {} as T
-                }
-                return '' as T
+                // Return empty typed response so data-fetching callers degrade gracefully
+                return (parseAsJson ? {} : '') as T
             }
 
             if (!response.ok) {
-                const errorText = await response.text()
+                const message = await this.extractErrorMessage(response)
                 console.error('API Error Response:', {
                     status: response.status,
                     statusText: response.statusText,
-                    body: errorText
+                    message
                 })
-                throw new Error(`API request failed: ${response.status} ${response.statusText}`)
+                throw new Error(message)
             }
 
             if (parseAsJson) {
@@ -90,6 +80,32 @@ class ApiService {
             console.error(`API request error for ${endpoint}:`, error)
             throw error
         }
+    }
+
+    /**
+     * Extract a human-readable error message from a failed response.
+     * Mirrors the API's error shapes: FastAPI `{detail}`, the provider
+     * `{error: {message}}` envelope, or a plain `{message}` — falling back to
+     * raw text, then the status code.
+     */
+    private async extractErrorMessage(response: Response): Promise<string> {
+        try {
+            const body = await response.clone().json()
+            if (body && typeof body === 'object') {
+                if (typeof body.detail === 'string') return body.detail
+                if (body.error?.message) return String(body.error.message)
+                if (typeof body.message === 'string') return body.message
+            }
+        } catch {
+            // Body is not JSON — fall through to text.
+        }
+        try {
+            const text = (await response.text()).trim()
+            if (text) return text.slice(0, 300)
+        } catch {
+            // Body already consumed or unreadable.
+        }
+        return `Request failed (${response.status})`
     }
 
     /**
@@ -110,22 +126,13 @@ class ApiService {
     }
 
     /**
-     * Get user data from /user/me endpoint
-     */
-    async getUserData(token: string): Promise<UserData> {
-        return this.authenticatedRequest<UserData>('/user/me', token, {
-            method: 'GET'
-        })
-    }
-
-    /**
      * Login via the API proxy
      */
     async login(credentials: LoginCredentials): Promise<LoginResponse> {
         return this.request<LoginResponse>('/auth/login', {
             method: 'POST',
             body: credentials as unknown as BodyInit
-        })
+        }, true, true)
     }
 
     /**
@@ -135,7 +142,7 @@ class ApiService {
         return this.request<RegisterResponse>('/auth/register', {
             method: 'POST',
             body: data as unknown as BodyInit
-        })
+        }, true, true)
     }
 
     /**

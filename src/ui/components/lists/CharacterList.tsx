@@ -4,8 +4,8 @@ import {ConfirmDialog} from '../ConfirmDialog'
 import {Card, CardGrid} from './Card'
 import type {CardOption} from './Card'
 import {EmptyState} from '../common/EmptyState'
-import {FaEdit, FaTrash, FaUser} from 'react-icons/fa'
-import './lists.css'
+import {Pencil, Trash2, User} from 'lucide-react'
+import {Icon, Tag} from '@/ui/primitives'
 
 interface CharacterListProps {
     characters: Character[]
@@ -37,13 +37,13 @@ export function CharacterList({
 
 
     return (
-        <div className="character-list">
+        <div className="flex flex-col gap-4 py-4">
             <CardGrid
                 items={characters}
                 loading={loading}
                 emptyMessage={
                     <EmptyState
-                        icon={<FaUser size={32}/>}
+                        icon={<Icon icon={User} size={32}/>}
                         message="No characters created yet"
                         button={{
                             label: 'Create Your First Character',
@@ -57,14 +57,14 @@ export function CharacterList({
                     const options: CardOption[] = [
                         {
                             type: 'custom',
-                            icon: <FaEdit/>,
+                            icon: <Icon icon={Pencil} size={15}/>,
                             label: 'Edit',
                             onClick: () => onEdit(character),
                             disabled: isDeleting
                         },
                         {
                             type: 'custom',
-                            icon: <FaTrash/>,
+                            icon: <Icon icon={Trash2} size={15}/>,
                             label: 'Delete',
                             onClick: () => setPending({idx, name: character.name}),
                             disabled: isDeleting,
@@ -80,13 +80,21 @@ export function CharacterList({
                         <Card
                             key={character.id}
                             title={character.name as string}
-                            subtitle={`Race: ${character.race}`}
+                            subtitle={
+                                character.race
+                                    ? <div className="flex flex-wrap items-center gap-1.5"><Tag>{character.race}</Tag></div>
+                                    : undefined
+                            }
                             actions={options}
                             onClick={() => onEdit(character)}
-                            className={isDeleting ? 'deleting' : ''}
+                            className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >
-                            {stats && <div className="character-stats">{stats}</div>}
-                            {isDeleting && <div className="deleting-overlay">Deleting...</div>}
+                            {stats && <div className="font-narrative text-sm italic text-parchment-400">{stats}</div>}
+                            {isDeleting && (
+                                <div className="absolute inset-0 z-[1] flex items-center justify-center bg-ink-900/70 font-medium text-parchment-50">
+                                    Deleting...
+                                </div>
+                            )}
                         </Card>
                     )
                 }}
@@ -98,7 +106,7 @@ export function CharacterList({
                 message={
                     <>
                         Are you sure you want to delete <strong>{pending?.name}</strong>?
-                        <p className="warning-text">This action cannot be undone.</p>
+                        <p className="mt-2 text-sm font-medium text-amber-500">This action cannot be undone.</p>
                     </>
                 }
                 confirmLabel="Delete"

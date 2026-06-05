@@ -1,4 +1,4 @@
-import './ChatImage.css'
+import { cx } from '../../../ui/primitives'
 
 interface ChatImageProps {
     imageUrl: string
@@ -6,15 +6,15 @@ interface ChatImageProps {
     alt?: string
 }
 
-export function ChatImage({ imageUrl, isAssistant, alt = "Generated scene" }: ChatImageProps) {
+export function ChatImage({ imageUrl, isAssistant, alt = 'Generated scene' }: ChatImageProps) {
     return (
-        <div className={`chat-image ${isAssistant ? 'chat-image--assistant' : 'chat-image--user'}`}>
-            <img 
-                src={imageUrl} 
-                alt={alt} 
-                className="chat-image__img"
-                loading="lazy"
-            />
+        <div
+            className={cx(
+                'mt-2 max-w-[420px] overflow-hidden rounded-lg border border-parchment-50/10 shadow-md',
+                !isAssistant && 'ml-auto',
+            )}
+        >
+            <img src={imageUrl} alt={alt} className="block h-auto w-full" loading="lazy" />
         </div>
     )
-} 
+}

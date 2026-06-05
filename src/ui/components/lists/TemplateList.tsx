@@ -4,8 +4,8 @@ import {ConfirmDialog} from '../ConfirmDialog'
 import {Card, CardGrid} from './Card'
 import type {CardOption} from './Card'
 import {EmptyState} from '../common/EmptyState'
-import {FaEdit, FaPlay, FaPlus, FaTrash} from 'react-icons/fa'
-import './lists.css'
+import {Pencil, Play, Plus, Trash2} from 'lucide-react'
+import {Badge, Icon, Tag} from '@/ui/primitives'
 
 interface TemplateListProps {
     templates: Adventure[]
@@ -38,13 +38,13 @@ export function TemplateList({
     }
 
     return (
-        <div className="template-list">
+        <div className="flex flex-col gap-4 py-4">
             <CardGrid
                 items={templates}
                 loading={loading}
                 emptyMessage={
                     <EmptyState
-                        icon={<FaPlus size={32}/>}
+                        icon={<Icon icon={Plus} size={32}/>}
                         message="No adventure templates yet"
                         button={{
                             label: 'Create Your First Template',
@@ -72,21 +72,21 @@ export function TemplateList({
                     const options: CardOption[] = [
                         {
                             type: 'custom',
-                            icon: <FaEdit/>,
+                            icon: <Icon icon={Pencil} size={15}/>,
                             label: 'Edit',
                             onClick: () => onEdit(template),
                             disabled: isDeleting
                         },
                         {
                             type: 'custom',
-                            icon: <FaPlay/>,
+                            icon: <Icon icon={Play} size={15}/>,
                             label: 'Start',
                             onClick: () => onStart(template),
                             disabled: isDeleting
                         },
                         {
                             type: 'custom',
-                            icon: <FaTrash/>,
+                            icon: <Icon icon={Trash2} size={15}/>,
                             label: 'Delete',
                             onClick: () => setPending({idx, name: template.scenario}),
                             disabled: isDeleting,
@@ -98,17 +98,27 @@ export function TemplateList({
                         <Card
                             key={template.id}
                             title={template.scenario}
-                            subtitle={`Characters: ${characterNames} • World: ${template.world?.name || 'No world'}`}
+                            subtitle={
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    {template.status && <Badge tone="neutral">{template.status}</Badge>}
+                                    {template.world?.name && <Tag>{template.world.name}</Tag>}
+                                </div>
+                            }
                             actions={options}
                             onClick={() => onEdit(template)}
-                            className={isDeleting ? 'deleting' : ''}
+                            className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >
+                            <p className="m-0 font-narrative text-sm text-parchment-400">Characters: {characterNames}</p>
                             {template.turns && template.turns.length > 0 && (
-                                <div className="message-preview">
+                                <div className="mt-2 border-t border-dashed border-parchment-50/10 pt-2 font-narrative text-sm italic text-parchment-400">
                                     {template.turns[0].content.substring(0, 100)}...
                                 </div>
                             )}
-                            {isDeleting && <div className="deleting-overlay">Deleting...</div>}
+                            {isDeleting && (
+                                <div className="absolute inset-0 z-[1] flex items-center justify-center bg-ink-900/70 font-medium text-parchment-50">
+                                    Deleting...
+                                </div>
+                            )}
                         </Card>
                     )
                 }}

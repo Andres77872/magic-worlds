@@ -1,9 +1,8 @@
 /**
- * Reusable confirmation dialog component
+ * Reusable confirmation dialog — Reverie (composed from the Modal primitive).
  */
-
-import './ConfirmDialog.css'
 import React from 'react'
+import { Button, Modal } from '../primitives'
 
 interface ConfirmDialogProps {
     visible: boolean
@@ -26,38 +25,28 @@ export function ConfirmDialog({
     confirmLabel = 'Confirm',
     cancelLabel = 'Cancel',
     variant = 'primary',
-    isProcessing = false
+    isProcessing = false,
 }: ConfirmDialogProps) {
-    if (!visible) return null;
-    
+    const confirmKind = variant === 'danger' ? 'danger' : 'primary'
+
     return (
-        <div className="confirm-dialog-overlay" onClick={onCancel}>
-            <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-                <div className="confirm-dialog-header">
-                    <h3 className="confirm-dialog-title">{title}</h3>
-                </div>
-                
-                <div className="confirm-dialog-body">
-                    <div className="confirm-dialog-message">{message}</div>
-                </div>
-                
-                <div className="confirm-dialog-footer">
-                    <button 
-                        className="btn btn-secondary"
-                        onClick={onCancel}
-                        disabled={isProcessing}
-                    >
+        <Modal
+            open={visible}
+            onClose={onCancel}
+            title={title}
+            showClose={false}
+            footer={
+                <>
+                    <Button kind="secondary" onClick={onCancel} disabled={isProcessing}>
                         {cancelLabel}
-                    </button>
-                    <button 
-                        className={`btn btn-${variant}`}
-                        onClick={onConfirm}
-                        disabled={isProcessing}
-                    >
-                        {isProcessing ? 'Processing...' : confirmLabel}
-                    </button>
-                </div>
-            </div>
-        </div>
+                    </Button>
+                    <Button kind={confirmKind} onClick={onConfirm} disabled={isProcessing}>
+                        {isProcessing ? 'Processing…' : confirmLabel}
+                    </Button>
+                </>
+            }
+        >
+            <div className="text-[15px] leading-relaxed text-parchment-200">{message}</div>
+        </Modal>
     )
 }

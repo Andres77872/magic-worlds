@@ -8,6 +8,8 @@ export interface World {
     type: string
     description?: string
     details: Record<string, string>
+    /** API attribute groups (name + description + key/value attributes). */
+    category?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }>
     createdAt?: string
     updatedAt?: string
 }

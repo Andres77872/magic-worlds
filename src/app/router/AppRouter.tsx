@@ -2,7 +2,7 @@
  * Application routing logic
  */
 
-import { useNavigation, useData, useTheme, useAuth } from '../hooks'
+import { useNavigation, useData, useAuth } from '../hooks'
 import { Header } from '../../ui/components/Header'
 import { LoginModal } from '../../ui/components/LoginModal'
 import { LandingPage } from '../../features/landing/components/LandingPage'
@@ -15,7 +15,6 @@ import { LoadingSpinner } from '../../ui/components/LoadingSpinner'
 export function AppRouter() {
     const { currentPage } = useNavigation()
     const { loadingState } = useData()
-    const { theme } = useTheme()
     const { isLoginModalOpen, closeLoginModal } = useAuth()
 
     if (loadingState.isLoading) {
@@ -29,9 +28,9 @@ export function AppRouter() {
     }
 
     return (
-        <div className={`app ${theme}`}>
+        <div className="flex min-h-screen flex-col bg-ink-800">
             <Header />
-            <main className="main-content">
+            <main className="flex-1 overflow-y-auto">
                 {currentPage === 'landing' && <LandingPage />}
                 {currentPage === 'character' && <CharacterCreator />}
                 {currentPage === 'world' && <WorldCreator />}

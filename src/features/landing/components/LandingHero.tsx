@@ -1,149 +1,149 @@
-import { FiBookOpen, FiGlobe, FiUserPlus, FiZap, FiPenTool, FiPlay } from 'react-icons/fi'
-import './LandingHero.css'
+import { BookOpen, Globe, PenTool, Play, UserPlus, Zap } from 'lucide-react'
 import type { Adventure } from '../../../shared'
-import { useUserData, useAdventureSessions } from '../../../app/hooks'
+import { Button, Card, Eyebrow, Icon } from '../../../ui/primitives'
 
 interface LandingHeroProps {
+    charactersCount: number
+    worldsCount: number
+    templatesCount: number
     activeAdventures: number
+    isLoading?: boolean
     onStartJourney: () => void
     lastActiveAdventure?: Adventure
     onContinueAdventure?: (adventure: Adventure) => void
 }
 
-export function LandingHero({ 
-    activeAdventures, 
+const SECTION_CLASS =
+    'relative flex min-h-[60vh] items-center justify-center overflow-hidden px-4 py-6 md:min-h-[80vh] md:px-6 md:py-12'
+
+const GLOW_STYLE = {
+    background: 'radial-gradient(circle at 50% 0%, rgba(232,162,74,.16), transparent 70%)',
+} as const
+
+function HeroGlow() {
+    return <div className="pointer-events-none absolute inset-0 z-[1]" style={GLOW_STYLE} aria-hidden="true" />
+}
+
+function HeroTitle({ subtitle }: { subtitle: string }) {
+    return (
+        <div className="mb-6">
+            <Eyebrow tone="ember" className="mb-4 inline-block">Step into the story</Eyebrow>
+            <h1 id="hero-title" className="font-display">
+                <span className="block text-[clamp(2.5rem,7vw,5rem)] font-semibold leading-[1.02] tracking-tight text-parchment-50">
+                    Magic Worlds
+                </span>
+                <span className="mt-3 block font-narrative text-[clamp(1.1rem,3vw,1.6rem)] font-normal italic text-parchment-200">
+                    {subtitle}
+                </span>
+            </h1>
+        </div>
+    )
+}
+
+interface StatProps {
+    icon: typeof UserPlus
+    value: number
+    label: string
+}
+
+function Stat({ icon, value, label }: StatProps) {
+    return (
+        <div className="flex min-w-[120px] flex-col items-center gap-2 rounded-md border border-parchment-50/10 bg-ink-700 p-4 transition-all hover:border-ember-500/45 hover:bg-ink-600 md:min-w-[140px] md:p-6">
+            <Icon icon={icon} size={36} className="text-ember-400" />
+            <span className="text-[2.2rem] font-bold leading-none text-parchment-50">{value}</span>
+            <Eyebrow tone="muted" className="text-center text-[11px]">{label}</Eyebrow>
+        </div>
+    )
+}
+
+export function LandingHero({
+    charactersCount,
+    worldsCount,
+    templatesCount,
+    activeAdventures,
+    isLoading,
     onStartJourney,
     lastActiveAdventure,
-    onContinueAdventure
+    onContinueAdventure,
 }: LandingHeroProps) {
-    const { userData, isLoading: userDataLoading, error: userDataError } = useUserData()
-    const { count: apiActiveAdventures, isLoading: sessionsLoading } = useAdventureSessions()
-    
-    // Extract counts from API response
-    const charactersCount = userData?.card_counts?.character ?? 0
-    const worldsCount = userData?.card_counts?.world ?? 0
-    const templatesCount = userData?.card_counts?.adventure_template ?? 0
-    
-    // Use API active adventures count if available, otherwise use prop (for backward compatibility)
-    const activeAdventuresCount = sessionsLoading ? activeAdventures : apiActiveAdventures
-    
-    const hasContent = charactersCount > 0 || worldsCount > 0 || templatesCount > 0 || activeAdventuresCount > 0
-    
-    // Show loading state while fetching user data
-    if (userDataLoading) {
+    const hasContent = charactersCount > 0 || worldsCount > 0 || templatesCount > 0 || activeAdventures > 0
+
+    if (isLoading) {
         return (
-            <section className="landing-hero-section" aria-labelledby="hero-title">
-                <div className="landing-hero-background" aria-hidden="true" />
-                <div className="landing-hero-content">
-                    <h1 className="landing-hero-title" id="hero-title">
-                        <span className="landing-title-line">🌟 Magic Worlds</span>
-                        <span className="landing-title-subtitle">Loading your realm...</span>
-                    </h1>
+            <section className={SECTION_CLASS} aria-labelledby="hero-title">
+                <HeroGlow />
+                <div className="relative z-[2] mx-auto max-w-[900px] text-center">
+                    <HeroTitle subtitle="Loading your realm…" />
                 </div>
             </section>
         )
     }
-    
-    // Show error state if user data failed to load
-    if (userDataError) {
-        return (
-            <section className="landing-hero-section" aria-labelledby="hero-title">
-                <div className="landing-hero-background" aria-hidden="true" />
-                <div className="landing-hero-content">
-                    <h1 className="landing-hero-title" id="hero-title">
-                        <span className="landing-title-line">🌟 Magic Worlds</span>
-                        <span className="landing-title-subtitle">Forge Your Legend</span>
-                    </h1>
-                    <p className="landing-hero-description">
-                        Create epic characters, build mystical worlds, and embark on AI-powered adventures that bring your imagination to life
-                    </p>
-                    <div className="landing-hero-cta">
-                        <button 
-                            className="landing-btn-hero btn btn-primary"
-                            onClick={onStartJourney}
-                            aria-describedby="cta-description"
-                        >
-                            <FiZap aria-hidden="true" />
-                            Start Your First Adventure
-                        </button>
-                        <p id="cta-description" className="sr-only">
-                            Begin your journey by creating your first character
-                        </p>
-                    </div>
-                </div>
-            </section>
-        )
-    }
+
     return (
-        <section className="landing-hero-section" aria-labelledby="hero-title">
-            <div className="landing-hero-background" aria-hidden="true" />
-            
-            <div className="landing-hero-content">
-                <h1 className="landing-hero-title" id="hero-title">
-                    <span className="landing-title-line">🌟 Magic Worlds</span>
-                    <span className="landing-title-subtitle">Forge Your Legend</span>
-                </h1>
-                <p className="landing-hero-description">
-                    Create epic characters, build mystical worlds, and embark on AI-powered adventures that bring your imagination to life
+        <section className={SECTION_CLASS} aria-labelledby="hero-title">
+            <HeroGlow />
+
+            <div className="relative z-[2] mx-auto max-w-[900px] text-center">
+                <HeroTitle subtitle="Forge Your Legend" />
+                <p className="mx-auto mb-12 max-w-[600px] text-narrative leading-loose text-parchment-200">
+                    Create epic characters, build mystical worlds, and embark on AI-powered adventures that bring your
+                    imagination to life.
                 </p>
-                
+
                 {!hasContent ? (
-                    <div className="landing-hero-cta">
-                        <button 
-                            className="landing-btn-hero btn btn-primary"
+                    <div className="mt-12">
+                        <Button
+                            kind="primary"
+                            size="lg"
                             onClick={onStartJourney}
                             aria-describedby="cta-description"
+                            className="min-w-[280px] max-sm:w-full"
+                            iconLeft={<Icon icon={Zap} size={20} />}
                         >
-                            <FiZap aria-hidden="true" />
                             Start Your First Adventure
-                        </button>
+                        </Button>
                         <p id="cta-description" className="sr-only">
                             Begin your journey by creating your first character
                         </p>
                     </div>
                 ) : (
                     <>
-                        <div className="landing-hero-stats" role="region" aria-label="Your magical world statistics">
-                            <div className="landing-stat-card">
-                                <FiUserPlus className="landing-stat-icon" aria-hidden="true" />
-                                <span className="landing-stat-number">{charactersCount}</span>
-                                <span className="landing-stat-label">Heroes</span>
-                            </div>
-                            <div className="landing-stat-card">
-                                <FiGlobe className="landing-stat-icon" aria-hidden="true" />
-                                <span className="landing-stat-number">{worldsCount}</span>
-                                <span className="landing-stat-label">Worlds</span>
-                            </div>
-                            <div className="landing-stat-card">
-                                <FiBookOpen className="landing-stat-icon" aria-hidden="true" />
-                                <span className="landing-stat-number">{templatesCount}</span>
-                                <span className="landing-stat-label">Templates</span>
-                            </div>
-                            <div className="landing-stat-card">
-                                <FiPenTool className="landing-stat-icon" aria-hidden="true" />
-                                <span className="landing-stat-number">{activeAdventuresCount}</span>
-                                <span className="landing-stat-label">Active Adventures</span>
-                            </div>
+                        <div
+                            className="mt-12 flex flex-wrap justify-center gap-4 md:gap-6"
+                            role="region"
+                            aria-label="Your magical world statistics"
+                        >
+                            <Stat icon={UserPlus} value={charactersCount} label="Heroes" />
+                            <Stat icon={Globe} value={worldsCount} label="Worlds" />
+                            <Stat icon={BookOpen} value={templatesCount} label="Templates" />
+                            <Stat icon={PenTool} value={activeAdventures} label="Active Adventures" />
                         </div>
-                        
+
                         {lastActiveAdventure && onContinueAdventure && (
-                            <div className="landing-adventure-card-container" role="region" aria-label="Your last active adventure">
-                                <div className="landing-adventure-card">
-                                    <div className="landing-adventure-content">
-                                        <h3 className="landing-adventure-title">Your Active Adventure</h3>
-                                        <p className="landing-adventure-description">
-                                            {lastActiveAdventure.scenario || 'Continue your magical journey...'}
+                            <div
+                                className="mx-auto mt-12 flex w-full max-w-[680px] justify-center"
+                                role="region"
+                                aria-label="Your last active adventure"
+                            >
+                                <Card className="flex w-full flex-col gap-4 p-6 text-left">
+                                    <div className="flex flex-col gap-2">
+                                        <h3 className="m-0 font-display text-h3 font-semibold text-parchment-50">
+                                            Your Active Adventure
+                                        </h3>
+                                        <p className="m-0 line-clamp-2 text-body leading-loose text-parchment-200">
+                                            {lastActiveAdventure.scenario || 'Continue your magical journey…'}
                                         </p>
                                     </div>
-                                    <button 
-                                        className="landing-adventure-btn btn btn-primary"
+                                    <Button
+                                        kind="primary"
                                         onClick={() => onContinueAdventure(lastActiveAdventure)}
                                         aria-label="Continue your active adventure"
+                                        className="self-end"
+                                        iconLeft={<Icon icon={Play} size={18} />}
                                     >
-                                        <FiPlay aria-hidden="true" />
                                         Continue Adventure
-                                    </button>
-                                </div>
+                                    </Button>
+                                </Card>
                             </div>
                         )}
                     </>
@@ -151,4 +151,4 @@ export function LandingHero({
             </div>
         </section>
     )
-} 
+}

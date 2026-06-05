@@ -1,5 +1,7 @@
-import { FiBookOpen, FiGlobe, FiUserPlus } from 'react-icons/fi'
-import './LandingQuickActions.css'
+import type { KeyboardEvent, ReactNode } from 'react'
+import { BookOpen, Globe, UserPlus } from 'lucide-react'
+import { Card, Icon } from '../../../ui/primitives'
+import type { LucideIcon } from 'lucide-react'
 
 interface LandingQuickActionsProps {
     onCreateCharacter: () => void
@@ -7,51 +9,91 @@ interface LandingQuickActionsProps {
     onCreateAdventure: () => void
 }
 
-export function LandingQuickActions({ 
-    onCreateCharacter, 
-    onBuildWorld, 
-    onCreateAdventure 
+interface QuickActionCardProps {
+    icon: LucideIcon
+    title: string
+    description: ReactNode
+    descriptionId: string
+    onClick: () => void
+}
+
+function QuickActionCard({ icon, title, description, descriptionId, onClick }: QuickActionCardProps) {
+    const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onClick()
+        }
+    }
+
+    return (
+        <Card
+            interactive
+            role="button"
+            tabIndex={0}
+            onClick={onClick}
+            onKeyDown={handleKeyDown}
+            aria-describedby={descriptionId}
+            className="flex min-h-[240px] flex-col items-center p-6 text-center md:p-10"
+        >
+            <div className="mb-6 flex justify-center text-ember-500" aria-hidden="true">
+                <Icon icon={icon} size={56} />
+            </div>
+            <h3 className="mb-2 font-display text-h3 font-semibold text-parchment-50">
+                {title}
+            </h3>
+            <p
+                id={descriptionId}
+                className="mx-auto flex max-w-[280px] flex-grow items-center text-body leading-normal text-parchment-200"
+            >
+                {description}
+            </p>
+        </Card>
+    )
+}
+
+export function LandingQuickActions({
+    onCreateCharacter,
+    onBuildWorld,
+    onCreateAdventure,
 }: LandingQuickActionsProps) {
     return (
-        <section className="landing-quick-actions" aria-labelledby="quick-actions-title">
-            <h2 className="landing-section-title" id="quick-actions-title">Begin Your Journey</h2>
-            <div className="landing-action-cards" role="group" aria-label="Quick action buttons">
-                <button 
-                    className="landing-action-card character-card"
+        <section
+            className="relative z-[2] px-4 py-12 sm:px-6"
+            aria-labelledby="quick-actions-title"
+        >
+            <h2
+                className="mb-12 text-center font-display text-h2 font-bold text-parchment-50"
+                id="quick-actions-title"
+            >
+                Begin Your Journey
+            </h2>
+            <div
+                className="mx-auto grid max-w-[1200px] grid-cols-1 gap-6 md:grid-cols-[repeat(auto-fit,minmax(320px,1fr))]"
+                role="group"
+                aria-label="Quick action buttons"
+            >
+                <QuickActionCard
+                    icon={UserPlus}
+                    title="Create Character"
+                    description="Forge a legendary hero with unique traits, abilities, and a compelling backstory"
+                    descriptionId="character-description"
                     onClick={onCreateCharacter}
-                    aria-describedby="character-description"
-                >
-                    <div className="landing-card-icon" aria-hidden="true">
-                        <FiUserPlus />
-                    </div>
-                    <h3>Create Character</h3>
-                    <p id="character-description">Forge a legendary hero with unique traits, abilities, and a compelling backstory</p>
-                </button>
-                
-                <button 
-                    className="landing-action-card world-card"
+                />
+                <QuickActionCard
+                    icon={Globe}
+                    title="Build World"
+                    description="Design mystical realms filled with wonder, danger, and endless possibilities"
+                    descriptionId="world-description"
                     onClick={onBuildWorld}
-                    aria-describedby="world-description"
-                >
-                    <div className="landing-card-icon" aria-hidden="true">
-                        <FiGlobe />
-                    </div>
-                    <h3>Build World</h3>
-                    <p id="world-description">Design mystical realms filled with wonder, danger, and endless possibilities</p>
-                </button>
-                
-                <button 
-                    className="landing-action-card adventure-card"
+                />
+                <QuickActionCard
+                    icon={BookOpen}
+                    title="Create Adventure"
+                    description="Craft epic quests, thrilling storylines, and memorable encounters"
+                    descriptionId="adventure-description"
                     onClick={onCreateAdventure}
-                    aria-describedby="adventure-description"
-                >
-                    <div className="landing-card-icon" aria-hidden="true">
-                        <FiBookOpen />
-                    </div>
-                    <h3>Create Adventure</h3>
-                    <p id="adventure-description">Craft epic quests, thrilling storylines, and memorable encounters</p>
-                </button>
+                />
             </div>
         </section>
     )
-} 
+}

@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {FaEdit, FaEllipsisV, FaExternalLinkAlt, FaPlay, FaTrash} from 'react-icons/fa'
-import './Card.css'
+import {ExternalLink, MoreVertical, Pencil, Play, Trash2} from 'lucide-react'
 import {useClickOutside} from '../../../../shared/hooks/useClickOutside'
+import {cx, Icon, IconButton} from '@/ui/primitives'
 
 export type CardOptionType = 'open' | 'edit' | 'start' | 'delete' | 'custom'
 
@@ -30,8 +30,9 @@ interface CardOptionsProps {
 }
 
 /**
- * Enhanced dropdown menu for card actions with improved accessibility, visual feedback,
- * and mystical theme integration for role-playing AI app
+ * Dropdown menu for card actions. The trigger is the Reverie `IconButton`
+ * (a single option renders a labelled icon button directly); the menu panel
+ * keeps the ink surface + click-outside / keyboard / focus management.
  */
 export function CardOptions({
                                 options,
@@ -127,7 +128,7 @@ export function CardOptions({
     const toggleMenu = useCallback((e: React.MouseEvent) => {
         e.stopPropagation()
         if (disabled) return
-        
+
         if (isOpen) {
             closeMenu()
         } else {
@@ -138,7 +139,7 @@ export function CardOptions({
     const handleItemClick = useCallback((e: React.MouseEvent, onClick: () => void, index: number) => {
         e.stopPropagation()
         if (disabled || options[index].disabled) return
-        
+
         onClick()
         closeMenu()
     }, [disabled, options, closeMenu])
@@ -156,10 +157,10 @@ export function CardOptions({
     // Get icon based on option type with improved mapping
     const getIcon = useCallback((type: CardOptionType) => {
         const iconMap = {
-            delete: <FaTrash aria-hidden="true"/>,
-            edit: <FaEdit aria-hidden="true"/>,
-            start: <FaPlay aria-hidden="true"/>,
-            open: <FaExternalLinkAlt aria-hidden="true"/>,
+            delete: <Icon icon={Trash2} size={15}/>,
+            edit: <Icon icon={Pencil} size={15}/>,
+            start: <Icon icon={Play} size={15}/>,
+            open: <Icon icon={ExternalLink} size={15}/>,
             custom: null
         }
         return iconMap[type]
@@ -167,14 +168,16 @@ export function CardOptions({
 
     if (options.length === 0) return null
 
-    // Enhanced single option rendering
+    // Single option → labelled icon button (no menu).
     if (options.length === 1) {
         const option = options[0]
         const isDisabled = disabled || option.disabled
-        
+
         return (
-            <button
-                className={`card-option-single ${option.danger ? 'danger' : ''} ${className}`}
+            <IconButton
+                size="sm"
+                tone={option.danger ? 'danger' : 'default'}
+                className={className}
                 onClick={(e) => {
                     e.stopPropagation()
                     if (!isDisabled) {
@@ -182,42 +185,44 @@ export function CardOptions({
                     }
                 }}
                 disabled={isDisabled}
-                aria-label={option.label}
-                title={option.label}
-                type="button"
+                label={option.label}
                 data-testid="card-option-single"
             >
                 {option.icon || getIcon(option.type)}
-            </button>
+            </IconButton>
         )
     }
 
     const menuId = `card-options-menu-${Math.random().toString(36).substr(2, 9)}`
 
     return (
-        <div className={`card-options ${className}`}>
-            <button
+        <div className={cx('relative', className)}>
+            <IconButton
                 ref={buttonRef}
-                className="card-options-button"
+                id="card-options-button"
+                size="sm"
                 onClick={toggleMenu}
                 disabled={disabled}
-                aria-label={ariaLabel}
+                label={ariaLabel}
                 aria-expanded={isOpen}
                 aria-haspopup="menu"
                 aria-controls={menuId}
-                type="button"
                 data-testid="card-options-button"
             >
-                <FaEllipsisV/>
-            </button>
+                <Icon icon={MoreVertical} size={16}/>
+            </IconButton>
 
             <div
                 ref={menuRef}
                 id={menuId}
-                className={`card-options-menu ${align === 'left' ? 'align-left' : ''}`}
+                className={cx(
+                    'absolute top-[calc(100%+0.5rem)] z-[100] min-w-[180px] overflow-hidden rounded-lg border border-parchment-50/10 bg-ink-700 shadow-lg transition-opacity',
+                    align === 'left' ? 'left-0' : 'right-0',
+                    isOpen ? 'visible opacity-100' : 'invisible opacity-0',
+                )}
                 role="menu"
                 aria-orientation="vertical"
-                aria-labelledby={buttonRef.current?.id || 'card-options-button'}
+                aria-labelledby="card-options-button"
                 data-enter={isOpen ? '' : undefined}
                 data-testid="card-options-menu"
             >
@@ -233,7 +238,11 @@ export function CardOptions({
                             ref={(el) => {
                                 itemRefs.current[index] = el
                             }}
-                            className="card-options-item"
+                            className={cx(
+                                'flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium leading-tight transition-colors hover:bg-parchment-50/5 disabled:cursor-not-allowed disabled:opacity-50',
+                                isDanger ? 'text-blood-500 hover:bg-blood-500/15' : 'text-parchment-200 hover:text-parchment-50',
+                                isHighlight && !isDanger && 'text-ember-300 font-semibold',
+                            )}
                             onClick={(e) => handleItemClick(e, option.onClick, index)}
                             onKeyDown={(e) => handleItemKeyDown(e, option.onClick, index)}
                             disabled={isDisabled}
@@ -246,7 +255,7 @@ export function CardOptions({
                             data-testid={`card-option-${option.type}`}
                         >
                             {icon && (
-                                <span className="option-icon" aria-hidden="true">
+                                <span className="flex w-5 flex-shrink-0 items-center justify-center" aria-hidden="true">
                                     {icon}
                                 </span>
                             )}

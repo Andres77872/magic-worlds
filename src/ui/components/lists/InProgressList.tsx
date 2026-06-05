@@ -4,8 +4,8 @@ import {ConfirmDialog} from '../ConfirmDialog'
 import {Card, CardGrid} from './Card'
 import type {CardOption} from './Card'
 import {EmptyState} from '../common/EmptyState'
-import {FaCompass, FaEdit, FaPlay, FaTrash} from 'react-icons/fa'
-import './lists.css'
+import {Compass, Pencil, Play, Trash2} from 'lucide-react'
+import {Badge, Icon, Tag} from '@/ui/primitives'
 
 interface InProgressListProps {
     adventures: Adventure[]
@@ -38,13 +38,13 @@ export function InProgressList({
     }
 
     return (
-        <div className="in-progress-list">
+        <div className="flex flex-col gap-4 py-4">
             <CardGrid
                 items={adventures}
                 loading={loading}
                 emptyMessage={
                     <EmptyState
-                        icon={<FaCompass size={32}/>}
+                        icon={<Icon icon={Compass} size={32}/>}
                         message="No adventures in progress"
                         secondaryText="Start a new adventure from the Templates section!"
                     />
@@ -56,21 +56,21 @@ export function InProgressList({
                     const options: CardOption[] = [
                         {
                             type: 'custom',
-                            icon: <FaPlay/>,
+                            icon: <Icon icon={Play} size={15}/>,
                             label: 'Continue',
                             onClick: () => onPlay ? onPlay(adventure) : onEdit(adventure),
                             disabled: isDeleting
                         },
                         {
                             type: 'custom',
-                            icon: <FaEdit/>,
+                            icon: <Icon icon={Pencil} size={15}/>,
                             label: 'Edit',
                             onClick: () => onEdit(adventure),
                             disabled: isDeleting
                         },
                         {
                             type: 'custom',
-                            icon: <FaTrash/>,
+                            icon: <Icon icon={Trash2} size={15}/>,
                             label: 'Delete',
                             onClick: () => setPending({idx, name: adventure.scenario}),
                             disabled: isDeleting,
@@ -82,18 +82,28 @@ export function InProgressList({
                         <Card
                             key={adventure.id}
                             title={adventure.scenario}
-                            subtitle={`Characters: ${characterNames} • World: ${adventure.world?.name || 'No world'}`}
+                            subtitle={
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <Badge tone="live">{adventure.status || 'in-progress'}</Badge>
+                                    {adventure.world?.name && <Tag>{adventure.world.name}</Tag>}
+                                </div>
+                            }
                             actions={options}
                             onClick={() => onPlay ? onPlay(adventure) : onEdit(adventure)}
-                            className={isDeleting ? 'deleting' : ''}
+                            className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >
+                            <p className="m-0 font-narrative text-sm text-parchment-400">Characters: {characterNames}</p>
                             {adventure.turns && adventure.turns.length > 0 && (
-                                <div className="message-preview">
+                                <div className="mt-2 border-t border-dashed border-parchment-50/10 pt-2 font-narrative text-sm italic text-parchment-400">
                                     Last
                                     action: {adventure.turns[adventure.turns.length - 1].content.substring(0, 100)}...
                                 </div>
                             )}
-                            {isDeleting && <div className="deleting-overlay">Deleting...</div>}
+                            {isDeleting && (
+                                <div className="absolute inset-0 z-[1] flex items-center justify-center bg-ink-900/70 font-medium text-parchment-50">
+                                    Deleting...
+                                </div>
+                            )}
                         </Card>
                     )
                 }}
@@ -105,7 +115,7 @@ export function InProgressList({
                     message={
                         <>
                             Are you sure you want to delete <strong>{pending.name}</strong>?
-                            <div className="warning-text">This action cannot be undone.</div>
+                            <div className="mt-2 text-sm font-medium text-amber-500">This action cannot be undone.</div>
                         </>
                     }
                     visible={true}
