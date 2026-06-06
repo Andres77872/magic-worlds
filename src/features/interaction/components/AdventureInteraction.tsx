@@ -8,6 +8,7 @@ import { Menu, ScrollText } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '../../../app/hooks'
 import { LoadingSpinner } from '../../../ui/components'
 import { apiService } from '../../../infrastructure/api'
+import { parseTurnState } from '../../../utils/turnState'
 import { cx, IconButton } from '../../../ui/primitives'
 import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel} from './index'
 
@@ -62,9 +63,8 @@ export function AdventureInteraction() {
                         const sessionId = Number(currentAdventure.id);
                         if (!isNaN(sessionId)) {
                             const session = await apiService.getAdventureSession(sessionId);
-                            const lastTurn = session.adventure_last_turn ? JSON.parse(session.adventure_last_turn) : {};
                             if (isMounted) {
-                                setTurns(lastTurn.turns || []);
+                                setTurns(parseTurnState(session.adventure_last_turn));
                             }
                         } else {
                             if (isMounted) {

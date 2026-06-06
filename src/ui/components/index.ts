@@ -2,7 +2,7 @@
  * UI components barrel export
  */
 
-export { Header } from './Header'
+export { Sidebar } from './Sidebar'
 export { LoadingSpinner } from './LoadingSpinner'
 export { LoginModal } from './LoginModal'
 export { ConfirmDialog } from './ConfirmDialog'

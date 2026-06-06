@@ -8,6 +8,8 @@ import type { World } from './world.types'
 export interface Adventure {
     id: string
     scenario: string
+    /** The player's persona (protagonist). Embedded snapshot on templates. */
+    persona?: Character
     characters: Character[]
     world?: World
     turns?: TurnEntry[]
@@ -15,6 +17,8 @@ export interface Adventure {
     notes?: Record<string, string>
     /** API attribute groups (name + description + key/value attributes). */
     category?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }>
+    /** Keywords that pull this adventure into the scene when matched in chat. */
+    triggers?: string[]
     createdAt?: string
     updatedAt?: string
     status?: AdventureStatus

@@ -17,6 +17,8 @@ export interface Character {
     customCategories?: AttributeCategory[]
     /** API attribute groups (name + description + key/value attributes). */
     category?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }>
+    /** Keywords that pull this card into the scene when matched in adventure chat. */
+    triggers?: string[]
 
     [key: string]: any // Allow dynamic attribute categories
     createdAt?: string

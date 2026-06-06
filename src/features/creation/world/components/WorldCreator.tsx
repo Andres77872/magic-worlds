@@ -1,26 +1,51 @@
 /**
- * World creator — minimal core fields + optional, user-extensible details.
+ * World creator — a two-pane "Creator Studio": titled editor sections on the
+ * left with a sticky live card preview on the right. The API payload and edit
+ * hydration are unchanged from the original linear form.
  */
 
 import type { FormEvent, KeyboardEvent } from 'react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { Globe, Layers, ScrollText, Sparkles, Tags } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
+import { Button } from '@/ui/primitives'
 import {
-    CreatorLayout,
+    CreatorStudio,
+    StudioSection,
+    StudioSectionNav,
+    StudioPreviewDock,
+    SuggestedAttributes,
     CreatorField,
     CreatorInput,
     CreatorTextarea,
     AttributeManager,
+    AiGeneratePanel,
+    TriggersField,
     FormActions,
+    type StudioNavItem,
+    type AttributePreset,
 } from '../../common/components'
 import { useAttributeCategories, toCategoryPayload } from '../../common/hooks'
+import { WorldPreviewCard } from './WorldPreviewCard'
 
 // One minimal default category; users add details here or create more groups.
 const DEFAULT_CATEGORIES: AttributeCategory[] = [
     { id: 'details', name: 'Details', type: 'detail', description: 'Key facts about your world — add only what matters.' },
 ]
+
+// One-click presets for the default "Details" category.
+const DETAIL_PRESETS: AttributePreset[] = [
+    { key: 'Climate' },
+    { key: 'Terrain' },
+    { key: 'Government' },
+    { key: 'Magic' },
+    { key: 'Technology' },
+    { key: 'Religion' },
+]
+
+const FORM_ID = 'world-form'
 
 export function WorldCreator() {
     const { setPage } = useNavigation()
@@ -30,9 +55,30 @@ export function WorldCreator() {
     const [name, setName] = useState(editingWorld?.name ?? '')
     const [type, setType] = useState(editingWorld?.type ?? '')
     const [description, setDescription] = useState(editingWorld?.description ?? '')
+    const [triggers, setTriggers] = useState<string[]>(editingWorld?.triggers ?? [])
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [touched, setTouched] = useState(false)
 
     const attrs = useAttributeCategories({ defaults: DEFAULT_CATEGORIES, entity: editingWorld })
+
+    const nameError = touched && !name.trim() ? 'Name is required.' : undefined
+    const typeError = touched && !type.trim() ? 'Type is required.' : undefined
+
+    const detailKeys = useMemo(
+        () => (attrs.attributes['details'] || []).map((row) => row.key.toLowerCase()),
+        [attrs.attributes],
+    )
+
+    const navItems = useMemo<StudioNavItem[]>(
+        () => [
+            ...(editingWorld ? [] : [{ id: 'ai', label: 'AI Draft', icon: Sparkles }]),
+            { id: 'identity', label: 'Identity', icon: Globe },
+            { id: 'overview', label: 'Overview', icon: ScrollText },
+            { id: 'details', label: 'Details', icon: Layers },
+            { id: 'triggers', label: 'Triggers', icon: Tags },
+        ],
+        [editingWorld],
+    )
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
@@ -40,6 +86,7 @@ export function WorldCreator() {
             openLoginModal()
             return
         }
+        setTouched(true)
         if (!name || !type) return
 
         setIsSubmitting(true)
@@ -48,6 +95,7 @@ export function WorldCreator() {
                 name,
                 type,
                 description,
+                triggers,
                 category: toCategoryPayload(attrs.categories, attrs.attributes),
             }
             if (editingWorld) {
@@ -66,6 +114,16 @@ export function WorldCreator() {
         }
     }
 
+    const handleGenerate = async (prompt: string) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            return
+        }
+        await apiService.createWorldAI(prompt)
+        await loadData()
+        setPage('landing')
+    }
+
     const handleBack = () => {
         setEditingWorld(null)
         setPage('landing')
@@ -76,59 +134,124 @@ export function WorldCreator() {
     }
 
     return (
-        <CreatorLayout
+        <CreatorStudio
             title={editingWorld ? 'Edit World' : 'Create World'}
             icon="✨"
             onBack={handleBack}
             isLoading={isSubmitting}
+            nav={<StudioSectionNav items={navItems} />}
+            headerActions={
+                <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
+                    {isSubmitting ? 'Saving…' : editingWorld ? 'Update' : 'Create'}
+                </Button>
+            }
+            preview={
+                <StudioPreviewDock>
+                    <WorldPreviewCard
+                        name={name}
+                        type={type}
+                        description={description}
+                        triggers={triggers}
+                        attributes={attrs.attributes}
+                        categories={attrs.categories}
+                    />
+                </StudioPreviewDock>
+            }
         >
-            <form onSubmit={handleSubmit} className="flex flex-col gap-8" onKeyDown={handleKeyDown}>
-                <div className="flex flex-col gap-6 rounded-md border border-parchment-50/10 bg-ink-800 p-6">
-                    <CreatorField label="Name:" htmlFor="world-name" required>
+            <form id={FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-6" onKeyDown={handleKeyDown}>
+                {!editingWorld && (
+                    <div id="ai" className="scroll-mt-20">
+                        <AiGeneratePanel
+                            noun="world"
+                            placeholder="A storm-wracked archipelago where sky-ships trade between floating cities…"
+                            onGenerate={handleGenerate}
+                        />
+                    </div>
+                )}
+
+                <StudioSection
+                    id="identity"
+                    icon={Globe}
+                    title="Identity"
+                    description="The name and genre that frame your world."
+                >
+                    <CreatorField label="Name" htmlFor="world-name" required error={nameError}>
                         <CreatorInput
                             id="world-name"
                             value={name}
                             onChange={setName}
-                            required
                             autoFocus
-                            className="text-xl font-medium"
+                            className="text-xl font-medium font-display"
+                            placeholder="e.g. The Shattered Isles"
                         />
                     </CreatorField>
 
-                    <CreatorField label="Type:" htmlFor="world-type" required>
+                    <CreatorField label="Type" htmlFor="world-type" required error={typeError}>
                         <CreatorInput
                             id="world-type"
                             value={type}
                             onChange={setType}
-                            placeholder="e.g., Fantasy, Sci-Fi, Modern"
-                            required
+                            placeholder="e.g. Fantasy, Sci-Fi, Modern"
                             className="capitalize"
                         />
                     </CreatorField>
+                </StudioSection>
 
-                    <CreatorField label="Description:" htmlFor="world-description">
+                <StudioSection
+                    id="overview"
+                    icon={ScrollText}
+                    title="Overview"
+                    description="Setting, atmosphere, and the key characteristics that make this world feel alive."
+                >
+                    <CreatorField label="Description" htmlFor="world-description">
                         <CreatorTextarea
                             id="world-description"
                             value={description}
                             onChange={setDescription}
                             placeholder="Describe your world's setting, atmosphere, and key characteristics…"
-                            rows={4}
+                            rows={6}
                         />
                     </CreatorField>
-                </div>
+                </StudioSection>
 
-                <AttributeManager
+                <StudioSection
+                    id="details"
+                    icon={Layers}
                     title="World Details"
-                    subtitle="Optional. Add terrain, climate, factions — and group them into your own categories."
-                    icon="🌍"
-                    categories={attrs.categories}
-                    attributes={attrs.attributes}
-                    onAddCategory={attrs.addCategory}
-                    onDeleteCategory={attrs.deleteCategory}
-                    onAddAttribute={attrs.addAttribute}
-                    onUpdateAttribute={attrs.updateAttribute}
-                    onRemoveAttribute={attrs.removeAttribute}
-                />
+                    description="Add terrain, climate, factions — group them however you like."
+                >
+                    <div className="flex flex-col gap-2.5">
+                        <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
+                            Quick add details
+                        </span>
+                        <SuggestedAttributes
+                            presets={DETAIL_PRESETS}
+                            existingKeys={detailKeys}
+                            onAdd={(preset) => attrs.addAttributeWith('details', { key: preset.key, value: preset.value ?? '' })}
+                        />
+                    </div>
+
+                    <AttributeManager
+                        title="Detail groups"
+                        icon="🌍"
+                        categories={attrs.categories}
+                        attributes={attrs.attributes}
+                        onAddCategory={attrs.addCategory}
+                        onDeleteCategory={attrs.deleteCategory}
+                        onAddAttribute={attrs.addAttribute}
+                        onUpdateAttribute={attrs.updateAttribute}
+                        onRemoveAttribute={attrs.removeAttribute}
+                    />
+                </StudioSection>
+
+                <StudioSection
+                    id="triggers"
+                    icon={Tags}
+                    title="Scene Triggers"
+                    description="Keywords that pull this world into the scene when mentioned in the adventure chat."
+                >
+                    <TriggersField values={triggers} onChange={setTriggers} label="Triggers" />
+                </StudioSection>
 
                 <FormActions
                     onCancel={handleBack}
@@ -136,6 +259,6 @@ export function WorldCreator() {
                     isSubmitting={isSubmitting}
                 />
             </form>
-        </CreatorLayout>
+        </CreatorStudio>
     )
 }

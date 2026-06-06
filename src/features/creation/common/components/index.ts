@@ -5,11 +5,35 @@
 export { CreatorLayout } from './CreatorLayout';
 export type { CreatorLayoutProps } from './CreatorLayout';
 
+export { CreatorStudio } from './CreatorStudio';
+export type { CreatorStudioProps } from './CreatorStudio';
+
+export { StudioSection } from './StudioSection';
+export type { StudioSectionProps } from './StudioSection';
+
+export { StudioSectionNav } from './StudioSectionNav';
+export type { StudioNavItem, StudioSectionNavProps } from './StudioSectionNav';
+
+export { StudioPreviewDock } from './StudioPreviewDock';
+export type { StudioPreviewDockProps } from './StudioPreviewDock';
+
+export { SuggestedAttributes } from './SuggestedAttributes';
+export type { AttributePreset, SuggestedAttributesProps } from './SuggestedAttributes';
+
+export { EntityPreviewCard } from './EntityPreviewCard';
+export type { EntityPreviewCardProps } from './EntityPreviewCard';
+
 export { CreatorField, CreatorInput, CreatorTextarea } from './CreatorField';
 export type { CreatorFieldProps } from './CreatorField';
 
 export { AttributeManager } from './AttributeManager';
 export type { AttributeManagerProps } from './AttributeManager';
+
+export { TriggersField } from './TriggersField';
+export type { TriggersFieldProps } from './TriggersField';
+
+export { AiGeneratePanel } from './AiGeneratePanel';
+export type { AiGeneratePanelProps } from './AiGeneratePanel';
 
 export { CategoryForm } from './CategoryForm';
 export type { CategoryFormProps } from './CategoryForm';

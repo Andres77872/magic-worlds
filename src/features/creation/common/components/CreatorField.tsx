@@ -12,6 +12,8 @@ export interface CreatorFieldProps {
     required?: boolean;
     /** Optional helper text rendered inline beneath the control. */
     tooltip?: string;
+    /** Inline validation error — takes priority over the helper text. */
+    error?: ReactNode;
     children: ReactNode;
     className?: string;
 }
@@ -21,6 +23,7 @@ export function CreatorField({
     htmlFor,
     required = false,
     tooltip,
+    error,
     children,
     className = ''
 }: CreatorFieldProps) {
@@ -32,7 +35,7 @@ export function CreatorField({
     );
 
     return (
-        <Field label={labelNode} htmlFor={htmlFor} helper={tooltip} className={className}>
+        <Field label={labelNode} htmlFor={htmlFor} helper={tooltip} error={error} className={className}>
             {children}
         </Field>
     );

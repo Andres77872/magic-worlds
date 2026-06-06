@@ -10,6 +10,8 @@ export interface World {
     details: Record<string, string>
     /** API attribute groups (name + description + key/value attributes). */
     category?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }>
+    /** Keywords that pull this card into the scene when matched in adventure chat. */
+    triggers?: string[]
     createdAt?: string
     updatedAt?: string
 }

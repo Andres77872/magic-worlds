@@ -42,6 +42,8 @@ export interface AttributeCategoriesApi {
     addCategory: (name: string, description: string) => string
     deleteCategory: (categoryId: string) => void
     addAttribute: (categoryId: string) => void
+    /** Append a row with a prefilled key/value in one call (used by preset chips). */
+    addAttributeWith: (categoryId: string, row: Partial<AttrRow>) => void
     updateAttribute: (categoryId: string, index: number, field: 'key' | 'value', value: string) => void
     removeAttribute: (categoryId: string, index: number) => void
 }
@@ -120,6 +122,13 @@ export function useAttributeCategories({ defaults, entity }: Options): Attribute
         setAttributes((prev) => ({ ...prev, [categoryId]: [...(prev[categoryId] || []), { key: '', value: '' }] }))
     }, [])
 
+    const addAttributeWith = useCallback((categoryId: string, row: Partial<AttrRow>) => {
+        setAttributes((prev) => ({
+            ...prev,
+            [categoryId]: [...(prev[categoryId] || []), { key: '', value: '', ...row }],
+        }))
+    }, [])
+
     const updateAttribute = useCallback(
         (categoryId: string, index: number, field: 'key' | 'value', value: string) => {
             setAttributes((prev) => {
@@ -142,6 +151,7 @@ export function useAttributeCategories({ defaults, entity }: Options): Attribute
         addCategory,
         deleteCategory,
         addAttribute,
+        addAttributeWith,
         updateAttribute,
         removeAttribute,
     }

@@ -3,7 +3,7 @@
  */
 
 import { useNavigation, useData, useAuth } from '../hooks'
-import { Header } from '../../ui/components/Header'
+import { Sidebar } from '../../ui/components/Sidebar'
 import { LoginModal } from '../../ui/components/LoginModal'
 import { LandingPage } from '../../features/landing/components/LandingPage'
 import { CharacterCreator } from '../../features/creation/character/components/CharacterCreator'
@@ -28,18 +28,18 @@ export function AppRouter() {
     }
 
     return (
-        <div className="flex min-h-screen flex-col bg-ink-800">
-            <Header />
-            <main className="flex-1 overflow-y-auto">
+        <div className="flex min-h-screen bg-ink-800 text-parchment-50">
+            <Sidebar />
+            <main className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
                 {currentPage === 'landing' && <LandingPage />}
                 {currentPage === 'character' && <CharacterCreator />}
                 {currentPage === 'world' && <WorldCreator />}
                 {currentPage === 'adventure' && <AdventureCreator />}
                 {currentPage === 'interaction' && <AdventureInteraction />}
             </main>
-            
+
             {/* Global Login Modal */}
-            <LoginModal 
+            <LoginModal
                 isOpen={isLoginModalOpen}
                 onClose={closeLoginModal}
             />

@@ -6,6 +6,7 @@
 import { createContext, useEffect, useState, type ReactNode } from 'react'
 import type { Character, World, Adventure, LoadingState } from '../../shared'
 import { apiService } from '../../infrastructure'
+import { parseTurnState } from '../../utils/turnState'
 import { useAuth } from '../hooks'
 
 interface DataContextValue {
@@ -235,57 +236,53 @@ export function DataProvider({ children }: DataProviderProps) {
                 sessions: loadedSessions
             })
 
-            // Transform API response to match local types
-            const transformedCharacters = (loadedCharacters || []).map((char: any) => ({
+            // Transform API response to match local types. List endpoints return
+            // arrays, but a non-array can slip through (e.g. a 401 degrades a GET to
+            // `{}`); guard so `.map` never throws and we render an empty state.
+            const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
+
+            const transformedCharacters = asArray(loadedCharacters).map((char: any) => ({
                 id: char.id || char.uuid,
                 name: char.name,
                 race: char.race || '',
                 description: char.description || '',
                 stats: {},
-                category: char.category
+                category: char.category,
+                triggers: char.triggers ?? []
             }))
 
-            const transformedWorlds = (loadedWorlds || []).map((world: any) => ({
+            const transformedWorlds = asArray(loadedWorlds).map((world: any) => ({
                 id: world.id || world.uuid,
                 name: world.name,
                 type: world.type || '',
                 description: world.description || '',
                 details: {},
-                category: world.category
+                category: world.category,
+                triggers: world.triggers ?? []
             }))
 
-            const transformedTemplates = (loadedTemplateAdventures || []).map((template: any) => ({
+            const transformedTemplates = asArray(loadedTemplateAdventures).map((template: any) => ({
                 id: template.id || template.uuid,
                 scenario: template.description || template.name,
+                persona: template.persona || undefined,
                 characters: template.characters || [],
                 world: template.world?.[0] || undefined,
                 objectives: {},
                 notes: {},
-                category: template.category
+                category: template.category,
+                triggers: template.triggers ?? []
             }))
-
-            // Parse the saved {turns} cache safely (the API also rewrites this
-            // field with its own projection — fall back to empty turns).
-            const parseTurns = (raw?: string) => {
-                if (!raw) return []
-                try {
-                    const parsed = JSON.parse(raw)
-                    return Array.isArray(parsed?.turns) ? parsed.turns : []
-                } catch {
-                    return []
-                }
-            }
 
             // Transform sessions to in-progress adventures, enriching scenario /
             // cast / world from the originating template when available.
-            const transformedInProgress = (loadedSessions || []).map((session: any) => {
+            const transformedInProgress = asArray(loadedSessions).map((session: any) => {
                 const template = transformedTemplates.find((t: { id: string }) => t.id === session.adventure_template)
                 return {
                     id: String(session.adventure_id),
                     scenario: template?.scenario || `Adventure Session ${session.adventure_id}`,
                     characters: template?.characters ?? [],
                     world: template?.world,
-                    turns: parseTurns(session.adventure_last_turn),
+                    turns: parseTurnState(session.adventure_last_turn),
                     status: 'in-progress' as const,
                     createdAt: session.adventure_created_at,
                     updatedAt: session.adventure_last_update,

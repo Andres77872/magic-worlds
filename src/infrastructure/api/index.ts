@@ -10,8 +10,9 @@ import type {
     ChatMessage,
 } from '../../shared/types/auth.types'
 
-// Get API base URL from environment, fallback to default
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8010'
+// Get API base URL from environment, fallback to the backend's default port
+// (magic-worlds-api binds to APP_PORT, default 8000).
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 class ApiService {
     private baseUrl: string
@@ -57,8 +58,15 @@ class ApiService {
                 localStorage.removeItem('magic_worlds:token')
                 localStorage.removeItem('magic_worlds:user')
                 window.dispatchEvent(new CustomEvent('auth:expired'))
-                // Return empty typed response so data-fetching callers degrade gracefully
-                return (parseAsJson ? {} : '') as T
+                // Safe reads degrade gracefully to an empty response. Mutations
+                // (POST/PUT/DELETE) must NOT silently resolve — otherwise a
+                // create/update during an expired session looks successful while
+                // nothing was persisted. Throw so the caller surfaces the error.
+                const method = (config.method ?? 'GET').toString().toUpperCase()
+                if (method === 'GET') {
+                    return (parseAsJson ? {} : '') as T
+                }
+                throw new Error('Your session has expired. Please log in again.')
             }
 
             if (!response.ok) {
@@ -146,18 +154,27 @@ class ApiService {
     }
 
     /**
-     * Send a chat message via the API proxy (SSE streaming)
+     * Send adventure chat through magic-worlds-api only (SSE streaming).
+     * The browser sends only user/assistant messages; private prompts and
+     * agent graph/provider configuration are owned by the backend.
      */
     async sendChatMessage(sessionId: number, messages: ChatMessage[]): Promise<Response> {
         const token = this.getStoredToken()
         const url = `${this.baseUrl}/adventure-sessions/${sessionId}/chat`
+        const chatMessages = messages
+            .filter((message) => message.role === 'user' || message.role === 'assistant')
+            .map((message) => ({
+                role: message.role,
+                content: message.content,
+            }))
+
         return fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             },
-            body: JSON.stringify({ messages })
+            body: JSON.stringify({ messages: chatMessages })
         })
     }
 
@@ -187,6 +204,19 @@ class ApiService {
     }
 
     /**
+     * Generate + persist a new character from a description via the AI endpoint.
+     * The backend creates the card and returns it.
+     */
+    async createCharacterAI(description: string): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest('/characters/ai/', token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { description } as unknown as BodyInit
+        })
+    }
+
+    /**
      * Update an existing character
      */
     async updateCharacter(characterId: string, characterData: any): Promise<any> {
@@ -211,6 +241,19 @@ class ApiService {
                 'Content-Type': 'application/json'
             },
             body: worldData
+        })
+    }
+
+    /**
+     * Generate + persist a new world from a description via the AI endpoint.
+     * The backend creates the card and returns it.
+     */
+    async createWorldAI(description: string): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest('/worlds/ai/', token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { description } as unknown as BodyInit
         })
     }
 
@@ -287,6 +330,19 @@ class ApiService {
                 'Content-Type': 'application/json'
             },
             body: templateData
+        })
+    }
+
+    /**
+     * Generate + persist a new adventure template from a description via the AI
+     * endpoint. The backend creates the card and returns it.
+     */
+    async createAdventureTemplateAI(description: string): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest('/adventure-templates/ai/', token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { description } as unknown as BodyInit
         })
     }
 

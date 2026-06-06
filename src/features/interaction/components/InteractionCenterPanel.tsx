@@ -308,32 +308,8 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
     // Process user message and get AI response
     const processUserMessage = async (_userText: string, currentTurns: TurnEntry[], existingTurn?: ExtendedTurnEntry) => {
         try {
-            // Build system prompt with full adventure context (scenario, characters, world)
-            const charTags = adventure.characters?.map((c) => {
-                const statsStr = Object.entries(c.stats || {})
-                    .map(([k, v]) => `${k}:${v}`)
-                    .join(', ')
-                return `<character id="${c.id}" name="${c.name}" race="${c.race}" stats="${statsStr}" />`
-            }).join('\n') || 'No characters';
-
-            const world = adventure.world
-            const worldDetails = world ? Object.entries(world.details || {})
-                .map(([k, v]) => `${k}:${v}`)
-                .join(', ') : 'No world details'
-
-            const worldTag = world
-                ? `<world id="${world.id}" name="${world.name}" type="${world.type}" details="${worldDetails}" />`
-                : '<world>No world defined</world>'
-
-            const systemPrompt = `You are the game master for an adventure.
-Scenario: ${adventure.scenario}
-Characters:
-${charTags}
-World:
-${worldTag}
-Respond to the user inputs as the assistant.`
-
-            // Format history for API
+            // Format user/assistant history for API. Private GM/system prompt
+            // construction is owned server-side by magic-worlds-api.
             const history = currentTurns
                 .filter(t => t.type === 'user' || t.type === 'ai')
                 .map(t => ({
@@ -352,12 +328,7 @@ Respond to the user inputs as the assistant.`
                 throw new Error('Invalid adventure session ID')
             }
 
-            const messages = [
-                {role: 'system' as const, content: systemPrompt},
-                ...history,
-            ]
-
-            const response = await apiService.sendChatMessage(sessionId, messages)
+            const response = await apiService.sendChatMessage(sessionId, history)
 
             if (!response.ok) {
                 throw new Error(`API request failed with status ${response.status}`)
@@ -393,13 +364,33 @@ Respond to the user inputs as the assistant.`
             let isInsideThink = false
             let imageUrl: string | undefined = undefined  // Add variable to store image URL
 
-            // Process the streamed response
-            while (true) {
+            // Process the streamed response. Buffer across reads so an SSE frame
+            // split between two network chunks isn't truncated (and silently
+            // dropped) — a line is only parsed once its terminating newline arrives.
+            const decoder = new TextDecoder()
+            let streamBuffer = ''
+            let streamDone = false
+            while (!streamDone) {
                 const {done, value} = await reader.read()
-                if (done) break
+                if (done) {
+                    streamDone = true
+                    streamBuffer += decoder.decode() // flush any multi-byte remainder
+                } else {
+                    streamBuffer += decoder.decode(value, {stream: true})
+                }
 
-                const chunk = new TextDecoder().decode(value)
-                const lines = chunk.split('\n').filter(line => line.trim() !== '')
+                let lines: string[]
+                if (streamDone) {
+                    // Stream finished — process whatever remains, including a final
+                    // line that has no trailing newline.
+                    lines = streamBuffer.split('\n').filter(line => line.trim() !== '')
+                    streamBuffer = ''
+                } else {
+                    // Keep the last (possibly partial) line buffered for the next read.
+                    const parts = streamBuffer.split('\n')
+                    streamBuffer = parts.pop() ?? ''
+                    lines = parts.filter(line => line.trim() !== '')
+                }
 
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
