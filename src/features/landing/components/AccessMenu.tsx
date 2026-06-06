@@ -1,0 +1,105 @@
+/**
+ * Access menu — the prominent in-page way to start creating, complementing the
+ * slim icon sidebar. `full` is a row of large cards (the guest / empty view);
+ * `compact` is a slim strip of buttons for returning users (below their shelves).
+ * All actions route through the caller's gated handler.
+ */
+
+import type { KeyboardEvent } from 'react'
+import { ArrowRight } from 'lucide-react'
+import { Button, Card, Eyebrow, Icon, SectionHeader, cx } from '@/ui/primitives'
+import { CREATE_ACTIONS, type CreateAction } from './landingContent'
+
+export interface AccessMenuProps {
+    variant?: 'full' | 'compact'
+    /** Eyebrow + title for the full variant (varies by guest vs empty-account). */
+    eyebrow?: string
+    title?: string
+    onAction: (key: CreateAction['key']) => void
+}
+
+function activateOnKey(handler: () => void) {
+    return (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            handler()
+        }
+    }
+}
+
+export function AccessMenu({
+    variant = 'full',
+    eyebrow = 'Step behind the curtain',
+    title = 'Make it yours',
+    onAction,
+}: AccessMenuProps) {
+    if (variant === 'compact') {
+        return (
+            <section className="flex flex-col gap-4 border-t border-parchment-50/[.06] pt-6">
+                <SectionHeader title="Create something new" />
+                <div className="flex flex-wrap gap-3">
+                    {CREATE_ACTIONS.map((action) => (
+                        <Button
+                            key={action.key}
+                            kind="secondary"
+                            iconLeft={<Icon icon={action.icon} size={16} />}
+                            onClick={() => onAction(action.key)}
+                        >
+                            {action.title}
+                        </Button>
+                    ))}
+                </div>
+            </section>
+        )
+    }
+
+    return (
+        <section className="w-full px-5 py-12 sm:px-8 sm:py-16">
+            <div className="mx-auto max-w-[1160px]">
+                <div className="flex flex-col gap-2">
+                    <Eyebrow tone="ember">{eyebrow}</Eyebrow>
+                    <h2 className="font-display text-h3 font-semibold text-parchment-50">{title}</h2>
+                </div>
+                <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {CREATE_ACTIONS.map((action) => (
+                        <Card
+                            key={action.key}
+                            interactive
+                            role="button"
+                            tabIndex={0}
+                            aria-label={action.title}
+                            onClick={() => onAction(action.key)}
+                            onKeyDown={activateOnKey(() => onAction(action.key))}
+                            className="group p-7"
+                        >
+                            <div
+                                className={cx(
+                                    'mb-5 flex h-[52px] w-[52px] items-center justify-center rounded-md transition-all',
+                                    action.tone === 'arcane'
+                                        ? 'bg-arcane-500/15 text-arcane-400 group-hover:shadow-glow-arcane'
+                                        : 'bg-ember-500/[.12] text-ember-400 group-hover:shadow-glow-ember',
+                                )}
+                            >
+                                <Icon icon={action.icon} size={24} />
+                            </div>
+                            <h3 className="font-ui text-[19px] font-semibold tracking-[-0.01em] text-parchment-50">
+                                {action.title}
+                            </h3>
+                            <p className="mt-2 font-narrative text-[15.5px] leading-[1.55] text-parchment-400">
+                                {action.desc}
+                            </p>
+                            <span className="mt-4 inline-flex items-center gap-1.5 font-ui text-sm font-semibold text-ember-400">
+                                Begin
+                                <Icon
+                                    icon={ArrowRight}
+                                    size={15}
+                                    className="transition-transform group-hover:translate-x-0.5"
+                                />
+                            </span>
+                        </Card>
+                    ))}
+                </div>
+            </div>
+        </section>
+    )
+}

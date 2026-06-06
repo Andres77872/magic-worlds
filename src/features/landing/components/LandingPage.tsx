@@ -1,23 +1,32 @@
 /**
- * Landing — the discovery gallery. A time-of-day greeting + search, genre
- * filters, a featured scene, then a grid of scenes to begin. Below the gallery,
- * lightweight shelves keep in-progress journeys, characters, and worlds within
- * reach (each with its own edit / delete affordances).
+ * Landing — an adaptive front door.
+ *
+ * Guests and fresh accounts get the marketing experience: a hero, a prominent
+ * create menu, a "how it works" explainer, a row of sample worlds, and a closing
+ * invitation. Returning users with content get their personalised dashboard:
+ * greeting + search, the discovery gallery, and shelves for in-progress journeys,
+ * characters, and worlds — plus a compact create strip.
  */
 
-import { useMemo, useState, type ReactNode } from 'react'
-import { Globe, Sparkles, Users, Wand2 } from 'lucide-react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { ArrowRight, Feather, Play, Sparkles, Users, Wand2 } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
 import type { Character, World, Adventure } from '@/shared'
 import { CharacterList, WorldList, InProgressList } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
-import { Button, Eyebrow, Icon, SectionHeader } from '@/ui/primitives'
+import { Button, Icon, SectionHeader } from '@/ui/primitives'
 import { LandingLoading } from './LandingLoading'
 import { GreetingHeader } from './GreetingHeader'
 import { FilterChips } from './FilterChips'
 import { FeaturedScene } from './FeaturedScene'
 import { SceneCard } from './SceneCard'
-import { toScene, sceneMatchesFilter, sceneMatchesQuery } from './sceneModel'
+import { LandingHero, type HeroCta } from './LandingHero'
+import { AccessMenu } from './AccessMenu'
+import { HowItWorksSection } from './HowItWorksSection'
+import { ShowcaseWorlds } from './ShowcaseWorlds'
+import { ClosingCTA } from './ClosingCTA'
+import { toScene, sceneTitle, sceneMatchesFilter, sceneMatchesQuery } from './sceneModel'
+import { HERO_COPY, latestInProgress, type CreateAction } from './landingContent'
 
 export function LandingPage() {
     const { setPage } = useNavigation()
@@ -42,6 +51,7 @@ export function LandingPage() {
     const [query, setQuery] = useState('')
     const [filter, setFilter] = useState('All')
     const [pendingDelete, setPendingDelete] = useState<Adventure | null>(null)
+    const showcaseRef = useRef<HTMLElement>(null)
 
     // Every action that mutates or starts requires auth — open the modal if not.
     const requireAuth = (action: () => void) => {
@@ -57,6 +67,15 @@ export function LandingPage() {
     const handleCharacterEdit = (c: Character) => requireAuth(() => { editCharacter(c); setPage('character') })
     const handleWorldEdit = (w: World) => requireAuth(() => { editWorld(w); setPage('world') })
     const handleInProgressEdit = (a: Adventure) => requireAuth(() => { editInProgress(a); setPage('interaction') })
+
+    const createAdventure = () => requireAuth(() => setPage('adventure'))
+    const createCharacter = () => requireAuth(() => setPage('character'))
+    const createWorld = () => requireAuth(() => setPage('world'))
+    const handleCreate = (key: CreateAction['key']) => {
+        if (key === 'character') createCharacter()
+        else if (key === 'world') createWorld()
+        else createAdventure()
+    }
 
     const confirmTemplateDelete = () => {
         const target = pendingDelete
@@ -90,35 +109,102 @@ export function LandingPage() {
     const featured = filtered[0]
     const rest = filtered.slice(1)
 
+    const latest = useMemo(() => latestInProgress(inProgressAdventures), [inProgressAdventures])
+
+    // Content-based mode: an authenticated-but-empty account still gets the
+    // welcoming front-door (it doubles as the empty state).
+    const hasScenes = templateAdventures.length > 0
+    const hasInProgress = inProgressAdventures.length > 0
+    const hasContent = hasScenes || hasInProgress || characters.length > 0 || worlds.length > 0
+    const mode: 'guest' | 'returning' = isAuthenticated && hasContent ? 'returning' : 'guest'
+
+    const resumeLatest = () =>
+        requireAuth(() => {
+            if (!latest) return
+            editInProgress(latest)
+            setPage('interaction')
+        })
+
+    const scrollToShowcase = () => {
+        const reduce =
+            typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+        showcaseRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+    }
+
     if (isLoading) {
         return <LandingLoading />
     }
 
+    // ---------- GUEST: marketing front-door ----------
+    if (mode === 'guest') {
+        const heroPrimary: HeroCta = isAuthenticated
+            ? { label: 'Create your first adventure', icon: Wand2, onClick: createAdventure }
+            : { label: 'Begin a scene', icon: Feather, onClick: createAdventure }
+        const heroSecondary: HeroCta = isAuthenticated
+            ? { label: 'New character', icon: Users, onClick: createCharacter }
+            : { label: 'Explore worlds', iconRight: ArrowRight, onClick: scrollToShowcase }
+        const accessCopy = isAuthenticated
+            ? { eyebrow: 'Begin your first tale', title: 'Your worlds await their first spark' }
+            : { eyebrow: 'Make it yours', title: 'Create your own cast and worlds' }
+
+        return (
+            <div className="flex w-full flex-col">
+                <LandingHero
+                    eyebrow={HERO_COPY.eyebrow}
+                    title={HERO_COPY.title}
+                    subtitle={HERO_COPY.subtitle}
+                    primary={heroPrimary}
+                    secondary={heroSecondary}
+                    stat={HERO_COPY.stat}
+                />
+                <AccessMenu
+                    variant="full"
+                    eyebrow={accessCopy.eyebrow}
+                    title={accessCopy.title}
+                    onAction={handleCreate}
+                />
+                <HowItWorksSection />
+                <ShowcaseWorlds sectionRef={showcaseRef} onTry={createAdventure} />
+                <ClosingCTA onAction={createAdventure} />
+            </div>
+        )
+    }
+
+    // ---------- RETURNING: personalised dashboard ----------
+    const resumeTitle = latest ? sceneTitle(latest) : ''
+    const resumeShort = resumeTitle.length > 28 ? `${resumeTitle.slice(0, 27)}…` : resumeTitle
+    const continueAction =
+        hasInProgress && latest ? (
+            <Button
+                kind="primary"
+                iconLeft={<Icon icon={Play} size={16} />}
+                onClick={resumeLatest}
+                className="shrink-0"
+            >
+                Continue: {resumeShort}
+            </Button>
+        ) : undefined
+
     return (
         <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-8 px-5 py-8 sm:px-8 sm:py-10">
-            <GreetingHeader query={query} onQueryChange={setQuery} />
+            <GreetingHeader query={query} onQueryChange={setQuery} action={continueAction} />
 
             {genres.length > 0 && <FilterChips options={genres} active={filter} onChange={setFilter} />}
 
-            {scenes.length === 0 ? (
-                <EmptyHero
-                    onCreateAdventure={() => requireAuth(() => setPage('adventure'))}
-                    onCreateCharacter={() => requireAuth(() => setPage('character'))}
-                    onCreateWorld={() => requireAuth(() => setPage('world'))}
-                />
-            ) : featured ? (
-                <FeaturedScene
-                    eyebrow={`Featured adventure${featured.location ? ` · ${featured.location}` : ''}`}
-                    title={featured.title}
-                    description={featured.description}
-                    monogram={featured.monogram}
-                    seed={featured.title}
-                    actionLabel="Begin a scene"
-                    onAction={() => handleTemplateStart(featured.template)}
-                />
-            ) : (
-                <NoMatches onClear={() => { setQuery(''); setFilter('All') }} />
-            )}
+            {hasScenes &&
+                (featured ? (
+                    <FeaturedScene
+                        eyebrow={`Featured adventure${featured.location ? ` · ${featured.location}` : ''}`}
+                        title={featured.title}
+                        description={featured.description}
+                        monogram={featured.monogram}
+                        seed={featured.title}
+                        actionLabel="Begin a scene"
+                        onAction={() => handleTemplateStart(featured.template)}
+                    />
+                ) : (
+                    <NoMatches onClear={() => { setQuery(''); setFilter('All') }} />
+                ))}
 
             {rest.length > 0 && (
                 <section className="flex flex-col gap-5">
@@ -142,7 +228,7 @@ export function LandingPage() {
                 </section>
             )}
 
-            {inProgressAdventures.length > 0 && (
+            {hasInProgress && (
                 <Shelf title="Continue your journey">
                     <InProgressList
                         adventures={inProgressAdventures}
@@ -179,6 +265,8 @@ export function LandingPage() {
                 </Shelf>
             )}
 
+            <AccessMenu variant="compact" onAction={handleCreate} />
+
             <ConfirmDialog
                 visible={pendingDelete !== null}
                 title="Delete adventure"
@@ -206,37 +294,6 @@ function Shelf({ title, children }: ShelfProps) {
         <section className="flex flex-col gap-1 border-t border-parchment-50/[.06] pt-6">
             <SectionHeader title={title} />
             {children}
-        </section>
-    )
-}
-
-interface EmptyHeroProps {
-    onCreateAdventure: () => void
-    onCreateCharacter: () => void
-    onCreateWorld: () => void
-}
-
-function EmptyHero({ onCreateAdventure, onCreateCharacter, onCreateWorld }: EmptyHeroProps) {
-    return (
-        <section className="relative overflow-hidden rounded-2xl border border-parchment-50/[.08] bg-ink-700 p-8 shadow-lg sm:p-10">
-            <Eyebrow tone="arcane">Begin your first tale</Eyebrow>
-            <h2 className="mt-2 font-display text-[clamp(28px,3.5vw,42px)] font-semibold leading-[1.05] text-parchment-50">
-                Your worlds await their first spark
-            </h2>
-            <p className="mt-3 max-w-[54ch] font-narrative text-narrative leading-relaxed text-parchment-200">
-                Weave an adventure, craft a character, or build a world — then begin a scene and let the story unfold.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-                <Button kind="primary" iconLeft={<Icon icon={Wand2} size={16} />} onClick={onCreateAdventure}>
-                    Create an adventure
-                </Button>
-                <Button kind="secondary" iconLeft={<Icon icon={Users} size={16} />} onClick={onCreateCharacter}>
-                    New character
-                </Button>
-                <Button kind="secondary" iconLeft={<Icon icon={Globe} size={16} />} onClick={onCreateWorld}>
-                    New world
-                </Button>
-            </div>
         </section>
     )
 }
