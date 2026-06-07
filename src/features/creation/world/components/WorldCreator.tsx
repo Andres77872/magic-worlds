@@ -8,7 +8,7 @@ import type { FormEvent, KeyboardEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { Globe, Layers, ScrollText, Sparkles, Tags } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
-import { apiService } from '@/infrastructure/api'
+import { apiService, ApiError } from '@/infrastructure/api'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
 import { Button } from '@/ui/primitives'
 import {
@@ -58,6 +58,7 @@ export function WorldCreator() {
     const [triggers, setTriggers] = useState<string[]>(editingWorld?.triggers ?? [])
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [touched, setTouched] = useState(false)
+    const [saveError, setSaveError] = useState<string | null>(null)
 
     const attrs = useAttributeCategories({ defaults: DEFAULT_CATEGORIES, entity: editingWorld })
 
@@ -90,6 +91,7 @@ export function WorldCreator() {
         if (!name || !type) return
 
         setIsSubmitting(true)
+        setSaveError(null)
         try {
             const payload = {
                 name,
@@ -108,7 +110,14 @@ export function WorldCreator() {
             setPage('landing')
         } catch (error) {
             console.error(`Failed to ${editingWorld ? 'update' : 'create'} world:`, error)
-            alert(`Failed to ${editingWorld ? 'update' : 'create'} world. Please try again.`)
+            // Gentle, non-blocking inline message — the form stays put so the
+            // user can retry. Transient backend outages get reassuring copy.
+            const transient = error instanceof ApiError && error.isTransient
+            setSaveError(
+                transient
+                    ? 'The service is briefly unavailable — please try again in a moment.'
+                    : `Couldn't ${editingWorld ? 'update' : 'create'} your world. Please try again.`
+            )
         } finally {
             setIsSubmitting(false)
         }
@@ -257,6 +266,7 @@ export function WorldCreator() {
                     onCancel={handleBack}
                     submitLabel={editingWorld ? 'Update World' : 'Create World'}
                     isSubmitting={isSubmitting}
+                    error={saveError}
                 />
             </form>
         </CreatorStudio>

@@ -1,0 +1,53 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import wordmark from '../../assets/brand/logo-wordmark.svg'
+
+<Meta title="Design System/Overview" />
+
+<div style={{ background: 'var(--color-ink-900)', borderRadius: 16, padding: '44px 32px', margin: '8px 0 28px', textAlign: 'center', border: '1px solid rgba(246,239,226,.08)' }}>
+  <img src={wordmark} alt="Reverie" style={{ height: 52 }} />
+  <p style={{ fontFamily: 'var(--font-narrative)', fontStyle: 'italic', color: 'var(--color-parchment-200)', marginTop: 18, fontSize: 17 }}>
+    A candlelit invitation to play pretend, taken seriously.
+  </p>
+</div>
+
+# Reverie
+
+**Reverie** is an AI roleplay product. People browse a cast of AI characters and
+living worlds, then step into ongoing, improvised stories — the characters talk
+back, remember, and react. The brand feeling is **literary, theatrical, and
+candlelit**: less "tech chatbot," more *a dimly-lit reading room where stories
+come alive*.
+
+This is the living design system behind the app. Every token shown in these
+pages is read **live** from the running stylesheet (`src/ui/styles/theme.css`),
+so the docs can never drift from what actually ships.
+
+## How this is organized
+
+- **Foundations** — the raw materials: [Colors](?path=/docs/design-system-foundations-colors--docs), [Typography](?path=/docs/design-system-foundations-typography--docs), Spacing & Radii, Elevation & Shadows, and Motion. All driven by `theme.css`.
+- **Brand** — the [Logo](?path=/docs/design-system-brand-logo--docs) and the [Voice & Microcopy](?path=/docs/design-system-brand-voice--docs) rules for how Reverie writes.
+- **Primitives** — the atomic components (Button, Card, Avatar, Field, …), each with controls and a variant gallery.
+- **Components** — composite, app-level pieces (Sidebar, dialogs, lists) assembled from primitives.
+
+## The feeling, in five rules
+
+1. **Canvas is dark by default.** Depth is built by *lightening* surfaces (ink-900 → ink-600), not by heavy drop shadows.
+2. **Foreground is warm parchment**, never pure white.
+3. **Ember (candlelight gold) is the single hero accent** — primary actions, active states, the player's own voice, focus rings.
+4. **Arcane violet marks the AI side** — avatar rings, the "thinking" shimmer, memory. Used sparingly so it stays special.
+5. **Serif for story, sans for system.** Cormorant/Spectral carry the narrative; Hanken Grotesk carries the UI. Never mix the jobs.
+
+> The vibe in one line: *mysterious, warm, literate — never twee, never corporate.*
+
+## Accessibility
+
+Every story runs through the **a11y (axe) panel**. The candlelit aesthetic is built
+on *intentional* low contrast — hairline borders at very low alpha, muted parchment
+on ink — so axe will flag `color-contrast` on decorative strokes and secondary text.
+Those are deliberate and **non-blocking** (`a11y.test: 'todo'` in `.storybook/preview.tsx`).
+
+When reviewing the panel, focus on the violations that are real regressions, not the
+aesthetic ones: **missing labels / alt text, focus order, keyboard operability, and
+ARIA roles**. Primary text (`parchment-50` on `ink-800`) and ember/arcane fills are
+chosen to clear AA for content that must be read; the low-contrast cases are reserved
+for non-essential chrome.

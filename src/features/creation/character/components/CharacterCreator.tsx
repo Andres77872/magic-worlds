@@ -8,7 +8,7 @@ import type { FormEvent, KeyboardEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { ScrollText, Sparkles, Swords, Tags, User } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
-import { apiService } from '@/infrastructure/api'
+import { apiService, ApiError } from '@/infrastructure/api'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
 import { Button } from '@/ui/primitives'
 import {
@@ -58,6 +58,7 @@ export function CharacterCreator() {
     const [triggers, setTriggers] = useState<string[]>(editingCharacter?.triggers ?? [])
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [touched, setTouched] = useState(false)
+    const [saveError, setSaveError] = useState<string | null>(null)
 
     const attrs = useAttributeCategories({ defaults: DEFAULT_CATEGORIES, entity: editingCharacter })
 
@@ -90,6 +91,7 @@ export function CharacterCreator() {
         if (!name || !race) return
 
         setIsSubmitting(true)
+        setSaveError(null)
         try {
             const payload = {
                 name,
@@ -108,7 +110,14 @@ export function CharacterCreator() {
             setPage('landing')
         } catch (error) {
             console.error(`Failed to ${editingCharacter ? 'update' : 'create'} character:`, error)
-            alert(`Failed to ${editingCharacter ? 'update' : 'create'} character. Please try again.`)
+            // Gentle, non-blocking inline message — the form stays put so the
+            // user can retry. Transient backend outages get reassuring copy.
+            const transient = error instanceof ApiError && error.isTransient
+            setSaveError(
+                transient
+                    ? 'The service is briefly unavailable — please try again in a moment.'
+                    : `Couldn't ${editingCharacter ? 'update' : 'create'} your character. Please try again.`
+            )
         } finally {
             setIsSubmitting(false)
         }
@@ -257,6 +266,7 @@ export function CharacterCreator() {
                     onCancel={handleBack}
                     submitLabel={editingCharacter ? 'Update Character' : 'Create Character'}
                     isSubmitting={isSubmitting}
+                    error={saveError}
                 />
             </form>
         </CreatorStudio>

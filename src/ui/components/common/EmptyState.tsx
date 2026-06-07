@@ -16,6 +16,8 @@ interface EmptyStateProps {
     };
     /** Additional class name for the container */
     className?: string;
+    /** Optional custom action node rendered below the message/button. */
+    children?: ReactNode;
 }
 
 export function EmptyState({
@@ -24,6 +26,7 @@ export function EmptyState({
                                secondaryText,
                                button,
                                className = '',
+                               children,
                            }: EmptyStateProps) {
     return (
         <div
@@ -52,6 +55,7 @@ export function EmptyState({
                     {button.label}
                 </Button>
             )}
+            {children}
         </div>
     );
 }

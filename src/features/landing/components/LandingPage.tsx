@@ -199,6 +199,7 @@ export function LandingPage() {
                         description={featured.description}
                         monogram={featured.monogram}
                         seed={featured.title}
+                        tags={featured.tags}
                         actionLabel="Begin a scene"
                         onAction={() => handleTemplateStart(featured.template)}
                     />
@@ -232,6 +233,7 @@ export function LandingPage() {
                 <Shelf title="Continue your journey">
                     <InProgressList
                         adventures={inProgressAdventures}
+                        layout="rail"
                         onEdit={handleInProgressEdit}
                         onPlay={handleInProgressEdit}
                         onDelete={deleteInProgress}
@@ -243,6 +245,7 @@ export function LandingPage() {
                 <Shelf title="Your cast">
                     <CharacterList
                         characters={characters}
+                        layout="rail"
                         onEdit={handleCharacterEdit}
                         onDelete={(index) => {
                             const character = characters[index]
@@ -256,6 +259,7 @@ export function LandingPage() {
                 <Shelf title="Your worlds">
                     <WorldList
                         worlds={worlds}
+                        layout="rail"
                         onEdit={handleWorldEdit}
                         onDelete={(index) => {
                             const world = worlds[index]

@@ -45,6 +45,12 @@ export function HeroPreviewCard() {
                     &ldquo;I&rsquo;m looking for someone.&rdquo;
                 </div>
             </div>
+
+            {/* she reacts — the conversation carries on, and she remembers */}
+            <p className="mt-4 font-narrative text-[15.5px] leading-[1.6] text-parchment-200">
+                <em className="text-parchment-100">She studies you a moment, then slides a brass key across the wood. </em>
+                <span className="text-parchment-50">&ldquo;Room at the back. Mind the third stair.&rdquo;</span>
+            </p>
         </div>
     )
 }

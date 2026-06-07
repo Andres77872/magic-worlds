@@ -11,6 +11,31 @@ export interface User {
     updated_at: string | null
 }
 
+/**
+ * Per-type counts of cards the user has authored, as returned inside the
+ * `/user/me` response (magic-worlds-api `UserCardCounts`).
+ */
+export interface UserCardCounts {
+    character: number
+    world: number
+    adventure_template: number
+}
+
+/**
+ * Shape of `GET /user/me` (magic-worlds-api `UserMeResponse`). Distinct from
+ * {@link User}: the profile endpoint carries usage + content stats rather than
+ * the email/timestamps returned at login. This API is read-only — username,
+ * email and password are owned by the external auth provider.
+ */
+export interface UserProfile {
+    user_hash: string
+    username: string
+    user_type: string
+    /** Usage quota / credits (reserved for a future credit system). */
+    user_usage: number
+    card_counts: UserCardCounts
+}
+
 export interface Project {
     project_hash: string
     project_name: string

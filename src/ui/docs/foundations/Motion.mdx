@@ -1,0 +1,23 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import { MotionSpecimen } from '../Swatch'
+
+<Meta title="Design System/Foundations/Motion" />
+
+# Motion
+
+Calm and cinematic. The default easing is `--ease-out`
+(`cubic-bezier(.16, 1, .3, 1)`) over `--default-transition-duration` (220ms).
+Entrances **fade + rise** a few pixels. The AI "typing" state is a slow arcane
+shimmer (`animate-think`), never garish bouncing dots. No springy bounces, no
+spinning.
+
+<MotionSpecimen />
+
+- **`--ease-out`** — entrances and hover transitions.
+- **`--ease-in-out`** — looping motion, including the think pulse.
+- **`animate-think`** — the arcane glow that pulses on a character's avatar while it generates a reply.
+- Interactive cards **lift + glow** on hover (`shadow-card-hover`).
+
+> `prefers-reduced-motion` is respected globally in `theme.css` — all
+> non-essential animation and transition is reduced to ~0ms when the user asks
+> for less motion.

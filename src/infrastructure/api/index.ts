@@ -7,12 +7,34 @@ import type {
     LoginResponse,
     RegisterData,
     RegisterResponse,
-    ChatMessage,
+    UserProfile,
 } from '../../shared/types/auth.types'
 
 // Get API base URL from environment, fallback to the backend's default port
 // (magic-worlds-api binds to APP_PORT, default 8000).
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+
+/**
+ * Error thrown for non-2xx HTTP responses, carrying the status code so callers
+ * can distinguish a transient backend outage (5xx — e.g. the auth service is
+ * briefly down and the API returns 503) from a real client-side error. Transient
+ * failures should be handled gently (retry, empty state) rather than surfaced as
+ * alarming error UI.
+ */
+export class ApiError extends Error {
+    readonly status: number
+
+    constructor(status: number, message: string) {
+        super(message)
+        this.name = 'ApiError'
+        this.status = status
+    }
+
+    /** A transient server-side failure (502/503/504, or any 5xx) worth retrying. */
+    get isTransient(): boolean {
+        return this.status >= 500
+    }
+}
 
 class ApiService {
     private baseUrl: string
@@ -71,12 +93,16 @@ class ApiService {
 
             if (!response.ok) {
                 const message = await this.extractErrorMessage(response)
-                console.error('API Error Response:', {
+                // 5xx is a transient backend outage (e.g. the auth service is
+                // briefly down → 503) — log quietly. Other statuses are real
+                // errors worth an error-level log.
+                const log = response.status >= 500 ? console.warn : console.error
+                log('API Error Response:', {
                     status: response.status,
                     statusText: response.statusText,
                     message
                 })
-                throw new Error(message)
+                throw new ApiError(response.status, message)
             }
 
             if (parseAsJson) {
@@ -85,7 +111,11 @@ class ApiService {
                 return await response.text() as T
             }
         } catch (error) {
-            console.error(`API request error for ${endpoint}:`, error)
+            // ApiError was already logged above with the right level; only log
+            // genuine network/unexpected failures here (and keep it gentle).
+            if (!(error instanceof ApiError)) {
+                console.warn(`API request error for ${endpoint}:`, error)
+            }
             throw error
         }
     }
@@ -154,31 +184,6 @@ class ApiService {
     }
 
     /**
-     * Send adventure chat through magic-worlds-api only (SSE streaming).
-     * The browser sends only user/assistant messages; private prompts and
-     * agent graph/provider configuration are owned by the backend.
-     */
-    async sendChatMessage(sessionId: number, messages: ChatMessage[]): Promise<Response> {
-        const token = this.getStoredToken()
-        const url = `${this.baseUrl}/adventure-sessions/${sessionId}/chat`
-        const chatMessages = messages
-            .filter((message) => message.role === 'user' || message.role === 'assistant')
-            .map((message) => ({
-                role: message.role,
-                content: message.content,
-            }))
-
-        return fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify({ messages: chatMessages })
-        })
-    }
-
-    /**
      * Get the stored token from localStorage
      */
     private getStoredToken(): string {
@@ -187,6 +192,17 @@ class ApiService {
             return ''
         }
         return token.replace(/"/g, '') // Remove quotes from token
+    }
+
+    /**
+     * Fetch the current user's profile (`GET /user/me`): identity, role, usage
+     * quota, and per-type counts of authored cards. Read-only on this API.
+     */
+    async getUserProfile(): Promise<UserProfile> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<UserProfile>('/user/me', token, {
+            method: 'GET',
+        })
     }
 
     /**
@@ -471,3 +487,6 @@ class ApiService {
 
 export const apiService = new ApiService()
 export type { ApiService }
+
+export { AdventureChatSocket } from './chatSocket'
+export type { ChatSocketStatus, ChatSocketHandlers } from './chatSocket'

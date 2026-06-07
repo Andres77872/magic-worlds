@@ -7,7 +7,7 @@ import { Code2, Compass, Flame, Globe, LogIn, LogOut, Swords, Users } from 'luci
 import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
 import { useNavigation, useAuth } from '../../app/hooks'
-import { Avatar, Icon, IconButton } from '../primitives'
+import { Avatar, Icon, IconButton, cx } from '../primitives'
 
 interface RailItem {
     page: PageType
@@ -78,9 +78,19 @@ export function Sidebar() {
 
                 {isAuthenticated ? (
                     <>
-                        <span title={user?.username ?? 'Account'} className="mt-0.5">
+                        <button
+                            onClick={() => setPage('profile')}
+                            aria-label="Your profile"
+                            aria-current={currentPage === 'profile' ? 'page' : undefined}
+                            title={user?.username ?? 'Your profile'}
+                            className={cx(
+                                'mt-0.5 inline-flex items-center justify-center rounded-full transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500',
+                                currentPage === 'profile' &&
+                                    'ring-2 ring-ember-400 ring-offset-2 ring-offset-ink-900',
+                            )}
+                        >
                             <Avatar name={user?.username || 'You'} size={36} ring="ember" />
-                        </span>
+                        </button>
                         <IconButton
                             label={user?.username ? `Log out ${user.username}` : 'Log out'}
                             tone="danger"

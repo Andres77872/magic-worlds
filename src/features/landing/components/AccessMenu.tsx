@@ -7,7 +7,7 @@
 
 import type { KeyboardEvent } from 'react'
 import { ArrowRight } from 'lucide-react'
-import { Button, Card, Eyebrow, Icon, SectionHeader, cx } from '@/ui/primitives'
+import { Button, Card, Eyebrow, Icon, IconTile, SectionHeader } from '@/ui/primitives'
 import { CREATE_ACTIONS, type CreateAction } from './landingContent'
 
 export interface AccessMenuProps {
@@ -54,7 +54,7 @@ export function AccessMenu({
     }
 
     return (
-        <section className="w-full px-5 py-12 sm:px-8 sm:py-16">
+        <section className="w-full px-5 pb-12 pt-10 sm:px-8 sm:pb-16 sm:pt-12">
             <div className="mx-auto max-w-[1160px]">
                 <div className="flex flex-col gap-2">
                     <Eyebrow tone="ember">{eyebrow}</Eyebrow>
@@ -72,16 +72,7 @@ export function AccessMenu({
                             onKeyDown={activateOnKey(() => onAction(action.key))}
                             className="group p-7"
                         >
-                            <div
-                                className={cx(
-                                    'mb-5 flex h-[52px] w-[52px] items-center justify-center rounded-md transition-all',
-                                    action.tone === 'arcane'
-                                        ? 'bg-arcane-500/15 text-arcane-400 group-hover:shadow-glow-arcane'
-                                        : 'bg-ember-500/[.12] text-ember-400 group-hover:shadow-glow-ember',
-                                )}
-                            >
-                                <Icon icon={action.icon} size={24} />
-                            </div>
+                            <IconTile icon={action.icon} tone={action.tone} glow className="mb-5" />
                             <h3 className="font-ui text-[19px] font-semibold tracking-[-0.01em] text-parchment-50">
                                 {action.title}
                             </h3>

@@ -10,6 +10,7 @@ import { CharacterCreator } from '../../features/creation/character/components/C
 import { WorldCreator } from '../../features/creation/world/components/WorldCreator'
 import { AdventureCreator } from '../../features/creation/adventure/components/AdventureCreator'
 import { AdventureInteraction } from '../../features/interaction/components/AdventureInteraction'
+import { ProfilePage } from '../../features/profile'
 import { LoadingSpinner } from '../../ui/components/LoadingSpinner'
 
 export function AppRouter() {
@@ -21,10 +22,11 @@ export function AppRouter() {
         return <LoadingSpinner />
     }
 
-    // Log data loading errors to console for debugging but do NOT block the UI
-    // The landing page handles empty/missing data gracefully
+    // Data loading errors are non-blocking — the landing page handles empty/
+    // missing data gracefully, and DataProvider already logged the underlying
+    // error at the appropriate level. Keep this a quiet, non-alarming note.
     if (loadingState.error) {
-        console.error('[AppRouter] Data loading error (non-blocking):', loadingState.error)
+        console.warn('[AppRouter] Data loading error (non-blocking):', loadingState.error)
     }
 
     return (
@@ -36,6 +38,7 @@ export function AppRouter() {
                 {currentPage === 'world' && <WorldCreator />}
                 {currentPage === 'adventure' && <AdventureCreator />}
                 {currentPage === 'interaction' && <AdventureInteraction />}
+                {currentPage === 'profile' && <ProfilePage />}
             </main>
 
             {/* Global Login Modal */}

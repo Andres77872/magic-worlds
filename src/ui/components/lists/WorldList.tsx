@@ -12,6 +12,8 @@ interface WorldListProps {
     onDelete: (index: number) => Promise<void> | void
     onEdit: (w: World) => void
     loading?: boolean
+    /** `grid` (default) for full pages; `rail` for dashboard shelves. */
+    layout?: 'grid' | 'rail'
 }
 
 export function WorldList({
@@ -19,6 +21,7 @@ export function WorldList({
                               onDelete,
                               onEdit,
                               loading = false,
+                              layout = 'grid',
                           }: WorldListProps) {
     const [pending, setPending] = useState<{ idx: number; name: string } | null>(null)
     const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -40,6 +43,7 @@ export function WorldList({
         <div className="flex flex-col gap-4 py-4">
             <CardGrid
                 items={worlds}
+                layout={layout}
                 loading={loading}
                 emptyMessage={
                     <EmptyState
@@ -87,7 +91,7 @@ export function WorldList({
                                     {world.type && <Tag>{world.type}</Tag>}
                                 </div>
                             }
-                            actions={options}
+                            options={options}
                             onClick={() => onEdit(world)}
                             className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >

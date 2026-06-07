@@ -1,0 +1,19 @@
+<svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Reverie mark">
+  <defs>
+    <linearGradient id="ember" x1="36" y1="20" x2="36" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6CC8C"></stop>
+      <stop offset="1" stop-color="#E8A24A"></stop>
+    </linearGradient>
+    <mask id="crescent">
+      <rect width="72" height="72" fill="black"></rect>
+      <circle cx="36" cy="36" r="27" fill="white"></circle>
+      <circle cx="46" cy="31" r="24" fill="black"></circle>
+    </mask>
+  </defs>
+  
+  <circle cx="36" cy="36" r="27" fill="#8F6FE3" opacity="0.16" mask="url(#crescent)"></circle>
+  <circle cx="36" cy="36" r="27" stroke="#C3B0F2" stroke-width="2" mask="url(#crescent)"></circle>
+  
+  <path d="M40 28c0 0 7 6 7 13a7 7 0 1 1-14 0c0-3 2-5 2-7 0 2 1 3 2.5 3 1.7 0 2.5-1.6 2.5-3.6 0-2.2-1-4-2-5.4z" fill="url(#ember)"></path>
+  <circle cx="40" cy="44" r="2.4" fill="#1A1206" opacity="0.25"></circle>
+</svg>

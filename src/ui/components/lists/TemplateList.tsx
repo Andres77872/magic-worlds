@@ -104,7 +104,7 @@ export function TemplateList({
                                     {template.world?.name && <Tag>{template.world.name}</Tag>}
                                 </div>
                             }
-                            actions={options}
+                            options={options}
                             onClick={() => onEdit(template)}
                             className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >

@@ -5,7 +5,7 @@
  */
 
 import { Feather, Flame } from 'lucide-react'
-import { Button, Icon } from '@/ui/primitives'
+import { Button, GlowBackdrop, Icon, IconTile } from '@/ui/primitives'
 import { CLOSING_COPY, GITHUB_URL } from './landingContent'
 
 export interface ClosingCTAProps {
@@ -15,19 +15,10 @@ export interface ClosingCTAProps {
 
 export function ClosingCTA({ onAction, actionLabel = CLOSING_COPY.action }: ClosingCTAProps) {
     return (
-        <section className="relative w-full overflow-hidden px-5 py-20 text-center sm:px-8 sm:py-[104px]">
-            <div
-                aria-hidden
-                className="pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[760px] max-w-full -translate-x-1/2 -translate-y-1/2"
-                style={{
-                    background:
-                        'radial-gradient(circle, rgba(232,162,74,.18), rgba(143,111,227,.10) 45%, transparent 68%)',
-                }}
-            />
+        <section className="relative w-full px-5 py-20 text-center sm:px-8 sm:py-24">
+            <GlowBackdrop variant="center" />
             <div className="relative mx-auto max-w-[680px]">
-                <span className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-ember-500/15 text-ember-400">
-                    <Icon icon={Flame} size={28} />
-                </span>
+                <IconTile icon={Flame} tone="ember" size="lg" className="mb-6" />
                 <h2 className="mb-[18px] font-display text-[clamp(40px,5.5vw,68px)] font-semibold leading-[1.02] text-parchment-50">
                     {CLOSING_COPY.title}
                 </h2>

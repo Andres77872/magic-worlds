@@ -14,7 +14,7 @@
 
 import type { ReactNode } from 'react'
 import { ArrowLeft } from 'lucide-react'
-import { Button, Eyebrow, Icon, cx } from '@/ui/primitives'
+import { Button, Icon, PageHeader, cx } from '@/ui/primitives'
 
 export interface CreatorStudioProps {
     eyebrow?: string
@@ -51,21 +51,21 @@ export function CreatorStudio({
                 isLoading && 'pointer-events-none opacity-70',
             )}
         >
-            <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-parchment-50/10 pb-5">
-                <div className="flex flex-col gap-1">
-                    <Eyebrow tone="ember">{eyebrow}</Eyebrow>
-                    <h2 className="m-0 flex items-center gap-2.5 font-display text-2xl font-bold tracking-tight max-sm:text-xl">
-                        {icon && <span className="text-2xl leading-none max-sm:text-xl">{icon}</span>}
-                        <span>{title}</span>
-                    </h2>
-                </div>
-                <div className="flex items-center gap-3 max-sm:w-full max-sm:justify-end">
-                    <Button kind="ghost" onClick={onBack} iconLeft={<Icon icon={ArrowLeft} size={16} />}>
-                        Back
-                    </Button>
-                    {headerActions}
-                </div>
-            </header>
+            <PageHeader
+                className="mb-6"
+                eyebrow={eyebrow}
+                title={title}
+                icon={icon ? <span className="text-[28px] leading-none max-sm:text-2xl">{icon}</span> : undefined}
+                divider
+                actions={
+                    <>
+                        <Button kind="ghost" onClick={onBack} iconLeft={<Icon icon={ArrowLeft} size={16} />}>
+                            Back
+                        </Button>
+                        {headerActions}
+                    </>
+                }
+            />
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-8">
                 <div className="order-last min-w-0 lg:order-none">

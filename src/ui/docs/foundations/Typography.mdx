@@ -1,0 +1,30 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import { FontFamilies, TypeScale } from '../Swatch'
+
+<Meta title="Design System/Foundations/Typography" />
+
+# Typography
+
+The signature move: **serif for story, sans for system.** Three serif/sans
+families each have one job — never set roleplay prose in the UI sans, and never
+set buttons in the serif.
+
+## Families
+
+<FontFamilies />
+
+- **Cormorant Garamond** (`font-display`) — theatrical display & character names. High-contrast, dramatic, set large.
+- **Spectral** (`font-narrative`) — the narrative itself (roleplay prose). A screen-tuned literary serif; narration in italics, dialogue in roman.
+- **Hanken Grotesk** (`font-ui`) — all UI chrome (buttons, labels, nav, fields). Neutral, legible, gets out of the way.
+- **Space Mono** (`font-mono`) — meta only: timestamps, turn counters, small labels.
+
+## Scale
+
+Sizes are defined as `--text-*` tokens (with paired line-height / letter-spacing)
+and exposed as Tailwind `text-*` utilities. Each row renders at its real token
+size and intended family.
+
+<TypeScale />
+
+> Reverie is a reading product: narrative line-length is capped (~62ch) and
+> vertical rhythm is generous. Chrome stays compact; content stays roomy.

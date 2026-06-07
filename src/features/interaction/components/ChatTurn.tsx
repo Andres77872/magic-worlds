@@ -1,29 +1,22 @@
 import { useState } from 'react'
-import type { TurnEntry } from '../../../shared'
+import type { ForwardOption, TurnEntry } from '../../../shared'
 import { cx, Eyebrow } from '../../../ui/primitives'
 import { ChatAvatar } from './ChatAvatar'
 import { ChatMessage } from './ChatMessage'
 import { ChatActions } from './ChatActions'
 import { ForwardOptions } from './ForwardOptions'
 import { EditMode } from './EditMode'
-import { ChatImage } from './ChatImage'
 
-// Forward option interface
-interface ForwardOption {
-    forward_question: string
-}
-
-// Extend TurnEntry to include forward options
+// Extend TurnEntry to include forward options and the (out-of-scope) image prompt
 interface ExtendedTurnEntry extends TurnEntry {
     forwardOptions?: ForwardOption[]
     isStreaming?: boolean
-    isStreamingForwardOptions?: boolean
-    imageUrl?: string  // Add image URL field
+    imagePrompt?: string  // Text prompt for a future image-generation step (not rendered)
 }
 
 interface ChatTurnProps {
     turn: ExtendedTurnEntry
-    onForwardOptionClick: (option: string) => void
+    onForwardOptionClick: (message: string) => void
     onRegenerateClick?: (turnId: string) => void
     onDeleteClick?: (turnId: string) => void
     onEditClick?: (turnId: string, newContent: string) => void
@@ -79,9 +72,6 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                 <div className="w-full">
                     {isUser ? (
                         <div className="flex flex-col items-end">
-                            {turn.imageUrl && (
-                                <ChatImage imageUrl={turn.imageUrl} isAssistant={false} alt="Generated scene" />
-                            )}
                             {isEditing ? (
                                 <EditMode
                                     initialContent={turn.content}
@@ -103,12 +93,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                     onCancel={handleEditCancel}
                                 />
                             ) : (
-                                <div className="flex flex-col gap-3">
-                                    <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} />
-                                    {turn.imageUrl && (
-                                        <ChatImage imageUrl={turn.imageUrl} isAssistant={true} alt="Generated scene" />
-                                    )}
-                                </div>
+                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} />
                             )}
                         </>
                     )}
@@ -116,7 +101,6 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
 
                 <ForwardOptions
                     options={turn.forwardOptions}
-                    isStreaming={turn.isStreamingForwardOptions}
                     onOptionClick={onForwardOptionClick}
                 />
             </div>

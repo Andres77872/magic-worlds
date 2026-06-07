@@ -9,7 +9,7 @@
 
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { SectionHeader } from '@/ui/primitives'
+import { IconTile } from '@/ui/primitives'
 
 export interface StudioSectionProps {
     /** Anchor id — referenced by StudioSectionNav items. */
@@ -23,15 +23,29 @@ export interface StudioSectionProps {
     children: ReactNode
 }
 
+/**
+ * A section reads as a distinct "chapter": a header band (tinted IconTile +
+ * display title + description + optional action) separated by a hairline from
+ * the body, rather than a flat box of fields. The faint top wash adds candlelit
+ * depth so a stack of sections no longer looks like a plain monochrome form.
+ */
 export function StudioSection({ id, icon, tone = 'ember', title, description, right, children }: StudioSectionProps) {
     return (
         <section
             id={id}
-            className="scroll-mt-20 rounded-xl border border-parchment-50/10 bg-ink-800 p-6 shadow-sm max-sm:p-5"
+            className="scroll-mt-20 overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-800 shadow-sm"
         >
-            <SectionHeader icon={icon} tone={tone} title={title} right={right} />
-            {description && <p className="mt-1.5 font-narrative text-sm leading-snug text-parchment-400">{description}</p>}
-            <div className="mt-5 flex flex-col gap-6">{children}</div>
+            <div className="flex items-start gap-4 border-b border-parchment-50/[.07] bg-gradient-to-b from-parchment-50/[.025] to-transparent p-6 max-sm:p-5">
+                {icon && <IconTile icon={icon} tone={tone} size="sm" />}
+                <div className="min-w-0 flex-1">
+                    <h3 className="font-display text-[20px] font-semibold leading-tight text-parchment-50">{title}</h3>
+                    {description && (
+                        <p className="mt-1 font-narrative text-sm leading-snug text-parchment-400">{description}</p>
+                    )}
+                </div>
+                {right && <div className="shrink-0">{right}</div>}
+            </div>
+            <div className="flex flex-col gap-6 p-6 max-sm:p-5">{children}</div>
         </section>
     )
 }

@@ -9,3 +9,8 @@
 # If a future dependency needs its install/build script to run, allow it here:
 #   allowBuilds:
 #     <package-name>: true
+
+allowBuilds:
+  # Storybook 10's bundling stack pulls in esbuild, whose install script links
+  # the prebuilt platform binary. Allowed so `storybook dev`/`build` work.
+  esbuild: true

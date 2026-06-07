@@ -1,30 +1,37 @@
 import {useEffect, useRef, useState} from 'react'
-import type {Adventure, TurnEntry} from '../../../shared'
+import type {Adventure, ChatMessage, ForwardOption, TurnEntry} from '../../../shared'
 import {apiService} from '../../../infrastructure/api'
 import {useAuth} from '../../../app/hooks'
-import {Loader2, Send, Sparkles} from 'lucide-react'
+import {Loader2, Send, Sparkles, Square} from 'lucide-react'
 import {Button, controlClass, cx} from '../../../ui/primitives'
-import {parseForwardOptions, extractForwardOptions} from '../utils/jsonFixer'
 import {ChatTurn} from './ChatTurn'
 import {generateUUID} from '../../../utils/uuid'
+import {useAdventureChatSocket} from '../hooks/useAdventureChatSocket'
 
-// Forward option interface
-interface ForwardOption {
-    forward_question: string
-}
-
-// Extend TurnEntry to include forward options
+// Extend TurnEntry to include forward options and the (out-of-scope) image prompt
 interface ExtendedTurnEntry extends TurnEntry {
     forwardOptions?: ForwardOption[]
     isStreaming?: boolean
-    isStreamingForwardOptions?: boolean
-    imageUrl?: string  // Add image URL field
+    imagePrompt?: string  // Text prompt for a future image-generation step (not rendered)
+}
+
+// Remove completed <think>...</think> reasoning blocks (and an unterminated
+// trailing one) from the displayed narrative.
+function stripThink(text: string): string {
+    return text.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<think>[\s\S]*$/, '')
 }
 
 interface InteractionCenterPanelProps {
     adventure: Adventure
     turns: TurnEntry[]
     setTurns: (turns: TurnEntry[]) => void
+}
+
+// Snapshot of an AI turn used to restore it if a regeneration fails.
+interface TurnRestore {
+    content: string
+    forwardOptions?: ForwardOption[]
+    imagePrompt?: string
 }
 
 export function InteractionCenterPanel({adventure, turns, setTurns}: InteractionCenterPanelProps) {
@@ -34,18 +41,104 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
     const [error, setError] = useState<string | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
+    const sessionId = Number(adventure.id)
+
+    // Refs let the long-lived socket callbacks read the latest turns and target
+    // the in-flight AI turn without being recreated every render.
+    const turnsRef = useRef<TurnEntry[]>(turns)
+    const streamingIdRef = useRef<string | null>(null)
+    const rawResponseRef = useRef('')
+    const restoreRef = useRef<TurnRestore | null>(null)
+
+    // Keep the ref in sync with externally-driven turn changes (parent loads,
+    // edits, deletes). Event handlers also set it inline before streaming so the
+    // socket callbacks never read a stale list.
+    useEffect(() => {
+        turnsRef.current = turns
+    }, [turns])
+
     // Helper function to save turns via adventure sessions API
     const saveTurnsToApi = async (adventureId: string, turnsToSave: TurnEntry[]) => {
         try {
-            const sessionId = Number(adventureId)
-            if (!isNaN(sessionId)) {
+            const id = Number(adventureId)
+            if (!isNaN(id)) {
                 const turnState = JSON.stringify({ turns: turnsToSave })
-                await apiService.updateAdventureSession(sessionId, turnState)
+                await apiService.updateAdventureSession(id, turnState)
             }
         } catch (err) {
             console.error('Failed to save turns to API:', err)
         }
     }
+
+    // Apply a mutation to the AI turn currently being streamed.
+    const updateStreamingTurn = (mutate: (turn: ExtendedTurnEntry) => ExtendedTurnEntry) => {
+        const id = streamingIdRef.current
+        if (!id) return
+        const next = turnsRef.current.map((t) => (t.id === id ? mutate(t as ExtendedTurnEntry) : t))
+        turnsRef.current = next
+        setTurns(next)
+    }
+
+    // The conversation + all turn metadata stream over one per-session WebSocket.
+    // Gate the connection behind auth (and a valid session id).
+    const { sendChat, cancel } = useAdventureChatSocket(
+        isAuthenticated && !Number.isNaN(sessionId) ? sessionId : null,
+        {
+            onDelta: (content) => {
+                rawResponseRef.current += content
+                const assistant = stripThink(rawResponseRef.current)
+                updateStreamingTurn((t) => ({ ...t, content: assistant }))
+            },
+            onMetadata: ({ forwardOptions, imagePrompt }) => {
+                updateStreamingTurn((t) => ({ ...t, forwardOptions, imagePrompt }))
+            },
+            onDone: () => {
+                const id = streamingIdRef.current
+                const next = turnsRef.current.map((t) =>
+                    t.id === id ? { ...(t as ExtendedTurnEntry), isStreaming: false } : t
+                )
+                turnsRef.current = next
+                setTurns(next)
+                streamingIdRef.current = null
+                rawResponseRef.current = ''
+                restoreRef.current = null
+                setIsLoading(false)
+                saveTurnsToApi(adventure.id, next).catch((err) =>
+                    console.error('Failed to save turns:', err)
+                )
+            },
+            onError: (message) => {
+                const id = streamingIdRef.current
+                const restore = restoreRef.current
+                const next = turnsRef.current.map((t) => {
+                    if (t.id !== id) return t
+                    const entry = t as ExtendedTurnEntry
+                    // Restore the previous answer on a failed regeneration; otherwise
+                    // leave the AI turn empty so the regenerate affordance stays visible.
+                    if (restore && restore.content) {
+                        return {
+                            ...entry,
+                            isStreaming: false,
+                            content: restore.content,
+                            forwardOptions: restore.forwardOptions,
+                            imagePrompt: restore.imagePrompt,
+                        }
+                    }
+                    return { ...entry, isStreaming: false, content: '' }
+                })
+                turnsRef.current = next
+                setTurns(next)
+                streamingIdRef.current = null
+                rawResponseRef.current = ''
+                restoreRef.current = null
+                setIsLoading(false)
+                setError(message || 'Failed to generate response. Please try again.')
+                saveTurnsToApi(adventure.id, next).catch((err) =>
+                    console.error('Failed to save failed turns:', err)
+                )
+            },
+        }
+    )
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({behavior: 'smooth', block: 'end'})
@@ -61,18 +154,61 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
     const handleReset = () => {
         if (window.confirm('Are you sure you want to reset this adventure? This will clear all conversation history.')) {
             setTurns([])
+            turnsRef.current = []
             setError(null)
             saveTurnsToApi(adventure.id, [])
         }
     }
 
-    const handleForwardOptionClick = (option: string) => {
-        setInput(option)
+    const handleForwardOptionClick = (message: string) => {
+        setInput(message)
     }
 
-    const handleRegenerateResponse = async (turnId: string) => {
-        // Find the turn to regenerate
-        const turnIndex = turns.findIndex(turn => turn.id === turnId)
+    // Put the targeted AI turn into a clean streaming state and request a
+    // generation over the socket. `history` is everything before that AI turn.
+    const startGeneration = (history: TurnEntry[], aiTurn: ExtendedTurnEntry, restore?: TurnRestore) => {
+        if (Number.isNaN(sessionId)) {
+            setError('Invalid adventure session ID')
+            setIsLoading(false)
+            return
+        }
+
+        streamingIdRef.current = aiTurn.id
+        rawResponseRef.current = ''
+        restoreRef.current = restore ?? null
+
+        const streamingTurns = turnsRef.current.map((t) =>
+            t.id === aiTurn.id
+                ? {
+                    ...(t as ExtendedTurnEntry),
+                    isStreaming: true,
+                    content: '',
+                    forwardOptions: undefined,
+                    imagePrompt: undefined,
+                }
+                : t
+        )
+        turnsRef.current = streamingTurns
+        setTurns(streamingTurns)
+
+        // Send only user/assistant history. Private GM/system prompt construction
+        // and provider config are owned server-side by magic-worlds-api.
+        const messages: ChatMessage[] = history
+            .filter((t) => t.type === 'user' || t.type === 'ai')
+            .map((t) => ({
+                role: t.type === 'user' ? ('user' as const) : ('assistant' as const),
+                content: t.content,
+            }))
+        sendChat(messages)
+    }
+
+    const handleRegenerateResponse = (turnId: string) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            return
+        }
+
+        const turnIndex = turns.findIndex((turn) => turn.id === turnId)
         if (turnIndex === -1) return
 
         // Find the last user message before this AI response
@@ -80,67 +216,31 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         while (userMessageIndex >= 0 && turns[userMessageIndex].type !== 'user') {
             userMessageIndex--
         }
-        
         if (userMessageIndex < 0) return // No user message found
 
-        const userMessage = turns[userMessageIndex].content
         const existingAiTurn = turns[turnIndex] as ExtendedTurnEntry
-        
-        // Store the original content in case we need to restore it on error
-        const originalContent = existingAiTurn.content
-        const originalForwardOptions = existingAiTurn.forwardOptions
-        const originalImageUrl = existingAiTurn.imageUrl
-        
-        // Remove any subsequent turns but keep the AI turn we're regenerating
+        const restore: TurnRestore = {
+            content: existingAiTurn.content,
+            forwardOptions: existingAiTurn.forwardOptions,
+            imagePrompt: existingAiTurn.imagePrompt,
+        }
+
+        // Drop any subsequent turns but keep (and reset) the AI turn we regenerate.
         const truncatedTurns = turns.slice(0, turnIndex + 1)
-        
-        // Reset the AI turn content and set it to streaming
         const resetAiTurn: ExtendedTurnEntry = {
             ...existingAiTurn,
             content: '',
             isStreaming: true,
             forwardOptions: undefined,
-            isStreamingForwardOptions: false,
-            imageUrl: undefined  // Clear the image URL for regeneration
+            imagePrompt: undefined,
         }
-        
         const updatedTurns = [...truncatedTurns.slice(0, -1), resetAiTurn]
+        turnsRef.current = updatedTurns
         setTurns(updatedTurns)
         setIsLoading(true)
         setError(null)
-
-        try {
-            // Save updated turns
-            await saveTurnsToApi(adventure.id, updatedTurns)
-
-            // Regenerate the response using the existing turn
-            await processUserMessage(userMessage, updatedTurns.slice(0, -1), resetAiTurn)
-        } catch (error) {
-            console.error('Failed to regenerate response:', error)
-            setError('Failed to regenerate response. Please try again.')
-            setIsLoading(false)
-            
-            // Reset streaming states on the AI turn when regeneration fails
-            // If there was original content, restore it; otherwise keep it empty for regeneration
-            const failedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
-                t.id === resetAiTurn.id
-                    ? {
-                        ...t,
-                        isStreaming: false,
-                        isStreamingForwardOptions: false,
-                        content: originalContent || '', // Restore original content if it existed
-                        forwardOptions: originalContent ? originalForwardOptions : undefined, // Restore forward options if content existed
-                        imageUrl: originalContent ? originalImageUrl : undefined // Restore image URL if content existed
-                    }
-                    : t
-            )
-            setTurns(failedTurns)
-            
-            // Save the failed state to storage
-            saveTurnsToApi(adventure.id, failedTurns).catch(err =>
-                console.error('Failed to save failed turns:', err)
-            )
-        }
+        saveTurnsToApi(adventure.id, updatedTurns)
+        startGeneration(updatedTurns.slice(0, -1), resetAiTurn, restore)
     }
 
     const handleDeleteTurn = async (turnId: string) => {
@@ -149,10 +249,9 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         }
 
         try {
-            const updatedTurns = turns.filter(turn => turn.id !== turnId)
+            const updatedTurns = turns.filter((turn) => turn.id !== turnId)
             setTurns(updatedTurns)
-            
-            // Save the updated turns to storage
+            turnsRef.current = updatedTurns
             await saveTurnsToApi(adventure.id, updatedTurns)
         } catch (error) {
             console.error('Failed to delete turn:', error)
@@ -162,14 +261,13 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
 
     const handleEditTurn = async (turnId: string, newContent: string) => {
         try {
-            const updatedTurns = turns.map(turn => 
-                turn.id === turnId 
+            const updatedTurns = turns.map((turn) =>
+                turn.id === turnId
                     ? { ...turn, content: newContent, timestamp: new Date().toISOString() }
                     : turn
             )
             setTurns(updatedTurns)
-            
-            // Save the updated turns to storage
+            turnsRef.current = updatedTurns
             await saveTurnsToApi(adventure.id, updatedTurns)
         } catch (error) {
             console.error('Failed to edit turn:', error)
@@ -177,13 +275,13 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         }
     }
 
-    const handleGenerateResponse = async () => {
+    const handleGenerateResponse = () => {
         if (!canGenerateResponse) return
+        if (!isAuthenticated) {
+            openLoginModal()
+            return
+        }
 
-        const lastUserTurn = turns[turns.length - 1]
-        const userMessage = lastUserTurn.content
-
-        // Create new AI turn
         const aiTurn: ExtendedTurnEntry = {
             id: generateUUID(),
             type: 'ai',
@@ -191,372 +289,64 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             timestamp: new Date().toISOString(),
             isStreaming: false,
             forwardOptions: undefined,
-            isStreamingForwardOptions: false
         }
-
         const newTurns = [...turns, aiTurn]
+        turnsRef.current = newTurns
         setTurns(newTurns)
         setIsLoading(true)
         setError(null)
-
-        try {
-            // Save turns with empty AI turn
-            await saveTurnsToApi(adventure.id, newTurns)
-
-            // Process the message with LLM API using the last user message
-            await processUserMessage(userMessage, newTurns.slice(0, -1), aiTurn)
-        } catch (error) {
-            console.error('Failed to generate response:', error)
-            setError('Failed to generate response. Please try again.')
-            setIsLoading(false)
-            
-            // Reset streaming states on the AI turn when processing fails
-            const failedTurns = newTurns.map((t: ExtendedTurnEntry) =>
-                t.id === aiTurn.id
-                    ? {
-                        ...t,
-                        isStreaming: false,
-                        isStreamingForwardOptions: false,
-                        content: '' // Keep content empty so regeneration button stays visible
-                    }
-                    : t
-            )
-            setTurns(failedTurns)
-            
-            // Save the failed state to storage
-            saveTurnsToApi(adventure.id, failedTurns).catch(err =>
-                console.error('Failed to save failed turns:', err)
-            )
-        }
+        saveTurnsToApi(adventure.id, newTurns)
+        startGeneration(newTurns.slice(0, -1), aiTurn)
     }
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         if (!input.trim() || isLoading) return
+        if (!isAuthenticated) {
+            openLoginModal()
+            return
+        }
 
         const userInput = input.trim()
-
         const userTurn: TurnEntry = {
             id: generateUUID(),
             type: 'user',
             content: userInput,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
         }
 
-        // Check if the last turn is an empty AI turn from a previous error
+        // Reuse a trailing empty AI turn left over from a previous error.
         const lastTurn = turns[turns.length - 1] as ExtendedTurnEntry
         const hasEmptyAiTurn = lastTurn && lastTurn.type === 'ai' && lastTurn.content === ''
 
         let newTurns: TurnEntry[]
-        let existingAiTurn: ExtendedTurnEntry | undefined
-
+        let aiTurn: ExtendedTurnEntry
         if (hasEmptyAiTurn) {
-            // Reuse the existing empty AI turn
             newTurns = [...turns.slice(0, -1), userTurn, lastTurn]
-            existingAiTurn = lastTurn
+            aiTurn = lastTurn
         } else {
-            // Create new AI turn
-            const aiTurn: ExtendedTurnEntry = {
+            aiTurn = {
                 id: generateUUID(),
                 type: 'ai',
                 content: '',
                 timestamp: new Date().toISOString(),
                 isStreaming: false,
                 forwardOptions: undefined,
-                isStreamingForwardOptions: false
             }
             newTurns = [...turns, userTurn, aiTurn]
-            existingAiTurn = aiTurn
         }
 
+        turnsRef.current = newTurns
         setTurns(newTurns)
         setInput('')
         setIsLoading(true)
         setError(null)
-
-        try {
-            // Save turns with empty AI turn
-            await saveTurnsToApi(adventure.id, newTurns)
-
-            // Process the message with LLM API
-            await processUserMessage(userInput, newTurns.slice(0, -1), existingAiTurn)
-        } catch (error) {
-            console.error('Failed to process message:', error)
-            setError('Failed to process your message. Please try again.')
-            setIsLoading(false)
-            
-            // Reset streaming states on the AI turn when processing fails
-            const failedTurns = newTurns.map((t: ExtendedTurnEntry) =>
-                t.id === existingAiTurn.id
-                    ? {
-                        ...t,
-                        isStreaming: false,
-                        isStreamingForwardOptions: false,
-                        content: '' // Keep content empty so regeneration button stays visible
-                    }
-                    : t
-            )
-            setTurns(failedTurns)
-            
-            // Save the failed state to storage
-            saveTurnsToApi(adventure.id, failedTurns).catch(err =>
-                console.error('Failed to save failed turns:', err)
-            )
-        }
+        saveTurnsToApi(adventure.id, newTurns)
+        startGeneration(newTurns.slice(0, -1), aiTurn)
     }
 
-    // Process user message and get AI response
-    const processUserMessage = async (_userText: string, currentTurns: TurnEntry[], existingTurn?: ExtendedTurnEntry) => {
-        try {
-            // Format user/assistant history for API. Private GM/system prompt
-            // construction is owned server-side by magic-worlds-api.
-            const history = currentTurns
-                .filter(t => t.type === 'user' || t.type === 'ai')
-                .map(t => ({
-                    role: t.type === 'user' ? 'user' as const : 'assistant' as const,
-                    content: t.content
-                }));
-
-            // Gate behind auth — unauthenticated users cannot use AI chat
-            if (!isAuthenticated) {
-                openLoginModal()
-                throw new Error('Authentication required for AI chat')
-            }
-
-            const sessionId = Number(adventure.id)
-            if (isNaN(sessionId)) {
-                throw new Error('Invalid adventure session ID')
-            }
-
-            const response = await apiService.sendChatMessage(sessionId, history)
-
-            if (!response.ok) {
-                throw new Error(`API request failed with status ${response.status}`)
-            }
-
-            const reader = response.body?.getReader()
-            if (!reader) throw new Error('No response body')
-
-            // Use the existing AI turn that was passed in
-            if (!existingTurn) {
-                throw new Error('No AI turn provided for processing')
-            }
-
-            const aiTurn = existingTurn
-
-            // Set the AI turn to streaming state and add it to the turns
-            const streamingAiTurn: ExtendedTurnEntry = {
-                ...aiTurn,
-                isStreaming: true,
-                content: '',
-                forwardOptions: undefined,
-                isStreamingForwardOptions: false
-            }
-
-            let updatedTurns = [...currentTurns, streamingAiTurn]
-            setTurns(updatedTurns)
-
-            let assistantResponse = ''
-            let forwardOptionsBuffer = ''
-            let isInsideForwardOptions = false
-            let hasClosedForwardOptions = false
-            let thinkBuffer = ''
-            let isInsideThink = false
-            let imageUrl: string | undefined = undefined  // Add variable to store image URL
-
-            // Process the streamed response. Buffer across reads so an SSE frame
-            // split between two network chunks isn't truncated (and silently
-            // dropped) — a line is only parsed once its terminating newline arrives.
-            const decoder = new TextDecoder()
-            let streamBuffer = ''
-            let streamDone = false
-            while (!streamDone) {
-                const {done, value} = await reader.read()
-                if (done) {
-                    streamDone = true
-                    streamBuffer += decoder.decode() // flush any multi-byte remainder
-                } else {
-                    streamBuffer += decoder.decode(value, {stream: true})
-                }
-
-                let lines: string[]
-                if (streamDone) {
-                    // Stream finished — process whatever remains, including a final
-                    // line that has no trailing newline.
-                    lines = streamBuffer.split('\n').filter(line => line.trim() !== '')
-                    streamBuffer = ''
-                } else {
-                    // Keep the last (possibly partial) line buffered for the next read.
-                    const parts = streamBuffer.split('\n')
-                    streamBuffer = parts.pop() ?? ''
-                    lines = parts.filter(line => line.trim() !== '')
-                }
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6)
-                        if (data === '[DONE]') continue
-
-                        try {
-                            const parsed = JSON.parse(data)
-                            
-                            // Extract image URL from extras if present
-                            if (parsed.extras && Array.isArray(parsed.extras) && parsed.extras.length > 0) {
-                                const imageData = parsed.extras[0]
-                                if (imageData.png) {
-                                    imageUrl = imageData.png  // Use PNG version
-                                    // You could also use webp or 512 versions:
-                                    // imageUrl = imageData.webp || imageData['512'] || imageData.png
-                                    
-                                    // Update the AI turn with the image URL immediately
-                                    updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
-                                        t.id === aiTurn.id
-                                            ? {...t, imageUrl}
-                                            : t
-                                    )
-                                    setTurns(updatedTurns)
-                                }
-                            }
-                            
-                            const content = parsed.choices?.[0]?.delta?.content || ''
-                            if (content) {
-                                // Check for special tags (think and forward options)
-                                for (let i = 0; i < content.length; i++) {
-                                    const char = content[i]
-                                    
-                                    if (isInsideThink) {
-                                        thinkBuffer += char
-                                        
-                                        // Check if we've completed the closing think tag
-                                        if (thinkBuffer.includes('</think>')) {
-                                            // Skip all thinking content - don't add it to assistantResponse
-                                            isInsideThink = false
-                                            thinkBuffer = ''
-                                        }
-                                        // Skip processing while inside think tags
-                                        continue
-                                    }
-                                    
-                                    if (isInsideForwardOptions && !hasClosedForwardOptions) {
-                                        forwardOptionsBuffer += char
-                                        
-                                        // Check if we've completed the closing tag
-                                        if (forwardOptionsBuffer.includes('</forward_options>')) {
-                                            hasClosedForwardOptions = true
-                                            
-                                            // Extract the JSON content between the tags
-                                            const match = forwardOptionsBuffer.match(/<forward_options>\s*(.*?)\s*<\/forward_options>/s)
-                                            if (match && match[1]) {
-                                                const forwardOptions = parseForwardOptions(match[1])
-                                                
-                                                if (forwardOptions && forwardOptions.length > 0) {
-                                                    // Update the AI turn with forward options and stop streaming indicator
-                                                    updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
-                                                        t.id === aiTurn.id
-                                                            ? {...t, forwardOptions, isStreamingForwardOptions: false}
-                                                            : t
-                                                    )
-                                                    setTurns(updatedTurns)
-                                                } else {
-                                                    // No valid options parsed, just stop the streaming indicator
-                                                    updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
-                                                        t.id === aiTurn.id
-                                                            ? {...t, isStreamingForwardOptions: false}
-                                                            : t
-                                                    )
-                                                    setTurns(updatedTurns)
-                                                }
-                                            }
-                                            
-                                            // Continue processing remaining content after the tag
-                                            const remainingContent = forwardOptionsBuffer.split('</forward_options>')[1] || ''
-                                            assistantResponse += remainingContent
-                                            isInsideForwardOptions = false
-                                        } else {
-                                            // While streaming forward options, try to parse partial JSON
-                                            // to show options as they become available
-                                            const partialMatch = forwardOptionsBuffer.match(/<forward_options>\s*(.*)/s)
-                                            if (partialMatch && partialMatch[1]) {
-                                                const partialOptions = extractForwardOptions(partialMatch[1])
-                                                if (partialOptions && partialOptions.length > 0) {
-                                                    // Update with partial options while still streaming
-                                                    updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
-                                                        t.id === aiTurn.id
-                                                            ? {...t, forwardOptions: partialOptions, isStreamingForwardOptions: true}
-                                                            : t
-                                                    )
-                                                    setTurns(updatedTurns)
-                                                }
-                                            }
-                                        }
-                                    } else if (!isInsideForwardOptions) {
-                                        // Add character to response buffer
-                                        assistantResponse += char
-                                        
-                                        // Check if we're starting a think tag
-                                        if (assistantResponse.includes('<think>')) {
-                                            isInsideThink = true
-                                            thinkBuffer = '<think>'
-                                            // Remove the think tag from the displayed content
-                                            assistantResponse = assistantResponse.replace('<think>', '')
-                                        }
-                                        
-                                        // Check if we have the start of the forward options tag
-                                        if (assistantResponse.includes('<forward_options>') && !hasClosedForwardOptions) {
-                                            isInsideForwardOptions = true
-                                            forwardOptionsBuffer = '<forward_options>'
-                                            // Remove the tag from the displayed content
-                                            assistantResponse = assistantResponse.replace('<forward_options>', '')
-                                            
-                                            // Show the forward options streaming indicator immediately
-                                            updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
-                                                t.id === aiTurn.id
-                                                    ? {...t, isStreamingForwardOptions: true}
-                                                    : t
-                                            )
-                                            setTurns(updatedTurns)
-                                        }
-                                    } else {
-                                        // After closing tag, just append normally
-                                        assistantResponse += char
-                                    }
-                                }
-
-                                // Update the AI turn with the new content (without forward options tags)
-                                updatedTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
-                                    t.id === aiTurn.id
-                                        ? {...t, content: assistantResponse}
-                                        : t
-                                )
-                                setTurns(updatedTurns)
-                            }
-                        } catch (e) {
-                            console.error('Error parsing chunk:', e)
-                        }
-                    }
-                }
-            }
-
-            // After streaming completes, update the AI turn to final state
-            const finalTurns = updatedTurns.map((t: ExtendedTurnEntry) =>
-                t.id === aiTurn.id
-                    ? {...t, content: assistantResponse, isStreaming: false, isStreamingForwardOptions: false, imageUrl}
-                    : t
-            )
-            
-            setTurns(finalTurns)
-
-            // Save the final turns to storage
-            saveTurnsToApi(adventure.id, finalTurns).catch(err =>
-                console.error('Failed to save turns:', err)
-            )
-
-            setIsLoading(false)
-        } catch (err) {
-            console.error('Error processing message:', err)
-            setIsLoading(false)
-            throw err
-        }
+    const handleStop = () => {
+        cancel()
     }
 
     return (
@@ -640,13 +430,24 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
                         className={cx(controlClass, 'flex-1')}
                         disabled={isLoading}
                     />
-                    <Button
-                        type="submit"
-                        disabled={!input.trim() || isLoading}
-                        iconLeft={isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                    >
-                        {isLoading ? 'Sending…' : 'Send'}
-                    </Button>
+                    {isLoading ? (
+                        <Button
+                            type="button"
+                            kind="secondary"
+                            onClick={handleStop}
+                            iconLeft={<Square size={14} />}
+                        >
+                            Stop
+                        </Button>
+                    ) : (
+                        <Button
+                            type="submit"
+                            disabled={!input.trim()}
+                            iconLeft={<Send size={16} />}
+                        >
+                            Send
+                        </Button>
+                    )}
                     <Button
                         type="button"
                         kind="secondary"

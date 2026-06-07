@@ -5,7 +5,7 @@
 
 import { createContext, useEffect, useState, type ReactNode } from 'react'
 import type { Character, World, Adventure, LoadingState } from '../../shared'
-import { apiService } from '../../infrastructure'
+import { apiService, ApiError } from '../../infrastructure'
 import { parseTurnState } from '../../utils/turnState'
 import { useAuth } from '../hooks'
 
@@ -297,10 +297,15 @@ export function DataProvider({ children }: DataProviderProps) {
             console.log('[DataProvider] State updated successfully')
             setLoadingState({ isLoading: false })
         } catch (error) {
-            console.error('[DataProvider] Error loading data from API:', error)
-            setLoadingState({ 
-                isLoading: false, 
-                error: error instanceof Error ? error.message : 'Failed to load data' 
+            // A transient backend outage (5xx, e.g. auth service briefly down →
+            // 503) is expected and recovers on its own — log it quietly. The UI
+            // stays non-blocking and renders empty states regardless.
+            const isTransient = error instanceof ApiError && error.isTransient
+            const log = isTransient ? console.warn : console.error
+            log('[DataProvider] Error loading data from API:', error)
+            setLoadingState({
+                isLoading: false,
+                error: error instanceof Error ? error.message : 'Failed to load data'
             })
         }
     }

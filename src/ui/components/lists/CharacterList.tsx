@@ -12,6 +12,8 @@ interface CharacterListProps {
     onDelete: (index: number) => Promise<void> | void
     onEdit: (character: Character) => void
     loading?: boolean
+    /** `grid` (default) for full pages; `rail` for dashboard shelves. */
+    layout?: 'grid' | 'rail'
 }
 
 export function CharacterList({
@@ -19,6 +21,7 @@ export function CharacterList({
                                   onDelete,
                                   onEdit,
                                   loading = false,
+                                  layout = 'grid',
                               }: CharacterListProps) {
     const [pending, setPending] = useState<{ idx: number; name: string } | null>(null)
     const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -40,6 +43,7 @@ export function CharacterList({
         <div className="flex flex-col gap-4 py-4">
             <CardGrid
                 items={characters}
+                layout={layout}
                 loading={loading}
                 emptyMessage={
                     <EmptyState
@@ -85,7 +89,7 @@ export function CharacterList({
                                     ? <div className="flex flex-wrap items-center gap-1.5"><Tag>{character.race}</Tag></div>
                                     : undefined
                             }
-                            actions={options}
+                            options={options}
                             onClick={() => onEdit(character)}
                             className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >

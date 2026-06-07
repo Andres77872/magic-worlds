@@ -1,0 +1,17 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import { ShadowScale } from '../Swatch'
+
+<Meta title="Design System/Foundations/Elevation & Shadows" />
+
+# Elevation & Shadows
+
+Two systems combined: soft **dark ambient shadows** (`shadow-sm/md/lg/xl`) for
+lift, plus **candlelight glow** (`shadow-glow-ember`, `shadow-glow-arcane`) for
+focus and "alive" elements. Cards are surface-lighten + a hairline border + a
+soft shadow — *not* heavy material elevation.
+
+<ShadowScale />
+
+- **`shadow-md`** is the default card lift.
+- **`shadow-glow-ember`** rings interactive/active elements in warm candlelight; **`shadow-glow-arcane`** does the same in violet for AI moments.
+- **`shadow-card-hover`** combines elevation + ember glow in a single box-shadow — it's what an interactive `Card` animates to on hover.

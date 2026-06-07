@@ -1,0 +1,80 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import { ChatMessage } from '@/features/interaction/components/ChatMessage'
+import { Stage } from '../Swatch'
+
+<Meta title="Design System/Foundations/Narrative Prose" />
+
+# Narrative Prose
+
+This is the surface where the story actually happens — the `.chat-prose` layer in
+`theme.css`, rendered by `ChatMessage` for every Game Master turn. It is the clearest
+expression of **"serif for story, sans for system":** the UI recedes, and the prose
+glows in Spectral.
+
+Markdown is parsed and re-styled into a small **roleplay vocabulary** so a turn reads
+like a page from a book, not a chat log.
+
+## The roleplay vocabulary
+
+<Stage>
+  <div style={{ maxWidth: 640 }}>
+    <ChatMessage
+      isUser={false}
+      content={`The tavern door groans shut behind you. *Rain drips from your cloak onto the warped floorboards.* A hooded figure in the corner looks up.
+
+"You're late," she says, not unkindly. "Sit. We have little time."
+
+**She's measuring you — every word a test.**`}
+    />
+  </div>
+</Stage>
+
+- **`"Dialogue"`** → quoted text becomes bright `rp-dialogue` (parchment-50) — spoken words stand out.
+- **`*Action*`** → italics become muted `rp-action` (parchment-300) — stage directions recede.
+- **`**Thought**`** → bold becomes arcane-tinted `rp-thought` (arcane-300), wrapped in parentheses — the unspoken.
+- Everything else is narrative body in **Spectral** at a comfortable reading measure.
+
+## Player vs. Game Master
+
+The player's turn is an **ember candlelit bubble** in the UI sans; the Game Master's
+turn is serif prose. The contrast is deliberate — *you* speak in the present, the world
+answers in story.
+
+<Stage>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 640 }}>
+    <div style={{ alignSelf: 'flex-end' }}>
+      <ChatMessage isUser content="I take the seat across from her and keep my hood up." />
+    </div>
+    <ChatMessage
+      isUser={false}
+      content={`She slides a damp envelope across the table. "Read it here. Not on the road."`}
+    />
+  </div>
+</Stage>
+
+## Markdown
+
+Headings mark scene breaks; lists offer choices; blockquotes and inline `code` carry
+emphasis and artifacts. All re-styled to the candlelit theme.
+
+<Stage>
+  <div style={{ maxWidth: 640 }}>
+    <ChatMessage
+      isUser={false}
+      content={`## The Sunken Library
+
+You descend into the \`archive\`. The water is *waist-deep* and cold, and the ink still moves.
+
+> Somewhere below, a page turns on its own.
+
+You could:
+- Light the lantern
+- Follow the ink-trail
+- Turn back while you still can`}
+    />
+  </div>
+</Stage>
+
+> Implementation: `ChatMessage` maps each markdown node to a `.markdown-*` / `.rp-*`
+> class and splits `"quoted"` spans into `rp-dialogue`. The classes live in the
+> `@layer components` block of `src/ui/styles/theme.css`.

@@ -6,8 +6,6 @@ interface CardProps {
     title: React.ReactNode
     subtitle?: React.ReactNode
     children?: React.ReactNode
-    /** @deprecated Use options instead */
-    actions?: CardOption[]
     options?: CardOption[]
     className?: string
     onClick?: () => void
@@ -28,7 +26,6 @@ export function Card({
                          subtitle,
                          children,
                          options,
-                         actions,
                          className = '',
                          onClick,
                          isLoading = false,
@@ -36,7 +33,7 @@ export function Card({
                          highlight = false,
                          'data-testid': testId = 'card',
                      }: CardProps) {
-    const cardOptions = options || actions
+    const cardOptions = options
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
         if (disabled) return

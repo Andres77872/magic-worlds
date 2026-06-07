@@ -13,6 +13,8 @@ interface InProgressListProps {
     onEdit: (a: Adventure) => void
     onPlay?: (a: Adventure) => void
     loading?: boolean
+    /** `grid` (default) for full pages; `rail` for dashboard shelves. */
+    layout?: 'grid' | 'rail'
 }
 
 export function InProgressList({
@@ -21,6 +23,7 @@ export function InProgressList({
                                    onEdit,
                                    onPlay,
                                    loading = false,
+                                   layout = 'grid',
                                }: InProgressListProps) {
     const [pending, setPending] = useState<{ idx: number; name: string } | null>(null)
     const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -41,6 +44,7 @@ export function InProgressList({
         <div className="flex flex-col gap-4 py-4">
             <CardGrid
                 items={adventures}
+                layout={layout}
                 loading={loading}
                 emptyMessage={
                     <EmptyState
@@ -88,7 +92,7 @@ export function InProgressList({
                                     {adventure.world?.name && <Tag>{adventure.world.name}</Tag>}
                                 </div>
                             }
-                            actions={options}
+                            options={options}
                             onClick={() => onPlay ? onPlay(adventure) : onEdit(adventure)}
                             className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >

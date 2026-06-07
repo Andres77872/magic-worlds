@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Globe, ScrollText, Sparkles, Tags, Target, UserCircle, Users } from 'lucide-react'
 import type { Character } from '@/shared'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
-import { apiService } from '@/infrastructure/api'
+import { apiService, ApiError } from '@/infrastructure/api'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
 import { Badge, Button } from '@/ui/primitives'
 import {
@@ -64,6 +64,7 @@ export function AdventureCreator() {
     const [triggers, setTriggers] = useState<string[]>(editingTemplate?.triggers ?? [])
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showErrors, setShowErrors] = useState(false)
+    const [saveError, setSaveError] = useState<string | null>(null)
 
     const attrs = useAttributeCategories({ defaults: DEFAULT_CATEGORIES, entity: editingTemplate })
 
@@ -143,6 +144,7 @@ export function AdventureCreator() {
         if (!scenario.trim()) return
 
         setIsSubmitting(true)
+        setSaveError(null)
         try {
             // Carry each card's own triggers into the embedded snapshot — the chat
             // matcher reads triggers from the template's embedded persona/cast/world,
@@ -188,7 +190,14 @@ export function AdventureCreator() {
             setPage('landing')
         } catch (error) {
             console.error('Failed to save adventure template:', error)
-            alert('Failed to save adventure. Please try again.')
+            // Gentle, non-blocking inline message — the form stays put so the
+            // user can retry. Transient backend outages get reassuring copy.
+            const transient = error instanceof ApiError && error.isTransient
+            setSaveError(
+                transient
+                    ? 'The service is briefly unavailable — please try again in a moment.'
+                    : 'Couldn\'t save your adventure. Please try again.'
+            )
         } finally {
             setIsSubmitting(false)
         }
@@ -356,6 +365,7 @@ export function AdventureCreator() {
                     onCancel={handleBack}
                     submitLabel={editingTemplate ? 'Update Adventure' : 'Create Adventure'}
                     isSubmitting={isSubmitting}
+                    error={saveError}
                 />
             </form>
         </CreatorStudio>
