@@ -3,6 +3,7 @@
  * display-serif header (with close) and footer action bar.
  */
 import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cx } from './cx'
 import { IconButton } from './IconButton'
@@ -39,7 +40,9 @@ export function Modal({
     children,
 }: ModalProps) {
     if (!open) return null
-    return (
+    // Portal to <body> so the fixed overlay escapes any ancestor CSS transform /
+    // backdrop-filter that would otherwise become its containing block.
+    return createPortal(
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-sm"
             onClick={onClose}
@@ -74,6 +77,7 @@ export function Modal({
                     <div className="flex justify-end gap-2 border-t border-parchment-50/10 px-6 py-4">{footer}</div>
                 )}
             </div>
-        </div>
+        </div>,
+        document.body,
     )
 }
