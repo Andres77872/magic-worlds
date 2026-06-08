@@ -59,6 +59,11 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
     const streamingIdRef = useRef<string | null>(null)
     const rawResponseRef = useRef('')
     const restoreRef = useRef<TurnRestore | null>(null)
+    // "Stop" is only armed a frame after loading begins. React 19 commits the Send
+    // click's setIsLoading synchronously, swapping Send → Stop under the cursor, so
+    // without this the same click would land on Stop and cancel the turn it just
+    // started (same class of phantom-click bug as the card-drawer footer).
+    const stopArmedRef = useRef(false)
 
     // Keep the ref in sync with externally-driven turn changes (parent loads,
     // edits, deletes). Event handlers also set it inline before streaming so the
@@ -66,6 +71,17 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
     useEffect(() => {
         turnsRef.current = turns
     }, [turns])
+
+    useEffect(() => {
+        if (!isLoading) {
+            stopArmedRef.current = false
+            return
+        }
+        const id = requestAnimationFrame(() => {
+            stopArmedRef.current = true
+        })
+        return () => cancelAnimationFrame(id)
+    }, [isLoading])
 
     // Helper function to save turns via adventure sessions API
     const saveTurnsToApi = useCallback(async (adventureId: string, turnsToSave: TurnEntry[]) => {
@@ -462,6 +478,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
     }
 
     const handleStop = () => {
+        if (!stopArmedRef.current) return
         cancel()
     }
 
