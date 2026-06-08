@@ -12,9 +12,14 @@
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Globe, ScrollText, Sparkles, Tags, Target, UserCircle, Users } from 'lucide-react'
-import type { Character } from '@/shared'
+import type { Adventure, Character, World } from '@/shared'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService, ApiError } from '@/infrastructure/api'
+import type {
+    AdventureTemplateCardResponse,
+    CharacterCardResponse,
+    WorldCardResponse,
+} from '@/shared/types/aiCard.types'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
 import { Badge, Button } from '@/ui/primitives'
 import {
@@ -26,8 +31,10 @@ import {
     CreatorTextarea,
     AttributeManager,
     AiGeneratePanel,
+    GeneratedDraftNotice,
     TriggersField,
     FormActions,
+    type AiGenerateOptions,
     type StudioNavItem,
 } from '../../common/components'
 import { useAttributeCategories, toCategoryPayload } from '../../common/hooks'
@@ -40,6 +47,65 @@ const DEFAULT_CATEGORIES: AttributeCategory[] = [
 ]
 
 const FORM_ID = 'adventure-form'
+
+/** Map an embedded AI character response into the local Character shape. */
+function toCharacter(c: CharacterCardResponse): Character {
+    return {
+        id: c.id || c.uuid || c.name || '',
+        name: c.name ?? '',
+        race: c.race ?? '',
+        description: c.description ?? '',
+        stats: {},
+        category: c.category ?? undefined,
+        triggers: c.triggers ?? [],
+    }
+}
+
+/** Map an embedded AI world response into the local World shape. */
+function toWorld(w: WorldCardResponse): World {
+    return {
+        id: w.id || w.uuid || w.name || '',
+        name: w.name ?? '',
+        type: w.type ?? '',
+        description: w.description ?? '',
+        details: {},
+        category: w.category ?? undefined,
+        triggers: w.triggers ?? [],
+    }
+}
+
+/** AI-invented scene members, projected for the read-only preview. */
+interface GeneratedScene {
+    persona?: PreviewMember
+    cast: PreviewMember[]
+    world?: { name: string; type: string }
+}
+
+/** Project an AI adventure response into preview members (by name — no library ids). */
+function sceneFromResponse(card: AdventureTemplateCardResponse): GeneratedScene {
+    const member = (c: CharacterCardResponse): PreviewMember => ({ id: c.id || c.uuid || c.name || '', name: c.name ?? '' })
+    const w = card.world?.[0]
+    return {
+        persona: card.persona ? member(card.persona) : undefined,
+        cast: (card.characters ?? []).map(member),
+        world: w ? { name: w.name ?? '', type: w.type ?? '' } : undefined,
+    }
+}
+
+/** Map the AI/persisted adventure-template response into the local edit shape. */
+function toTemplate(card: AdventureTemplateCardResponse): Adventure {
+    return {
+        id: card.id || card.uuid || '',
+        scenario: card.description ?? '',
+        persona: card.persona ? toCharacter(card.persona) : undefined,
+        characters: (card.characters ?? []).map(toCharacter),
+        world: card.world?.[0] ? toWorld(card.world[0]) : undefined,
+        objectives: {},
+        notes: {},
+        category: card.category ?? undefined,
+        triggers: card.triggers ?? [],
+    }
+}
 
 export function AdventureCreator() {
     const { setPage } = useNavigation()
@@ -65,6 +131,14 @@ export function AdventureCreator() {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showErrors, setShowErrors] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
+    // AI draft lifecycle for the live preview (separate from `isSubmitting` so the
+    // page is never dimmed/blocked while generating).
+    const [genStatus, setGenStatus] = useState<'idle' | 'generating' | 'done'>('idle')
+    // AI-invented persona/cast/world, kept for a READ-ONLY preview: the form's
+    // selectors are library-id based, so invented cards can't be "selected" — but
+    // they're already saved on the persisted template. Cleared once the user edits
+    // a selector (the preview then follows their library selections).
+    const [generatedScene, setGeneratedScene] = useState<GeneratedScene | null>(null)
 
     const attrs = useAttributeCategories({ defaults: DEFAULT_CATEGORIES, entity: editingTemplate })
 
@@ -115,11 +189,17 @@ export function AdventureCreator() {
         return w ? { name: w.name, type: w.type } : undefined
     }, [selectedWorld, worldById])
 
+    // Right after AI generation, show the invented (read-only) scene; once the user
+    // touches a selector, `generatedScene` clears and the preview follows selections.
+    const previewPersona = generatedScene ? generatedScene.persona : personaMember
+    const previewCast = generatedScene ? generatedScene.cast : castMembers
+    const previewWorld = generatedScene ? generatedScene.world : worldMeta
+
     const objectivesCount = (attrs.attributes['objectives'] ?? []).filter((r) => r.key.trim() || r.value.trim()).length
     const derivedTitle = scenario.trim().split('\n')[0].slice(0, 80) || 'Untitled Adventure'
 
     const scenarioError = showErrors && !scenario.trim() ? 'A scenario premise is required.' : undefined
-    const noCast = !dataLoading && castMembers.length === 0 && !personaMember
+    const noCast = !dataLoading && previewCast.length === 0 && !previewPersona
 
     const navItems = useMemo<StudioNavItem[]>(
         () => [
@@ -207,15 +287,35 @@ export function AdventureCreator() {
         }
     }
 
-    const handleGenerate = async (prompt: string) => {
+    // The AI endpoint generates AND persists the template, then returns it. Populate
+    // the live form + preview in place and switch to edit mode (Save → Update, no
+    // duplicate). Its AI-invented cast/world render read-only in the preview since
+    // the form's selectors are library-id based. The library refresh runs in the bg.
+    const handleGenerate = async (prompt: string, options: AiGenerateOptions) => {
         if (!isAuthenticated) {
             openLoginModal()
             return
         }
-        await apiService.createAdventureTemplateAI(prompt)
-        setEditingTemplate(null)
-        await loadData()
-        setPage('landing')
+        setGenStatus('generating')
+        try {
+            const card = await apiService.createAdventureTemplateAI(prompt, options)
+            if (options.signal?.aborted) {
+                setGenStatus('idle')
+                return
+            }
+            setScenario(card.description ?? '')
+            setTriggers(card.triggers ?? [])
+            attrs.hydrateFrom(card)
+            setGeneratedScene(sceneFromResponse(card))
+            setEditingTemplate(toTemplate(card))
+            setGenStatus('done')
+            // Keep the landing list fresh for when the user navigates back. Do not
+            // await or navigate — generation must never block the page.
+            void loadData()
+        } catch (err) {
+            setGenStatus('idle')
+            throw err // let AiGeneratePanel surface the structured error copy
+        }
     }
 
     const handleBack = () => {
@@ -227,8 +327,22 @@ export function AdventureCreator() {
         if (e.key === 'Escape' && !isSubmitting) handleBack()
     }
 
-    const toggleCharacter = (id: string) =>
+    // Touching any selector replaces the read-only generated scene with the user's
+    // own library selections in the preview.
+    const toggleCharacter = (id: string) => {
+        setGeneratedScene(null)
         setSelectedCharacters((prev) => (prev.includes(id) ? prev.filter((cid) => cid !== id) : [...prev, id]))
+    }
+
+    const selectPersona = (id: string | undefined) => {
+        setGeneratedScene(null)
+        setSelectedPersona(id)
+    }
+
+    const selectWorld = (id: string | undefined) => {
+        setGeneratedScene(null)
+        setSelectedWorld(id)
+    }
 
     return (
         <CreatorStudio
@@ -243,13 +357,16 @@ export function AdventureCreator() {
                 </Button>
             }
             preview={
-                <StudioPreviewDock>
+                <StudioPreviewDock
+                    busy={genStatus === 'generating'}
+                    notice={genStatus === 'done' ? <GeneratedDraftNotice noun="adventure" /> : undefined}
+                >
                     <AdventurePreviewCard
                         title={derivedTitle}
                         scenario={scenario}
-                        cast={castMembers}
-                        persona={personaMember}
-                        world={worldMeta}
+                        cast={previewCast}
+                        persona={previewPersona}
+                        world={previewWorld}
                         objectivesCount={objectivesCount}
                         triggers={triggers}
                     />
@@ -316,7 +433,7 @@ export function AdventureCreator() {
                     <PersonaSelector
                         characters={characters}
                         selectedId={selectedPersona}
-                        onSelect={setSelectedPersona}
+                        onSelect={selectPersona}
                         onCreateCharacter={() => setPage('character')}
                         loading={dataLoading}
                     />
@@ -331,7 +448,7 @@ export function AdventureCreator() {
                     <WorldSelector
                         worlds={worlds}
                         selectedId={selectedWorld}
-                        onSelect={setSelectedWorld}
+                        onSelect={selectWorld}
                         onCreateWorld={() => setPage('world')}
                         loading={dataLoading}
                     />

@@ -47,7 +47,7 @@ interface TurnRestore {
 export function InteractionCenterPanel({adventure, turns, setTurns}: InteractionCenterPanelProps) {
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
-    const { isAuthenticated, openLoginModal } = useAuth()
+    const { isAuthenticated, openLoginModal, token } = useAuth()
     const [error, setError] = useState<string | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -154,7 +154,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
     // The conversation + all turn metadata stream over one per-session WebSocket.
     // Gate the connection behind auth (and a valid session id).
     const { status: socketStatus, sendChat, cancel } = useAdventureChatSocket(
-        isAuthenticated && !Number.isNaN(sessionId) ? sessionId : null,
+        isAuthenticated && token && !Number.isNaN(sessionId) ? sessionId : null,
         {
             onDelta: (content) => {
                 rawResponseRef.current += content
@@ -221,7 +221,8 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
                     console.error('Failed to save failed turns:', err)
                 )
             },
-        }
+        },
+        token
     )
 
     const scrollToBottom = () => {

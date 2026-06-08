@@ -46,6 +46,12 @@ export interface AttributeCategoriesApi {
     addAttributeWith: (categoryId: string, row: Partial<AttrRow>) => void
     updateAttribute: (categoryId: string, index: number, field: 'key' | 'value', value: string) => void
     removeAttribute: (categoryId: string, index: number) => void
+    /**
+     * Replace all categories + values from an entity's API `category` array.
+     * Used after AI generation, when the entity arrives AFTER mount and the
+     * one-time hydration has already run. Defaults are preserved (matched by name).
+     */
+    hydrateFrom: (entity?: EntityWithCategory | null) => void
 }
 
 function makeCategory(name: string, description: string): AttributeCategory {
@@ -53,10 +59,16 @@ function makeCategory(name: string, description: string): AttributeCategory {
 }
 
 function rowsFromApi(attributes?: Array<Record<string, string>>): AttrRow[] {
-    return (attributes || []).map((obj) => {
-        const [key, value] = Object.entries(obj)[0] ?? ['', '']
-        return { key: String(key), value: value == null ? '' : String(value) }
-    })
+    // Each attribute object may carry MORE than one key/value pair (AI-generated
+    // cards return e.g. `{ "element": "arcane", "focus": "evocation" }`). Expand
+    // every entry into its own row so nothing is silently dropped — `toCategoryPayload`
+    // writes single-key objects, but reads must tolerate multi-key ones.
+    return (attributes || []).flatMap((obj) =>
+        Object.entries(obj).map(([key, value]) => ({
+            key: String(key),
+            value: value == null ? '' : String(value),
+        })),
+    )
 }
 
 /** Build form state from an entity's API `category` array, matching defaults by name. */
@@ -144,6 +156,15 @@ export function useAttributeCategories({ defaults, entity }: Options): Attribute
         setAttributes((prev) => ({ ...prev, [categoryId]: (prev[categoryId] || []).filter((_, i) => i !== index) }))
     }, [])
 
+    const hydrateFrom = useCallback(
+        (entity?: EntityWithCategory | null) => {
+            const next = hydrate(defaults, entity)
+            setCustomCategories(next.customs)
+            setAttributes(next.attributes)
+        },
+        [defaults],
+    )
+
     return {
         categories,
         customCategories,
@@ -154,5 +175,6 @@ export function useAttributeCategories({ defaults, entity }: Options): Attribute
         addAttributeWith,
         updateAttribute,
         removeAttribute,
+        hydrateFrom,
     }
 }

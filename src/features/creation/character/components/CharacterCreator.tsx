@@ -7,8 +7,10 @@
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { ScrollText, Sparkles, Swords, Tags, User } from 'lucide-react'
+import type { Character } from '@/shared'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService, ApiError } from '@/infrastructure/api'
+import type { CharacterCardResponse } from '@/shared/types/aiCard.types'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
 import { Button } from '@/ui/primitives'
 import {
@@ -22,8 +24,10 @@ import {
     CreatorTextarea,
     AttributeManager,
     AiGeneratePanel,
+    GeneratedDraftNotice,
     TriggersField,
     FormActions,
+    type AiGenerateOptions,
     type StudioNavItem,
     type AttributePreset,
 } from '../../common/components'
@@ -47,6 +51,19 @@ const STAT_PRESETS: AttributePreset[] = [
 
 const FORM_ID = 'character-form'
 
+/** Map the AI/persisted card response into the local Character edit shape. */
+function toCharacter(card: CharacterCardResponse): Character {
+    return {
+        id: card.id || card.uuid || '',
+        name: card.name ?? '',
+        race: card.race ?? '',
+        description: card.description ?? '',
+        stats: {},
+        category: card.category ?? undefined,
+        triggers: card.triggers ?? [],
+    }
+}
+
 export function CharacterCreator() {
     const { setPage } = useNavigation()
     const { editingCharacter, setEditingCharacter, loadData } = useData()
@@ -59,6 +76,9 @@ export function CharacterCreator() {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [touched, setTouched] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
+    // AI draft lifecycle for the live preview (separate from `isSubmitting` so the
+    // page is never dimmed/blocked while generating).
+    const [genStatus, setGenStatus] = useState<'idle' | 'generating' | 'done'>('idle')
 
     const attrs = useAttributeCategories({ defaults: DEFAULT_CATEGORIES, entity: editingCharacter })
 
@@ -123,14 +143,36 @@ export function CharacterCreator() {
         }
     }
 
-    const handleGenerate = async (prompt: string) => {
+    // The AI endpoint generates AND persists the card, then returns it. Rather than
+    // discard it and navigate away, populate the live form + preview in place and
+    // switch to edit mode so the user can review and Save (which UPDATES the same
+    // card — no duplicate). The library refresh runs in the background.
+    const handleGenerate = async (prompt: string, options: AiGenerateOptions) => {
         if (!isAuthenticated) {
             openLoginModal()
             return
         }
-        await apiService.createCharacterAI(prompt)
-        await loadData()
-        setPage('landing')
+        setGenStatus('generating')
+        try {
+            const card = await apiService.createCharacterAI(prompt, options)
+            if (options.signal?.aborted) {
+                setGenStatus('idle')
+                return
+            }
+            setName(card.name ?? '')
+            setRace(card.race ?? '')
+            setDescription(card.description ?? '')
+            setTriggers(card.triggers ?? [])
+            attrs.hydrateFrom(card)
+            setEditingCharacter(toCharacter(card))
+            setGenStatus('done')
+            // Keep the landing list fresh for when the user navigates back. Do not
+            // await or navigate — generation must never block the page.
+            void loadData()
+        } catch (err) {
+            setGenStatus('idle')
+            throw err // let AiGeneratePanel surface the structured error copy
+        }
     }
 
     const handleBack = () => {
@@ -155,7 +197,10 @@ export function CharacterCreator() {
                 </Button>
             }
             preview={
-                <StudioPreviewDock>
+                <StudioPreviewDock
+                    busy={genStatus === 'generating'}
+                    notice={genStatus === 'done' ? <GeneratedDraftNotice noun="character" /> : undefined}
+                >
                     <CharacterPreviewCard
                         name={name}
                         race={race}

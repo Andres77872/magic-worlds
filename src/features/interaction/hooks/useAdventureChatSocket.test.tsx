@@ -3,22 +3,34 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useAdventureChatSocket } from './useAdventureChatSocket'
 
 let socketHandlers: { onMessage: (message: unknown) => void; onStatusChange?: (status: string) => void } | null = null
+const socketInstances: Array<{
+  sessionId: number
+  connect: ReturnType<typeof vi.fn>
+  close: ReturnType<typeof vi.fn>
+  sendChat: ReturnType<typeof vi.fn>
+  cancel: ReturnType<typeof vi.fn>
+}> = []
 
 vi.mock('../../../infrastructure/api', () => ({
   AdventureChatSocket: class {
-    constructor(_sessionId: number, handlers: { onMessage: (message: unknown) => void; onStatusChange?: (status: string) => void }) {
-      socketHandlers = handlers
-    }
+    readonly sessionId: number
     connect = vi.fn()
     close = vi.fn()
     sendChat = vi.fn()
     cancel = vi.fn()
+
+    constructor(_sessionId: number, handlers: { onMessage: (message: unknown) => void; onStatusChange?: (status: string) => void }) {
+      this.sessionId = _sessionId
+      socketHandlers = handlers
+      socketInstances.push(this)
+    }
   },
 }))
 
 describe('useAdventureChatSocket image lifecycle dispatch', () => {
   afterEach(() => {
     socketHandlers = null
+    socketInstances.length = 0
     vi.clearAllMocks()
   })
 
@@ -46,5 +58,26 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
     expect(onImageComplete).toHaveBeenCalledTimes(1)
     expect(onImageFailed).toHaveBeenCalledTimes(1)
     expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('recreates the socket when the auth key changes for the same session', () => {
+    const { rerender, unmount } = renderHook(
+      ({ authKey }) => useAdventureChatSocket(7, {}, authKey),
+      { initialProps: { authKey: 'old-token' } },
+    )
+
+    expect(socketInstances).toHaveLength(1)
+    expect(socketInstances[0].sessionId).toBe(7)
+    expect(socketInstances[0].connect).toHaveBeenCalledTimes(1)
+
+    rerender({ authKey: 'new-token' })
+
+    expect(socketInstances).toHaveLength(2)
+    expect(socketInstances[0].close).toHaveBeenCalledTimes(1)
+    expect(socketInstances[1].sessionId).toBe(7)
+    expect(socketInstances[1].connect).toHaveBeenCalledTimes(1)
+
+    unmount()
+    expect(socketInstances[1].close).toHaveBeenCalledTimes(1)
   })
 })

@@ -50,6 +50,7 @@ interface InputProps {
     required?: boolean;
     autoFocus?: boolean;
     rows?: number;
+    maxLength?: number;
     className?: string;
 }
 
@@ -61,6 +62,7 @@ export function CreatorInput({
     placeholder,
     required,
     autoFocus,
+    maxLength,
     className = ''
 }: InputProps) {
     return (
@@ -73,6 +75,7 @@ export function CreatorInput({
             placeholder={placeholder}
             required={required}
             autoFocus={autoFocus}
+            maxLength={maxLength}
         />
     );
 }
@@ -85,6 +88,7 @@ export function CreatorTextarea({
     required,
     autoFocus,
     rows = 4,
+    maxLength,
     className = ''
 }: InputProps) {
     return (
@@ -97,6 +101,7 @@ export function CreatorTextarea({
             required={required}
             autoFocus={autoFocus}
             rows={rows}
+            maxLength={maxLength}
         />
     );
 }

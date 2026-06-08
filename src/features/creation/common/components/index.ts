@@ -33,7 +33,10 @@ export { TriggersField } from './TriggersField';
 export type { TriggersFieldProps } from './TriggersField';
 
 export { AiGeneratePanel } from './AiGeneratePanel';
-export type { AiGeneratePanelProps } from './AiGeneratePanel';
+export type { AiGenerateOptions, AiGeneratePanelProps } from './AiGeneratePanel';
+
+export { GeneratedDraftNotice } from './GeneratedDraftNotice';
+export type { GeneratedDraftNoticeProps } from './GeneratedDraftNotice';
 
 export { CategoryForm } from './CategoryForm';
 export type { CategoryFormProps } from './CategoryForm';

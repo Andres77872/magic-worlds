@@ -17,6 +17,18 @@ const WS_BEARER_SUBPROTOCOL = 'mw.bearer.v1'
 const HEARTBEAT_MS = 25_000
 const MAX_RECONNECT_MS = 30_000
 
+let refreshAccessTokenForSocket: (() => Promise<string>) | null = null
+
+type RefreshFailureShape = {
+    status?: unknown
+    message?: unknown
+    retryable?: unknown
+}
+
+export function configureChatSocketAuthRefresh(handler: (() => Promise<string>) | null): void {
+    refreshAccessTokenForSocket = handler
+}
+
 /** Derive the ws(s):// origin from the http(s):// API base URL. */
 function toWsUrl(base: string): string {
     if (base.startsWith('https://')) return `wss://${base.slice('https://'.length)}`
@@ -45,6 +57,8 @@ export class AdventureChatSocket {
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null
     private reconnectAttempts = 0
     private closedByUser = false
+    private authRecoveryAttempted = false
+    private terminalAuthReported = false
     // A chat frame requested before the socket is OPEN; flushed on connect.
     private pendingChat: string | null = null
 
@@ -107,15 +121,7 @@ export class AdventureChatSocket {
             this.setStatus('closed')
 
             if (event.code === 4401) {
-                // Token rejected — mirror the REST client's 401 expiry handling.
-                localStorage.removeItem('magic_worlds:token')
-                localStorage.removeItem('magic_worlds:user')
-                window.dispatchEvent(new CustomEvent('auth:expired'))
-                this.handlers.onMessage({
-                    type: 'error',
-                    message: 'Your session has expired. Please log in again.',
-                    category: 'auth',
-                })
+                void this.recoverFromAuthClose()
                 return
             }
 
@@ -182,6 +188,90 @@ export class AdventureChatSocket {
     private detach(ws: WebSocket | null): void {
         if (!ws) return
         ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null
+    }
+
+    private async recoverFromAuthClose(): Promise<void> {
+        if (this.closedByUser) return
+        if (this.authRecoveryAttempted || !refreshAccessTokenForSocket) {
+            this.expireAuth()
+            return
+        }
+
+        this.authRecoveryAttempted = true
+        try {
+            await refreshAccessTokenForSocket()
+        } catch (error) {
+            if (this.isTerminalRefreshError(error)) {
+                if (!this.closedByUser) this.expireAuth()
+                return
+            }
+
+            if (!this.closedByUser) {
+                this.reportRecoverableAuthFailure()
+                if (this.isTransientRefreshFailure(error)) {
+                    this.authRecoveryAttempted = false
+                    this.scheduleReconnect()
+                }
+            }
+            return
+        }
+
+        if (!this.closedByUser) {
+            this.connect()
+        }
+    }
+
+    private isTerminalRefreshError(error: unknown): boolean {
+        const status = this.refreshFailureStatus(error)
+        const message = this.refreshFailureMessage(error)
+        return status === 401 || (status === 403 && !/origin not allowed/i.test(message))
+    }
+
+    private isTransientRefreshFailure(error: unknown): boolean {
+        const status = this.refreshFailureStatus(error)
+        const retryable = typeof error === 'object'
+            && error !== null
+            && (error as RefreshFailureShape).retryable === true
+        return retryable || status === null || status === 0 || status >= 500
+    }
+
+    private refreshFailureStatus(error: unknown): number | null {
+        if (typeof error !== 'object' || error === null) return null
+        const rawStatus = (error as RefreshFailureShape).status
+        const status = typeof rawStatus === 'number' ? rawStatus : Number(rawStatus)
+        return Number.isFinite(status) ? status : null
+    }
+
+    private refreshFailureMessage(error: unknown): string {
+        if (typeof error !== 'object' || error === null) return ''
+        const message = (error as RefreshFailureShape).message
+        return typeof message === 'string' ? message : ''
+    }
+
+    private reportRecoverableAuthFailure(): void {
+        this.handlers.onMessage({
+            type: 'error',
+            message: 'Authentication service is temporarily unavailable. Please try again shortly.',
+            category: 'auth_service_unavailable',
+        })
+    }
+
+    private expireAuth(): void {
+        if (this.terminalAuthReported) return
+        this.terminalAuthReported = true
+        const hadReadableAuthState = Boolean(
+            localStorage.getItem('magic_worlds:token') || localStorage.getItem('magic_worlds:user')
+        )
+        localStorage.removeItem('magic_worlds:token')
+        localStorage.removeItem('magic_worlds:user')
+        if (hadReadableAuthState) {
+            window.dispatchEvent(new CustomEvent('auth:expired'))
+        }
+        this.handlers.onMessage({
+            type: 'error',
+            message: 'Your session has expired. Please log in again.',
+            category: 'auth',
+        })
     }
 
     get isOpen(): boolean {

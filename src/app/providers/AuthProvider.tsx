@@ -3,7 +3,7 @@
  */
 
 import { createContext, useEffect, useState, useCallback, type ReactNode } from 'react'
-import type { AuthState, LoginCredentials, RegisterData, User, Project } from '../../shared'
+import type { AuthState, BrowserAuthResponse, LoginCredentials, RegisterData, User, Project } from '../../shared'
 import { apiService } from '../../infrastructure'
 
 interface AuthContextValue extends AuthState {
@@ -24,6 +24,12 @@ interface AuthProviderProps {
 
 const TOKEN_STORAGE_KEY = 'magic_worlds:token'
 const USER_STORAGE_KEY = 'magic_worlds:user'
+
+type AuthRefreshedDetail = BrowserAuthResponse & { token?: string }
+
+function selectAccessToken(data: BrowserAuthResponse | AuthRefreshedDetail): string {
+    return data.token || data.session_token || data.access_token || ''
+}
 
 export function AuthProvider({ children }: AuthProviderProps) {
     const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -75,22 +81,50 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return () => window.removeEventListener('auth:expired', handleAuthExpired)
     }, [clearAuthState])
 
+    // Refresh succeeds outside React (API/WebSocket layer), then publishes the
+    // new short-lived access token. Keep React state in sync without ever
+    // touching the HttpOnly refresh cookie.
+    useEffect(() => {
+        const handleAuthRefreshed = (event: Event) => {
+            const detail = (event as CustomEvent<AuthRefreshedDetail>).detail
+            const nextToken = detail ? selectAccessToken(detail) : ''
+            if (!nextToken) return
+
+            setToken(nextToken)
+            setIsAuthenticated(true)
+            setError(null)
+            localStorage.setItem(TOKEN_STORAGE_KEY, nextToken)
+
+            if (detail.user) {
+                setUser(detail.user)
+                localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(detail.user))
+            }
+            if (detail.accessible_projects) {
+                setProjects(detail.accessible_projects)
+            }
+        }
+
+        window.addEventListener('auth:refreshed', handleAuthRefreshed)
+        return () => window.removeEventListener('auth:refreshed', handleAuthRefreshed)
+    }, [])
+
     const login = async (credentials: LoginCredentials): Promise<boolean> => {
         setIsLoading(true)
         setError(null)
 
         try {
             const data = await apiService.login(credentials)
+            const nextToken = selectAccessToken(data)
 
-            if (data.success && data.session_token && data.user) {
+            if (data.success && nextToken && data.user) {
                 // Save auth data
-                setToken(data.session_token)
+                setToken(nextToken)
                 setUser(data.user)
                 setProjects(data.accessible_projects || [])
                 setIsAuthenticated(true)
 
                 // Persist to localStorage
-                localStorage.setItem(TOKEN_STORAGE_KEY, data.session_token)
+                localStorage.setItem(TOKEN_STORAGE_KEY, nextToken)
                 localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.user))
 
                 return true
@@ -122,15 +156,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // api.auth) do not. If we got one, use it; otherwise auto-login with
             // the same credentials so the user ends up authenticated with a
             // valid Bearer token instead of a tokenless "authenticated" state.
-            const tokenFromRegister =
-                'session_token' in response
-                    ? (response as { session_token?: string }).session_token
-                    : undefined
+            const tokenFromRegister = selectAccessToken(response)
 
             if (tokenFromRegister) {
                 setToken(tokenFromRegister)
                 if (response.user) setUser(response.user)
-                setProjects([])
+                setProjects(response.accessible_projects || [])
                 setIsAuthenticated(true)
                 localStorage.setItem(TOKEN_STORAGE_KEY, tokenFromRegister)
                 if (response.user) {
@@ -161,15 +192,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const logout = () => {
         // Fire-and-forget: call API logout, then clear local state
-        const token = localStorage.getItem(TOKEN_STORAGE_KEY)
-        if (token) {
-            apiService.authenticatedRequest('/auth/logout', token.replace(/"/g, ''), {
-                method: 'POST'
-            }).catch(err => {
-                // Logout API call is fire-and-forget — ignore failures
-                console.warn('Logout API call failed (non-critical):', err)
-            })
-        }
+        apiService.logout().catch(err => {
+            // Logout API call is fire-and-forget — ignore failures
+            console.warn('Logout API call failed (non-critical):', err)
+        })
 
         clearAuthState()
         setError(null)

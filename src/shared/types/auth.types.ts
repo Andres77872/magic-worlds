@@ -50,17 +50,24 @@ export interface UserGroupInfo {
     description?: string
 }
 
-export interface LoginResponse {
+export interface BrowserAuthResponse {
     success: boolean
     message: string
+    access_token?: string
     session_token?: string
+    token_type?: string
+    expires_in?: number
+    expires_at?: string | null
+    refresh_expires_in?: number
+    refresh_expires_at?: string | null
     user?: User
     project?: Project | null
     accessible_projects?: Project[]
     user_groups?: UserGroupInfo[]
-    expires_at?: string | null
-    user_id?: number
+    user_id?: number | string
 }
+
+export interface LoginResponse extends BrowserAuthResponse {}
 
 export interface LoginCredentials {
     username: string
@@ -73,13 +80,7 @@ export interface RegisterData {
     email?: string
 }
 
-export interface RegisterResponse {
-    success: boolean
-    message: string
-    user?: User
-    project?: Project | null
-    user_id?: number
-}
+export interface RegisterResponse extends BrowserAuthResponse {}
 
 export interface ChatMessage {
     role: 'user' | 'assistant'

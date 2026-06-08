@@ -32,6 +32,7 @@ export interface AdventureChatSocketApi {
 export function useAdventureChatSocket(
     sessionId: number | null,
     handlers: AdventureChatHandlers,
+    authKey?: string | null,
 ): AdventureChatSocketApi {
     const handlersRef = useRef(handlers)
     useEffect(() => {
@@ -44,7 +45,7 @@ export function useAdventureChatSocket(
     useEffect(() => {
         // Disabled (no session / unauthenticated): stay disconnected. The prior
         // effect's cleanup already emitted 'closed' via the socket's onStatusChange.
-        if (sessionId === null || Number.isNaN(sessionId)) {
+        if (sessionId === null || Number.isNaN(sessionId) || authKey === null) {
             return
         }
 
@@ -92,7 +93,7 @@ export function useAdventureChatSocket(
             socket.close()
             socketRef.current = null
         }
-    }, [sessionId])
+    }, [sessionId, authKey])
 
     const sendChat = (messages: ChatMessage[]) => socketRef.current?.sendChat(messages)
     const cancel = () => socketRef.current?.cancel()
