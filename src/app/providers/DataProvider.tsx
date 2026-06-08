@@ -4,9 +4,14 @@
  */
 
 import { createContext, useEffect, useState, type ReactNode } from 'react'
-import type { Character, World, Adventure, LoadingState } from '../../shared'
+import type { Character, World, Adventure, AdventureSnapshot, LoadingState } from '../../shared'
 import { apiService, ApiError } from '../../infrastructure'
 import { parseTurnState } from '../../utils/turnState'
+import {
+    adventureFieldsFromSnapshot,
+    asSnapshot,
+    synthesizeSnapshotFromTemplate,
+} from '../../features/interaction/utils/adventureSnapshot'
 import { useAuth } from '../hooks'
 
 interface DataContextValue {
@@ -40,20 +45,71 @@ interface DataContextValue {
     deleteTemplate: (index: number) => Promise<void>
     editInProgress: (adventure: Adventure) => void
     deleteInProgress: (index: number) => Promise<void>
+    /** Persist an edit to an adventure's cloned-card snapshot (its own copy only). */
+    saveInProgressSnapshot: (adventureId: string, snapshot: AdventureSnapshot) => Promise<void>
     
     // UI State
     loadingState: LoadingState
     isLoading: boolean
     error: string | null
-    confirmClear: boolean
-    setConfirmClear: (confirm: boolean) => void
-    
+
     // Actions
     loadData: () => Promise<void>
     clearAllData: () => Promise<void>
 }
 
 const DataContext = createContext<DataContextValue | undefined>(undefined)
+
+/**
+ * Resolve an adventure's cloned-card snapshot: prefer the server snapshot, else
+ * synthesize one from the originating template so legacy sessions still display
+ * and edit consistently (the first edit persists the synthesized copy).
+ */
+function resolveAdventureSnapshot(rawSnapshot: unknown, template?: Adventure | null): AdventureSnapshot | undefined {
+    const real = asSnapshot(rawSnapshot)
+    if (real) return real
+    if (!template) return undefined
+    return synthesizeSnapshotFromTemplate({
+        id: template.id,
+        description: template.scenario,
+        triggers: template.triggers,
+        persona: (template.persona as never) ?? null,
+        characters: (template.characters as never) ?? [],
+        world: template.world ? [template.world as never] : [],
+        category: template.category,
+    })
+}
+
+/** Raw adventure-session row as returned by the API (only the fields we read). */
+interface RawAdventureSession {
+    adventure_id: number | string
+    adventure_template?: string
+    adventure_last_turn?: string | null
+    adventure_created_at?: string
+    adventure_last_update?: string
+    template_snapshot?: unknown
+}
+
+/** Build an in-progress Adventure from a session + (optional) originating template. */
+function buildInProgressAdventure(session: RawAdventureSession, template: Adventure | undefined, snapshot: AdventureSnapshot | undefined): Adventure {
+    const fields = adventureFieldsFromSnapshot(snapshot)
+    // With a snapshot, trust its (possibly empty) arrays — a user who cleared the
+    // cast must not have the template's cards reappear on reload. Only fall back to
+    // the template when there is no snapshot at all (truly legacy / template deleted).
+    return {
+        id: String(session.adventure_id),
+        scenario: (snapshot ? fields.scenario : template?.scenario) ?? `Adventure Session ${session.adventure_id}`,
+        persona: snapshot ? fields.persona : template?.persona,
+        characters: snapshot ? fields.characters : (template?.characters ?? []),
+        world: snapshot ? fields.world : template?.world,
+        worlds: snapshot ? fields.worlds : (template?.world ? [template.world] : []),
+        snapshot,
+        turns: parseTurnState(session.adventure_last_turn),
+        status: 'in-progress' as const,
+        createdAt: session.adventure_created_at,
+        updatedAt: session.adventure_last_update,
+    }
+}
 
 interface DataProviderProps {
     children: ReactNode
@@ -76,8 +132,7 @@ export function DataProvider({ children }: DataProviderProps) {
     
     // UI state
     const [loadingState, setLoadingState] = useState<LoadingState>({ isLoading: true })
-    const [confirmClear, setConfirmClear] = useState(false)
-    
+
     // Auth state for graceful degradation
     const { isAuthenticated, openLoginModal } = useAuth()
 
@@ -130,17 +185,16 @@ export function DataProvider({ children }: DataProviderProps) {
             throw new Error('Login required to start adventures')
         }
         try {
-            // Create a new adventure session via API
+            // Create a new adventure session via API. The backend clones the
+            // template's cards into the session snapshot and returns it.
             const session = await apiService.createAdventureSession(template.id)
-            
-            // Create an in-progress adventure object from the session
+
+            // Build the in-progress adventure from the session's own cloned snapshot
+            // so edits affect this adventure's copy, never the original template.
+            const snapshot = resolveAdventureSnapshot(session.template_snapshot, template)
             const newInProgressAdventure: Adventure = {
                 ...template,
-                id: String(session.adventure_id),
-                status: 'in-progress',
-                turns: [],
-                createdAt: session.adventure_created_at,
-                updatedAt: session.adventure_last_update
+                ...buildInProgressAdventure(session, template, snapshot),
             }
             
             // Update state
@@ -180,6 +234,31 @@ export function DataProvider({ children }: DataProviderProps) {
     // In-progress adventure actions
     const editInProgress = (adventure: Adventure) => {
         setEditingInProgress(adventure)
+    }
+
+    const saveInProgressSnapshot = async (adventureId: string, snapshot: AdventureSnapshot) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to edit adventure cards')
+        }
+        // Persist to this adventure's own snapshot — never the library/template card.
+        await apiService.updateAdventureSnapshot(Number(adventureId), snapshot)
+
+        const fields = adventureFieldsFromSnapshot(snapshot)
+        const patch = (adv: Adventure): Adventure =>
+            adv.id === adventureId
+                ? {
+                      ...adv,
+                      snapshot,
+                      scenario: fields.scenario ?? adv.scenario,
+                      persona: fields.persona ?? adv.persona,
+                      characters: fields.characters,
+                      world: fields.world ?? adv.world,
+                      worlds: fields.worlds,
+                  }
+                : adv
+        setInProgressAdventures((prev) => prev.map(patch))
+        setEditingInProgress((prev) => (prev && prev.id === adventureId ? patch(prev) : prev))
     }
     
     const deleteInProgress = async (index: number) => {
@@ -273,20 +352,13 @@ export function DataProvider({ children }: DataProviderProps) {
                 triggers: template.triggers ?? []
             }))
 
-            // Transform sessions to in-progress adventures, enriching scenario /
-            // cast / world from the originating template when available.
+            // Transform sessions to in-progress adventures. Cards come from the
+            // session's own cloned snapshot (server-side clone), falling back to the
+            // originating template for legacy sessions that predate cloning.
             const transformedInProgress = asArray(loadedSessions).map((session: any) => {
                 const template = transformedTemplates.find((t: { id: string }) => t.id === session.adventure_template)
-                return {
-                    id: String(session.adventure_id),
-                    scenario: template?.scenario || `Adventure Session ${session.adventure_id}`,
-                    characters: template?.characters ?? [],
-                    world: template?.world,
-                    turns: parseTurnState(session.adventure_last_turn),
-                    status: 'in-progress' as const,
-                    createdAt: session.adventure_created_at,
-                    updatedAt: session.adventure_last_update,
-                }
+                const snapshot = resolveAdventureSnapshot(session.template_snapshot, template)
+                return buildInProgressAdventure(session, template, snapshot)
             })
 
             setCharacters(transformedCharacters)
@@ -310,33 +382,16 @@ export function DataProvider({ children }: DataProviderProps) {
         }
     }
 
+    // Wipe every piece of the user's content in one atomic server call, then
+    // reset local caches. The account itself is preserved (see DELETE /user/data).
     const clearAllData = async () => {
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to clear data')
         }
-        // Note: Clearing all data via API would require deleting each item individually
-        // For now, we just clear the local state - data remains on server
+        setLoadingState({ isLoading: true })
         try {
-            setLoadingState({ isLoading: true })
-            
-            // Delete all items via API
-            const deletePromises: Promise<any>[] = []
-            
-            characters.forEach(char => {
-                if (char.id) deletePromises.push(apiService.deleteCharacter(char.id))
-            })
-            worlds.forEach(world => {
-                if (world.id) deletePromises.push(apiService.deleteWorld(world.id))
-            })
-            templateAdventures.forEach(template => {
-                if (template.id) deletePromises.push(apiService.deleteAdventureTemplate(template.id))
-            })
-            inProgressAdventures.forEach(adventure => {
-                if (adventure.id) deletePromises.push(apiService.deleteAdventureSession(Number(adventure.id)))
-            })
-            
-            await Promise.allSettled(deletePromises)
+            await apiService.deleteAllUserData()
 
             setCharacters([])
             setWorlds([])
@@ -346,13 +401,14 @@ export function DataProvider({ children }: DataProviderProps) {
             setEditingWorld(null)
             setEditingTemplate(null)
             setEditingInProgress(null)
-            
+
             setLoadingState({ isLoading: false })
         } catch (error) {
-            setLoadingState({ 
-                isLoading: false, 
-                error: error instanceof Error ? error.message : 'Failed to clear data' 
+            setLoadingState({
+                isLoading: false,
+                error: error instanceof Error ? error.message : 'Failed to clear data'
             })
+            throw error // let the caller (confirm dialog) surface the failure
         }
     }
 
@@ -393,12 +449,11 @@ export function DataProvider({ children }: DataProviderProps) {
         deleteTemplate,
         editInProgress,
         deleteInProgress,
-        
+        saveInProgressSnapshot,
+
         loadingState,
         isLoading,
         error,
-        confirmClear,
-        setConfirmClear,
         loadData,
         clearAllData
     }

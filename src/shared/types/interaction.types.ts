@@ -33,6 +33,34 @@ export interface TurnMetadata {
     imagePrompt: string
 }
 
+export type ImageLifecycleStatus =
+    | 'pending'
+    | 'in_progress'
+    | 'mirroring'
+    | 'completed'
+    | 'failed'
+    | 'canceled'
+    | 'unavailable'
+    | 'invalid'
+    | 'quota_exceeded'
+
+export interface ChatImageAsset {
+    asset_id: string
+    url: string
+    content_type: 'image/jpeg' | 'image/png' | 'image/webp'
+    width?: number | null
+    height?: number | null
+    file_size_bytes?: number | null
+    seed?: number | null
+    safety?: Record<string, unknown> | null
+}
+
+export interface ChatImageError {
+    category: string
+    detail: string
+    code?: string | null
+}
+
 export interface ChatState {
     messages: Message[]
     isLoading: boolean
@@ -56,8 +84,11 @@ export type ChatSocketServerMessage =
     | { type: 'ready' }
     | { type: 'delta'; content: string }
     | { type: 'metadata'; forwardOptions: ForwardOption[]; imagePrompt: string }
+    | { type: 'image_job'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: Extract<ImageLifecycleStatus, 'pending' | 'in_progress' | 'mirroring'>; status_url: string; result_url: string }
+    | { type: 'image_complete'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: 'completed'; assets: ChatImageAsset[]; status_url?: string; result_url?: string }
+    | { type: 'image_failed'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string | null; status: Extract<ImageLifecycleStatus, 'failed' | 'canceled' | 'unavailable' | 'invalid' | 'quota_exceeded'>; error: ChatImageError; status_url?: string | null; result_url?: string | null }
     | { type: 'image'; [key: string]: unknown } // reserved for a future image step
     | { type: 'action'; [key: string]: unknown } // reserved for future actions
-    | { type: 'done'; interrupted?: boolean }
+    | { type: 'done'; interrupted?: boolean; assistant_message_id?: number; turn_id?: string }
     | { type: 'error'; message: string; category?: string }
     | { type: 'pong' }

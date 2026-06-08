@@ -3,7 +3,7 @@
  * the appropriate shell (loading / error / signed-out) around {@link ProfileView}.
  */
 import { UserCircle } from 'lucide-react'
-import { useAuth } from '@/app/hooks'
+import { useAuth, useData } from '@/app/hooks'
 import { Button, Icon } from '@/ui/primitives'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
@@ -12,7 +12,16 @@ import { ProfileView } from './ProfileView'
 
 export function ProfilePage() {
     const { isAuthenticated, logout, openLoginModal } = useAuth()
+    const { clearAllData } = useData()
     const { profile, isLoading, error, isTransientError, refresh } = useUserProfile()
+
+    // Wipe all content server-side (and reset DataProvider caches), then re-fetch
+    // /user/me so the profile's stat counts drop to zero. Rejection propagates so
+    // the confirm dialog can surface the failure.
+    const handleDeleteAllData = async () => {
+        await clearAllData()
+        refresh()
+    }
 
     // Signed out — invite a login rather than fetching.
     if (!isAuthenticated) {
@@ -66,5 +75,5 @@ export function ProfilePage() {
         return null
     }
 
-    return <ProfileView profile={profile} onLogout={logout} />
+    return <ProfileView profile={profile} onLogout={logout} onDeleteAllData={handleDeleteAllData} />
 }

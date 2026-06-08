@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {createPortal} from 'react-dom'
 import {ExternalLink, MoreVertical, Pencil, Play, Trash2} from 'lucide-react'
 import {useClickOutside} from '../../../../shared/hooks/useClickOutside'
 import {cx, Icon, IconButton} from '@/ui/primitives'
@@ -42,6 +43,8 @@ export function CardOptions({
                                 'aria-label': ariaLabel = 'Card options'
                             }: CardOptionsProps) {
     const [isOpen, setIsOpen] = useState(false)
+    // Fixed-viewport coords for the portaled menu (anchored to the trigger).
+    const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
     const menuRef = useRef<HTMLDivElement>(null!)
     const buttonRef = useRef<HTMLButtonElement>(null!)
     const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
@@ -57,20 +60,55 @@ export function CardOptions({
         [buttonRef]
     )
 
+    // Anchor the menu to the trigger in viewport space. The menu is portaled to
+    // <body>, so it escapes the card's `overflow-hidden` + hover-transform; we
+    // position it with `position: fixed` from the button rect, clamping inside
+    // the viewport and flipping above the trigger when there is no room below.
+    const updatePosition = useCallback(() => {
+        const btn = buttonRef.current
+        if (!btn) return
+        const rect = btn.getBoundingClientRect()
+        const menu = menuRef.current
+        const menuW = menu?.offsetWidth || 180
+        const menuH = menu?.offsetHeight || 0
+        const gap = 8
+        const margin = 8
+        let left = align === 'left' ? rect.left : rect.right - menuW
+        left = Math.max(margin, Math.min(left, window.innerWidth - menuW - margin))
+        let top = rect.bottom + gap
+        if (top + menuH > window.innerHeight - margin && rect.top - gap - menuH > margin) {
+            top = rect.top - gap - menuH
+        }
+        setCoords({top, left})
+    }, [align])
+
     // Enhanced menu management
     const openMenu = useCallback(() => {
         if (disabled) return
+        updatePosition()
         setIsOpen(true)
         // Focus first item after animation
         setTimeout(() => {
             itemRefs.current[0]?.focus()
         }, 150)
-    }, [disabled])
+    }, [disabled, updatePosition])
 
     const closeMenu = useCallback(() => {
         setIsOpen(false)
         buttonRef.current?.focus()
     }, [])
+
+    // Keep the menu pinned to the trigger while it is open.
+    useEffect(() => {
+        if (!isOpen) return
+        const onReflow = () => updatePosition()
+        window.addEventListener('scroll', onReflow, true)
+        window.addEventListener('resize', onReflow)
+        return () => {
+            window.removeEventListener('scroll', onReflow, true)
+            window.removeEventListener('resize', onReflow)
+        }
+    }, [isOpen, updatePosition])
 
     // Enhanced keyboard navigation
     useEffect(() => {
@@ -212,12 +250,13 @@ export function CardOptions({
                 <Icon icon={MoreVertical} size={16}/>
             </IconButton>
 
+            {createPortal(
             <div
                 ref={menuRef}
                 id={menuId}
+                style={{position: 'fixed', top: coords?.top ?? 0, left: coords?.left ?? 0}}
                 className={cx(
-                    'absolute top-[calc(100%+0.5rem)] z-[100] min-w-[180px] overflow-hidden rounded-lg border border-parchment-50/10 bg-ink-700 shadow-lg transition-opacity',
-                    align === 'left' ? 'left-0' : 'right-0',
+                    'z-[100] min-w-[180px] overflow-hidden rounded-lg border border-parchment-50/10 bg-ink-700 shadow-lg transition-opacity',
                     isOpen ? 'visible opacity-100' : 'invisible opacity-0',
                 )}
                 role="menu"
@@ -263,7 +302,9 @@ export function CardOptions({
                         </button>
                     )
                 })}
-            </div>
+            </div>,
+            document.body,
+            )}
         </div>
     )
 }

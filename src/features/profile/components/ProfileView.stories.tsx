@@ -27,8 +27,9 @@ const meta = {
     argTypes: {
         profile: { control: false },
         onLogout: { control: false },
+        onDeleteAllData: { control: false },
     },
-    args: { profile: baseProfile, onLogout: () => {} },
+    args: { profile: baseProfile, onLogout: () => {}, onDeleteAllData: async () => {} },
 } satisfies Meta<typeof ProfileView>
 
 export default meta

@@ -9,6 +9,23 @@ import type {
     RegisterResponse,
     UserProfile,
 } from '../../shared/types/auth.types'
+import type { ChatImageAsset, ChatImageError, ImageLifecycleStatus } from '../../shared/types/interaction.types'
+import type { AdventureSnapshot } from '../../shared/types/adventure.types'
+
+export interface AdventureSessionMessagesResponse {
+    adventure_id: number
+    version: number
+    messages: Array<Record<string, unknown>>
+}
+
+export interface ImageJobPublicResponse {
+    job_id: string
+    status: ImageLifecycleStatus
+    status_url: string
+    result_url: string
+    assets?: ChatImageAsset[]
+    error?: ChatImageError | null
+}
 
 // Get API base URL from environment, fallback to the backend's default port
 // (magic-worlds-api binds to APP_PORT, default 8000).
@@ -427,6 +444,17 @@ class ApiService {
     }
 
     /**
+     * Delete all of the current user's data (cards, adventures, generated media).
+     * The account itself — username, role and credits — stays active.
+     */
+    async deleteAllUserData(): Promise<{ message: string; deleted: Record<string, number> }> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest('/user/data', token, {
+            method: 'DELETE'
+        })
+    }
+
+    /**
      * Get a specific adventure template by ID
      */
     async getAdventureTemplate(templateId: string): Promise<any> {
@@ -442,6 +470,27 @@ class ApiService {
     async getAdventureSession(sessionId: number): Promise<any> {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-sessions/${sessionId}`, token, {
+            method: 'GET'
+        })
+    }
+
+    async getAdventureSessionMessages(sessionId: number): Promise<AdventureSessionMessagesResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/adventure-sessions/${sessionId}/messages`, token, {
+            method: 'GET'
+        })
+    }
+
+    async getImageJob(jobId: string): Promise<ImageJobPublicResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/images/jobs/${encodeURIComponent(jobId)}`, token, {
+            method: 'GET'
+        })
+    }
+
+    async getImageResult(jobId: string): Promise<ImageJobPublicResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/images/jobs/${encodeURIComponent(jobId)}/result`, token, {
             method: 'GET'
         })
     }
@@ -471,6 +520,22 @@ class ApiService {
                 'Content-Type': 'application/json'
             },
             body: { adventure_last_turn: adventureLastTurn } as unknown as BodyInit
+        })
+    }
+
+    /**
+     * Persist edits to an adventure's cloned cards (persona/cast/world/scenario).
+     * Writes only to this session's own snapshot — the original template and
+     * library cards are never touched. The chat AI reads its context from here.
+     */
+    async updateAdventureSnapshot(sessionId: number, snapshot: AdventureSnapshot): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/adventure-sessions/${sessionId}/template-snapshot`, token, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: { template_snapshot: snapshot } as unknown as BodyInit
         })
     }
 

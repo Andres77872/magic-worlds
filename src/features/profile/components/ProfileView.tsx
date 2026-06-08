@@ -16,6 +16,8 @@ import {
     LogOut,
     ShieldCheck,
     Swords,
+    Trash2,
+    TriangleAlert,
     User as UserIcon,
     Users,
     Zap,
@@ -23,10 +25,13 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import type { UserProfile } from '@/shared'
 import { Avatar, Badge, Button, Card, Icon, IconButton, SectionHeader, type BadgeTone } from '@/ui/primitives'
+import { DeleteDataDialog } from './DeleteDataDialog'
 
 interface ProfileViewProps {
     profile: UserProfile
     onLogout: () => void
+    /** Wipes all of the user's content (account kept). Rejects to surface an error in the dialog. */
+    onDeleteAllData: () => Promise<void>
 }
 
 interface RoleMeta {
@@ -51,9 +56,10 @@ function capitalize(value: string): string {
     return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-export function ProfileView({ profile, onLogout }: ProfileViewProps) {
+export function ProfileView({ profile, onLogout, onDeleteAllData }: ProfileViewProps) {
     const role = roleMeta(profile.user_type)
     const { card_counts: counts } = profile
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
     return (
         <div className="mx-auto flex w-full max-w-[960px] flex-col gap-8 px-5 py-8 sm:px-8 sm:py-10">
@@ -105,6 +111,38 @@ export function ProfileView({ profile, onLogout }: ProfileViewProps) {
                     </div>
                 </Card>
             </section>
+
+            {/* ---------- Danger zone ---------- */}
+            <section className="flex flex-col gap-4">
+                <SectionHeader icon={TriangleAlert} title="Danger zone" />
+                <Card className="border-blood-500/25">
+                    <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-col gap-1">
+                            <span className="font-ui text-[14px] font-semibold text-parchment-50">Delete all my data</span>
+                            <span className="font-ui text-[13px] text-parchment-400">
+                                Permanently removes everything you've created — characters, worlds, adventures, chats and
+                                generated media. Your account stays active.
+                            </span>
+                        </div>
+                        <Button
+                            kind="danger"
+                            size="sm"
+                            iconLeft={<Icon icon={Trash2} size={15} />}
+                            onClick={() => setConfirmDeleteOpen(true)}
+                            className="shrink-0"
+                        >
+                            Delete all data
+                        </Button>
+                    </div>
+                </Card>
+            </section>
+
+            <DeleteDataDialog
+                open={confirmDeleteOpen}
+                username={profile.username}
+                onClose={() => setConfirmDeleteOpen(false)}
+                onConfirm={onDeleteAllData}
+            />
         </div>
     )
 }

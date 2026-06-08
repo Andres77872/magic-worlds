@@ -71,9 +71,13 @@ export class AdventureChatSocket {
             this.scheduleReconnect()
             return
         }
+        // Make any prior socket inert before adopting the new one, so a stale
+        // (e.g. StrictMode-discarded) socket can't race shared state below.
+        this.detach(this.ws)
         this.ws = ws
 
         ws.onopen = () => {
+            if (this.ws !== ws) return
             this.reconnectAttempts = 0
             this.setStatus('open')
             this.startHeartbeat()
@@ -84,6 +88,7 @@ export class AdventureChatSocket {
         }
 
         ws.onmessage = (event) => {
+            if (this.ws !== ws) return
             let message: ChatSocketServerMessage
             try {
                 message = JSON.parse(event.data)
@@ -96,6 +101,7 @@ export class AdventureChatSocket {
         }
 
         ws.onclose = (event) => {
+            if (this.ws !== ws) return
             this.stopHeartbeat()
             this.ws = null
             this.setStatus('closed')
@@ -122,15 +128,29 @@ export class AdventureChatSocket {
         ws.onerror = () => {}
     }
 
-    /** Request a generation. Queues until the socket is OPEN if still connecting. */
+    /** Request a generation. Queues until the socket is OPEN, (re)connecting if needed. */
     sendChat(messages: ChatMessage[]): void {
         const frame = JSON.stringify({ type: 'chat', messages })
         if (this.isOpen) {
             this.ws!.send(frame)
-        } else {
-            this.pendingChat = frame
-            if (!this.ws && !this.reconnectTimer) this.connect()
+            return
         }
+        this.pendingChat = frame
+        // CONNECTING: the in-flight onopen will flush pendingChat.
+        if (this.ws?.readyState === WebSocket.CONNECTING) return
+        // null / CLOSING / CLOSED: drop the dead socket and (re)connect so the
+        // queued frame is flushed once a fresh socket opens.
+        if (this.ws) {
+            this.detach(this.ws)
+            try {
+                this.ws.close()
+            } catch {
+                // ignore
+            }
+            this.ws = null
+        }
+        this.closedByUser = false
+        if (!this.reconnectTimer) this.connect()
     }
 
     /** Cancel the in-flight generation (no-op if the socket isn't open). */
@@ -147,6 +167,7 @@ export class AdventureChatSocket {
             this.reconnectTimer = null
         }
         if (this.ws) {
+            this.detach(this.ws)
             try {
                 this.ws.close(1000)
             } catch {
@@ -155,6 +176,12 @@ export class AdventureChatSocket {
             this.ws = null
         }
         this.setStatus('closed')
+    }
+
+    /** Detach a socket's handlers so its async callbacks become inert. */
+    private detach(ws: WebSocket | null): void {
+        if (!ws) return
+        ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null
     }
 
     get isOpen(): boolean {

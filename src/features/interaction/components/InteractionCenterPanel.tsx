@@ -1,12 +1,13 @@
-import {useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import type {Adventure, ChatMessage, ForwardOption, TurnEntry} from '../../../shared'
-import {apiService} from '../../../infrastructure/api'
+import {apiService, type ImageJobPublicResponse} from '../../../infrastructure/api'
 import {useAuth} from '../../../app/hooks'
 import {Loader2, Send, Sparkles, Square} from 'lucide-react'
 import {Button, controlClass, cx} from '../../../ui/primitives'
 import {ChatTurn} from './ChatTurn'
 import {generateUUID} from '../../../utils/uuid'
 import {useAdventureChatSocket} from '../hooks/useAdventureChatSocket'
+import {hasNonTerminalImageJob, mergeHydratedImageTurns, upsertChatImageFrame, upsertImageJobResult} from '../utils/chatImageTurnState'
 
 // Extend TurnEntry to include forward options and the (out-of-scope) image prompt
 interface ExtendedTurnEntry extends TurnEntry {
@@ -32,6 +33,15 @@ interface TurnRestore {
     content: string
     forwardOptions?: ForwardOption[]
     imagePrompt?: string
+    assistantMessageId?: number
+    turnId?: string
+    imageJobId?: string
+    imageStatus?: ExtendedTurnEntry['imageStatus']
+    imageStatusUrl?: string
+    imageResultUrl?: string
+    imageAssets?: ExtendedTurnEntry['imageAssets']
+    imageUrl?: string
+    imageError?: ExtendedTurnEntry['imageError']
 }
 
 export function InteractionCenterPanel({adventure, turns, setTurns}: InteractionCenterPanelProps) {
@@ -58,7 +68,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
     }, [turns])
 
     // Helper function to save turns via adventure sessions API
-    const saveTurnsToApi = async (adventureId: string, turnsToSave: TurnEntry[]) => {
+    const saveTurnsToApi = useCallback(async (adventureId: string, turnsToSave: TurnEntry[]) => {
         try {
             const id = Number(adventureId)
             if (!isNaN(id)) {
@@ -68,20 +78,66 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         } catch (err) {
             console.error('Failed to save turns to API:', err)
         }
-    }
+    }, [])
+
+    const setTurnState = useCallback((next: TurnEntry[]) => {
+        turnsRef.current = next
+        setTurns(next)
+    }, [setTurns])
 
     // Apply a mutation to the AI turn currently being streamed.
-    const updateStreamingTurn = (mutate: (turn: ExtendedTurnEntry) => ExtendedTurnEntry) => {
+    const updateStreamingTurn = useCallback((mutate: (turn: ExtendedTurnEntry) => ExtendedTurnEntry) => {
         const id = streamingIdRef.current
         if (!id) return
         const next = turnsRef.current.map((t) => (t.id === id ? mutate(t as ExtendedTurnEntry) : t))
-        turnsRef.current = next
-        setTurns(next)
-    }
+        setTurnState(next)
+    }, [setTurnState])
+
+    const hydrateTurnsFromApi = useCallback(async () => {
+        if (!isAuthenticated || Number.isNaN(sessionId)) return
+        try {
+            const session = await apiService.getAdventureSession(sessionId)
+            const { parseTurnState } = await import('../../../utils/turnState')
+            const hydrated = parseTurnState(session.adventure_last_turn)
+            if (hydrated.length > 0) {
+                const next = mergeHydratedImageTurns(turnsRef.current, hydrated)
+                setTurnState(next)
+                void saveTurnsToApi(adventure.id, next)
+            }
+        } catch (err) {
+            console.warn('Failed to hydrate chat image state:', err)
+        }
+    }, [adventure.id, isAuthenticated, saveTurnsToApi, sessionId, setTurnState])
+
+    const pollNonTerminalImageJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
+        const jobs = snapshot.filter(hasNonTerminalImageJob)
+        for (const turn of jobs) {
+            if (!turn.imageJobId) continue
+            try {
+                const result: ImageJobPublicResponse = await apiService.getImageJob(turn.imageJobId)
+                const next = upsertImageJobResult(turnsRef.current, result)
+                if (next !== turnsRef.current) {
+                    setTurnState(next)
+                    void saveTurnsToApi(adventure.id, next)
+                }
+            } catch (err) {
+                console.warn('Failed to poll image job:', err)
+            }
+        }
+    }, [adventure.id, saveTurnsToApi, setTurnState])
+
+    const applyImageFrame = useCallback((frame: Parameters<typeof upsertChatImageFrame>[1]) => {
+        const next = upsertChatImageFrame(turnsRef.current, frame)
+        if (next !== turnsRef.current) {
+            setTurnState(next)
+            void saveTurnsToApi(adventure.id, next)
+            void pollNonTerminalImageJobs(next)
+        }
+    }, [adventure.id, pollNonTerminalImageJobs, saveTurnsToApi, setTurnState])
 
     // The conversation + all turn metadata stream over one per-session WebSocket.
     // Gate the connection behind auth (and a valid session id).
-    const { sendChat, cancel } = useAdventureChatSocket(
+    const { status: socketStatus, sendChat, cancel } = useAdventureChatSocket(
         isAuthenticated && !Number.isNaN(sessionId) ? sessionId : null,
         {
             onDelta: (content) => {
@@ -92,13 +148,12 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             onMetadata: ({ forwardOptions, imagePrompt }) => {
                 updateStreamingTurn((t) => ({ ...t, forwardOptions, imagePrompt }))
             },
-            onDone: () => {
+            onDone: ({ assistantMessageId, turnId }) => {
                 const id = streamingIdRef.current
                 const next = turnsRef.current.map((t) =>
-                    t.id === id ? { ...(t as ExtendedTurnEntry), isStreaming: false } : t
+                    t.id === id ? { ...(t as ExtendedTurnEntry), isStreaming: false, assistantMessageId, turnId } : t
                 )
-                turnsRef.current = next
-                setTurns(next)
+                setTurnState(next)
                 streamingIdRef.current = null
                 rawResponseRef.current = ''
                 restoreRef.current = null
@@ -106,7 +161,12 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
                 saveTurnsToApi(adventure.id, next).catch((err) =>
                     console.error('Failed to save turns:', err)
                 )
+                void hydrateTurnsFromApi()
+                void pollNonTerminalImageJobs(next)
             },
+            onImageJob: applyImageFrame,
+            onImageComplete: applyImageFrame,
+            onImageFailed: applyImageFrame,
             onError: (message) => {
                 const id = streamingIdRef.current
                 const restore = restoreRef.current
@@ -122,12 +182,20 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
                             content: restore.content,
                             forwardOptions: restore.forwardOptions,
                             imagePrompt: restore.imagePrompt,
+                            assistantMessageId: restore.assistantMessageId,
+                            turnId: restore.turnId,
+                            imageJobId: restore.imageJobId,
+                            imageStatus: restore.imageStatus,
+                            imageStatusUrl: restore.imageStatusUrl,
+                            imageResultUrl: restore.imageResultUrl,
+                            imageAssets: restore.imageAssets,
+                            imageUrl: restore.imageUrl,
+                            imageError: restore.imageError,
                         }
                     }
                     return { ...entry, isStreaming: false, content: '' }
                 })
-                turnsRef.current = next
-                setTurns(next)
+                setTurnState(next)
                 streamingIdRef.current = null
                 rawResponseRef.current = ''
                 restoreRef.current = null
@@ -148,13 +216,40 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
         scrollToBottom()
     }, [turns])
 
+    useEffect(() => {
+        if (socketStatus === 'open') {
+            void hydrateTurnsFromApi()
+        }
+    }, [hydrateTurnsFromApi, socketStatus])
+
+    useEffect(() => {
+        if (!turns.some(hasNonTerminalImageJob)) return
+        const timer = window.setInterval(() => {
+            void pollNonTerminalImageJobs()
+        }, 3_000)
+        return () => window.clearInterval(timer)
+    }, [pollNonTerminalImageJobs, turns])
+
+    useEffect(() => {
+        const recover = () => {
+            if (document.visibilityState === 'visible') {
+                void hydrateTurnsFromApi()
+            }
+        }
+        document.addEventListener('visibilitychange', recover)
+        window.addEventListener('online', recover)
+        return () => {
+            document.removeEventListener('visibilitychange', recover)
+            window.removeEventListener('online', recover)
+        }
+    }, [hydrateTurnsFromApi])
+
     // Check if we can generate an AI response (last message is from user)
     const canGenerateResponse = turns.length > 0 && turns[turns.length - 1].type === 'user' && !isLoading
 
     const handleReset = () => {
         if (window.confirm('Are you sure you want to reset this adventure? This will clear all conversation history.')) {
-            setTurns([])
-            turnsRef.current = []
+            setTurnState([])
             setError(null)
             saveTurnsToApi(adventure.id, [])
         }
@@ -185,11 +280,19 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
                     content: '',
                     forwardOptions: undefined,
                     imagePrompt: undefined,
+                    assistantMessageId: undefined,
+                    turnId: undefined,
+                    imageJobId: undefined,
+                    imageStatus: undefined,
+                    imageStatusUrl: undefined,
+                    imageResultUrl: undefined,
+                    imageAssets: undefined,
+                    imageUrl: undefined,
+                    imageError: undefined,
                 }
                 : t
         )
-        turnsRef.current = streamingTurns
-        setTurns(streamingTurns)
+        setTurnState(streamingTurns)
 
         // Send only user/assistant history. Private GM/system prompt construction
         // and provider config are owned server-side by magic-worlds-api.
@@ -223,6 +326,15 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             content: existingAiTurn.content,
             forwardOptions: existingAiTurn.forwardOptions,
             imagePrompt: existingAiTurn.imagePrompt,
+            assistantMessageId: existingAiTurn.assistantMessageId,
+            turnId: existingAiTurn.turnId,
+            imageJobId: existingAiTurn.imageJobId,
+            imageStatus: existingAiTurn.imageStatus,
+            imageStatusUrl: existingAiTurn.imageStatusUrl,
+            imageResultUrl: existingAiTurn.imageResultUrl,
+            imageAssets: existingAiTurn.imageAssets,
+            imageUrl: existingAiTurn.imageUrl,
+            imageError: existingAiTurn.imageError,
         }
 
         // Drop any subsequent turns but keep (and reset) the AI turn we regenerate.
@@ -233,10 +345,18 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             isStreaming: true,
             forwardOptions: undefined,
             imagePrompt: undefined,
+            assistantMessageId: undefined,
+            turnId: undefined,
+            imageJobId: undefined,
+            imageStatus: undefined,
+            imageStatusUrl: undefined,
+            imageResultUrl: undefined,
+            imageAssets: undefined,
+            imageUrl: undefined,
+            imageError: undefined,
         }
         const updatedTurns = [...truncatedTurns.slice(0, -1), resetAiTurn]
-        turnsRef.current = updatedTurns
-        setTurns(updatedTurns)
+        setTurnState(updatedTurns)
         setIsLoading(true)
         setError(null)
         saveTurnsToApi(adventure.id, updatedTurns)
@@ -250,8 +370,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
 
         try {
             const updatedTurns = turns.filter((turn) => turn.id !== turnId)
-            setTurns(updatedTurns)
-            turnsRef.current = updatedTurns
+            setTurnState(updatedTurns)
             await saveTurnsToApi(adventure.id, updatedTurns)
         } catch (error) {
             console.error('Failed to delete turn:', error)
@@ -266,8 +385,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
                     ? { ...turn, content: newContent, timestamp: new Date().toISOString() }
                     : turn
             )
-            setTurns(updatedTurns)
-            turnsRef.current = updatedTurns
+            setTurnState(updatedTurns)
             await saveTurnsToApi(adventure.id, updatedTurns)
         } catch (error) {
             console.error('Failed to edit turn:', error)
@@ -291,8 +409,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             forwardOptions: undefined,
         }
         const newTurns = [...turns, aiTurn]
-        turnsRef.current = newTurns
-        setTurns(newTurns)
+        setTurnState(newTurns)
         setIsLoading(true)
         setError(null)
         saveTurnsToApi(adventure.id, newTurns)
@@ -336,8 +453,7 @@ export function InteractionCenterPanel({adventure, turns, setTurns}: Interaction
             newTurns = [...turns, userTurn, aiTurn]
         }
 
-        turnsRef.current = newTurns
-        setTurns(newTurns)
+        setTurnState(newTurns)
         setInput('')
         setIsLoading(true)
         setError(null)

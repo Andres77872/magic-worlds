@@ -150,6 +150,9 @@ export function AdventureCreator() {
             // matcher reads triggers from the template's embedded persona/cast/world,
             // not from the user's library.
             const toCharacterCard = (c: Character) => ({
+                // Keep the library card id so a started adventure can clone the CURRENT
+                // original card (and so edits stay isolated to the adventure's copy).
+                source_card_id: c.id,
                 name: c.name,
                 race: c.race,
                 description: c.description ?? '',
@@ -169,6 +172,7 @@ export function AdventureCreator() {
                     .map(toCharacterCard),
                 world: selectedWorldObj
                     ? [{
+                          source_card_id: selectedWorldObj.id,
                           name: selectedWorldObj.name,
                           type: selectedWorldObj.type,
                           description: selectedWorldObj.description ?? '',

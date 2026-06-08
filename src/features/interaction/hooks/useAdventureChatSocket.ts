@@ -9,7 +9,10 @@ export interface AdventureChatHandlers {
     /** Validated turn metadata (suggested actions + image prompt) arrived. */
     onMetadata?: (meta: { forwardOptions: ForwardOption[]; imagePrompt: string }) => void
     /** The turn finished streaming (`interrupted` when stopped early). */
-    onDone?: (interrupted: boolean) => void
+    onDone?: (done: { interrupted: boolean; assistantMessageId?: number; turnId?: string }) => void
+    onImageJob?: (frame: Extract<ChatSocketServerMessage, { type: 'image_job' }>) => void
+    onImageComplete?: (frame: Extract<ChatSocketServerMessage, { type: 'image_complete' }>) => void
+    onImageFailed?: (frame: Extract<ChatSocketServerMessage, { type: 'image_failed' }>) => void
     /** The backend reported an error for this turn. */
     onError?: (message: string) => void
 }
@@ -60,7 +63,20 @@ export function useAdventureChatSocket(
                         })
                         break
                     case 'done':
-                        current.onDone?.(Boolean(message.interrupted))
+                        current.onDone?.({
+                            interrupted: Boolean(message.interrupted),
+                            assistantMessageId: message.assistant_message_id,
+                            turnId: message.turn_id,
+                        })
+                        break
+                    case 'image_job':
+                        current.onImageJob?.(message)
+                        break
+                    case 'image_complete':
+                        current.onImageComplete?.(message)
+                        break
+                    case 'image_failed':
+                        current.onImageFailed?.(message)
                         break
                     case 'error':
                         current.onError?.(message.message)

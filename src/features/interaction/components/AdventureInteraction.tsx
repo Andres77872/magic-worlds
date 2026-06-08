@@ -3,7 +3,7 @@
  */
 
 import {useEffect, useState} from 'react'
-import type {Adventure, TurnEntry} from '../../../shared'
+import type {Adventure, AdventureSnapshot, TurnEntry} from '../../../shared'
 import { Menu, ScrollText } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '../../../app/hooks'
 import { LoadingSpinner } from '../../../ui/components'
@@ -14,7 +14,7 @@ import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel} fro
 
 export function AdventureInteraction() {
     const { previousPage, setPage } = useNavigation()
-    const { editingInProgress } = useData()
+    const { editingInProgress, saveInProgressSnapshot } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
     const [currentAdventure, setCurrentAdventure] = useState<Adventure | null>(null)
     const [turns, setTurns] = useState<TurnEntry[]>([])
@@ -54,7 +54,7 @@ export function AdventureInteraction() {
                 // Get turns from the adventure if available, otherwise load from API
                 if (currentAdventure.turns && currentAdventure.turns.length > 0) {
                     if (isMounted) {
-                        setTurns(currentAdventure.turns);
+                        setTurns(parseTurnState(JSON.stringify({ turns: currentAdventure.turns })));
                         setIsLoading(false);
                     }
                 } else {
@@ -96,10 +96,23 @@ export function AdventureInteraction() {
         return () => {
             isMounted = false
         }
-    }, [currentAdventure, isAuthenticated])
+        // Keyed on the adventure id: editing the cloned cards swaps currentAdventure
+        // for a new object with the same id, and must NOT reload the chat turns.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentAdventure?.id, isAuthenticated])
 
     const handleBack = () => {
         setPage(previousPage || 'landing')
+    }
+
+    // Persist an edit to this adventure's cloned-card snapshot. saveInProgressSnapshot
+    // updates editingInProgress, which cascades back into currentAdventure below.
+    const handleSnapshotChange = async (snapshot: AdventureSnapshot) => {
+        if (!currentAdventure) return
+        await saveInProgressSnapshot(currentAdventure.id, snapshot)
+        setCurrentAdventure((prev) =>
+            prev ? { ...prev, snapshot, scenario: snapshot.template.description ?? prev.scenario } : prev,
+        )
     }
 
     // Handle panel clicks on mobile
@@ -166,7 +179,7 @@ export function AdventureInteraction() {
                 onClick={handlePanelBackdropClick}
             >
                 <div className={cx(panelContent, 'border-r border-parchment-50/10', isLeftPanelOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0')}>
-                    <InteractionLeftPanel adventure={currentAdventure} onBack={handleBack} />
+                    <InteractionLeftPanel adventure={currentAdventure} onBack={handleBack} onSnapshotChange={handleSnapshotChange} />
                 </div>
             </div>
 
