@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import type { ChatImageAsset, ForwardOption, ImageLifecycleStatus, TurnEntry } from '../../../shared'
 import { cx, Eyebrow } from '../../../ui/primitives'
+import { isSafeAssetUrl } from '../utils/chatImageTurnState'
 import { ChatAvatar } from './ChatAvatar'
 import { ChatMessage } from './ChatMessage'
 import { ChatActions } from './ChatActions'
 import { ForwardOptions } from './ForwardOptions'
 import { EditMode } from './EditMode'
+import { GeneratedImage } from './GeneratedImage'
+import { TurnNarration } from './TurnNarration'
 
 // Extend TurnEntry to include forward options and the (out-of-scope) image prompt
 interface ExtendedTurnEntry extends TurnEntry {
@@ -23,9 +26,16 @@ interface ChatTurnProps {
     onRegenerateClick?: (turnId: string) => void
     onDeleteClick?: (turnId: string) => void
     onEditClick?: (turnId: string, newContent: string) => void
+    onRequestNarration?: (assistantMessageId?: number, turnId?: string) => void
+    /** Label for the AI speaker (e.g. "Game Master" or a character's name). */
+    aiLabel?: string
+    /** Render the suggested-replies (forwardOptions) row. Off for 1:1 character chat. */
+    showForwardOptions?: boolean
+    /** Render per-turn generated scene images. Off for 1:1 character chat. */
+    showImage?: boolean
 }
 
-export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onEditClick }: ChatTurnProps) {
+export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onEditClick, onRequestNarration, aiLabel = 'Game Master', showForwardOptions = true, showImage = true }: ChatTurnProps) {
     const isUser = turn.type === 'user'
     const [isEditing, setIsEditing] = useState(false)
 
@@ -44,12 +54,8 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
         setIsEditing(false)
     }
 
-    const safeAssets = (turn.imageAssets ?? []).filter((asset) => isSafeGeneratedImageUrl(asset.url))
-    const imageUrl = safeAssets[0]?.url ?? (turn.imageUrl && isSafeGeneratedImageUrl(turn.imageUrl) ? turn.imageUrl : undefined)
-    const pendingImage = turn.imageStatus === 'pending' || turn.imageStatus === 'in_progress' || turn.imageStatus === 'mirroring'
-    // 'unavailable' means image generation is turned off server-side — not a real
-    // per-turn failure the player can act on, so it renders nothing (no banner).
-    const failedImage = turn.imageStatus === 'failed' || turn.imageStatus === 'canceled' || turn.imageStatus === 'invalid' || turn.imageStatus === 'quota_exceeded'
+    const safeAssets = (turn.imageAssets ?? []).filter((asset) => isSafeAssetUrl(asset.url))
+    const imageUrl = safeAssets[0]?.url ?? (turn.imageUrl && isSafeAssetUrl(turn.imageUrl) ? turn.imageUrl : undefined)
 
     return (
         <div className={cx('mb-6 flex gap-3', isUser && 'flex-row-reverse')}>
@@ -58,7 +64,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
             <div className={cx('flex min-w-0 max-w-[640px] flex-col gap-1.5', isUser ? 'items-end' : 'items-start')}>
                 <div className={cx('flex items-center gap-2', isUser && 'flex-row-reverse')}>
                     <Eyebrow tone={isUser ? 'ember' : 'arcane'} className="text-[11px] tracking-[0.16em]">
-                        {isUser ? 'Player' : 'Game Master'}
+                        {isUser ? 'Player' : aiLabel}
                     </Eyebrow>
                     <div className={cx('flex items-center gap-2', isUser && 'flex-row-reverse')}>
                         <span className="font-mono text-[11px] text-parchment-500">
@@ -67,6 +73,15 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                 minute: '2-digit',
                             })}
                         </span>
+                        {!isUser && !isEditing && onRequestNarration && (
+                            <TurnNarration
+                                status={turn.ttsStatus}
+                                url={turn.ttsUrl ?? turn.ttsAssets?.[0]?.url}
+                                errorDetail={turn.ttsError?.detail}
+                                canRequest={!turn.isStreaming && Boolean(turn.assistantMessageId || turn.turnId)}
+                                onRequest={() => onRequestNarration(turn.assistantMessageId, turn.turnId)}
+                            />
+                        )}
                         <ChatActions
                             turnId={turn.id}
                             isUser={isUser}
@@ -105,40 +120,26 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                             ) : (
                                 <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} />
                             )}
-                            {!isUser && !isEditing && pendingImage && (
-                                <div className="mt-3 rounded-xl border border-arcane-400/25 bg-arcane-500/10 px-4 py-3 text-[13px] text-arcane-200">
-                                    Generating image…
-                                </div>
-                            )}
-                            {!isUser && !isEditing && turn.imageStatus === 'completed' && imageUrl && (
-                                <figure className="mt-3 overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-700/70">
-                                    <img src={imageUrl} alt="Generated scene" className="max-h-[420px] w-full object-contain" loading="lazy" />
-                                </figure>
-                            )}
-                            {!isUser && !isEditing && failedImage && (
-                                <div className="mt-3 rounded-xl border border-blood-500/25 bg-blood-500/10 px-4 py-3 text-[13px] text-blood-200">
-                                    {turn.imageError?.detail || 'Image generation failed.'}
-                                </div>
+                            {!isUser && !isEditing && showImage && (
+                                <GeneratedImage
+                                    status={turn.imageStatus}
+                                    url={imageUrl}
+                                    width={safeAssets[0]?.width}
+                                    height={safeAssets[0]?.height}
+                                    errorDetail={turn.imageError?.detail}
+                                />
                             )}
                         </>
                     )}
                 </div>
 
-                <ForwardOptions
-                    options={turn.forwardOptions}
-                    onOptionClick={onForwardOptionClick}
-                />
+                {showForwardOptions && (
+                    <ForwardOptions
+                        options={turn.forwardOptions}
+                        onOptionClick={onForwardOptionClick}
+                    />
+                )}
             </div>
         </div>
     )
-}
-
-function isSafeGeneratedImageUrl(value: string): boolean {
-    const text = String(value || '').trim()
-    const lowered = text.toLowerCase()
-    if (!text || lowered.startsWith('data:') || lowered.includes('fal.media') || lowered.includes('signature=') || lowered.includes('x-amz-signature') || lowered.includes('/var/') || lowered.includes('/tmp/')) {
-        return false
-    }
-    if (text.startsWith('/')) return !text.startsWith('//')
-    return lowered.startsWith('http://') || lowered.startsWith('https://')
 }

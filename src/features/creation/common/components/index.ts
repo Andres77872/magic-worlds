@@ -35,6 +35,12 @@ export type { TriggersFieldProps } from './TriggersField';
 export { AiGeneratePanel } from './AiGeneratePanel';
 export type { AiGenerateOptions, AiGeneratePanelProps } from './AiGeneratePanel';
 
+export { MediaStudioSection } from './MediaStudioSection';
+export type { MediaStudioSectionProps } from './MediaStudioSection';
+
+export { MediaHistoryDrawer } from './MediaHistoryDrawer';
+export type { MediaHistoryDrawerProps } from './MediaHistoryDrawer';
+
 export { GeneratedDraftNotice } from './GeneratedDraftNotice';
 export type { GeneratedDraftNoticeProps } from './GeneratedDraftNotice';
 

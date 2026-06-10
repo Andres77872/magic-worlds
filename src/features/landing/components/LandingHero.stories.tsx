@@ -22,7 +22,7 @@ const meta = {
     eyebrow: 'Worlds that talk back',
     title: 'Step into a story that answers.',
     subtitle: 'Pick a character, set the scene, and play it out — the world remembers what you do.',
-    primary: { label: 'Begin a scene', icon: Feather, onClick: () => {} },
+    primary: { label: 'Begin an adventure', icon: Feather, onClick: () => {} },
     secondary: { label: 'See how it works', icon: Compass, onClick: () => {} },
     stat: 'A few worlds to start — bring your own next.',
   },

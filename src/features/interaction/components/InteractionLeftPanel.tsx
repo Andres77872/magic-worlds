@@ -3,6 +3,8 @@ import { ArrowLeft, Check, Globe, Info, Pencil, Plus, UserCircle, Users, X } fro
 import type { Adventure, AdventureSnapshot } from '../../../shared'
 import { Button, Icon, IconButton, SectionHeader, Tag, Textarea } from '../../../ui/primitives'
 import { Card } from '../../../ui/components/lists/Card'
+import { ModeBadge } from '../../../ui/components/common/ModeBadge'
+import { resolveMediaUrl } from '../../../infrastructure/api'
 import { useData } from '../../../app/hooks'
 import { AdventureCardDrawer } from './AdventureCardDrawer'
 import { AddCardModal, type AddCandidate } from './AddCardModal'
@@ -93,9 +95,12 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
 
     return (
         <div className="flex flex-col gap-6 p-5">
-            <Button kind="secondary" full iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack}>
-                Back to Adventures
-            </Button>
+            <div className="flex items-center gap-2">
+                <Button kind="secondary" full iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack} className="flex-1">
+                    Back to Adventures
+                </Button>
+                <ModeBadge mode="adventure" />
+            </div>
 
             <ScenarioSection scenario={scenario} editable={editable} onSave={handleSaveScenario} />
 
@@ -203,6 +208,8 @@ function CompactCard({ entry, onOpen }: { entry: SnapshotCardEntry; onOpen: (ref
             subtitle={badge ? <Tag>{badge}</Tag> : undefined}
             highlight={ref.kind === 'persona'}
             onClick={() => onOpen(ref)}
+            imageUrl={resolveMediaUrl(card.image_url)}
+            themeSongUrl={resolveMediaUrl(card.theme_song_url)}
         />
     )
 }

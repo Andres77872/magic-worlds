@@ -5,7 +5,7 @@
  */
 
 import type { FormEvent, KeyboardEvent } from 'react'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Globe, Layers, ScrollText, Sparkles, Tags } from 'lucide-react'
 import type { World } from '@/shared'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
@@ -24,6 +24,7 @@ import {
     CreatorTextarea,
     AttributeManager,
     AiGeneratePanel,
+    MediaStudioSection,
     GeneratedDraftNotice,
     TriggersField,
     FormActions,
@@ -61,6 +62,8 @@ function toWorld(card: WorldCardResponse): World {
         details: {},
         category: card.category ?? undefined,
         triggers: card.triggers ?? [],
+        image_url: card.image_url,
+        theme_song_url: card.theme_song_url,
     }
 }
 
@@ -73,6 +76,10 @@ export function WorldCreator() {
     const [type, setType] = useState(editingWorld?.type ?? '')
     const [description, setDescription] = useState(editingWorld?.description ?? '')
     const [triggers, setTriggers] = useState<string[]>(editingWorld?.triggers ?? [])
+    const [imageUrl, setImageUrl] = useState<string | undefined>(editingWorld?.image_url)
+    const [themeSongUrl, setThemeSongUrl] = useState<string | undefined>(editingWorld?.theme_song_url)
+    // Card id resolved at save time, so theme persistence never races `editingWorld` state.
+    const savedIdRef = useRef<string | null>(editingWorld?.id ?? null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [touched, setTouched] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
@@ -101,6 +108,101 @@ export function WorldCreator() {
         [editingWorld],
     )
 
+    /** Build the create/update payload from current form state. */
+    const buildPayload = () => ({
+        name,
+        type,
+        description,
+        triggers,
+        category: toCategoryPayload(attrs.categories, attrs.attributes),
+        image_url: imageUrl ?? null,
+        theme_song_url: themeSongUrl,
+    })
+
+    /**
+     * Ensure the card exists on the server and return its id — auto-saving first
+     * if needed (theme generation needs a real target id).
+     */
+    const ensureSaved = async (): Promise<string> => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Please log in to continue.')
+        }
+        if (!name.trim() || !type.trim()) {
+            setTouched(true)
+            throw new Error('Add a name and type before generating a theme.')
+        }
+        if (editingWorld) {
+            await apiService.updateWorld(editingWorld.id, buildPayload())
+            savedIdRef.current = editingWorld.id
+            return editingWorld.id
+        }
+        const created = await apiService.createWorld(buildPayload())
+        const saved = toWorld(created as WorldCardResponse)
+        if (saved.id) setEditingWorld(saved)
+        savedIdRef.current = saved.id
+        // No loadData() here: a refresh would unmount this creator mid-generation (AppRouter
+        // shows a spinner while loading). The new card lands in the gallery on Save.
+        return saved.id
+    }
+
+    /**
+     * Persist a freshly generated/uploaded/gallery-selected image onto the card
+     * (mirrors `handleThemeSongUrl`). Without this, the image only lives in form
+     * state until Save — navigating away left the card unassigned even though the
+     * asset shows in the user gallery. Unsaved new cards persist it on Create via
+     * `buildPayload()`; removal stays a Save-time change so Back still backs out.
+     */
+    const handleImageUrl = (url: string | undefined) => {
+        setImageUrl(url)
+        const id = savedIdRef.current ?? editingWorld?.id
+        if (id && url) {
+            void apiService
+                .updateWorld(id, { ...buildPayload(), image_url: url })
+                .catch(() => {
+                    /* best-effort — the asset still exists; Save re-persists the link */
+                })
+        }
+    }
+
+    /**
+     * Persist a freshly generated theme onto the card. Theme generation always runs
+     * after `ensureSaved()`, so the id is known — write it immediately (overriding the
+     * not-yet-committed `themeSongUrl` state) so the gallery shows it without a re-save.
+     */
+    const handleThemeSongUrl = (url: string | undefined) => {
+        setThemeSongUrl(url)
+        const id = savedIdRef.current ?? editingWorld?.id
+        if (id && url) {
+            // Persist the link only — do NOT loadData() here. A refresh flips isLoading,
+            // which makes AppRouter unmount the whole creator (discarding in-progress edits)
+            // and re-run the theme effect. The gallery refreshes on Save / next navigation.
+            void apiService
+                .updateWorld(id, { ...buildPayload(), theme_song_url: url })
+                .catch(() => {
+                    /* best-effort — the asset still exists; Save re-persists the link */
+                })
+        }
+    }
+
+    // Portrait + theme generators, docked under the live preview card.
+    const mediaPanel = (
+        <MediaStudioSection
+            layout="compact"
+            cardType="world"
+            noun="world"
+            template={{ name, description, subtype: type, category: toCategoryPayload(attrs.categories, attrs.attributes) }}
+            imageUrl={imageUrl}
+            onImageUrl={handleImageUrl}
+            themeSongUrl={themeSongUrl}
+            onThemeSongUrl={handleThemeSongUrl}
+            ensureSaved={ensureSaved}
+            themeTargetId={editingWorld?.id}
+            isAuthenticated={isAuthenticated}
+            onAuthRequired={openLoginModal}
+        />
+    )
+
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
         if (!isAuthenticated) {
@@ -113,13 +215,7 @@ export function WorldCreator() {
         setIsSubmitting(true)
         setSaveError(null)
         try {
-            const payload = {
-                name,
-                type,
-                description,
-                triggers,
-                category: toCategoryPayload(attrs.categories, attrs.attributes),
-            }
+            const payload = buildPayload()
             if (editingWorld) {
                 await apiService.updateWorld(editingWorld.id, payload)
             } else {
@@ -163,8 +259,13 @@ export function WorldCreator() {
             setType(card.type ?? '')
             setDescription(card.description ?? '')
             setTriggers(card.triggers ?? [])
+            setImageUrl(card.image_url)
+            setThemeSongUrl(card.theme_song_url)
             attrs.hydrateFrom(card)
             setEditingWorld(toWorld(card))
+            // The AI endpoint already persisted the card — record its id so a media
+            // generation right after the draft persists without racing provider state.
+            savedIdRef.current = card.id || card.uuid || null
             setGenStatus('done')
             // Keep the landing list fresh for when the user navigates back. Do not
             // await or navigate — generation must never block the page.
@@ -200,6 +301,7 @@ export function WorldCreator() {
                 <StudioPreviewDock
                     busy={genStatus === 'generating'}
                     notice={genStatus === 'done' ? <GeneratedDraftNotice noun="world" /> : undefined}
+                    footer={mediaPanel}
                 >
                     <WorldPreviewCard
                         name={name}
@@ -208,6 +310,7 @@ export function WorldCreator() {
                         triggers={triggers}
                         attributes={attrs.attributes}
                         categories={attrs.categories}
+                        imageUrl={imageUrl}
                     />
                 </StudioPreviewDock>
             }

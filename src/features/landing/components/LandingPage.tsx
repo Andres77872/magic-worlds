@@ -8,11 +8,13 @@
  * characters, and worlds — plus a compact create strip.
  */
 
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, Feather, Play, Sparkles, Users, Wand2 } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
-import type { Character, World, Adventure } from '@/shared'
-import { CharacterList, WorldList, InProgressList } from '@/ui/components'
+import type { Character, CharacterChatSession, World, Adventure } from '@/shared'
+import { MODE_META } from '@/shared/modes'
+import { CharacterList, CharacterChatList, WorldList, InProgressList } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { Button, Icon, SectionHeader } from '@/ui/primitives'
 import { LandingLoading } from './LandingLoading'
@@ -23,6 +25,7 @@ import { SceneCard } from './SceneCard'
 import { LandingHero, type HeroCta } from './LandingHero'
 import { AccessMenu } from './AccessMenu'
 import { HowItWorksSection } from './HowItWorksSection'
+import { TwoWaysToPlay } from './TwoWaysToPlay'
 import { ShowcaseWorlds } from './ShowcaseWorlds'
 import { ClosingCTA } from './ClosingCTA'
 import { toScene, sceneTitle, sceneMatchesFilter, sceneMatchesQuery } from './sceneModel'
@@ -46,7 +49,21 @@ export function LandingPage() {
         deleteTemplate,
         editInProgress,
         deleteInProgress,
+        startCharacterChat,
+        characterChats,
+        resumeCharacterChat,
+        deleteCharacterChat,
+        loadData,
     } = useData()
+
+    // Refresh the dashboard in the background each time it's shown. AppRouter
+    // unmounts/remounts this page on navigation, so returning from a creator
+    // re-fetches and picks up media (theme/portrait) the creators persisted
+    // without a loadData. Silent → no full-screen spinner, no unmount loop.
+    useEffect(() => {
+        void loadData({ silent: true })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const [query, setQuery] = useState('')
     const [filter, setFilter] = useState('All')
@@ -65,6 +82,8 @@ export function LandingPage() {
     const handleTemplateStart = (t: Adventure) => requireAuth(() => { startTemplate(t); setPage('interaction') })
     const handleTemplateEdit = (t: Adventure) => requireAuth(() => { editTemplate(t); setPage('adventure') })
     const handleCharacterEdit = (c: Character) => requireAuth(() => { editCharacter(c); setPage('character') })
+    const handleCharacterChat = (c: Character) => requireAuth(() => { void startCharacterChat(c); setPage('character-chat') })
+    const handleChatResume = (chat: CharacterChatSession) => requireAuth(() => { resumeCharacterChat(chat); setPage('character-chat') })
     const handleWorldEdit = (w: World) => requireAuth(() => { editWorld(w); setPage('world') })
     const handleInProgressEdit = (a: Adventure) => requireAuth(() => { editInProgress(a); setPage('interaction') })
 
@@ -115,7 +134,7 @@ export function LandingPage() {
     // welcoming front-door (it doubles as the empty state).
     const hasScenes = templateAdventures.length > 0
     const hasInProgress = inProgressAdventures.length > 0
-    const hasContent = hasScenes || hasInProgress || characters.length > 0 || worlds.length > 0
+    const hasContent = hasScenes || hasInProgress || characters.length > 0 || worlds.length > 0 || characterChats.length > 0
     const mode: 'guest' | 'returning' = isAuthenticated && hasContent ? 'returning' : 'guest'
 
     const resumeLatest = () =>
@@ -139,7 +158,7 @@ export function LandingPage() {
     if (mode === 'guest') {
         const heroPrimary: HeroCta = isAuthenticated
             ? { label: 'Create your first adventure', icon: Wand2, onClick: createAdventure }
-            : { label: 'Begin a scene', icon: Feather, onClick: createAdventure }
+            : { label: 'Begin an adventure', icon: Feather, onClick: createAdventure }
         const heroSecondary: HeroCta = isAuthenticated
             ? { label: 'New character', icon: Users, onClick: createCharacter }
             : { label: 'Explore worlds', iconRight: ArrowRight, onClick: scrollToShowcase }
@@ -164,6 +183,7 @@ export function LandingPage() {
                     onAction={handleCreate}
                 />
                 <HowItWorksSection />
+                <TwoWaysToPlay />
                 <ShowcaseWorlds sectionRef={showcaseRef} onTry={createAdventure} />
                 <ClosingCTA onAction={createAdventure} />
             </div>
@@ -200,7 +220,7 @@ export function LandingPage() {
                         monogram={featured.monogram}
                         seed={featured.title}
                         tags={featured.tags}
-                        actionLabel="Begin a scene"
+                        actionLabel={MODE_META.adventure.beginLabel}
                         onAction={() => handleTemplateStart(featured.template)}
                     />
                 ) : (
@@ -211,9 +231,16 @@ export function LandingPage() {
                 <section className="flex flex-col gap-5">
                     <div className="flex items-end justify-between gap-4">
                         <h2 className="font-display text-h3 font-semibold text-parchment-50">More worlds to wander</h2>
-                        <span className="font-ui text-[13px] text-parchment-400">
-                            {rest.length} {rest.length === 1 ? 'scene' : 'scenes'}
-                        </span>
+                        <div className="flex items-center gap-3">
+                            <span className="font-ui text-[13px] text-parchment-400">
+                                {rest.length} {rest.length === 1 ? 'adventure' : 'adventures'}
+                            </span>
+                            <ViewAllButton
+                                count={templateAdventures.length}
+                                label="View all adventures"
+                                onClick={() => setPage('gallery-adventures')}
+                            />
+                        </div>
                     </div>
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-5">
                         {rest.map((scene) => (
@@ -230,7 +257,12 @@ export function LandingPage() {
             )}
 
             {hasInProgress && (
-                <Shelf title="Continue your journey">
+                <Shelf
+                    title="Continue your journey"
+                    subtitle={MODE_META.adventure.tagline}
+                    icon={MODE_META.adventure.icon}
+                    tone={MODE_META.adventure.tone}
+                >
                     <InProgressList
                         adventures={inProgressAdventures}
                         layout="rail"
@@ -241,12 +273,38 @@ export function LandingPage() {
                 </Shelf>
             )}
 
+            {characterChats.length > 0 && (
+                <Shelf
+                    title="Recent chats"
+                    subtitle={MODE_META.chat.tagline}
+                    icon={MODE_META.chat.icon}
+                    tone={MODE_META.chat.tone}
+                >
+                    <CharacterChatList
+                        chats={characterChats}
+                        layout="rail"
+                        onResume={handleChatResume}
+                        onDelete={deleteCharacterChat}
+                    />
+                </Shelf>
+            )}
+
             {characters.length > 0 && (
-                <Shelf title="Your cast">
+                <Shelf
+                    title="Your cast"
+                    action={
+                        <ViewAllButton
+                            count={characters.length}
+                            label="View all characters"
+                            onClick={() => setPage('gallery-characters')}
+                        />
+                    }
+                >
                     <CharacterList
                         characters={characters}
                         layout="rail"
                         onEdit={handleCharacterEdit}
+                        onChat={handleCharacterChat}
                         onDelete={(index) => {
                             const character = characters[index]
                             if (character?.id) deleteCharacter(character.id)
@@ -256,7 +314,16 @@ export function LandingPage() {
             )}
 
             {worlds.length > 0 && (
-                <Shelf title="Your worlds">
+                <Shelf
+                    title="Your worlds"
+                    action={
+                        <ViewAllButton
+                            count={worlds.length}
+                            label="View all worlds"
+                            onClick={() => setPage('gallery-worlds')}
+                        />
+                    }
+                >
                     <WorldList
                         worlds={worlds}
                         layout="rail"
@@ -290,15 +357,36 @@ export function LandingPage() {
 
 interface ShelfProps {
     title: string
+    /** One-line mode descriptor under the title (e.g. "Game Master–led sessions"). */
+    subtitle?: string
+    icon?: LucideIcon
+    tone?: 'ember' | 'arcane'
+    /** Right-aligned affordance (e.g. a "View all" link to the full gallery). */
+    action?: ReactNode
     children: ReactNode
 }
 
-function Shelf({ title, children }: ShelfProps) {
+function Shelf({ title, subtitle, icon, tone, action, children }: ShelfProps) {
     return (
         <section className="flex flex-col gap-1 border-t border-parchment-50/[.06] pt-6">
-            <SectionHeader title={title} />
+            <SectionHeader title={title} icon={icon} tone={tone} right={action} />
+            {subtitle && <p className="m-0 font-ui text-[13px] text-parchment-400">{subtitle}</p>}
             {children}
         </section>
+    )
+}
+
+interface ViewAllButtonProps {
+    count: number
+    label: string
+    onClick: () => void
+}
+
+function ViewAllButton({ count, label, onClick }: ViewAllButtonProps) {
+    return (
+        <Button kind="ghost" size="sm" iconRight={<Icon icon={ArrowRight} size={14} />} onClick={onClick} aria-label={label}>
+            View all ({count})
+        </Button>
     )
 }
 

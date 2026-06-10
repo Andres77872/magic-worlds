@@ -10,8 +10,9 @@ import type {
     RegisterResponse,
     UserProfile,
 } from '../../shared/types/auth.types'
+import { API_BASE_URL } from './baseUrl'
 import { configureChatSocketAuthRefresh } from './chatSocket'
-import type { ChatImageAsset, ChatImageError, ImageLifecycleStatus } from '../../shared/types/interaction.types'
+import type { ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from '../../shared/types/interaction.types'
 import type { AdventureSnapshot } from '../../shared/types/adventure.types'
 import type {
     AdventureTemplateCardResponse,
@@ -21,6 +22,18 @@ import type {
     CharacterCardResponse,
     WorldCardResponse,
 } from '../../shared/types/aiCard.types'
+import type {
+    CardMediaTargetType,
+    CardPortraitRequest,
+    ImageJobListResponse,
+    ImageUploadResponse,
+    ThemeSongCreateRequest,
+    ThemeSongJobPublic,
+    ThemeSongJobStatus,
+    ThemeSongListResponse,
+    UserThemeSongListResponse,
+} from '../../shared/types/media.types'
+import { THEME_SONG_NON_TERMINAL_STATUSES } from '../../shared/types/media.types'
 
 export interface AdventureSessionMessagesResponse {
     adventure_id: number
@@ -37,9 +50,15 @@ export interface ImageJobPublicResponse {
     error?: ChatImageError | null
 }
 
-// Get API base URL from environment, fallback to the backend's default port
-// (magic-worlds-api binds to APP_PORT, default 8000).
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+export interface TtsJobPublicResponse {
+    job_id: string
+    status: TtsLifecycleStatus
+    status_url: string
+    result_url: string
+    assets?: ChatTtsAsset[]
+    error?: ChatTtsError | null
+}
+
 const TOKEN_STORAGE_KEY = 'magic_worlds:token'
 const USER_STORAGE_KEY = 'magic_worlds:user'
 
@@ -142,13 +161,19 @@ class ApiService {
             }, timeoutMs)
         }
          
+        // Multipart uploads must NOT carry a JSON content type — the browser sets
+        // `multipart/form-data; boundary=…` itself, and forcing application/json
+        // (or any explicit value) strips the boundary and breaks server parsing.
+        const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
+        const headers: HeaderRecord = {
+            ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+            'Accept': 'application/json',
+            ...this.toHeaderRecord(fetchOptions.headers)
+        }
+        if (isFormData) delete headers['Content-Type']
         const config: RequestInit = {
             ...fetchOptions,
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                ...this.toHeaderRecord(fetchOptions.headers)
-            },
+            headers,
             body,
             signal
         }
@@ -172,10 +197,10 @@ class ApiService {
                     throw error
                 }
 
-                if (response.status === 401) {
-                    this.expireAuth()
-                    return this.terminalAuthResult<T>(config, parseAsJson)
-                }
+                // If refresh succeeded but the retried endpoint still rejects the
+                // request, keep the session intact and surface that endpoint's
+                // error below. Login is forced only when /auth/refresh itself is
+                // denied.
             }
 
             if (rejectAccepted && response.status === 202) {
@@ -206,6 +231,11 @@ class ApiService {
             }
 
             if (parseAsJson) {
+                // 204 No Content (e.g. asset deletes) and other empty bodies have no
+                // JSON to parse — calling response.json() on them throws. Treat as success.
+                if (response.status === 204 || response.headers.get('content-length') === '0') {
+                    return undefined as T
+                }
                 return await response.json()
             } else {
                 return await response.text() as T
@@ -609,32 +639,38 @@ class ApiService {
         })
     }
 
+    /** Build the shared list query string; `q` searches name/alias/triggers server-side. */
+    private listQuery(skip: number, limit: number, q?: string): string {
+        const term = q?.trim()
+        return `?skip=${skip}&limit=${limit}${term ? `&q=${encodeURIComponent(term)}` : ''}`
+    }
+
     /**
-     * Get characters list with pagination
+     * Get characters list with pagination and optional search
      */
-    async getCharacters(skip: number = 0, limit: number = 100): Promise<any> {
+    async getCharacters(skip: number = 0, limit: number = 100, q?: string): Promise<any> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/characters/?skip=${skip}&limit=${limit}`, token, {
+        return this.authenticatedRequest(`/characters/${this.listQuery(skip, limit, q)}`, token, {
             method: 'GET'
         })
     }
 
     /**
-     * Get worlds list with pagination
+     * Get worlds list with pagination and optional search
      */
-    async getWorlds(skip: number = 0, limit: number = 100): Promise<any> {
+    async getWorlds(skip: number = 0, limit: number = 100, q?: string): Promise<any> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/worlds/?skip=${skip}&limit=${limit}`, token, {
+        return this.authenticatedRequest(`/worlds/${this.listQuery(skip, limit, q)}`, token, {
             method: 'GET'
         })
     }
 
     /**
-     * Get adventure templates list with pagination
+     * Get adventure templates list with pagination and optional search
      */
-    async getAdventureTemplates(skip: number = 0, limit: number = 100): Promise<any> {
+    async getAdventureTemplates(skip: number = 0, limit: number = 100, q?: string): Promise<any> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/adventure-templates/?skip=${skip}&limit=${limit}`, token, {
+        return this.authenticatedRequest(`/adventure-templates/${this.listQuery(skip, limit, q)}`, token, {
             method: 'GET'
         })
     }
@@ -803,6 +839,251 @@ class ApiService {
         })
     }
 
+    /* ------------------------------ chat tts ------------------------------ */
+
+    async getTtsJob(jobId: string): Promise<TtsJobPublicResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/tts/jobs/${encodeURIComponent(jobId)}`, token, {
+            method: 'GET'
+        })
+    }
+
+    /**
+     * Fetch an owned narration audio asset (`/tts/assets/{asset_id}.mp3`) as a
+     * Blob. The download route is ownership-checked, and `<audio>`/`Audio()`
+     * requests can't carry an Authorization header — so callers fetch through
+     * here and play from an object URL instead.
+     */
+    async fetchTtsAudioBlob(url: string): Promise<Blob> {
+        const requestUrl = /^https?:/i.test(url) ? url : `${this.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
+        const fetchOnce = (token: string) => fetch(requestUrl, {
+            method: 'GET',
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        })
+        let response = await fetchOnce(this.getStoredToken())
+        if (response.status === 401) {
+            const nextToken = await this.refreshAccessToken(this.getStoredToken())
+            response = await fetchOnce(nextToken)
+        }
+        if (!response.ok) {
+            throw new ApiError(response.status, 'Narration audio could not be loaded.', {
+                category: 'tts_audio',
+                retryable: response.status >= 500,
+            })
+        }
+        return response.blob()
+    }
+
+    /** Poll a chat TTS job until it reaches a terminal status (or the deadline). */
+    async waitForTts(
+        jobId: string,
+        opts: { signal?: AbortSignal; onUpdate?: (job: TtsJobPublicResponse) => void; intervalMs?: number; maxWaitMs?: number } = {},
+    ): Promise<TtsJobPublicResponse> {
+        const nonTerminal = new Set(['pending', 'in_progress', 'synthesizing', 'mirroring'])
+        const interval = opts.intervalMs ?? 2_000
+        const deadline = Date.now() + (opts.maxWaitMs ?? 120_000)
+        for (;;) {
+            const job = await this.getTtsJob(jobId)
+            opts.onUpdate?.(job)
+            if (!nonTerminal.has(job.status)) return job
+            if (Date.now() >= deadline) return job
+            await this.delay(interval, opts.signal)
+        }
+    }
+
+    /* ---------------------------- card media ---------------------------- */
+
+    /** Resolve after `ms`, or reject early if `signal` aborts. */
+    private delay(ms: number, signal?: AbortSignal): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (signal?.aborted) {
+                reject(new DOMException('Aborted', 'AbortError'))
+                return
+            }
+            const timer = setTimeout(() => {
+                cleanup()
+                resolve()
+            }, ms)
+            const onAbort = () => {
+                cleanup()
+                reject(new DOMException('Aborted', 'AbortError'))
+            }
+            const cleanup = () => {
+                clearTimeout(timer)
+                signal?.removeEventListener('abort', onAbort)
+            }
+            signal?.addEventListener('abort', onAbort, { once: true })
+        })
+    }
+
+    /**
+     * Generate a profile portrait from a card's own information. The client sends
+     * only the card template (+ optional art direction); the backend builds the
+     * private prompt. Returns the job (200 = already done, 202 = poll it).
+     */
+    async generateCardPortrait(body: CardPortraitRequest, options: AiCardRequestOptions = {}): Promise<ImageJobPublicResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<ImageJobPublicResponse>('/images/card-portrait', token, {
+            method: 'POST',
+            headers: this.aiHeaders(options),
+            body: body as unknown as BodyInit,
+            signal: options.signal,
+            timeoutMs: options.timeoutMs,
+        })
+    }
+
+    /**
+     * Upload a user-supplied custom card image. Returns the stored asset's URL,
+     * which is set onto the card's `image_url` and persisted on save — mirroring
+     * the generate flow. Stateless (no card id), so it works for unsaved cards too.
+     */
+    async uploadCardImage(file: File, options: { signal?: AbortSignal } = {}): Promise<ImageUploadResponse> {
+        const token = this.getStoredToken()
+        const form = new FormData()
+        form.append('file', file)
+        // No Content-Type header — request() lets the browser set the multipart boundary.
+        return this.authenticatedRequest<ImageUploadResponse>('/images/upload', token, {
+            method: 'POST',
+            body: form as unknown as BodyInit,
+            signal: options.signal,
+        })
+    }
+
+    /** Poll an image job until it reaches a terminal status (or the deadline). */
+    async waitForImageJob(
+        jobId: string,
+        opts: { signal?: AbortSignal; onUpdate?: (job: ImageJobPublicResponse) => void; intervalMs?: number; maxWaitMs?: number } = {},
+    ): Promise<ImageJobPublicResponse> {
+        const nonTerminal = new Set(['pending', 'in_progress', 'mirroring'])
+        const interval = opts.intervalMs ?? 2_500
+        const deadline = Date.now() + (opts.maxWaitMs ?? 180_000)
+        for (;;) {
+            const job = await this.getImageJob(jobId)
+            opts.onUpdate?.(job)
+            if (!nonTerminal.has(job.status)) return job
+            if (Date.now() >= deadline) return job
+            await this.delay(interval, opts.signal)
+        }
+    }
+
+    /**
+     * List the caller's own generated image jobs (newest first) — the user gallery.
+     * Image jobs are owned per user (not attached to a card), so this is a user-wide
+     * gallery the card editor picks a default image from. Defaults to completed jobs
+     * (the only ones with renderable assets). Offset-based pagination.
+     */
+    async listImageJobs(
+        opts: {
+            status?: 'completed' | 'failed' | 'canceled' | 'pending' | 'in_progress' | 'mirroring'
+            limit?: number
+            offset?: number
+            /** Narrow to jobs tagged with a card at creation (legacy jobs are untagged). */
+            cardType?: CardMediaTargetType
+            cardId?: string
+        } = {},
+    ): Promise<ImageJobListResponse> {
+        const token = this.getStoredToken()
+        const status = opts.status ?? 'completed'
+        const limit = opts.limit ?? 24
+        const offset = opts.offset ?? 0
+        let query = `status=${encodeURIComponent(status)}&limit=${limit}&offset=${offset}`
+        if (opts.cardType) query += `&card_type=${encodeURIComponent(opts.cardType)}`
+        if (opts.cardId) query += `&card_id=${encodeURIComponent(opts.cardId)}`
+        return this.authenticatedRequest(`/images/jobs?${query}`, token, { method: 'GET' })
+    }
+
+    /** Soft-delete a generated image asset (removes it from the gallery). */
+    async deleteImageAsset(assetId: string, options: { signal?: AbortSignal } = {}): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/images/assets/${encodeURIComponent(assetId)}`, token, {
+            method: 'DELETE',
+            signal: options.signal,
+        })
+    }
+
+    /**
+     * Create a card theme song. Requires an owned, persisted card (`target_id`);
+     * the backend derives the private prompt from the card + the `description`
+     * direction. Returns the job (200 = done, 202 = poll it).
+     */
+    async generateThemeSong(body: ThemeSongCreateRequest, options: AiCardRequestOptions = {}): Promise<ThemeSongJobPublic> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<ThemeSongJobPublic>('/theme-songs', token, {
+            method: 'POST',
+            headers: this.aiHeaders(options),
+            body: body as unknown as BodyInit,
+            signal: options.signal,
+            timeoutMs: options.timeoutMs,
+        })
+    }
+
+    async getThemeSongJob(jobId: string): Promise<ThemeSongJobPublic> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/theme-songs/jobs/${encodeURIComponent(jobId)}`, token, { method: 'GET' })
+    }
+
+    async getThemeSongResult(jobId: string): Promise<ThemeSongJobPublic> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/theme-songs/jobs/${encodeURIComponent(jobId)}/result`, token, { method: 'GET' })
+    }
+
+    /** List the theme songs attached to a given card (most recent first). */
+    async listThemeSongs(targetType: CardMediaTargetType, targetId: string, limit = 20, offset = 0): Promise<ThemeSongListResponse> {
+        const token = this.getStoredToken()
+        const query = `target_type=${encodeURIComponent(targetType)}&target_id=${encodeURIComponent(targetId)}&limit=${limit}&offset=${offset}`
+        return this.authenticatedRequest(`/theme-songs?${query}`, token, { method: 'GET' })
+    }
+
+    /**
+     * List the user's theme songs across all cards (most recent first) — the media
+     * gallery. Each item carries its own `target` ref; optional filters narrow to a
+     * card type or a single card.
+     */
+    async listUserThemeSongs(
+        opts: {
+            targetType?: CardMediaTargetType
+            targetId?: string
+            status?: ThemeSongJobStatus
+            limit?: number
+            offset?: number
+        } = {},
+    ): Promise<UserThemeSongListResponse> {
+        const token = this.getStoredToken()
+        const limit = opts.limit ?? 20
+        const offset = opts.offset ?? 0
+        let query = `limit=${limit}&offset=${offset}`
+        if (opts.targetType) query += `&target_type=${encodeURIComponent(opts.targetType)}`
+        if (opts.targetId) query += `&target_id=${encodeURIComponent(opts.targetId)}`
+        if (opts.status) query += `&status=${encodeURIComponent(opts.status)}`
+        return this.authenticatedRequest(`/theme-songs/user?${query}`, token, { method: 'GET' })
+    }
+
+    /** Soft-delete a theme-song audio asset (removes it from the card's history). */
+    async deleteThemeSongAsset(assetId: string, options: { signal?: AbortSignal } = {}): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/theme-songs/assets/${encodeURIComponent(assetId)}`, token, {
+            method: 'DELETE',
+            signal: options.signal,
+        })
+    }
+
+    /** Poll a theme-song job until it reaches a terminal status (or the deadline). */
+    async waitForThemeSong(
+        jobId: string,
+        opts: { signal?: AbortSignal; onUpdate?: (job: ThemeSongJobPublic) => void; intervalMs?: number; maxWaitMs?: number } = {},
+    ): Promise<ThemeSongJobPublic> {
+        const nonTerminal = new Set<string>(THEME_SONG_NON_TERMINAL_STATUSES)
+        const interval = opts.intervalMs ?? 3_000
+        const deadline = Date.now() + (opts.maxWaitMs ?? 240_000)
+        for (;;) {
+            const job = await this.getThemeSongJob(jobId)
+            opts.onUpdate?.(job)
+            if (!nonTerminal.has(job.status)) return job
+            if (Date.now() >= deadline) return job
+            await this.delay(interval, opts.signal)
+        }
+    }
+
     /**
      * Create a new adventure session
      */
@@ -856,13 +1137,76 @@ class ApiService {
             method: 'DELETE'
         })
     }
+
+    /**
+     * Start (or resume) a 1:1 character chat. The backend is idempotent per
+     * (user, character): it returns the existing chat if one exists, otherwise
+     * creates one and seeds the character's greeting as the first turn.
+     */
+    async createCharacterChat(characterId: string): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest('/character-chats/', token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { character_id: characterId } as unknown as BodyInit
+        })
+    }
+
+    /** List the user's 1:1 character chats (most recent state per chat). */
+    async getCharacterChats(): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest('/character-chats/', token, {
+            method: 'GET'
+        })
+    }
+
+    /** Fetch a character chat (with its projected `last_turn`). */
+    async getCharacterChat(chatId: number): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}`, token, {
+            method: 'GET'
+        })
+    }
+
+    /**
+     * Persist the client's turn mirror for a character chat. Belt-and-suspenders:
+     * the server already records every turn, so this only refreshes the legacy cache.
+     */
+    async updateCharacterChat(chatId: number, lastTurn: string): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}`, token, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: { last_turn: lastTurn } as unknown as BodyInit
+        })
+    }
+
+    /** Delete a character chat. */
+    async deleteCharacterChat(chatId: number): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}`, token, {
+            method: 'DELETE'
+        })
+    }
 }
 
 export const apiService = new ApiService()
 configureChatSocketAuthRefresh(() => apiService.refreshAccessToken())
 
+/**
+ * Resolve a media asset URL for use in `<img>` / `<audio>`. The backend returns
+ * generated assets as root-relative paths (`/generated-images/...`,
+ * `/generated-audio/...`) unless a public CDN base is configured; prefix those
+ * with the API base. Absolute/data/blob URLs pass through unchanged.
+ */
+export function resolveMediaUrl(url?: string | null): string | undefined {
+    if (!url) return undefined
+    if (/^(https?:|data:|blob:)/i.test(url)) return url
+    return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
 export const refreshAccessToken = (oldToken?: string): Promise<string> => apiService.refreshAccessToken(oldToken)
 export type { ApiService }
 
-export { AdventureChatSocket, configureChatSocketAuthRefresh } from './chatSocket'
+export { ChatSocket, AdventureChatSocket, configureChatSocketAuthRefresh } from './chatSocket'
 export type { ChatSocketStatus, ChatSocketHandlers } from './chatSocket'

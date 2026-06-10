@@ -14,9 +14,10 @@ export interface CharacterPreviewCardProps {
     triggers: string[]
     attributes: AttrMap
     categories: AttributeCategory[]
+    imageUrl?: string
 }
 
-export function CharacterPreviewCard({ name, race, description, triggers, attributes, categories }: CharacterPreviewCardProps) {
+export function CharacterPreviewCard({ name, race, description, triggers, attributes, categories, imageUrl }: CharacterPreviewCardProps) {
     return (
         <EntityPreviewCard
             name={name}
@@ -27,6 +28,7 @@ export function CharacterPreviewCard({ name, race, description, triggers, attrib
             triggers={triggers}
             attributes={attributes}
             categories={categories}
+            imageUrl={imageUrl}
         />
     )
 }

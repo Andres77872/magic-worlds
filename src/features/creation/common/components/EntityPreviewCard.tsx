@@ -9,6 +9,7 @@
 import { Card } from '@/ui/components/lists/Card'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
 import { Chip, Eyebrow, Tag } from '@/ui/primitives'
+import { resolveMediaUrl } from '@/infrastructure/api'
 import type { AttrMap } from '../hooks'
 
 export interface EntityPreviewCardProps {
@@ -23,6 +24,8 @@ export interface EntityPreviewCardProps {
     triggers: string[]
     attributes: AttrMap
     categories: AttributeCategory[]
+    /** Generated profile portrait URL (may be backend-relative). */
+    imageUrl?: string
 }
 
 export function EntityPreviewCard({
@@ -34,6 +37,7 @@ export function EntityPreviewCard({
     triggers,
     attributes,
     categories,
+    imageUrl,
 }: EntityPreviewCardProps) {
     // Same filter as toCategoryPayload — only fully-filled rows count.
     const topAttrs = categories
@@ -48,6 +52,7 @@ export function EntityPreviewCard({
             <Eyebrow tone="muted">Live preview</Eyebrow>
             <Card
                 title={name.trim() || unnamedLabel}
+                imageUrl={resolveMediaUrl(imageUrl)}
                 subtitle={
                     badge.trim() ? (
                         <div className="flex flex-wrap items-center gap-1.5">

@@ -6,6 +6,7 @@ import type {CardOption} from './Card'
 import {EmptyState} from '../common/EmptyState'
 import {Globe, Pencil, Trash2} from 'lucide-react'
 import {Icon, Tag} from '@/ui/primitives'
+import {resolveMediaUrl} from '@/infrastructure/api'
 
 interface WorldListProps {
     worlds: World[]
@@ -93,6 +94,8 @@ export function WorldList({
                             }
                             options={options}
                             onClick={() => onEdit(world)}
+                            imageUrl={resolveMediaUrl(world.image_url)}
+                            themeSongUrl={resolveMediaUrl(world.theme_song_url)}
                             className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >
                             <p className="m-0 font-narrative text-sm leading-normal text-parchment-400">

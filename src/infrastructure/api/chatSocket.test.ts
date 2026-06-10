@@ -91,7 +91,7 @@ describe('AdventureChatSocket auth recovery', () => {
         expect(onMessage).not.toHaveBeenCalledWith(expect.objectContaining({ category: 'auth' }))
     })
 
-    it('hard-expires when the refresh-driven reconnect is rejected with another 4401', async () => {
+    it('keeps auth state when the refresh-driven reconnect is rejected with another 4401', async () => {
         const expired = vi.fn()
         const onMessage = vi.fn()
         const refresh = vi.fn().mockImplementation(async () => {
@@ -111,8 +111,8 @@ describe('AdventureChatSocket auth recovery', () => {
 
         expect(refresh).toHaveBeenCalledTimes(1)
         expect(MockWebSocket.instances).toHaveLength(2)
-        expect(expired).toHaveBeenCalledTimes(1)
-        expect(localStorage.getItem('magic_worlds:token')).toBeNull()
+        expect(expired).not.toHaveBeenCalled()
+        expect(localStorage.getItem('magic_worlds:token')).toBe('new-token')
         expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({
             type: 'error',
             category: 'auth',

@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { TurnEntry } from '../../../shared'
-import { adventures } from '@/ui/components/lists/fixtures'
 import { InteractionRightPanel } from './InteractionRightPanel'
 
 const log: TurnEntry[] = [
@@ -14,14 +13,13 @@ const meta = {
   tags: ['autodocs'],
   parameters: {
     layout: 'padded',
-    docs: { description: { component: 'The right rail: quick actions (dice, save), a scrollable adventure log, and session settings.' } },
+    docs: { description: { component: 'The right rail: the scrollable adventure log (turn history with You/GM badges). Progress saves automatically; there is no manual save.' } },
   },
   decorators: [(Story) => <div className="w-[360px] max-w-full"><Story /></div>],
   argTypes: {
-    adventure: { control: false },
     turns: { control: false },
   },
-  args: { adventure: adventures[0], turns: log },
+  args: { turns: log },
 } satisfies Meta<typeof InteractionRightPanel>
 
 export default meta

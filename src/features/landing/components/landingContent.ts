@@ -85,7 +85,34 @@ export const CREATE_ACTIONS: CreateAction[] = [
 export const CLOSING_COPY = {
     title: 'Your scene is waiting.',
     subtitle: 'A quiet inn. A stranger by the fire. A story only you can finish.',
-    action: 'Begin a scene',
+    action: 'Begin an adventure',
+} as const
+
+/**
+ * The "two ways to play" explainer — the one place that spells out Adventure
+ * (GM-led party role-play, ember) vs Chat (1:1 conversation, arcane). Icons and
+ * labels come from MODE_META so this band teaches the same color language the
+ * badges use everywhere else.
+ */
+export const MODE_EXPLAINER = {
+    eyebrow: 'Two ways to play',
+    title: 'Lead a party, or pull up a chair.',
+    modes: [
+        {
+            mode: 'adventure',
+            body:
+                'A Game Master narrates a living scene in third person. Bring a world, a cast, ' +
+                "and the persona you'll play — choose suggested actions or write your own, " +
+                'and watch scenes get illustrated as the story unfolds.',
+        },
+        {
+            mode: 'chat',
+            body:
+                'One character, face to face. They greet you, speak in first person, and ' +
+                'remember the conversation. Start from any character card — returning picks ' +
+                'up right where you left off.',
+        },
+    ],
 } as const
 
 /**

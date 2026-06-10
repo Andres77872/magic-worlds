@@ -22,6 +22,12 @@ export interface StudioPreviewDockProps {
     busy?: boolean
     /** Optional status line rendered above the preview (e.g. a success badge). */
     notice?: ReactNode
+    /**
+     * Optional content rendered directly BELOW the preview (e.g. portrait/theme
+     * generators). Kept outside the `busy` overlay so its controls stay
+     * interactive while a draft is generating.
+     */
+    footer?: ReactNode
 }
 
 function PreviewBody({ children, busy, notice }: Pick<StudioPreviewDockProps, 'children' | 'busy' | 'notice'>) {
@@ -43,7 +49,7 @@ function PreviewBody({ children, busy, notice }: Pick<StudioPreviewDockProps, 'c
     )
 }
 
-export function StudioPreviewDock({ children, label = 'Live preview', busy, notice }: StudioPreviewDockProps) {
+export function StudioPreviewDock({ children, label = 'Live preview', busy, notice, footer }: StudioPreviewDockProps) {
     const [open, setOpen] = useState(false)
 
     return (
@@ -63,19 +69,23 @@ export function StudioPreviewDock({ children, label = 'Live preview', busy, noti
                     <Icon icon={open ? ChevronUp : ChevronDown} size={16} className="text-parchment-400" />
                 </button>
                 {open && (
-                    <div className="mt-3">
+                    <div className="mt-3 flex flex-col gap-4">
                         <PreviewBody busy={busy} notice={notice}>
                             {children}
                         </PreviewBody>
+                        {footer}
                     </div>
                 )}
             </div>
 
-            {/* Desktop: sticky card (positioning handled by the parent <aside>) */}
-            <div className="hidden lg:block">
+            {/* Desktop: sticky card (positioning handled by the parent <aside>). Caps
+                its height to the viewport and scrolls internally so a tall preview +
+                footer never gets clipped while pinned. */}
+            <div className="hidden lg:flex lg:max-h-[calc(100vh-2rem)] lg:flex-col lg:gap-4 lg:overflow-y-auto lg:pr-1">
                 <PreviewBody busy={busy} notice={notice}>
                     {children}
                 </PreviewBody>
+                {footer}
             </div>
         </>
     )

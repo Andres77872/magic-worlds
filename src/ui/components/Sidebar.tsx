@@ -3,7 +3,7 @@
  * header): brand at the top, primary nav in the middle, source + account at
  * the bottom. Each control is an icon button with a tooltip/aria-label.
  */
-import { Code2, Compass, Flame, Globe, LogIn, LogOut, Swords, Users } from 'lucide-react'
+import { Code2, Compass, Flame, Globe, Images, LogIn, LogOut, Swords, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
 import { useNavigation, useAuth } from '../../app/hooks'
@@ -17,11 +17,14 @@ interface RailItem {
     gated?: boolean
 }
 
+// The three library items open the full galleries; the creators stay reachable
+// from the dashboard AccessMenu and each gallery's "New …" button.
 const NAV_ITEMS: RailItem[] = [
     { page: 'landing', label: 'Explore', icon: Compass },
-    { page: 'character', label: 'Characters', icon: Users, gated: true },
-    { page: 'world', label: 'Worlds', icon: Globe, gated: true },
-    { page: 'adventure', label: 'Adventures', icon: Swords, gated: true },
+    { page: 'gallery-characters', label: 'Characters', icon: Users, gated: true },
+    { page: 'gallery-worlds', label: 'Worlds', icon: Globe, gated: true },
+    { page: 'gallery-adventures', label: 'Adventures', icon: Swords, gated: true },
+    { page: 'gallery-media', label: 'Media', icon: Images, gated: true },
 ]
 
 export function Sidebar() {

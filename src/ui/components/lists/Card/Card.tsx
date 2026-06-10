@@ -1,6 +1,6 @@
 import React, {useCallback, useMemo} from 'react'
 import {type CardOption, CardOptions} from './CardOptions'
-import {Card as Surface, cx, Portrait} from '@/ui/primitives'
+import {Card as Surface, cx, Portrait, ThemeSongButton} from '@/ui/primitives'
 
 interface CardProps {
     title: React.ReactNode
@@ -12,6 +12,10 @@ interface CardProps {
     isLoading?: boolean
     disabled?: boolean
     highlight?: boolean
+    /** Optional portrait image; falls back to the name-seeded gradient when absent. */
+    imageUrl?: string
+    /** Optional theme-song URL; shows a play/pause button on the portrait when present. */
+    themeSongUrl?: string
     'data-testid'?: string
 }
 
@@ -31,6 +35,8 @@ export function Card({
                          isLoading = false,
                          disabled = false,
                          highlight = false,
+                         imageUrl,
+                         themeSongUrl,
                          'data-testid': testId = 'card',
                      }: CardProps) {
     const cardOptions = options
@@ -94,14 +100,17 @@ export function Card({
                 </div>
             )}
 
-            <Portrait name={portraitName} height={120}>
-                {cardOptions && cardOptions.length > 0 && (
-                    <div className="absolute right-2 top-2 z-[2]">
-                        <CardOptions
-                            options={cardOptions}
-                            disabled={disabled}
-                            aria-label="Card actions"
-                        />
+            <Portrait name={portraitName} src={imageUrl} height={120}>
+                {(themeSongUrl || (cardOptions && cardOptions.length > 0)) && (
+                    <div className="absolute right-2 top-2 z-[2] flex items-center gap-1.5">
+                        {themeSongUrl && <ThemeSongButton src={themeSongUrl} />}
+                        {cardOptions && cardOptions.length > 0 && (
+                            <CardOptions
+                                options={cardOptions}
+                                disabled={disabled}
+                                aria-label="Card actions"
+                            />
+                        )}
                     </div>
                 )}
                 <div className="absolute inset-x-0 bottom-0 p-4">

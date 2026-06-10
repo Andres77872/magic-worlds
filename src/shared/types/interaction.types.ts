@@ -61,6 +61,44 @@ export interface ChatImageError {
     code?: string | null
 }
 
+/**
+ * TTS narration job lifecycle. A superset of {@link ImageLifecycleStatus}: it adds
+ * `synthesizing`, `rate_limited`, `timeout`, and `content_blocked`, and has no
+ * `canceled`. Mirrors magic-worlds-api `TtsJobStatus`.
+ */
+export type TtsLifecycleStatus =
+    | 'pending'
+    | 'in_progress'
+    | 'synthesizing'
+    | 'mirroring'
+    | 'completed'
+    | 'failed'
+    | 'invalid'
+    | 'unavailable'
+    | 'quota_exceeded'
+    | 'rate_limited'
+    | 'timeout'
+    | 'content_blocked'
+
+export interface ChatTtsAsset {
+    asset_id: string
+    url: string
+    content_type: 'audio/mpeg'
+    file_size_bytes?: number | null
+    duration_ms?: number | null
+    sample_rate?: number | null
+    channels?: number | null
+    bitrate?: number | null
+    output_format?: 'mp3'
+}
+
+export interface ChatTtsError {
+    category: string
+    detail: string
+    code?: string | null
+    retry_after_seconds?: number | null
+}
+
 export interface ChatState {
     messages: Message[]
     isLoading: boolean
@@ -77,6 +115,7 @@ export interface ChatState {
  */
 export type ChatSocketClientMessage =
     | { type: 'chat'; messages: { role: 'user' | 'assistant'; content: string }[] }
+    | { type: 'tts'; assistant_message_id: number; turn_id: string; request_id?: string }
     | { type: 'cancel' }
     | { type: 'ping' }
 
@@ -88,6 +127,9 @@ export type ChatSocketServerMessage =
     | { type: 'image_complete'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: 'completed'; assets: ChatImageAsset[]; status_url?: string; result_url?: string }
     | { type: 'image_failed'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string | null; status: Extract<ImageLifecycleStatus, 'failed' | 'canceled' | 'unavailable' | 'invalid' | 'quota_exceeded'>; error: ChatImageError; status_url?: string | null; result_url?: string | null }
     | { type: 'image'; [key: string]: unknown } // reserved for a future image step
+    | { type: 'tts_job'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: Extract<TtsLifecycleStatus, 'pending' | 'in_progress' | 'synthesizing' | 'mirroring'>; status_url: string; result_url: string }
+    | { type: 'tts_complete'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: 'completed'; url?: string; assets: ChatTtsAsset[]; status_url?: string; result_url?: string }
+    | { type: 'tts_failed'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string | null; status: Extract<TtsLifecycleStatus, 'failed' | 'invalid' | 'unavailable' | 'quota_exceeded' | 'rate_limited' | 'timeout' | 'content_blocked'>; error: ChatTtsError; status_url?: string | null; result_url?: string | null }
     | { type: 'action'; [key: string]: unknown } // reserved for future actions
     | { type: 'done'; interrupted?: boolean; assistant_message_id?: number; turn_id?: string }
     | { type: 'error'; message: string; category?: string }

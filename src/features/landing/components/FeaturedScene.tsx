@@ -1,6 +1,6 @@
 /**
  * Featured hero — the spotlight scene atop the gallery. A warm seeded gradient
- * with a giant faded monogram and a single primary action ("Begin a scene").
+ * with a giant faded monogram and a single primary action ("Begin adventure").
  */
 
 import type { LucideIcon } from 'lucide-react'

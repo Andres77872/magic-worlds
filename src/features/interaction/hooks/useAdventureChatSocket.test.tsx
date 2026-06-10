@@ -8,6 +8,7 @@ const socketInstances: Array<{
   connect: ReturnType<typeof vi.fn>
   close: ReturnType<typeof vi.fn>
   sendChat: ReturnType<typeof vi.fn>
+  sendTts: ReturnType<typeof vi.fn>
   cancel: ReturnType<typeof vi.fn>
 }> = []
 
@@ -17,6 +18,7 @@ vi.mock('../../../infrastructure/api', () => ({
     connect = vi.fn()
     close = vi.fn()
     sendChat = vi.fn()
+    sendTts = vi.fn()
     cancel = vi.fn()
 
     constructor(_sessionId: number, handlers: { onMessage: (message: unknown) => void; onStatusChange?: (status: string) => void }) {
@@ -57,6 +59,31 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
     expect(onImageJob).toHaveBeenCalledTimes(1)
     expect(onImageComplete).toHaveBeenCalledTimes(1)
     expect(onImageFailed).toHaveBeenCalledTimes(1)
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('dispatches tts lifecycle frames', () => {
+    const onTtsJob = vi.fn()
+    const onTtsComplete = vi.fn()
+    const onTtsFailed = vi.fn()
+    const onError = vi.fn()
+
+    renderHook(() =>
+      useAdventureChatSocket(7, {
+        onTtsJob,
+        onTtsComplete,
+        onTtsFailed,
+        onError,
+      }),
+    )
+
+    socketHandlers?.onMessage({ type: 'tts_job', job_id: 'tts-1', assistant_message_id: 101, turn_id: 'turn-1', status: 'synthesizing' })
+    socketHandlers?.onMessage({ type: 'tts_complete', job_id: 'tts-1', assistant_message_id: 101, turn_id: 'turn-1', status: 'completed', url: '/tts/assets/asset-1.mp3', assets: [] })
+    socketHandlers?.onMessage({ type: 'tts_failed', job_id: 'tts-1', assistant_message_id: 101, turn_id: 'turn-1', status: 'rate_limited', error: { category: 'rate_limited', detail: 'Too many requests.' } })
+
+    expect(onTtsJob).toHaveBeenCalledTimes(1)
+    expect(onTtsComplete).toHaveBeenCalledTimes(1)
+    expect(onTtsFailed).toHaveBeenCalledTimes(1)
     expect(onError).not.toHaveBeenCalled()
   })
 

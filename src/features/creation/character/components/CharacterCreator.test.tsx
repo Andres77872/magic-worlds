@@ -7,21 +7,28 @@ const mocks = vi.hoisted(() => ({
     openLoginModal: vi.fn(),
     createCharacterAI: vi.fn(),
     setEditingCharacter: vi.fn(),
+    updateCharacter: vi.fn(),
+    generateCardPortrait: vi.fn(),
     isAuthenticated: true,
+    editingCharacter: null as Record<string, unknown> | null,
 }))
 
 vi.mock('@/app/hooks', () => ({
     useNavigation: () => ({ setPage: mocks.setPage }),
-    useData: () => ({ editingCharacter: null, setEditingCharacter: mocks.setEditingCharacter, loadData: mocks.loadData }),
+    useData: () => ({ editingCharacter: mocks.editingCharacter, setEditingCharacter: mocks.setEditingCharacter, loadData: mocks.loadData }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
 }))
 
 vi.mock('@/infrastructure/api', () => ({
     ApiError: class ApiError extends Error { status = 500; isTransient = true },
+    resolveMediaUrl: (url?: string | null) => url ?? undefined,
     apiService: {
         createCharacterAI: mocks.createCharacterAI,
         createCharacter: vi.fn(),
-        updateCharacter: vi.fn(),
+        updateCharacter: mocks.updateCharacter,
+        generateCardPortrait: mocks.generateCardPortrait,
+        waitForImageJob: vi.fn(),
+        listThemeSongs: vi.fn().mockResolvedValue({ items: [] }),
     },
 }))
 
@@ -31,6 +38,7 @@ describe('CharacterCreator AI generation', () => {
     beforeEach(() => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true
+        mocks.editingCharacter = null
         mocks.createCharacterAI.mockResolvedValue({
             id: 'char-1',
             name: 'Nyra',
@@ -79,5 +87,32 @@ describe('CharacterCreator AI generation', () => {
         await waitFor(() => expect(mocks.openLoginModal).toHaveBeenCalledTimes(1))
         expect(mocks.createCharacterAI).not.toHaveBeenCalled()
         expect(mocks.loadData).not.toHaveBeenCalled()
+    })
+})
+
+describe('CharacterCreator portrait persistence', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingCharacter = { id: 'char-1', name: 'Nyra', race: 'moon elf', description: '', triggers: [] }
+        mocks.updateCharacter.mockResolvedValue({})
+        mocks.generateCardPortrait.mockResolvedValue({
+            job_id: 'job-1',
+            status: 'completed',
+            assets: [{ url: '/generated-images/p.png' }],
+        })
+    })
+
+    it('persists a generated portrait onto the saved card immediately (no Save click)', async () => {
+        render(<CharacterCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+
+        await waitFor(() =>
+            expect(mocks.updateCharacter).toHaveBeenCalledWith(
+                'char-1',
+                expect.objectContaining({ image_url: '/generated-images/p.png' }),
+            ),
+        )
     })
 })

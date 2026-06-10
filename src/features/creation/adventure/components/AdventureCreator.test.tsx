@@ -7,7 +7,10 @@ const mocks = vi.hoisted(() => ({
     openLoginModal: vi.fn(),
     setEditingTemplate: vi.fn(),
     createAdventureTemplateAI: vi.fn(),
+    updateAdventureTemplate: vi.fn(),
+    generateCardPortrait: vi.fn(),
     isAuthenticated: true,
+    editingTemplate: null as Record<string, unknown> | null,
 }))
 
 vi.mock('@/app/hooks', () => ({
@@ -16,7 +19,7 @@ vi.mock('@/app/hooks', () => ({
         characters: [],
         worlds: [],
         isLoading: false,
-        editingTemplate: null,
+        editingTemplate: mocks.editingTemplate,
         setEditingTemplate: mocks.setEditingTemplate,
         loadData: mocks.loadData,
     }),
@@ -25,10 +28,14 @@ vi.mock('@/app/hooks', () => ({
 
 vi.mock('@/infrastructure/api', () => ({
     ApiError: class ApiError extends Error { status = 500; isTransient = true },
+    resolveMediaUrl: (url?: string | null) => url ?? undefined,
     apiService: {
         createAdventureTemplateAI: mocks.createAdventureTemplateAI,
         createAdventureTemplate: vi.fn(),
-        updateAdventureTemplate: vi.fn(),
+        updateAdventureTemplate: mocks.updateAdventureTemplate,
+        generateCardPortrait: mocks.generateCardPortrait,
+        waitForImageJob: vi.fn(),
+        listThemeSongs: vi.fn().mockResolvedValue({ items: [] }),
     },
 }))
 
@@ -38,6 +45,7 @@ describe('AdventureCreator AI generation', () => {
     beforeEach(() => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true
+        mocks.editingTemplate = null
         mocks.createAdventureTemplateAI.mockResolvedValue({
             id: 'tmpl-1',
             name: 'Gate',
@@ -82,5 +90,32 @@ describe('AdventureCreator AI generation', () => {
         await waitFor(() => expect(mocks.openLoginModal).toHaveBeenCalledTimes(1))
         expect(mocks.createAdventureTemplateAI).not.toHaveBeenCalled()
         expect(mocks.loadData).not.toHaveBeenCalled()
+    })
+})
+
+describe('AdventureCreator cover persistence', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingTemplate = { id: 'tmpl-1', scenario: 'A heist into the volcano fortress.', characters: [], triggers: [] }
+        mocks.updateAdventureTemplate.mockResolvedValue({})
+        mocks.generateCardPortrait.mockResolvedValue({
+            job_id: 'job-1',
+            status: 'completed',
+            assets: [{ url: '/generated-images/a.png' }],
+        })
+    })
+
+    it('persists a generated cover onto the saved template immediately (no Save click)', async () => {
+        render(<AdventureCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /generate cover image/i }))
+
+        await waitFor(() =>
+            expect(mocks.updateAdventureTemplate).toHaveBeenCalledWith(
+                'tmpl-1',
+                expect.objectContaining({ image_url: '/generated-images/a.png' }),
+            ),
+        )
     })
 })

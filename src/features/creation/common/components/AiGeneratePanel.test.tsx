@@ -61,7 +61,7 @@ describe('AiGeneratePanel', () => {
         let capturedSignal: AbortSignal | undefined
         const onGenerate = vi.fn((_description, options) => {
             capturedSignal = options.signal
-            return new Promise((_resolve, reject) => {
+            return new Promise<void>((_resolve, reject) => {
                 options.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
             })
         })

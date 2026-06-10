@@ -5,7 +5,7 @@
  */
 
 import type { FormEvent, KeyboardEvent } from 'react'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { ScrollText, Sparkles, Swords, Tags, User } from 'lucide-react'
 import type { Character } from '@/shared'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
@@ -24,6 +24,7 @@ import {
     CreatorTextarea,
     AttributeManager,
     AiGeneratePanel,
+    MediaStudioSection,
     GeneratedDraftNotice,
     TriggersField,
     FormActions,
@@ -58,9 +59,13 @@ function toCharacter(card: CharacterCardResponse): Character {
         name: card.name ?? '',
         race: card.race ?? '',
         description: card.description ?? '',
+        greeting: card.greeting,
+        system_instructions: card.system_instructions,
         stats: {},
         category: card.category ?? undefined,
         triggers: card.triggers ?? [],
+        image_url: card.image_url,
+        theme_song_url: card.theme_song_url,
     }
 }
 
@@ -72,7 +77,13 @@ export function CharacterCreator() {
     const [name, setName] = useState(editingCharacter?.name ?? '')
     const [race, setRace] = useState(editingCharacter?.race ?? '')
     const [description, setDescription] = useState(editingCharacter?.description ?? '')
+    const [greeting, setGreeting] = useState(editingCharacter?.greeting ?? '')
+    const [systemInstructions, setSystemInstructions] = useState(editingCharacter?.system_instructions ?? '')
     const [triggers, setTriggers] = useState<string[]>(editingCharacter?.triggers ?? [])
+    const [imageUrl, setImageUrl] = useState<string | undefined>(editingCharacter?.image_url)
+    const [themeSongUrl, setThemeSongUrl] = useState<string | undefined>(editingCharacter?.theme_song_url)
+    // Card id resolved at save time, so theme persistence never races `editingCharacter` state.
+    const savedIdRef = useRef<string | null>(editingCharacter?.id ?? null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [touched, setTouched] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
@@ -101,6 +112,104 @@ export function CharacterCreator() {
         [editingCharacter],
     )
 
+    /** Build the create/update payload from current form state. */
+    const buildPayload = () => ({
+        name,
+        race,
+        description,
+        greeting: greeting.trim() || null,
+        system_instructions: systemInstructions.trim() || null,
+        triggers,
+        category: toCategoryPayload(attrs.categories, attrs.attributes),
+        image_url: imageUrl ?? null,
+        theme_song_url: themeSongUrl,
+    })
+
+    /**
+     * Ensure the card exists on the server and return its id — auto-saving first
+     * if needed (theme generation needs a real target id). Throws a user-facing
+     * message when required fields are missing.
+     */
+    const ensureSaved = async (): Promise<string> => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Please log in to continue.')
+        }
+        if (!name.trim() || !race.trim()) {
+            setTouched(true)
+            throw new Error('Add a name and race before generating a theme.')
+        }
+        if (editingCharacter) {
+            await apiService.updateCharacter(editingCharacter.id, buildPayload())
+            savedIdRef.current = editingCharacter.id
+            return editingCharacter.id
+        }
+        const created = await apiService.createCharacter(buildPayload())
+        const saved = toCharacter(created as CharacterCardResponse)
+        if (saved.id) setEditingCharacter(saved)
+        savedIdRef.current = saved.id
+        // No loadData() here: a refresh would unmount this creator mid-generation (AppRouter
+        // shows a spinner while loading). The new card lands in the gallery on Save.
+        return saved.id
+    }
+
+    /**
+     * Persist a freshly generated/uploaded/gallery-selected portrait onto the card
+     * (mirrors `handleThemeSongUrl`). Without this, the image only lives in form
+     * state until Save — navigating away left the card unassigned even though the
+     * asset shows in the user gallery. Unsaved new cards persist it on Create via
+     * `buildPayload()`; removal stays a Save-time change so Back still backs out.
+     */
+    const handleImageUrl = (url: string | undefined) => {
+        setImageUrl(url)
+        const id = savedIdRef.current ?? editingCharacter?.id
+        if (id && url) {
+            void apiService
+                .updateCharacter(id, { ...buildPayload(), image_url: url })
+                .catch(() => {
+                    /* best-effort — the asset still exists; Save re-persists the link */
+                })
+        }
+    }
+
+    /**
+     * Persist a freshly generated theme onto the card. Theme generation always runs
+     * after `ensureSaved()`, so the id is known — write it immediately (overriding the
+     * not-yet-committed `themeSongUrl` state) so the gallery shows it without a re-save.
+     */
+    const handleThemeSongUrl = (url: string | undefined) => {
+        setThemeSongUrl(url)
+        const id = savedIdRef.current ?? editingCharacter?.id
+        if (id && url) {
+            // Persist the link only — do NOT loadData() here. A refresh flips isLoading,
+            // which makes AppRouter unmount the whole creator (discarding in-progress edits)
+            // and re-run the theme effect. The gallery refreshes on Save / next navigation.
+            void apiService
+                .updateCharacter(id, { ...buildPayload(), theme_song_url: url })
+                .catch(() => {
+                    /* best-effort — the asset still exists; Save re-persists the link */
+                })
+        }
+    }
+
+    // Portrait + theme generators, docked under the live preview card.
+    const mediaPanel = (
+        <MediaStudioSection
+            layout="compact"
+            cardType="character"
+            noun="character"
+            template={{ name, description, subtype: race, category: toCategoryPayload(attrs.categories, attrs.attributes) }}
+            imageUrl={imageUrl}
+            onImageUrl={handleImageUrl}
+            themeSongUrl={themeSongUrl}
+            onThemeSongUrl={handleThemeSongUrl}
+            ensureSaved={ensureSaved}
+            themeTargetId={editingCharacter?.id}
+            isAuthenticated={isAuthenticated}
+            onAuthRequired={openLoginModal}
+        />
+    )
+
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
         if (!isAuthenticated) {
@@ -113,13 +222,7 @@ export function CharacterCreator() {
         setIsSubmitting(true)
         setSaveError(null)
         try {
-            const payload = {
-                name,
-                race,
-                description,
-                triggers,
-                category: toCategoryPayload(attrs.categories, attrs.attributes),
-            }
+            const payload = buildPayload()
             if (editingCharacter) {
                 await apiService.updateCharacter(editingCharacter.id, payload)
             } else {
@@ -162,9 +265,16 @@ export function CharacterCreator() {
             setName(card.name ?? '')
             setRace(card.race ?? '')
             setDescription(card.description ?? '')
+            setGreeting(card.greeting ?? '')
+            setSystemInstructions(card.system_instructions ?? '')
             setTriggers(card.triggers ?? [])
+            setImageUrl(card.image_url)
+            setThemeSongUrl(card.theme_song_url)
             attrs.hydrateFrom(card)
             setEditingCharacter(toCharacter(card))
+            // The AI endpoint already persisted the card — record its id so a media
+            // generation right after the draft persists without racing provider state.
+            savedIdRef.current = card.id || card.uuid || null
             setGenStatus('done')
             // Keep the landing list fresh for when the user navigates back. Do not
             // await or navigate — generation must never block the page.
@@ -200,6 +310,7 @@ export function CharacterCreator() {
                 <StudioPreviewDock
                     busy={genStatus === 'generating'}
                     notice={genStatus === 'done' ? <GeneratedDraftNotice noun="character" /> : undefined}
+                    footer={mediaPanel}
                 >
                     <CharacterPreviewCard
                         name={name}
@@ -208,6 +319,7 @@ export function CharacterCreator() {
                         triggers={triggers}
                         attributes={attrs.attributes}
                         categories={attrs.categories}
+                        imageUrl={imageUrl}
                     />
                 </StudioPreviewDock>
             }
@@ -264,6 +376,34 @@ export function CharacterCreator() {
                             onChange={setDescription}
                             placeholder="Describe your character's appearance, personality, and background…"
                             rows={6}
+                        />
+                    </CreatorField>
+
+                    <CreatorField
+                        label="Greeting"
+                        htmlFor="character-greeting"
+                        tooltip="The first thing they say when a one-on-one chat opens. Optional."
+                    >
+                        <CreatorTextarea
+                            id="character-greeting"
+                            value={greeting}
+                            onChange={setGreeting}
+                            placeholder="e.g. *looks up from her forge* Well met, traveler. What brings you to my flames?"
+                            rows={2}
+                        />
+                    </CreatorField>
+
+                    <CreatorField
+                        label="Roleplay direction"
+                        htmlFor="character-system-instructions"
+                        tooltip="Behind-the-scenes guidance for how this character speaks and behaves in 1:1 chat. Optional."
+                    >
+                        <CreatorTextarea
+                            id="character-system-instructions"
+                            value={systemInstructions}
+                            onChange={setSystemInstructions}
+                            placeholder="e.g. Speak tersely and warily; never reveal the location of the hidden vault; refer to the player as 'stranger'."
+                            rows={4}
                         />
                     </CreatorField>
                 </StudioSection>

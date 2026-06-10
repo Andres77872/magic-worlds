@@ -11,8 +11,8 @@
 
 import type { ChatMessage } from '../../shared/types/auth.types'
 import type { ChatSocketServerMessage } from '../../shared/types/interaction.types'
+import { API_BASE_URL } from './baseUrl'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 const WS_BEARER_SUBPROTOCOL = 'mw.bearer.v1'
 const HEARTBEAT_MS = 25_000
 const MAX_RECONNECT_MS = 30_000
@@ -49,10 +49,13 @@ export interface ChatSocketHandlers {
     onStatusChange?: (status: ChatSocketStatus) => void
 }
 
-export class AdventureChatSocket {
+export class ChatSocket {
     private ws: WebSocket | null = null
     private readonly sessionId: number
     private readonly handlers: ChatSocketHandlers
+    // API path segment for the session kind: 'adventure-sessions' or 'character-chats'.
+    // Both serve the identical frame protocol, so only the URL differs.
+    private readonly basePath: string
     private heartbeat: ReturnType<typeof setInterval> | null = null
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null
     private reconnectAttempts = 0
@@ -62,9 +65,10 @@ export class AdventureChatSocket {
     // A chat frame requested before the socket is OPEN; flushed on connect.
     private pendingChat: string | null = null
 
-    constructor(sessionId: number, handlers: ChatSocketHandlers) {
+    constructor(sessionId: number, handlers: ChatSocketHandlers, basePath: string = 'adventure-sessions') {
         this.sessionId = sessionId
         this.handlers = handlers
+        this.basePath = basePath
     }
 
     connect(): void {
@@ -77,7 +81,7 @@ export class AdventureChatSocket {
         }
 
         this.setStatus('connecting')
-        const url = `${toWsUrl(API_BASE_URL)}/adventure-sessions/${this.sessionId}/ws`
+        const url = `${toWsUrl(API_BASE_URL)}/${this.basePath}/${this.sessionId}/ws`
         let ws: WebSocket
         try {
             ws = new WebSocket(url, [WS_BEARER_SUBPROTOCOL, token])
@@ -159,6 +163,21 @@ export class AdventureChatSocket {
         if (!this.reconnectTimer) this.connect()
     }
 
+    /**
+     * Request narration (TTS) for a finished assistant turn. Best-effort: no-op if
+     * the socket isn't OPEN (like `cancel`) — the turn is normally just-finished so
+     * the socket is open, and hydration/polling recovers the job after a reconnect.
+     * `requestId` is stored server-side for tracing; dedupe itself is content-hash
+     * based (an in-flight or completed job for the same turn + text + voice is
+     * reused rather than re-enqueued).
+     */
+    sendTts(assistantMessageId: number, turnId: string, requestId?: string): void {
+        if (!this.isOpen) return
+        const frame: Record<string, unknown> = { type: 'tts', assistant_message_id: assistantMessageId, turn_id: turnId }
+        if (requestId) frame.request_id = requestId
+        this.ws!.send(JSON.stringify(frame))
+    }
+
     /** Cancel the in-flight generation (no-op if the socket isn't open). */
     cancel(): void {
         if (this.isOpen) this.ws!.send(JSON.stringify({ type: 'cancel' }))
@@ -192,8 +211,12 @@ export class AdventureChatSocket {
 
     private async recoverFromAuthClose(): Promise<void> {
         if (this.closedByUser) return
-        if (this.authRecoveryAttempted || !refreshAccessTokenForSocket) {
+        if (!refreshAccessTokenForSocket) {
             this.expireAuth()
+            return
+        }
+        if (this.authRecoveryAttempted) {
+            this.reportRejectedAfterRefresh()
             return
         }
 
@@ -256,6 +279,14 @@ export class AdventureChatSocket {
         })
     }
 
+    private reportRejectedAfterRefresh(): void {
+        this.handlers.onMessage({
+            type: 'error',
+            message: 'This chat connection was rejected after refreshing your session.',
+            category: 'auth',
+        })
+    }
+
     private expireAuth(): void {
         if (this.terminalAuthReported) return
         this.terminalAuthReported = true
@@ -306,3 +337,10 @@ export class AdventureChatSocket {
         }, delay)
     }
 }
+
+/**
+ * Back-compat alias. The transport is identical for adventures and 1:1 character
+ * chats (same typed envelope); only the `basePath` URL segment differs. Existing
+ * imports keep using `AdventureChatSocket`; new code may use `ChatSocket`.
+ */
+export const AdventureChatSocket = ChatSocket

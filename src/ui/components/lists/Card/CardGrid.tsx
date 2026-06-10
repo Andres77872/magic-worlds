@@ -12,6 +12,17 @@ interface CardGridProps<T> {
      * items reads as an intentional row instead of stretching full width.
      */
     layout?: 'grid' | 'rail'
+    /**
+     * Grid column sizing: `comfortable` (default, 240/280px min) or `compact`
+     * (200/220px min) for image-forward galleries of many cards.
+     */
+    density?: 'comfortable' | 'compact'
+    /**
+     * Stable keys for paginated/searched lists. Defaults to the item index,
+     * which is only safe for static lists — pass this whenever items can be
+     * inserted, removed, or reordered.
+     */
+    getItemKey?: (item: T, index: number) => string
     emptyMessage?: React.ReactNode
     loading?: boolean
     loadingComponent?: React.ReactNode
@@ -45,6 +56,8 @@ export function CardGrid<T>({
                                 items,
                                 renderCard,
                                 layout = 'grid',
+                                density = 'comfortable',
+                                getItemKey,
                                 emptyMessage,
                                 emptyStateTitle = 'No items found',
                                 emptyStateDescription = 'There are no items to display at the moment.',
@@ -163,14 +176,14 @@ export function CardGrid<T>({
                 : 'contents'
         return items.map((item, index) => (
             <div
-                key={`card-${index}`}
+                key={getItemKey ? getItemKey(item, index) : `card-${index}`}
                 className={wrapperClass}
                 data-card-wrapper
             >
                 {renderCard(item, index)}
             </div>
         ))
-    }, [items, renderCard, layout])
+    }, [items, renderCard, layout, getItemKey])
 
     // Enhanced loading state
     if (loading) {
@@ -254,7 +267,9 @@ export function CardGrid<T>({
                         // hover-lift + ember glow room; the -mx cancels the inline
                         // padding so cards still align with the section header.
                         ? `flex gap-4 overflow-x-auto -mx-4 px-4 pb-9 pt-5 [scroll-snap-type:x_proximity] md:gap-5 ${className}`
-                        : `grid w-full grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] md:gap-6 ${className}`
+                        : density === 'compact'
+                          ? `grid w-full grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-5 ${className}`
+                          : `grid w-full grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] md:gap-6 ${className}`
                 }
                 role="list"
                 ref={gridRef}

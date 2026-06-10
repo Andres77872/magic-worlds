@@ -87,6 +87,8 @@ export function snapshotToCharacter(card: SnapshotCard, fallbackId: string): Cha
         stats: {},
         category: card.category,
         triggers: card.triggers ?? [],
+        image_url: card.image_url,
+        theme_song_url: card.theme_song_url,
     }
 }
 
@@ -100,6 +102,8 @@ export function snapshotToWorld(card: SnapshotCard, fallbackId: string): World {
         details: {},
         category: card.category,
         triggers: card.triggers ?? [],
+        image_url: card.image_url,
+        theme_song_url: card.theme_song_url,
     }
 }
 
@@ -164,6 +168,8 @@ export function libraryCardToSnapshotCard(card: Character | World, kind: 'charac
         description: card.description ?? '',
         category: card.category,
         triggers: card.triggers ?? [],
+        image_url: card.image_url,
+        theme_song_url: card.theme_song_url,
     }
     if (kind === 'world') base.type = (card as World).type ?? ''
     else base.race = (card as Character).race ?? ''
@@ -226,6 +232,8 @@ export function ensureAdventureSnapshot(adventure: Adventure): AdventureSnapshot
         characters: (adventure.characters as never) ?? [],
         world: worlds as never,
         category: adventure.category,
+        image_url: adventure.image_url,
+        theme_song_url: adventure.theme_song_url,
     })
 }
 
@@ -251,6 +259,8 @@ export function synthesizeSnapshotFromTemplate(input: {
     characters?: SnapshotCard[]
     world?: SnapshotCard[]
     category?: SnapshotTemplate['category']
+    image_url?: string
+    theme_song_url?: string
 }): AdventureSnapshot {
     return {
         schema_version: 1,
@@ -265,6 +275,8 @@ export function synthesizeSnapshotFromTemplate(input: {
             characters: input.characters ?? [],
             world: input.world ?? [],
             category: input.category,
+            image_url: input.image_url,
+            theme_song_url: input.theme_song_url,
         },
     }
 }

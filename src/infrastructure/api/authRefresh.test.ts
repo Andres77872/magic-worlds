@@ -86,7 +86,7 @@ describe('auth refresh recovery API wrapper', () => {
         expect(expired).not.toHaveBeenCalled()
     })
 
-    it('expires only after a retried protected request returns 401 and does not refresh again', async () => {
+    it('keeps auth state when refresh succeeds but the retried protected request returns 401', async () => {
         const timeline: string[] = []
         const expired = vi.fn(() => timeline.push('auth:expired'))
         window.addEventListener('auth:expired', expired)
@@ -111,10 +111,10 @@ describe('auth refresh recovery API wrapper', () => {
             throw new Error(`Unexpected request ${url} with auth ${auth ?? '<none>'}`)
         })
 
-        const result = await apiService.getAdventureSession(3)
+        await expect(apiService.getAdventureSession(3))
+            .rejects.toMatchObject({ status: 401, message: 'still unauthorized' })
 
-        expect(result).toEqual({})
-        expect(timeline).toEqual(['protected:first-401', 'refresh', 'protected:retry-401', 'auth:expired'])
+        expect(timeline).toEqual(['protected:first-401', 'refresh', 'protected:retry-401'])
         expect(fetchMock).toHaveBeenCalledTimes(3)
         expect(fetchCallsFor('/auth/refresh')).toHaveLength(1)
         const protectedCalls = fetchMock.mock.calls
@@ -122,9 +122,9 @@ describe('auth refresh recovery API wrapper', () => {
         expect(protectedCalls).toHaveLength(2)
         expect(headersOf(protectedCalls[0][1]).Authorization).toBe('Bearer old-token')
         expect(headersOf(protectedCalls[1][1]).Authorization).toBe('Bearer new-token')
-        expect(expired).toHaveBeenCalledTimes(1)
-        expect(localStorage.getItem('magic_worlds:token')).toBeNull()
-        expect(localStorage.getItem('magic_worlds:user')).toBeNull()
+        expect(expired).not.toHaveBeenCalled()
+        expect(localStorage.getItem('magic_worlds:token')).toBe('new-token')
+        expect(localStorage.getItem('magic_worlds:user')).toContain('old-user')
     })
 
     it('preserves protected mutation method and body when retrying after refresh', async () => {

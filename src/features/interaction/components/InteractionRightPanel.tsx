@@ -1,23 +1,17 @@
-import type { Adventure, TurnEntry } from '../../../shared'
-import { Dice5, History, Save, Settings } from 'lucide-react'
-import { Button, Icon, SectionHeader } from '../../../ui/primitives'
+/**
+ * Adventure-mode right panel — the turn-by-turn log of the session. Progress is
+ * persisted automatically after every turn (see saveTurnsToApi in the center
+ * panel), so there is no manual save affordance.
+ */
+import type { TurnEntry } from '../../../shared'
+import { History } from 'lucide-react'
+import { SectionHeader } from '../../../ui/primitives'
 
 interface InteractionRightPanelProps {
-    adventure: Adventure
     turns?: TurnEntry[]
 }
 
 export function InteractionRightPanel({ turns = [] }: InteractionRightPanelProps) {
-    const handleDiceRoll = () => {
-        const roll = Math.floor(Math.random() * 20) + 1
-        const message = roll === 20 ? '🎉 Critical Success!' : roll === 1 ? '💀 Critical Failure!' : `You rolled a ${roll}!`
-        alert(`🎲 ${message}`)
-    }
-
-    const handleSaveAdventure = () => {
-        alert('✨ Adventure progress saved!')
-    }
-
     const truncateText = (text: string, maxLength: number = 50): string => {
         return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text
     }
@@ -28,18 +22,6 @@ export function InteractionRightPanel({ turns = [] }: InteractionRightPanelProps
 
     return (
         <div className="flex flex-col gap-6 p-5">
-            <section className="flex flex-col gap-2">
-                <SectionHeader icon={Dice5} title="Quick Actions" />
-                <div className="flex flex-col gap-2">
-                    <Button kind="secondary" full iconLeft={<Icon icon={Dice5} size={16} />} onClick={handleDiceRoll}>
-                        Roll D20
-                    </Button>
-                    <Button kind="primary" full iconLeft={<Icon icon={Save} size={16} />} onClick={handleSaveAdventure}>
-                        Save Progress
-                    </Button>
-                </div>
-            </section>
-
             <section className="flex flex-col gap-2">
                 <SectionHeader icon={History} title="Adventure Log" />
                 <div className="flex max-h-[320px] flex-col gap-2 overflow-y-auto">
@@ -74,29 +56,7 @@ export function InteractionRightPanel({ turns = [] }: InteractionRightPanelProps
                         ))
                     )}
                 </div>
-            </section>
-
-            <section className="flex flex-col gap-2">
-                <SectionHeader icon={Settings} title="Settings" />
-                <div className="flex flex-col gap-2.5">
-                    {[
-                        { label: 'Auto-save progress', checked: true },
-                        { label: 'Show dice rolls in chat', checked: false },
-                        { label: 'Enable sound effects', checked: true },
-                    ].map((setting) => (
-                        <label
-                            key={setting.label}
-                            className="flex cursor-pointer items-center gap-2.5 text-[14px] text-parchment-200"
-                        >
-                            <input
-                                type="checkbox"
-                                defaultChecked={setting.checked}
-                                className="h-4 w-4 rounded accent-ember-500"
-                            />
-                            <span>{setting.label}</span>
-                        </label>
-                    ))}
-                </div>
+                <p className="m-0 font-ui text-[12px] text-parchment-500">Progress saves automatically.</p>
             </section>
         </div>
     )

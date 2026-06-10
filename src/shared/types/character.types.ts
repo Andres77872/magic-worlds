@@ -19,6 +19,14 @@ export interface Character {
     category?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }>
     /** Keywords that pull this card into the scene when matched in adventure chat. */
     triggers?: string[]
+    /** Opening line the character speaks first when a 1:1 chat begins. */
+    greeting?: string
+    /** Freeform system/persona prompt steering the character's voice in 1:1 chat. */
+    system_instructions?: string
+    /** Hosted URL of the card's generated profile portrait, if any. */
+    image_url?: string
+    /** Hosted URL of the card's generated theme song, if any. */
+    theme_song_url?: string
 
     [key: string]: any // Allow dynamic attribute categories
     createdAt?: string

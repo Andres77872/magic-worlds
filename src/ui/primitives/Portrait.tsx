@@ -10,7 +10,8 @@ import { gradientFor } from './gradient'
 interface PortraitProps {
     name?: string
     src?: string | null
-    height?: number
+    /** Pixel height, or any CSS height (e.g. 'auto' with an aspect-ratio class). */
+    height?: number | string
     gradient?: string
     className?: string
     children?: ReactNode
@@ -26,7 +27,7 @@ export function Portrait({ name = '', src, height = 160, gradient, className, ch
             {src && <img src={src} alt={name} className="absolute inset-0 h-full w-full object-cover" />}
             <span
                 className="font-display font-semibold leading-none text-parchment-50/20"
-                style={{ fontSize: Math.round(height * 0.42) }}
+                style={{ fontSize: typeof height === 'number' ? Math.round(height * 0.42) : 64 }}
             >
                 {initial}
             </span>

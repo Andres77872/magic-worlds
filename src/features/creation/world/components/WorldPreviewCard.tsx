@@ -14,9 +14,10 @@ export interface WorldPreviewCardProps {
     triggers: string[]
     attributes: AttrMap
     categories: AttributeCategory[]
+    imageUrl?: string
 }
 
-export function WorldPreviewCard({ name, type, description, triggers, attributes, categories }: WorldPreviewCardProps) {
+export function WorldPreviewCard({ name, type, description, triggers, attributes, categories, imageUrl }: WorldPreviewCardProps) {
     return (
         <EntityPreviewCard
             name={name}
@@ -27,6 +28,7 @@ export function WorldPreviewCard({ name, type, description, triggers, attributes
             triggers={triggers}
             attributes={attributes}
             categories={categories}
+            imageUrl={imageUrl}
         />
     )
 }

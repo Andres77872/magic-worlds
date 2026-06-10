@@ -26,7 +26,7 @@ const meta = {
     description: 'Rain taps the leaded glass as a hooded figure slides a damp envelope across your table. Inside: a name you buried years ago.',
     monogram: 'T',
     seed: 'The Tavern at the Edge of Sleep',
-    actionLabel: 'Begin a scene',
+    actionLabel: 'Begin adventure',
     onAction: () => {},
   },
 } satisfies Meta<typeof FeaturedScene>

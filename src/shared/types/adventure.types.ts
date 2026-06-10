@@ -3,7 +3,7 @@
  */
 
 import type { Character } from './character.types'
-import type { ChatImageAsset, ChatImageError, ImageLifecycleStatus } from './interaction.types'
+import type { ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from './interaction.types'
 import type { World } from './world.types'
 
 export interface Adventure {
@@ -22,6 +22,10 @@ export interface Adventure {
     category?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }>
     /** Keywords that pull this adventure into the scene when matched in chat. */
     triggers?: string[]
+    /** Hosted URL of the adventure's generated cover image, if any. */
+    image_url?: string
+    /** Hosted URL of the adventure's generated theme song, if any. */
+    theme_song_url?: string
     /**
      * The adventure's own cloned cards (persona/cast/world/scenario), captured when
      * the session was started. Editing this copy never affects the original library
@@ -49,6 +53,10 @@ export interface SnapshotCard {
     triggers?: string[]
     /** API attribute groups (name + description + key/value attributes). */
     category?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }>
+    /** Hosted URL of this card's generated profile portrait, if any. */
+    image_url?: string
+    /** Hosted URL of this card's generated theme song, if any. */
+    theme_song_url?: string
     [key: string]: unknown
 }
 
@@ -64,6 +72,10 @@ export interface SnapshotTemplate {
     characters?: SnapshotCard[]
     world?: SnapshotCard[] | null
     category?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }>
+    /** Hosted URL of the adventure's generated cover image, if any. */
+    image_url?: string
+    /** Hosted URL of the adventure's generated theme song, if any. */
+    theme_song_url?: string
 }
 
 /** Snapshot envelope returned on the session response (`template_snapshot`). */
@@ -93,6 +105,14 @@ export interface TurnEntry {
     imageAssets?: ChatImageAsset[]
     imageUrl?: string
     imageError?: ChatImageError
+    /** Per-turn TTS narration lifecycle (mirrors the image fields above). */
+    ttsJobId?: string
+    ttsStatus?: TtsLifecycleStatus
+    ttsStatusUrl?: string
+    ttsResultUrl?: string
+    ttsAssets?: ChatTtsAsset[]
+    ttsUrl?: string
+    ttsError?: ChatTtsError
 }
 
 export interface AdventureFormData {

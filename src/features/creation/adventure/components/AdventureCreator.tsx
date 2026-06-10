@@ -31,6 +31,7 @@ import {
     CreatorTextarea,
     AttributeManager,
     AiGeneratePanel,
+    MediaStudioSection,
     GeneratedDraftNotice,
     TriggersField,
     FormActions,
@@ -58,6 +59,8 @@ function toCharacter(c: CharacterCardResponse): Character {
         stats: {},
         category: c.category ?? undefined,
         triggers: c.triggers ?? [],
+        image_url: c.image_url,
+        theme_song_url: c.theme_song_url,
     }
 }
 
@@ -71,6 +74,8 @@ function toWorld(w: WorldCardResponse): World {
         details: {},
         category: w.category ?? undefined,
         triggers: w.triggers ?? [],
+        image_url: w.image_url,
+        theme_song_url: w.theme_song_url,
     }
 }
 
@@ -104,6 +109,8 @@ function toTemplate(card: AdventureTemplateCardResponse): Adventure {
         notes: {},
         category: card.category ?? undefined,
         triggers: card.triggers ?? [],
+        image_url: card.image_url,
+        theme_song_url: card.theme_song_url,
     }
 }
 
@@ -128,6 +135,10 @@ export function AdventureCreator() {
         editingTemplate?.world ? worlds.find((w) => w.name === editingTemplate.world?.name)?.id : undefined,
     )
     const [triggers, setTriggers] = useState<string[]>(editingTemplate?.triggers ?? [])
+    const [imageUrl, setImageUrl] = useState<string | undefined>(editingTemplate?.image_url)
+    const [themeSongUrl, setThemeSongUrl] = useState<string | undefined>(editingTemplate?.theme_song_url)
+    // Template id resolved at save time, so theme persistence never races `editingTemplate` state.
+    const savedIdRef = useRef<string | null>(editingTemplate?.id ?? null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showErrors, setShowErrors] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
@@ -214,6 +225,138 @@ export function AdventureCreator() {
         [editingTemplate],
     )
 
+    /** Build the create/update payload from current form state. */
+    const buildPayload = () => {
+        // Carry each card's own triggers into the embedded snapshot — the chat
+        // matcher reads triggers from the template's embedded persona/cast/world,
+        // not from the user's library.
+        const toCharacterCard = (c: Character) => ({
+            // Keep the library card id so a started adventure can clone the CURRENT
+            // original card (and so edits stay isolated to the adventure's copy).
+            source_card_id: c.id,
+            name: c.name,
+            race: c.race,
+            description: c.description ?? '',
+            category: c.category ?? [],
+            triggers: c.triggers ?? [],
+            // Embed the card's own media so the template stays self-sufficient if the
+            // original is later deleted (the session normally re-clones from the live card).
+            image_url: c.image_url,
+            theme_song_url: c.theme_song_url,
+        })
+        const selectedWorldObj = selectedWorld ? worlds.find((w) => w.id === selectedWorld) : undefined
+        const personaObj = selectedPersona ? characters.find((c) => c.id === selectedPersona) : undefined
+        return {
+            name: scenario.trim().slice(0, 80) || 'Untitled Adventure',
+            description: scenario,
+            triggers,
+            persona: personaObj ? toCharacterCard(personaObj) : null,
+            characters: selectedCharacters
+                .map((id) => characters.find((c) => c.id === id))
+                .filter((c): c is Character => Boolean(c))
+                .map(toCharacterCard),
+            world: selectedWorldObj
+                ? [{
+                      source_card_id: selectedWorldObj.id,
+                      name: selectedWorldObj.name,
+                      type: selectedWorldObj.type,
+                      description: selectedWorldObj.description ?? '',
+                      category: selectedWorldObj.category ?? [],
+                      triggers: selectedWorldObj.triggers ?? [],
+                      image_url: selectedWorldObj.image_url,
+                      theme_song_url: selectedWorldObj.theme_song_url,
+                  }]
+                : undefined,
+            category: toCategoryPayload(attrs.categories, attrs.attributes),
+            image_url: imageUrl ?? null,
+            theme_song_url: themeSongUrl,
+        }
+    }
+
+    /**
+     * Ensure the template exists on the server and return its id — auto-saving
+     * first if needed (theme generation needs a real target id).
+     */
+    const ensureSaved = async (): Promise<string> => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Please log in to continue.')
+        }
+        if (!scenario.trim()) {
+            setShowErrors(true)
+            throw new Error('Add a scenario before generating a theme.')
+        }
+        if (editingTemplate) {
+            await apiService.updateAdventureTemplate(editingTemplate.id, buildPayload())
+            savedIdRef.current = editingTemplate.id
+            return editingTemplate.id
+        }
+        const created = await apiService.createAdventureTemplate(buildPayload())
+        const saved = toTemplate(created as AdventureTemplateCardResponse)
+        if (saved.id) setEditingTemplate(saved)
+        savedIdRef.current = saved.id
+        // No loadData() here: a refresh would unmount this creator mid-generation (AppRouter
+        // shows a spinner while loading). The new card lands in the gallery on Save.
+        return saved.id
+    }
+
+    /**
+     * Persist a freshly generated/uploaded/gallery-selected cover onto the template
+     * (mirrors `handleThemeSongUrl`). Without this, the image only lives in form
+     * state until Save — navigating away left the card unassigned even though the
+     * asset shows in the user gallery. Unsaved new cards persist it on Create via
+     * `buildPayload()`; removal stays a Save-time change so Back still backs out.
+     */
+    const handleImageUrl = (url: string | undefined) => {
+        setImageUrl(url)
+        const id = savedIdRef.current ?? editingTemplate?.id
+        if (id && url) {
+            void apiService
+                .updateAdventureTemplate(id, { ...buildPayload(), image_url: url })
+                .catch(() => {
+                    /* best-effort — the asset still exists; Save re-persists the link */
+                })
+        }
+    }
+
+    /**
+     * Persist a freshly generated theme onto the template. Theme generation always
+     * runs after `ensureSaved()`, so the id is known — write it immediately (overriding
+     * the not-yet-committed `themeSongUrl` state) so the gallery shows it without a re-save.
+     */
+    const handleThemeSongUrl = (url: string | undefined) => {
+        setThemeSongUrl(url)
+        const id = savedIdRef.current ?? editingTemplate?.id
+        if (id && url) {
+            // Persist the link only — do NOT loadData() here. A refresh flips isLoading,
+            // which makes AppRouter unmount the whole creator (discarding in-progress edits)
+            // and re-run the theme effect. The gallery refreshes on Save / next navigation.
+            void apiService
+                .updateAdventureTemplate(id, { ...buildPayload(), theme_song_url: url })
+                .catch(() => {
+                    /* best-effort — the asset still exists; Save re-persists the link */
+                })
+        }
+    }
+
+    // Cover + theme generators, docked under the live preview card.
+    const mediaPanel = (
+        <MediaStudioSection
+            layout="compact"
+            cardType="adventure_template"
+            noun="adventure"
+            template={{ name: derivedTitle, description: scenario, category: toCategoryPayload(attrs.categories, attrs.attributes) }}
+            imageUrl={imageUrl}
+            onImageUrl={handleImageUrl}
+            themeSongUrl={themeSongUrl}
+            onThemeSongUrl={handleThemeSongUrl}
+            ensureSaved={ensureSaved}
+            themeTargetId={editingTemplate?.id}
+            isAuthenticated={isAuthenticated}
+            onAuthRequired={openLoginModal}
+        />
+    )
+
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
         if (!isAuthenticated) {
@@ -226,42 +369,7 @@ export function AdventureCreator() {
         setIsSubmitting(true)
         setSaveError(null)
         try {
-            // Carry each card's own triggers into the embedded snapshot — the chat
-            // matcher reads triggers from the template's embedded persona/cast/world,
-            // not from the user's library.
-            const toCharacterCard = (c: Character) => ({
-                // Keep the library card id so a started adventure can clone the CURRENT
-                // original card (and so edits stay isolated to the adventure's copy).
-                source_card_id: c.id,
-                name: c.name,
-                race: c.race,
-                description: c.description ?? '',
-                category: c.category ?? [],
-                triggers: c.triggers ?? [],
-            })
-            const selectedWorldObj = selectedWorld ? worlds.find((w) => w.id === selectedWorld) : undefined
-            const personaObj = selectedPersona ? characters.find((c) => c.id === selectedPersona) : undefined
-            const payload = {
-                name: scenario.trim().slice(0, 80) || 'Untitled Adventure',
-                description: scenario,
-                triggers,
-                persona: personaObj ? toCharacterCard(personaObj) : null,
-                characters: selectedCharacters
-                    .map((id) => characters.find((c) => c.id === id))
-                    .filter((c): c is Character => Boolean(c))
-                    .map(toCharacterCard),
-                world: selectedWorldObj
-                    ? [{
-                          source_card_id: selectedWorldObj.id,
-                          name: selectedWorldObj.name,
-                          type: selectedWorldObj.type,
-                          description: selectedWorldObj.description ?? '',
-                          category: selectedWorldObj.category ?? [],
-                          triggers: selectedWorldObj.triggers ?? [],
-                      }]
-                    : undefined,
-                category: toCategoryPayload(attrs.categories, attrs.attributes),
-            }
+            const payload = buildPayload()
 
             if (editingTemplate) {
                 await apiService.updateAdventureTemplate(editingTemplate.id, payload)
@@ -305,9 +413,14 @@ export function AdventureCreator() {
             }
             setScenario(card.description ?? '')
             setTriggers(card.triggers ?? [])
+            setImageUrl(card.image_url)
+            setThemeSongUrl(card.theme_song_url)
             attrs.hydrateFrom(card)
             setGeneratedScene(sceneFromResponse(card))
             setEditingTemplate(toTemplate(card))
+            // The AI endpoint already persisted the card — record its id so a media
+            // generation right after the draft persists without racing provider state.
+            savedIdRef.current = card.id || card.uuid || null
             setGenStatus('done')
             // Keep the landing list fresh for when the user navigates back. Do not
             // await or navigate — generation must never block the page.
@@ -360,6 +473,7 @@ export function AdventureCreator() {
                 <StudioPreviewDock
                     busy={genStatus === 'generating'}
                     notice={genStatus === 'done' ? <GeneratedDraftNotice noun="adventure" /> : undefined}
+                    footer={mediaPanel}
                 >
                     <AdventurePreviewCard
                         title={derivedTitle}
@@ -369,6 +483,7 @@ export function AdventureCreator() {
                         world={previewWorld}
                         objectivesCount={objectivesCount}
                         triggers={triggers}
+                        imageUrl={imageUrl}
                     />
                 </StudioPreviewDock>
             }

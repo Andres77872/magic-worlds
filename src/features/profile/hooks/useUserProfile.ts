@@ -51,7 +51,7 @@ export function useUserProfile(): UseUserProfileResult {
                 if (cancelled) return
                 setError(null)
                 setIsTransientError(false)
-                // An expired session resolves GET 401s to `{}` (and fires
+                // Terminal auth expiry can resolve GETs to `{}` (and fires
                 // `auth:expired`); ignore that shape rather than render a blank
                 // profile — the auth layer will surface the login modal.
                 setProfile(data && data.user_hash ? data : null)

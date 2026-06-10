@@ -131,6 +131,11 @@ function findTurnIndex(turns: TurnEntry[], keys: { jobId?: string | null; assist
     const byTurn = turns.findIndex((turn) => turn.turnId === keys.turnId)
     if (byTurn >= 0) return byTurn
   }
+  // The last-AI fallback is only for lookups that carried at least one id (a
+  // live frame racing the turn's ids). A key-less lookup — user turns and
+  // still-streaming turns during hydration merges — must never adopt another
+  // turn's image state.
+  if (!keys.jobId && !keys.assistantMessageId && !keys.turnId) return -1
   for (let idx = turns.length - 1; idx >= 0; idx -= 1) {
     if (turns[idx].type === 'ai') return idx
   }

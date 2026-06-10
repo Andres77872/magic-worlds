@@ -6,6 +6,7 @@
  */
 
 import { Avatar, Badge, Card, Chip, Eyebrow, Portrait, Tag } from '@/ui/primitives'
+import { resolveMediaUrl } from '@/infrastructure/api'
 
 export interface PreviewMember {
     id: string
@@ -21,16 +22,18 @@ export interface AdventurePreviewCardProps {
     world?: { name: string; type?: string }
     objectivesCount: number
     triggers: string[]
+    /** Generated cover image URL (may be backend-relative). */
+    imageUrl?: string
 }
 
-export function AdventurePreviewCard({ title, scenario, cast, persona, world, objectivesCount, triggers }: AdventurePreviewCardProps) {
+export function AdventurePreviewCard({ title, scenario, cast, persona, world, objectivesCount, triggers, imageUrl }: AdventurePreviewCardProps) {
     const hasMeta = objectivesCount > 0 || triggers.length > 0
 
     return (
         <div className="flex flex-col gap-2">
             <Eyebrow tone="muted">Live preview</Eyebrow>
             <Card>
-                <Portrait name={title} height={150}>
+                <Portrait name={title} src={resolveMediaUrl(imageUrl)} height={150}>
                     <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 p-4">
                         <Eyebrow tone="ember">Now Playing</Eyebrow>
                         <h3 className="m-0 line-clamp-2 font-display text-xl font-semibold leading-tight text-parchment-50">

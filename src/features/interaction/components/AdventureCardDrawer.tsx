@@ -10,14 +10,16 @@
 import { startTransition, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import type { SnapshotCard } from '../../../shared'
+import { useAuth } from '@/app/hooks'
 import { Button, Chip, Drawer, Eyebrow, Icon, Portrait, Tag } from '../../../ui/primitives'
-import { ApiError } from '../../../infrastructure/api'
+import { ApiError, resolveMediaUrl } from '../../../infrastructure/api'
 import type { AttributeCategory } from '../../../ui/components/common/AttributeList'
 import {
     AttributeManager,
     CreatorField,
     CreatorInput,
     CreatorTextarea,
+    MediaStudioSection,
     TriggersField,
 } from '../../creation/common/components'
 import { useAttributeCategories, toCategoryPayload } from '../../creation/common/hooks'
@@ -189,8 +191,8 @@ function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
 
     return (
         <div className="flex flex-col gap-6">
-            {/* Hero banner — gradient portrait with the name + type overlaid. */}
-            <Portrait name={card.name || ''} height={180} className="rounded-xl">
+            {/* Hero banner — generated portrait (or gradient) with name + type overlaid. */}
+            <Portrait name={card.name || ''} src={resolveMediaUrl(card.image_url)} height={180} className="rounded-xl">
                 <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 p-4">
                     <h3 className="font-display text-[26px] font-semibold leading-tight text-parchment-50">
                         {card.name || 'Untitled'}
@@ -304,12 +306,28 @@ function CardEditForm({
     error: string | null
 }) {
     const { card, ref } = entry
+    const { isAuthenticated, openLoginModal } = useAuth()
     const isWorld = ref.kind === 'world'
+    const cardType = isWorld ? 'world' : 'character'
     const [name, setName] = useState(card.name ?? '')
     const [badgeValue, setBadgeValue] = useState((isWorld ? card.type : card.race) || '')
     const [description, setDescription] = useState(card.description ?? '')
     const [triggers, setTriggers] = useState<string[]>(card.triggers ?? [])
+    const [imageUrl, setImageUrl] = useState<string | undefined>(card.image_url)
+    const [themeSongUrl, setThemeSongUrl] = useState<string | undefined>(card.theme_song_url)
     const [touched, setTouched] = useState(false)
+
+    // Theme songs attach to a library card; this adventure-only copy targets its
+    // origin (`source_card_id`) — theme audio is associated media, so it never
+    // mutates the snapshot's own body. Without an origin, theme is unavailable.
+    const themeSourceId = card.source_card_id
+    const themeDisabledReason = themeSourceId
+        ? undefined
+        : "This adventure-only card has no library origin, so a music theme can't be attached here."
+    const ensureSaved = async (): Promise<string> => {
+        if (!themeSourceId) throw new Error('No library origin to attach a theme to.')
+        return themeSourceId
+    }
 
     // Backstop against the "phantom submit": if the view→edit button swap ever
     // isn't fully deferred, the click that opened this form can land on the
@@ -339,6 +357,8 @@ function CardEditForm({
             description: description.trim(),
             triggers,
             category: toCategoryPayload(attrs.categories, attrs.attributes),
+            image_url: imageUrl,
+            theme_song_url: themeSongUrl,
         }
         if (isWorld) updated.type = badgeValue.trim()
         else updated.race = badgeValue.trim()
@@ -388,6 +408,23 @@ function CardEditForm({
             />
 
             <TriggersField values={triggers} onChange={setTriggers} />
+
+            <div className="border-t border-parchment-50/[.07] pt-6">
+                <MediaStudioSection
+                    cardType={cardType}
+                    noun={isWorld ? 'world' : 'character'}
+                    template={{ name, description, subtype: badgeValue, category: toCategoryPayload(attrs.categories, attrs.attributes) }}
+                    imageUrl={imageUrl}
+                    onImageUrl={setImageUrl}
+                    themeSongUrl={themeSongUrl}
+                    onThemeSongUrl={setThemeSongUrl}
+                    ensureSaved={ensureSaved}
+                    themeTargetId={themeSourceId}
+                    themeDisabledReason={themeDisabledReason}
+                    isAuthenticated={isAuthenticated}
+                    onAuthRequired={openLoginModal}
+                />
+            </div>
         </form>
     )
 }

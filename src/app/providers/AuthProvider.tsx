@@ -28,7 +28,7 @@ const USER_STORAGE_KEY = 'magic_worlds:user'
 type AuthRefreshedDetail = BrowserAuthResponse & { token?: string }
 
 function selectAccessToken(data: BrowserAuthResponse | AuthRefreshedDetail): string {
-    return data.token || data.session_token || data.access_token || ''
+    return (data as AuthRefreshedDetail).token || data.session_token || data.access_token || ''
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -67,7 +67,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
     }, [])
 
-    // Listen for 401 auth:expired events from apiService
+    // Listen for terminal auth expiry events. The API layer emits this only after
+    // refresh itself is denied, not for every protected endpoint 401.
     useEffect(() => {
         const handleAuthExpired = () => {
             clearAuthState()

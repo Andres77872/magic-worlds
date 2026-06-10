@@ -6,8 +6,10 @@
 
 import type { KeyboardEvent, MouseEvent } from 'react'
 import { Pencil, Play, Trash2 } from 'lucide-react'
+import { MODE_META } from '@/shared/modes'
 import { Badge, Card, Icon, Portrait, Tag } from '@/ui/primitives'
 import { CardOptions, type CardOption } from '@/ui/components/lists/Card'
+import { ModeBadge } from '@/ui/components/common/ModeBadge'
 import type { Scene } from './sceneModel'
 
 export interface SceneCardProps {
@@ -19,7 +21,7 @@ export interface SceneCardProps {
 
 export function SceneCard({ scene, onBegin, onEdit, onDelete }: SceneCardProps) {
     const options: CardOption[] = [
-        { type: 'custom', icon: <Icon icon={Play} size={15} />, label: 'Begin a scene', onClick: onBegin },
+        { type: 'custom', icon: <Icon icon={Play} size={15} />, label: MODE_META.adventure.beginLabel, onClick: onBegin },
         { type: 'custom', icon: <Icon icon={Pencil} size={15} />, label: 'Edit', onClick: onEdit },
         { type: 'custom', icon: <Icon icon={Trash2} size={15} />, label: 'Delete', onClick: onDelete, danger: true },
     ]
@@ -36,18 +38,17 @@ export function SceneCard({ scene, onBegin, onEdit, onDelete }: SceneCardProps) 
             interactive
             role="button"
             tabIndex={0}
-            aria-label={`Begin a scene with ${scene.title}`}
+            aria-label={`Begin adventure: ${scene.title}`}
             onClick={onBegin}
             onKeyDown={handleKeyDown}
             className="group flex h-full flex-col"
         >
             <div className="relative">
                 <Portrait name={scene.title} height={140} />
-                {scene.tags[0] && (
-                    <span className="absolute left-3 top-3">
-                        <Badge tone="glass">{scene.tags[0]}</Badge>
-                    </span>
-                )}
+                <span className="absolute left-3 top-3 flex items-center gap-1.5">
+                    <ModeBadge mode="adventure" compact />
+                    {scene.tags[0] && <Badge tone="glass">{scene.tags[0]}</Badge>}
+                </span>
                 <div
                     className="absolute right-2 top-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100"
                     onClick={(e: MouseEvent) => e.stopPropagation()}

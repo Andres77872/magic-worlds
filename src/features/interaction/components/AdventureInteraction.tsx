@@ -2,7 +2,7 @@
  * Adventure interaction component
  */
 
-import {useEffect, useState} from 'react'
+import {useEffect, useMemo, useState} from 'react'
 import type {Adventure, AdventureSnapshot, TurnEntry} from '../../../shared'
 import { Menu, ScrollText } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '../../../app/hooks'
@@ -10,6 +10,7 @@ import { LoadingSpinner } from '../../../ui/components'
 import { apiService } from '../../../infrastructure/api'
 import { parseTurnState } from '../../../utils/turnState'
 import { cx, IconButton } from '../../../ui/primitives'
+import { adventureChatConfig } from '../chatSessionConfig'
 import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel} from './index'
 
 export function AdventureInteraction() {
@@ -21,6 +22,8 @@ export function AdventureInteraction() {
     const [isLoading, setIsLoading] = useState(true)
     const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false)
     const [isRightPanelOpen, setIsRightPanelOpen] = useState(false)
+    // Stable per-mount config so the chat engine's callbacks/effects don't churn.
+    const chatConfig = useMemo(() => adventureChatConfig(), [])
 
     // Gate behind auth — unauthenticated users cannot access interaction
     useEffect(() => {
@@ -162,7 +165,7 @@ export function AdventureInteraction() {
         'h-full w-[320px] max-w-[85%] overflow-y-auto bg-ink-900 transition-transform lg:max-w-none lg:translate-x-0'
 
     return (
-        <div className="relative flex h-[calc(100vh-4rem)] overflow-hidden bg-ink-800">
+        <div className="relative flex h-full overflow-hidden bg-ink-800">
             {/* Left Panel Toggle Button (mobile) */}
             <IconButton
                 label="Toggle adventure details"
@@ -185,7 +188,7 @@ export function AdventureInteraction() {
 
             {/* Center Panel */}
             <div className="min-w-0 flex-1">
-                <InteractionCenterPanel adventure={currentAdventure} turns={turns} setTurns={setTurns} />
+                <InteractionCenterPanel sessionId={Number(currentAdventure.id)} turns={turns} setTurns={setTurns} config={chatConfig} />
             </div>
 
             {/* Right Panel */}
@@ -194,7 +197,7 @@ export function AdventureInteraction() {
                 onClick={handlePanelBackdropClick}
             >
                 <div className={cx(panelContent, 'ml-auto border-l border-parchment-50/10', isRightPanelOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0')}>
-                    <InteractionRightPanel adventure={currentAdventure} turns={turns} />
+                    <InteractionRightPanel turns={turns} />
                 </div>
             </div>
 

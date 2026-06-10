@@ -51,8 +51,14 @@ export interface CharacterCardResponse {
     name: string
     race?: string
     description?: string
+    /** In-character opening line for 1:1 chat (AI-generated drafts may include it). */
+    greeting?: string
+    /** Roleplay/system direction for 1:1 chat. */
+    system_instructions?: string
     category?: AiCardCategory[] | null
     triggers?: string[]
+    image_url?: string
+    theme_song_url?: string
     [key: string]: unknown
 }
 
@@ -64,6 +70,8 @@ export interface WorldCardResponse {
     description?: string
     category?: AiCardCategory[] | null
     triggers?: string[]
+    image_url?: string
+    theme_song_url?: string
     [key: string]: unknown
 }
 
@@ -77,5 +85,7 @@ export interface AdventureTemplateCardResponse {
     world?: WorldCardResponse[] | null
     category?: AiCardCategory[] | null
     triggers?: string[]
+    image_url?: string
+    theme_song_url?: string
     [key: string]: unknown
 }

@@ -21,7 +21,7 @@ describe('ChatTurn generated image rendering', () => {
     )
 
     expect(screen.getByText('The gate opens.')).toBeInTheDocument()
-    expect(screen.getByText(/generating image/i)).toBeInTheDocument()
+    expect(screen.getByText(/conjuring the scene/i)).toBeInTheDocument()
   })
 
   it('renders completed mirrored asset and not provider sentinel URLs', () => {

@@ -122,6 +122,8 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         stats: {},
         category: [{ name: 'Stats', attributes: [{ CHA: '17' }] }],
         triggers: ['lyra'],
+        image_url: '/generated-images/lyra.jpeg',
+        theme_song_url: '/generated-audio/lyra.mp3',
     }
     const libWorld: World = {
         id: 'world-9',
@@ -131,6 +133,8 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         details: {},
         category: [{ name: 'Details', attributes: [{ Ruler: 'Council' }] }],
         triggers: ['sunspire'],
+        image_url: '/generated-images/sunspire.jpeg',
+        theme_song_url: '/generated-audio/sunspire.mp3',
     }
 
     it('clones a full library card into a snapshot card with source_card_id', () => {
@@ -144,6 +148,29 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         const w = libraryCardToSnapshotCard(libWorld, 'world')
         expect(w.type).toBe('City')
         expect(w.source_card_id).toBe('world-9')
+    })
+
+    it('carries media (image/theme) through the snapshot mappers', () => {
+        // Adding a library card mid-adventure must keep its portrait + theme so the
+        // snapshot (and the drawer/side-panel that read card.image_url) stay populated.
+        const snapCard = libraryCardToSnapshotCard(libChar, 'character')
+        expect(snapCard.image_url).toBe('/generated-images/lyra.jpeg')
+        expect(snapCard.theme_song_url).toBe('/generated-audio/lyra.mp3')
+
+        const w = libraryCardToSnapshotCard(libWorld, 'world')
+        expect(w.image_url).toBe('/generated-images/sunspire.jpeg')
+        expect(w.theme_song_url).toBe('/generated-audio/sunspire.mp3')
+
+        // …and back out through the display mappers (adventureFieldsFromSnapshot).
+        const added = addSnapshotCard(
+            setSnapshotPersona(makeSnapshot(), libraryCardToSnapshotCard(libChar, 'character')),
+            'world',
+            libraryCardToSnapshotCard(libWorld, 'world'),
+        )
+        const fields = adventureFieldsFromSnapshot(added)
+        expect(fields.persona?.image_url).toBe('/generated-images/lyra.jpeg')
+        expect(fields.persona?.theme_song_url).toBe('/generated-audio/lyra.mp3')
+        expect(fields.worlds[fields.worlds.length - 1]?.image_url).toBe('/generated-images/sunspire.jpeg')
     })
 
     it('adds a card immutably and exposes its source id', () => {

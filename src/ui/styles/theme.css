@@ -69,6 +69,7 @@
   --default-transition-duration: 220ms; /* Reverie --dur-base */
   --default-transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   --animate-think: think 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
 
   /* ---------- type scale → text-* (size + line-height) ---------- */
   --text-display: clamp(44px, 6vw, 84px);
@@ -100,6 +101,17 @@
   }
   50% {
     box-shadow: 0 0 0 2px var(--color-arcane-400), 0 0 22px 2px rgba(143, 111, 227, 0.7);
+  }
+}
+
+/* Left→right highlight sweep for image placeholders while a generated scene
+   downloads (GeneratedImage). Pairs with --animate-shimmer. */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
   }
 }
 
@@ -155,6 +167,22 @@
    "Serif for story": Spectral narrative, ember dialogue, arcane thoughts.
    ============================================================ */
 @layer components {
+  /* Animated placeholder shown over a generated scene image until its bytes
+     paint. A soft arcane highlight sweeps across the dark ink canvas. Reduced
+     motion (handled globally above) freezes it to a static tint. */
+  .image-shimmer {
+    background-color: var(--color-ink-700);
+    background-image: linear-gradient(
+      100deg,
+      transparent 30%,
+      rgba(143, 111, 227, 0.14) 50%,
+      transparent 70%
+    );
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: var(--animate-shimmer);
+  }
+
   .chat-prose {
     font-family: var(--font-narrative);
     font-size: 17px;

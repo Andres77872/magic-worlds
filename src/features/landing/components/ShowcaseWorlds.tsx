@@ -86,7 +86,7 @@ function ShowcaseCard({ world, onTry }: ShowcaseCardProps) {
                     {world.hook}
                 </p>
                 <span className="inline-flex items-center gap-1.5 font-ui text-[13px] font-semibold text-ember-400 opacity-0 transition-opacity group-hover:opacity-100">
-                    Begin a scene
+                    Begin an adventure
                     <Icon icon={ArrowRight} size={14} />
                 </span>
             </div>

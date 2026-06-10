@@ -13,6 +13,9 @@ export interface AdventureChatHandlers {
     onImageJob?: (frame: Extract<ChatSocketServerMessage, { type: 'image_job' }>) => void
     onImageComplete?: (frame: Extract<ChatSocketServerMessage, { type: 'image_complete' }>) => void
     onImageFailed?: (frame: Extract<ChatSocketServerMessage, { type: 'image_failed' }>) => void
+    onTtsJob?: (frame: Extract<ChatSocketServerMessage, { type: 'tts_job' }>) => void
+    onTtsComplete?: (frame: Extract<ChatSocketServerMessage, { type: 'tts_complete' }>) => void
+    onTtsFailed?: (frame: Extract<ChatSocketServerMessage, { type: 'tts_failed' }>) => void
     /** The backend reported an error for this turn. */
     onError?: (message: string) => void
 }
@@ -20,6 +23,7 @@ export interface AdventureChatHandlers {
 export interface AdventureChatSocketApi {
     status: ChatSocketStatus
     sendChat: (messages: ChatMessage[]) => void
+    sendTts: (assistantMessageId: number, turnId: string, requestId?: string) => void
     cancel: () => void
 }
 
@@ -33,13 +37,14 @@ export function useAdventureChatSocket(
     sessionId: number | null,
     handlers: AdventureChatHandlers,
     authKey?: string | null,
+    basePath: string = 'adventure-sessions',
 ): AdventureChatSocketApi {
     const handlersRef = useRef(handlers)
     useEffect(() => {
         handlersRef.current = handlers
     })
 
-    const socketRef = useRef<AdventureChatSocket | null>(null)
+    const socketRef = useRef<InstanceType<typeof AdventureChatSocket> | null>(null)
     const [status, setStatus] = useState<ChatSocketStatus>('closed')
 
     useEffect(() => {
@@ -79,13 +84,22 @@ export function useAdventureChatSocket(
                     case 'image_failed':
                         current.onImageFailed?.(message)
                         break
+                    case 'tts_job':
+                        current.onTtsJob?.(message)
+                        break
+                    case 'tts_complete':
+                        current.onTtsComplete?.(message)
+                        break
+                    case 'tts_failed':
+                        current.onTtsFailed?.(message)
+                        break
                     case 'error':
                         current.onError?.(message.message)
                         break
                     // 'ready' | 'pong' | 'image' | 'action': ignored (forward-compatible).
                 }
             },
-        })
+        }, basePath)
         socketRef.current = socket
         socket.connect()
 
@@ -93,10 +107,13 @@ export function useAdventureChatSocket(
             socket.close()
             socketRef.current = null
         }
-    }, [sessionId, authKey])
+        // basePath in deps so switching session kinds tears down + reconnects cleanly.
+    }, [sessionId, authKey, basePath])
 
     const sendChat = (messages: ChatMessage[]) => socketRef.current?.sendChat(messages)
+    const sendTts = (assistantMessageId: number, turnId: string, requestId?: string) =>
+        socketRef.current?.sendTts(assistantMessageId, turnId, requestId)
     const cancel = () => socketRef.current?.cancel()
 
-    return { status, sendChat, cancel }
+    return { status, sendChat, sendTts, cancel }
 }

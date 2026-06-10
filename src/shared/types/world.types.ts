@@ -12,6 +12,10 @@ export interface World {
     category?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }>
     /** Keywords that pull this card into the scene when matched in adventure chat. */
     triggers?: string[]
+    /** Hosted URL of the card's generated profile portrait, if any. */
+    image_url?: string
+    /** Hosted URL of the card's generated theme song, if any. */
+    theme_song_url?: string
     createdAt?: string
     updatedAt?: string
 }

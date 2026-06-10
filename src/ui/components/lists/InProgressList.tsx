@@ -4,8 +4,10 @@ import {ConfirmDialog} from '../ConfirmDialog'
 import {Card, CardGrid} from './Card'
 import type {CardOption} from './Card'
 import {EmptyState} from '../common/EmptyState'
+import {ModeBadge} from '../common/ModeBadge'
 import {Compass, Pencil, Play, Trash2} from 'lucide-react'
-import {Badge, Icon, Tag} from '@/ui/primitives'
+import {Icon, Tag} from '@/ui/primitives'
+import {resolveMediaUrl} from '@/infrastructure/api'
 
 interface InProgressListProps {
     adventures: Adventure[]
@@ -50,7 +52,7 @@ export function InProgressList({
                     <EmptyState
                         icon={<Icon icon={Compass} size={32}/>}
                         message="No adventures in progress"
-                        secondaryText="Start a new adventure from the Templates section!"
+                        secondaryText="Begin an adventure from your library."
                     />
                 }
                 renderCard={(adventure, idx) => {
@@ -88,12 +90,14 @@ export function InProgressList({
                             title={adventure.scenario}
                             subtitle={
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                    <Badge tone="live">{adventure.status || 'in-progress'}</Badge>
+                                    <ModeBadge mode="adventure"/>
                                     {adventure.world?.name && <Tag>{adventure.world.name}</Tag>}
                                 </div>
                             }
                             options={options}
                             onClick={() => onPlay ? onPlay(adventure) : onEdit(adventure)}
+                            imageUrl={resolveMediaUrl(adventure.image_url)}
+                            themeSongUrl={resolveMediaUrl(adventure.theme_song_url)}
                             className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >
                             <p className="m-0 font-narrative text-sm text-parchment-400">Characters: {characterNames}</p>

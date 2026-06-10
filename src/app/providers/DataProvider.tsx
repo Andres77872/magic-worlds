@@ -4,9 +4,10 @@
  */
 
 import { createContext, useEffect, useState, type ReactNode } from 'react'
-import type { Character, World, Adventure, AdventureSnapshot, LoadingState } from '../../shared'
+import type { Character, World, Adventure, AdventureSnapshot, CharacterChatSession, LoadingState } from '../../shared'
 import { apiService, ApiError } from '../../infrastructure'
 import { parseTurnState } from '../../utils/turnState'
+import { asArray, transformCharacters, transformTemplates, transformWorlds } from '../../utils/cardTransforms'
 import {
     adventureFieldsFromSnapshot,
     asSnapshot,
@@ -43,18 +44,32 @@ interface DataContextValue {
     editTemplate: (adventure: Adventure) => void
     startTemplate: (template: Adventure) => Promise<void>
     deleteTemplate: (index: number) => Promise<void>
+    /** Id-based variant for searched/paginated views that don't index into the provider list. */
+    deleteTemplateById: (id: string) => Promise<void>
     editInProgress: (adventure: Adventure) => void
     deleteInProgress: (index: number) => Promise<void>
     /** Persist an edit to an adventure's cloned-card snapshot (its own copy only). */
     saveInProgressSnapshot: (adventureId: string, snapshot: AdventureSnapshot) => Promise<void>
-    
+
+    // 1:1 character chat
+    activeCharacterChat: CharacterChatSession | null
+    setActiveCharacterChat: (chat: CharacterChatSession | null) => void
+    /** Start (or resume) a 1:1 chat with a character; caller navigates to 'character-chat'. */
+    startCharacterChat: (character: Character) => Promise<void>
+    /** Past 1:1 chats (the "Recent chats" shelf); loaded alongside the other lists. */
+    characterChats: CharacterChatSession[]
+    /** Reopen an existing chat from the list; caller navigates to 'character-chat'. */
+    resumeCharacterChat: (chat: CharacterChatSession) => void
+    deleteCharacterChat: (id: string) => Promise<void>
+
     // UI State
     loadingState: LoadingState
     isLoading: boolean
     error: string | null
 
     // Actions
-    loadData: () => Promise<void>
+    /** `silent` refreshes lists in place without flipping the global loading spinner. */
+    loadData: (opts?: { silent?: boolean }) => Promise<void>
     clearAllData: () => Promise<void>
 }
 
@@ -103,6 +118,9 @@ function buildInProgressAdventure(session: RawAdventureSession, template: Advent
         characters: snapshot ? fields.characters : (template?.characters ?? []),
         world: snapshot ? fields.world : template?.world,
         worlds: snapshot ? fields.worlds : (template?.world ? [template.world] : []),
+        // Cover image + theme: prefer the session's own snapshot, fall back to the template.
+        image_url: snapshot?.template?.image_url ?? template?.image_url,
+        theme_song_url: snapshot?.template?.theme_song_url ?? template?.theme_song_url,
         snapshot,
         turns: parseTurnState(session.adventure_last_turn),
         status: 'in-progress' as const,
@@ -129,7 +147,11 @@ export function DataProvider({ children }: DataProviderProps) {
     const [inProgressAdventures, setInProgressAdventures] = useState<Adventure[]>([])
     const [editingTemplate, setEditingTemplate] = useState<Adventure | null>(null)
     const [editingInProgress, setEditingInProgress] = useState<Adventure | null>(null)
-    
+
+    // 1:1 character chat state
+    const [activeCharacterChat, setActiveCharacterChat] = useState<CharacterChatSession | null>(null)
+    const [characterChats, setCharacterChats] = useState<CharacterChatSession[]>([])
+
     // UI state
     const [loadingState, setLoadingState] = useState<LoadingState>({ isLoading: true })
 
@@ -230,7 +252,22 @@ export function DataProvider({ children }: DataProviderProps) {
             throw error
         }
     }
-    
+
+    const deleteTemplateById = async (id: string) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to delete adventure templates')
+        }
+        try {
+            await apiService.deleteAdventureTemplate(id)
+            setTemplateAdventures((prev) => prev.filter((template) => template.id !== id))
+        } catch (error) {
+            console.error('Failed to delete template:', error)
+            throw error
+        }
+    }
+
+
     // In-progress adventure actions
     const editInProgress = (adventure: Adventure) => {
         setEditingInProgress(adventure)
@@ -261,6 +298,62 @@ export function DataProvider({ children }: DataProviderProps) {
         setEditingInProgress((prev) => (prev && prev.id === adventureId ? patch(prev) : prev))
     }
     
+    // Start (or resume) a 1:1 character chat. The backend is idempotent per
+    // (user, character): it returns the existing chat or creates one seeded with the
+    // character's greeting. The caller navigates to the 'character-chat' page.
+    const startCharacterChat = async (character: Character) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to chat with characters')
+        }
+        try {
+            const session = await apiService.createCharacterChat(character.id)
+            const chat: CharacterChatSession = {
+                id: String(session.chat_id ?? session.id),
+                character_id: String(session.character_id ?? character.id),
+                // The live library card drives the sidebar; chat content comes from last_turn.
+                character,
+                turns: parseTurnState(session.last_turn),
+                createdAt: session.created_at,
+                updatedAt: session.updated_at,
+            }
+            setActiveCharacterChat(chat)
+            // Upsert into the "Recent chats" list so a first chat shows up without a reload.
+            setCharacterChats((prev) => [chat, ...prev.filter((c) => c.id !== chat.id)])
+        } catch (error) {
+            console.error('Failed to start character chat:', error)
+            setLoadingState({
+                isLoading: false,
+                error: error instanceof Error ? error.message : 'Failed to start character chat',
+            })
+        }
+    }
+
+    // Reopen a chat from the list. No network call needed: the chat view re-hydrates
+    // the conversation from the server when its socket opens.
+    const resumeCharacterChat = (chat: CharacterChatSession) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to chat with characters')
+        }
+        setActiveCharacterChat(chat)
+    }
+
+    const deleteCharacterChat = async (id: string) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to delete chats')
+        }
+        try {
+            await apiService.deleteCharacterChat(Number(id))
+            setCharacterChats((prev) => prev.filter((chat) => chat.id !== id))
+            setActiveCharacterChat((prev) => (prev && prev.id === id ? null : prev))
+        } catch (error) {
+            console.error('Failed to delete character chat:', error)
+            throw error
+        }
+    }
+
     const deleteInProgress = async (index: number) => {
         if (!isAuthenticated) {
             openLoginModal()
@@ -280,7 +373,12 @@ export function DataProvider({ children }: DataProviderProps) {
         }
     }
 
-    const loadData = async () => {
+    // `silent` refreshes the lists in place WITHOUT toggling `loadingState.isLoading`.
+    // AppRouter swaps the whole page for <LoadingSpinner/> whenever isLoading is true,
+    // so a silent run is what lets the dashboard re-fetch on every visit (picking up
+    // media persisted by the creators) without the unmount/flicker/loop.
+    const loadData = async (opts?: { silent?: boolean }) => {
+        const silent = opts?.silent ?? false
         try {
             // If not authenticated, skip API calls entirely — render empty state gracefully
             if (!isAuthenticated) {
@@ -289,24 +387,40 @@ export function DataProvider({ children }: DataProviderProps) {
                 setWorlds([])
                 setTemplateAdventures([])
                 setInProgressAdventures([])
-                setLoadingState({ isLoading: false })
+                setCharacterChats([])
+                if (!silent) setLoadingState({ isLoading: false })
                 return
             }
 
-            setLoadingState({ isLoading: true })
+            if (!silent) setLoadingState({ isLoading: true })
             console.log('[DataProvider] Starting to load data from API...')
             
-            const [
-                loadedCharacters,
-                loadedWorlds,
-                loadedTemplateAdventures,
-                loadedSessions
-            ] = await Promise.all([
+            // Load each resource independently: a single failing endpoint (a
+            // transient 5xx, or one route briefly down) must NOT wipe out or stale
+            // the others. With Promise.all, one rejection skipped EVERY setState
+            // below — so e.g. freshly generated media (theme/portrait) stayed
+            // invisible until a later all-success refresh.
+            const [charsRes, worldsRes, templatesRes, sessionsRes, chatsRes] = await Promise.allSettled([
                 apiService.getCharacters(),
                 apiService.getWorlds(),
                 apiService.getAdventureTemplates(),
-                apiService.getAdventureSessions()
+                apiService.getAdventureSessions(),
+                apiService.getCharacterChats()
             ])
+
+            const loadedCharacters = charsRes.status === 'fulfilled' ? charsRes.value : []
+            const loadedWorlds = worldsRes.status === 'fulfilled' ? worldsRes.value : []
+            const loadedTemplateAdventures = templatesRes.status === 'fulfilled' ? templatesRes.value : []
+            const loadedSessions = sessionsRes.status === 'fulfilled' ? sessionsRes.value : []
+            const loadedChats = chatsRes.status === 'fulfilled' ? chatsRes.value : []
+
+            const failures = [charsRes, worldsRes, templatesRes, sessionsRes, chatsRes].filter(
+                (r): r is PromiseRejectedResult => r.status === 'rejected'
+            )
+            for (const f of failures) {
+                const isTransient = f.reason instanceof ApiError && f.reason.isTransient
+                ;(isTransient ? console.warn : console.error)('[DataProvider] Resource load failed:', f.reason)
+            }
 
             console.log('[DataProvider] Data loaded from API:', {
                 characters: loadedCharacters,
@@ -315,42 +429,11 @@ export function DataProvider({ children }: DataProviderProps) {
                 sessions: loadedSessions
             })
 
-            // Transform API response to match local types. List endpoints return
-            // arrays, but a non-array can slip through (e.g. a 401 degrades a GET to
-            // `{}`); guard so `.map` never throws and we render an empty state.
-            const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
-
-            const transformedCharacters = asArray(loadedCharacters).map((char: any) => ({
-                id: char.id || char.uuid,
-                name: char.name,
-                race: char.race || '',
-                description: char.description || '',
-                stats: {},
-                category: char.category,
-                triggers: char.triggers ?? []
-            }))
-
-            const transformedWorlds = asArray(loadedWorlds).map((world: any) => ({
-                id: world.id || world.uuid,
-                name: world.name,
-                type: world.type || '',
-                description: world.description || '',
-                details: {},
-                category: world.category,
-                triggers: world.triggers ?? []
-            }))
-
-            const transformedTemplates = asArray(loadedTemplateAdventures).map((template: any) => ({
-                id: template.id || template.uuid,
-                scenario: template.description || template.name,
-                persona: template.persona || undefined,
-                characters: template.characters || [],
-                world: template.world?.[0] || undefined,
-                objectives: {},
-                notes: {},
-                category: template.category,
-                triggers: template.triggers ?? []
-            }))
+            // Transform API response to match local types (shared with the
+            // gallery pages via utils/cardTransforms).
+            const transformedCharacters = transformCharacters(loadedCharacters)
+            const transformedWorlds = transformWorlds(loadedWorlds)
+            const transformedTemplates = transformTemplates(loadedTemplateAdventures)
 
             // Transform sessions to in-progress adventures. Cards come from the
             // session's own cloned snapshot (server-side clone), falling back to the
@@ -361,13 +444,47 @@ export function DataProvider({ children }: DataProviderProps) {
                 return buildInProgressAdventure(session, template, snapshot)
             })
 
-            setCharacters(transformedCharacters)
-            setWorlds(transformedWorlds)
-            setTemplateAdventures(transformedTemplates)
-            setInProgressAdventures(transformedInProgress)
-            
+            // Transform 1:1 chats. Prefer the live library card (consistent with
+            // startCharacterChat — it drives the sidebar); fall back to the chat's
+            // frozen snapshot when the source card was deleted.
+            const transformedChats: CharacterChatSession[] = asArray(loadedChats).map((chat: any) => {
+                const characterId = String(chat.character_id ?? '')
+                const liveCard = transformedCharacters.find((c: { id: string }) => c.id === characterId)
+                const snapshotCard = chat.character ? transformCharacters([chat.character])[0] : undefined
+                return {
+                    id: String(chat.chat_id ?? chat.id),
+                    character_id: characterId,
+                    character: liveCard ?? snapshotCard,
+                    turns: parseTurnState(chat.last_turn),
+                    createdAt: chat.created_at,
+                    updatedAt: chat.updated_at,
+                }
+            })
+            // Most recent first — this list renders as the "Recent chats" shelf.
+            const chatStamp = (chat: CharacterChatSession) => {
+                const time = Date.parse(chat.updatedAt ?? chat.createdAt ?? '')
+                return Number.isNaN(time) ? 0 : time
+            }
+            transformedChats.sort((a, b) => chatStamp(b) - chatStamp(a))
+
+            // Only overwrite a resource we actually fetched this round — a failed
+            // one keeps its previous state instead of blanking.
+            if (charsRes.status === 'fulfilled') setCharacters(transformedCharacters)
+            if (worldsRes.status === 'fulfilled') setWorlds(transformedWorlds)
+            if (templatesRes.status === 'fulfilled') setTemplateAdventures(transformedTemplates)
+            if (sessionsRes.status === 'fulfilled') setInProgressAdventures(transformedInProgress)
+            if (chatsRes.status === 'fulfilled') setCharacterChats(transformedChats)
+
             console.log('[DataProvider] State updated successfully')
-            setLoadingState({ isLoading: false })
+            // Silent refresh never touches isLoading (would unmount the page); the
+            // lists were already updated in place above.
+            if (!silent) {
+                setLoadingState(
+                    failures.length
+                        ? { isLoading: false, error: 'Some content failed to load — try refreshing.' }
+                        : { isLoading: false }
+                )
+            }
         } catch (error) {
             // A transient backend outage (5xx, e.g. auth service briefly down →
             // 503) is expected and recovers on its own — log it quietly. The UI
@@ -375,10 +492,13 @@ export function DataProvider({ children }: DataProviderProps) {
             const isTransient = error instanceof ApiError && error.isTransient
             const log = isTransient ? console.warn : console.error
             log('[DataProvider] Error loading data from API:', error)
-            setLoadingState({
-                isLoading: false,
-                error: error instanceof Error ? error.message : 'Failed to load data'
-            })
+            // A silent refresh keeps the existing view; don't surface a blocking error/spinner.
+            if (!silent) {
+                setLoadingState({
+                    isLoading: false,
+                    error: error instanceof Error ? error.message : 'Failed to load data'
+                })
+            }
         }
     }
 
@@ -397,6 +517,8 @@ export function DataProvider({ children }: DataProviderProps) {
             setWorlds([])
             setTemplateAdventures([])
             setInProgressAdventures([])
+            setCharacterChats([])
+            setActiveCharacterChat(null)
             setEditingCharacter(null)
             setEditingWorld(null)
             setEditingTemplate(null)
@@ -447,9 +569,17 @@ export function DataProvider({ children }: DataProviderProps) {
         editTemplate,
         startTemplate,
         deleteTemplate,
+        deleteTemplateById,
         editInProgress,
         deleteInProgress,
         saveInProgressSnapshot,
+
+        activeCharacterChat,
+        setActiveCharacterChat,
+        startCharacterChat,
+        characterChats,
+        resumeCharacterChat,
+        deleteCharacterChat,
 
         loadingState,
         isLoading,

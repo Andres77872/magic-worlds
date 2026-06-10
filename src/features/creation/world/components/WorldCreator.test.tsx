@@ -7,21 +7,28 @@ const mocks = vi.hoisted(() => ({
     openLoginModal: vi.fn(),
     createWorldAI: vi.fn(),
     setEditingWorld: vi.fn(),
+    updateWorld: vi.fn(),
+    generateCardPortrait: vi.fn(),
     isAuthenticated: true,
+    editingWorld: null as Record<string, unknown> | null,
 }))
 
 vi.mock('@/app/hooks', () => ({
     useNavigation: () => ({ setPage: mocks.setPage }),
-    useData: () => ({ editingWorld: null, setEditingWorld: mocks.setEditingWorld, loadData: mocks.loadData }),
+    useData: () => ({ editingWorld: mocks.editingWorld, setEditingWorld: mocks.setEditingWorld, loadData: mocks.loadData }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
 }))
 
 vi.mock('@/infrastructure/api', () => ({
     ApiError: class ApiError extends Error { status = 500; isTransient = true },
+    resolveMediaUrl: (url?: string | null) => url ?? undefined,
     apiService: {
         createWorldAI: mocks.createWorldAI,
         createWorld: vi.fn(),
-        updateWorld: vi.fn(),
+        updateWorld: mocks.updateWorld,
+        generateCardPortrait: mocks.generateCardPortrait,
+        waitForImageJob: vi.fn(),
+        listThemeSongs: vi.fn().mockResolvedValue({ items: [] }),
     },
 }))
 
@@ -31,6 +38,7 @@ describe('WorldCreator AI generation', () => {
     beforeEach(() => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true
+        mocks.editingWorld = null
         mocks.createWorldAI.mockResolvedValue({
             id: 'world-1',
             name: 'Glass',
@@ -76,5 +84,32 @@ describe('WorldCreator AI generation', () => {
         await waitFor(() => expect(mocks.openLoginModal).toHaveBeenCalledTimes(1))
         expect(mocks.createWorldAI).not.toHaveBeenCalled()
         expect(mocks.loadData).not.toHaveBeenCalled()
+    })
+})
+
+describe('WorldCreator portrait persistence', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingWorld = { id: 'world-1', name: 'Glass', type: 'desert', description: '', triggers: [] }
+        mocks.updateWorld.mockResolvedValue({})
+        mocks.generateCardPortrait.mockResolvedValue({
+            job_id: 'job-1',
+            status: 'completed',
+            assets: [{ url: '/generated-images/w.png' }],
+        })
+    })
+
+    it('persists a generated image onto the saved card immediately (no Save click)', async () => {
+        render(<WorldCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+
+        await waitFor(() =>
+            expect(mocks.updateWorld).toHaveBeenCalledWith(
+                'world-1',
+                expect.objectContaining({ image_url: '/generated-images/w.png' }),
+            ),
+        )
     })
 })
