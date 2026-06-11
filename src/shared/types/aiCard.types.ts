@@ -89,3 +89,97 @@ export interface AdventureTemplateCardResponse {
     theme_song_url?: string
     [key: string]: unknown
 }
+
+export type CardAssistantCardType = 'character' | 'world' | 'adventure_template'
+export type CardAssistantRole = 'system' | 'user' | 'assistant' | 'tool'
+export type CardAssistantStatus = 'pending' | 'completed' | 'failed'
+export type CardAssistantCardResponse = CharacterCardResponse | WorldCardResponse | AdventureTemplateCardResponse
+
+export interface CardAssistantConversation {
+    id?: number
+    conversation_id: number
+    card_type: CardAssistantCardType
+    card_id?: string | null
+    title?: string | null
+    conversation_version?: number
+    active_request_id?: string | null
+    active_request_started_at?: string | null
+    created_at?: string
+    updated_at?: string
+}
+
+export interface CardAssistantMessage {
+    id?: number
+    message_id: number
+    conversation_id: number
+    sequence_no: number
+    sequence?: number
+    role: CardAssistantRole
+    status: CardAssistantStatus
+    content: string
+    tool_calls?: unknown
+    tool_call_id?: string | null
+    tool_name?: string | null
+    metadata?: Record<string, unknown>
+    created_at?: string
+    updated_at?: string
+    completed_at?: string | null
+}
+
+export interface CardAssistantConversationResponse {
+    conversation: CardAssistantConversation
+    messages: CardAssistantMessage[]
+    card?: CardAssistantCardResponse | null
+}
+
+export interface CardAssistantConversationListResponse {
+    conversations: CardAssistantConversation[]
+}
+
+export interface CardAssistantTurnResponse {
+    conversation: CardAssistantConversation
+    user_message?: CardAssistantMessage
+    assistant_message?: CardAssistantMessage
+    tool_message?: CardAssistantMessage | null
+    messages?: CardAssistantMessage[]
+    card?: CardAssistantCardResponse | null
+    applied_actions?: Array<Record<string, unknown>>
+}
+
+export type CardAssistantStreamEvent =
+    | {
+        type: 'user_message'
+        request_id?: string
+        user_message?: CardAssistantMessage
+    }
+    | {
+        type: 'assistant_delta'
+        request_id?: string
+        delta: string
+    }
+    | ({
+        type: 'final'
+        request_id?: string
+    } & CardAssistantTurnResponse)
+    | {
+        type: 'error'
+        request_id?: string
+        detail?: string
+        error?: {
+            category?: string
+            code?: string
+            message?: string
+            request_id?: string
+            retryable?: boolean
+        }
+    }
+    | {
+        type: 'done'
+        request_id?: string
+    }
+
+export interface CardAssistantRequestOptions {
+    signal?: AbortSignal
+    requestId?: string
+    timeoutMs?: number
+}

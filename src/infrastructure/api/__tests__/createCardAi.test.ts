@@ -55,6 +55,119 @@ describe('AI card API methods', () => {
         expect(fetchMock.mock.calls[1][0]).toMatch(/\/adventure-templates\/ai\/$/)
     })
 
+    it('POSTs card assistant conversations and turns with live card context', async () => {
+        fetchMock
+            .mockResolvedValueOnce(jsonResponse({
+                conversation: { conversation_id: 7, card_type: 'character', card_id: 'char-1' },
+                messages: [],
+                card: null,
+            }))
+            .mockResolvedValueOnce(jsonResponse({
+                conversation: { conversation_id: 7, card_type: 'character', card_id: 'char-1' },
+                assistant_message: { message_id: 2, conversation_id: 7, sequence_no: 2, role: 'assistant', status: 'completed', content: 'Updated.' },
+                card: { id: 'char-1', name: 'Nyra' },
+                applied_actions: [{ type: 'patch_card' }],
+            }))
+
+        await apiService.createCardAssistantConversation({
+            card_type: 'character',
+            card_id: 'char-1',
+            title: 'Nyra',
+            current_card: { name: 'Nyra' },
+        }, { requestId: 'conv-req' })
+        await apiService.sendCardAssistantMessage(7, {
+            message: 'Make her older',
+            current_card: { name: 'Nyra' },
+            request_id: 'turn-req',
+        }, { requestId: 'turn-req' })
+
+        const [conversationUrl, conversationInit] = fetchMock.mock.calls[0] as [string, RequestInit]
+        expect(conversationUrl).toMatch(/\/card-assistant\/conversations$/)
+        expect(conversationInit.headers).toMatchObject({
+            Authorization: 'Bearer test-token',
+            'X-Request-Id': 'conv-req',
+        })
+        expect(JSON.parse(String(conversationInit.body))).toEqual({
+            card_type: 'character',
+            card_id: 'char-1',
+            title: 'Nyra',
+            current_card: { name: 'Nyra' },
+        })
+
+        const [turnUrl, turnInit] = fetchMock.mock.calls[1] as [string, RequestInit]
+        expect(turnUrl).toMatch(/\/card-assistant\/conversations\/7\/messages$/)
+        expect(turnInit.headers).toMatchObject({
+            Authorization: 'Bearer test-token',
+            'X-Request-Id': 'turn-req',
+        })
+        expect(JSON.parse(String(turnInit.body))).toEqual({
+            message: 'Make her older',
+            current_card: { name: 'Nyra' },
+            request_id: 'turn-req',
+        })
+    })
+
+    it('POSTs card assistant stream turns and parses SSE events', async () => {
+        const encoder = new TextEncoder()
+        const stream = new ReadableStream({
+            start(controller) {
+                controller.enqueue(encoder.encode([
+                    'event: assistant_delta',
+                    'data: {"delta":"Updated "}',
+                    '',
+                    'event: assistant_delta',
+                    'data: {"delta":"Nyra."}',
+                    '',
+                    'event: final',
+                    'data: {"conversation":{"conversation_id":7,"card_type":"character","card_id":"char-1"},"messages":[],"card":{"id":"char-1","name":"Nyra"},"applied_actions":[{"type":"patch_card"}]}',
+                    '',
+                    'event: done',
+                    'data: {"request_id":"turn-req"}',
+                    '',
+                ].join('\n')))
+                controller.close()
+            },
+        })
+        fetchMock.mockResolvedValueOnce(new Response(stream, {
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream', 'X-Request-Id': 'turn-req' },
+        }))
+
+        const events: unknown[] = []
+        await apiService.streamCardAssistantMessage(7, {
+            message: 'Make her older',
+            current_card: { name: 'Nyra' },
+            request_id: 'turn-req',
+        }, (event) => {
+            events.push(event)
+        }, { requestId: 'turn-req' })
+
+        const [turnUrl, turnInit] = fetchMock.mock.calls[0] as [string, RequestInit]
+        expect(turnUrl).toMatch(/\/card-assistant\/conversations\/7\/messages\/stream$/)
+        expect(turnInit.headers).toMatchObject({
+            Authorization: 'Bearer test-token',
+            Accept: 'text/event-stream',
+            'X-Request-Id': 'turn-req',
+        })
+        expect(JSON.parse(String(turnInit.body))).toEqual({
+            message: 'Make her older',
+            current_card: { name: 'Nyra' },
+            request_id: 'turn-req',
+        })
+        expect(events).toEqual([
+            { type: 'assistant_delta', delta: 'Updated ' },
+            { type: 'assistant_delta', delta: 'Nyra.' },
+            {
+                type: 'final',
+                conversation: { conversation_id: 7, card_type: 'character', card_id: 'char-1' },
+                messages: [],
+                card: { id: 'char-1', name: 'Nyra' },
+                applied_actions: [{ type: 'patch_card' }],
+            },
+            { type: 'done', request_id: 'turn-req' },
+        ])
+    })
+
     it('parses structured AI-card errors into ApiError metadata', async () => {
         fetchMock.mockResolvedValueOnce(jsonResponse({
             detail: 'Daily AI generation limit reached.',

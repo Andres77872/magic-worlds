@@ -3,11 +3,14 @@
  * header): brand at the top, primary nav in the middle, source + account at
  * the bottom. Each control is an icon button with a tooltip/aria-label.
  */
-import { Code2, Compass, Flame, Globe, Images, LogIn, LogOut, Swords, Users } from 'lucide-react'
+import { useState } from 'react'
+import { Code2, Compass, Flame, Globe, Images, ListChecks, LogIn, LogOut, Server, Swords, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
-import { useNavigation, useAuth } from '../../app/hooks'
+import { useNavigation, useAuth, useBackgroundTasks, useApiStatus } from '../../app/hooks'
+import type { ApiStatus } from '../../app/hooks'
 import { Avatar, Icon, IconButton, cx } from '../primitives'
+import { LogoutConfirmDialog } from './LogoutConfirmDialog'
 
 interface RailItem {
     page: PageType
@@ -27,9 +30,54 @@ const NAV_ITEMS: RailItem[] = [
     { page: 'gallery-media', label: 'Media', icon: Images, gated: true },
 ]
 
+const API_STATUS_VIEW: Record<ApiStatus, { label: string; className: string; dotClassName: string }> = {
+    checking: {
+        label: 'Checking API status',
+        className: 'text-parchment-300 bg-parchment-50/[.04]',
+        dotClassName: 'bg-parchment-300 animate-pulse',
+    },
+    online: {
+        label: 'API online',
+        className: 'text-verdant-500 bg-verdant-500/10',
+        dotClassName: 'bg-verdant-500',
+    },
+    offline: {
+        label: 'API offline',
+        className: 'text-blood-500 bg-blood-500/10',
+        dotClassName: 'bg-blood-500',
+    },
+}
+
+function ApiStatusIndicator({ status }: { status: ApiStatus }) {
+    const view = API_STATUS_VIEW[status]
+    return (
+        <div
+            role="status"
+            aria-label={view.label}
+            title={view.label}
+            className={cx(
+                'relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors',
+                view.className,
+            )}
+        >
+            <Icon icon={Server} size={18} />
+            <span
+                aria-hidden="true"
+                className={cx(
+                    'absolute right-1.5 top-1.5 h-2 w-2 rounded-full ring-2 ring-ink-900',
+                    view.dotClassName,
+                )}
+            />
+        </div>
+    )
+}
+
 export function Sidebar() {
     const { currentPage, setPage } = useNavigation()
     const { isAuthenticated, user, logout, openLoginModal } = useAuth()
+    const { activeCount, openDrawer } = useBackgroundTasks()
+    const { status: apiStatus } = useApiStatus()
+    const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false)
 
     const go = (item: RailItem) => {
         if (item.gated && !isAuthenticated) {
@@ -37,6 +85,11 @@ export function Sidebar() {
             return
         }
         setPage(item.page)
+    }
+
+    const confirmLogout = () => {
+        setConfirmLogoutOpen(false)
+        logout()
     }
 
     return (
@@ -68,6 +121,21 @@ export function Sidebar() {
             </nav>
 
             <div className="mt-auto flex flex-col items-center gap-2">
+                <ApiStatusIndicator status={apiStatus} />
+
+                {isAuthenticated && (
+                    <div className="relative">
+                        <IconButton label={activeCount > 0 ? `${activeCount} active task${activeCount === 1 ? '' : 's'}` : 'Tasks'} onClick={openDrawer}>
+                            <Icon icon={ListChecks} size={19} />
+                        </IconButton>
+                        {activeCount > 0 && (
+                            <span className="pointer-events-none absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-arcane-500 px-1 font-ui text-[10px] font-bold leading-none text-ink-900 ring-2 ring-ink-900">
+                                {activeCount > 9 ? '9+' : activeCount}
+                            </span>
+                        )}
+                    </div>
+                )}
+
                 <a
                     href="https://github.com/Andres77872/magic-worlds"
                     target="_blank"
@@ -97,7 +165,7 @@ export function Sidebar() {
                         <IconButton
                             label={user?.username ? `Log out ${user.username}` : 'Log out'}
                             tone="danger"
-                            onClick={logout}
+                            onClick={() => setConfirmLogoutOpen(true)}
                         >
                             <Icon icon={LogOut} size={18} />
                         </IconButton>
@@ -108,6 +176,13 @@ export function Sidebar() {
                     </IconButton>
                 )}
             </div>
+
+            <LogoutConfirmDialog
+                open={confirmLogoutOpen}
+                username={user?.username}
+                onCancel={() => setConfirmLogoutOpen(false)}
+                onConfirm={confirmLogout}
+            />
         </aside>
     )
 }

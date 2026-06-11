@@ -5,6 +5,7 @@
 export { Sidebar } from './Sidebar'
 export { LoadingSpinner } from './LoadingSpinner'
 export { LoginModal } from './LoginModal'
+export { LogoutConfirmDialog } from './LogoutConfirmDialog'
 export { ConfirmDialog } from './ConfirmDialog'
 
 // List components

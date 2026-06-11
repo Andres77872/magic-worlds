@@ -68,7 +68,7 @@ export interface ThemeSongAssetPublic {
 }
 
 export interface ThemeSongLyricsPublic {
-    source?: 'user' | 'generated' | 'unavailable' | null
+    source?: 'user' | 'generated' | 'optimizer' | 'unavailable' | null
     song_title?: string | null
     style_tags?: string[]
     lyrics_sha256?: string | null
@@ -92,9 +92,15 @@ export interface ThemeSongJobPublic {
     result_url: string
     lyrics?: ThemeSongLyricsPublic | null
     assets: ThemeSongAssetPublic[]
-    error?: ChatImageError | null
+    error?: ThemeSongErrorPublic | null
     created_at: string
     updated_at: string
+}
+
+export interface ThemeSongErrorPublic {
+    category: string
+    detail: string
+    code?: string | null
 }
 
 export interface ThemeSongListResponse {

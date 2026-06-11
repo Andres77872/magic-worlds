@@ -5,8 +5,13 @@ const mocks = vi.hoisted(() => ({
     setPage: vi.fn(),
     loadData: vi.fn(),
     openLoginModal: vi.fn(),
+    registerThemeSongJob: vi.fn(),
     setEditingTemplate: vi.fn(),
-    createAdventureTemplateAI: vi.fn(),
+    createCardAssistantConversation: vi.fn(),
+    listCardAssistantConversations: vi.fn(),
+    getCardAssistantConversation: vi.fn(),
+    sendCardAssistantMessage: vi.fn(),
+    streamCardAssistantMessage: vi.fn(),
     updateAdventureTemplate: vi.fn(),
     generateCardPortrait: vi.fn(),
     isAuthenticated: true,
@@ -24,13 +29,18 @@ vi.mock('@/app/hooks', () => ({
         loadData: mocks.loadData,
     }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
+    useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
 }))
 
 vi.mock('@/infrastructure/api', () => ({
     ApiError: class ApiError extends Error { status = 500; isTransient = true },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
     apiService: {
-        createAdventureTemplateAI: mocks.createAdventureTemplateAI,
+        createCardAssistantConversation: mocks.createCardAssistantConversation,
+        listCardAssistantConversations: mocks.listCardAssistantConversations,
+        getCardAssistantConversation: mocks.getCardAssistantConversation,
+        sendCardAssistantMessage: mocks.sendCardAssistantMessage,
+        streamCardAssistantMessage: mocks.streamCardAssistantMessage,
         createAdventureTemplate: vi.fn(),
         updateAdventureTemplate: mocks.updateAdventureTemplate,
         generateCardPortrait: mocks.generateCardPortrait,
@@ -46,28 +56,62 @@ describe('AdventureCreator AI generation', () => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true
         mocks.editingTemplate = null
-        mocks.createAdventureTemplateAI.mockResolvedValue({
-            id: 'tmpl-1',
-            name: 'Gate',
-            description: 'A heist into the volcano fortress.',
-            triggers: ['heist', 'volcano'],
-            characters: [{ id: 'c1', name: 'Ember' }],
-            world: [{ id: 'w1', name: 'Pyre', type: 'volcanic' }],
+        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.createCardAssistantConversation.mockResolvedValue({
+            conversation: { conversation_id: 3, card_type: 'adventure_template', card_id: null, title: 'Untitled Adventure' },
+            messages: [],
+            card: null,
+        })
+        const assistantResponse = {
+            conversation: { conversation_id: 3, card_type: 'adventure_template', card_id: 'tmpl-1', title: 'Untitled Adventure' },
+            messages: [
+                { message_id: 30, conversation_id: 3, sequence_no: 1, role: 'user', status: 'completed', content: 'Generate a volcano heist' },
+                { message_id: 31, conversation_id: 3, sequence_no: 2, role: 'assistant', status: 'completed', content: 'Created the heist.' },
+            ],
+            card: {
+                id: 'tmpl-1',
+                name: 'Gate',
+                description: 'A heist into the volcano fortress.',
+                triggers: ['heist', 'volcano'],
+                characters: [{ id: 'c1', name: 'Ember' }],
+                world: [{ id: 'w1', name: 'Pyre', type: 'volcanic' }],
+            },
+        }
+        mocks.sendCardAssistantMessage.mockResolvedValue(assistantResponse)
+        mocks.streamCardAssistantMessage.mockImplementation(async (_conversationId: number, _body: unknown, onEvent: (event: Record<string, unknown>) => void) => {
+            onEvent({ type: 'final', ...assistantResponse })
         })
         mocks.loadData.mockResolvedValue(undefined)
     })
 
-    it('forwards lifecycle options, populates the creator in edit mode, and renders the generated scene (no navigation)', async () => {
+    it('sends a creator conversation turn, populates the creator, and renders the generated scene (no navigation)', async () => {
         render(<AdventureCreator />)
 
-        fireEvent.change(screen.getByPlaceholderText(/dragon's egg/i), { target: { value: 'Generate a volcano heist' } })
-        fireEvent.click(screen.getByRole('button', { name: /generate adventure/i }))
+        fireEvent.click(screen.getByRole('button', { name: /open card assistant/i }))
+        fireEvent.change(screen.getByPlaceholderText(/ask for a change/i), { target: { value: 'Generate a volcano heist' } })
+        fireEvent.click(screen.getByRole('button', { name: /send message/i }))
 
-        await waitFor(() => expect(mocks.createAdventureTemplateAI).toHaveBeenCalledTimes(1))
-        const [description, options] = mocks.createAdventureTemplateAI.mock.calls[0]
-        expect(description).toBe('Generate a volcano heist')
-        expect(options.signal).toBeInstanceOf(AbortSignal)
-        expect(options.idempotencyKey).toMatch(/^mw-ai-card-idem-/)
+        await waitFor(() => expect(mocks.createCardAssistantConversation).toHaveBeenCalledTimes(1))
+        expect(mocks.createCardAssistantConversation).toHaveBeenCalledWith(
+            expect.objectContaining({
+                card_type: 'adventure_template',
+                card_id: undefined,
+                title: 'Untitled Adventure',
+                current_card: expect.objectContaining({ name: 'Untitled Adventure', description: '' }),
+            }),
+            expect.any(Object),
+        )
+        await waitFor(() => expect(mocks.streamCardAssistantMessage).toHaveBeenCalledTimes(1))
+        expect(mocks.streamCardAssistantMessage).toHaveBeenCalledWith(
+            3,
+            expect.objectContaining({
+                message: 'Generate a volcano heist',
+                current_card: expect.objectContaining({ name: 'Untitled Adventure', description: '' }),
+                request_id: expect.stringMatching(/^mw-card-assistant-/),
+            }),
+            expect.any(Function),
+            expect.objectContaining({ requestId: expect.stringMatching(/^mw-card-assistant-/) }),
+        )
 
         // The generated scenario populates the premise field…
         await waitFor(() => expect(screen.getByDisplayValue('A heist into the volcano fortress.')).toBeInTheDocument())
@@ -80,15 +124,16 @@ describe('AdventureCreator AI generation', () => {
         expect(mocks.setPage).not.toHaveBeenCalledWith('landing')
     })
 
-    it('opens login modal instead of calling AI when unauthenticated', async () => {
+    it('opens login modal instead of opening the assistant when unauthenticated', async () => {
         mocks.isAuthenticated = false
         render(<AdventureCreator />)
 
-        fireEvent.change(screen.getByPlaceholderText(/dragon's egg/i), { target: { value: 'Generate a volcano heist' } })
-        fireEvent.click(screen.getByRole('button', { name: /generate adventure/i }))
+        fireEvent.click(screen.getByRole('button', { name: /open card assistant/i }))
 
         await waitFor(() => expect(mocks.openLoginModal).toHaveBeenCalledTimes(1))
-        expect(mocks.createAdventureTemplateAI).not.toHaveBeenCalled()
+        expect(mocks.createCardAssistantConversation).not.toHaveBeenCalled()
+        expect(mocks.sendCardAssistantMessage).not.toHaveBeenCalled()
+        expect(mocks.streamCardAssistantMessage).not.toHaveBeenCalled()
         expect(mocks.loadData).not.toHaveBeenCalled()
     })
 })

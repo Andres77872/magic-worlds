@@ -136,3 +136,33 @@ describe('listUserThemeSongs', () => {
         vi.unstubAllGlobals()
     })
 })
+
+describe('tasks API', () => {
+    it('lists and cancels theme-song background tasks', async () => {
+        const fetchMock = vi.fn(async () => ({
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'Content-Type': 'application/json' }),
+            json: async () => ({ items: [], limit: 20, offset: 0, next_offset: null }),
+        }) as unknown as Response)
+        vi.stubGlobal('fetch', fetchMock)
+
+        await apiService.listTasks({ state: 'all', operation: 'theme_song', statuses: ['failed', 'canceled'], limit: 10, offset: 5 })
+        let [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+        expect(String(url)).toContain('/tasks?')
+        expect(String(url)).toContain('state=all')
+        expect(String(url)).toContain('operation=theme_song')
+        expect(String(url)).toContain('status=failed')
+        expect(String(url)).toContain('status=canceled')
+        expect(String(url)).toContain('limit=10')
+        expect(String(url)).toContain('offset=5')
+        expect(init.method).toBe('GET')
+
+        await apiService.cancelTask('theme_song', 'job-1')
+        ;[url, init] = fetchMock.mock.calls[1] as unknown as [string, RequestInit]
+        expect(String(url)).toContain('/tasks/theme_song/job-1')
+        expect(init.method).toBe('DELETE')
+
+        vi.unstubAllGlobals()
+    })
+})

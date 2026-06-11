@@ -13,7 +13,7 @@ import {
     asSnapshot,
     synthesizeSnapshotFromTemplate,
 } from '../../features/interaction/utils/adventureSnapshot'
-import { useAuth } from '../hooks'
+import { useAuth } from '../hooks/useAuth'
 
 interface DataContextValue {
     // Characters

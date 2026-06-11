@@ -19,6 +19,12 @@ import type {
     AiCardErrorEnvelope,
     AiCardPublicError,
     AiCardRequestOptions,
+    CardAssistantConversationListResponse,
+    CardAssistantConversationResponse,
+    CardAssistantCardType,
+    CardAssistantRequestOptions,
+    CardAssistantStreamEvent,
+    CardAssistantTurnResponse,
     CharacterCardResponse,
     WorldCardResponse,
 } from '../../shared/types/aiCard.types'
@@ -34,6 +40,12 @@ import type {
     UserThemeSongListResponse,
 } from '../../shared/types/media.types'
 import { THEME_SONG_NON_TERMINAL_STATUSES } from '../../shared/types/media.types'
+import type {
+    BackgroundTaskListResponse,
+    BackgroundTaskOperation,
+    BackgroundTaskPublic,
+    BackgroundTaskState,
+} from '../../shared/types/task.types'
 
 export interface AdventureSessionMessagesResponse {
     adventure_id: number
@@ -57,6 +69,10 @@ export interface TtsJobPublicResponse {
     result_url: string
     assets?: ChatTtsAsset[]
     error?: ChatTtsError | null
+}
+
+export interface ApiHealthResponse {
+    status: string
 }
 
 const TOKEN_STORAGE_KEY = 'magic_worlds:token'
@@ -540,6 +556,97 @@ class ApiService {
         }
     }
 
+    private cardAssistantHeaders(options: CardAssistantRequestOptions = {}): Record<string, string> {
+        return {
+            'Content-Type': 'application/json',
+            'X-Request-Id': options.requestId || this.createClientId('mw-card-assistant-req'),
+        }
+    }
+
+    private cardAssistantRequestOptions(options: CardAssistantRequestOptions): Pick<ApiRequestOptions, 'signal' | 'timeoutMs'> {
+        return {
+            signal: options.signal,
+            timeoutMs: options.timeoutMs,
+        }
+    }
+
+    private parseCardAssistantStreamFrame(frame: string): CardAssistantStreamEvent | null {
+        let eventType = 'message'
+        const dataLines: string[] = []
+        for (const rawLine of frame.split('\n')) {
+            const line = rawLine.trimEnd()
+            if (!line || line.startsWith(':')) continue
+            if (line.startsWith('event:')) {
+                eventType = line.slice(6).trim()
+                continue
+            }
+            if (line.startsWith('data:')) {
+                dataLines.push(line.slice(5).trimStart())
+            }
+        }
+        if (!dataLines.length) return null
+        const data = JSON.parse(dataLines.join('\n')) as Record<string, unknown>
+        if (!data || typeof data !== 'object') return null
+        return { ...data, type: eventType } as CardAssistantStreamEvent
+    }
+
+    private async readCardAssistantStream(
+        response: Response,
+        onEvent: (event: CardAssistantStreamEvent) => void,
+    ): Promise<void> {
+        if (!response.body) {
+            throw new ApiError(502, 'Card assistant stream returned no response body.', {
+                category: 'upstream_contract',
+                code: 'card_assistant_stream_body_missing',
+                requestId: response.headers.get('X-Request-Id') || undefined,
+                retryable: true,
+            })
+        }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        const flushFrame = (frame: string) => {
+            const event = this.parseCardAssistantStreamFrame(frame)
+            if (event) onEvent(event)
+        }
+
+        try {
+            while (true) {
+                const { value, done } = await reader.read()
+                if (done) break
+                buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+                let separator = buffer.indexOf('\n\n')
+                while (separator >= 0) {
+                    const frame = buffer.slice(0, separator)
+                    buffer = buffer.slice(separator + 2)
+                    flushFrame(frame)
+                    separator = buffer.indexOf('\n\n')
+                }
+            }
+            buffer += decoder.decode().replace(/\r\n/g, '\n')
+            if (buffer.trim()) flushFrame(buffer)
+        } finally {
+            reader.releaseLock()
+        }
+    }
+
+    /**
+     * Lightweight API liveness check. This intentionally avoids auth recovery:
+     * the sidebar needs to know whether the API process is reachable even before login.
+     */
+    async getHealth(options: { signal?: AbortSignal } = {}): Promise<ApiHealthResponse> {
+        const response = await fetch(`${this.baseUrl}/health`, {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            signal: options.signal,
+        })
+        if (!response.ok) {
+            throw new ApiError(response.status, `Health check failed (${response.status})`)
+        }
+        return await response.json() as ApiHealthResponse
+    }
+
     /**
      * Fetch the current user's profile (`GET /user/me`): identity, role, usage
      * quota, and per-type counts of authored cards. Read-only on this API.
@@ -721,6 +828,145 @@ class ApiService {
         })
         this.assertAiCardSynchronousContract(result)
         return result
+    }
+
+    async createCardAssistantConversation(
+        body: {
+            card_type: CardAssistantCardType
+            card_id?: string | null
+            title?: string | null
+            current_card?: Record<string, unknown> | null
+        },
+        options: CardAssistantRequestOptions = {},
+    ): Promise<CardAssistantConversationResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardAssistantConversationResponse>('/card-assistant/conversations', token, {
+            method: 'POST',
+            headers: this.cardAssistantHeaders(options),
+            body: body as unknown as BodyInit,
+            ...this.cardAssistantRequestOptions(options),
+        })
+    }
+
+    async listCardAssistantConversations(
+        cardType: CardAssistantCardType,
+        cardId?: string | null,
+        options: CardAssistantRequestOptions = {},
+    ): Promise<CardAssistantConversationListResponse> {
+        const token = this.getStoredToken()
+        const params = new URLSearchParams({ card_type: cardType })
+        if (cardId) params.set('card_id', cardId)
+        return this.authenticatedRequest<CardAssistantConversationListResponse>(`/card-assistant/conversations?${params.toString()}`, token, {
+            method: 'GET',
+            headers: this.cardAssistantHeaders(options),
+            ...this.cardAssistantRequestOptions(options),
+        })
+    }
+
+    async getCardAssistantConversation(
+        conversationId: number,
+        options: CardAssistantRequestOptions = {},
+    ): Promise<CardAssistantConversationResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardAssistantConversationResponse>(`/card-assistant/conversations/${conversationId}`, token, {
+            method: 'GET',
+            headers: this.cardAssistantHeaders(options),
+            ...this.cardAssistantRequestOptions(options),
+        })
+    }
+
+    async sendCardAssistantMessage(
+        conversationId: number,
+        body: {
+            message: string
+            current_card?: Record<string, unknown> | null
+            request_id?: string
+        },
+        options: CardAssistantRequestOptions = {},
+    ): Promise<CardAssistantTurnResponse> {
+        const token = this.getStoredToken()
+        const requestId = options.requestId || body.request_id || this.createClientId('mw-card-assistant-turn')
+        return this.authenticatedRequest<CardAssistantTurnResponse>(`/card-assistant/conversations/${conversationId}/messages`, token, {
+            method: 'POST',
+            headers: this.cardAssistantHeaders({ ...options, requestId }),
+            body: { ...body, request_id: requestId } as unknown as BodyInit,
+            ...this.cardAssistantRequestOptions(options),
+        })
+    }
+
+    async streamCardAssistantMessage(
+        conversationId: number,
+        body: {
+            message: string
+            current_card?: Record<string, unknown> | null
+            request_id?: string
+        },
+        onEvent: (event: CardAssistantStreamEvent) => void,
+        options: CardAssistantRequestOptions = {},
+    ): Promise<void> {
+        const token = this.getStoredToken()
+        const requestId = options.requestId || body.request_id || this.createClientId('mw-card-assistant-turn')
+        const endpoint = `/card-assistant/conversations/${conversationId}/messages/stream`
+        const url = `${this.baseUrl}${endpoint}`
+        const payload = JSON.stringify({ ...body, request_id: requestId })
+
+        let didTimeout = false
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+        let signal = options.signal
+        if (options.timeoutMs && options.timeoutMs > 0) {
+            const controller = new AbortController()
+            signal = controller.signal
+            if (options.signal) {
+                if (options.signal.aborted) {
+                    controller.abort(options.signal.reason)
+                } else {
+                    options.signal.addEventListener('abort', () => controller.abort(options.signal?.reason), { once: true })
+                }
+            }
+            timeoutHandle = setTimeout(() => {
+                didTimeout = true
+                controller.abort(new DOMException('Card assistant stream timed out locally', 'AbortError'))
+            }, options.timeoutMs)
+        }
+
+        const config: RequestInit = {
+            method: 'POST',
+            headers: {
+                ...this.cardAssistantHeaders({ ...options, requestId }),
+                Accept: 'text/event-stream',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: payload,
+            signal,
+        }
+
+        try {
+            let response = await fetch(url, config)
+            if (response.status === 401) {
+                const nextToken = await this.refreshAccessToken(token)
+                response = await fetch(url, this.withAuthorization(config, nextToken))
+            }
+            if (!response.ok) {
+                const parsed = await this.extractError(response)
+                throw new ApiError(response.status, parsed.message, parsed)
+            }
+            await this.readCardAssistantStream(response, onEvent)
+        } catch (error) {
+            if (didTimeout && error instanceof DOMException && error.name === 'AbortError') {
+                throw new ApiError(0, 'Local wait timed out. The assistant may still finish and save the conversation.', {
+                    category: 'timeout',
+                    code: 'card_assistant_client_timeout',
+                    retryable: true,
+                    action: 'reload_conversation',
+                })
+            }
+            if (!(error instanceof ApiError)) {
+                console.warn(`Card assistant stream error for ${endpoint}:`, error)
+            }
+            throw error
+        } finally {
+            if (timeoutHandle) clearTimeout(timeoutHandle)
+        }
     }
 
     /**
@@ -1082,6 +1328,43 @@ class ApiService {
             if (Date.now() >= deadline) return job
             await this.delay(interval, opts.signal)
         }
+    }
+
+    async listTasks(
+        opts: {
+            state?: BackgroundTaskState
+            operation?: BackgroundTaskOperation
+            statuses?: ThemeSongJobStatus[]
+            limit?: number
+            offset?: number
+        } = {},
+    ): Promise<BackgroundTaskListResponse> {
+        const token = this.getStoredToken()
+        const state = opts.state ?? 'active'
+        const operation = opts.operation ?? 'theme_song'
+        const limit = opts.limit ?? 20
+        const offset = opts.offset ?? 0
+        const params = new URLSearchParams({
+            state,
+            operation,
+            limit: String(limit),
+            offset: String(offset),
+        })
+        for (const status of opts.statuses ?? []) {
+            params.append('status', status)
+        }
+        const query = params.toString()
+        return this.authenticatedRequest(`/tasks?${query}`, token, { method: 'GET' })
+    }
+
+    async getTask(operation: BackgroundTaskOperation, taskId: string): Promise<BackgroundTaskPublic> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/tasks/${encodeURIComponent(operation)}/${encodeURIComponent(taskId)}`, token, { method: 'GET' })
+    }
+
+    async cancelTask(operation: BackgroundTaskOperation, taskId: string): Promise<BackgroundTaskPublic> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/tasks/${encodeURIComponent(operation)}/${encodeURIComponent(taskId)}`, token, { method: 'DELETE' })
     }
 
     /**

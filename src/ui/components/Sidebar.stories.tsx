@@ -2,10 +2,13 @@ import type { Decorator, Meta, StoryObj } from '@storybook/react-vite'
 import type { ComponentProps } from 'react'
 import type { User } from '@/shared'
 import { AuthContext } from '@/app/providers/AuthProvider'
+import { ApiStatusContext } from '@/app/providers/apiStatusContext'
+import { BackgroundTasksContext } from '@/app/providers/backgroundTasksContext'
 import { NavigationProvider } from '@/app/providers/NavigationProvider'
 import { Sidebar } from './Sidebar'
 
 type AuthValue = NonNullable<ComponentProps<typeof AuthContext.Provider>['value']>
+type BackgroundTasksValue = NonNullable<ComponentProps<typeof BackgroundTasksContext.Provider>['value']>
 
 const baseAuth: AuthValue = {
   isAuthenticated: false,
@@ -32,21 +35,39 @@ const mockUser: User = {
   updated_at: null,
 }
 
+const backgroundTasks: BackgroundTasksValue = {
+  tasks: [],
+  taskBuckets: { active: [], completed: [], failed: [] },
+  activeTasks: [],
+  activeCount: 0,
+  drawerOpen: false,
+  openDrawer: () => {},
+  closeDrawer: () => {},
+  refreshTasks: async () => {},
+  registerTask: () => {},
+  registerThemeSongJob: () => {},
+  cancelTask: async () => {},
+}
+
 /** Wrap the rail in real Navigation context + a mocked Auth context. */
 const withProviders = (auth: AuthValue): Decorator =>
   function Provided(Story) {
     return (
       <NavigationProvider>
         <AuthContext.Provider value={auth}>
-          <div style={{ display: 'flex', minHeight: 480, background: 'var(--color-ink-800)' }}>
-            <Story />
-            <div className="flex-1 p-8 font-narrative text-parchment-400">
-              <p className="max-w-prose">
-                The icon rail anchors the app — brand at the top, primary nav in the middle, source &amp; account
-                at the bottom. Hover an item for its tooltip; gated items prompt sign-in when signed out.
-              </p>
-            </div>
-          </div>
+          <ApiStatusContext.Provider value={{ status: 'online' }}>
+            <BackgroundTasksContext.Provider value={backgroundTasks}>
+              <div style={{ display: 'flex', minHeight: 480, background: 'var(--color-ink-800)' }}>
+                <Story />
+                <div className="flex-1 p-8 font-narrative text-parchment-400">
+                  <p className="max-w-prose">
+                    The icon rail anchors the app — brand at the top, primary nav in the middle, source &amp; account
+                    at the bottom. Hover an item for its tooltip; gated items prompt sign-in when signed out.
+                  </p>
+                </div>
+              </div>
+            </BackgroundTasksContext.Provider>
+          </ApiStatusContext.Provider>
         </AuthContext.Provider>
       </NavigationProvider>
     )

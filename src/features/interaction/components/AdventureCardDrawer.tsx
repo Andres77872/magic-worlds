@@ -418,6 +418,7 @@ function CardEditForm({
                     onImageUrl={setImageUrl}
                     themeSongUrl={themeSongUrl}
                     onThemeSongUrl={setThemeSongUrl}
+                    onGeneratedThemeSongUrl={setThemeSongUrl}
                     ensureSaved={ensureSaved}
                     themeTargetId={themeSourceId}
                     themeDisabledReason={themeDisabledReason}

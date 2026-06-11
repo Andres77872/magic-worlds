@@ -2,7 +2,7 @@
  * Reverie modal — dim+blur scrim, centered candlelit panel, optional
  * display-serif header (with close) and footer action bar.
  */
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cx } from './cx'
@@ -39,6 +39,8 @@ export function Modal({
     className,
     children,
 }: ModalProps) {
+    const titleId = useId()
+
     if (!open) return null
     // Portal to <body> so the fixed overlay escapes any ancestor CSS transform /
     // backdrop-filter that would otherwise become its containing block.
@@ -50,6 +52,7 @@ export function Modal({
             <div
                 role="dialog"
                 aria-modal="true"
+                aria-labelledby={title ? titleId : undefined}
                 className={cx(
                     'w-full overflow-hidden rounded-2xl border border-parchment-50/10 bg-ink-700 shadow-lg',
                     MAX[size],
@@ -62,7 +65,9 @@ export function Modal({
                         <div className="flex items-center gap-2.5">
                             {icon}
                             {title && (
-                                <h2 className="font-display text-[24px] font-semibold text-parchment-50">{title}</h2>
+                                <h2 id={titleId} className="font-display text-[24px] font-semibold text-parchment-50">
+                                    {title}
+                                </h2>
                             )}
                         </div>
                         {showClose && (

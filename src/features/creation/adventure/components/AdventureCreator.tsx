@@ -11,7 +11,7 @@
 
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Globe, ScrollText, Sparkles, Tags, Target, UserCircle, Users } from 'lucide-react'
+import { Globe, ScrollText, Tags, Target, UserCircle, Users } from 'lucide-react'
 import type { Adventure, Character, World } from '@/shared'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService, ApiError } from '@/infrastructure/api'
@@ -30,12 +30,11 @@ import {
     CreatorField,
     CreatorTextarea,
     AttributeManager,
-    AiGeneratePanel,
+    CardAssistantChatbot,
     MediaStudioSection,
     GeneratedDraftNotice,
     TriggersField,
     FormActions,
-    type AiGenerateOptions,
     type StudioNavItem,
 } from '../../common/components'
 import { useAttributeCategories, toCategoryPayload } from '../../common/hooks'
@@ -142,9 +141,7 @@ export function AdventureCreator() {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showErrors, setShowErrors] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
-    // AI draft lifecycle for the live preview (separate from `isSubmitting` so the
-    // page is never dimmed/blocked while generating).
-    const [genStatus, setGenStatus] = useState<'idle' | 'generating' | 'done'>('idle')
+    const [assistantApplied, setAssistantApplied] = useState(false)
     // AI-invented persona/cast/world, kept for a READ-ONLY preview: the form's
     // selectors are library-id based, so invented cards can't be "selected" — but
     // they're already saved on the persisted template. Cleared once the user edits
@@ -214,7 +211,6 @@ export function AdventureCreator() {
 
     const navItems = useMemo<StudioNavItem[]>(
         () => [
-            ...(editingTemplate ? [] : [{ id: 'ai', label: 'AI Draft', icon: Sparkles }]),
             { id: 'scenario', label: 'Scenario', icon: ScrollText },
             { id: 'cast', label: 'Cast', icon: Users },
             { id: 'persona', label: 'Persona', icon: UserCircle },
@@ -222,7 +218,7 @@ export function AdventureCreator() {
             { id: 'objectives', label: 'Objectives', icon: Target },
             { id: 'triggers', label: 'Triggers', icon: Tags },
         ],
-        [editingTemplate],
+        [],
     )
 
     /** Build the create/update payload from current form state. */
@@ -350,6 +346,7 @@ export function AdventureCreator() {
             onImageUrl={handleImageUrl}
             themeSongUrl={themeSongUrl}
             onThemeSongUrl={handleThemeSongUrl}
+            onGeneratedThemeSongUrl={setThemeSongUrl}
             ensureSaved={ensureSaved}
             themeTargetId={editingTemplate?.id}
             isAuthenticated={isAuthenticated}
@@ -395,40 +392,17 @@ export function AdventureCreator() {
         }
     }
 
-    // The AI endpoint generates AND persists the template, then returns it. Populate
-    // the live form + preview in place and switch to edit mode (Save → Update, no
-    // duplicate). Its AI-invented cast/world render read-only in the preview since
-    // the form's selectors are library-id based. The library refresh runs in the bg.
-    const handleGenerate = async (prompt: string, options: AiGenerateOptions) => {
-        if (!isAuthenticated) {
-            openLoginModal()
-            return
-        }
-        setGenStatus('generating')
-        try {
-            const card = await apiService.createAdventureTemplateAI(prompt, options)
-            if (options.signal?.aborted) {
-                setGenStatus('idle')
-                return
-            }
-            setScenario(card.description ?? '')
-            setTriggers(card.triggers ?? [])
-            setImageUrl(card.image_url)
-            setThemeSongUrl(card.theme_song_url)
-            attrs.hydrateFrom(card)
-            setGeneratedScene(sceneFromResponse(card))
-            setEditingTemplate(toTemplate(card))
-            // The AI endpoint already persisted the card — record its id so a media
-            // generation right after the draft persists without racing provider state.
-            savedIdRef.current = card.id || card.uuid || null
-            setGenStatus('done')
-            // Keep the landing list fresh for when the user navigates back. Do not
-            // await or navigate — generation must never block the page.
-            void loadData()
-        } catch (err) {
-            setGenStatus('idle')
-            throw err // let AiGeneratePanel surface the structured error copy
-        }
+    const applyAssistantCard = (card: AdventureTemplateCardResponse) => {
+        setScenario(card.description ?? '')
+        setTriggers(card.triggers ?? [])
+        setImageUrl(card.image_url)
+        setThemeSongUrl(card.theme_song_url)
+        attrs.hydrateFrom(card)
+        setGeneratedScene(sceneFromResponse(card))
+        setEditingTemplate(toTemplate(card))
+        savedIdRef.current = card.id || card.uuid || null
+        setAssistantApplied(true)
+        void loadData()
     }
 
     const handleBack = () => {
@@ -471,8 +445,7 @@ export function AdventureCreator() {
             }
             preview={
                 <StudioPreviewDock
-                    busy={genStatus === 'generating'}
-                    notice={genStatus === 'done' ? <GeneratedDraftNotice noun="adventure" /> : undefined}
+                    notice={assistantApplied ? <GeneratedDraftNotice noun="adventure" /> : undefined}
                     footer={mediaPanel}
                 >
                     <AdventurePreviewCard
@@ -489,16 +462,6 @@ export function AdventureCreator() {
             }
         >
             <form id={FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-6" onKeyDown={handleKeyDown}>
-                {!editingTemplate && (
-                    <div id="ai" className="scroll-mt-20">
-                        <AiGeneratePanel
-                            noun="adventure"
-                            placeholder="A heist to steal a dragon's egg from a volcano fortress guarded by fire cultists…"
-                            onGenerate={handleGenerate}
-                        />
-                    </div>
-                )}
-
                 <StudioSection
                     id="scenario"
                     icon={ScrollText}
@@ -604,6 +567,15 @@ export function AdventureCreator() {
                     error={saveError}
                 />
             </form>
+            <CardAssistantChatbot<AdventureTemplateCardResponse>
+                cardType="adventure_template"
+                cardId={editingTemplate?.id ?? null}
+                title={derivedTitle}
+                currentCard={buildPayload()}
+                onCard={applyAssistantCard}
+                isAuthenticated={isAuthenticated}
+                onAuthRequired={openLoginModal}
+            />
         </CreatorStudio>
     )
 }

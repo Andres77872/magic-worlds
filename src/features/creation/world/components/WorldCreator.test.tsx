@@ -5,7 +5,12 @@ const mocks = vi.hoisted(() => ({
     setPage: vi.fn(),
     loadData: vi.fn(),
     openLoginModal: vi.fn(),
-    createWorldAI: vi.fn(),
+    registerThemeSongJob: vi.fn(),
+    createCardAssistantConversation: vi.fn(),
+    listCardAssistantConversations: vi.fn(),
+    getCardAssistantConversation: vi.fn(),
+    sendCardAssistantMessage: vi.fn(),
+    streamCardAssistantMessage: vi.fn(),
     setEditingWorld: vi.fn(),
     updateWorld: vi.fn(),
     generateCardPortrait: vi.fn(),
@@ -17,13 +22,18 @@ vi.mock('@/app/hooks', () => ({
     useNavigation: () => ({ setPage: mocks.setPage }),
     useData: () => ({ editingWorld: mocks.editingWorld, setEditingWorld: mocks.setEditingWorld, loadData: mocks.loadData }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
+    useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
 }))
 
 vi.mock('@/infrastructure/api', () => ({
     ApiError: class ApiError extends Error { status = 500; isTransient = true },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
     apiService: {
-        createWorldAI: mocks.createWorldAI,
+        createCardAssistantConversation: mocks.createCardAssistantConversation,
+        listCardAssistantConversations: mocks.listCardAssistantConversations,
+        getCardAssistantConversation: mocks.getCardAssistantConversation,
+        sendCardAssistantMessage: mocks.sendCardAssistantMessage,
+        streamCardAssistantMessage: mocks.streamCardAssistantMessage,
         createWorld: vi.fn(),
         updateWorld: mocks.updateWorld,
         generateCardPortrait: mocks.generateCardPortrait,
@@ -39,27 +49,61 @@ describe('WorldCreator AI generation', () => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true
         mocks.editingWorld = null
-        mocks.createWorldAI.mockResolvedValue({
-            id: 'world-1',
-            name: 'Glass',
-            type: 'desert',
-            description: 'An endless sea of fused sand.',
-            triggers: ['glass', 'desert'],
+        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.createCardAssistantConversation.mockResolvedValue({
+            conversation: { conversation_id: 2, card_type: 'world', card_id: null, title: 'Untitled World' },
+            messages: [],
+            card: null,
+        })
+        const assistantResponse = {
+            conversation: { conversation_id: 2, card_type: 'world', card_id: 'world-1', title: 'Untitled World' },
+            messages: [
+                { message_id: 20, conversation_id: 2, sequence_no: 1, role: 'user', status: 'completed', content: 'Generate a glass desert' },
+                { message_id: 21, conversation_id: 2, sequence_no: 2, role: 'assistant', status: 'completed', content: 'Created Glass.' },
+            ],
+            card: {
+                id: 'world-1',
+                name: 'Glass',
+                type: 'desert',
+                description: 'An endless sea of fused sand.',
+                triggers: ['glass', 'desert'],
+            },
+        }
+        mocks.sendCardAssistantMessage.mockResolvedValue(assistantResponse)
+        mocks.streamCardAssistantMessage.mockImplementation(async (_conversationId: number, _body: unknown, onEvent: (event: Record<string, unknown>) => void) => {
+            onEvent({ type: 'final', ...assistantResponse })
         })
         mocks.loadData.mockResolvedValue(undefined)
     })
 
-    it('forwards lifecycle options and populates the creator in edit mode (no navigation)', async () => {
+    it('sends a creator conversation turn and populates the creator in edit mode (no navigation)', async () => {
         render(<WorldCreator />)
 
-        fireEvent.change(screen.getByPlaceholderText(/storm-wracked archipelago/i), { target: { value: 'Generate a glass desert' } })
-        fireEvent.click(screen.getByRole('button', { name: /generate world/i }))
+        fireEvent.click(screen.getByRole('button', { name: /open card assistant/i }))
+        fireEvent.change(screen.getByPlaceholderText(/ask for a change/i), { target: { value: 'Generate a glass desert' } })
+        fireEvent.click(screen.getByRole('button', { name: /send message/i }))
 
-        await waitFor(() => expect(mocks.createWorldAI).toHaveBeenCalledTimes(1))
-        const [description, options] = mocks.createWorldAI.mock.calls[0]
-        expect(description).toBe('Generate a glass desert')
-        expect(options.signal).toBeInstanceOf(AbortSignal)
-        expect(options.idempotencyKey).toMatch(/^mw-ai-card-idem-/)
+        await waitFor(() => expect(mocks.createCardAssistantConversation).toHaveBeenCalledTimes(1))
+        expect(mocks.createCardAssistantConversation).toHaveBeenCalledWith(
+            expect.objectContaining({
+                card_type: 'world',
+                card_id: undefined,
+                title: 'Untitled World',
+                current_card: expect.objectContaining({ name: '', type: '', description: '' }),
+            }),
+            expect.any(Object),
+        )
+        await waitFor(() => expect(mocks.streamCardAssistantMessage).toHaveBeenCalledTimes(1))
+        expect(mocks.streamCardAssistantMessage).toHaveBeenCalledWith(
+            2,
+            expect.objectContaining({
+                message: 'Generate a glass desert',
+                current_card: expect.objectContaining({ name: '', type: '', description: '' }),
+                request_id: expect.stringMatching(/^mw-card-assistant-/),
+            }),
+            expect.any(Function),
+            expect.objectContaining({ requestId: expect.stringMatching(/^mw-card-assistant-/) }),
+        )
 
         // The generated card populates the live form…
         await waitFor(() => expect(screen.getByDisplayValue('Glass')).toBeInTheDocument())
@@ -74,15 +118,16 @@ describe('WorldCreator AI generation', () => {
         expect(mocks.setPage).not.toHaveBeenCalledWith('landing')
     })
 
-    it('opens login modal instead of calling AI when unauthenticated', async () => {
+    it('opens login modal instead of opening the assistant when unauthenticated', async () => {
         mocks.isAuthenticated = false
         render(<WorldCreator />)
 
-        fireEvent.change(screen.getByPlaceholderText(/storm-wracked archipelago/i), { target: { value: 'Generate a glass desert' } })
-        fireEvent.click(screen.getByRole('button', { name: /generate world/i }))
+        fireEvent.click(screen.getByRole('button', { name: /open card assistant/i }))
 
         await waitFor(() => expect(mocks.openLoginModal).toHaveBeenCalledTimes(1))
-        expect(mocks.createWorldAI).not.toHaveBeenCalled()
+        expect(mocks.createCardAssistantConversation).not.toHaveBeenCalled()
+        expect(mocks.sendCardAssistantMessage).not.toHaveBeenCalled()
+        expect(mocks.streamCardAssistantMessage).not.toHaveBeenCalled()
         expect(mocks.loadData).not.toHaveBeenCalled()
     })
 })

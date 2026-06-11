@@ -25,7 +25,10 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import type { UserProfile } from '@/shared'
 import { Avatar, Badge, Button, Card, Icon, IconButton, SectionHeader, type BadgeTone } from '@/ui/primitives'
+import { LogoutConfirmDialog } from '@/ui/components/LogoutConfirmDialog'
 import { DeleteDataDialog } from './DeleteDataDialog'
+import { MembershipSection } from './MembershipSection'
+import { UsageSection } from './UsageSection'
 
 interface ProfileViewProps {
     profile: UserProfile
@@ -56,10 +59,21 @@ function capitalize(value: string): string {
     return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+function availableCredits(profile: UserProfile) {
+    return profile.membership?.total_available_credits ?? profile.user_usage
+}
+
 export function ProfileView({ profile, onLogout, onDeleteAllData }: ProfileViewProps) {
     const role = roleMeta(profile.user_type)
     const { card_counts: counts } = profile
+    const credits = availableCredits(profile)
+    const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false)
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+
+    const confirmLogout = () => {
+        setConfirmLogoutOpen(false)
+        onLogout()
+    }
 
     return (
         <div className="mx-auto flex w-full max-w-[960px] flex-col gap-8 px-5 py-8 sm:px-8 sm:py-10">
@@ -91,8 +105,12 @@ export function ProfileView({ profile, onLogout, onDeleteAllData }: ProfileViewP
                 <StatCard icon={Users} label="Characters" value={counts.character} />
                 <StatCard icon={Globe} label="Worlds" value={counts.world} />
                 <StatCard icon={Swords} label="Adventures" value={counts.adventure_template} />
-                <StatCard icon={Zap} label="Credits" value={profile.user_usage} />
+                <StatCard icon={Zap} label="Credits" value={credits} />
             </section>
+
+            <MembershipSection profile={profile} />
+
+            <UsageSection profile={profile} />
 
             {/* ---------- Account ---------- */}
             <section className="flex flex-col gap-4">
@@ -102,10 +120,15 @@ export function ProfileView({ profile, onLogout, onDeleteAllData }: ProfileViewP
                         <AccountRow label="Username" value={profile.username} />
                         <AccountRow label="Role" value={role.label} />
                         <AccountRow label="User ID" value={profile.user_hash} mono />
-                        <AccountRow label="Usage" value={`${profile.user_usage} credits`} />
+                        <AccountRow label="Available credits" value={`${credits} credits`} />
                     </dl>
                     <div className="flex justify-end border-t border-parchment-50/[.08] px-5 py-4">
-                        <Button kind="danger" size="sm" iconLeft={<Icon icon={LogOut} size={15} />} onClick={onLogout}>
+                        <Button
+                            kind="danger"
+                            size="sm"
+                            iconLeft={<Icon icon={LogOut} size={15} />}
+                            onClick={() => setConfirmLogoutOpen(true)}
+                        >
                             Log out
                         </Button>
                     </div>
@@ -136,6 +159,13 @@ export function ProfileView({ profile, onLogout, onDeleteAllData }: ProfileViewP
                     </div>
                 </Card>
             </section>
+
+            <LogoutConfirmDialog
+                open={confirmLogoutOpen}
+                username={profile.username}
+                onCancel={() => setConfirmLogoutOpen(false)}
+                onConfirm={confirmLogout}
+            />
 
             <DeleteDataDialog
                 open={confirmDeleteOpen}

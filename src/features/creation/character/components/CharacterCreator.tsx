@@ -6,7 +6,7 @@
 
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
-import { ScrollText, Sparkles, Swords, Tags, User } from 'lucide-react'
+import { ScrollText, Swords, Tags, User } from 'lucide-react'
 import type { Character } from '@/shared'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService, ApiError } from '@/infrastructure/api'
@@ -23,12 +23,11 @@ import {
     CreatorInput,
     CreatorTextarea,
     AttributeManager,
-    AiGeneratePanel,
+    CardAssistantChatbot,
     MediaStudioSection,
     GeneratedDraftNotice,
     TriggersField,
     FormActions,
-    type AiGenerateOptions,
     type StudioNavItem,
     type AttributePreset,
 } from '../../common/components'
@@ -87,9 +86,7 @@ export function CharacterCreator() {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [touched, setTouched] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
-    // AI draft lifecycle for the live preview (separate from `isSubmitting` so the
-    // page is never dimmed/blocked while generating).
-    const [genStatus, setGenStatus] = useState<'idle' | 'generating' | 'done'>('idle')
+    const [assistantApplied, setAssistantApplied] = useState(false)
 
     const attrs = useAttributeCategories({ defaults: DEFAULT_CATEGORIES, entity: editingCharacter })
 
@@ -103,13 +100,12 @@ export function CharacterCreator() {
 
     const navItems = useMemo<StudioNavItem[]>(
         () => [
-            ...(editingCharacter ? [] : [{ id: 'ai', label: 'AI Draft', icon: Sparkles }]),
             { id: 'identity', label: 'Identity', icon: User },
             { id: 'persona', label: 'Persona', icon: ScrollText },
             { id: 'traits', label: 'Traits', icon: Swords },
             { id: 'triggers', label: 'Triggers', icon: Tags },
         ],
-        [editingCharacter],
+        [],
     )
 
     /** Build the create/update payload from current form state. */
@@ -203,6 +199,7 @@ export function CharacterCreator() {
             onImageUrl={handleImageUrl}
             themeSongUrl={themeSongUrl}
             onThemeSongUrl={handleThemeSongUrl}
+            onGeneratedThemeSongUrl={setThemeSongUrl}
             ensureSaved={ensureSaved}
             themeTargetId={editingCharacter?.id}
             isAuthenticated={isAuthenticated}
@@ -246,43 +243,20 @@ export function CharacterCreator() {
         }
     }
 
-    // The AI endpoint generates AND persists the card, then returns it. Rather than
-    // discard it and navigate away, populate the live form + preview in place and
-    // switch to edit mode so the user can review and Save (which UPDATES the same
-    // card — no duplicate). The library refresh runs in the background.
-    const handleGenerate = async (prompt: string, options: AiGenerateOptions) => {
-        if (!isAuthenticated) {
-            openLoginModal()
-            return
-        }
-        setGenStatus('generating')
-        try {
-            const card = await apiService.createCharacterAI(prompt, options)
-            if (options.signal?.aborted) {
-                setGenStatus('idle')
-                return
-            }
-            setName(card.name ?? '')
-            setRace(card.race ?? '')
-            setDescription(card.description ?? '')
-            setGreeting(card.greeting ?? '')
-            setSystemInstructions(card.system_instructions ?? '')
-            setTriggers(card.triggers ?? [])
-            setImageUrl(card.image_url)
-            setThemeSongUrl(card.theme_song_url)
-            attrs.hydrateFrom(card)
-            setEditingCharacter(toCharacter(card))
-            // The AI endpoint already persisted the card — record its id so a media
-            // generation right after the draft persists without racing provider state.
-            savedIdRef.current = card.id || card.uuid || null
-            setGenStatus('done')
-            // Keep the landing list fresh for when the user navigates back. Do not
-            // await or navigate — generation must never block the page.
-            void loadData()
-        } catch (err) {
-            setGenStatus('idle')
-            throw err // let AiGeneratePanel surface the structured error copy
-        }
+    const applyAssistantCard = (card: CharacterCardResponse) => {
+        setName(card.name ?? '')
+        setRace(card.race ?? '')
+        setDescription(card.description ?? '')
+        setGreeting(card.greeting ?? '')
+        setSystemInstructions(card.system_instructions ?? '')
+        setTriggers(card.triggers ?? [])
+        setImageUrl(card.image_url)
+        setThemeSongUrl(card.theme_song_url)
+        attrs.hydrateFrom(card)
+        setEditingCharacter(toCharacter(card))
+        savedIdRef.current = card.id || card.uuid || null
+        setAssistantApplied(true)
+        void loadData()
     }
 
     const handleBack = () => {
@@ -308,8 +282,7 @@ export function CharacterCreator() {
             }
             preview={
                 <StudioPreviewDock
-                    busy={genStatus === 'generating'}
-                    notice={genStatus === 'done' ? <GeneratedDraftNotice noun="character" /> : undefined}
+                    notice={assistantApplied ? <GeneratedDraftNotice noun="character" /> : undefined}
                     footer={mediaPanel}
                 >
                     <CharacterPreviewCard
@@ -325,16 +298,6 @@ export function CharacterCreator() {
             }
         >
             <form id={FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-6" onKeyDown={handleKeyDown}>
-                {!editingCharacter && (
-                    <div id="ai" className="scroll-mt-20">
-                        <AiGeneratePanel
-                            noun="character"
-                            placeholder="A grizzled dwarven blacksmith who guards an ancient secret…"
-                            onGenerate={handleGenerate}
-                        />
-                    </div>
-                )}
-
                 <StudioSection
                     id="identity"
                     icon={User}
@@ -454,6 +417,15 @@ export function CharacterCreator() {
                     error={saveError}
                 />
             </form>
+            <CardAssistantChatbot<CharacterCardResponse>
+                cardType="character"
+                cardId={editingCharacter?.id ?? null}
+                title={name.trim() || 'Untitled Character'}
+                currentCard={buildPayload()}
+                onCard={applyAssistantCard}
+                isAuthenticated={isAuthenticated}
+                onAuthRequired={openLoginModal}
+            />
         </CreatorStudio>
     )
 }

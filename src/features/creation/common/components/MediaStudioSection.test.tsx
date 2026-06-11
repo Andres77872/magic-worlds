@@ -9,9 +9,17 @@ vi.mock('@/infrastructure/api', () => ({
         uploadCardImage: vi.fn(),
         generateCardPortrait: vi.fn(),
         waitForImageJob: vi.fn(),
+        generateThemeSong: vi.fn(),
         listThemeSongs: vi.fn(),
     },
     resolveMediaUrl: (u?: string | null) => (u == null || u === '' ? undefined : u),
+}))
+
+vi.mock('@/app/hooks', () => ({
+    useBackgroundTasks: () => ({
+        tasks: [],
+        registerThemeSongJob: vi.fn(),
+    }),
 }))
 
 const uploadMock = apiService.uploadCardImage as unknown as Mock

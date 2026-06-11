@@ -35,6 +35,9 @@ export type { TriggersFieldProps } from './TriggersField';
 export { AiGeneratePanel } from './AiGeneratePanel';
 export type { AiGenerateOptions, AiGeneratePanelProps } from './AiGeneratePanel';
 
+export { CardAssistantChatbot } from './CardAssistantChatbot';
+export type { CardAssistantChatbotProps } from './CardAssistantChatbot';
+
 export { MediaStudioSection } from './MediaStudioSection';
 export type { MediaStudioSectionProps } from './MediaStudioSection';
 

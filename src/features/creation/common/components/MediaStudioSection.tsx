@@ -9,14 +9,14 @@
  * `/theme-songs`, which needs an owned card id, so the theme button first awaits
  * `ensureSaved()` (the "auto-save then generate" flow).
  *
- * Both generators are async: the submit returns either a finished job or a
- * pending one we poll. A local Cancel aborts the wait (the backend may still
- * finish). Errors surface inline with quota/availability-aware copy.
+ * Both generators submit async backend jobs. Portraits still wait locally for a
+ * renderable asset; theme songs hand off to the global background task drawer.
  */
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Eye, History, ImagePlus, ImageUp, Music2, Sparkles, Trash2 } from 'lucide-react'
 import type { CardMediaTargetType, CardPortraitRequest, ThemeSongJobPublic } from '@/shared'
+import { useBackgroundTasks } from '@/app/hooks'
 import { apiService, resolveMediaUrl, type ImageJobPublicResponse } from '@/infrastructure/api'
 import { Button, Eyebrow, Icon, IconButton, ImageLightbox, Portrait, SectionHeader } from '@/ui/primitives'
 import { AudioWavePlayer } from '@/ui/components/audio'
@@ -76,8 +76,10 @@ export interface MediaStudioSectionProps {
     onImageUrl: (url: string | undefined) => void
     /** Current theme-song URL (as returned by the backend; may be relative). */
     themeSongUrl?: string
-    /** Persist the generated theme onto the card (mirrors `onImageUrl`). */
+    /** Persist an explicitly selected theme onto the card (history picker). */
     onThemeSongUrl: (url: string | undefined) => void
+    /** Update parent form state for a generated theme without issuing another card PUT. */
+    onGeneratedThemeSongUrl?: (url: string | undefined) => void
     /**
      * Resolve to the owned card id used as the theme target — auto-saving the
      * card first if needed. Throw with a user-facing message if it can't.
@@ -133,6 +135,7 @@ export function MediaStudioSection({
     onImageUrl,
     themeSongUrl,
     onThemeSongUrl,
+    onGeneratedThemeSongUrl,
     ensureSaved,
     themeTargetId,
     themeDisabledReason,
@@ -140,6 +143,7 @@ export function MediaStudioSection({
     onAuthRequired,
     layout = 'full',
 }: MediaStudioSectionProps) {
+    const { tasks, registerThemeSongJob } = useBackgroundTasks()
     const mountedRef = useRef(true)
     useEffect(() => {
         mountedRef.current = true
@@ -261,6 +265,8 @@ export function MediaStudioSection({
     const [themeUrl, setThemeUrl] = useState<string | undefined>(themeSongUrl)
     const [themeBusy, setThemeBusy] = useState(false)
     const [themeError, setThemeError] = useState<string | null>(null)
+    const [themeNotice, setThemeNotice] = useState<string | null>(null)
+    const [themeJobId, setThemeJobId] = useState<string | null>(null)
     const themeAbortRef = useRef<AbortController | null>(null)
 
     // Surface the latest completed theme for an already-saved card.
@@ -288,6 +294,32 @@ export function MediaStudioSection({
         }
     }, [cardType, themeTargetId])
 
+    useEffect(() => {
+        if (!themeJobId) return
+        const task = tasks.find((item) => item.operation === 'theme_song' && item.task_id === themeJobId)
+        if (!task) return
+        if (task.status === 'completed') {
+            const timer = window.setTimeout(() => {
+                const url = task.result?.assets?.[0]?.url
+                if (url) {
+                    setThemeUrl(url)
+                    onGeneratedThemeSongUrl?.(url)
+                    setThemeNotice('Theme is ready.')
+                }
+                setThemeJobId(null)
+            }, 0)
+            return () => window.clearTimeout(timer)
+        }
+        if (task.status === 'failed' || task.status === 'canceled') {
+            const timer = window.setTimeout(() => {
+                setThemeError(task.error?.detail || mediaErrorCopy({ category: task.status }, 'theme'))
+                setThemeNotice(null)
+                setThemeJobId(null)
+            }, 0)
+            return () => window.clearTimeout(timer)
+        }
+    }, [onGeneratedThemeSongUrl, tasks, themeJobId])
+
     const handleGenerateTheme = async () => {
         if (!isAuthenticated) {
             onAuthRequired()
@@ -298,6 +330,7 @@ export function MediaStudioSection({
         themeAbortRef.current = controller
         setThemeBusy(true)
         setThemeError(null)
+        setThemeNotice(null)
         try {
             const targetId = await ensureSaved()
             if (!targetId) {
@@ -305,25 +338,27 @@ export function MediaStudioSection({
                 return
             }
             const description = songDirection.trim() || `An evocative theme song for ${template.name.trim() || `this ${noun}`}.`
-            let job = await apiService.generateThemeSong(
+            const job = await apiService.generateThemeSong(
                 { target_type: cardType, target_id: targetId, description },
                 { signal: controller.signal },
             )
-            if (job.status !== 'completed') {
-                job = await apiService.waitForThemeSong(job.job_id, { signal: controller.signal })
-            }
             if (!mountedRef.current) return
+            registerThemeSongJob(job)
+            setThemeJobId(job.job_id)
             const url = job.assets?.[0]?.url
             if (job.status === 'completed' && url) {
                 setThemeUrl(url)
-                onThemeSongUrl(url)
-            } else {
+                onGeneratedThemeSongUrl?.(url)
+                setThemeNotice('Theme is ready.')
+            } else if (job.status === 'failed') {
                 setThemeError(mediaErrorCopy(job.error ?? { category: job.status }, 'theme'))
+            } else {
+                setThemeNotice('Theme is composing in Tasks.')
             }
         } catch (err) {
             if (!mountedRef.current) return
             if (controller.signal.aborted) {
-                setThemeError('Canceled. The theme may still finish in the background — try again to check.')
+                setThemeError('Canceled before the task was accepted.')
             } else {
                 setThemeError(mediaErrorCopy(err, 'theme'))
             }
@@ -488,7 +523,10 @@ export function MediaStudioSection({
                     {themeDisabledReason ? (
                         <Eyebrow tone="muted">{themeDisabledReason}</Eyebrow>
                     ) : (
-                        themeError && <p className="text-xs text-blood-500">{themeError}</p>
+                        <>
+                            {themeNotice && <p className="text-xs text-arcane-300">{themeNotice}</p>}
+                            {themeError && <p className="text-xs text-blood-500">{themeError}</p>}
+                        </>
                     )}
                     {themeBusy ? (
                         <div className="flex justify-end gap-2">
@@ -496,7 +534,7 @@ export function MediaStudioSection({
                                 Cancel
                             </Button>
                             <Button kind="arcane" size="sm" disabled iconLeft={<Icon icon={Sparkles} size={15} />}>
-                                Composing…
+                                Starting…
                             </Button>
                         </div>
                     ) : (
@@ -605,7 +643,10 @@ export function MediaStudioSection({
                 {themeDisabledReason ? (
                     <Eyebrow tone="muted">{themeDisabledReason}</Eyebrow>
                 ) : (
-                    themeError && <p className="text-sm text-blood-500">{themeError}</p>
+                    <>
+                        {themeNotice && <p className="text-sm text-arcane-300">{themeNotice}</p>}
+                        {themeError && <p className="text-sm text-blood-500">{themeError}</p>}
+                    </>
                 )}
                 <div className="flex items-center justify-between gap-2">
                     <Button kind="ghost" onClick={() => openHistory('themes')} iconLeft={<Icon icon={History} size={16} />}>
@@ -623,7 +664,7 @@ export function MediaStudioSection({
                             disabled={themeBusy || Boolean(themeDisabledReason)}
                             iconLeft={<Icon icon={Sparkles} size={16} />}
                         >
-                            {themeBusy ? 'Composing…' : resolvedTheme ? 'Regenerate theme' : 'Generate theme'}
+                            {themeBusy ? 'Starting…' : resolvedTheme ? 'Regenerate theme' : 'Generate theme'}
                         </Button>
                     </div>
                 </div>

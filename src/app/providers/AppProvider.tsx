@@ -3,7 +3,9 @@
  */
 
 import type { ReactNode } from 'react'
+import { ApiStatusProvider } from './ApiStatusProvider'
 import { AuthProvider } from './AuthProvider'
+import { BackgroundTasksProvider } from './BackgroundTasksProvider'
 import { DataProvider } from './DataProvider'
 import { NavigationProvider } from './NavigationProvider'
 
@@ -13,12 +15,16 @@ interface AppProviderProps {
 
 export function AppProvider({ children }: AppProviderProps) {
     return (
-        <AuthProvider>
-            <NavigationProvider>
-                <DataProvider>
-                    {children}
-                </DataProvider>
-            </NavigationProvider>
-        </AuthProvider>
+        <ApiStatusProvider>
+            <AuthProvider>
+                <NavigationProvider>
+                    <DataProvider>
+                        <BackgroundTasksProvider>
+                            {children}
+                        </BackgroundTasksProvider>
+                    </DataProvider>
+                </NavigationProvider>
+            </AuthProvider>
+        </ApiStatusProvider>
     )
 }
