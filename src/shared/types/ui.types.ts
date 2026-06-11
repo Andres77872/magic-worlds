@@ -20,12 +20,14 @@ export type PageType =
     | 'character'
     | 'world'
     | 'adventure'
+    | 'lorebook'
     | 'interaction'
     | 'character-chat'
     | 'profile'
     | 'gallery-characters'
     | 'gallery-worlds'
     | 'gallery-adventures'
+    | 'gallery-lorebooks'
     | 'gallery-media'
 
 export interface NavigationState {

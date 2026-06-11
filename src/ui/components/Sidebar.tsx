@@ -4,7 +4,7 @@
  * the bottom. Each control is an icon button with a tooltip/aria-label.
  */
 import { useState } from 'react'
-import { Code2, Compass, Flame, Globe, Images, ListChecks, LogIn, LogOut, Server, Swords, Users } from 'lucide-react'
+import { BookOpen, Code2, Compass, Flame, Globe, Images, ListChecks, LogIn, LogOut, Server, Swords, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
 import { useNavigation, useAuth, useBackgroundTasks, useApiStatus } from '../../app/hooks'
@@ -27,6 +27,7 @@ const NAV_ITEMS: RailItem[] = [
     { page: 'gallery-characters', label: 'Characters', icon: Users, gated: true },
     { page: 'gallery-worlds', label: 'Worlds', icon: Globe, gated: true },
     { page: 'gallery-adventures', label: 'Adventures', icon: Swords, gated: true },
+    { page: 'gallery-lorebooks', label: 'Lorebooks', icon: BookOpen, gated: true },
     { page: 'gallery-media', label: 'Media', icon: Images, gated: true },
 ]
 

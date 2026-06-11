@@ -15,7 +15,8 @@
     "test": "vitest",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "typecheck:stories": "tsc --noEmit -p .storybook/tsconfig.json"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",

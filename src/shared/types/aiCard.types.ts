@@ -136,6 +136,13 @@ export interface CardAssistantConversationListResponse {
     conversations: CardAssistantConversation[]
 }
 
+/** One card mutation the backend performed for a turn (mw_replace_card / mw_patch_card). */
+export interface CardAssistantAppliedAction {
+    type?: string
+    card_id?: string
+    fields?: string[]
+}
+
 export interface CardAssistantTurnResponse {
     conversation: CardAssistantConversation
     user_message?: CardAssistantMessage
@@ -143,7 +150,7 @@ export interface CardAssistantTurnResponse {
     tool_message?: CardAssistantMessage | null
     messages?: CardAssistantMessage[]
     card?: CardAssistantCardResponse | null
-    applied_actions?: Array<Record<string, unknown>>
+    applied_actions?: CardAssistantAppliedAction[]
 }
 
 export type CardAssistantStreamEvent =

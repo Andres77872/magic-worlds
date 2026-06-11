@@ -14,6 +14,7 @@ import { AdventureCreator } from '../../features/creation/adventure/components/A
 import { AdventureInteraction } from '../../features/interaction/components/AdventureInteraction'
 import { CharacterChat } from '../../features/characterChat/components'
 import { GalleryPage, MediaGalleryPage } from '../../features/gallery'
+import { LorebookGalleryPage, LorebookStudio } from '../../features/lorebook'
 import { ProfilePage } from '../../features/profile'
 import { TasksDrawer } from '../../features/tasks'
 import { LoadingSpinner } from '../../ui/components/LoadingSpinner'
@@ -45,10 +46,12 @@ export function AppRouter() {
                         {currentPage === 'gallery-characters' && <GalleryPage type="character" />}
                         {currentPage === 'gallery-worlds' && <GalleryPage type="world" />}
                         {currentPage === 'gallery-adventures' && <GalleryPage type="adventure" />}
+                        {currentPage === 'gallery-lorebooks' && <LorebookGalleryPage />}
                         {currentPage === 'gallery-media' && <MediaGalleryPage />}
                         {currentPage === 'character' && <CharacterCreator />}
                         {currentPage === 'world' && <WorldCreator />}
                         {currentPage === 'adventure' && <AdventureCreator />}
+                        {currentPage === 'lorebook' && <LorebookStudio />}
                         {currentPage === 'interaction' && <AdventureInteraction />}
                         {currentPage === 'character-chat' && <CharacterChat />}
                         {currentPage === 'profile' && <ProfilePage />}

@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { Membership, UserProfile } from '@/shared'
 import { ProfileView } from './ProfileView'
 
-const membership: Membership = {
+// Exported for the UsageSection / MembershipSection stories.
+export const membership: Membership = {
     plan_code: 'free',
     display_name: 'Free',
     credits: {
@@ -101,7 +102,7 @@ const membership: Membership = {
     },
 }
 
-const baseProfile: UserProfile = {
+export const baseProfile: UserProfile = {
     user_hash: 'usr-4f2c9a17-8d3b-4e6a-9c21-7b5e0a1d6f84',
     username: 'Lyra',
     user_type: 'consumer',

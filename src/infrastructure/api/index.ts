@@ -15,6 +15,17 @@ import { configureChatSocketAuthRefresh } from './chatSocket'
 import type { ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from '../../shared/types/interaction.types'
 import type { AdventureSnapshot } from '../../shared/types/adventure.types'
 import type {
+    LoreActivationPreviewRequest,
+    LoreActivationPreviewResponse,
+    Lorebook,
+    LorebookAttachment,
+    LorebookDraft,
+    LorebookEntry,
+    LorebookEntryDraft,
+    LorebookIssue,
+    LorebookTargetKind,
+} from '../../shared/types/lorebook.types'
+import type {
     AdventureTemplateCardResponse,
     AiCardErrorEnvelope,
     AiCardPublicError,
@@ -783,6 +794,118 @@ class ApiService {
     }
 
     /**
+     * List lorebooks with pagination and optional search.
+     */
+    async getLorebooks(skip: number = 0, limit: number = 100, q?: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebooks${this.listQuery(skip, limit, q)}`, token, {
+            method: 'GET',
+        })
+    }
+
+    async getLorebook(lorebookId: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}`, token, {
+            method: 'GET',
+        })
+    }
+
+    async createLorebook(lorebook: LorebookDraft | Record<string, unknown>): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest('/lorebooks', token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: lorebook as unknown as BodyInit,
+        })
+    }
+
+    async updateLorebook(lorebookId: string, lorebook: Partial<LorebookDraft> | Record<string, unknown>): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}`, token, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: lorebook as unknown as BodyInit,
+        })
+    }
+
+    async deleteLorebook(lorebookId: string): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}`, token, {
+            method: 'DELETE',
+        })
+    }
+
+    async createLorebookEntry(lorebookId: string, entry: LorebookEntryDraft | Record<string, unknown>): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries`, token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: entry as unknown as BodyInit,
+        })
+    }
+
+    async updateLorebookEntry(lorebookId: string, entryId: string, entry: Partial<LorebookEntry> | Record<string, unknown>): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries/${encodeURIComponent(entryId)}`, token, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: entry as unknown as BodyInit,
+        })
+    }
+
+    async deleteLorebookEntry(lorebookId: string, entryId: string): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries/${encodeURIComponent(entryId)}`, token, {
+            method: 'DELETE',
+        })
+    }
+
+    async listLorebookAttachments(targetKind?: LorebookTargetKind, targetId?: string): Promise<LorebookAttachment[]> {
+        const token = this.getStoredToken()
+        const params = new URLSearchParams()
+        if (targetKind) params.set('target_kind', targetKind)
+        if (targetId) params.set('target_id', targetId)
+        const suffix = params.toString() ? `?${params.toString()}` : ''
+        return this.authenticatedRequest<LorebookAttachment[]>(`/lorebook-attachments${suffix}`, token, {
+            method: 'GET',
+        })
+    }
+
+    async putLorebookAttachment(attachment: Partial<LorebookAttachment> | Record<string, unknown>): Promise<LorebookAttachment> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<LorebookAttachment>('/lorebook-attachments', token, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: attachment as unknown as BodyInit,
+        })
+    }
+
+    async deleteLorebookAttachment(attachmentId: string): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/lorebook-attachments/${encodeURIComponent(attachmentId)}`, token, {
+            method: 'DELETE',
+        })
+    }
+
+    async validateLorebook(lorebook: Lorebook | LorebookDraft | Record<string, unknown>): Promise<{ issues: LorebookIssue[] }> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<{ issues: LorebookIssue[] }>('/lorebooks/validate', token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: lorebook as unknown as BodyInit,
+        })
+    }
+
+    async previewLoreActivation(request: LoreActivationPreviewRequest): Promise<LoreActivationPreviewResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<LoreActivationPreviewResponse>('/lorebooks/activation-preview', token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: request as unknown as BodyInit,
+        })
+    }
+
+    /**
      * Get adventure sessions list
      */
     async getAdventureSessions(): Promise<any> {
@@ -870,6 +993,19 @@ class ApiService {
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardAssistantConversationResponse>(`/card-assistant/conversations/${conversationId}`, token, {
             method: 'GET',
+            headers: this.cardAssistantHeaders(options),
+            ...this.cardAssistantRequestOptions(options),
+        })
+    }
+
+    /** Delete an assistant conversation and its messages. 409 while a turn is in flight. */
+    async deleteCardAssistantConversation(
+        conversationId: number,
+        options: CardAssistantRequestOptions = {},
+    ): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest<void>(`/card-assistant/conversations/${conversationId}`, token, {
+            method: 'DELETE',
             headers: this.cardAssistantHeaders(options),
             ...this.cardAssistantRequestOptions(options),
         })

@@ -4,10 +4,11 @@
  */
 
 import { createContext, useEffect, useState, type ReactNode } from 'react'
-import type { Character, World, Adventure, AdventureSnapshot, CharacterChatSession, LoadingState } from '../../shared'
+import type { Character, World, Adventure, AdventureSnapshot, CharacterChatSession, LoadingState, Lorebook } from '../../shared'
 import { apiService, ApiError } from '../../infrastructure'
 import { parseTurnState } from '../../utils/turnState'
 import { asArray, transformCharacters, transformTemplates, transformWorlds } from '../../utils/cardTransforms'
+import { normalizeLorebookList } from '../../features/lorebook/lorebookTransforms'
 import {
     adventureFieldsFromSnapshot,
     asSnapshot,
@@ -50,6 +51,14 @@ interface DataContextValue {
     deleteInProgress: (index: number) => Promise<void>
     /** Persist an edit to an adventure's cloned-card snapshot (its own copy only). */
     saveInProgressSnapshot: (adventureId: string, snapshot: AdventureSnapshot) => Promise<void>
+
+    // Lorebooks
+    lorebooks: Lorebook[]
+    setLorebooks: (lorebooks: Lorebook[]) => void
+    editingLorebook: Lorebook | null
+    setEditingLorebook: (lorebook: Lorebook | null) => void
+    editLorebook: (lorebook: Lorebook) => void
+    deleteLorebook: (id: string) => Promise<void>
 
     // 1:1 character chat
     activeCharacterChat: CharacterChatSession | null
@@ -147,6 +156,10 @@ export function DataProvider({ children }: DataProviderProps) {
     const [inProgressAdventures, setInProgressAdventures] = useState<Adventure[]>([])
     const [editingTemplate, setEditingTemplate] = useState<Adventure | null>(null)
     const [editingInProgress, setEditingInProgress] = useState<Adventure | null>(null)
+
+    // Lorebook state
+    const [lorebooks, setLorebooks] = useState<Lorebook[]>([])
+    const [editingLorebook, setEditingLorebook] = useState<Lorebook | null>(null)
 
     // 1:1 character chat state
     const [activeCharacterChat, setActiveCharacterChat] = useState<CharacterChatSession | null>(null)
@@ -297,6 +310,25 @@ export function DataProvider({ children }: DataProviderProps) {
         setInProgressAdventures((prev) => prev.map(patch))
         setEditingInProgress((prev) => (prev && prev.id === adventureId ? patch(prev) : prev))
     }
+
+    const editLorebook = (lorebook: Lorebook) => {
+        setEditingLorebook(lorebook)
+    }
+
+    const deleteLorebook = async (id: string) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to delete lorebooks')
+        }
+        try {
+            await apiService.deleteLorebook(id)
+            setLorebooks((prev) => prev.filter((lorebook) => lorebook.id !== id))
+            setEditingLorebook((prev) => (prev?.id === id ? null : prev))
+        } catch (error) {
+            console.error('Failed to delete lorebook:', error)
+            throw error
+        }
+    }
     
     // Start (or resume) a 1:1 character chat. The backend is idempotent per
     // (user, character): it returns the existing chat or creates one seeded with the
@@ -387,6 +419,7 @@ export function DataProvider({ children }: DataProviderProps) {
                 setWorlds([])
                 setTemplateAdventures([])
                 setInProgressAdventures([])
+                setLorebooks([])
                 setCharacterChats([])
                 if (!silent) setLoadingState({ isLoading: false })
                 return
@@ -400,12 +433,13 @@ export function DataProvider({ children }: DataProviderProps) {
             // the others. With Promise.all, one rejection skipped EVERY setState
             // below — so e.g. freshly generated media (theme/portrait) stayed
             // invisible until a later all-success refresh.
-            const [charsRes, worldsRes, templatesRes, sessionsRes, chatsRes] = await Promise.allSettled([
+            const [charsRes, worldsRes, templatesRes, sessionsRes, chatsRes, lorebooksRes] = await Promise.allSettled([
                 apiService.getCharacters(),
                 apiService.getWorlds(),
                 apiService.getAdventureTemplates(),
                 apiService.getAdventureSessions(),
-                apiService.getCharacterChats()
+                apiService.getCharacterChats(),
+                apiService.getLorebooks(),
             ])
 
             const loadedCharacters = charsRes.status === 'fulfilled' ? charsRes.value : []
@@ -413,8 +447,9 @@ export function DataProvider({ children }: DataProviderProps) {
             const loadedTemplateAdventures = templatesRes.status === 'fulfilled' ? templatesRes.value : []
             const loadedSessions = sessionsRes.status === 'fulfilled' ? sessionsRes.value : []
             const loadedChats = chatsRes.status === 'fulfilled' ? chatsRes.value : []
+            const loadedLorebooks = lorebooksRes.status === 'fulfilled' ? lorebooksRes.value : []
 
-            const failures = [charsRes, worldsRes, templatesRes, sessionsRes, chatsRes].filter(
+            const failures = [charsRes, worldsRes, templatesRes, sessionsRes, chatsRes, lorebooksRes].filter(
                 (r): r is PromiseRejectedResult => r.status === 'rejected'
             )
             for (const f of failures) {
@@ -426,7 +461,8 @@ export function DataProvider({ children }: DataProviderProps) {
                 characters: loadedCharacters,
                 worlds: loadedWorlds,
                 templateAdventures: loadedTemplateAdventures,
-                sessions: loadedSessions
+                sessions: loadedSessions,
+                lorebooks: loadedLorebooks,
             })
 
             // Transform API response to match local types (shared with the
@@ -434,6 +470,7 @@ export function DataProvider({ children }: DataProviderProps) {
             const transformedCharacters = transformCharacters(loadedCharacters)
             const transformedWorlds = transformWorlds(loadedWorlds)
             const transformedTemplates = transformTemplates(loadedTemplateAdventures)
+            const transformedLorebooks = normalizeLorebookList(loadedLorebooks)
 
             // Transform sessions to in-progress adventures. Cards come from the
             // session's own cloned snapshot (server-side clone), falling back to the
@@ -474,6 +511,7 @@ export function DataProvider({ children }: DataProviderProps) {
             if (templatesRes.status === 'fulfilled') setTemplateAdventures(transformedTemplates)
             if (sessionsRes.status === 'fulfilled') setInProgressAdventures(transformedInProgress)
             if (chatsRes.status === 'fulfilled') setCharacterChats(transformedChats)
+            if (lorebooksRes.status === 'fulfilled') setLorebooks(transformedLorebooks)
 
             console.log('[DataProvider] State updated successfully')
             // Silent refresh never touches isLoading (would unmount the page); the
@@ -517,12 +555,14 @@ export function DataProvider({ children }: DataProviderProps) {
             setWorlds([])
             setTemplateAdventures([])
             setInProgressAdventures([])
+            setLorebooks([])
             setCharacterChats([])
             setActiveCharacterChat(null)
             setEditingCharacter(null)
             setEditingWorld(null)
             setEditingTemplate(null)
             setEditingInProgress(null)
+            setEditingLorebook(null)
 
             setLoadingState({ isLoading: false })
         } catch (error) {
@@ -573,6 +613,13 @@ export function DataProvider({ children }: DataProviderProps) {
         editInProgress,
         deleteInProgress,
         saveInProgressSnapshot,
+
+        lorebooks,
+        setLorebooks,
+        editingLorebook,
+        setEditingLorebook,
+        editLorebook,
+        deleteLorebook,
 
         activeCharacterChat,
         setActiveCharacterChat,
