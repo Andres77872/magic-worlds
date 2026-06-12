@@ -1,234 +1,153 @@
-import React, {useCallback, useMemo, useState, useRef, useEffect} from 'react'
-import {FaChevronRight} from 'react-icons/fa'
+import React, {useCallback, useMemo} from 'react'
 import {type CardOption, CardOptions} from './CardOptions'
-import './Card.css'
+import {Card as Surface, cx, Portrait, ThemeSongButton} from '@/ui/primitives'
 
 interface CardProps {
     title: React.ReactNode
     subtitle?: React.ReactNode
     children?: React.ReactNode
-    /** @deprecated Use options instead */
-    actions?: CardOption[]
     options?: CardOption[]
     className?: string
     onClick?: () => void
     isLoading?: boolean
     disabled?: boolean
     highlight?: boolean
+    /** Optional portrait image; falls back to the name-seeded gradient when absent. */
+    imageUrl?: string
+    /** Optional theme-song URL; shows a play/pause button on the portrait when present. */
+    themeSongUrl?: string
     'data-testid'?: string
 }
 
 /**
- * Enhanced Card component with improved accessibility, mystical hover states, and visual feedback
- * Designed for role-playing AI app with character, world, and adventure cards
+ * Domain card composed from the Reverie `Card` surface + `Portrait` header.
+ * The title seeds the portrait initial/gradient and is overlaid in the
+ * display face; the subtitle reads as narrative parchment text. All props
+ * (highlight / disabled / onClick / loading / options) and a11y are preserved.
  */
 export function Card({
                          title,
                          subtitle,
                          children,
                          options,
-                         actions, // For backward compatibility
                          className = '',
                          onClick,
                          isLoading = false,
                          disabled = false,
                          highlight = false,
+                         imageUrl,
+                         themeSongUrl,
                          'data-testid': testId = 'card',
                      }: CardProps) {
-    // Use options prop if provided, otherwise fall back to actions for backward compatibility
-    const cardOptions = options || actions;
-    const [isHovered, setIsHovered] = useState(false)
-    const [isFocused, setIsFocused] = useState(false)
-    const cardRef = useRef<HTMLElement>(null)
+    const cardOptions = options
 
-    // Enhanced keyboard navigation
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
         if (disabled) return
-        
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            if (e.key === ' ') {
-                // Space key will be handled in keyup to prevent page scroll
-                return
-            }
             onClick?.()
         }
     }, [onClick, disabled])
 
-    const handleKeyUp = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
-        if (disabled) return
-        
-        if (e.key === ' ') {
-            e.preventDefault()
-            onClick?.()
-        }
-    }, [onClick, disabled])
-
-    // Enhanced click handler with disabled state check
     const handleClick = useCallback(() => {
         if (!disabled && onClick) {
             onClick()
         }
     }, [onClick, disabled])
 
-    // Mouse event handlers
-    const handleMouseEnter = useCallback(() => {
-        if (!disabled) {
-            setIsHovered(true)
-        }
-    }, [disabled])
+    const isInteractive = Boolean(onClick) && !disabled
 
-    const handleMouseLeave = useCallback(() => {
-        if (!disabled) {
-            setIsHovered(false)
-        }
-    }, [disabled])
-
-    const handleFocus = useCallback(() => {
-        if (!disabled) {
-            setIsFocused(true)
-        }
-    }, [disabled])
-
-    const handleBlur = useCallback(() => {
-        if (!disabled) {
-            setIsFocused(false)
-        }
-    }, [disabled])
-
-    // Intersection observer for entrance animation
-    useEffect(() => {
-        const currentCard = cardRef.current
-        if (!currentCard) return
-
-        const observer = new IntersectionObserver(
-            (entries) => {
-                entries.forEach((entry) => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('visible')
-                        observer.unobserve(entry.target)
-                    }
-                })
-            },
-            { 
-                threshold: 0.1,
-                rootMargin: '50px 0px'
-            }
-        )
-
-        observer.observe(currentCard)
-
-        return () => {
-            if (currentCard) {
-                observer.unobserve(currentCard)
-            }
-        }
-    }, [])
-
-    // Dynamic class generation with proper state management
-    const cardClasses = useMemo(() => [
-        'card',
-        onClick && !disabled ? 'clickable' : '',
-        disabled ? 'disabled' : '',
-        isHovered ? 'hover' : '',
-        isFocused ? 'focus-visible' : '',
-        highlight ? 'highlight' : '',
-        className,
-    ].filter(Boolean).join(' '), [onClick, disabled, isHovered, isFocused, highlight, className])
-
-    // Generate unique IDs for accessibility
     const titleId = useMemo(() => `card-title-${Math.random().toString(36).substr(2, 9)}`, [])
     const descriptionId = useMemo(() =>
             subtitle ? `card-description-${Math.random().toString(36).substr(2, 9)}` : undefined,
         [subtitle]
     )
 
-    // Determine if card should be interactive
-    const isInteractive = onClick && !disabled
-    
-    // ARIA attributes for better accessibility
-    const ariaAttributes = useMemo(() => ({
-        role: isInteractive ? 'button' : 'article',
-        tabIndex: isInteractive ? 0 : undefined,
-        'aria-disabled': disabled || undefined,
-        'aria-labelledby': titleId,
-        'aria-describedby': descriptionId,
-        'aria-busy': isLoading || undefined,
-    }), [isInteractive, disabled, titleId, descriptionId, isLoading])
+    // Seed the portrait gradient/initial from the title text when available.
+    const portraitName = typeof title === 'string' ? title : ''
 
     return (
-        <article
-            ref={cardRef}
-            className={cardClasses}
+        <Surface
+            interactive={isInteractive}
+            className={cx(
+                'group relative flex h-full flex-col',
+                highlight && 'border-ember-500/45 ring-1 ring-ember-500/45',
+                disabled && 'pointer-events-none cursor-not-allowed opacity-50',
+                className,
+            )}
             onClick={isInteractive ? handleClick : undefined}
             onKeyDown={isInteractive ? handleKeyDown : undefined}
-            onKeyUp={isInteractive ? handleKeyUp : undefined}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            onFocus={isInteractive ? handleFocus : undefined}
-            onBlur={isInteractive ? handleBlur : undefined}
             data-testid={testId}
-            {...ariaAttributes}
+            role={isInteractive ? 'button' : 'article'}
+            tabIndex={isInteractive ? 0 : undefined}
+            aria-disabled={disabled || undefined}
+            aria-labelledby={titleId}
+            aria-describedby={descriptionId}
+            aria-busy={isLoading || undefined}
         >
-            {/* Loading overlay with improved accessibility */}
             {isLoading && (
-                <div 
-                    className="card-loading-overlay" 
-                    role="alert" 
+                <div
+                    className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-ink-900/60"
+                    role="alert"
                     aria-live="polite"
                     aria-label="Loading card content"
                 >
-                    <div className="card-loading-spinner" aria-hidden="true"/>
-                    <span className="visually-hidden">Loading...</span>
+                    <div
+                        className="h-8 w-8 animate-spin rounded-full border-2 border-parchment-50/20 border-t-ember-500"
+                        aria-hidden="true"
+                    />
+                    <span className="sr-only">Loading...</span>
                 </div>
             )}
 
-            {/* Card header with improved structure */}
-            <header className="card-header">
-                <div className="card-header-content">
-                    <h3 id={titleId} className="card-title">
+            <Portrait name={portraitName} src={imageUrl} height={120}>
+                {(themeSongUrl || (cardOptions && cardOptions.length > 0)) && (
+                    <div className="absolute right-2 top-2 z-[2] flex items-center gap-1.5">
+                        {themeSongUrl && (
+                            <ThemeSongButton
+                                src={themeSongUrl}
+                                cardName={portraitName || undefined}
+                                artworkUrl={imageUrl}
+                            />
+                        )}
+                        {cardOptions && cardOptions.length > 0 && (
+                            <CardOptions
+                                options={cardOptions}
+                                disabled={disabled}
+                                aria-label="Card actions"
+                            />
+                        )}
+                    </div>
+                )}
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                    <h3
+                        id={titleId}
+                        className="m-0 font-display text-lg font-semibold leading-tight text-parchment-50"
+                    >
                         {typeof title === 'string' ? (
-                            <span className="card-title-text" title={title}>
+                            <span className="block overflow-hidden text-ellipsis whitespace-nowrap" title={title}>
                                 {title}
                             </span>
                         ) : (
                             title
                         )}
-                        {isInteractive && (
-                            <span 
-                                className="card-arrow" 
-                                aria-hidden="true"
-                                role="presentation"
-                            >
-                                <FaChevronRight/>
-                            </span>
-                        )}
                     </h3>
                     {subtitle && (
-                        <div id={descriptionId} className="card-subtitle">
+                        <div
+                            id={descriptionId}
+                            className="m-0 mt-1 font-narrative text-sm leading-normal text-parchment-400"
+                        >
                             {subtitle}
                         </div>
                     )}
                 </div>
-                
-                {/* Card options with improved conditional rendering */}
-                {cardOptions && cardOptions.length > 0 && (
-                    <div className="card-options">
-                        <CardOptions 
-                            options={cardOptions}
-                            disabled={disabled}
-                            aria-label="Card actions"
-                        />
-                    </div>
-                )}
-            </header>
+            </Portrait>
 
-            {/* Card content with proper semantic structure */}
             {children && (
-                <div className="card-content" role="region" aria-label="Card content">
+                <div className="flex flex-1 flex-col p-4" role="region" aria-label="Card content">
                     {children}
                 </div>
             )}
-        </article>
+        </Surface>
     )
 }

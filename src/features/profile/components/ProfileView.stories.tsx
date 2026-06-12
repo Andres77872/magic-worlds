@@ -1,0 +1,248 @@
+import type { Meta, StoryObj } from '@storybook/react-vite'
+import type { Membership, UserProfile } from '@/shared'
+import { ProfileView } from './ProfileView'
+
+// Exported for the UsageSection / MembershipSection stories.
+export const membership: Membership = {
+    plan_code: 'free',
+    display_name: 'Free',
+    credits: {
+        period: 'daily',
+        max: 20,
+        used: 6,
+        remaining: 14,
+        usage_date: '2026-06-10',
+    },
+    payg: { balance: 12 },
+    total_available_credits: 26,
+    limits: {
+        chat_interaction: { daily_limit: 20, used_today: 3, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
+        ai_card_generation: { daily_limit: 20, used_today: 1, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
+        image_generation: { daily_limit: 20, used_today: 2, max_in_flight: 2, in_flight: 0, credit_cost: 1 },
+        theme_song_generation: { daily_limit: 5, used_today: 0, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
+        tts_generation: { daily_limit: 20, used_today: 0, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
+    },
+    profile_cards: {
+        current_plan_code: 'free',
+        tiers: [
+            {
+                plan_code: 'free',
+                display_name: 'Free',
+                status: 'current',
+                available: true,
+                reference_only: false,
+                badge: 'Current',
+                description: 'Included daily credits for everyday creation.',
+                highlights: ['20 daily included credits', 'PAYG credits cover overage', 'Core generation tools'],
+                credits: { period: 'daily', max: 20, used: 6, remaining: 14, usage_date: '2026-06-10', preview: false },
+                limits: {
+                    chat_interaction: { daily_limit: 20, used_today: 3, max_in_flight: 1, in_flight: 0, credit_cost: 1, preview: false },
+                    ai_card_generation: { daily_limit: 20, used_today: 1, max_in_flight: 1, in_flight: 0, credit_cost: 1, preview: false },
+                    image_generation: { daily_limit: 20, used_today: 2, max_in_flight: 2, in_flight: 0, credit_cost: 1, preview: false },
+                    theme_song_generation: { daily_limit: 5, used_today: 0, max_in_flight: 1, in_flight: 0, credit_cost: 1, preview: false },
+                    tts_generation: { daily_limit: 20, used_today: 0, max_in_flight: 1, in_flight: 0, credit_cost: 1, preview: false },
+                },
+                visual: { tone: 'current', icon: 'sparkles' },
+                action: { state: 'active', label: 'Current plan', enabled: false },
+            },
+            {
+                plan_code: 'plus',
+                display_name: 'Plus',
+                status: 'locked',
+                available: false,
+                reference_only: true,
+                badge: 'Preview',
+                description: 'Reference tier for more active creators.',
+                highlights: ['100 daily included credits', 'Higher concurrent generation', 'Reference only'],
+                credits: { period: 'daily', max: 100, used: 0, remaining: 100, usage_date: null, preview: true },
+                limits: {
+                    chat_interaction: { daily_limit: 100, used_today: 0, max_in_flight: 2, in_flight: 0, credit_cost: 1, preview: true },
+                    ai_card_generation: { daily_limit: 100, used_today: 0, max_in_flight: 2, in_flight: 0, credit_cost: 1, preview: true },
+                    image_generation: { daily_limit: 100, used_today: 0, max_in_flight: 4, in_flight: 0, credit_cost: 1, preview: true },
+                    theme_song_generation: { daily_limit: 25, used_today: 0, max_in_flight: 2, in_flight: 0, credit_cost: 1, preview: true },
+                    tts_generation: { daily_limit: 100, used_today: 0, max_in_flight: 2, in_flight: 0, credit_cost: 1, preview: true },
+                },
+                visual: { tone: 'locked', icon: 'rocket' },
+                action: { state: 'reference_only', label: 'Reference only', enabled: false },
+            },
+            {
+                plan_code: 'pro',
+                display_name: 'Pro',
+                status: 'locked',
+                available: false,
+                reference_only: true,
+                badge: 'Preview',
+                description: 'Reference tier for studio-scale creative sessions.',
+                highlights: ['500 daily included credits', 'Highest preview limits', 'Reference only'],
+                credits: { period: 'daily', max: 500, used: 0, remaining: 500, usage_date: null, preview: true },
+                limits: {
+                    chat_interaction: { daily_limit: 500, used_today: 0, max_in_flight: 4, in_flight: 0, credit_cost: 1, preview: true },
+                    ai_card_generation: { daily_limit: 500, used_today: 0, max_in_flight: 4, in_flight: 0, credit_cost: 1, preview: true },
+                    image_generation: { daily_limit: 500, used_today: 0, max_in_flight: 8, in_flight: 0, credit_cost: 1, preview: true },
+                    theme_song_generation: { daily_limit: 100, used_today: 0, max_in_flight: 4, in_flight: 0, credit_cost: 1, preview: true },
+                    tts_generation: { daily_limit: 500, used_today: 0, max_in_flight: 4, in_flight: 0, credit_cost: 1, preview: true },
+                },
+                visual: { tone: 'locked', icon: 'crown' },
+                action: { state: 'reference_only', label: 'Reference only', enabled: false },
+            },
+        ],
+        payg: {
+            balance: 12,
+            credit_cost: 1,
+            covered_operations: ['chat_interaction', 'ai_card_generation', 'image_generation', 'theme_song_generation', 'tts_generation'],
+            non_expiring: true,
+            available: false,
+            reference_only: true,
+            badge: 'PAYG',
+            description: 'Non-expiring credits used after included daily credits are exhausted.',
+            highlights: ['12 credits available', '1 credit per action', 'Reference only'],
+            visual: { tone: 'payg', icon: 'coins' },
+            action: { state: 'reference_only', label: 'Reference only', enabled: false },
+        },
+    },
+}
+
+export const baseProfile: UserProfile = {
+    user_hash: 'usr-4f2c9a17-8d3b-4e6a-9c21-7b5e0a1d6f84',
+    username: 'Lyra',
+    user_type: 'consumer',
+    user_usage: 26,
+    membership,
+    card_counts: { character: 7, world: 3, item: 6, adventure_template: 5 },
+}
+
+const meta = {
+    title: 'Features/Profile',
+    component: ProfileView,
+    tags: ['autodocs'],
+    parameters: {
+        layout: 'fullscreen',
+        docs: {
+            description: {
+                component:
+                    'Read-only account/profile view backed by `GET /user/me`: identity, role, content stats, membership reference cards, and account details. The "Edit profile" affordance is intentionally disabled — the API exposes no profile mutations.',
+            },
+        },
+    },
+    decorators: [(Story) => <div className="bg-ink-800 text-parchment-50"><Story /></div>],
+    argTypes: {
+        profile: { control: false },
+        onLogout: { control: false },
+        onDeleteAllData: { control: false },
+    },
+    args: { profile: baseProfile, onLogout: () => {}, onDeleteAllData: async () => {} },
+} satisfies Meta<typeof ProfileView>
+
+export default meta
+type Story = StoryObj<typeof meta>
+
+export const Adventurer: Story = {}
+
+export const Admin: Story = {
+    args: {
+        profile: { ...baseProfile, username: 'Magister Vane', user_type: 'admin' },
+    },
+}
+
+export const Root: Story = {
+    args: {
+        profile: {
+            ...baseProfile,
+            username: 'Root',
+            user_type: 'root',
+            user_usage: 612,
+            membership: {
+                ...membership,
+                payg: { balance: 512 },
+                total_available_credits: 612,
+                profile_cards: {
+                    ...membership.profile_cards!,
+                    payg: {
+                        ...membership.profile_cards!.payg,
+                        balance: 512,
+                        highlights: ['512 credits available', '1 credit per action', 'Reference only'],
+                    },
+                },
+            },
+        },
+    },
+}
+
+export const FreshAccount: Story = {
+    args: {
+        profile: {
+            ...baseProfile,
+            username: 'Newcomer',
+            user_usage: 20,
+            membership: {
+                ...membership,
+                credits: { ...membership.credits, used: 0, remaining: 20 },
+                payg: { balance: 0 },
+                total_available_credits: 20,
+                limits: Object.fromEntries(
+                    Object.entries(membership.limits).map(([operation, limit]) => [
+                        operation,
+                        { ...limit, used_today: 0, in_flight: 0 },
+                    ]),
+                ),
+                profile_cards: {
+                    ...membership.profile_cards!,
+                    tiers: membership.profile_cards!.tiers.map((tier) =>
+                        tier.plan_code === 'free'
+                            ? {
+                                  ...tier,
+                                  credits: { ...tier.credits, used: 0, remaining: 20 },
+                                  limits: Object.fromEntries(
+                                      Object.entries(tier.limits).map(([operation, limit]) => [
+                                          operation,
+                                          { ...limit, used_today: 0, in_flight: 0 },
+                                      ]),
+                                  ),
+                              }
+                            : tier,
+                    ),
+                    payg: {
+                        ...membership.profile_cards!.payg,
+                        balance: 0,
+                        highlights: ['0 credits available', '1 credit per action', 'Reference only'],
+                    },
+                },
+            },
+            card_counts: { character: 0, world: 0, item: 0, adventure_template: 0 },
+        },
+    },
+}
+
+/** Usage meters near and at their limits — exercises the ember → amber → blood fill tones. */
+export const HeavyUsage: Story = {
+    args: {
+        profile: {
+            ...baseProfile,
+            username: 'Nightowl',
+            user_usage: 15,
+            membership: {
+                ...membership,
+                credits: { ...membership.credits, used: 17, remaining: 3 },
+                total_available_credits: 15,
+                limits: {
+                    ...membership.limits,
+                    chat_interaction: { daily_limit: 20, used_today: 20, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
+                    image_generation: { daily_limit: 20, used_today: 17, max_in_flight: 2, in_flight: 1, credit_cost: 1 },
+                    theme_song_generation: { daily_limit: 5, used_today: 2, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
+                },
+            },
+        },
+    },
+}
+
+export const LegacyProfileResponse: Story = {
+    args: {
+        profile: {
+            user_hash: baseProfile.user_hash,
+            username: 'Legacy',
+            user_type: 'consumer',
+            user_usage: 1000,
+            card_counts: baseProfile.card_counts,
+        },
+    },
+}

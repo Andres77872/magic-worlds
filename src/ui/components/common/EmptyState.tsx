@@ -1,5 +1,5 @@
 import type {ReactNode} from 'react';
-import './EmptyState.css';
+import {Button, Eyebrow} from '@/ui/primitives';
 
 interface EmptyStateProps {
     /** The main message to display */
@@ -16,6 +16,8 @@ interface EmptyStateProps {
     };
     /** Additional class name for the container */
     className?: string;
+    /** Optional custom action node rendered below the message/button. */
+    children?: ReactNode;
 }
 
 export function EmptyState({
@@ -24,20 +26,36 @@ export function EmptyState({
                                secondaryText,
                                button,
                                className = '',
+                               children,
                            }: EmptyStateProps) {
     return (
-        <div className={`common-empty-state ${className}`}>
-            {icon && <div className="common-empty-state__icon">{icon}</div>}
-            <h3>{message}</h3>
-            {secondaryText && <p>{secondaryText}</p>}
+        <div
+            className={`col-[1/-1] my-4 flex w-full flex-col items-center justify-center rounded-md border border-dashed border-parchment-50/20 bg-ink-700 px-4 py-6 text-center text-parchment-400 ${className}`}
+        >
+            {icon && (
+                <div className="mb-4 flex items-center justify-center text-parchment-500">
+                    {icon}
+                </div>
+            )}
+            <Eyebrow tone="muted" className="mb-2">Nothing here</Eyebrow>
+            <h3 className="m-0 font-display text-h3 font-semibold text-parchment-50">
+                {message}
+            </h3>
+            {secondaryText && (
+                <p className="mx-auto mb-4 mt-2 max-w-[400px] font-narrative leading-normal text-parchment-400">
+                    {secondaryText}
+                </p>
+            )}
             {button && (
-                <button
-                    className={`btn btn-primary ${button.className || ''}`}
+                <Button
+                    kind="primary"
+                    className={`mt-2 ${button.className || ''}`}
                     onClick={button.onClick}
                 >
                     {button.label}
-                </button>
+                </Button>
             )}
+            {children}
         </div>
     );
 }

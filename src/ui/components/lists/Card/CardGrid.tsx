@@ -1,10 +1,28 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {FaSearch, FaSpinner} from 'react-icons/fa'
-import './Card.css'
+import {Loader2, Search, X} from 'lucide-react'
+import {controlClass, Icon, IconButton} from '@/ui/primitives'
+import {EmptyState} from '../../common/EmptyState'
 
 interface CardGridProps<T> {
     items: T[]
     renderCard: (item: T, index: number) => React.ReactNode
+    /**
+     * `grid` (default) — responsive auto-fill gallery for full pages.
+     * `rail` — a horizontal scroll shelf of fixed-width cards, so a handful of
+     * items reads as an intentional row instead of stretching full width.
+     */
+    layout?: 'grid' | 'rail'
+    /**
+     * Grid column sizing: `comfortable` (default, 240/280px min) or `compact`
+     * (200/220px min) for image-forward galleries of many cards.
+     */
+    density?: 'comfortable' | 'compact'
+    /**
+     * Stable keys for paginated/searched lists. Defaults to the item index,
+     * which is only safe for static lists — pass this whenever items can be
+     * inserted, removed, or reordered.
+     */
+    getItemKey?: (item: T, index: number) => string
     emptyMessage?: React.ReactNode
     loading?: boolean
     loadingComponent?: React.ReactNode
@@ -21,38 +39,12 @@ interface CardGridProps<T> {
     'data-testid'?: string
 }
 
-// Enhanced skeleton card for loading state
-const SkeletonCard = ({ index }: { index: number }) => (
-    <div 
-        className="card skeleton" 
-        aria-hidden="true"
-        style={{
-            animationDelay: `${Math.min(index * 50, 500)}ms`
-        }}
-    >
-        <div className="skeleton skeleton-card" style={{height: '180px'}}/>
-        <div className="skeleton" style={{height: '24px', width: '70%', marginBottom: '8px'}}/>
-        <div className="skeleton" style={{height: '16px', width: '40%'}}/>
-    </div>
-)
-
-// Enhanced empty state component
-const DefaultEmptyState = ({
-                               title = 'No items found',
-                               description = 'There are no items to display at the moment.',
-                               action
-                           }: {
-    title?: string
-    description?: string
-    action?: React.ReactNode
-}) => (
-    <div className="card-grid__empty-state" role="region" aria-label="Empty state">
-        <div className="card-grid__empty-icon">
-            <FaSearch size={48} aria-hidden="true"/>
-        </div>
-        <h3>{title}</h3>
-        <p>{description}</p>
-        {action}
+// Skeleton card for loading state
+const SkeletonCard = () => (
+    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-700 p-4" aria-hidden="true">
+        <div className="mb-4 w-full rounded-sm bg-ink-600" style={{height: '180px'}}/>
+        <div className="rounded-sm bg-ink-600" style={{height: '24px', width: '70%', marginBottom: '8px'}}/>
+        <div className="rounded-sm bg-ink-600" style={{height: '16px', width: '40%'}}/>
     </div>
 )
 
@@ -63,6 +55,9 @@ const DefaultEmptyState = ({
 export function CardGrid<T>({
                                 items,
                                 renderCard,
+                                layout = 'grid',
+                                density = 'comfortable',
+                                getItemKey,
                                 emptyMessage,
                                 emptyStateTitle = 'No items found',
                                 emptyStateDescription = 'There are no items to display at the moment.',
@@ -107,8 +102,8 @@ export function CardGrid<T>({
                 }
             },
             {
-                root: null, 
-                rootMargin: '100px', 
+                root: null,
+                rootMargin: '100px',
                 threshold: 0.1
             }
         )
@@ -136,13 +131,13 @@ export function CardGrid<T>({
                     }
                 })
             },
-            { 
+            {
                 threshold: 0.05,
                 rootMargin: '50px 0px'
             }
         )
 
-        const cards = gridRef.current?.querySelectorAll('.card:not(.visible)')
+        const cards = gridRef.current?.querySelectorAll('[data-card-wrapper]:not(.visible)')
         cards?.forEach((card) => observer.observe(card))
 
         return () => observer.disconnect()
@@ -171,30 +166,34 @@ export function CardGrid<T>({
         }
     }, [handleClearSearch])
 
-    // Memoized rendered cards to prevent unnecessary re-renders
+    // Memoized rendered cards to prevent unnecessary re-renders. In `rail` mode
+    // each card gets a fixed width + scroll-snap so the row reads as a shelf; in
+    // `grid` mode the wrapper is `display:contents` so cards flow in the grid.
     const renderedCards = useMemo(() => {
+        const wrapperClass =
+            layout === 'rail'
+                ? 'w-[min(280px,78vw)] shrink-0 [scroll-snap-align:start]'
+                : 'contents'
         return items.map((item, index) => (
             <div
-                key={`card-${index}`}
-                className="card-wrapper"
-                style={{
-                    animationDelay: `${Math.min(index * 30, 300)}ms`
-                }}
+                key={getItemKey ? getItemKey(item, index) : `card-${index}`}
+                className={wrapperClass}
+                data-card-wrapper
             >
                 {renderCard(item, index)}
             </div>
         ))
-    }, [items, renderCard])
+    }, [items, renderCard, layout, getItemKey])
 
     // Enhanced loading state
     if (loading) {
         return (
-            <div className="loading-container" role="status" aria-live="polite">
+            <div className="flex flex-col items-center justify-center gap-4 p-8 text-parchment-400" role="status" aria-live="polite">
                 {loadingComponent || (
                     <>
-                        <FaSpinner className="card-grid__loading-spinner" aria-hidden="true"/>
+                        <Loader2 className="h-8 w-8 animate-spin text-ember-500" aria-hidden="true"/>
                         <p>Loading items...</p>
-                        <span className="visually-hidden">Loading content, please wait...</span>
+                        <span className="sr-only">Loading content, please wait...</span>
                     </>
                 )}
             </div>
@@ -208,20 +207,24 @@ export function CardGrid<T>({
             return <>{emptyMessage}</>
         }
         return (
-            <DefaultEmptyState
-                title={emptyStateTitle}
-                description={emptyStateDescription}
-                action={emptyStateAction}
-            />
+            <EmptyState
+                icon={<Icon icon={Search} size={48}/>}
+                message={emptyStateTitle}
+                secondaryText={emptyStateDescription}
+            >
+                {emptyStateAction}
+            </EmptyState>
         )
     }
 
     return (
-        <div className="card-grid-container" data-testid={testId}>
+        <div className="w-full" data-testid={testId}>
             {onSearch && (
-                <div className="card-grid-search" role="search">
-                    <div className="card-search-input-container">
-                        <FaSearch className="card-search-icon" aria-hidden="true"/>
+                <div className="mb-6" role="search">
+                    <div className="relative flex max-w-[400px] items-center">
+                        <span className="pointer-events-none absolute left-3 z-[1] flex items-center text-parchment-400">
+                            <Icon icon={Search} size={16}/>
+                        </span>
                         <input
                             ref={searchInputRef}
                             type="text"
@@ -229,64 +232,79 @@ export function CardGrid<T>({
                             value={searchQuery}
                             onChange={handleSearchChange}
                             onKeyDown={handleSearchKeyDown}
-                            className="card-search-input"
+                            className={`${controlClass} pl-10 pr-12`}
                             aria-label="Search items"
                             data-testid="card-grid-search-input"
                         />
                         {isSearching && (
-                            <FaSpinner 
-                                className="card-search-spinner" 
+                            <Loader2
+                                className="absolute right-12 z-[1] animate-spin text-ember-500"
+                                size={16}
                                 aria-hidden="true"
                                 data-testid="search-spinner"
                             />
                         )}
                         {searchQuery && (
-                            <button
-                                type="button"
+                            <IconButton
+                                size="sm"
                                 onClick={handleClearSearch}
-                                className="card-search-clear"
-                                aria-label="Clear search"
+                                label="Clear search"
+                                className="absolute right-2 z-[2]"
                                 data-testid="search-clear"
                             >
-                                ×
-                            </button>
+                                <Icon icon={X} size={18}/>
+                            </IconButton>
                         )}
                     </div>
                 </div>
             )}
 
-            <div 
-                className={`card-grid ${className}`} 
-                role="list" 
+            <div
+                className={
+                    layout === 'rail'
+                        // A horizontal scroller clips vertically too (overflow-x:auto
+                        // forces overflow-y), so pad generously to give the cards'
+                        // hover-lift + ember glow room; the -mx cancels the inline
+                        // padding so cards still align with the section header.
+                        ? `flex gap-4 overflow-x-auto -mx-4 px-4 pb-9 pt-5 [scroll-snap-type:x_proximity] md:gap-5 ${className}`
+                        : density === 'compact'
+                          ? `grid w-full grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-5 ${className}`
+                          : `grid w-full grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] md:gap-6 ${className}`
+                }
+                role="list"
                 ref={gridRef}
-                aria-label={`Grid of ${items.length} items`}
+                aria-label={`${layout === 'rail' ? 'Shelf' : 'Grid'} of ${items.length} items`}
                 data-testid="card-grid-list"
             >
                 {renderedCards}
 
-                {/* Enhanced loading more indicator */}
-                {loadingMore && (
+                {/* Enhanced loading more indicator (paged grids only) */}
+                {layout === 'grid' && loadingMore && (
                     <>
                         {[...Array(3)].map((_, i) => (
-                            <SkeletonCard key={`skeleton-more-${i}`} index={i}/>
+                            <SkeletonCard key={`skeleton-more-${i}`}/>
                         ))}
                     </>
                 )}
 
-                {/* Infinite scroll trigger */}
-                {hasMore && !loadingMore && (
-                    <div 
-                        ref={loadingRef} 
-                        className="load-more-trigger"
+                {/* Infinite scroll trigger (paged grids only) */}
+                {layout === 'grid' && hasMore && !loadingMore && (
+                    <div
+                        ref={loadingRef}
+                        className="h-px w-full"
                         aria-hidden="true"
                         data-testid="load-more-trigger"
                     />
                 )}
             </div>
 
-            {/* Enhanced end of results indicator */}
-            {!hasMore && items.length > 0 && (
-                <div className="end-of-results" role="status">
+            {/* End-of-results indicator — only for paginated galleries, never for
+                short shelves where it would just advertise emptiness. */}
+            {layout === 'grid' && onLoadMore && !hasMore && items.length > 0 && (
+                <div
+                    className="mt-6 border-t border-parchment-50/10 p-6 text-center text-sm text-parchment-400"
+                    role="status"
+                >
                     <p>✨ You've seen all available items ✨</p>
                 </div>
             )}

@@ -2,11 +2,13 @@
  * Authentication provider for managing user state and auth operations
  */
 
-import { createContext, useEffect, useState, type ReactNode } from 'react'
-import type { AuthState, LoginCredentials, LoginResponse, User, Project } from '../../shared'
+import { createContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import type { AuthState, BrowserAuthResponse, LoginCredentials, RegisterData, User, Project } from '../../shared'
+import { apiService } from '../../infrastructure'
 
 interface AuthContextValue extends AuthState {
     login: (credentials: LoginCredentials) => Promise<boolean>
+    register: (data: RegisterData) => Promise<boolean>
     logout: () => void
     clearError: () => void
     isLoginModalOpen: boolean
@@ -20,9 +22,14 @@ interface AuthProviderProps {
     children: ReactNode
 }
 
-const AUTH_API_URL = 'https://auth-v2.arz.ai/auth/login'
-const TOKEN_STORAGE_KEY = 'magic_worlds_token'
-const USER_STORAGE_KEY = 'magic_worlds_user'
+const TOKEN_STORAGE_KEY = 'magic_worlds:token'
+const USER_STORAGE_KEY = 'magic_worlds:user'
+
+type AuthRefreshedDetail = BrowserAuthResponse & { token?: string }
+
+function selectAccessToken(data: BrowserAuthResponse | AuthRefreshedDetail): string {
+    return (data as AuthRefreshedDetail).token || data.session_token || data.access_token || ''
+}
 
 export function AuthProvider({ children }: AuthProviderProps) {
     const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -33,11 +40,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const [error, setError] = useState<string | null>(null)
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
 
+    const clearAuthState = useCallback(() => {
+        setToken(null)
+        setUser(null)
+        setProjects([])
+        setIsAuthenticated(false)
+    }, [])
+
     // Load auth state from localStorage on mount
     useEffect(() => {
         const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY)
         const savedUser = localStorage.getItem(USER_STORAGE_KEY)
-        
+
         if (savedToken && savedUser) {
             try {
                 const parsedUser = JSON.parse(savedUser)
@@ -53,44 +67,124 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
     }, [])
 
+    // Listen for terminal auth expiry events. The API layer emits this only after
+    // refresh itself is denied, not for every protected endpoint 401.
+    useEffect(() => {
+        const handleAuthExpired = () => {
+            clearAuthState()
+            localStorage.removeItem(TOKEN_STORAGE_KEY)
+            localStorage.removeItem(USER_STORAGE_KEY)
+            setError('Session expired, please log in again')
+            setIsLoginModalOpen(true)
+        }
+
+        window.addEventListener('auth:expired', handleAuthExpired)
+        return () => window.removeEventListener('auth:expired', handleAuthExpired)
+    }, [clearAuthState])
+
+    // Refresh succeeds outside React (API/WebSocket layer), then publishes the
+    // new short-lived access token. Keep React state in sync without ever
+    // touching the HttpOnly refresh cookie.
+    useEffect(() => {
+        const handleAuthRefreshed = (event: Event) => {
+            const detail = (event as CustomEvent<AuthRefreshedDetail>).detail
+            const nextToken = detail ? selectAccessToken(detail) : ''
+            if (!nextToken) return
+
+            setToken(nextToken)
+            setIsAuthenticated(true)
+            setError(null)
+            localStorage.setItem(TOKEN_STORAGE_KEY, nextToken)
+
+            if (detail.user) {
+                setUser(detail.user)
+                localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(detail.user))
+            }
+            if (detail.accessible_projects) {
+                setProjects(detail.accessible_projects)
+            }
+        }
+
+        window.addEventListener('auth:refreshed', handleAuthRefreshed)
+        return () => window.removeEventListener('auth:refreshed', handleAuthRefreshed)
+    }, [])
+
     const login = async (credentials: LoginCredentials): Promise<boolean> => {
         setIsLoading(true)
         setError(null)
 
         try {
-            const formData = new FormData()
-            formData.append('username', credentials.username)
-            formData.append('password', credentials.password)
+            const data = await apiService.login(credentials)
+            const nextToken = selectAccessToken(data)
 
-            const response = await fetch(AUTH_API_URL, {
-                method: 'POST',
-                body: formData,
-            })
-
-            if (!response.ok) {
-                throw new Error(`Login failed: ${response.status} ${response.statusText}`)
-            }
-
-            const data: LoginResponse = await response.json()
-
-            if (data.success) {
+            if (data.success && nextToken && data.user) {
                 // Save auth data
-                setToken(data.session_token)
+                setToken(nextToken)
                 setUser(data.user)
-                setProjects(data.accessible_projects)
+                setProjects(data.accessible_projects || [])
                 setIsAuthenticated(true)
 
                 // Persist to localStorage
-                localStorage.setItem(TOKEN_STORAGE_KEY, data.session_token)
+                localStorage.setItem(TOKEN_STORAGE_KEY, nextToken)
                 localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.user))
 
                 return true
             } else {
-                throw new Error(data.message || 'Login failed')
+                setError(data.message || 'Login failed')
+                return false
             }
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
-            setError(errorMessage)
+            if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                setError('Authentication service unavailable')
+            } else {
+                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
+                setError(errorMessage)
+            }
+            return false
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const register = async (data: RegisterData): Promise<boolean> => {
+        setIsLoading(true)
+        setError(null)
+
+        try {
+            const response = await apiService.register(data)
+
+            // Some providers return a session_token on register; most (incl.
+            // api.auth) do not. If we got one, use it; otherwise auto-login with
+            // the same credentials so the user ends up authenticated with a
+            // valid Bearer token instead of a tokenless "authenticated" state.
+            const tokenFromRegister = selectAccessToken(response)
+
+            if (tokenFromRegister) {
+                setToken(tokenFromRegister)
+                if (response.user) setUser(response.user)
+                setProjects(response.accessible_projects || [])
+                setIsAuthenticated(true)
+                localStorage.setItem(TOKEN_STORAGE_KEY, tokenFromRegister)
+                if (response.user) {
+                    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.user))
+                }
+                return true
+            }
+
+            // No token on register → log in to obtain one.
+            return await login({ username: data.username, password: data.password })
+        } catch (error) {
+            if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                setError('Registration service unavailable')
+            } else {
+                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
+                // Check for 409 conflict
+                if (errorMessage.includes('409') || errorMessage.includes('already exists')) {
+                    setError('Username already exists')
+                } else {
+                    setError(errorMessage)
+                }
+            }
             return false
         } finally {
             setIsLoading(false)
@@ -98,12 +192,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     const logout = () => {
-        setToken(null)
-        setUser(null)
-        setProjects([])
-        setIsAuthenticated(false)
+        // Fire-and-forget: call API logout, then clear local state
+        apiService.logout().catch(err => {
+            // Logout API call is fire-and-forget — ignore failures
+            console.warn('Logout API call failed (non-critical):', err)
+        })
+
+        clearAuthState()
         setError(null)
-        
+
         // Clear localStorage
         localStorage.removeItem(TOKEN_STORAGE_KEY)
         localStorage.removeItem(USER_STORAGE_KEY)
@@ -113,9 +210,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setError(null)
     }
 
-    const openLoginModal = () => {
+    const openLoginModal = useCallback(() => {
         setIsLoginModalOpen(true)
-    }
+    }, [])
 
     const closeLoginModal = () => {
         setIsLoginModalOpen(false)
@@ -131,10 +228,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         error,
         isLoginModalOpen,
         login,
+        register,
         logout,
         clearError,
         openLoginModal,
-        closeLoginModal
+        closeLoginModal,
     }
 
     return (
@@ -145,4 +243,4 @@ export function AuthProvider({ children }: AuthProviderProps) {
 }
 
 // Export the context for use in hooks
-export { AuthContext } 
+export { AuthContext }

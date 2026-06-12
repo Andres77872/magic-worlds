@@ -1,0 +1,29 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import { RadiusScale } from '../Swatch'
+
+<Meta title="Design System/Foundations/Spacing & Radii" />
+
+# Spacing & Radii
+
+## Spacing
+
+Layout uses Tailwind's **4px base scale** — every `p-*`, `m-*`, and `gap-*`
+utility is a multiple of `0.25rem` (`gap-1` = 4px, `gap-4` = 16px, `gap-6` =
+24px…). Rhythm is generous and unhurried: this is a reading product, so vertical
+breathing room is wide and narrative line-length is capped around **62ch**.
+
+Chrome is compact; content is roomy. Fixed elements anchor the layout — the
+app's left rail and bottom composer, and the marketing nav that floats over the
+hero.
+
+## Corner radii
+
+Soft, but not pill-everything. Defined as `--radius-*` tokens (Tailwind
+`rounded-*`), read live below:
+
+<RadiusScale />
+
+- `radius-md` (12px) — inputs & buttons
+- `radius-lg`–`radius-xl` (16–22px) — cards
+- `radius-2xl` (28px) — modals
+- Fully round (`rounded-full`) — avatars, chips, badges

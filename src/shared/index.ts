@@ -3,4 +3,6 @@
  */
 
 export * from './types'
+export * from './worldPlaceTypes'
 export * from './hooks'
+export * from './modes'

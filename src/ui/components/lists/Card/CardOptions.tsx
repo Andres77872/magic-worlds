@@ -1,7 +1,17 @@
-import {useCallback, useEffect, useRef, useState} from 'react'
-import {FaEdit, FaEllipsisV, FaExternalLinkAlt, FaPlay, FaTrash} from 'react-icons/fa'
-import './Card.css'
-import {useClickOutside} from '../../../../shared/hooks/useClickOutside'
+import {
+    useCallback,
+    useEffect,
+    useId,
+    useLayoutEffect,
+    useRef,
+    useState,
+    type ReactNode,
+    type RefObject,
+} from 'react'
+import { createPortal } from 'react-dom'
+import { ExternalLink, MoreVertical, Pencil, Play, Trash2 } from 'lucide-react'
+import { useClickOutside } from '../../../../shared/hooks/useClickOutside'
+import { cx, Icon, IconButton } from '@/ui/primitives'
 
 export type CardOptionType = 'open' | 'edit' | 'start' | 'delete' | 'custom'
 
@@ -10,251 +20,359 @@ export interface CardOptionBase {
     label: string
     onClick: () => void
     disabled?: boolean
-    icon?: React.ReactNode
+    icon?: ReactNode
     danger?: boolean
+    separatorBefore?: boolean
 }
 
 export interface CustomCardOption extends Omit<CardOptionBase, 'type'> {
     type: 'custom'
-    icon: React.ReactNode
+    icon: ReactNode
 }
 
 export type CardOption = CardOptionBase | CustomCardOption
+
+export interface CardMenuAnchor {
+    top: number
+    left: number
+}
+
+interface CardActionMenuProps {
+    options: CardOption[]
+    open: boolean
+    anchor: CardMenuAnchor | null
+    disabled?: boolean
+    labelledBy?: string
+    menuId?: string
+    menuTestId?: string
+    optionTestIdPrefix?: string
+    excludeRefs?: Array<RefObject<HTMLElement>>
+    returnFocusRef?: RefObject<HTMLElement>
+    onClose: () => void
+}
 
 interface CardOptionsProps {
     options: CardOption[]
     align?: 'left' | 'right'
     className?: string
     disabled?: boolean
+    forceMenu?: boolean
+    triggerIcon?: ReactNode
+    triggerTestId?: string
+    menuTestId?: string
+    optionTestIdPrefix?: string
+    onOpenChange?: (isOpen: boolean) => void
     'aria-label'?: string
 }
 
-/**
- * Enhanced dropdown menu for card actions with improved accessibility, visual feedback,
- * and mystical theme integration for role-playing AI app
- */
-export function CardOptions({
-                                options,
-                                align = 'right',
-                                className = '',
-                                disabled = false,
-                                'aria-label': ariaLabel = 'Card options'
-                            }: CardOptionsProps) {
-    const [isOpen, setIsOpen] = useState(false)
-    const menuRef = useRef<HTMLDivElement>(null!)
-    const buttonRef = useRef<HTMLButtonElement>(null!)
-    const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+const MENU_WIDTH = 216
+const MENU_GAP = 8
+const VIEWPORT_MARGIN = 8
 
-    // Close menu when clicking outside
+function clampAnchor(anchor: CardMenuAnchor, menu: HTMLDivElement | null): CardMenuAnchor {
+    if (typeof window === 'undefined') return anchor
+    const width = menu?.offsetWidth || MENU_WIDTH
+    const height = menu?.offsetHeight || 0
+    const maxLeft = window.innerWidth - width - VIEWPORT_MARGIN
+    const maxTop = window.innerHeight - height - VIEWPORT_MARGIN
+    return {
+        left: Math.max(VIEWPORT_MARGIN, Math.min(anchor.left, maxLeft)),
+        top: Math.max(VIEWPORT_MARGIN, Math.min(anchor.top, maxTop)),
+    }
+}
+
+function iconForOption(type: CardOptionType): ReactNode {
+    const iconMap: Record<CardOptionType, ReactNode> = {
+        delete: <Icon icon={Trash2} size={15} />,
+        edit: <Icon icon={Pencil} size={15} />,
+        start: <Icon icon={Play} size={15} />,
+        open: <Icon icon={ExternalLink} size={15} />,
+        custom: null,
+    }
+    return iconMap[type]
+}
+
+function nextEnabledIndex(options: CardOption[], currentIndex: number, direction: 1 | -1): number {
+    if (options.length === 0) return -1
+    let next = currentIndex
+    for (let i = 0; i < options.length; i += 1) {
+        next = (next + direction + options.length) % options.length
+        if (!options[next].disabled) return next
+    }
+    return -1
+}
+
+export function CardActionMenu({
+    options,
+    open,
+    anchor,
+    disabled = false,
+    labelledBy,
+    menuId,
+    menuTestId = 'card-options-menu',
+    optionTestIdPrefix = 'card-option',
+    excludeRefs,
+    returnFocusRef,
+    onClose,
+}: CardActionMenuProps) {
+    const fallbackId = useId()
+    const resolvedMenuId = menuId ?? `card-action-menu-${fallbackId}`
+    const menuRef = useRef<HTMLDivElement>(null!)
+    const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+    const [coords, setCoords] = useState<CardMenuAnchor | null>(anchor)
+
+    const closeMenu = useCallback(() => {
+        onClose()
+        returnFocusRef?.current?.focus()
+    }, [onClose, returnFocusRef])
+
     useClickOutside(
         menuRef,
         () => {
-            if (isOpen) {
-                closeMenu()
-            }
+            if (open) closeMenu()
         },
-        [buttonRef]
+        excludeRefs,
     )
 
-    // Enhanced menu management
-    const openMenu = useCallback(() => {
-        if (disabled) return
-        setIsOpen(true)
-        // Focus first item after animation
-        setTimeout(() => {
-            itemRefs.current[0]?.focus()
-        }, 150)
-    }, [disabled])
+    useLayoutEffect(() => {
+        if (!open || !anchor) return
+        setCoords(clampAnchor(anchor, menuRef.current))
+    }, [anchor, open])
 
-    const closeMenu = useCallback(() => {
-        setIsOpen(false)
-        buttonRef.current?.focus()
-    }, [])
-
-    // Enhanced keyboard navigation
     useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (!isOpen) return
+        if (!open) return
+        const firstEnabled = options.findIndex((option) => !option.disabled)
+        const timer = window.setTimeout(() => {
+            itemRefs.current[firstEnabled >= 0 ? firstEnabled : 0]?.focus()
+        }, 0)
+        return () => window.clearTimeout(timer)
+    }, [open, options])
 
-            switch (e.key) {
+    useEffect(() => {
+        if (!open) return
+        const handleKeyDown = (event: KeyboardEvent) => {
+            switch (event.key) {
                 case 'Escape':
-                    e.preventDefault()
+                    event.preventDefault()
                     closeMenu()
                     break
                 case 'ArrowDown':
-                    e.preventDefault()
-                    {
-                        const currentFocus = document.activeElement as HTMLButtonElement
-                        const currentIndex = itemRefs.current.indexOf(currentFocus)
-                        const nextIndex = currentIndex < options.length - 1 ? currentIndex + 1 : 0
-                        itemRefs.current[nextIndex]?.focus()
-                    }
+                case 'ArrowUp': {
+                    event.preventDefault()
+                    const currentIndex = itemRefs.current.indexOf(document.activeElement as HTMLButtonElement)
+                    const fallback = event.key === 'ArrowDown' ? -1 : 0
+                    const next = nextEnabledIndex(options, currentIndex >= 0 ? currentIndex : fallback, event.key === 'ArrowDown' ? 1 : -1)
+                    if (next >= 0) itemRefs.current[next]?.focus()
                     break
-                case 'ArrowUp':
-                    e.preventDefault()
-                    {
-                        const currentFocus = document.activeElement as HTMLButtonElement
-                        const currentIndex = itemRefs.current.indexOf(currentFocus)
-                        const nextIndex = currentIndex > 0 ? currentIndex - 1 : options.length - 1
-                        itemRefs.current[nextIndex]?.focus()
-                    }
+                }
+                case 'Home': {
+                    event.preventDefault()
+                    const next = options.findIndex((option) => !option.disabled)
+                    if (next >= 0) itemRefs.current[next]?.focus()
                     break
-                case 'Home':
-                    e.preventDefault()
-                    itemRefs.current[0]?.focus()
+                }
+                case 'End': {
+                    event.preventDefault()
+                    const next = options
+                        .map((option, index) => ({ option, index }))
+                        .reverse()
+                        .find(({ option }) => !option.disabled)?.index
+                    if (next !== undefined) itemRefs.current[next]?.focus()
                     break
-                case 'End':
-                    e.preventDefault()
-                    {
-                        const lastIndex = options.length - 1
-                        itemRefs.current[lastIndex]?.focus()
-                    }
-                    break
+                }
                 case 'Tab':
-                    // Allow tabbing out of menu
                     closeMenu()
                     break
             }
         }
 
-        if (isOpen) {
-            document.addEventListener('keydown', handleKeyDown)
-        }
-
+        document.addEventListener('keydown', handleKeyDown)
         return () => document.removeEventListener('keydown', handleKeyDown)
-    }, [isOpen, options.length, closeMenu])
+    }, [closeMenu, open, options])
 
-    const toggleMenu = useCallback((e: React.MouseEvent) => {
-        e.stopPropagation()
+    if (!open || !anchor || options.length === 0 || typeof document === 'undefined') return null
+
+    const renderedCoords = coords ?? anchor
+
+    return createPortal(
+        <div
+            ref={menuRef}
+            id={resolvedMenuId}
+            style={{ position: 'fixed', top: renderedCoords.top, left: renderedCoords.left }}
+            className="z-[100] min-w-[216px] max-w-[min(260px,calc(100vw-16px))] overflow-hidden rounded-lg border border-parchment-50/10 bg-ink-800/95 py-1 shadow-xl ring-1 ring-ink-900/60 backdrop-blur-md"
+            role="menu"
+            aria-orientation="vertical"
+            aria-labelledby={labelledBy}
+            data-testid={menuTestId}
+        >
+            {options.map((option, index) => {
+                const icon = option.icon || iconForOption(option.type)
+                const isDanger = option.danger || option.type === 'delete'
+                const isHighlight = ['start', 'open', 'edit'].includes(option.type)
+                const isDisabled = disabled || option.disabled
+
+                return (
+                    <button
+                        key={`${option.type}-${option.label}-${index}`}
+                        ref={(el) => {
+                            itemRefs.current[index] = el
+                        }}
+                        className={cx(
+                            'flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left font-ui text-[13px] font-semibold leading-tight transition-colors hover:bg-parchment-50/[.06] disabled:cursor-not-allowed disabled:opacity-45',
+                            option.separatorBefore && 'mt-1 border-t border-parchment-50/[.08]',
+                            isDanger ? 'text-blood-500 hover:bg-blood-500/15' : 'text-parchment-200 hover:text-parchment-50',
+                            isHighlight && !isDanger && 'text-ember-300',
+                        )}
+                        onClick={(event) => {
+                            event.stopPropagation()
+                            if (isDisabled) return
+                            option.onClick()
+                            closeMenu()
+                        }}
+                        disabled={isDisabled}
+                        role="menuitem"
+                        tabIndex={0}
+                        data-danger={isDanger ? '' : undefined}
+                        data-highlight={isHighlight ? '' : undefined}
+                        aria-label={option.label}
+                        type="button"
+                        data-testid={`${optionTestIdPrefix}-${option.type}`}
+                    >
+                        {icon && (
+                            <span className="flex w-5 shrink-0 items-center justify-center" aria-hidden="true">
+                                {icon}
+                            </span>
+                        )}
+                        <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                    </button>
+                )
+            })}
+        </div>,
+        document.body,
+    )
+}
+
+/**
+ * Dropdown menu for card actions. The trigger is the Reverie `IconButton`
+ * (a single option renders a labelled icon button directly); the menu panel
+ * keeps the ink surface + click-outside / keyboard / focus management.
+ */
+export function CardOptions({
+    options,
+    align = 'right',
+    className = '',
+    disabled = false,
+    forceMenu = false,
+    triggerIcon,
+    triggerTestId = 'card-options-button',
+    menuTestId = 'card-options-menu',
+    optionTestIdPrefix = 'card-option',
+    onOpenChange,
+    'aria-label': ariaLabel = 'Card options',
+}: CardOptionsProps) {
+    const id = useId()
+    const buttonId = `card-options-button-${id}`
+    const menuId = `card-options-menu-${id}`
+    const [isOpen, setIsOpen] = useState(false)
+    const [anchor, setAnchor] = useState<CardMenuAnchor | null>(null)
+    const buttonRef = useRef<HTMLButtonElement>(null!)
+
+    const buttonAnchor = useCallback((): CardMenuAnchor | null => {
+        const button = buttonRef.current
+        if (!button) return null
+        const rect = button.getBoundingClientRect()
+        return {
+            top: rect.bottom + MENU_GAP,
+            left: align === 'left' ? rect.left : rect.right - MENU_WIDTH,
+        }
+    }, [align])
+
+    const closeMenu = useCallback(() => {
+        setIsOpen(false)
+        onOpenChange?.(false)
+    }, [onOpenChange])
+
+    const openMenu = useCallback(() => {
         if (disabled) return
-        
-        if (isOpen) {
-            closeMenu()
-        } else {
-            openMenu()
-        }
-    }, [disabled, isOpen, openMenu, closeMenu])
+        const nextAnchor = buttonAnchor()
+        if (!nextAnchor) return
+        setAnchor(nextAnchor)
+        setIsOpen(true)
+        onOpenChange?.(true)
+    }, [buttonAnchor, disabled, onOpenChange])
 
-    const handleItemClick = useCallback((e: React.MouseEvent, onClick: () => void, index: number) => {
-        e.stopPropagation()
-        if (disabled || options[index].disabled) return
-        
-        onClick()
-        closeMenu()
-    }, [disabled, options, closeMenu])
-
-    const handleItemKeyDown = useCallback((e: React.KeyboardEvent, onClick: () => void, index: number) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            if (!disabled && !options[index].disabled) {
-                onClick()
-                closeMenu()
-            }
+    useEffect(() => {
+        if (!isOpen) return
+        const onReflow = () => {
+            const nextAnchor = buttonAnchor()
+            if (nextAnchor) setAnchor(nextAnchor)
         }
-    }, [disabled, options, closeMenu])
-
-    // Get icon based on option type with improved mapping
-    const getIcon = useCallback((type: CardOptionType) => {
-        const iconMap = {
-            delete: <FaTrash aria-hidden="true"/>,
-            edit: <FaEdit aria-hidden="true"/>,
-            start: <FaPlay aria-hidden="true"/>,
-            open: <FaExternalLinkAlt aria-hidden="true"/>,
-            custom: null
+        window.addEventListener('scroll', onReflow, true)
+        window.addEventListener('resize', onReflow)
+        return () => {
+            window.removeEventListener('scroll', onReflow, true)
+            window.removeEventListener('resize', onReflow)
         }
-        return iconMap[type]
-    }, [])
+    }, [buttonAnchor, isOpen])
 
     if (options.length === 0) return null
 
-    // Enhanced single option rendering
-    if (options.length === 1) {
+    if (options.length === 1 && !forceMenu) {
         const option = options[0]
         const isDisabled = disabled || option.disabled
-        
+
         return (
-            <button
-                className={`card-option-single ${option.danger ? 'danger' : ''} ${className}`}
-                onClick={(e) => {
-                    e.stopPropagation()
-                    if (!isDisabled) {
-                        option.onClick()
-                    }
+            <IconButton
+                size="sm"
+                tone={option.danger ? 'danger' : 'default'}
+                className={className}
+                onClick={(event) => {
+                    event.stopPropagation()
+                    if (!isDisabled) option.onClick()
                 }}
                 disabled={isDisabled}
-                aria-label={option.label}
-                title={option.label}
-                type="button"
+                label={option.label}
                 data-testid="card-option-single"
             >
-                {option.icon || getIcon(option.type)}
-            </button>
+                {option.icon || iconForOption(option.type)}
+            </IconButton>
         )
     }
 
-    const menuId = `card-options-menu-${Math.random().toString(36).substr(2, 9)}`
-
     return (
-        <div className={`card-options ${className}`}>
-            <button
+        <div className={cx('relative', className)}>
+            <IconButton
                 ref={buttonRef}
-                className="card-options-button"
-                onClick={toggleMenu}
+                id={buttonId}
+                size="sm"
+                onClick={(event) => {
+                    event.stopPropagation()
+                    if (isOpen) closeMenu()
+                    else openMenu()
+                }}
                 disabled={disabled}
-                aria-label={ariaLabel}
+                label={ariaLabel}
                 aria-expanded={isOpen}
                 aria-haspopup="menu"
                 aria-controls={menuId}
-                type="button"
-                data-testid="card-options-button"
+                data-testid={triggerTestId}
             >
-                <FaEllipsisV/>
-            </button>
+                {triggerIcon || <Icon icon={MoreVertical} size={16} />}
+            </IconButton>
 
-            <div
-                ref={menuRef}
-                id={menuId}
-                className={`card-options-menu ${align === 'left' ? 'align-left' : ''}`}
-                role="menu"
-                aria-orientation="vertical"
-                aria-labelledby={buttonRef.current?.id || 'card-options-button'}
-                data-enter={isOpen ? '' : undefined}
-                data-testid="card-options-menu"
-            >
-                {options.map((option, index) => {
-                    const icon = option.icon || getIcon(option.type)
-                    const isDanger = option.danger || option.type === 'delete'
-                    const isHighlight = ['start', 'open', 'edit'].includes(option.type)
-                    const isDisabled = disabled || option.disabled
-
-                    return (
-                        <button
-                            key={`${option.type}-${index}`}
-                            ref={(el) => {
-                                itemRefs.current[index] = el
-                            }}
-                            className="card-options-item"
-                            onClick={(e) => handleItemClick(e, option.onClick, index)}
-                            onKeyDown={(e) => handleItemKeyDown(e, option.onClick, index)}
-                            disabled={isDisabled}
-                            role="menuitem"
-                            tabIndex={isOpen ? 0 : -1}
-                            data-danger={isDanger ? '' : undefined}
-                            data-highlight={isHighlight ? '' : undefined}
-                            aria-label={option.label}
-                            type="button"
-                            data-testid={`card-option-${option.type}`}
-                        >
-                            {icon && (
-                                <span className="option-icon" aria-hidden="true">
-                                    {icon}
-                                </span>
-                            )}
-                            <span>{option.label}</span>
-                        </button>
-                    )
-                })}
-            </div>
+            <CardActionMenu
+                options={options}
+                open={isOpen}
+                anchor={anchor}
+                disabled={disabled}
+                labelledBy={buttonId}
+                menuId={menuId}
+                menuTestId={menuTestId}
+                optionTestIdPrefix={optionTestIdPrefix}
+                excludeRefs={[buttonRef as RefObject<HTMLElement>]}
+                returnFocusRef={buttonRef as RefObject<HTMLElement>}
+                onClose={closeMenu}
+            />
         </div>
     )
 }

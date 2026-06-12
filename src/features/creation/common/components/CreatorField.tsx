@@ -1,16 +1,19 @@
 /**
- * Common field component for creator forms
+ * Common field component for creator forms — delegates to the Reverie <Field>
+ * primitive. Help text is shown inline (no floating popover that can overflow).
  */
 
 import type { ReactNode } from 'react';
-import { FaQuestionCircle } from 'react-icons/fa';
-import '../styles/CreatorField.css';
+import { Field, Input, Textarea } from '@/ui/primitives';
 
 export interface CreatorFieldProps {
     label: string;
     htmlFor?: string;
     required?: boolean;
+    /** Optional helper text rendered inline beneath the control. */
     tooltip?: string;
+    /** Inline validation error — takes priority over the helper text. */
+    error?: ReactNode;
     children: ReactNode;
     className?: string;
 }
@@ -20,29 +23,21 @@ export function CreatorField({
     htmlFor,
     required = false,
     tooltip,
+    error,
     children,
     className = ''
 }: CreatorFieldProps) {
+    const labelNode = (
+        <>
+            {label}
+            {required && <span className="ml-1 text-blood-500">*</span>}
+        </>
+    );
+
     return (
-        <div className={`creator-field ${className}`}>
-            <label className="creator-field-label" htmlFor={htmlFor}>
-                {label}
-                {required && <span className="creator-field-required">*</span>}
-            </label>
-            <div className="creator-field-wrapper">
-                <div className="creator-field-input-wrapper">
-                    {children}
-                </div>
-                {tooltip && (
-                    <span className="creator-tooltip-trigger">
-                        <FaQuestionCircle />
-                        <div className="creator-tooltip">
-                            {tooltip}
-                        </div>
-                    </span>
-                )}
-            </div>
-        </div>
+        <Field label={labelNode} htmlFor={htmlFor} helper={tooltip} error={error} className={className}>
+            {children}
+        </Field>
     );
 }
 
@@ -55,6 +50,7 @@ interface InputProps {
     required?: boolean;
     autoFocus?: boolean;
     rows?: number;
+    maxLength?: number;
     className?: string;
 }
 
@@ -66,18 +62,20 @@ export function CreatorInput({
     placeholder,
     required,
     autoFocus,
+    maxLength,
     className = ''
 }: InputProps) {
     return (
-        <input
+        <Input
             id={id}
-            className={`creator-field-input ${className}`}
+            className={className}
             type={type}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             required={required}
             autoFocus={autoFocus}
+            maxLength={maxLength}
         />
     );
 }
@@ -90,18 +88,20 @@ export function CreatorTextarea({
     required,
     autoFocus,
     rows = 4,
+    maxLength,
     className = ''
 }: InputProps) {
     return (
-        <textarea
+        <Textarea
             id={id}
-            className={`creator-field-textarea ${className}`}
+            className={`leading-normal ${className}`}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             required={required}
             autoFocus={autoFocus}
             rows={rows}
+            maxLength={maxLength}
         />
     );
-} 
+}

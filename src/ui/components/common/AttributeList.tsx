@@ -3,10 +3,10 @@
  * Reusable component for managing attributes for any entity type (characters, worlds, adventures)
  */
 
-import { FaPlus, FaTimes, FaTrashAlt } from 'react-icons/fa';
-import { useState } from 'react';
-import { ConfirmDialog } from '../ConfirmDialog';
-import './AttributeList.css';
+import {Plus, Trash2, X} from 'lucide-react';
+import {useState} from 'react';
+import {ConfirmDialog} from '../ConfirmDialog';
+import {Button, Icon, IconButton, Input, Textarea} from '@/ui/primitives';
 
 export type AttributeType = 'stat' | 'skill' | 'trait' | 'equipment' | 'detail' | 'custom';
 
@@ -68,77 +68,84 @@ export const AttributeList = ({
   const defaultAddButtonLabel = `Add ${category.name.slice(0, -1)}`;
 
   return (
-    <div className="attribute-section">
-      <div className="attribute-header">
-        <div className="attribute-title-area">
-          <h3>{category.name}</h3>
+    <div className="mb-4 rounded-lg border border-parchment-50/10 bg-ink-700 p-4">
+      <div className="mb-4 flex flex-col items-start justify-between gap-2 md:flex-row md:items-start">
+        <div className="flex-1">
+          <h3 className="m-0 mb-2 font-display text-lg font-semibold text-parchment-50">{category.name}</h3>
           {category.description && (
-            <p className="attribute-description">{category.description}</p>
+            <p className="m-0 font-narrative text-sm leading-snug text-parchment-400">{category.description}</p>
           )}
         </div>
-        <div className="attribute-actions">
-          <button
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 md:w-auto md:justify-end">
+          <Button
             type="button"
-            className="btn btn-secondary btn-sm"
+            kind="secondary"
+            size="sm"
+            iconLeft={<Icon icon={Plus} size={14} />}
             onClick={onAddAttribute}
             title={`Add a new ${category.name.slice(0, -1)}`}
           >
-            <FaPlus /> {addButtonLabel || defaultAddButtonLabel}
-          </button>
+            {addButtonLabel || defaultAddButtonLabel}
+          </Button>
           {isDeletable && onDeleteCategory && (
-            <button
+            <Button
               type="button"
-              className="btn btn-danger btn-sm"
+              kind="danger"
+              size="sm"
+              iconLeft={<Icon icon={Trash2} size={14} />}
               onClick={handleDeleteClick}
               title={`Delete ${category.name} category`}
             >
-              <FaTrashAlt /> Delete
-            </button>
+              Delete
+            </Button>
           )}
         </div>
       </div>
 
-      <div className="attributes-list">
+      <div className="flex flex-col gap-2">
         {attributes.length === 0 && (
-          <div className="empty-attributes">
-            <p>No {category.name.toLowerCase()} added yet. Click the button above to add some.</p>
+          <div className="rounded-sm bg-ink-600 p-4 text-center font-narrative italic text-parchment-400">
+            <p className="m-0">No {category.name.toLowerCase()} added yet. Click the button above to add some.</p>
           </div>
         )}
 
         {attributes.map((attr, index) => (
-          <div key={index} className="attribute-row">
-            <input
-              className="field-input attribute-key"
+          <div
+            key={index}
+            className="flex flex-col items-start gap-2 rounded-sm border-b border-parchment-50/10 p-2 pb-2 transition-colors hover:bg-ink-600 md:flex-row md:border-b-0"
+          >
+            <Input
+              className="w-full flex-1 md:w-auto"
               type="text"
               placeholder={keyPlaceholder || defaultKeyPlaceholder}
               value={attr.key}
               onChange={(e) => onUpdateAttribute(index, 'key', e.target.value)}
             />
             {valueIsTextarea ? (
-              <textarea
-                className="field-input attribute-value"
+              <Textarea
+                className="w-full flex-[2] min-h-[60px] md:w-auto"
                 placeholder={valuePlaceholder || defaultValuePlaceholder}
                 value={attr.value}
                 onChange={(e) => onUpdateAttribute(index, 'value', e.target.value)}
                 rows={2}
               />
             ) : (
-              <input
-                className="field-input attribute-value"
+              <Input
+                className="w-full flex-[2] md:w-auto"
                 type="text"
                 placeholder={valuePlaceholder || defaultValuePlaceholder}
                 value={attr.value}
                 onChange={(e) => onUpdateAttribute(index, 'value', e.target.value)}
               />
             )}
-            <button
-              type="button"
-              className="btn btn-danger btn-sm"
+            <IconButton
+              tone="danger"
+              size="sm"
               onClick={() => onRemoveAttribute(index)}
-              title="Remove"
+              label="Remove"
             >
-              <FaTimes />
-            </button>
+              <Icon icon={X} size={14} />
+            </IconButton>
           </div>
         ))}
       </div>

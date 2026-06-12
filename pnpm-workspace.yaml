@@ -1,0 +1,16 @@
+# pnpm 11 reads project-wide settings from this file (the "pnpm" field in
+# package.json is no longer honored). https://pnpm.io/settings
+#
+# pnpm blocks dependency install/build scripts by default (a security measure).
+# Since Vite 8 the bundler stack is Rolldown + Oxc, which ship prebuilt native
+# binaries as platform packages (e.g. @rolldown/binding-linux-x64-gnu) and run
+# no install scripts — so no dependency currently requires build approval.
+#
+# If a future dependency needs its install/build script to run, allow it here:
+#   allowBuilds:
+#     <package-name>: true
+
+allowBuilds:
+  # Storybook 10's bundling stack pulls in esbuild, whose install script links
+  # the prebuilt platform binary. Allowed so `storybook dev`/`build` work.
+  esbuild: true

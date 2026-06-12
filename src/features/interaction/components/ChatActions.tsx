@@ -1,4 +1,5 @@
-import './ChatActions.css'
+import { Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import { IconButton } from '../../../ui/primitives'
 
 interface ChatActionsProps {
     turnId: string
@@ -17,43 +18,25 @@ export function ChatActions({
     isStreaming,
     onEditClick,
     onRegenerateClick,
-    onDeleteClick
+    onDeleteClick,
 }: ChatActionsProps) {
     return (
-        <div className="chat-actions">
+        <div className="flex items-center gap-0.5">
             {onEditClick && !isEditing && !isStreaming && (
-                <button 
-                    className="chat-actions__btn chat-actions__btn--edit interaction-focusable"
-                    onClick={onEditClick}
-                    aria-label="Edit message"
-                    title="Edit this message"
-                >
-                    <span className="chat-actions__icon">✏️</span>
-                    <span className="interaction-hide-mobile">Edit</span>
-                </button>
+                <IconButton label="Edit message" size="sm" onClick={onEditClick}>
+                    <Pencil size={14} strokeWidth={1.75} />
+                </IconButton>
             )}
             {!isUser && onRegenerateClick && !isStreaming && !isEditing && (
-                <button 
-                    className="chat-actions__btn chat-actions__btn--regenerate interaction-focusable"
-                    onClick={() => onRegenerateClick(turnId)}
-                    aria-label="Regenerate response"
-                    title="Regenerate this response"
-                >
-                    <span className="chat-actions__icon chat-actions__icon--rotate">↻</span>
-                    <span className="interaction-hide-mobile">Regenerate</span>
-                </button>
+                <IconButton label="Regenerate response" size="sm" onClick={() => onRegenerateClick(turnId)}>
+                    <RotateCcw size={14} strokeWidth={1.75} />
+                </IconButton>
             )}
             {onDeleteClick && !isStreaming && !isEditing && (
-                <button 
-                    className="chat-actions__btn chat-actions__btn--delete interaction-focusable"
-                    onClick={() => onDeleteClick(turnId)}
-                    aria-label="Delete message"
-                    title="Delete this message"
-                >
-                    <span className="chat-actions__icon">🗑️</span>
-                    <span className="interaction-hide-mobile">Delete</span>
-                </button>
+                <IconButton label="Delete message" size="sm" tone="danger" onClick={() => onDeleteClick(turnId)}>
+                    <Trash2 size={14} strokeWidth={1.75} />
+                </IconButton>
             )}
         </div>
     )
-} 
+}

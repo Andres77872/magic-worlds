@@ -15,7 +15,26 @@ export interface CardOption {
 
 export type ThemeOption = 'light' | 'dark' | 'system'
 
-export type PageType = 'landing' | 'character' | 'world' | 'adventure' | 'interaction'
+export type PageType =
+    | 'landing'
+    | 'character'
+    | 'world'
+    | 'item'
+    | 'adventure'
+    | 'lorebook'
+    | 'interaction'
+    | 'character-chat'
+    | 'profile'
+    | 'docs'
+    | 'gallery-characters'
+    | 'gallery-personas'
+    | 'gallery-worlds'
+    | 'gallery-items'
+    | 'gallery-adventures'
+    | 'gallery-lorebooks'
+    | 'gallery-media'
+    | 'gallery-stories'
+    | 'story'
 
 export interface NavigationState {
     currentPage: PageType

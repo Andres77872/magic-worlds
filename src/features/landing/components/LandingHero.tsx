@@ -1,112 +1,101 @@
-import { FiBookOpen, FiGlobe, FiUserPlus, FiZap } from 'react-icons/fi'
-import { FiPenTool, FiPlay } from 'react-icons/fi'
-import { GiCastle, GiDragonHead, GiScrollQuill } from 'react-icons/gi'
-import './LandingHero.css'
-import type { Adventure } from '../../../shared'
+/**
+ * Landing hero — the marketing front-door for guests and fresh accounts.
+ * A candlelit two-column statement: eyebrow + display headline + narrative
+ * subtitle + dual CTAs on the left, the tilted preview card on the right.
+ * Renders the page's single <h1> in guest mode.
+ */
 
-interface LandingHeroProps {
-    charactersCount: number
-    worldsCount: number
-    templatesCount: number
-    activeAdventures: number
-    hasContent: boolean
-    onStartJourney: () => void
-    lastActiveAdventure?: Adventure
-    onContinueAdventure?: (adventure: Adventure) => void
+import type { ReactNode } from 'react'
+import type { LucideIcon } from 'lucide-react'
+import { Avatar, Button, Eyebrow, GlowBackdrop, Icon } from '@/ui/primitives'
+import { HeroPreviewCard } from './HeroPreviewCard'
+import { SHOWCASE_WORLDS } from './landingContent'
+
+export interface HeroCta {
+    label: string
+    icon?: LucideIcon
+    iconRight?: LucideIcon
+    onClick: () => void
 }
 
-export function LandingHero({ 
-    charactersCount, 
-    worldsCount, 
-    templatesCount, 
-    activeAdventures, 
-    hasContent, 
-    onStartJourney,
-    lastActiveAdventure,
-    onContinueAdventure
-}: LandingHeroProps) {
+export interface LandingHeroProps {
+    eyebrow: string
+    title: ReactNode
+    subtitle: string
+    primary: HeroCta
+    secondary?: HeroCta
+    /** Honest caption beside the sample-world avatar stack. */
+    stat?: ReactNode
+}
+
+export function LandingHero({ eyebrow, title, subtitle, primary, secondary, stat }: LandingHeroProps) {
     return (
-        <section className="landing-hero-section animate-entrance" aria-labelledby="hero-title">
-            <div className="landing-hero-background" aria-hidden="true">
-                <div className="landing-hero-gradient"></div>
-                <div className="landing-floating-elements">
-                    <GiDragonHead className="landing-floating-icon dragon animate-float" />
-                    <GiCastle className="landing-floating-icon castle animate-float" style={{animationDelay: '2s'}} />
-                    <GiScrollQuill className="landing-floating-icon scroll animate-float" style={{animationDelay: '4s'}} />
-                </div>
-            </div>
-            
-            <div className="landing-hero-content">
-                <h1 className="landing-hero-title" id="hero-title">
-                    <span className="landing-title-line">🌟 Magic Worlds</span>
-                    <span className="landing-title-subtitle">Forge Your Legend</span>
-                </h1>
-                <p className="landing-hero-description">
-                    Create epic characters, build mystical worlds, and embark on AI-powered adventures that bring your imagination to life
-                </p>
-                
-                {!hasContent ? (
-                    <div className="landing-hero-cta">
-                        <button 
-                            className="landing-btn-hero btn btn-primary hover-magical click-sparkle"
-                            onClick={onStartJourney}
-                            aria-describedby="cta-description"
+        <section className="relative flex w-full items-center px-5 pb-16 pt-12 sm:px-8 sm:pb-20 sm:pt-16 lg:min-h-[600px]">
+            {/* candlelight glows — soft, decorative, never harsh */}
+            <GlowBackdrop variant="hero" />
+
+            <div className="relative mx-auto flex w-full max-w-[1160px] flex-wrap items-center gap-x-14 gap-y-12">
+                {/* left column */}
+                <div className="flex-[1_1_460px] [min-width:min(320px,100%)]">
+                    <Eyebrow tone="ember">{eyebrow}</Eyebrow>
+                    <h1 className="mt-4 font-display text-display font-semibold leading-[1.02] tracking-[-0.01em] text-parchment-50">
+                        {title}
+                    </h1>
+                    <p className="mb-8 mt-[22px] max-w-[480px] font-narrative text-[19px] leading-[1.55] text-parchment-200">
+                        {subtitle}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-3.5">
+                        <Button
+                            kind="primary"
+                            size="lg"
+                            iconLeft={primary.icon ? <Icon icon={primary.icon} size={19} /> : undefined}
+                            iconRight={primary.iconRight ? <Icon icon={primary.iconRight} size={18} /> : undefined}
+                            onClick={primary.onClick}
                         >
-                            <FiZap aria-hidden="true" />
-                            Start Your First Adventure
-                        </button>
-                        <p id="cta-description" className="sr-only">
-                            Begin your journey by creating your first character
-                        </p>
-                    </div>
-                ) : (
-                    <>
-                        <div className="landing-hero-stats" role="region" aria-label="Your magical world statistics">
-                            <div className="landing-stat-card">
-                                <FiUserPlus className="landing-stat-icon" aria-hidden="true" />
-                                <span className="landing-stat-number">{charactersCount}</span>
-                                <span className="landing-stat-label">Heroes</span>
-                            </div>
-                            <div className="landing-stat-card">
-                                <FiGlobe className="landing-stat-icon" aria-hidden="true" />
-                                <span className="landing-stat-number">{worldsCount}</span>
-                                <span className="landing-stat-label">Worlds</span>
-                            </div>
-                            <div className="landing-stat-card">
-                                <FiBookOpen className="landing-stat-icon" aria-hidden="true" />
-                                <span className="landing-stat-number">{templatesCount}</span>
-                                <span className="landing-stat-label">Templates</span>
-                            </div>
-                            <div className="landing-stat-card">
-                                <FiPenTool className="landing-stat-icon" aria-hidden="true" />
-                                <span className="landing-stat-number">{activeAdventures}</span>
-                                <span className="landing-stat-label">Active Adventures</span>
-                            </div>
-                        </div>
-                        
-                        {lastActiveAdventure && onContinueAdventure && (
-                            <div className="landing-adventure-card-container" role="region" aria-label="Your last active adventure">
-                                <div className="landing-adventure-card">
-                                    <div className="landing-adventure-content">
-                                        <h3 className="landing-adventure-title">Your Active Adventure</h3>
-                                        <p className="landing-adventure-description">
-                                            {lastActiveAdventure.scenario || 'Continue your magical journey...'}
-                                        </p>
-                                    </div>
-                                    <button 
-                                        className="landing-adventure-btn btn btn-primary hover-magical"
-                                        onClick={() => onContinueAdventure(lastActiveAdventure)}
-                                        aria-label="Continue your active adventure"
-                                    >
-                                        <FiPlay aria-hidden="true" />
-                                        Continue Adventure
-                                    </button>
-                                </div>
-                            </div>
+                            {primary.label}
+                        </Button>
+                        {secondary && (
+                            <Button
+                                kind="secondary"
+                                size="lg"
+                                iconLeft={secondary.icon ? <Icon icon={secondary.icon} size={19} /> : undefined}
+                                iconRight={
+                                    secondary.iconRight ? <Icon icon={secondary.iconRight} size={18} /> : undefined
+                                }
+                                onClick={secondary.onClick}
+                            >
+                                {secondary.label}
+                            </Button>
                         )}
-                    </>
-                )}
+                    </div>
+
+                    {stat && (
+                        <div className="mt-[34px] flex items-center gap-3.5">
+                            <div className="flex">
+                                {SHOWCASE_WORLDS.slice(0, 5).map((world, i) => (
+                                    <Avatar
+                                        key={world.id}
+                                        name={world.name}
+                                        initial={world.initial}
+                                        gradient={world.portrait}
+                                        size={36}
+                                        className={i > 0 ? '-ml-[11px] border-2 border-ink-800' : 'border-2 border-ink-800'}
+                                    />
+                                ))}
+                            </div>
+                            <span className="max-w-[260px] font-ui text-[13.5px] leading-snug text-parchment-400">
+                                {stat}
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                {/* right column — the preview card */}
+                <div className="flex flex-[0_1_auto] justify-center pt-2.5">
+                    <HeroPreviewCard />
+                </div>
             </div>
         </section>
     )
-} 
+}

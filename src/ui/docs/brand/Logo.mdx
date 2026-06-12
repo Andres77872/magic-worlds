@@ -1,0 +1,30 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import mark from '../../../assets/brand/logo-mark.svg'
+import wordmark from '../../../assets/brand/logo-wordmark.svg'
+
+<Meta title="Design System/Brand/Logo" />
+
+# Logo
+
+The mark is a **crescent moon cradling an ember** — *dreams (the crescent
+reverie) lit by the spark of a story (the ember)*. The wordmark pairs the
+emblem with "Reverie" set in Cormorant Garamond.
+
+<div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', margin: '20px 0' }}>
+  <div style={{ flex: '1 1 200px', background: 'var(--color-ink-900)', border: '1px solid rgba(246,239,226,.08)', borderRadius: 16, padding: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <img src={mark} alt="Reverie mark" style={{ height: 88 }} />
+  </div>
+  <div style={{ flex: '2 1 320px', background: 'var(--color-ink-900)', border: '1px solid rgba(246,239,226,.08)', borderRadius: 16, padding: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <img src={wordmark} alt="Reverie wordmark" style={{ height: 64 }} />
+  </div>
+</div>
+
+## Usage rules
+
+- **Clear space** — keep padding around the logo at least equal to the emblem's height.
+- **Never recolor the ember** to a non-brand hue. The flame gradient (`ember-300 → ember-500`) is fixed.
+- **Dark grounds only.** The logo is built for `ink-800` (canvas) or darker. Don't place it on light or busy backgrounds.
+- Prefer the **mark** alone for tight spaces (favicon, avatar, app rail) and the **wordmark** for headers and marketing.
+
+> The SVGs live in `src/assets/brand/` (`logo-mark.svg`, `logo-wordmark.svg`) and
+> inherit the ember palette, so they stay in sync with the design tokens.

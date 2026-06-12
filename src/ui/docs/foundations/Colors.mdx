@@ -1,0 +1,33 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import { ColorScales } from '../Swatch'
+
+<Meta title="Design System/Foundations/Colors" />
+
+# Colors
+
+A leather-bound book read by firelight: deep ink-indigo grounds, warm parchment
+text, a regal **ember-gold** primary, and an **arcane-violet** secondary reserved
+for AI/magic moments. Gold + violet is a deliberately theatrical, slightly mythic
+pairing.
+
+Swatches below read their hex **live** from `theme.css` — the single source of
+truth. To change a color, edit the `@theme` block there and these update.
+
+<ColorScales />
+
+## How to use them
+
+- **Backgrounds build depth by lightening, not shadowing.** `ink-800` is the
+  default canvas; raise to `ink-700` for cards and `ink-600` for hover/elevated
+  surfaces. `ink-900` is the void behind hero glows and modal scrims.
+- **Text is parchment.** `parchment-50` primary · `parchment-200` secondary ·
+  `parchment-400` muted. Never `#fff`.
+- **Ember is the one hero accent.** Reach for `ember-500` fills, `ember-400` on
+  hover, `ember-600` pressed. Don't introduce a second "primary" color.
+- **Arcane is for the AI side only** — the character's avatar ring, the thinking
+  shimmer, memory affordances. Spend it sparingly.
+- **Semantic colors** carry meaning, not decoration: `verdant` success,
+  `blood` danger/NSFW, `amber` warning. `on-ember` is the dark text that sits on
+  ember fills.
+- **Borders are parchment at low alpha** (hairlines ~0.08–0.22). An ember border
+  signals the active/selected state.
