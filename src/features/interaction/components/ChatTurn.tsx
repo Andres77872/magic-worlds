@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ChatImageAsset, ForwardOption, ImageLifecycleStatus, TurnEntry } from '../../../shared'
 import { cx, Eyebrow } from '../../../ui/primitives'
+import { formatApiTime } from '@/utils/time'
 import { isSafeAssetUrl } from '../utils/chatImageTurnState'
 import { ChatAvatar } from './ChatAvatar'
 import { ChatMessage } from './ChatMessage'
@@ -68,10 +69,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                     </Eyebrow>
                     <div className={cx('flex items-center gap-2', isUser && 'flex-row-reverse')}>
                         <span className="font-mono text-[11px] text-parchment-500">
-                            {new Date(turn.timestamp).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                            })}
+                            {formatApiTime(turn.timestamp)}
                         </span>
                         {!isUser && !isEditing && onRequestNarration && (
                             <TurnNarration

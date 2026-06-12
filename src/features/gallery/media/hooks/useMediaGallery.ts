@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiService } from '@/infrastructure/api'
+import { parseApiTimestamp } from '@/utils/time'
 import {
     imageJobToItems,
     themeJobToItem,
@@ -59,6 +60,12 @@ function newSource(done = false): SourceState {
 function appendDedupedById(prev: MediaGalleryItem[], page: MediaGalleryItem[]): MediaGalleryItem[] {
     const seen = new Set(prev.map((item) => item.id))
     return [...prev, ...page.filter((item) => !seen.has(item.id))]
+}
+
+function createdTime(item?: MediaGalleryItem): number {
+    if (!item) return Number.NEGATIVE_INFINITY
+    const stamp = parseApiTimestamp(item.createdAt)
+    return Number.isNaN(stamp) ? Number.NEGATIVE_INFINITY : stamp
 }
 
 const DEFAULT_FILTERS: MediaGalleryFilters = { mediaType: 'all', cardType: 'all' }
@@ -130,7 +137,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE): MediaGallery {
                 const img = images.buffer[0]
                 const theme = themes.buffer[0]
                 if (!img && !theme) break
-                const takeImage = img && (!theme || img.createdAt >= theme.createdAt)
+                const takeImage = img && (!theme || createdTime(img) >= createdTime(theme))
                 out.push(takeImage ? images.buffer.shift()! : themes.buffer.shift()!)
             }
             return out

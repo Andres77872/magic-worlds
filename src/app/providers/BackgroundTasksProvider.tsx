@@ -7,6 +7,7 @@ import {
     BACKGROUND_TASK_FAILED_STATUSES,
     taskFromThemeSongJob,
 } from '@/shared'
+import { parseApiTimestamp } from '@/utils/time'
 import { useAuth } from '../hooks/useAuth'
 import { useData } from '../hooks/useData'
 import { BackgroundTasksContext, type BackgroundTasksContextValue } from './backgroundTasksContext'
@@ -19,9 +20,14 @@ function isActiveTask(task: BackgroundTaskPublic): boolean {
     return ACTIVE_STATUS_SET.has(task.status)
 }
 
+function taskTime(task: BackgroundTaskPublic): number {
+    const stamp = parseApiTimestamp(task.updated_at || task.created_at)
+    return Number.isNaN(stamp) ? 0 : stamp
+}
+
 function upsertTask(list: BackgroundTaskPublic[], task: BackgroundTaskPublic): BackgroundTaskPublic[] {
     const next = [task, ...list.filter((item) => item.task_id !== task.task_id || item.operation !== task.operation)]
-    return next.sort((a, b) => Date.parse(b.updated_at || b.created_at) - Date.parse(a.updated_at || a.created_at))
+    return next.sort((a, b) => taskTime(b) - taskTime(a))
 }
 
 function mergeTaskLists(lists: BackgroundTaskPublic[][]): BackgroundTaskPublic[] {
@@ -31,7 +37,7 @@ function mergeTaskLists(lists: BackgroundTaskPublic[][]): BackgroundTaskPublic[]
             byKey.set(`${task.operation}:${task.task_id}`, task)
         }
     }
-    return [...byKey.values()].sort((a, b) => Date.parse(b.updated_at || b.created_at) - Date.parse(a.updated_at || a.created_at))
+    return [...byKey.values()].sort((a, b) => taskTime(b) - taskTime(a))
 }
 
 function taskHasAnyStatus(task: BackgroundTaskPublic, statuses: Set<string>): boolean {

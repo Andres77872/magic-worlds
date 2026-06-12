@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ComponentProps } from 'react'
 import { AudioPlaylistProvider } from '@/app/providers/AudioPlaylistProvider'
 import { themeTrack } from '@/app/providers/audioPlaylistContext'
 import { PLAYLIST_STORAGE_KEY } from '@/app/providers/playlistReducer'
@@ -32,7 +33,18 @@ function Seed() {
     return (
         <>
             <button
-                onClick={() => playlist.enqueue(themeTrack({ url: 'https://x/one.mp3', title: 'One', cardName: 'Lyra' }))}
+                onClick={() =>
+                    playlist.enqueue(
+                        themeTrack({
+                            url: 'https://x/one.mp3',
+                            title: 'One',
+                            cardName: 'Lyra',
+                            cardType: 'character',
+                            cardId: 'char-1',
+                            artworkUrl: '/generated-images/lyra.jpeg',
+                        }),
+                    )
+                }
             >
                 seed-one
             </button>
@@ -43,11 +55,11 @@ function Seed() {
     )
 }
 
-function renderDock() {
+function renderDock(onOpenCard?: ComponentProps<typeof PlaylistDock>['onOpenCard']) {
     return render(
         <AudioPlaylistProvider>
             <Seed />
-            <PlaylistDock />
+            <PlaylistDock onOpenCard={onOpenCard} />
         </AudioPlaylistProvider>,
     )
 }
@@ -133,5 +145,58 @@ describe('PlaylistDock', () => {
 
         fireEvent.click(screen.getByText('seed-two'))
         expect(screen.getByRole('button', { name: 'Next track' })).not.toBeDisabled()
+    })
+
+    it('opens the current card from the thumbnail and card name', () => {
+        const onOpenCard = vi.fn()
+        stubMedia()
+        renderDock(onOpenCard)
+        fireEvent.click(screen.getByText('seed-one'))
+
+        fireEvent.click(screen.getByRole('button', { name: 'Open card Lyra' }))
+        expect(onOpenCard).toHaveBeenLastCalledWith({ type: 'character', id: 'char-1', fallbackName: 'Lyra' })
+
+        fireEvent.click(screen.getByRole('button', { name: 'Lyra' }))
+        expect(onOpenCard).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not expose card-opening controls when metadata is missing', () => {
+        const onOpenCard = vi.fn()
+        stubMedia()
+        renderDock(onOpenCard)
+        fireEvent.click(screen.getByText('seed-two'))
+
+        expect(screen.queryByRole('button', { name: /Open card/i })).toBeNull()
+        expect(screen.queryByRole('button', { name: 'Two' })).toBeNull()
+    })
+
+    it('drags the player position and persists it', () => {
+        stubMedia()
+        renderDock()
+        fireEvent.click(screen.getByText('seed-one'))
+
+        const dock = screen.getByRole('region', { name: 'Now playing' })
+        vi.spyOn(dock, 'getBoundingClientRect').mockReturnValue({
+            x: 500,
+            y: 400,
+            left: 500,
+            top: 400,
+            right: 916,
+            bottom: 512,
+            width: 416,
+            height: 112,
+            toJSON: () => ({}),
+        } as DOMRect)
+
+        const handle = screen.getByRole('button', { name: 'Drag player' })
+        fireEvent.pointerDown(handle, { pointerId: 7, button: 0, clientX: 510, clientY: 410 })
+        fireEvent.pointerMove(handle, { pointerId: 7, clientX: 560, clientY: 450 })
+        fireEvent.pointerUp(handle, { pointerId: 7, clientX: 560, clientY: 450 })
+
+        expect(dock.parentElement).toHaveStyle({ left: '550px', top: '440px' })
+        expect(JSON.parse(localStorage.getItem('magic_worlds:playlist_dock_position:v1') ?? 'null')).toEqual({
+            x: 550,
+            y: 440,
+        })
     })
 })

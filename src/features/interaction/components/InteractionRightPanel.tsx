@@ -6,6 +6,7 @@
 import type { TurnEntry } from '../../../shared'
 import { History } from 'lucide-react'
 import { SectionHeader } from '../../../ui/primitives'
+import { formatApiTime } from '@/utils/time'
 
 interface InteractionRightPanelProps {
     turns?: TurnEntry[]
@@ -17,7 +18,7 @@ export function InteractionRightPanel({ turns = [] }: InteractionRightPanelProps
     }
 
     const formatTime = (timestamp: string): string => {
-        return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        return formatApiTime(timestamp)
     }
 
     return (

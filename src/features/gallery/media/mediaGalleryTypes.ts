@@ -7,6 +7,7 @@
 
 import type { CardMediaTargetType, ImageJobPublic, ThemeSongJobPublic } from '@/shared'
 import { resolveMediaUrl } from '@/infrastructure/api'
+import { dateFromApiTimestamp } from '@/utils/time'
 
 export type MediaTypeFilter = 'all' | 'images' | 'themes'
 export type CardTypeFilter = CardMediaTargetType | 'all'
@@ -55,11 +56,10 @@ export interface MediaThemeItem extends MediaItemBase {
 export type MediaGalleryItem = MediaImageItem | MediaThemeItem
 
 export function formatWhen(iso?: string): string {
-    if (!iso) return ''
-    const d = new Date(iso)
-    if (Number.isNaN(d.getTime())) return ''
-    const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    const dateValue = dateFromApiTimestamp(iso)
+    if (!dateValue) return ''
+    const date = dateValue.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    const time = dateValue.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
     return `${date} · ${time}`
 }
 

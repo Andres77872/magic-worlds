@@ -1,5 +1,6 @@
 import { Check, Sparkles } from 'lucide-react'
 import { Badge, Eyebrow } from '@/ui/primitives'
+import { formatApiTime } from '@/utils/time'
 import { formatAppliedChange } from './appliedActions'
 import { AssistantMarkdown } from './AssistantMarkdown'
 import type { AssistantTurnBase } from './appliedActions'
@@ -10,10 +11,7 @@ export interface VisibleAssistantTurn extends AssistantTurnBase {
 }
 
 function turnTime(value?: string): string {
-    if (!value) return ''
-    const stamp = new Date(value)
-    if (Number.isNaN(stamp.getTime())) return ''
-    return stamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return formatApiTime(value)
 }
 
 /** One visible chat turn: ember bubble for the user, literary prose + change chips for the assistant. */

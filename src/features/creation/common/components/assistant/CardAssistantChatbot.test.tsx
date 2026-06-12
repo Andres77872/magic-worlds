@@ -33,6 +33,7 @@ import { CardAssistantChatbot } from './CardAssistantChatbot'
 
 const CONVO = { conversation_id: 2, card_type: 'world' as const, card_id: null, title: 'Alpha', updated_at: '2026-06-10T10:00:00Z' }
 const OTHER = { conversation_id: 3, card_type: 'world' as const, card_id: null, title: 'Beta', updated_at: '2026-06-09T10:00:00Z' }
+const CARD_ASSISTANT_POSITION_KEY = 'magic_worlds:assistant_position:v1:card-assistant'
 
 function defaultProps(overrides: Record<string, unknown> = {}) {
     return {
@@ -68,6 +69,7 @@ function finalEvent(overrides: Record<string, unknown> = {}): CardAssistantStrea
 
 beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.removeItem(CARD_ASSISTANT_POSITION_KEY)
     mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
     mocks.createCardAssistantConversation.mockResolvedValue({ conversation: CONVO, messages: [], card: null })
     mocks.getCardAssistantConversation.mockResolvedValue({ conversation: CONVO, messages: [], card: null })
@@ -86,6 +88,53 @@ describe('CardAssistantChatbot', () => {
         expect(screen.getByRole('dialog', { name: /card assistant/i })).toBeInTheDocument()
         await waitFor(() => expect(screen.getByText('Shape this card with words')).toBeInTheDocument())
         expect(screen.getByText('Invent a world from scratch')).toBeInTheDocument()
+    })
+
+    it('drags the floating panel from the header grip and persists the position', () => {
+        render(<CardAssistantChatbot {...defaultProps()} />)
+
+        openPanel()
+        const dialog = screen.getByRole('dialog', { name: /card assistant/i })
+        vi.spyOn(dialog, 'getBoundingClientRect').mockReturnValue({
+            x: 460,
+            y: 40,
+            left: 460,
+            top: 40,
+            right: 880,
+            bottom: 680,
+            width: 420,
+            height: 640,
+            toJSON: () => ({}),
+        } as DOMRect)
+
+        const handle = screen.getByRole('button', { name: /drag assistant/i })
+        fireEvent.pointerDown(handle, { pointerId: 5, button: 0, clientX: 470, clientY: 50 })
+        fireEvent.pointerMove(handle, { pointerId: 5, clientX: 520, clientY: 90 })
+        fireEvent.pointerUp(handle, { pointerId: 5, clientX: 520, clientY: 90 })
+
+        expect(dialog).toHaveStyle({ left: '510px', top: '80px' })
+        expect(JSON.parse(localStorage.getItem(CARD_ASSISTANT_POSITION_KEY) ?? 'null')).toEqual({ x: 510, y: 80 })
+    })
+
+    it('restores and clamps a saved floating panel position', async () => {
+        localStorage.setItem(CARD_ASSISTANT_POSITION_KEY, JSON.stringify({ x: 9999, y: 9999 }))
+        render(<CardAssistantChatbot {...defaultProps()} />)
+
+        openPanel()
+        const dialog = screen.getByRole('dialog', { name: /card assistant/i })
+        const expectedX = Math.max(16, window.innerWidth - 420 - 16)
+        const expectedY = Math.max(16, window.innerHeight - 640 - 16)
+
+        await waitFor(() => expect(dialog).toHaveStyle({ left: `${expectedX}px`, top: `${expectedY}px` }))
+    })
+
+    it('keeps the close control clickable while the header has a drag handle', () => {
+        render(<CardAssistantChatbot {...defaultProps()} />)
+
+        openPanel()
+        fireEvent.click(screen.getByRole('button', { name: /close card assistant/i }))
+
+        expect(screen.queryByRole('dialog', { name: /card assistant/i })).toBeNull()
     })
 
     it('clicking a suggestion chip sends its prompt through the stream', async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { apiService, resolveMediaUrl } from './index'
+import { apiService, isProtectedMediaUrl, resolveMediaUrl } from './index'
 
 describe('resolveMediaUrl', () => {
     it('returns undefined for empty input', () => {
@@ -26,6 +26,30 @@ describe('resolveMediaUrl', () => {
         const out = resolveMediaUrl('generated-audio/theme.mp3')
         expect(out!.endsWith('/generated-audio/theme.mp3')).toBe(true)
     })
+
+    it('normalizes absolute protected media URLs back through the configured API base', () => {
+        const out = resolveMediaUrl('http://127.0.0.1:8010/generated-images/u/j/0.jpeg')
+        expect(out).toBeDefined()
+        expect(out!.endsWith('/generated-images/u/j/0.jpeg')).toBe(true)
+        expect(out).not.toContain('127.0.0.1:8010')
+    })
+})
+
+describe('isProtectedMediaUrl', () => {
+    it('recognizes owned media routes and legacy generated media routes', () => {
+        expect(isProtectedMediaUrl('/images/assets/asset-1')).toBe(true)
+        expect(isProtectedMediaUrl('/theme-songs/assets/song-1.mp3')).toBe(true)
+        expect(isProtectedMediaUrl('/generated-images/2026/06/job/asset.png')).toBe(true)
+        expect(isProtectedMediaUrl('/generated-audio/2026/06/job/asset.mp3')).toBe(true)
+        expect(isProtectedMediaUrl('/tts/assets/asset-1.mp3')).toBe(true)
+        expect(isProtectedMediaUrl('http://127.0.0.1:8010/generated-images/2026/06/job/asset.png')).toBe(true)
+    })
+
+    it('does not treat external or browser-local URLs as protected backend media', () => {
+        expect(isProtectedMediaUrl('https://cdn.example/image.png')).toBe(false)
+        expect(isProtectedMediaUrl('data:image/png;base64,AAA')).toBe(false)
+        expect(isProtectedMediaUrl('blob:abc-123')).toBe(false)
+    })
 })
 
 describe('uploadCardImage', () => {
@@ -36,7 +60,7 @@ describe('uploadCardImage', () => {
             headers: new Headers(),
             json: async () => ({
                 asset_id: 'up-1',
-                url: '/generated-images/uploads/2026/06/up-1.png',
+                url: '/images/assets/up-1',
                 content_type: 'image/png',
                 file_size_bytes: 10,
             }),
@@ -46,7 +70,7 @@ describe('uploadCardImage', () => {
         const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'p.png', { type: 'image/png' })
         const res = await apiService.uploadCardImage(file)
 
-        expect(res.url).toBe('/generated-images/uploads/2026/06/up-1.png')
+        expect(res.url).toBe('/images/assets/up-1')
         expect(fetchMock).toHaveBeenCalledTimes(1)
         const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
         expect(String(url)).toContain('/images/upload')
@@ -69,11 +93,11 @@ describe('waitForImageJob', () => {
                 status: 'completed',
                 status_url: '',
                 result_url: '',
-                assets: [{ asset_id: 'a', url: '/generated-images/x.jpeg', content_type: 'image/jpeg' }],
+                assets: [{ asset_id: 'a', url: '/images/assets/a', content_type: 'image/jpeg' }],
             })
         const job = await apiService.waitForImageJob('j', { intervalMs: 1 })
         expect(job.status).toBe('completed')
-        expect(job.assets?.[0]?.url).toBe('/generated-images/x.jpeg')
+        expect(job.assets?.[0]?.url).toBe('/images/assets/a')
         expect(spy).toHaveBeenCalledTimes(2)
         spy.mockRestore()
     })

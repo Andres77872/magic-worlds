@@ -8,6 +8,7 @@ vi.mock('@/infrastructure/api', () => ({
         getItems: vi.fn().mockResolvedValue([]),
         getAdventureTemplates: vi.fn().mockResolvedValue([]),
     },
+    isProtectedMediaUrl: () => false,
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
 }))
 

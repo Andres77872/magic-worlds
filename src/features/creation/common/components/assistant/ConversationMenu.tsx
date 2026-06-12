@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, History, Plus, Trash2 } from 'lucide-react'
 import { cx, IconButton } from '@/ui/primitives'
-import { formatRelativeTime } from '@/utils/time'
+import { formatApiDateTime, formatRelativeTime } from '@/utils/time'
 import { conversationKey } from './useCardAssistant'
 
 interface AssistantConversationMenuItem {
@@ -95,6 +95,7 @@ export function ConversationMenu({ conversations, activeId, disabled, onSelect, 
                             if (!id) return null
                             const title = conversation.title || `Conversation ${conversations.length - index}`
                             const isActive = id === activeId
+                            const updatedAt = formatApiDateTime(conversation.updated_at)
                             return (
                                 <div key={id} className="group flex items-center gap-1 rounded-sm hover:bg-parchment-50/[.06]">
                                     <button
@@ -112,7 +113,7 @@ export function ConversationMenu({ conversations, activeId, disabled, onSelect, 
                                         {isActive && <Check size={13} className="shrink-0 text-ember-400" />}
                                         <span
                                             className="ml-auto shrink-0 font-mono text-[11px] text-parchment-400"
-                                            title={conversation.updated_at}
+                                            title={updatedAt}
                                         >
                                             {formatRelativeTime(conversation.updated_at)}
                                         </span>

@@ -22,6 +22,7 @@ import type {
     StoryGeneration,
 } from '../../shared'
 import { apiService, ApiError } from '../../infrastructure'
+import { parseApiTimestamp } from '../../utils/time'
 import { parseTurnState } from '../../utils/turnState'
 import { asArray, transformCharacters, transformItems, transformTemplates, transformWorlds } from '../../utils/cardTransforms'
 import { normalizeLorebookList } from '../../features/lorebook/lorebookTransforms'
@@ -791,7 +792,7 @@ export function DataProvider({ children }: DataProviderProps) {
             })
             // Most recent first — this list renders as the "Recent chats" shelf.
             const chatStamp = (chat: CharacterChatSession) => {
-                const time = Date.parse(chat.updatedAt ?? chat.createdAt ?? '')
+                const time = parseApiTimestamp(chat.updatedAt ?? chat.createdAt)
                 return Number.isNaN(time) ? 0 : time
             }
             transformedChats.sort((a, b) => chatStamp(b) - chatStamp(a))

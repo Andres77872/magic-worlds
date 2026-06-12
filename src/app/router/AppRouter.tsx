@@ -21,6 +21,7 @@ import { NovelGalleryPage, NovelStudio } from '../../features/novel'
 import { ProfilePage } from '../../features/profile'
 import { TasksDrawer } from '../../features/tasks'
 import { DocsPage } from '../../features/docs'
+import { CardPreviewModal, useCardPreviewModal } from '../../features/cards'
 import { LoadingSpinner } from '../../ui/components/LoadingSpinner'
 import { PlaylistDock } from '../../ui/components/audio/PlaylistDock'
 
@@ -28,6 +29,7 @@ export function AppRouter() {
     const { currentPage } = useNavigation()
     const { loadingState } = useData()
     const { isLoginModalOpen, closeLoginModal } = useAuth()
+    const cardPreview = useCardPreviewModal()
     const mainRef = useRef<HTMLElement>(null)
 
     useEffect(() => {
@@ -82,7 +84,14 @@ export function AppRouter() {
             />
             <AppWarningModal />
             <TasksDrawer />
-            <PlaylistDock />
+            <PlaylistDock onOpenCard={cardPreview.openCardPreview} />
+            <CardPreviewModal
+                target={cardPreview.target}
+                card={cardPreview.card}
+                loading={cardPreview.loading}
+                error={cardPreview.error}
+                onClose={cardPreview.closeCardPreview}
+            />
         </div>
     )
 }

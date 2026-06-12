@@ -8,6 +8,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { Feather, Gem, Globe, Infinity as InfinityIcon, Swords, Users, UsersRound } from 'lucide-react'
 import type { Adventure } from '@/shared'
+import { parseApiTimestamp } from '@/utils/time'
 
 export const GITHUB_URL = 'https://github.com/Andres77872/magic-worlds'
 
@@ -207,7 +208,7 @@ export function latestInProgress(adventures: Adventure[]): Adventure | undefined
     let bestTime = -Infinity
     for (const adventure of adventures) {
         const stamp = adventure.updatedAt ?? adventure.createdAt
-        const time = stamp ? Date.parse(stamp) : NaN
+        const time = parseApiTimestamp(stamp)
         if (!Number.isNaN(time) && time >= bestTime) {
             bestTime = time
             best = adventure

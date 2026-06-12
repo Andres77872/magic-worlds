@@ -100,6 +100,16 @@ describe('useMediaGallery', () => {
         })
     })
 
+    it('orders merged sources by parsed API timestamps instead of string comparison', async () => {
+        listImageJobs.mockResolvedValueOnce(imagesResponse([imageJob('i1', '2026-06-10T10:00:00+02:00')], null))
+        listUserThemeSongs.mockResolvedValueOnce(themesResponse([themeJob('t1', '2026-06-10T09:00:00')], null))
+
+        const { result } = renderHook(() => useMediaGallery(PAGE_SIZE))
+        await waitFor(() => expect(result.current.loading).toBe(false))
+
+        expect(result.current.items.map((i) => i.id)).toEqual(['theme-t1', 'img-i1'])
+    })
+
     it('flattens multi-asset image jobs into separate tiles', async () => {
         listImageJobs.mockResolvedValueOnce(imagesResponse([imageJob('i1', '2026-06-10T10:00:00', 2)], null))
 

@@ -10,7 +10,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { ChevronDown, Gem, Globe, Loader2, Search, Swords, Users, X } from 'lucide-react'
 import type { CardMediaTargetType } from '@/shared'
 import { useClickOutside } from '@/shared/hooks'
-import { cx, Icon } from '@/ui/primitives'
+import { AuthenticatedImage, cx, Icon } from '@/ui/primitives'
 import type { CardRef, CardTypeFilter } from '../mediaGalleryTypes'
 import { useCardPickerOptions } from '../hooks/useCardPickerOptions'
 
@@ -161,7 +161,7 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                                     data-testid="card-picker-option"
                                 >
                                     {option.imageUrl ? (
-                                        <img src={option.imageUrl} alt="" className="h-7 w-7 shrink-0 rounded-md object-cover" />
+                                        <AuthenticatedImage src={option.imageUrl} alt="" className="h-7 w-7 shrink-0 rounded-md object-cover" />
                                     ) : (
                                         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-ink-800 text-parchment-500">
                                             <Icon icon={TYPE_ICON[option.type]} size={13} />

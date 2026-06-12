@@ -4,8 +4,8 @@ import type { CardMediaTargetType } from '@/shared'
 /**
  * One entry in the global theme-song playlist. Identity (and dedupe) key is
  * the resolved absolute audio URL — cards only know `theme_song_url` while
- * media items know `asset_id` + url, and both point at the same
- * `/generated-audio/{asset}.mp3` file, so URL keying unifies every entry point.
+ * media items know `asset_id` + url, and both point at the same protected audio
+ * asset route, so URL keying unifies every entry point.
  */
 export interface PlaylistTrack {
     /** Identity/dedupe key — the resolved absolute audio URL. */

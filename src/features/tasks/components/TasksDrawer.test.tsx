@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BackgroundTaskBuckets, BackgroundTaskPublic, Character } from '@/shared'
+import { formatApiDateTime } from '@/utils/time'
 import { TasksDrawer } from './TasksDrawer'
 
 const mocks = vi.hoisted(() => ({
@@ -168,14 +169,9 @@ describe('TasksDrawer', () => {
 
     it('shows relative timestamps with the absolute time on hover', async () => {
         // Fixture created_at is 2026-06-07T10:00:00 — pin "now" 9 minutes later.
-        vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-06-07T10:09:00'))
+        vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-06-07T10:09:00Z'))
         const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto', style: 'narrow' })
-        const absolute = new Intl.DateTimeFormat(undefined, {
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-        }).format(Date.parse('2026-06-07T10:00:00'))
+        const absolute = formatApiDateTime('2026-06-07T10:00:00')
 
         renderDrawer({ active: [task('pending', 'active-1')], completed: [], failed: [] })
 

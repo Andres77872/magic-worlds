@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { Check, Loader2, Search } from 'lucide-react'
 import type { CardMediaTargetType, StoryCardKind } from '@/shared'
 import { useCardPickerOptions } from '@/features/gallery/media/hooks/useCardPickerOptions'
-import { Button, Drawer, Icon, Tag, cx } from '@/ui/primitives'
+import { AuthenticatedImage, Button, Drawer, Icon, Tag, cx } from '@/ui/primitives'
 import { KIND_ICONS, KIND_META } from '../../utils/codexUtils'
 
 const PICKER_KINDS: CardMediaTargetType[] = ['character', 'world', 'item', 'adventure_template']
@@ -137,7 +137,7 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, o
                                     data-testid="codex-card-option"
                                 >
                                     {option.imageUrl ? (
-                                        <img src={option.imageUrl} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover" />
+                                        <AuthenticatedImage src={option.imageUrl} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover" />
                                     ) : (
                                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ink-800 text-parchment-500">
                                             <Icon icon={KIND_ICONS[option.type]} size={14} />

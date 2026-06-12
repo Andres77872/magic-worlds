@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import { ListMusic, Pause, Play, Share2 } from 'lucide-react'
 import { usePlaylist } from '@/app/hooks/usePlaylist'
-import { themeTrack } from '@/app/providers/audioPlaylistContext'
+import { themeTrack, type PlaylistTrack } from '@/app/providers/audioPlaylistContext'
 import { Badge, Card, cx, Icon, Portrait, Tag, ThemeSongButton } from '@/ui/primitives'
 import { CardActionMenu, CardOptions, type CardMenuAnchor, type CardOption } from './CardOptions'
 
@@ -23,6 +23,8 @@ export interface GalleryCardProps {
     onTagClick?: (tag: string) => void
     imageUrl?: string
     themeSongUrl?: string
+    cardType?: PlaylistTrack['cardType']
+    cardId?: string
     /** Hover share menu actions (Download PNG / future URL share). */
     shareOptions?: CardOption[]
     /** Hover-menu actions (Chat / Edit / Delete / Begin). */
@@ -48,6 +50,8 @@ export function GalleryCard({
     onTagClick,
     imageUrl,
     themeSongUrl,
+    cardType,
+    cardId,
     shareOptions,
     options,
     onClick,
@@ -76,7 +80,7 @@ export function GalleryCard({
                       icon: <Icon icon={isThemePlaying ? Pause : Play} size={15} />,
                       label: isThemePlaying ? 'Pause music' : 'Play music',
                       onClick: () =>
-                          playlist.playNow(themeTrack({ url: themeSongUrl, cardName: title, artworkUrl: imageUrl })),
+                          playlist.playNow(themeTrack({ url: themeSongUrl, cardName: title, cardType, cardId, artworkUrl: imageUrl })),
                   },
                   {
                       type: 'custom',
@@ -84,12 +88,12 @@ export function GalleryCard({
                       label: playlist.isQueued(themeSongUrl) ? 'In playlist' : 'Add to playlist',
                       disabled: playlist.isQueued(themeSongUrl),
                       onClick: () =>
-                          playlist.enqueue(themeTrack({ url: themeSongUrl, cardName: title, artworkUrl: imageUrl })),
+                          playlist.enqueue(themeTrack({ url: themeSongUrl, cardName: title, cardType, cardId, artworkUrl: imageUrl })),
                   },
               ]
             : []
         return [...musicOptions, ...(shareOptions ?? []), ...(options ?? [])]
-    }, [options, shareOptions, isThemePlaying, playlist, themeSongUrl, title, imageUrl])
+    }, [options, shareOptions, isThemePlaying, playlist, themeSongUrl, title, cardType, cardId, imageUrl])
 
     const closeContextMenu = () => {
         setContextAnchor(null)
@@ -188,7 +192,7 @@ export function GalleryCard({
                     className="absolute right-2 top-2 z-[4] flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full border border-parchment-50/10 bg-ink-900/55 p-1 opacity-100 shadow-md backdrop-blur-md transition-opacity sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100"
                     onClick={(e: MouseEvent) => e.stopPropagation()}
                 >
-                    {themeSongUrl && <ThemeSongButton src={themeSongUrl} cardName={title} artworkUrl={imageUrl} />}
+                    {themeSongUrl && <ThemeSongButton src={themeSongUrl} cardName={title} cardType={cardType} cardId={cardId} artworkUrl={imageUrl} />}
                     {shareOptions && shareOptions.length > 0 && (
                         <CardOptions
                             options={shareOptions}

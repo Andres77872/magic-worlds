@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth, useData } from '@/app/hooks'
 import type { StoryChapter } from '@/shared'
+import { dateFromApiTimestamp } from '@/utils/time'
 import type { NovelSaveState } from '../utils/novelUtils'
 
 const AUTOSAVE_DELAY_MS = 1200
@@ -60,7 +61,7 @@ export function useChapterDraft({ storyId, chapter }: { storyId: string | null; 
         setTitleState(next?.title ?? '')
         setBody(next?.body ?? '')
         setSaveState('idle')
-        setLastSavedAt(next?.updatedAt ? new Date(next.updatedAt) : null)
+        setLastSavedAt(dateFromApiTimestamp(next?.updatedAt))
     }, [chapterId])
 
     const setTitle = useCallback((value: string) => {

@@ -4,6 +4,7 @@
  */
 import { cx } from './cx'
 import { gradientFor } from './gradient'
+import { useAuthenticatedMediaUrl } from '@/infrastructure/api/useAuthenticatedMediaUrl'
 
 export type AvatarRing = 'ember' | 'arcane' | 'none'
 export type AvatarStatus = 'live' | 'think' | 'none'
@@ -33,6 +34,8 @@ export function Avatar({
 }: AvatarProps) {
     const glyph = initial ?? (name.trim().charAt(0).toUpperCase() || '?')
     const dot = Math.max(10, Math.round(size * 0.28))
+    const media = useAuthenticatedMediaUrl(src, 'image/*')
+    const imageSrc = media.src
     return (
         <span
             className={cx(
@@ -46,10 +49,10 @@ export function Avatar({
                 width: size,
                 height: size,
                 fontSize: Math.round(size * (glyph.length > 1 ? 0.32 : 0.42)),
-                background: src ? undefined : gradient || gradientFor(name || 'reverie'),
+                background: imageSrc ? undefined : gradient || gradientFor(name || 'reverie'),
             }}
         >
-            {src ? <img src={src} alt={name} className="h-full w-full object-cover" /> : glyph}
+            {imageSrc ? <img src={imageSrc} alt={name} className="h-full w-full object-cover" /> : glyph}
             {status === 'live' && (
                 <span
                     className="absolute bottom-0 right-0 rounded-full bg-verdant-500 border-2 border-ink-800"

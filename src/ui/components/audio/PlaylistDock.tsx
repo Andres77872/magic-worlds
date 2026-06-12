@@ -3,15 +3,24 @@
  * until the playlist has tracks, then docks bottom-right (Toast's portal
  * pattern) and survives page navigation since it mounts at the AppRouter
  * shell. The collapsed bar shows the current track with transport controls
- * and a waveform seek strip; the queue panel expands above it with per-row
- * jump/remove plus Stop (keep queue) and Clear (close the player).
+ * and a waveform seek strip; the queue panel expands above/below it with
+ * per-row jump/remove plus Stop (keep queue) and Clear (close the player).
  */
 
-import { useState } from 'react'
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type KeyboardEvent,
+    type PointerEvent,
+} from 'react'
 import { createPortal } from 'react-dom'
 import {
     ChevronDown,
     ChevronUp,
+    GripVertical,
     ListMusic,
     Loader2,
     Music,
@@ -25,14 +34,211 @@ import {
     X,
 } from 'lucide-react'
 import { usePlaylist } from '@/app/hooks'
-import { Button, cx, Eyebrow, Icon, IconButton } from '@/ui/primitives'
+import type { PlaylistTrack } from '@/app/providers/audioPlaylistContext'
+import { AuthenticatedImage, Button, cx, Eyebrow, Icon, IconButton } from '@/ui/primitives'
 import { pseudoPeaks } from './audioData'
 import { formatSeconds } from './formatSeconds'
 import { WaveformSeekBar } from './WaveformSeekBar'
 
-export function PlaylistDock() {
+export interface PlaylistDockCardTarget {
+    type: NonNullable<PlaylistTrack['cardType']>
+    id: string
+    fallbackName?: string
+}
+
+export interface PlaylistDockProps {
+    onOpenCard?: (target: PlaylistDockCardTarget) => void
+}
+
+interface DockPosition {
+    x: number
+    y: number
+}
+
+interface DockSize {
+    width: number
+    height: number
+}
+
+const DOCK_POSITION_STORAGE_KEY = 'magic_worlds:playlist_dock_position:v1'
+const DOCK_VIEWPORT_PADDING = 16
+const DOCK_DEFAULT_SIZE: DockSize = { width: 416, height: 112 }
+
+function readDockPosition(): DockPosition | null {
+    if (typeof window === 'undefined') return null
+    try {
+        const parsed = JSON.parse(window.localStorage.getItem(DOCK_POSITION_STORAGE_KEY) || 'null') as Partial<DockPosition> | null
+        if (!parsed || !Number.isFinite(parsed.x) || !Number.isFinite(parsed.y)) return null
+        return { x: Number(parsed.x), y: Number(parsed.y) }
+    } catch {
+        return null
+    }
+}
+
+function saveDockPosition(position: DockPosition): void {
+    try {
+        window.localStorage.setItem(DOCK_POSITION_STORAGE_KEY, JSON.stringify(position))
+    } catch {
+        /* Position persistence is a convenience; playback should never depend on it. */
+    }
+}
+
+function samePosition(a: DockPosition, b: DockPosition): boolean {
+    return Math.round(a.x) === Math.round(b.x) && Math.round(a.y) === Math.round(b.y)
+}
+
+function clampDockPosition(position: DockPosition, size: DockSize): DockPosition {
+    if (typeof window === 'undefined') return position
+    const minX = DOCK_VIEWPORT_PADDING
+    const minY = DOCK_VIEWPORT_PADDING
+    const maxX = Math.max(minX, window.innerWidth - size.width - DOCK_VIEWPORT_PADDING)
+    const maxY = Math.max(minY, window.innerHeight - size.height - DOCK_VIEWPORT_PADDING)
+    return {
+        x: Math.min(Math.max(position.x, minX), maxX),
+        y: Math.min(Math.max(position.y, minY), maxY),
+    }
+}
+
+function dockSizeFrom(element: HTMLElement | null): DockSize {
+    if (!element) return DOCK_DEFAULT_SIZE
+    const rect = element.getBoundingClientRect()
+    return {
+        width: rect.width || DOCK_DEFAULT_SIZE.width,
+        height: rect.height || DOCK_DEFAULT_SIZE.height,
+    }
+}
+
+export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
     const playlist = usePlaylist()
     const [queueOpen, setQueueOpen] = useState(false)
+    const [queuePlacement, setQueuePlacement] = useState<'above' | 'below'>('above')
+    const [queueMaxHeight, setQueueMaxHeight] = useState(288)
+    const [position, setPosition] = useState<DockPosition | null>(() => readDockPosition())
+    const [dragging, setDragging] = useState(false)
+    const dockRef = useRef<HTMLElement>(null)
+    const positionRef = useRef<DockPosition | null>(position)
+    const dragRef = useRef<{
+        pointerId: number
+        startX: number
+        startY: number
+        origin: DockPosition
+        size: DockSize
+    } | null>(null)
+
+    useEffect(() => {
+        positionRef.current = position
+    }, [position])
+
+    const clampCurrentPosition = useCallback(() => {
+        const current = positionRef.current
+        if (!current) return
+        const next = clampDockPosition(current, dockSizeFrom(dockRef.current))
+        if (samePosition(current, next)) return
+        positionRef.current = next
+        setPosition(next)
+        saveDockPosition(next)
+    }, [])
+
+    useEffect(() => {
+        if (!position) return
+        const frame = window.requestAnimationFrame(clampCurrentPosition)
+        return () => window.cancelAnimationFrame(frame)
+    }, [position, queueOpen, clampCurrentPosition])
+
+    useEffect(() => {
+        if (!position) return undefined
+        const handleResize = () => clampCurrentPosition()
+        window.addEventListener('resize', handleResize)
+        return () => window.removeEventListener('resize', handleResize)
+    }, [position, clampCurrentPosition])
+
+    const updateQueueMetrics = useCallback(() => {
+        const rect = dockRef.current?.getBoundingClientRect()
+        if (!rect) return
+        const gap = 8
+        const spaceAbove = rect.top - DOCK_VIEWPORT_PADDING - gap
+        const spaceBelow = window.innerHeight - rect.bottom - DOCK_VIEWPORT_PADDING - gap
+        const nextPlacement = spaceAbove >= 180 || spaceAbove >= spaceBelow ? 'above' : 'below'
+        const available = nextPlacement === 'above' ? spaceAbove : spaceBelow
+        setQueuePlacement(nextPlacement)
+        setQueueMaxHeight(Math.max(96, Math.min(288, available)))
+    }, [])
+
+    useEffect(() => {
+        if (!queueOpen) return undefined
+        updateQueueMetrics()
+        window.addEventListener('resize', updateQueueMetrics)
+        return () => window.removeEventListener('resize', updateQueueMetrics)
+    }, [queueOpen, position, playlist.queue.length, updateQueueMetrics])
+
+    const startDrag = (e: PointerEvent<HTMLButtonElement>) => {
+        if (e.button !== 0) return
+        const rect = dockRef.current?.getBoundingClientRect()
+        if (!rect) return
+        e.preventDefault()
+        e.stopPropagation()
+        const size = { width: rect.width, height: rect.height }
+        const origin = positionRef.current ?? { x: rect.left, y: rect.top }
+        const nextOrigin = clampDockPosition(origin, size)
+        positionRef.current = nextOrigin
+        setPosition(nextOrigin)
+        setDragging(true)
+        dragRef.current = {
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            origin: nextOrigin,
+            size,
+        }
+        e.currentTarget.setPointerCapture?.(e.pointerId)
+    }
+
+    const moveDrag = (e: PointerEvent<HTMLButtonElement>) => {
+        const drag = dragRef.current
+        if (!drag || drag.pointerId !== e.pointerId) return
+        e.preventDefault()
+        const next = clampDockPosition(
+            {
+                x: drag.origin.x + e.clientX - drag.startX,
+                y: drag.origin.y + e.clientY - drag.startY,
+            },
+            drag.size,
+        )
+        positionRef.current = next
+        setPosition(next)
+    }
+
+    const endDrag = (e: PointerEvent<HTMLButtonElement>) => {
+        const drag = dragRef.current
+        if (!drag || drag.pointerId !== e.pointerId) return
+        e.preventDefault()
+        dragRef.current = null
+        setDragging(false)
+        if (positionRef.current) saveDockPosition(positionRef.current)
+        if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture?.(e.pointerId)
+    }
+
+    const nudgeDock = (e: KeyboardEvent<HTMLButtonElement>) => {
+        const delta = e.shiftKey ? 64 : 16
+        const direction: Partial<Record<string, DockPosition>> = {
+            ArrowLeft: { x: -delta, y: 0 },
+            ArrowRight: { x: delta, y: 0 },
+            ArrowUp: { x: 0, y: -delta },
+            ArrowDown: { x: 0, y: delta },
+        }
+        const move = direction[e.key]
+        if (!move) return
+        const rect = dockRef.current?.getBoundingClientRect()
+        if (!rect) return
+        e.preventDefault()
+        e.stopPropagation()
+        const size = { width: rect.width, height: rect.height }
+        const origin = positionRef.current ?? { x: rect.left, y: rect.top }
+        const next = clampDockPosition({ x: origin.x + move.x, y: origin.y + move.y }, size)
+        positionRef.current = next
+        setPosition(next)
+        saveDockPosition(next)
+    }
 
     const { currentTrack } = playlist
     if (playlist.queue.length === 0 || !currentTrack || typeof document === 'undefined') return null
@@ -42,20 +248,58 @@ export function PlaylistDock() {
         playlist.duration && playlist.duration > 0 ? playlist.currentTime / playlist.duration : 0
     const peaks = playlist.peaks ?? pseudoPeaks(currentTrack.id)
     const atQueueEnd = playlist.currentIndex >= playlist.queue.length - 1
+    const hasCardTarget = Boolean(onOpenCard && currentTrack.cardType && currentTrack.cardId)
+    const currentCardLabel = currentTrack.cardName || currentTrack.title
+    const customPosition = position !== null
+    const wrapperStyle: CSSProperties | undefined = customPosition
+        ? { left: position.x, top: position.y, width: 'min(calc(100vw - 2rem), 26rem)' }
+        : undefined
+
+    const openCurrentCard = () => {
+        if (!onOpenCard || !currentTrack.cardType || !currentTrack.cardId) return
+        onOpenCard({
+            type: currentTrack.cardType,
+            id: currentTrack.cardId,
+            fallbackName: currentCardLabel,
+        })
+    }
+
+    const artwork = currentTrack.artworkUrl ? (
+        <AuthenticatedImage src={currentTrack.artworkUrl} alt="" className="h-full w-full object-cover" />
+    ) : (
+        <span className="flex h-full w-full items-center justify-center text-ember-400/80">
+            <Icon icon={Music} size={15} />
+        </span>
+    )
 
     return createPortal(
-        <div className="pointer-events-none fixed inset-x-4 bottom-4 z-[45] flex justify-center sm:inset-x-auto sm:right-5 sm:bottom-5">
+        <div
+            className={cx(
+                'pointer-events-none fixed z-[45]',
+                customPosition
+                    ? 'left-0 top-0'
+                    : 'inset-x-4 bottom-4 flex justify-center sm:inset-x-auto sm:right-5 sm:bottom-5',
+            )}
+            style={wrapperStyle}
+        >
             <section
+                ref={dockRef}
                 aria-label="Now playing"
                 className={cx(
-                    'pointer-events-auto flex w-full max-w-[min(calc(100vw-2rem),26rem)] flex-col overflow-hidden rounded-lg border bg-ink-800/95 ring-1 ring-ink-900/60 backdrop-blur-md',
+                    'pointer-events-auto relative flex w-full max-w-[min(calc(100vw-2rem),26rem)] flex-col rounded-lg border bg-ink-800/95 ring-1 ring-ink-900/60 backdrop-blur-md',
                     'transition-all motion-reduce:transition-none',
                     playlist.isPlaying ? 'border-ember-500/40 shadow-glow-ember' : 'border-parchment-50/10 shadow-xl',
+                    dragging && 'select-none border-ember-500/55 shadow-card-hover',
                 )}
             >
                 {queueOpen && (
-                    <div className="flex flex-col border-b border-parchment-50/10">
-                        <ul className="max-h-72 overflow-y-auto py-1">
+                    <div
+                        className={cx(
+                            'absolute left-0 right-0 z-10 overflow-hidden rounded-lg border border-parchment-50/10 bg-ink-800/95 shadow-xl ring-1 ring-ink-900/70 backdrop-blur-md',
+                            queuePlacement === 'above' ? 'bottom-[calc(100%+0.5rem)]' : 'top-[calc(100%+0.5rem)]',
+                        )}
+                    >
+                        <ul className="overflow-y-auto py-1" style={{ maxHeight: queueMaxHeight }}>
                             {playlist.queue.map((track, index) => {
                                 const isCurrent = index === playlist.currentIndex
                                 return (
@@ -146,24 +390,56 @@ export function PlaylistDock() {
 
                 <div className="flex flex-col gap-1.5 p-2.5">
                     <div className="flex items-center gap-2.5">
-                        <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md border border-parchment-50/10 bg-ink-700">
-                            {currentTrack.artworkUrl ? (
-                                <img src={currentTrack.artworkUrl} alt="" className="h-full w-full object-cover" />
-                            ) : (
-                                <span className="flex h-full w-full items-center justify-center text-ember-400/80">
-                                    <Icon icon={Music} size={15} />
-                                </span>
-                            )}
-                        </div>
+                        {hasCardTarget ? (
+                            <button
+                                type="button"
+                                aria-label={`Open card ${currentCardLabel}`}
+                                title={`Open ${currentCardLabel}`}
+                                onClick={openCurrentCard}
+                                className="h-9 w-9 shrink-0 cursor-pointer overflow-hidden rounded-md border border-parchment-50/10 bg-ink-700 transition-all hover:border-ember-500/45 hover:shadow-glow-ember"
+                            >
+                                {artwork}
+                            </button>
+                        ) : (
+                            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md border border-parchment-50/10 bg-ink-700">
+                                {artwork}
+                            </div>
+                        )}
                         <div className="min-w-0 flex-1">
                             <p className="truncate font-ui text-[13px] font-semibold leading-snug text-parchment-50">
                                 {currentTrack.title}
                             </p>
                             {currentTrack.cardName && (
-                                <p className="truncate text-[11px] text-parchment-400">{currentTrack.cardName}</p>
+                                hasCardTarget ? (
+                                    <button
+                                        type="button"
+                                        onClick={openCurrentCard}
+                                        className="block max-w-full cursor-pointer truncate text-left text-[11px] text-parchment-400 underline-offset-2 transition-colors hover:text-ember-300 hover:underline"
+                                    >
+                                        {currentTrack.cardName}
+                                    </button>
+                                ) : (
+                                    <p className="truncate text-[11px] text-parchment-400">{currentTrack.cardName}</p>
+                                )
                             )}
                         </div>
                         <div className="flex shrink-0 items-center gap-0.5">
+                            <button
+                                type="button"
+                                aria-label="Drag player"
+                                title="Drag player"
+                                onPointerDown={startDrag}
+                                onPointerMove={moveDrag}
+                                onPointerUp={endDrag}
+                                onPointerCancel={endDrag}
+                                onKeyDown={nudgeDock}
+                                className={cx(
+                                    'inline-flex h-7 w-7 shrink-0 touch-none cursor-grab items-center justify-center rounded-md text-parchment-300 transition-colors hover:bg-parchment-50/[.05] hover:text-parchment-50',
+                                    dragging && 'cursor-grabbing bg-ember-500/15 text-ember-300',
+                                )}
+                            >
+                                <GripVertical size={14} />
+                            </button>
                             <IconButton
                                 label="Previous track"
                                 size="sm"

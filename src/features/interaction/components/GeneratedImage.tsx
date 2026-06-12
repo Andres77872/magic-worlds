@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Sparkles } from 'lucide-react'
+import { useAuthenticatedMediaUrl } from '../../../infrastructure/api/useAuthenticatedMediaUrl'
 import type { ImageLifecycleStatus } from '../../../shared'
 import { cx, Icon } from '../../../ui/primitives'
 
@@ -44,33 +45,37 @@ function ImageError({ detail }: { detail?: string }) {
 function SceneImage({ url, aspectRatio, errorDetail }: { url: string; aspectRatio: number; errorDetail?: string }) {
     const [loaded, setLoaded] = useState(false)
     const [errored, setErrored] = useState(false)
+    const media = useAuthenticatedMediaUrl(url, 'image/*')
+    const imageSrc = media.src
 
-    if (errored) return <ImageError detail={errorDetail} />
+    if (errored || media.error) return <ImageError detail={errorDetail} />
 
     return (
         <figure
             className="relative mt-3 w-full overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-700/70"
             style={{ aspectRatio, maxHeight: 420 }}
         >
-            <img
-                // If the bytes are already cached the <img> can finish before
-                // onLoad attaches; adopt its `complete` state on mount so the
-                // shimmer never gets stuck.
-                ref={(node) => {
-                    if (node?.complete && node.naturalWidth > 0) setLoaded(true)
-                }}
-                src={url}
-                alt="Generated scene"
-                className={cx(
-                    'absolute inset-0 h-full w-full object-contain transition-opacity duration-500',
-                    loaded ? 'opacity-100' : 'opacity-0',
-                )}
-                loading="eager"
-                decoding="async"
-                fetchPriority="high"
-                onLoad={() => setLoaded(true)}
-                onError={() => setErrored(true)}
-            />
+            {imageSrc && (
+                <img
+                    // If the bytes are already cached the <img> can finish before
+                    // onLoad attaches; adopt its `complete` state on mount so the
+                    // shimmer never gets stuck.
+                    ref={(node) => {
+                        if (node?.complete && node.naturalWidth > 0) setLoaded(true)
+                    }}
+                    src={imageSrc}
+                    alt="Generated scene"
+                    className={cx(
+                        'absolute inset-0 h-full w-full object-contain transition-opacity duration-500',
+                        loaded ? 'opacity-100' : 'opacity-0',
+                    )}
+                    loading="eager"
+                    decoding="async"
+                    fetchPriority="high"
+                    onLoad={() => setLoaded(true)}
+                    onError={() => setErrored(true)}
+                />
+            )}
             {!loaded && (
                 <div className="image-shimmer pointer-events-none absolute inset-0 flex items-center justify-center">
                     <Icon icon={Sparkles} size={20} className="animate-pulse text-arcane-300/60" />

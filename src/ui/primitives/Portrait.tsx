@@ -4,6 +4,7 @@
  * Mirrors ui_kits/app/components.jsx `Portrait`.
  */
 import type { ReactNode } from 'react'
+import { useAuthenticatedMediaUrl } from '@/infrastructure/api/useAuthenticatedMediaUrl'
 import { cx } from './cx'
 import { gradientFor } from './gradient'
 
@@ -19,12 +20,14 @@ interface PortraitProps {
 
 export function Portrait({ name = '', src, height = 160, gradient, className, children }: PortraitProps) {
     const initial = name.trim().charAt(0).toUpperCase() || '?'
+    const media = useAuthenticatedMediaUrl(src, 'image/*')
+    const imageSrc = media.src
     return (
         <div
             className={cx('relative flex items-center justify-center overflow-hidden', className)}
-            style={{ height, background: src ? undefined : gradient || gradientFor(name || 'reverie') }}
+            style={{ height, background: imageSrc ? undefined : gradient || gradientFor(name || 'reverie') }}
         >
-            {src && <img src={src} alt={name} className="absolute inset-0 h-full w-full object-cover" />}
+            {imageSrc && <img src={imageSrc} alt={name} className="absolute inset-0 h-full w-full object-cover" />}
             <span
                 className="font-display font-semibold leading-none text-parchment-50/20"
                 style={{ fontSize: typeof height === 'number' ? Math.round(height * 0.42) : 64 }}

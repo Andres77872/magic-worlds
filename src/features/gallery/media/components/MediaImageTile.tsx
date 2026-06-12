@@ -7,7 +7,7 @@
 
 import { useState } from 'react'
 import { Eye, ImageOff, Trash2 } from 'lucide-react'
-import { Badge, cx, IconButton } from '@/ui/primitives'
+import { AuthenticatedImage, Badge, cx, IconButton } from '@/ui/primitives'
 import { formatWhen, type CardRef, type MediaImageItem } from '../mediaGalleryTypes'
 
 export interface MediaImageTileProps {
@@ -49,7 +49,7 @@ export function MediaImageTile({ item, deleting = false, onView, onDelete, onFil
                         <span className="font-ui text-xs font-semibold text-parchment-300">Image unavailable</span>
                     </div>
                 ) : (
-                    <img
+                    <AuthenticatedImage
                         src={item.url}
                         alt={item.card?.name ? `Image for ${item.card.name}` : 'Generated image'}
                         loading="lazy"

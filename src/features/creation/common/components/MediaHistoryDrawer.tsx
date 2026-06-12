@@ -18,9 +18,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Download, Eye, ImageOff, Loader2, Music2, Trash2 } from 'lucide-react'
 import type { CardMediaTargetType, ImageJobPublic, ThemeSongJobPublic } from '@/shared'
 import { apiService, resolveMediaUrl } from '@/infrastructure/api'
-import { Button, cx, Drawer, Eyebrow, Icon, IconButton, ImageLightbox, Tag } from '@/ui/primitives'
+import { AuthenticatedImage, Button, cx, Drawer, Eyebrow, Icon, IconButton, ImageLightbox, Tag } from '@/ui/primitives'
 import { AudioWavePlayer, getAudioBlob } from '@/ui/components/audio'
 import { downloadBlob, safeFilename } from '../../../../utils/download'
+import { dateFromApiTimestamp } from '../../../../utils/time'
 
 type HistoryTab = 'images' | 'themes'
 
@@ -56,9 +57,8 @@ function sameUrl(a?: string, b?: string): boolean {
 }
 
 function formatWhen(iso?: string): string {
-    if (!iso) return ''
-    const d = new Date(iso)
-    if (Number.isNaN(d.getTime())) return ''
+    const d = dateFromApiTimestamp(iso)
+    if (!d) return ''
     const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
     const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
     return `${date} · ${time}`
@@ -269,7 +269,7 @@ export function MediaHistoryDrawer({
                                             current ? 'border-arcane-400 ring-2 ring-arcane-400/40' : 'border-parchment-50/10',
                                         )}
                                     >
-                                        <img src={resolved} alt={cardName} loading="lazy" className="h-full w-full object-cover" />
+                                        <AuthenticatedImage src={resolved} alt={cardName} loading="lazy" className="h-full w-full object-cover" />
                                         {current && (
                                             <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-arcane-500/90 px-2 py-0.5 font-ui text-[10px] font-semibold uppercase tracking-wide text-parchment-50">
                                                 <Check size={11} strokeWidth={2.5} /> Current

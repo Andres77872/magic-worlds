@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { BookOpenText, Download, Link2, Loader2, Pencil, Play, Plus, MessageCircle, Search, Trash2, X } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
+import type { PlaylistTrack } from '@/app/providers/audioPlaylistContext'
 import type { Adventure, Character, Item, World } from '@/shared'
 import { MODE_META } from '@/shared/modes'
 import { apiService } from '@/infrastructure/api'
@@ -32,6 +33,10 @@ interface ActionNotice {
 function linkedCardIdFor(type: GalleryType): string | null {
     const target = parseGalleryHash()
     return target?.type === type ? (target.cardId ?? null) : null
+}
+
+function playlistCardType(type: GalleryType): PlaylistTrack['cardType'] {
+    return type === 'adventure' ? 'adventure_template' : type
 }
 
 function scrollToGalleryCard(id: string): void {
@@ -493,6 +498,8 @@ export function GalleryPage({ type }: GalleryPageProps) {
                         tags={item.tags}
                         imageUrl={item.imageUrl}
                         themeSongUrl={item.themeSongUrl}
+                        cardType={playlistCardType(type)}
+                        cardId={item.id}
                         shareOptions={shareOptionsFor(item)}
                         deleting={deletingId === item.id}
                         onClick={() => primaryAction(item)}

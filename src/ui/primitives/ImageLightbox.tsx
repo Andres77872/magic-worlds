@@ -6,6 +6,7 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
+import { AuthenticatedImage } from './AuthenticatedImage'
 import { IconButton } from './IconButton'
 
 interface ImageLightboxProps {
@@ -34,7 +35,7 @@ export function ImageLightbox({ open, src, alt = '', onClose }: ImageLightboxPro
             <IconButton label="Close" onClick={onClose} className="absolute right-4 top-4 bg-ink-900/40">
                 <X size={20} strokeWidth={1.75} />
             </IconButton>
-            <img
+            <AuthenticatedImage
                 src={src}
                 alt={alt}
                 className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain shadow-lg"

@@ -516,6 +516,7 @@ export function MediaStudioSection({
                             trackMeta={{
                                 cardName: template.name.trim() || undefined,
                                 cardType,
+                                cardId: themeTargetId,
                                 artworkUrl: resolveMediaUrl(imageUrl),
                             }}
                             className="rounded-xl border border-arcane-500/20 bg-ink-800/60 p-2.5"
@@ -639,6 +640,7 @@ export function MediaStudioSection({
                         trackMeta={{
                             cardName: template.name.trim() || undefined,
                             cardType,
+                            cardId: themeTargetId,
                             artworkUrl: resolveMediaUrl(imageUrl),
                         }}
                         className="rounded-xl border border-arcane-500/20 bg-ink-800/60 p-3"

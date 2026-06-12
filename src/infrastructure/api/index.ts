@@ -1749,10 +1749,22 @@ class ApiService {
      * here and play from an object URL instead.
      */
     async fetchTtsAudioBlob(url: string): Promise<Blob> {
-        const requestUrl = /^https?:/i.test(url) ? url : `${this.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
+        return this.fetchProtectedMediaBlob(url, 'audio/mpeg')
+    }
+
+    async fetchProtectedMediaBlob(url: string, accept: string = '*/*'): Promise<Blob> {
+        const protectedPath = getProtectedMediaPath(url)
+        const requestUrl = protectedPath
+            ? `${this.baseUrl}${protectedPath}`
+            : /^https?:/i.test(url)
+              ? url
+              : `${this.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
         const fetchOnce = (token: string) => fetch(requestUrl, {
             method: 'GET',
-            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            headers: {
+                Accept: accept,
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
         })
         let response = await fetchOnce(this.getStoredToken())
         if (response.status === 401) {
@@ -1760,8 +1772,8 @@ class ApiService {
             response = await fetchOnce(nextToken)
         }
         if (!response.ok) {
-            throw new ApiError(response.status, 'Narration audio could not be loaded.', {
-                category: 'tts_audio',
+            throw new ApiError(response.status, 'Protected media could not be loaded.', {
+                category: 'protected_media',
                 retryable: response.status >= 500,
             })
         }
@@ -2124,16 +2136,40 @@ class ApiService {
 export const apiService = new ApiService()
 configureChatSocketAuthRefresh(() => apiService.refreshAccessToken())
 
+const PROTECTED_MEDIA_PATH_PREFIXES = [
+    '/images/assets/',
+    '/theme-songs/assets/',
+    '/generated-images/',
+    '/generated-audio/',
+    '/tts/assets/',
+]
+
+function getProtectedMediaPath(url?: string | null): string | undefined {
+    if (!url || /^(data:|blob:)/i.test(url)) return undefined
+    try {
+        const parsed = new URL(url, API_BASE_URL)
+        if (!PROTECTED_MEDIA_PATH_PREFIXES.some((prefix) => parsed.pathname.startsWith(prefix))) return undefined
+        return `${parsed.pathname}${parsed.search}`
+    } catch {
+        return undefined
+    }
+}
+
 /**
- * Resolve a media asset URL for use in `<img>` / `<audio>`. The backend returns
- * generated assets as root-relative paths (`/generated-images/...`,
- * `/generated-audio/...`) unless a public CDN base is configured; prefix those
- * with the API base. Absolute/data/blob URLs pass through unchanged.
+ * Resolve a media asset URL for use in media fetches. The backend returns owned
+ * generated assets as root-relative protected routes; prefix those with the API
+ * base. Absolute/data/blob URLs pass through unchanged.
  */
 export function resolveMediaUrl(url?: string | null): string | undefined {
     if (!url) return undefined
+    const protectedPath = getProtectedMediaPath(url)
+    if (protectedPath) return `${API_BASE_URL}${protectedPath}`
     if (/^(https?:|data:|blob:)/i.test(url)) return url
     return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
+export function isProtectedMediaUrl(url?: string | null): boolean {
+    return Boolean(getProtectedMediaPath(url))
 }
 
 export const refreshAccessToken = (oldToken?: string): Promise<string> => apiService.refreshAccessToken(oldToken)

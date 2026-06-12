@@ -1,9 +1,9 @@
 /**
  * Shared audio data layer for waveform players — one network fetch per track
  * feeds playback (object URL), waveform decoding, and download. Theme audio is
- * served from the public `/generated-audio` static mount with CORS, so a plain
- * unauthenticated fetch works.
+ * loaded through the API media helper when it points at protected backend media.
  */
+import { apiService, isProtectedMediaUrl } from '@/infrastructure/api'
 
 /** Bars in a waveform strip — fits a card-width row at gap-px without math. */
 export const PEAK_BUCKETS = 48
@@ -30,10 +30,12 @@ export function getAudioBlob(url: string): Promise<Blob> {
     const cached = blobCache.get(url)
     if (cached) return cached
     evictOldestIfFull()
-    const promise = fetch(url).then((response) => {
-        if (!response.ok) throw new Error(`Audio fetch failed (${response.status})`)
-        return response.blob()
-    })
+    const promise = isProtectedMediaUrl(url)
+        ? apiService.fetchProtectedMediaBlob(url, 'audio/*')
+        : fetch(url).then((response) => {
+              if (!response.ok) throw new Error(`Audio fetch failed (${response.status})`)
+              return response.blob()
+          })
     promise.catch(() => {
         if (blobCache.get(url) === promise) blobCache.delete(url)
     })

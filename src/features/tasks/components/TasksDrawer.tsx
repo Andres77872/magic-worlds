@@ -5,7 +5,7 @@ import { apiService, resolveMediaUrl } from '@/infrastructure/api'
 import type { Adventure, BackgroundTaskBuckets, BackgroundTaskPublic, CardMediaTargetType, Character, Item, World } from '@/shared'
 import { readWorldPlaceType, worldPlaceTypeLabel } from '@/shared'
 import { transformCharacters, transformItems, transformTemplates, transformWorlds } from '@/utils/cardTransforms'
-import { formatRelativeTime } from '@/utils/time'
+import { formatApiDateTime, formatRelativeTime } from '@/utils/time'
 import { AudioWavePlayer } from '@/ui/components/audio'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
@@ -78,9 +78,7 @@ function statusIcon(status: BackgroundTaskPublic['status']) {
 }
 
 function formatDateTime(value?: string | null): string {
-    const stamp = Date.parse(value || '')
-    if (Number.isNaN(stamp)) return ''
-    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(stamp)
+    return formatApiDateTime(value)
 }
 
 function formatDuration(ms?: number | null): string {

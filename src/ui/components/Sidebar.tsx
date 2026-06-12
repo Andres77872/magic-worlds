@@ -28,6 +28,7 @@ import type { PageType } from '../../shared'
 import { useNavigation, useAuth, useBackgroundTasks, useApiStatus } from '../../app/hooks'
 import type { ApiStatus } from '../../app/hooks'
 import type { ApiDependencyService } from '@/infrastructure/api'
+import { formatApiTime } from '@/utils/time'
 import { Avatar, Badge, Icon, cx } from '../primitives'
 import { LogoutConfirmDialog } from './LogoutConfirmDialog'
 
@@ -82,9 +83,8 @@ function serviceStatusTone(status: string) {
 
 function formatCheckedAt(checkedAt?: string) {
     if (!checkedAt) return 'Dependency details'
-    const date = new Date(checkedAt)
-    if (Number.isNaN(date.getTime())) return 'Dependency details'
-    return `Last checked ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+    const time = formatApiTime(checkedAt, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    return time ? `Last checked ${time}` : 'Dependency details'
 }
 
 function countOfflineServices(services: ApiDependencyService[]): number {
