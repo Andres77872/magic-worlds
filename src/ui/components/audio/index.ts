@@ -1,5 +1,6 @@
 export { AudioWavePlayer } from './AudioWavePlayer'
+export { PlaylistDock } from './PlaylistDock'
 export { WaveformSeekBar } from './WaveformSeekBar'
-export { useAudioPlayer, claimAudioFocus } from './useAudioPlayer'
+export { claimAudioFocus, releaseAudioFocus } from './audioFocus'
 export { getAudioBlob, getAudioPeaks, pseudoPeaks, clearAudioDataCaches, PEAK_BUCKETS } from './audioData'
 export { formatSeconds } from './formatSeconds'

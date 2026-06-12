@@ -25,7 +25,7 @@ export interface AssistantNotice {
     canReload?: boolean
 }
 
-export interface AssistantTurn extends AssistantTurnBase {
+export interface AssistantTurn extends AssistantTurnBase<CardAssistantMessage> {
     isStreaming: boolean
     isInterrupted: boolean
 }
@@ -70,7 +70,7 @@ function createRequestId(): string {
     return `mw-card-assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-export function conversationKey(conversation: CardAssistantConversation | null | undefined): number | null {
+export function conversationKey(conversation: { conversation_id?: number; id?: number } | null | undefined): number | null {
     return conversation?.conversation_id ?? conversation?.id ?? null
 }
 

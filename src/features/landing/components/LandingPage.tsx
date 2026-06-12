@@ -10,13 +10,14 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowRight, Feather, Play, Sparkles, Users, Wand2 } from 'lucide-react'
+import { ArrowRight, BookOpenText, Feather, Play, Sparkles, Users, Wand2 } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
-import type { Character, CharacterChatSession, World, Adventure } from '@/shared'
+import type { Character, CharacterChatSession, World, Item, Adventure, Story } from '@/shared'
 import { MODE_META } from '@/shared/modes'
-import { CharacterList, CharacterChatList, WorldList, InProgressList } from '@/ui/components'
+import { CharacterList, CharacterChatList, WorldList, ItemList, InProgressList, CardGrid, Card, PersonaPickerDialog } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { Button, Icon, SectionHeader } from '@/ui/primitives'
+import { isAiCharacterCard, isPersonaCard } from '@/utils/characterRoles'
 import { LandingLoading } from './LandingLoading'
 import { GreetingHeader } from './GreetingHeader'
 import { FilterChips } from './FilterChips'
@@ -31,20 +32,31 @@ import { ClosingCTA } from './ClosingCTA'
 import { toScene, sceneTitle, sceneMatchesFilter, sceneMatchesQuery } from './sceneModel'
 import { HERO_COPY, latestInProgress, type CreateAction } from './landingContent'
 
+function startErrorCopy(error: unknown, fallback: string): string {
+    return error instanceof Error && error.message.trim() ? error.message : fallback
+}
+
 export function LandingPage() {
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const {
         characters,
         worlds,
+        items,
         templateAdventures,
         inProgressAdventures,
         isLoading,
         editCharacter,
+        setEditingCharacter,
         deleteCharacter,
         editWorld,
+        setEditingWorld,
         deleteWorld,
+        editItem,
+        setEditingItem,
+        deleteItem,
         editTemplate,
+        setEditingTemplate,
         startTemplate,
         deleteTemplate,
         editInProgress,
@@ -53,6 +65,8 @@ export function LandingPage() {
         characterChats,
         resumeCharacterChat,
         deleteCharacterChat,
+        stories,
+        openStory,
         loadData,
     } = useData()
 
@@ -68,6 +82,13 @@ export function LandingPage() {
     const [query, setQuery] = useState('')
     const [filter, setFilter] = useState('All')
     const [pendingDelete, setPendingDelete] = useState<Adventure | null>(null)
+    const [personaPick, setPersonaPick] = useState<
+        | { kind: 'adventure'; template: Adventure }
+        | { kind: 'chat'; character: Character }
+        | null
+    >(null)
+    const [personaPickError, setPersonaPickError] = useState<string | null>(null)
+    const [isPersonaPickConfirming, setIsPersonaPickConfirming] = useState(false)
     const showcaseRef = useRef<HTMLElement>(null)
 
     // Every action that mutates or starts requires auth — open the modal if not.
@@ -79,20 +100,38 @@ export function LandingPage() {
         action()
     }
 
-    const handleTemplateStart = (t: Adventure) => requireAuth(() => { startTemplate(t); setPage('interaction') })
+    const handleTemplateStart = (t: Adventure) => requireAuth(() => {
+        setPersonaPickError(null)
+        setPersonaPick({ kind: 'adventure', template: t })
+    })
     const handleTemplateEdit = (t: Adventure) => requireAuth(() => { editTemplate(t); setPage('adventure') })
     const handleCharacterEdit = (c: Character) => requireAuth(() => { editCharacter(c); setPage('character') })
-    const handleCharacterChat = (c: Character) => requireAuth(() => { void startCharacterChat(c); setPage('character-chat') })
+    const handleCharacterChat = (c: Character) => requireAuth(() => {
+        setPersonaPickError(null)
+        setPersonaPick({ kind: 'chat', character: c })
+    })
     const handleChatResume = (chat: CharacterChatSession) => requireAuth(() => { resumeCharacterChat(chat); setPage('character-chat') })
     const handleWorldEdit = (w: World) => requireAuth(() => { editWorld(w); setPage('world') })
+    const handleItemEdit = (item: Item) => requireAuth(() => { editItem(item); setPage('item') })
     const handleInProgressEdit = (a: Adventure) => requireAuth(() => { editInProgress(a); setPage('interaction') })
+    const handleStoryOpen = (story: Story) => requireAuth(() => {
+        void openStory(story)
+            .then(() => {
+                setPage('story')
+            })
+            .catch((error) => {
+                console.error('Failed to open story:', error)
+            })
+    })
 
-    const createAdventure = () => requireAuth(() => setPage('adventure'))
-    const createCharacter = () => requireAuth(() => setPage('character'))
-    const createWorld = () => requireAuth(() => setPage('world'))
+    const createAdventure = () => requireAuth(() => { setEditingTemplate(null); setPage('adventure') })
+    const createCharacter = () => requireAuth(() => { setEditingCharacter(null); setPage('character') })
+    const createWorld = () => requireAuth(() => { setEditingWorld(null); setPage('world') })
+    const createItem = () => requireAuth(() => { setEditingItem(null); setPage('item') })
     const handleCreate = (key: CreateAction['key']) => {
         if (key === 'character') createCharacter()
         else if (key === 'world') createWorld()
+        else if (key === 'item') createItem()
         else createAdventure()
     }
 
@@ -107,12 +146,16 @@ export function LandingPage() {
     }
 
     const scenes = useMemo(() => templateAdventures.map(toScene), [templateAdventures])
+    const personaCards = useMemo(() => characters.filter(isPersonaCard), [characters])
+    const aiCharacters = useMemo(() => characters.filter(isAiCharacterCard), [characters])
 
     // Genre chips reflect the tags actually present across the user's scenes.
+    // Single-character scratch values read like leaked test data in a global filter.
     const genres = useMemo(() => {
         const byKey = new Map<string, string>()
         scenes.forEach((scene) =>
             scene.tags.forEach((tag) => {
+                if (tag.trim().length < 2) return
                 const key = tag.toLowerCase()
                 if (!byKey.has(key)) byKey.set(key, tag)
             }),
@@ -134,7 +177,7 @@ export function LandingPage() {
     // welcoming front-door (it doubles as the empty state).
     const hasScenes = templateAdventures.length > 0
     const hasInProgress = inProgressAdventures.length > 0
-    const hasContent = hasScenes || hasInProgress || characters.length > 0 || worlds.length > 0 || characterChats.length > 0
+    const hasContent = hasScenes || hasInProgress || characters.length > 0 || worlds.length > 0 || items.length > 0 || characterChats.length > 0 || stories.length > 0
     const mode: 'guest' | 'returning' = isAuthenticated && hasContent ? 'returning' : 'guest'
 
     const resumeLatest = () =>
@@ -143,6 +186,37 @@ export function LandingPage() {
             editInProgress(latest)
             setPage('interaction')
         })
+
+    const closePersonaPick = () => {
+        if (isPersonaPickConfirming) return
+        setPersonaPick(null)
+        setPersonaPickError(null)
+    }
+
+    const confirmPersonaPick = async (persona: Character) => {
+        const pending = personaPick
+        if (!pending || isPersonaPickConfirming) return
+        setPersonaPickError(null)
+        setIsPersonaPickConfirming(true)
+        try {
+            if (pending.kind === 'adventure') {
+                await startTemplate(pending.template, persona)
+                setPersonaPick(null)
+                setPage('interaction')
+            } else {
+                await startCharacterChat(pending.character, persona)
+                setPersonaPick(null)
+                setPage('character-chat')
+            }
+        } catch (error) {
+            const fallback = pending.kind === 'adventure'
+                ? 'Could not begin this adventure. Please try again.'
+                : 'Could not start this chat. Please try again.'
+            setPersonaPickError(startErrorCopy(error, fallback))
+        } finally {
+            setIsPersonaPickConfirming(false)
+        }
+    }
 
     const scrollToShowcase = () => {
         const reduce =
@@ -230,7 +304,7 @@ export function LandingPage() {
             {rest.length > 0 && (
                 <section className="flex flex-col gap-5">
                     <div className="flex items-end justify-between gap-4">
-                        <h2 className="font-display text-h3 font-semibold text-parchment-50">More worlds to wander</h2>
+                        <h2 className="font-display text-h3 font-semibold text-parchment-50">More adventures to begin</h2>
                         <div className="flex items-center gap-3">
                             <span className="font-ui text-[13px] text-parchment-400">
                                 {rest.length} {rest.length === 1 ? 'adventure' : 'adventures'}
@@ -289,24 +363,64 @@ export function LandingPage() {
                 </Shelf>
             )}
 
-            {characters.length > 0 && (
+            {stories.length > 0 && (
+                <Shelf
+                    title="Your novels"
+                    subtitle="Draft chapters from your cards and story codex."
+                    icon={BookOpenText}
+                    action={
+                        <ViewAllButton
+                            count={stories.length}
+                            label="View all novels"
+                            onClick={() => setPage('gallery-stories')}
+                        />
+                    }
+                >
+                    <StoryRail stories={stories} onOpen={handleStoryOpen} />
+                </Shelf>
+            )}
+
+            {personaCards.length > 0 && (
+                <Shelf
+                    title="Your personas"
+                    action={
+                        <ViewAllButton
+                            count={personaCards.length}
+                            label="View all personas"
+                            onClick={() => setPage('gallery-personas')}
+                        />
+                    }
+                >
+                    <CharacterList
+                        characters={personaCards}
+                        layout="rail"
+                        onEdit={handleCharacterEdit}
+                        onDelete={(index) => {
+                            const character = personaCards[index]
+                            if (character?.id) deleteCharacter(character.id)
+                        }}
+                    />
+                </Shelf>
+            )}
+
+            {aiCharacters.length > 0 && (
                 <Shelf
                     title="Your cast"
                     action={
                         <ViewAllButton
-                            count={characters.length}
+                            count={aiCharacters.length}
                             label="View all characters"
                             onClick={() => setPage('gallery-characters')}
                         />
                     }
                 >
                     <CharacterList
-                        characters={characters}
+                        characters={aiCharacters}
                         layout="rail"
                         onEdit={handleCharacterEdit}
                         onChat={handleCharacterChat}
                         onDelete={(index) => {
-                            const character = characters[index]
+                            const character = aiCharacters[index]
                             if (character?.id) deleteCharacter(character.id)
                         }}
                     />
@@ -336,6 +450,29 @@ export function LandingPage() {
                 </Shelf>
             )}
 
+            {items.length > 0 && (
+                <Shelf
+                    title="Your items"
+                    action={
+                        <ViewAllButton
+                            count={items.length}
+                            label="View all items"
+                            onClick={() => setPage('gallery-items')}
+                        />
+                    }
+                >
+                    <ItemList
+                        items={items}
+                        layout="rail"
+                        onEdit={handleItemEdit}
+                        onDelete={(index) => {
+                            const item = items[index]
+                            if (item?.id) deleteItem(item.id)
+                        }}
+                    />
+                </Shelf>
+            )}
+
             <AccessMenu variant="compact" onAction={handleCreate} />
 
             <ConfirmDialog
@@ -350,6 +487,98 @@ export function LandingPage() {
                 variant="danger"
                 onConfirm={confirmTemplateDelete}
                 onCancel={() => setPendingDelete(null)}
+            />
+
+            <PersonaPickerDialog
+                open={personaPick !== null}
+                title={personaPick?.kind === 'chat' ? 'Choose your persona' : 'Begin as'}
+                actionLabel={personaPick?.kind === 'chat' ? 'Start chat' : 'Begin adventure'}
+                description={
+                    personaPick?.kind === 'chat'
+                        ? 'Choose the persona who will speak for you in this conversation.'
+                        : 'Choose the persona you will play before starting this adventure.'
+                }
+                error={personaPickError}
+                isConfirming={isPersonaPickConfirming}
+                characters={characters}
+                onConfirm={confirmPersonaPick}
+                onClose={closePersonaPick}
+                onCreateCharacter={() => {
+                    if (isPersonaPickConfirming) return
+                    setPersonaPick(null)
+                    setPersonaPickError(null)
+                    setEditingCharacter(null)
+                    setPage('character')
+                }}
+            />
+        </div>
+    )
+}
+
+function storyChapters(story: Story) {
+    return story.chapters ?? story.scenes ?? []
+}
+
+function storyWordCount(story: Story): number {
+    return storyChapters(story)
+        .map((chapter) => chapter.body)
+        .join(' ')
+        .split(/\s+/)
+        .filter(Boolean).length
+}
+
+function storyContextTags(story: Story): string[] {
+    return (story.activeCardRefs ?? [])
+        .map((ref) => {
+            const snapshot = ref.snapshot ?? {}
+            return String(snapshot.name ?? snapshot.title ?? snapshot.alias ?? '').trim()
+        })
+        .filter(Boolean)
+        .slice(0, 3)
+}
+
+function StoryRail({ stories, onOpen }: { stories: Story[]; onOpen: (story: Story) => void }) {
+    return (
+        <div className="flex flex-col gap-4 py-4">
+            <CardGrid
+                items={stories}
+                layout="rail"
+                getItemKey={(story) => story.id}
+                showEmptyState={false}
+                renderCard={(story) => {
+                    const chapters = storyChapters(story)
+                    const tags = storyContextTags(story)
+                    const words = storyWordCount(story)
+
+                    return (
+                        <Card
+                            key={story.id}
+                            title={story.title}
+                            subtitle={`${chapters.length || 1} chapter${chapters.length === 1 ? '' : 's'} · ${words} words`}
+                            onClick={() => onOpen(story)}
+                        >
+                            <div className="flex flex-1 flex-col gap-3">
+                                <p className="m-0 line-clamp-3 font-narrative text-sm leading-normal text-parchment-400">
+                                    {story.description?.trim() ||
+                                        chapters[0]?.body?.trim() ||
+                                        'A novel draft ready for its next chapter.'}
+                                </p>
+                                {tags.length > 0 && (
+                                    <div className="mt-auto flex flex-wrap gap-1.5">
+                                        {tags.map((tag) => (
+                                            <span
+                                                key={tag}
+                                                className="rounded-full bg-parchment-50/[.06] px-2 py-1 font-ui text-[11px] font-semibold text-parchment-300"
+                                            >
+                                                {tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </Card>
+                    )
+                }}
             />
         </div>
     )

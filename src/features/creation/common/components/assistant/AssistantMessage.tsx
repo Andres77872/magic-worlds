@@ -2,7 +2,12 @@ import { Check, Sparkles } from 'lucide-react'
 import { Badge, Eyebrow } from '@/ui/primitives'
 import { formatAppliedChange } from './appliedActions'
 import { AssistantMarkdown } from './AssistantMarkdown'
-import type { AssistantTurn } from './useCardAssistant'
+import type { AssistantTurnBase } from './appliedActions'
+
+export interface VisibleAssistantTurn extends AssistantTurnBase {
+    isStreaming: boolean
+    isInterrupted: boolean
+}
 
 function turnTime(value?: string): string {
     if (!value) return ''
@@ -12,7 +17,7 @@ function turnTime(value?: string): string {
 }
 
 /** One visible chat turn: ember bubble for the user, literary prose + change chips for the assistant. */
-export function AssistantMessage({ turn }: { turn: AssistantTurn }) {
+export function AssistantMessage({ turn }: { turn: VisibleAssistantTurn }) {
     const { message, appliedChanges, isStreaming, isInterrupted } = turn
     const time = turnTime(message.created_at)
 

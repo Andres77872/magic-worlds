@@ -13,6 +13,7 @@ const meta = {
   argTypes: {
     name: { control: 'text' },
     type: { control: 'text' },
+    placeType: { control: 'text' },
     description: { control: 'text' },
     triggers: { control: false },
     attributes: { control: false },
@@ -20,6 +21,7 @@ const meta = {
   },
   args: {
     name: 'The Sunken Library',
+    placeType: 'Landmark',
     type: 'fantasy',
     description: 'A drowned archive where every book remembers being read, and the ink still whispers.',
     triggers: ['library', 'drowned', 'ink'],
@@ -33,5 +35,5 @@ type Story = StoryObj<typeof meta>
 
 export const Filled: Story = {}
 export const Empty: Story = {
-  args: { name: '', type: '', description: '', triggers: [], categories: [], attributes: {} },
+  args: { name: '', placeType: '', type: '', description: '', triggers: [], categories: [], attributes: {} },
 }

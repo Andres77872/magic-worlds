@@ -9,24 +9,17 @@
  */
 import { useCallback, useMemo, useState } from 'react'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
-import { generateUUID } from '@/utils/uuid'
+import {
+    hydrate,
+    makeCategory,
+    toCategoryPayload,
+    type ApiCategory,
+    type AttrMap,
+    type AttrRow,
+    type EntityWithCategory,
+} from '../engine/categorySerialization'
 
-export interface AttrRow {
-    key: string
-    value: string
-}
-export type AttrMap = Record<string, AttrRow[]>
-
-/** The API category shape shared by characters / worlds / adventure templates. */
-export interface ApiCategory {
-    name: string
-    description?: string
-    attributes?: Array<Record<string, string>>
-}
-
-interface EntityWithCategory {
-    category?: ApiCategory[] | null
-}
+export { toCategoryPayload, type ApiCategory, type AttrMap, type AttrRow }
 
 interface Options {
     /** Always-present categories (kept minimal — usually one). Not deletable. */
@@ -52,54 +45,6 @@ export interface AttributeCategoriesApi {
      * one-time hydration has already run. Defaults are preserved (matched by name).
      */
     hydrateFrom: (entity?: EntityWithCategory | null) => void
-}
-
-function makeCategory(name: string, description: string): AttributeCategory {
-    return { id: `custom_${generateUUID().slice(0, 8)}`, name, description: description || '', type: 'custom' }
-}
-
-function rowsFromApi(attributes?: Array<Record<string, string>>): AttrRow[] {
-    // Each attribute object may carry MORE than one key/value pair (AI-generated
-    // cards return e.g. `{ "element": "arcane", "focus": "evocation" }`). Expand
-    // every entry into its own row so nothing is silently dropped — `toCategoryPayload`
-    // writes single-key objects, but reads must tolerate multi-key ones.
-    return (attributes || []).flatMap((obj) =>
-        Object.entries(obj).map(([key, value]) => ({
-            key: String(key),
-            value: value == null ? '' : String(value),
-        })),
-    )
-}
-
-/** Build form state from an entity's API `category` array, matching defaults by name. */
-function hydrate(defaults: AttributeCategory[], entity?: EntityWithCategory | null) {
-    const attributes: AttrMap = Object.fromEntries(defaults.map((c) => [c.id, [] as AttrRow[]]))
-    const customs: AttributeCategory[] = []
-    for (const apiCat of entity?.category ?? []) {
-        const rows = rowsFromApi(apiCat.attributes)
-        const def = defaults.find((d) => d.name.toLowerCase() === (apiCat.name || '').toLowerCase())
-        if (def) {
-            attributes[def.id] = rows
-        } else {
-            const cat = makeCategory(apiCat.name || 'Category', apiCat.description || '')
-            customs.push(cat)
-            attributes[cat.id] = rows
-        }
-    }
-    return { customs, attributes }
-}
-
-/** Convert form categories + attributes into the API `category` payload (drops empties). */
-export function toCategoryPayload(categories: AttributeCategory[], attributes: AttrMap): ApiCategory[] {
-    return categories
-        .map((category) => ({
-            name: category.name,
-            description: category.description,
-            attributes: (attributes[category.id] || [])
-                .filter((attr) => attr.key && attr.value)
-                .map((attr) => ({ [attr.key]: attr.value })),
-        }))
-        .filter((category) => category.attributes.length > 0)
 }
 
 export function useAttributeCategories({ defaults, entity }: Options): AttributeCategoriesApi {

@@ -15,6 +15,7 @@ import type {
     SnapshotTemplate,
     World,
 } from '../../../shared'
+import { readWorldPlaceType } from '../../../shared'
 
 /** Locates a card inside the snapshot so edits can be written back to it. */
 export type SnapshotCardRef =
@@ -82,6 +83,8 @@ export function snapshotToCharacter(card: SnapshotCard, fallbackId: string): Cha
     return {
         id: card.id || card.uuid || fallbackId,
         name: card.name || '',
+        role: card.role === 'persona' ? 'persona' : 'character',
+        is_default_persona: Boolean(card.is_default_persona),
         race: card.race || '',
         description: card.description || '',
         stats: {},
@@ -97,6 +100,7 @@ export function snapshotToWorld(card: SnapshotCard, fallbackId: string): World {
     return {
         id: card.id || card.uuid || fallbackId,
         name: card.name || '',
+        place_type: readWorldPlaceType(card),
         type: card.type || '',
         description: card.description || '',
         details: {},
@@ -165,14 +169,20 @@ export function libraryCardToSnapshotCard(card: Character | World, kind: 'charac
         uuid: card.id,
         source_card_id: card.id,
         name: card.name,
+        role: kind === 'character' ? ((card as Character).role === 'persona' ? 'persona' : 'character') : undefined,
+        is_default_persona: kind === 'character' ? Boolean((card as Character).is_default_persona) : undefined,
         description: card.description ?? '',
         category: card.category,
         triggers: card.triggers ?? [],
         image_url: card.image_url,
         theme_song_url: card.theme_song_url,
     }
-    if (kind === 'world') base.type = (card as World).type ?? ''
-    else base.race = (card as Character).race ?? ''
+    if (kind === 'world') {
+        base.place_type = readWorldPlaceType(card as World)
+        base.type = (card as World).type ?? ''
+    } else {
+        base.race = (card as Character).race ?? ''
+    }
     return base
 }
 

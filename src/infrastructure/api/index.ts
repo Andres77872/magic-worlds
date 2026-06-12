@@ -19,6 +19,11 @@ import type {
     LoreActivationPreviewResponse,
     Lorebook,
     LorebookAttachment,
+    LorebookAssistantConversationListResponse,
+    LorebookAssistantConversationResponse,
+    LorebookAssistantRequestOptions,
+    LorebookAssistantStreamEvent,
+    LorebookAssistantTurnResponse,
     LorebookDraft,
     LorebookEntry,
     LorebookEntryDraft,
@@ -37,6 +42,7 @@ import type {
     CardAssistantStreamEvent,
     CardAssistantTurnResponse,
     CharacterCardResponse,
+    ItemCardResponse,
     WorldCardResponse,
 } from '../../shared/types/aiCard.types'
 import type {
@@ -57,6 +63,15 @@ import type {
     BackgroundTaskPublic,
     BackgroundTaskState,
 } from '../../shared/types/task.types'
+import type {
+    Story,
+    StoryCardRef,
+    StoryChapter,
+    StoryContextTrace,
+    StoryCreateRequest,
+    StoryGenerateRequest,
+    StoryGenerateResponse,
+} from '../../shared/types/story.types'
 
 export interface AdventureSessionMessagesResponse {
     adventure_id: number
@@ -85,6 +100,25 @@ export interface TtsJobPublicResponse {
 export interface ApiHealthResponse {
     status: string
 }
+
+export type ApiDependencyStatus = 'ok' | 'offline'
+
+export interface ApiDependencyService {
+    id: string
+    label: string
+    status: ApiDependencyStatus | string
+    message?: string | null
+    latency_ms?: number | null
+    components?: ApiDependencyService[]
+}
+
+export interface ApiDependencyHealthResponse {
+    status: 'ok' | 'offline' | string
+    checked_at?: string
+    services: ApiDependencyService[]
+}
+
+export type CardExportType = 'character' | 'world' | 'adventure_template' | 'item'
 
 const TOKEN_STORAGE_KEY = 'magic_worlds:token'
 const USER_STORAGE_KEY = 'magic_worlds:user'
@@ -475,6 +509,28 @@ class ApiService {
         })
     }
 
+    private async authenticatedBlob(endpoint: string, errorMessage: string, accept: string): Promise<Blob> {
+        const url = `${this.baseUrl}${endpoint}`
+        const fetchOnce = (token: string) => fetch(url, {
+            method: 'GET',
+            headers: {
+                Accept: accept,
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+        })
+
+        let response = await fetchOnce(this.getStoredToken())
+        if (response.status === 401) {
+            const nextToken = await this.refreshAccessToken(this.getStoredToken())
+            response = await fetchOnce(nextToken)
+        }
+        if (!response.ok) {
+            const parsed = await this.extractError(response)
+            throw new ApiError(response.status, parsed.message || errorMessage, parsed)
+        }
+        return response.blob()
+    }
+
     /**
      * Login via the API proxy
      */
@@ -581,6 +637,20 @@ class ApiService {
         }
     }
 
+    private lorebookAssistantHeaders(options: LorebookAssistantRequestOptions = {}): Record<string, string> {
+        return {
+            'Content-Type': 'application/json',
+            'X-Request-Id': options.requestId || this.createClientId('mw-lorebook-assistant-req'),
+        }
+    }
+
+    private lorebookAssistantRequestOptions(options: LorebookAssistantRequestOptions): Pick<ApiRequestOptions, 'signal' | 'timeoutMs'> {
+        return {
+            signal: options.signal,
+            timeoutMs: options.timeoutMs,
+        }
+    }
+
     private parseCardAssistantStreamFrame(frame: string): CardAssistantStreamEvent | null {
         let eventType = 'message'
         const dataLines: string[] = []
@@ -642,6 +712,67 @@ class ApiService {
         }
     }
 
+    private parseLorebookAssistantStreamFrame(frame: string): LorebookAssistantStreamEvent | null {
+        let eventType = 'message'
+        const dataLines: string[] = []
+        for (const rawLine of frame.split('\n')) {
+            const line = rawLine.trimEnd()
+            if (!line || line.startsWith(':')) continue
+            if (line.startsWith('event:')) {
+                eventType = line.slice(6).trim()
+                continue
+            }
+            if (line.startsWith('data:')) {
+                dataLines.push(line.slice(5).trimStart())
+            }
+        }
+        if (!dataLines.length) return null
+        const data = JSON.parse(dataLines.join('\n')) as Record<string, unknown>
+        if (!data || typeof data !== 'object') return null
+        return { ...data, type: eventType } as LorebookAssistantStreamEvent
+    }
+
+    private async readLorebookAssistantStream(
+        response: Response,
+        onEvent: (event: LorebookAssistantStreamEvent) => void,
+    ): Promise<void> {
+        if (!response.body) {
+            throw new ApiError(502, 'Lorebook assistant stream returned no response body.', {
+                category: 'upstream_contract',
+                code: 'lorebook_assistant_stream_body_missing',
+                requestId: response.headers.get('X-Request-Id') || undefined,
+                retryable: true,
+            })
+        }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        const flushFrame = (frame: string) => {
+            const event = this.parseLorebookAssistantStreamFrame(frame)
+            if (event) onEvent(event)
+        }
+
+        try {
+            while (true) {
+                const { value, done } = await reader.read()
+                if (done) break
+                buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+                let separator = buffer.indexOf('\n\n')
+                while (separator >= 0) {
+                    const frame = buffer.slice(0, separator)
+                    buffer = buffer.slice(separator + 2)
+                    flushFrame(frame)
+                    separator = buffer.indexOf('\n\n')
+                }
+            }
+            buffer += decoder.decode().replace(/\r\n/g, '\n')
+            if (buffer.trim()) flushFrame(buffer)
+        } finally {
+            reader.releaseLock()
+        }
+    }
+
     /**
      * Lightweight API liveness check. This intentionally avoids auth recovery:
      * the sidebar needs to know whether the API process is reachable even before login.
@@ -656,6 +787,22 @@ class ApiService {
             throw new ApiError(response.status, `Health check failed (${response.status})`)
         }
         return await response.json() as ApiHealthResponse
+    }
+
+    /**
+     * Detailed health view used by the sidebar monitor. The backend aggregates
+     * this API, its local engines, and upstream services owned by adjacent projects.
+     */
+    async getDependencyHealth(options: { signal?: AbortSignal } = {}): Promise<ApiDependencyHealthResponse> {
+        const response = await fetch(`${this.baseUrl}/health/dependencies`, {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            signal: options.signal,
+        })
+        if (!response.ok) {
+            throw new ApiError(response.status, `Dependency health check failed (${response.status})`)
+        }
+        return await response.json() as ApiDependencyHealthResponse
     }
 
     /**
@@ -713,6 +860,14 @@ class ApiService {
         })
     }
 
+    async exportCardImage(cardType: CardExportType, cardId: string): Promise<Blob> {
+        return this.authenticatedBlob(
+            `/cards/${cardType}/${encodeURIComponent(cardId)}/export.png`,
+            'Card image could not be exported.',
+            'image/png',
+        )
+    }
+
     /**
      * Create a new world
      */
@@ -757,6 +912,49 @@ class ApiService {
         })
     }
 
+    /**
+     * Create a new item/object
+     */
+    async createItem(itemData: any): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest('/items/', token, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: itemData
+        })
+    }
+
+    /**
+     * Generate + persist a new item/object from a description via the AI endpoint.
+     */
+    async createItemAI(description: string, options: AiCardRequestOptions = {}): Promise<ItemCardResponse> {
+        const token = this.getStoredToken()
+        const result = await this.authenticatedRequest<ItemCardResponse>('/items/ai/', token, {
+            method: 'POST',
+            headers: this.aiHeaders(options),
+            body: { description: description.trim() } as unknown as BodyInit,
+            ...this.aiRequestOptions(options),
+        })
+        this.assertAiCardSynchronousContract(result)
+        return result
+    }
+
+    /**
+     * Update an existing item/object
+     */
+    async updateItem(itemId: string, itemData: any): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/items/${itemId}`, token, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: itemData
+        })
+    }
+
     /** Build the shared list query string; `q` searches name/alias/triggers server-side. */
     private listQuery(skip: number, limit: number, q?: string): string {
         const term = q?.trim()
@@ -766,9 +964,11 @@ class ApiService {
     /**
      * Get characters list with pagination and optional search
      */
-    async getCharacters(skip: number = 0, limit: number = 100, q?: string): Promise<any> {
+    async getCharacters(skip: number = 0, limit: number = 100, q?: string, role?: 'character' | 'persona'): Promise<any> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/characters/${this.listQuery(skip, limit, q)}`, token, {
+        const query = this.listQuery(skip, limit, q)
+        const roleQuery = role ? `${query}&role=${encodeURIComponent(role)}` : query
+        return this.authenticatedRequest(`/characters/${roleQuery}`, token, {
             method: 'GET'
         })
     }
@@ -779,6 +979,16 @@ class ApiService {
     async getWorlds(skip: number = 0, limit: number = 100, q?: string): Promise<any> {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/worlds/${this.listQuery(skip, limit, q)}`, token, {
+            method: 'GET'
+        })
+    }
+
+    /**
+     * Get items list with pagination and optional search
+     */
+    async getItems(skip: number = 0, limit: number = 100, q?: string): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/items/${this.listQuery(skip, limit, q)}`, token, {
             method: 'GET'
         })
     }
@@ -902,6 +1112,138 @@ class ApiService {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: request as unknown as BodyInit,
+        })
+    }
+
+    async getStories(skip: number = 0, limit: number = 100, q?: string): Promise<Story[]> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<Story[]>(`/stories${this.listQuery(skip, limit, q)}`, token, {
+            method: 'GET',
+        })
+    }
+
+    async getStory(storyId: string): Promise<Story> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<Story>(`/stories/${encodeURIComponent(storyId)}`, token, {
+            method: 'GET',
+        })
+    }
+
+    async createStory(story: StoryCreateRequest | Record<string, unknown>): Promise<Story> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<Story>('/stories', token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: story as unknown as BodyInit,
+        })
+    }
+
+    async updateStory(storyId: string, story: Partial<Story> | Record<string, unknown>): Promise<Story> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<Story>(`/stories/${encodeURIComponent(storyId)}`, token, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: story as unknown as BodyInit,
+        })
+    }
+
+    async deleteStory(storyId: string): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}`, token, {
+            method: 'DELETE',
+        })
+    }
+
+    async createStoryChapter(storyId: string, chapter: Partial<StoryChapter> | Record<string, unknown>): Promise<StoryChapter> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<StoryChapter>(`/stories/${encodeURIComponent(storyId)}/scenes`, token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: chapter as unknown as BodyInit,
+        })
+    }
+
+    async updateStoryChapter(storyId: string, chapterId: string, chapter: Partial<StoryChapter> | Record<string, unknown>): Promise<StoryChapter> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<StoryChapter>(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(chapterId)}`, token, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: chapter as unknown as BodyInit,
+        })
+    }
+
+    async deleteStoryChapter(storyId: string, chapterId: string): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(chapterId)}`, token, {
+            method: 'DELETE',
+        })
+    }
+
+    async addStoryCardRef(storyId: string, ref: Partial<StoryCardRef> | Record<string, unknown>): Promise<StoryCardRef> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<StoryCardRef>(`/stories/${encodeURIComponent(storyId)}/card-refs`, token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: ref as unknown as BodyInit,
+        })
+    }
+
+    async updateStoryCardRef(storyId: string, refId: string, ref: Partial<StoryCardRef> | Record<string, unknown>): Promise<StoryCardRef> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<StoryCardRef>(`/stories/${encodeURIComponent(storyId)}/card-refs/${encodeURIComponent(refId)}`, token, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: ref as unknown as BodyInit,
+        })
+    }
+
+    async deleteStoryCardRef(storyId: string, refId: string): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/card-refs/${encodeURIComponent(refId)}`, token, {
+            method: 'DELETE',
+        })
+    }
+
+    async previewStoryContext(storyId: string, request: StoryGenerateRequest): Promise<StoryContextTrace> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<StoryContextTrace>(`/stories/${encodeURIComponent(storyId)}/context-preview`, token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: request as unknown as BodyInit,
+        })
+    }
+
+    async generateStory(storyId: string, request: StoryGenerateRequest): Promise<StoryGenerateResponse> {
+        const token = this.getStoredToken()
+        const requestId = request.requestId || this.createClientId('mw-story-generate')
+        return this.authenticatedRequest<StoryGenerateResponse>(`/stories/${encodeURIComponent(storyId)}/generate`, token, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Request-Id': requestId,
+            },
+            body: { ...request, requestId } as unknown as BodyInit,
+        })
+    }
+
+    async acceptStoryGeneration(storyId: string, generationId: string): Promise<Story> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<Story>(`/stories/${encodeURIComponent(storyId)}/generations/${encodeURIComponent(generationId)}/accept`, token, {
+            method: 'POST',
+        })
+    }
+
+    async stashStoryGeneration(storyId: string, generationId: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/generations/${encodeURIComponent(generationId)}/stash`, token, {
+            method: 'POST',
+        })
+    }
+
+    async discardStoryGeneration(storyId: string, generationId: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/generations/${encodeURIComponent(generationId)}/discard`, token, {
+            method: 'POST',
         })
     }
 
@@ -1105,6 +1447,156 @@ class ApiService {
         }
     }
 
+    async createLorebookAssistantConversation(
+        body: {
+            lorebook_id?: string | null
+            title?: string | null
+            current_lorebook?: Record<string, unknown> | null
+        },
+        options: LorebookAssistantRequestOptions = {},
+    ): Promise<LorebookAssistantConversationResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<LorebookAssistantConversationResponse>('/lorebook-assistant/conversations', token, {
+            method: 'POST',
+            headers: this.lorebookAssistantHeaders(options),
+            body: body as unknown as BodyInit,
+            ...this.lorebookAssistantRequestOptions(options),
+        })
+    }
+
+    async listLorebookAssistantConversations(
+        lorebookId?: string | null,
+        options: LorebookAssistantRequestOptions = {},
+    ): Promise<LorebookAssistantConversationListResponse> {
+        const token = this.getStoredToken()
+        const params = new URLSearchParams()
+        if (lorebookId) params.set('lorebook_id', lorebookId)
+        const suffix = params.toString() ? `?${params.toString()}` : ''
+        return this.authenticatedRequest<LorebookAssistantConversationListResponse>(`/lorebook-assistant/conversations${suffix}`, token, {
+            method: 'GET',
+            headers: this.lorebookAssistantHeaders(options),
+            ...this.lorebookAssistantRequestOptions(options),
+        })
+    }
+
+    async getLorebookAssistantConversation(
+        conversationId: number,
+        options: LorebookAssistantRequestOptions = {},
+    ): Promise<LorebookAssistantConversationResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<LorebookAssistantConversationResponse>(`/lorebook-assistant/conversations/${conversationId}`, token, {
+            method: 'GET',
+            headers: this.lorebookAssistantHeaders(options),
+            ...this.lorebookAssistantRequestOptions(options),
+        })
+    }
+
+    async deleteLorebookAssistantConversation(
+        conversationId: number,
+        options: LorebookAssistantRequestOptions = {},
+    ): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest<void>(`/lorebook-assistant/conversations/${conversationId}`, token, {
+            method: 'DELETE',
+            headers: this.lorebookAssistantHeaders(options),
+            ...this.lorebookAssistantRequestOptions(options),
+        })
+    }
+
+    async sendLorebookAssistantMessage(
+        conversationId: number,
+        body: {
+            message: string
+            current_lorebook?: Record<string, unknown> | null
+            request_id?: string
+        },
+        options: LorebookAssistantRequestOptions = {},
+    ): Promise<LorebookAssistantTurnResponse> {
+        const token = this.getStoredToken()
+        const requestId = options.requestId || body.request_id || this.createClientId('mw-lorebook-assistant-turn')
+        return this.authenticatedRequest<LorebookAssistantTurnResponse>(`/lorebook-assistant/conversations/${conversationId}/messages`, token, {
+            method: 'POST',
+            headers: this.lorebookAssistantHeaders({ ...options, requestId }),
+            body: { ...body, request_id: requestId } as unknown as BodyInit,
+            ...this.lorebookAssistantRequestOptions(options),
+        })
+    }
+
+    async streamLorebookAssistantMessage(
+        conversationId: number,
+        body: {
+            message: string
+            current_lorebook?: Record<string, unknown> | null
+            request_id?: string
+        },
+        onEvent: (event: LorebookAssistantStreamEvent) => void,
+        options: LorebookAssistantRequestOptions = {},
+    ): Promise<void> {
+        const token = this.getStoredToken()
+        const requestId = options.requestId || body.request_id || this.createClientId('mw-lorebook-assistant-turn')
+        const endpoint = `/lorebook-assistant/conversations/${conversationId}/messages/stream`
+        const url = `${this.baseUrl}${endpoint}`
+        const payload = JSON.stringify({ ...body, request_id: requestId })
+
+        let didTimeout = false
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+        let signal = options.signal
+        if (options.timeoutMs && options.timeoutMs > 0) {
+            const controller = new AbortController()
+            signal = controller.signal
+            if (options.signal) {
+                if (options.signal.aborted) {
+                    controller.abort(options.signal.reason)
+                } else {
+                    options.signal.addEventListener('abort', () => controller.abort(options.signal?.reason), { once: true })
+                }
+            }
+            timeoutHandle = setTimeout(() => {
+                didTimeout = true
+                controller.abort(new DOMException('Lorebook assistant stream timed out locally', 'AbortError'))
+            }, options.timeoutMs)
+        }
+
+        const config: RequestInit = {
+            method: 'POST',
+            headers: {
+                ...this.lorebookAssistantHeaders({ ...options, requestId }),
+                Accept: 'text/event-stream',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: payload,
+            signal,
+        }
+
+        try {
+            let response = await fetch(url, config)
+            if (response.status === 401) {
+                const nextToken = await this.refreshAccessToken(token)
+                response = await fetch(url, this.withAuthorization(config, nextToken))
+            }
+            if (!response.ok) {
+                const parsed = await this.extractError(response)
+                throw new ApiError(response.status, parsed.message, parsed)
+            }
+            await this.readLorebookAssistantStream(response, onEvent)
+        } catch (error) {
+            if (didTimeout && error instanceof DOMException && error.name === 'AbortError') {
+                throw new ApiError(0, 'Local wait timed out. The assistant may still finish and save the conversation.', {
+                    category: 'timeout',
+                    code: 'lorebook_assistant_client_timeout',
+                    retryable: true,
+                    action: 'reload_conversation',
+                })
+            }
+            if (!(error instanceof ApiError)) {
+                console.warn(`Lorebook assistant stream error for ${endpoint}:`, error)
+            }
+            throw error
+        } finally {
+            if (timeoutHandle) clearTimeout(timeoutHandle)
+        }
+    }
+
     /**
      * Update an existing adventure template
      */
@@ -1165,6 +1657,26 @@ class ApiService {
     async deleteWorld(worldId: string): Promise<any> {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/worlds/${worldId}`, token, {
+            method: 'DELETE'
+        })
+    }
+
+    /**
+     * Get a specific item/object by ID
+     */
+    async getItem(itemId: string): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/items/${itemId}`, token, {
+            method: 'GET'
+        })
+    }
+
+    /**
+     * Delete an item/object
+     */
+    async deleteItem(itemId: string): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/items/${itemId}`, token, {
             method: 'DELETE'
         })
     }
@@ -1506,14 +2018,14 @@ class ApiService {
     /**
      * Create a new adventure session
      */
-    async createAdventureSession(adventureTemplate: string): Promise<any> {
+    async createAdventureSession(adventureTemplate: string, personaId: string): Promise<any> {
         const token = this.getStoredToken()
         return this.authenticatedRequest('/adventure-sessions/', token, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: { adventure_template: adventureTemplate } as unknown as BodyInit
+            body: { adventure_template: adventureTemplate, persona_id: personaId } as unknown as BodyInit
         })
     }
 
@@ -1562,12 +2074,12 @@ class ApiService {
      * (user, character): it returns the existing chat if one exists, otherwise
      * creates one and seeds the character's greeting as the first turn.
      */
-    async createCharacterChat(characterId: string): Promise<any> {
+    async createCharacterChat(characterId: string, personaId: string): Promise<any> {
         const token = this.getStoredToken()
         return this.authenticatedRequest('/character-chats/', token, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: { character_id: characterId } as unknown as BodyInit
+            body: { character_id: characterId, persona_id: personaId } as unknown as BodyInit
         })
     }
 

@@ -43,16 +43,19 @@ describe('AI card API methods', () => {
         expect(JSON.parse(String(init.body))).toEqual({ description: 'Create Nyra' })
     })
 
-    it('uses sibling endpoints for world and adventure template generation', async () => {
+    it('uses sibling endpoints for world, item, and adventure template generation', async () => {
         fetchMock
             .mockResolvedValueOnce(jsonResponse({ id: 'world-1', name: 'Glass' }))
+            .mockResolvedValueOnce(jsonResponse({ id: 'item-1', name: 'Moonlit Compass', description: 'Finds safe roads.' }))
             .mockResolvedValueOnce(jsonResponse({ id: 'tmpl-1', name: 'Gate' }))
 
         await apiService.createWorldAI('Create a world', { requestId: 'req-w', idempotencyKey: 'idem-w' })
+        await apiService.createItemAI('Create an item', { requestId: 'req-i', idempotencyKey: 'idem-i' })
         await apiService.createAdventureTemplateAI('Create an adventure', { requestId: 'req-a', idempotencyKey: 'idem-a' })
 
         expect(fetchMock.mock.calls[0][0]).toMatch(/\/worlds\/ai\/$/)
-        expect(fetchMock.mock.calls[1][0]).toMatch(/\/adventure-templates\/ai\/$/)
+        expect(fetchMock.mock.calls[1][0]).toMatch(/\/items\/ai\/$/)
+        expect(fetchMock.mock.calls[2][0]).toMatch(/\/adventure-templates\/ai\/$/)
     })
 
     it('POSTs card assistant conversations and turns with live card context', async () => {

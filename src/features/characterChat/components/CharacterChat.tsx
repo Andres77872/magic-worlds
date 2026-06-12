@@ -118,7 +118,7 @@ function CharacterChatView({ chat, onBack, onEdit }: CharacterChatViewProps) {
                 onClick={handleBackdropClick}
             >
                 <div className={cx(panelContent, 'border-r border-parchment-50/10', isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0')}>
-                    <CharacterChatSidebar character={character} onBack={onBack} onEdit={onEdit} />
+                    <CharacterChatSidebar character={character} persona={chat.persona} onBack={onBack} onEdit={onEdit} />
                 </div>
             </div>
 

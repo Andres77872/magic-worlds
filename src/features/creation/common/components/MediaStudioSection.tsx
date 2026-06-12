@@ -1,6 +1,6 @@
 /**
- * MediaStudioSection — the "Generate profile image" + "Generate music theme"
- * affordances shared by the card creators and the in-session card drawer.
+ * MediaStudioSection — generated card image + music theme affordances shared
+ * by the card creators and the in-session card drawer.
  *
  * Privacy contract: the client only ever sends the card's own information (the
  * `template`) plus an optional free-text direction. The backend builds the real,
@@ -69,6 +69,8 @@ export interface MediaStudioSectionProps {
         description?: string
         /** Race for a character, type for a world. */
         subtype?: string
+        /** Literal place kind for world cards; included in the backend prompt template. */
+        place_type?: string
         category?: AttributeGroups
     }
     /** Current portrait URL (as returned by the backend; may be relative). */
@@ -233,6 +235,7 @@ export function MediaStudioSection({
                 name: template.name.trim(),
                 description: template.description?.trim() || undefined,
                 subtype: template.subtype?.trim() || undefined,
+                place_type: template.place_type?.trim() || undefined,
                 category: template.category,
                 extra_direction: direction.trim() || undefined,
             }
@@ -408,7 +411,7 @@ export function MediaStudioSection({
     const resolvedImage = resolveMediaUrl(imageUrl)
     const resolvedTheme = resolveMediaUrl(themeUrl)
     const isAdventure = cardType === 'adventure_template'
-    const imageLabel = isAdventure ? 'Cover image' : 'Profile image'
+    const imageLabel = isAdventure ? 'Cover image' : cardType === 'world' ? 'Setting image' : cardType === 'item' ? 'Item image' : 'Profile image'
     const imgBusyLabel = imgBusyKind === 'upload' ? 'Uploading…' : 'Generating…'
 
     // Rendered once per layout — the hidden picker drives Replace/Upload, the
@@ -510,6 +513,11 @@ export function MediaStudioSection({
                         <AudioWavePlayer
                             src={resolvedTheme}
                             title={template.name.trim() ? `${template.name.trim()} theme` : 'theme'}
+                            trackMeta={{
+                                cardName: template.name.trim() || undefined,
+                                cardType,
+                                artworkUrl: resolveMediaUrl(imageUrl),
+                            }}
                             className="rounded-xl border border-arcane-500/20 bg-ink-800/60 p-2.5"
                         />
                     )}
@@ -628,6 +636,11 @@ export function MediaStudioSection({
                     <AudioWavePlayer
                         src={resolvedTheme}
                         title={template.name.trim() ? `${template.name.trim()} theme` : 'theme'}
+                        trackMeta={{
+                            cardName: template.name.trim() || undefined,
+                            cardType,
+                            artworkUrl: resolveMediaUrl(imageUrl),
+                        }}
                         className="rounded-xl border border-arcane-500/20 bg-ink-800/60 p-3"
                     />
                 )}

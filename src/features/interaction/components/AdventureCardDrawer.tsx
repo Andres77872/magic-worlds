@@ -10,8 +10,16 @@
 import { startTransition, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import type { SnapshotCard } from '../../../shared'
+import {
+    CUSTOM_WORLD_PLACE_TYPE,
+    DEFAULT_WORLD_PLACE_TYPE,
+    WORLD_PLACE_TYPE_OPTIONS,
+    readWorldPlaceType,
+    worldPlaceTypeLabel,
+    worldPlaceTypeOptionValue,
+} from '../../../shared'
 import { useAuth } from '@/app/hooks'
-import { Button, Chip, Drawer, Eyebrow, Icon, Portrait, Tag } from '../../../ui/primitives'
+import { Button, Chip, Drawer, Eyebrow, Icon, Portrait, Select, Tag } from '../../../ui/primitives'
 import { ApiError, resolveMediaUrl } from '../../../infrastructure/api'
 import type { AttributeCategory } from '../../../ui/components/common/AttributeList'
 import {
@@ -184,7 +192,13 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
 function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
     const { card, ref } = entry
     const isWorld = ref.kind === 'world'
-    const badge = (isWorld ? card.type : card.race) || ''
+    const badges = isWorld
+        ? [worldPlaceTypeLabel(readWorldPlaceType(card)), card.type]
+            .map((item) => item?.trim())
+            .filter((item): item is string => Boolean(item))
+        : [card.race]
+            .map((item) => item?.trim())
+            .filter((item): item is string => Boolean(item))
     const groups = (card.category ?? []).filter((g) => (g.attributes?.length ?? 0) > 0)
     const triggers = card.triggers ?? []
     const description = card.description?.trim()
@@ -197,9 +211,11 @@ function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
                     <h3 className="font-display text-[26px] font-semibold leading-tight text-parchment-50">
                         {card.name || 'Untitled'}
                     </h3>
-                    {badge ? (
+                    {badges.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5">
-                            <Tag>{badge}</Tag>
+                            {badges.map((badge) => (
+                                <Tag key={badge}>{badge}</Tag>
+                            ))}
                         </div>
                     ) : (
                         <span className="font-narrative text-[13px] italic text-parchment-300">
@@ -310,6 +326,7 @@ function CardEditForm({
     const isWorld = ref.kind === 'world'
     const cardType = isWorld ? 'world' : 'character'
     const [name, setName] = useState(card.name ?? '')
+    const [placeType, setPlaceType] = useState(readWorldPlaceType(isWorld ? card : null))
     const [badgeValue, setBadgeValue] = useState((isWorld ? card.type : card.race) || '')
     const [description, setDescription] = useState(card.description ?? '')
     const [triggers, setTriggers] = useState<string[]>(card.triggers ?? [])
@@ -345,12 +362,14 @@ function CardEditForm({
     const attrs = useAttributeCategories({ defaults, entity: card })
 
     const nameError = touched && !name.trim() ? 'Name is required.' : undefined
+    const placeTypeError = touched && isWorld && !placeType.trim() ? 'Choose a place type or enter a custom one.' : undefined
+    const selectedPlaceTypeOption = worldPlaceTypeOptionValue(placeType)
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault()
         if (!readyRef.current) return
         setTouched(true)
-        if (!name.trim()) return
+        if (!name.trim() || (isWorld && !placeType.trim())) return
         const updated: SnapshotCard = {
             ...card,
             name: name.trim(),
@@ -360,8 +379,12 @@ function CardEditForm({
             image_url: imageUrl,
             theme_song_url: themeSongUrl,
         }
-        if (isWorld) updated.type = badgeValue.trim()
-        else updated.race = badgeValue.trim()
+        if (isWorld) {
+            updated.place_type = placeType.trim() || DEFAULT_WORLD_PLACE_TYPE
+            updated.type = badgeValue.trim()
+        } else {
+            updated.race = badgeValue.trim()
+        }
         onSubmit(ref, updated)
     }
 
@@ -382,14 +405,49 @@ function CardEditForm({
                     <CreatorInput value={name} onChange={setName} placeholder={isWorld ? 'World name' : 'Character name'} autoFocus />
                 </CreatorField>
 
-                <CreatorField label={isWorld ? 'Type' : 'Race / species'}>
+                {isWorld ? (
+                    <CreatorField
+                        label="Place type"
+                        required
+                        error={placeTypeError}
+                        tooltip="Literal scale used by image generation, such as world, country, continent, or a custom place kind."
+                    >
+                        <Select
+                            value={selectedPlaceTypeOption}
+                            onChange={(next) => {
+                                setPlaceType(next === CUSTOM_WORLD_PLACE_TYPE ? '' : next)
+                            }}
+                            options={[
+                                ...WORLD_PLACE_TYPE_OPTIONS,
+                                { value: CUSTOM_WORLD_PLACE_TYPE, label: 'Custom' },
+                            ]}
+                        />
+                    </CreatorField>
+                ) : (
+                    <CreatorField label="Race / species">
+                        <CreatorInput value={badgeValue} onChange={setBadgeValue} placeholder="e.g. Elf" />
+                    </CreatorField>
+                )}
+            </div>
+
+            {isWorld && selectedPlaceTypeOption === CUSTOM_WORLD_PLACE_TYPE && (
+                <CreatorField label="Custom place type" required error={placeTypeError}>
                     <CreatorInput
-                        value={badgeValue}
-                        onChange={setBadgeValue}
-                        placeholder={isWorld ? 'e.g. Floating archipelago' : 'e.g. Elf'}
+                        value={placeType}
+                        onChange={setPlaceType}
+                        placeholder="e.g. archipelago, province, moon, star system"
                     />
                 </CreatorField>
-            </div>
+            )}
+
+            {isWorld && (
+                <CreatorField
+                    label="Genre / Vibe"
+                    tooltip="The creative flavor of the place: fantasy, sci-fi, gothic, solarpunk, modern, and so on."
+                >
+                    <CreatorInput value={badgeValue} onChange={setBadgeValue} placeholder="e.g. Floating archipelago" />
+                </CreatorField>
+            )}
 
             <CreatorField label="Description" tooltip={isWorld ? 'Set the scene — geography, mood, history.' : 'Who they are, how they act.'}>
                 <CreatorTextarea value={description} onChange={setDescription} rows={5} placeholder="Describe this card…" />
@@ -413,7 +471,13 @@ function CardEditForm({
                 <MediaStudioSection
                     cardType={cardType}
                     noun={isWorld ? 'world' : 'character'}
-                    template={{ name, description, subtype: badgeValue, category: toCategoryPayload(attrs.categories, attrs.attributes) }}
+                    template={{
+                        name,
+                        description,
+                        subtype: badgeValue,
+                        place_type: isWorld ? placeType.trim() || DEFAULT_WORLD_PLACE_TYPE : undefined,
+                        category: toCategoryPayload(attrs.categories, attrs.attributes),
+                    }}
                     imageUrl={imageUrl}
                     onImageUrl={setImageUrl}
                     themeSongUrl={themeSongUrl}

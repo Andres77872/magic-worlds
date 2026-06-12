@@ -2,11 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, History, Plus, Trash2 } from 'lucide-react'
 import { cx, IconButton } from '@/ui/primitives'
 import { formatRelativeTime } from '@/utils/time'
-import type { CardAssistantConversation } from '@/shared/types/aiCard.types'
 import { conversationKey } from './useCardAssistant'
 
+interface AssistantConversationMenuItem {
+    id?: number
+    conversation_id: number
+    title?: string | null
+    updated_at?: string
+}
+
 interface ConversationMenuProps {
-    conversations: CardAssistantConversation[]
+    conversations: AssistantConversationMenuItem[]
     activeId: number | null
     disabled?: boolean
     onSelect: (id: number) => void

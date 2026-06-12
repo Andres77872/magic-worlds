@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, Pause, Play, Volume2 } from 'lucide-react'
 import type { TtsLifecycleStatus } from '../../../shared'
 import { IconButton } from '../../../ui/primitives'
+import { claimAudioFocus } from '../../../ui/components/audio'
 import { apiService, resolveMediaUrl } from '../../../infrastructure/api'
 
 const NON_TERMINAL: TtsLifecycleStatus[] = ['pending', 'in_progress', 'synthesizing', 'mirroring']
@@ -83,7 +84,12 @@ export function TurnNarration({ status, url, errorDetail, canRequest, onRequest 
 
     if (resolved) {
         const attachListeners = (audio: HTMLAudioElement) => {
-            audio.addEventListener('play', () => setIsPlaying(true))
+            audio.addEventListener('play', () => {
+                // Narration shares exclusive focus with the playlist player —
+                // speaking a turn pauses the music, and vice versa.
+                claimAudioFocus(audio)
+                setIsPlaying(true)
+            })
             audio.addEventListener('pause', () => setIsPlaying(false))
             audio.addEventListener('ended', () => setIsPlaying(false))
         }

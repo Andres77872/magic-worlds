@@ -108,7 +108,7 @@ export const baseProfile: UserProfile = {
     user_type: 'consumer',
     user_usage: 26,
     membership,
-    card_counts: { character: 7, world: 3, adventure_template: 5 },
+    card_counts: { character: 7, world: 3, item: 6, adventure_template: 5 },
 }
 
 const meta = {
@@ -208,7 +208,7 @@ export const FreshAccount: Story = {
                     },
                 },
             },
-            card_counts: { character: 0, world: 0, adventure_template: 0 },
+            card_counts: { character: 0, world: 0, item: 0, adventure_template: 0 },
         },
     },
 }

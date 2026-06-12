@@ -102,7 +102,7 @@ export function ActivationPreviewPanel({ lorebook, saved }: ActivationPreviewPan
             </div>
 
             <div className="overflow-hidden rounded-lg border border-parchment-50/[.08]">
-                <div className="border-b border-parchment-50/[.08] bg-ink-700 px-4 py-2 font-ui text-sm font-semibold text-parchment-50">
+                <div className="border-b border-parchment-50/[.08] bg-ink-700 px-4 py-3 font-ui text-sm font-semibold text-parchment-50">
                     Trace
                 </div>
                 <div className="max-h-[260px] overflow-y-auto divide-y divide-parchment-50/[.06]">

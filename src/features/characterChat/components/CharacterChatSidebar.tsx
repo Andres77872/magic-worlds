@@ -12,11 +12,12 @@ import { ModeBadge } from '../../../ui/components/common/ModeBadge'
 
 interface CharacterChatSidebarProps {
     character: Character
+    persona?: Character
     onBack: () => void
     onEdit: () => void
 }
 
-export function CharacterChatSidebar({ character, onBack, onEdit }: CharacterChatSidebarProps) {
+export function CharacterChatSidebar({ character, persona, onBack, onEdit }: CharacterChatSidebarProps) {
     return (
         <div className="flex h-full flex-col bg-ink-900">
             <div className="flex items-center gap-2 border-b border-parchment-50/10 px-4 py-3">
@@ -45,6 +46,16 @@ export function CharacterChatSidebar({ character, onBack, onEdit }: CharacterCha
                             </div>
                         )}
                     </div>
+
+                    {persona && (
+                        <div className="rounded-lg border border-ember-500/25 bg-ember-500/10 px-4 py-3">
+                            <Eyebrow tone="ember" className="mb-1 text-[10px] tracking-[0.16em]">
+                                You are
+                            </Eyebrow>
+                            <p className="font-display text-[16px] font-semibold text-parchment-50">{persona.name}</p>
+                            {persona.race && <p className="mt-0.5 font-narrative text-xs text-parchment-400">{persona.race}</p>}
+                        </div>
+                    )}
 
                     {character.greeting && (
                         <div className="rounded-lg border border-parchment-50/10 bg-ink-800 px-4 py-3">

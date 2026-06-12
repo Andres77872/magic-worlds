@@ -6,7 +6,7 @@
 
 import type { ChatImageAsset, ChatImageError, ImageLifecycleStatus } from './interaction.types'
 
-export type CardMediaTargetType = 'character' | 'world' | 'adventure_template'
+export type CardMediaTargetType = 'character' | 'world' | 'adventure_template' | 'item'
 
 export type ImageAspectRatio = '1:1' | '16:9' | '4:3' | '3:4' | '9:16'
 
@@ -24,8 +24,10 @@ export interface CardPortraitRequest {
     card_id?: string | null
     name: string
     description?: string | null
-    /** Race for a character, type for a world; ignored for adventure templates. */
+    /** Race for a character, type for a world/item; ignored for adventure templates. */
     subtype?: string | null
+    /** Literal place kind/scale for world cards, e.g. country, continent, city. */
+    place_type?: string | null
     category?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }> | null
     /** Optional extra art direction the user typed in. */
     extra_direction?: string | null

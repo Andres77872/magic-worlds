@@ -1,11 +1,13 @@
 import { useState, type ReactNode } from 'react'
 import { ArrowLeft, Check, Globe, Info, Pencil, Plus, UserCircle, Users, X } from 'lucide-react'
 import type { Adventure, AdventureSnapshot } from '../../../shared'
+import { readWorldPlaceType, worldPlaceTypeLabel } from '../../../shared'
 import { Button, Icon, IconButton, SectionHeader, Tag, Textarea } from '../../../ui/primitives'
 import { Card } from '../../../ui/components/lists/Card'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
 import { resolveMediaUrl } from '../../../infrastructure/api'
 import { useData } from '../../../app/hooks'
+import { isAiCharacterCard, personaCandidates as orderedPersonaCandidates } from '../../../utils/characterRoles'
 import { AdventureCardDrawer } from './AdventureCardDrawer'
 import { AddCardModal, type AddCandidate } from './AddCardModal'
 import {
@@ -50,16 +52,16 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
     const usedIds = snapshotSourceIds(snapshot)
     const personaSourceId = persona?.card.source_card_id || persona?.card.id
 
-    const toCandidate = (c: { id: string; name: string; race?: string; type?: string; description?: string }): AddCandidate => ({
+    const toCandidate = (c: { id: string; name: string; race?: string; place_type?: string; type?: string; description?: string }): AddCandidate => ({
         id: c.id,
         name: c.name,
-        badge: c.race ?? c.type,
+        badge: c.race ?? [c.place_type, c.type].filter(Boolean).join(' / '),
         description: c.description,
     })
 
-    const castCandidates = libraryCharacters.filter((c) => !usedIds.has(c.id)).map(toCandidate)
+    const castCandidates = libraryCharacters.filter((c) => isAiCharacterCard(c) && !usedIds.has(c.id)).map(toCandidate)
     const worldCandidates = libraryWorlds.filter((w) => !usedIds.has(w.id)).map(toCandidate)
-    const personaCandidates = libraryCharacters.filter((c) => c.id !== personaSourceId).map(toCandidate)
+    const personaCandidates = orderedPersonaCandidates(libraryCharacters).filter((c) => c.id !== personaSourceId).map(toCandidate)
 
     const handleSaveCard = async (ref: SnapshotCardRef, card: SnapshotCardEntry['card']) => {
         if (!onSnapshotChange) return
@@ -201,7 +203,9 @@ function CardList({
 function CompactCard({ entry, onOpen }: { entry: SnapshotCardEntry; onOpen: (ref: SnapshotCardRef) => void }) {
     const { card, ref } = entry
     const isWorld = ref.kind === 'world'
-    const badge = (isWorld ? card.type : card.race) || ''
+    const badge = isWorld
+        ? [worldPlaceTypeLabel(readWorldPlaceType(card)), card.type].filter(Boolean).join(' / ')
+        : card.race || ''
     return (
         <Card
             title={card.name || 'Untitled'}

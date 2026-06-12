@@ -4,15 +4,18 @@ import { Chip, Eyebrow, IconTile } from '@/ui/primitives'
 import { AssistantMessage } from './AssistantMessage'
 import { StreamingDots } from './AssistantMarkdown'
 import type { AssistantSuggestion } from './suggestions'
-import type { AssistantStatus, AssistantTurn } from './useCardAssistant'
+import type { VisibleAssistantTurn } from './AssistantMessage'
+import type { AssistantStatus } from './useCardAssistant'
 
 interface AssistantMessageListProps {
-    turns: AssistantTurn[]
+    turns: VisibleAssistantTurn[]
     status: AssistantStatus
     suggestions: AssistantSuggestion[]
     onSuggestion: (prompt: string) => void
     /** Changes force the list back to the bottom (conversation switch / new chat). */
     conversationKey: number | null
+    emptyTitle?: string
+    emptyDescription?: string
 }
 
 function scrollToBottom(node: HTMLDivElement, behavior: ScrollBehavior = 'auto') {
@@ -33,13 +36,18 @@ function LoadingSkeleton() {
     )
 }
 
-function EmptyState({ suggestions, onSuggestion }: Pick<AssistantMessageListProps, 'suggestions' | 'onSuggestion'>) {
+function EmptyState({
+    suggestions,
+    onSuggestion,
+    emptyTitle = 'Shape this card with words',
+    emptyDescription = 'Describe what you want and the assistant will draft, refine, and save it for you.',
+}: Pick<AssistantMessageListProps, 'suggestions' | 'onSuggestion' | 'emptyTitle' | 'emptyDescription'>) {
     return (
         <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
             <IconTile icon={Sparkles} tone="arcane" size="md" />
-            <h3 className="font-display text-[20px] font-semibold text-parchment-50">Shape this card with words</h3>
+            <h3 className="font-display text-[20px] font-semibold text-parchment-50">{emptyTitle}</h3>
             <p className="max-w-[280px] font-narrative text-[14px] leading-relaxed text-parchment-300">
-                Describe what you want and the assistant will draft, refine, and save it for you.
+                {emptyDescription}
             </p>
             <div className="mt-1 flex w-full flex-col items-stretch gap-2">
                 {suggestions.map((suggestion) => (
@@ -57,7 +65,7 @@ function EmptyState({ suggestions, onSuggestion }: Pick<AssistantMessageListProp
     )
 }
 
-export function AssistantMessageList({ turns, status, suggestions, onSuggestion, conversationKey }: AssistantMessageListProps) {
+export function AssistantMessageList({ turns, status, suggestions, onSuggestion, conversationKey, emptyTitle, emptyDescription }: AssistantMessageListProps) {
     const scrollRef = useRef<HTMLDivElement | null>(null)
     const atBottomRef = useRef(true)
     // Mask stale turns while switching; on (re)open only skeleton an empty list.
@@ -88,7 +96,7 @@ export function AssistantMessageList({ turns, status, suggestions, onSuggestion,
     return (
         <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3.5 py-3">
             {showSkeleton && <LoadingSkeleton />}
-            {showEmpty && <EmptyState suggestions={suggestions} onSuggestion={onSuggestion} />}
+            {showEmpty && <EmptyState suggestions={suggestions} onSuggestion={onSuggestion} emptyTitle={emptyTitle} emptyDescription={emptyDescription} />}
             {!showSkeleton && turns.map((turn) => (
                 <AssistantMessage key={turn.message.message_id} turn={turn} />
             ))}

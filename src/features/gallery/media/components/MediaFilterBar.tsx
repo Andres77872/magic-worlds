@@ -6,7 +6,7 @@
  * useMediaGallery — this bar is purely presentational).
  */
 
-import { Globe, Image as ImageIcon, Music2, Swords, Users } from 'lucide-react'
+import { Gem, Globe, Image as ImageIcon, Music2, Swords, Users } from 'lucide-react'
 import { Chip, Icon } from '@/ui/primitives'
 import type { CardRef, CardTypeFilter, MediaGalleryFilters, MediaTypeFilter } from '../mediaGalleryTypes'
 import { CardPicker } from './CardPicker'
@@ -28,6 +28,7 @@ const CARD_TYPE_CHIPS: Array<{ key: CardTypeFilter; label: string; icon?: typeof
     { key: 'all', label: 'All types' },
     { key: 'character', label: 'Characters', icon: Users },
     { key: 'world', label: 'Worlds', icon: Globe },
+    { key: 'item', label: 'Items', icon: Gem },
     { key: 'adventure_template', label: 'Adventures', icon: Swords },
 ]
 

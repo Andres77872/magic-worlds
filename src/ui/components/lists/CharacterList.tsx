@@ -5,8 +5,9 @@ import {Card, CardGrid} from './Card'
 import type {CardOption} from './Card'
 import {EmptyState} from '../common/EmptyState'
 import {MessageCircle, Pencil, Trash2, User} from 'lucide-react'
-import {Button, Icon, Tag} from '@/ui/primitives'
+import {Badge, Button, Icon, Tag} from '@/ui/primitives'
 import {resolveMediaUrl} from '@/infrastructure/api'
+import { characterRole } from '@/utils/characterRoles'
 
 interface CharacterListProps {
     characters: Character[]
@@ -61,6 +62,7 @@ export function CharacterList({
                 }
                 renderCard={(character, idx) => {
                     const isDeleting = deletingId === idx
+                    const role = characterRole(character)
 
                     // Chat lives as an always-visible footer button (not a menu entry) —
                     // it's the primary action on a character card.
@@ -91,9 +93,11 @@ export function CharacterList({
                             key={character.id}
                             title={character.name as string}
                             subtitle={
-                                character.race
-                                    ? <div className="flex flex-wrap items-center gap-1.5"><Tag>{character.race}</Tag></div>
-                                    : undefined
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <Tag>{role === 'persona' ? 'Persona' : 'Character'}</Tag>
+                                    {character.race && <Tag>{character.race}</Tag>}
+                                    {character.is_default_persona && <Badge tone="ember">Default</Badge>}
+                                </div>
                             }
                             options={options}
                             onClick={() => onEdit(character)}

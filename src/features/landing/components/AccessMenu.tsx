@@ -60,7 +60,7 @@ export function AccessMenu({
                     <Eyebrow tone="ember">{eyebrow}</Eyebrow>
                     <h2 className="font-display text-h3 font-semibold text-parchment-50">{title}</h2>
                 </div>
-                <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
                     {CREATE_ACTIONS.map((action) => (
                         <Card
                             key={action.key}

@@ -20,6 +20,7 @@ vi.mock('@/infrastructure/api', () => ({
     apiService: {
         getCharacter: vi.fn(),
         getWorld: vi.fn(),
+        getItem: vi.fn(),
         getAdventureTemplate: vi.fn(),
     },
     resolveMediaUrl: (u?: string | null) => (u == null || u === '' ? undefined : u),
@@ -86,6 +87,7 @@ function renderDrawer(buckets: BackgroundTaskBuckets) {
     mocks.useData.mockReturnValue({
         characters: [character],
         worlds: [],
+        items: [],
         templateAdventures: [],
     })
     return render(<TasksDrawer />)

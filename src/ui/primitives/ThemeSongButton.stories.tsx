@@ -15,7 +15,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Circular play/pause control for a card\'s theme song, overlaid on the portrait next to the actions menu. Lazily owns one `HTMLAudioElement`, claims app-wide audio focus on play (one track at a time, shared with AudioWavePlayer), and never lets the click bubble into the enclosing clickable card.',
+          'Circular play/pause control for a card\'s theme song, overlaid on the portrait next to the actions menu. A view of the global playlist player: clicking sends the theme to the app-wide queue (the floating PlaylistDock), and never lets the click bubble into the enclosing clickable card.',
       },
     },
   },

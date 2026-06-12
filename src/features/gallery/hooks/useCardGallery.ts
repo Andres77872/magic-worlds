@@ -11,13 +11,13 @@ import type { GalleryItem } from '../galleryConfig'
 export const GALLERY_PAGE_SIZE = 24
 const SEARCH_DEBOUNCE_MS = 300
 
-export interface CardGalleryConfig {
+export interface CardGalleryConfig<T extends { id: string } = GalleryItem> {
     fetchPage: (skip: number, limit: number, q?: string) => Promise<unknown>
-    toItems: (raw: unknown) => GalleryItem[]
+    toItems: (raw: unknown) => T[]
 }
 
-export interface CardGallery {
-    items: GalleryItem[]
+export interface CardGallery<T extends { id: string } = GalleryItem> {
+    items: T[]
     /** Raw, controlled search input value (also the tag-pill entry point). */
     query: string
     setQuery: (q: string) => void
@@ -32,15 +32,17 @@ export interface CardGallery {
     refresh: () => void
     /** Drop an item locally after a server delete, keeping the cursor aligned. */
     removeItem: (id: string) => void
+    /** Insert or refresh a directly loaded card without advancing the paginated cursor. */
+    upsertItem: (item: T) => void
 }
 
-function appendDedupedById(prev: GalleryItem[], page: GalleryItem[]): GalleryItem[] {
+function appendDedupedById<T extends { id: string }>(prev: T[], page: T[]): T[] {
     const seen = new Set(prev.map((item) => item.id))
     return [...prev, ...page.filter((item) => !seen.has(item.id))]
 }
 
-export function useCardGallery(config: CardGalleryConfig, pageSize = GALLERY_PAGE_SIZE): CardGallery {
-    const [items, setItems] = useState<GalleryItem[]>([])
+export function useCardGallery<T extends { id: string } = GalleryItem>(config: CardGalleryConfig<T>, pageSize = GALLERY_PAGE_SIZE): CardGallery<T> {
+    const [items, setItems] = useState<T[]>([])
     const [query, setQuery] = useState('')
     const [debouncedQuery, setDebouncedQuery] = useState('')
     const [loading, setLoading] = useState(true)
@@ -111,6 +113,16 @@ export function useCardGallery(config: CardGalleryConfig, pageSize = GALLERY_PAG
         })
     }, [])
 
+    const upsertItem = useCallback((item: T) => {
+        setItems((prev) => {
+            const existingIndex = prev.findIndex((current) => current.id === item.id)
+            if (existingIndex < 0) return [item, ...prev]
+            const next = [...prev]
+            next[existingIndex] = item
+            return next
+        })
+    }, [])
+
     const refresh = useCallback(() => {
         void fetchPage(true)
     }, [fetchPage])
@@ -127,5 +139,6 @@ export function useCardGallery(config: CardGalleryConfig, pageSize = GALLERY_PAG
         loadMore,
         refresh,
         removeItem,
+        upsertItem,
     }
 }

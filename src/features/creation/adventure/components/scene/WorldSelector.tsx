@@ -37,7 +37,7 @@ export function WorldSelector({ worlds, selectedId, onSelect, onCreateWorld, loa
                 <CastMemberCard
                     key={w.id}
                     name={w.name}
-                    race={w.type}
+                    race={[w.place_type, w.type].filter(Boolean).join(' / ')}
                     description={w.description}
                     mode="radio"
                     selected={selectedId === w.id}

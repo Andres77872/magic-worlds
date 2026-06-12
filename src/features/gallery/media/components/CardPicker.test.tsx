@@ -5,6 +5,7 @@ vi.mock('@/infrastructure/api', () => ({
     apiService: {
         getCharacters: vi.fn().mockResolvedValue([]),
         getWorlds: vi.fn().mockResolvedValue([]),
+        getItems: vi.fn().mockResolvedValue([]),
         getAdventureTemplates: vi.fn().mockResolvedValue([]),
     },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
@@ -23,18 +24,21 @@ describe('CardPicker', () => {
         vi.clearAllMocks()
         vi.mocked(apiService.getCharacters).mockResolvedValue(CHARACTERS)
         vi.mocked(apiService.getWorlds).mockResolvedValue([{ id: 'w1', name: 'Rivendell' }])
+        vi.mocked(apiService.getItems).mockResolvedValue([{ id: 'i1', name: 'Moonlit Compass' }])
         vi.mocked(apiService.getAdventureTemplates).mockResolvedValue([])
     })
 
-    it('opens on click and merges all three endpoints when scope is "all"', async () => {
+    it('opens on click and merges all card endpoints when scope is "all"', async () => {
         render(<CardPicker cardType="all" onChange={vi.fn()} />)
 
         fireEvent.click(screen.getByTestId('card-picker-trigger'))
 
         expect(await screen.findByText('Lyra')).toBeInTheDocument()
         expect(screen.getByText('Rivendell')).toBeInTheDocument()
+        expect(screen.getByText('Moonlit Compass')).toBeInTheDocument()
         expect(apiService.getCharacters).toHaveBeenCalledWith(0, 8, undefined)
         expect(apiService.getWorlds).toHaveBeenCalledWith(0, 8, undefined)
+        expect(apiService.getItems).toHaveBeenCalledWith(0, 8, undefined)
         expect(apiService.getAdventureTemplates).toHaveBeenCalledWith(0, 8, undefined)
     })
 
@@ -45,6 +49,7 @@ describe('CardPicker', () => {
         await screen.findByText('Lyra')
 
         expect(apiService.getWorlds).not.toHaveBeenCalled()
+        expect(apiService.getItems).not.toHaveBeenCalled()
         expect(apiService.getAdventureTemplates).not.toHaveBeenCalled()
     })
 

@@ -5,7 +5,7 @@ import { Badge, Icon, cx } from '@/ui/primitives'
 const ISSUE_VIEW = {
     info: { icon: Info, badge: 'neutral' as const, className: 'border-parchment-50/10 bg-parchment-50/[.04]' },
     warning: { icon: AlertTriangle, badge: 'ember' as const, className: 'border-ember-500/25 bg-ember-500/10' },
-    error: { icon: XCircle, badge: 'nsfw' as const, className: 'border-blood-500/30 bg-blood-500/10' },
+    error: { icon: XCircle, badge: 'danger' as const, className: 'border-blood-500/30 bg-blood-500/10' },
 }
 
 export function LorebookIssueList({ issues }: { issues: LorebookIssue[] }) {

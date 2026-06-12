@@ -4,9 +4,15 @@
 
 import type {AttributeCategory} from '../../ui/components/common/AttributeList';
 
+export type CharacterRole = 'character' | 'persona'
+
 export interface Character {
     id: string
     name: string
+    /** Library role: AI chat/cast target or user-playable persona. Legacy cards default to `character`. */
+    role?: CharacterRole
+    /** The persona auto-selected by chat/adventure start flows. Only valid when role is `persona`. */
+    is_default_persona?: boolean
     race: string
     class?: string
     stats: Record<string, string | number>

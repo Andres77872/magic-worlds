@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     sendCardAssistantMessage: vi.fn(),
     streamCardAssistantMessage: vi.fn(),
     setEditingWorld: vi.fn(),
+    createWorld: vi.fn(),
     updateWorld: vi.fn(),
     generateCardPortrait: vi.fn(),
     isAuthenticated: true,
@@ -34,7 +35,7 @@ vi.mock('@/infrastructure/api', () => ({
         getCardAssistantConversation: mocks.getCardAssistantConversation,
         sendCardAssistantMessage: mocks.sendCardAssistantMessage,
         streamCardAssistantMessage: mocks.streamCardAssistantMessage,
-        createWorld: vi.fn(),
+        createWorld: mocks.createWorld,
         updateWorld: mocks.updateWorld,
         generateCardPortrait: mocks.generateCardPortrait,
         waitForImageJob: vi.fn(),
@@ -64,6 +65,7 @@ describe('WorldCreator AI generation', () => {
             card: {
                 id: 'world-1',
                 name: 'Glass',
+                place_type: 'country',
                 type: 'desert',
                 description: 'An endless sea of fused sand.',
                 triggers: ['glass', 'desert'],
@@ -89,7 +91,7 @@ describe('WorldCreator AI generation', () => {
                 card_type: 'world',
                 card_id: undefined,
                 title: 'Untitled World',
-                current_card: expect.objectContaining({ name: '', type: '', description: '' }),
+                current_card: expect.objectContaining({ name: '', place_type: 'world', type: '', description: '' }),
             }),
             expect.any(Object),
         )
@@ -98,7 +100,7 @@ describe('WorldCreator AI generation', () => {
             2,
             expect.objectContaining({
                 message: 'Generate a glass desert',
-                current_card: expect.objectContaining({ name: '', type: '', description: '' }),
+                current_card: expect.objectContaining({ name: '', place_type: 'world', type: '', description: '' }),
                 request_id: expect.stringMatching(/^mw-card-assistant-/),
             }),
             expect.any(Function),
@@ -107,11 +109,12 @@ describe('WorldCreator AI generation', () => {
 
         // The generated card populates the live form…
         await waitFor(() => expect(screen.getByDisplayValue('Glass')).toBeInTheDocument())
+        expect(screen.getByRole('combobox', { name: /place type/i })).toHaveTextContent('Country')
         expect(screen.getByDisplayValue('desert')).toBeInTheDocument()
 
         // …switches into edit mode for the already-persisted card…
         expect(mocks.setEditingWorld).toHaveBeenCalledWith(
-            expect.objectContaining({ id: 'world-1', name: 'Glass', type: 'desert' }),
+            expect.objectContaining({ id: 'world-1', name: 'Glass', place_type: 'country', type: 'desert' }),
         )
         // …refreshes the library in the background, and does NOT navigate away.
         await waitFor(() => expect(mocks.loadData).toHaveBeenCalledTimes(1))
@@ -148,7 +151,19 @@ describe('WorldCreator portrait persistence', () => {
     it('persists a generated image onto the saved card immediately (no Save click)', async () => {
         render(<WorldCreator />)
 
-        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+        fireEvent.click(screen.getByRole('button', { name: /generate setting image/i }))
+
+        await waitFor(() =>
+            expect(mocks.generateCardPortrait).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    card_type: 'world',
+                    name: 'Glass',
+                    place_type: 'world',
+                    subtype: 'desert',
+                }),
+                expect.any(Object),
+            ),
+        )
 
         await waitFor(() =>
             expect(mocks.updateWorld).toHaveBeenCalledWith(
@@ -156,5 +171,63 @@ describe('WorldCreator portrait persistence', () => {
                 expect.objectContaining({ image_url: '/generated-images/w.png' }),
             ),
         )
+    })
+})
+
+describe('WorldCreator place type payloads', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingWorld = null
+        mocks.createWorld.mockResolvedValue({ id: 'world-2', name: 'Glass Province' })
+        mocks.loadData.mockResolvedValue(undefined)
+        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.createCardAssistantConversation.mockResolvedValue({
+            conversation: { conversation_id: 2, card_type: 'world', card_id: null, title: 'Untitled World' },
+            messages: [],
+            card: null,
+        })
+    })
+
+    it('saves a custom place type separately from the existing genre field', async () => {
+        render(<WorldCreator />)
+
+        // Create mode opens on the template gallery — continue with the standard fields.
+        fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
+
+        fireEvent.change(screen.getByRole('textbox', { name: /^name/i }), { target: { value: 'Glass Province' } })
+        fireEvent.click(screen.getByRole('combobox', { name: /place type/i }))
+        fireEvent.click(screen.getByRole('option', { name: /^Custom/ }))
+        fireEvent.change(screen.getByLabelText(/custom place type/i), { target: { value: 'province' } })
+        fireEvent.change(screen.getByLabelText(/genre \/ vibe/i), { target: { value: 'Mystery' } })
+        fireEvent.click(screen.getByRole('button', { name: /create world/i }))
+
+        await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledTimes(1))
+        expect(mocks.createWorld).toHaveBeenCalledWith(
+            expect.objectContaining({
+                name: 'Glass Province',
+                place_type: 'province',
+                type: 'Mystery',
+            }),
+        )
+        // place_type is also dual-written into the Setting category so it
+        // survives the backend (which drops the first-class field).
+        const payload = mocks.createWorld.mock.calls[0][0]
+        const setting = payload.category.find((c: { name: string }) => c.name === 'Setting')
+        expect(setting?.attributes).toContainEqual({ 'Place type': 'province' })
+    })
+
+    it('restores the place type from the Setting mirror when the API dropped the field', () => {
+        mocks.editingWorld = {
+            id: 'world-3',
+            name: 'Vellore',
+            type: 'Political Intrigue',
+            description: '',
+            triggers: [],
+            category: [{ name: 'Setting', description: '', attributes: [{ 'Place type': 'city' }] }],
+        }
+        render(<WorldCreator />)
+
+        expect(screen.getByRole('combobox', { name: /place type/i })).toHaveTextContent('City')
     })
 })

@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { AudioPlaylistProvider } from '@/app/providers/AudioPlaylistProvider'
+import { PLAYLIST_STORAGE_KEY } from '@/app/providers/playlistReducer'
 import { AudioWavePlayer } from './AudioWavePlayer'
 import { clearAudioDataCaches, PEAK_BUCKETS } from './audioData'
 
@@ -51,11 +54,16 @@ function stubFetchBlob() {
     return fetchMock
 }
 
+function renderWithPlaylist(ui: ReactNode) {
+    return render(<AudioPlaylistProvider>{ui}</AudioPlaylistProvider>)
+}
+
 const createObjectURL = vi.fn(() => 'blob:mock-audio')
 const revokeObjectURL = vi.fn()
 
 beforeEach(() => {
     clearAudioDataCaches()
+    localStorage.removeItem(PLAYLIST_STORAGE_KEY)
     createObjectURL.mockClear()
     revokeObjectURL.mockClear()
     vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL })
@@ -65,12 +73,15 @@ afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    localStorage.removeItem(PLAYLIST_STORAGE_KEY)
 })
 
 describe('AudioWavePlayer', () => {
     it('does no audio work on mount and renders the dormant pseudo waveform', () => {
         const fetchMock = stubFetchBlob()
-        render(<AudioWavePlayer src="https://x/idle.mp3" title="Ember Hymn" durationMs={95_000} peakSeed="seed-1" />)
+        renderWithPlaylist(
+            <AudioWavePlayer src="https://x/idle.mp3" title="Ember Hymn" durationMs={95_000} peakSeed="seed-1" />,
+        )
 
         expect(fetchMock).not.toHaveBeenCalled()
         const strip = screen.getByRole('slider', { name: 'Seek within Ember Hymn' })
@@ -82,7 +93,7 @@ describe('AudioWavePlayer', () => {
     it('first toggle fetches the blob once and plays via an object URL (pseudo bars without Web Audio)', async () => {
         const fetchMock = stubFetchBlob()
         const { play, elements } = stubMedia()
-        render(<AudioWavePlayer src="https://x/play.mp3" title="Ember Hymn" />)
+        renderWithPlaylist(<AudioWavePlayer src="https://x/play.mp3" title="Ember Hymn" />)
 
         fireEvent.click(screen.getByRole('button', { name: 'Play Ember Hymn' }))
 
@@ -99,7 +110,7 @@ describe('AudioWavePlayer', () => {
     it('reflects timeupdate in the readout and aria values', async () => {
         stubFetchBlob()
         const { play, elements } = stubMedia()
-        render(<AudioWavePlayer src="https://x/progress.mp3" title="Ember Hymn" />)
+        renderWithPlaylist(<AudioWavePlayer src="https://x/progress.mp3" title="Ember Hymn" />)
         fireEvent.click(screen.getByRole('button', { name: 'Play Ember Hymn' }))
         await waitFor(() => expect(play).toHaveBeenCalled())
 
@@ -115,10 +126,10 @@ describe('AudioWavePlayer', () => {
         expect(screen.getByText('0:42')).toBeInTheDocument()
     })
 
-    it('exclusive playback: starting one player pauses the other', async () => {
+    it('switching rows plays through the single global element, one track at a time', async () => {
         stubFetchBlob()
-        const { play, pause, elements } = stubMedia()
-        render(
+        const { play, elements } = stubMedia()
+        renderWithPlaylist(
             <>
                 <AudioWavePlayer src="https://x/a.mp3" title="Track A" />
                 <AudioWavePlayer src="https://x/b.mp3" title="Track B" />
@@ -127,21 +138,21 @@ describe('AudioWavePlayer', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Play Track A' }))
         await waitFor(() => expect(play).toHaveBeenCalledTimes(1))
+        expect(screen.getByRole('button', { name: 'Pause Track A' })).toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: 'Play Track B' }))
         await waitFor(() => expect(play).toHaveBeenCalledTimes(2))
 
-        // Track A's element got paused by the focus registry.
-        expect(pause).toHaveBeenCalled()
-        expect(elements[0].paused).toBe(true)
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Play Track A' })).toBeInTheDocument())
+        // One shared element: Track A's row went dormant, Track B is current.
+        expect(elements).toHaveLength(1)
+        expect(screen.getByRole('button', { name: 'Play Track A' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Pause Track B' })).toBeInTheDocument()
     })
 
     it('ended resets to the play state at 0:00', async () => {
         stubFetchBlob()
         const { play, elements } = stubMedia()
-        render(<AudioWavePlayer src="https://x/ended.mp3" title="Ember Hymn" />)
+        renderWithPlaylist(<AudioWavePlayer src="https://x/ended.mp3" title="Ember Hymn" />)
         fireEvent.click(screen.getByRole('button', { name: 'Play Ember Hymn' }))
         await waitFor(() => expect(play).toHaveBeenCalled())
 
@@ -156,7 +167,7 @@ describe('AudioWavePlayer', () => {
     it('pointer-down at the strip midpoint seeks to half the duration', async () => {
         stubFetchBlob()
         const { play, elements } = stubMedia()
-        render(<AudioWavePlayer src="https://x/seek.mp3" title="Ember Hymn" />)
+        renderWithPlaylist(<AudioWavePlayer src="https://x/seek.mp3" title="Ember Hymn" />)
         fireEvent.click(screen.getByRole('button', { name: 'Play Ember Hymn' }))
         await waitFor(() => expect(play).toHaveBeenCalled())
         loadMetadata(elements[0], 100)
@@ -182,7 +193,7 @@ describe('AudioWavePlayer', () => {
     it('seeking while idle starts playback from that position', async () => {
         stubFetchBlob()
         const { play, elements } = stubMedia()
-        render(<AudioWavePlayer src="https://x/idle-seek.mp3" title="Ember Hymn" />)
+        renderWithPlaylist(<AudioWavePlayer src="https://x/idle-seek.mp3" title="Ember Hymn" />)
 
         const strip = screen.getByRole('slider', { name: 'Seek within Ember Hymn' })
         vi.spyOn(strip, 'getBoundingClientRect').mockReturnValue({
@@ -207,7 +218,7 @@ describe('AudioWavePlayer', () => {
     it('ArrowRight nudges playback forward five seconds', async () => {
         stubFetchBlob()
         const { play, elements } = stubMedia()
-        render(<AudioWavePlayer src="https://x/keys.mp3" title="Ember Hymn" />)
+        renderWithPlaylist(<AudioWavePlayer src="https://x/keys.mp3" title="Ember Hymn" />)
         fireEvent.click(screen.getByRole('button', { name: 'Play Ember Hymn' }))
         await waitFor(() => expect(play).toHaveBeenCalled())
         const audio = elements[0]
@@ -222,28 +233,50 @@ describe('AudioWavePlayer', () => {
         expect(audio.currentTime).toBeCloseTo(45)
     })
 
-    it('unmount pauses playback and revokes the object URL', async () => {
+    it('unmounting the row keeps global playback going (it lives in the dock)', async () => {
         stubFetchBlob()
         const { play, pause } = stubMedia()
-        const { unmount } = render(<AudioWavePlayer src="https://x/unmount.mp3" title="Ember Hymn" />)
+        const { rerender } = render(
+            <AudioPlaylistProvider>
+                <AudioWavePlayer src="https://x/unmount.mp3" title="Ember Hymn" />
+            </AudioPlaylistProvider>,
+        )
         fireEvent.click(screen.getByRole('button', { name: 'Play Ember Hymn' }))
         await waitFor(() => expect(play).toHaveBeenCalled())
+        pause.mockClear()
 
-        unmount()
+        // Remove the row but keep the provider (page navigation).
+        rerender(
+            <AudioPlaylistProvider>
+                <div />
+            </AudioPlaylistProvider>,
+        )
 
-        expect(pause).toHaveBeenCalled()
-        expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-audio')
+        expect(pause).not.toHaveBeenCalled()
+        expect(revokeObjectURL).not.toHaveBeenCalledWith('blob:mock-audio')
     })
 
     it('falls back to streaming the source URL when the blob fetch fails', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500 }) as unknown as Response))
         const { play, elements } = stubMedia()
-        render(<AudioWavePlayer src="https://x/stream-fallback.mp3" title="Ember Hymn" />)
+        renderWithPlaylist(<AudioWavePlayer src="https://x/stream-fallback.mp3" title="Ember Hymn" />)
 
         fireEvent.click(screen.getByRole('button', { name: 'Play Ember Hymn' }))
 
         await waitFor(() => expect(play).toHaveBeenCalledTimes(1))
         expect(createObjectURL).not.toHaveBeenCalled()
         expect((elements[0] as HTMLAudioElement).src).toBe('https://x/stream-fallback.mp3')
+    })
+
+    it('the add button queues the track without starting playback', async () => {
+        stubFetchBlob()
+        const { play } = stubMedia()
+        renderWithPlaylist(<AudioWavePlayer src="https://x/queue.mp3" title="Ember Hymn" />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Add Ember Hymn to playlist' }))
+
+        const queuedButton = await screen.findByRole('button', { name: 'Ember Hymn is in the playlist' })
+        expect(queuedButton).toBeDisabled()
+        expect(play).not.toHaveBeenCalled()
     })
 })

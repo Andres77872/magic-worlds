@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { Field, Input, Select, Textarea } from './Field'
+import { Field, Input, Textarea } from './Field'
+import { Select } from './Select'
 
 const meta = {
   title: 'Primitives/Field',
@@ -57,13 +59,20 @@ export const WithTextarea: Story = {
 
 export const WithSelect: Story = {
   args: { label: 'Alignment' },
-  render: (args) => (
-    <Field {...args}>
-      <Select defaultValue="cg">
-        <option value="lg">Lawful good</option>
-        <option value="cg">Chaotic good</option>
-        <option value="tn">True neutral</option>
-      </Select>
-    </Field>
-  ),
+  render: function Render(args) {
+    const [value, setValue] = useState('cg')
+    return (
+      <Field {...args}>
+        <Select
+          value={value}
+          onChange={setValue}
+          options={[
+            { value: 'lg', label: 'Lawful good' },
+            { value: 'cg', label: 'Chaotic good' },
+            { value: 'tn', label: 'True neutral' },
+          ]}
+        />
+      </Field>
+    )
+  },
 }

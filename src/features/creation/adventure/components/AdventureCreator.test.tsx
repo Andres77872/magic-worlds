@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -162,5 +162,44 @@ describe('AdventureCreator cover persistence', () => {
                 expect.objectContaining({ image_url: '/generated-images/a.png' }),
             ),
         )
+    })
+})
+
+describe('AdventureCreator guided payload', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingTemplate = null
+        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.loadData.mockResolvedValue(undefined)
+    })
+
+    it('serializes guided Opening/Stakes fields from a template pick into category', async () => {
+        const createAdventureTemplate = vi.fn().mockResolvedValue({ id: 'tmpl-2', name: 'Quest' })
+        const { apiService } = await import('@/infrastructure/api')
+        ;(apiService.createAdventureTemplate as ReturnType<typeof vi.fn>).mockImplementation(createAdventureTemplate)
+
+        const { container } = render(<AdventureCreator />)
+
+        // Create mode opens on the template gallery — pick a starting shape.
+        fireEvent.click(screen.getByRole('button', { name: /heroic quest/i }))
+
+        fireEvent.change(screen.getByLabelText(/premise/i), { target: { value: 'The beacons are lit.' } })
+
+        // Copy the template's ghost into the guided Opening scene field.
+        const openingRow = container.querySelector('[data-guided-field="opening.scene"]') as HTMLElement
+        fireEvent.click(within(openingRow).getByRole('button', { name: /use example/i }))
+
+        fireEvent.click(screen.getByRole('button', { name: /^Create Adventure$/i }))
+
+        await waitFor(() => expect(createAdventureTemplate).toHaveBeenCalledTimes(1))
+        const payload = createAdventureTemplate.mock.calls[0][0]
+        expect(payload.description).toBe('The beacons are lit.')
+        const opening = payload.category.find((c: { name: string }) => c.name === 'Opening')
+        expect(opening?.description).toBe('How the adventure begins.')
+        expect(opening?.attributes).toContainEqual({
+            'Opening Scene':
+                'Rain on the shrine steps at dusk. The dying protector presses the empty reliquary into your hands and says a name no one has spoken aloud in years.',
+        })
     })
 })

@@ -45,10 +45,13 @@ export interface SnapshotCard {
     /** Library card id this clone came from — used to clone the live original at adventure start. */
     source_card_id?: string
     name?: string
+    role?: 'character' | 'persona'
+    is_default_persona?: boolean
     alias?: string | null
     description?: string
-    /** Characters carry `race`, worlds carry `type`. */
+    /** Characters carry `race`, worlds carry `type` plus optional `place_type`. */
     race?: string
+    place_type?: string
     type?: string
     triggers?: string[]
     /** API attribute groups (name + description + key/value attributes). */

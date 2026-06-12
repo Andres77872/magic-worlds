@@ -103,7 +103,13 @@ export function Card({
             <Portrait name={portraitName} src={imageUrl} height={120}>
                 {(themeSongUrl || (cardOptions && cardOptions.length > 0)) && (
                     <div className="absolute right-2 top-2 z-[2] flex items-center gap-1.5">
-                        {themeSongUrl && <ThemeSongButton src={themeSongUrl} />}
+                        {themeSongUrl && (
+                            <ThemeSongButton
+                                src={themeSongUrl}
+                                cardName={portraitName || undefined}
+                                artworkUrl={imageUrl}
+                            />
+                        )}
                         {cardOptions && cardOptions.length > 0 && (
                             <CardOptions
                                 options={cardOptions}

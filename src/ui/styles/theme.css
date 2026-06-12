@@ -254,4 +254,143 @@
   .chat-prose .rp-thought { font-style: italic; color: var(--color-arcane-300); }
   .chat-prose .rp-thought::before { content: '('; }
   .chat-prose .rp-thought::after { content: ')'; }
+
+  .story-editor-shell {
+    background:
+      linear-gradient(180deg, rgba(246, 239, 226, 0.025), transparent 160px),
+      rgba(14, 12, 20, 0.42);
+  }
+
+  .story-editor-prose {
+    min-height: 560px;
+    padding: 28px;
+    outline: none;
+    font-family: var(--font-narrative);
+    font-size: 18px;
+    line-height: 1.78;
+    color: var(--color-parchment-100);
+    caret-color: var(--color-ember-400);
+  }
+
+  .story-editor-prose > *:first-child { margin-top: 0; }
+  .story-editor-prose > *:last-child { margin-bottom: 0; }
+  .story-editor-prose p { margin: 0 0 1rem; }
+  .story-editor-prose h1,
+  .story-editor-prose h2,
+  .story-editor-prose h3 {
+    margin: 1.5rem 0 0.75rem;
+    font-family: var(--font-display);
+    color: var(--color-parchment-50);
+    font-weight: 600;
+    line-height: 1.16;
+  }
+  .story-editor-prose h1 { font-size: 36px; }
+  .story-editor-prose h2 { font-size: 29px; }
+  .story-editor-prose h3 { font-size: 23px; }
+  .story-editor-prose strong { color: var(--color-parchment-50); font-weight: 700; }
+  .story-editor-prose em { color: var(--color-parchment-100); }
+  .story-editor-prose s { color: var(--color-parchment-300); }
+  .story-editor-prose ul,
+  .story-editor-prose ol {
+    margin: 0.85rem 0 1rem;
+    padding-left: 1.4rem;
+  }
+  .story-editor-prose ul { list-style: disc; }
+  .story-editor-prose ol { list-style: decimal; }
+  .story-editor-prose li { margin: 0.35rem 0; padding-left: 0.2rem; }
+  .story-editor-prose li::marker { color: var(--color-ember-500); }
+  .story-editor-prose blockquote {
+    margin: 1.25rem 0;
+    padding: 0.65rem 1rem;
+    border-left: 2px solid var(--color-arcane-400);
+    background: rgba(143, 111, 227, 0.1);
+    color: var(--color-parchment-100);
+    font-style: italic;
+  }
+  .story-editor-prose hr {
+    margin: 1.6rem 0;
+    border: none;
+    height: 1px;
+    background: rgba(246, 239, 226, 0.16);
+  }
+  .story-editor-prose code {
+    border: 1px solid rgba(246, 239, 226, 0.1);
+    border-radius: var(--radius-xs);
+    background: var(--color-ink-700);
+    color: var(--color-ember-300);
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    padding: 0.08rem 0.35rem;
+  }
+  .story-editor-prose pre {
+    margin: 1rem 0;
+    overflow-x: auto;
+    border: 1px solid rgba(246, 239, 226, 0.1);
+    border-radius: var(--radius-sm);
+    background: var(--color-ink-900);
+    padding: 1rem;
+  }
+  .story-editor-prose pre code {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: var(--color-parchment-100);
+  }
+  .story-editor-prose p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    color: var(--color-parchment-500);
+    pointer-events: none;
+  }
+
+  /* --- novel editor: inline AI suggestion lifecycle --- */
+  /* Suggested prose is real text under review: arcane-tinted, dashed underline. */
+  .story-editor-prose .ai-suggestion-text {
+    color: var(--color-arcane-300);
+    background: rgba(143, 111, 227, 0.1);
+    border-bottom: 1px dashed rgba(143, 111, 227, 0.45);
+    transition:
+      color 220ms var(--ease-out),
+      background 220ms var(--ease-out);
+  }
+  /* In-flight request: shimmering caret-side widget at the insertion point. */
+  .story-editor-prose .ai-pending-widget {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 6px;
+    border-radius: var(--radius-xs);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-style: normal;
+    color: var(--color-arcane-300);
+    background-color: rgba(143, 111, 227, 0.12);
+    background-image: linear-gradient(100deg, transparent 30%, rgba(195, 176, 242, 0.35) 50%, transparent 70%);
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: var(--animate-shimmer);
+    user-select: none;
+    white-space: nowrap;
+  }
+  /* Selected passage being rewritten while the request is in flight. */
+  .story-editor-prose .ai-pending-source {
+    background: rgba(143, 111, 227, 0.14);
+    border-bottom: 1px dashed rgba(143, 111, 227, 0.45);
+  }
+  /* The typed slash instruction reads as addressed to the AI. */
+  .story-editor-prose .slash-query {
+    color: var(--color-arcane-300);
+  }
+  /* Codex mention chip: an ember-lit name. */
+  .story-editor-prose .codex-mention {
+    border-radius: var(--radius-xs);
+    padding: 0.05rem 0.3rem;
+    background: rgba(232, 162, 74, 0.12);
+    border: 1px solid rgba(232, 162, 74, 0.28);
+    color: var(--color-ember-300);
+    font-family: var(--font-ui);
+    font-size: 0.85em;
+    font-weight: 600;
+    white-space: nowrap;
+  }
 }

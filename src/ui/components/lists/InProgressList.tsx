@@ -8,6 +8,7 @@ import {ModeBadge} from '../common/ModeBadge'
 import {Compass, Pencil, Play, Trash2} from 'lucide-react'
 import {Icon, Tag} from '@/ui/primitives'
 import {resolveMediaUrl} from '@/infrastructure/api'
+import {formatRelativeTime} from '@/utils/time'
 
 interface InProgressListProps {
     adventures: Adventure[]
@@ -17,6 +18,52 @@ interface InProgressListProps {
     loading?: boolean
     /** `grid` (default) for full pages; `rail` for dashboard shelves. */
     layout?: 'grid' | 'rail'
+}
+
+function meaningful(value?: string | null): string {
+    const text = value?.trim() ?? ''
+    return text.length > 1 ? text : ''
+}
+
+function inProgressTitle(adventure: Adventure): string {
+    const personaName = meaningful(adventure.persona?.name)
+    const worldName = meaningful(adventure.world?.name)
+    return (
+        meaningful(adventure.snapshot?.template?.name) ||
+        meaningful(adventure.scenario) ||
+        (personaName ? `${personaName}'s adventure` : '') ||
+        (worldName ? `Adventure in ${worldName}` : '') ||
+        'Untitled session'
+    )
+}
+
+function inProgressWorldName(adventure: Adventure): string {
+    return meaningful(adventure.world?.name) || meaningful(adventure.worlds?.[0]?.name)
+}
+
+function sessionUpdatedLabel(adventure: Adventure): string {
+    const relative = formatRelativeTime(adventure.updatedAt ?? adventure.createdAt)
+    return relative ? `Updated ${relative}` : ''
+}
+
+function sessionDetails(adventure: Adventure): string[] {
+    const personaName = meaningful(adventure.persona?.name)
+    const cast = (adventure.characters ?? [])
+        .map((character) => meaningful(character.name))
+        .filter(Boolean)
+    const visibleCast = cast.slice(0, 3)
+    const details: string[] = []
+
+    if (personaName) details.push(`Playing as ${personaName}`)
+    if (visibleCast.length > 0) {
+        details.push(`Cast: ${visibleCast.join(', ')}${cast.length > visibleCast.length ? ` +${cast.length - visibleCast.length}` : ''}`)
+    }
+
+    const updated = sessionUpdatedLabel(adventure)
+    if (updated) details.push(updated)
+    if (details.length === 0) details.push('Ready to continue')
+
+    return details
 }
 
 export function InProgressList({
@@ -57,7 +104,9 @@ export function InProgressList({
                 }
                 renderCard={(adventure, idx) => {
                     const isDeleting = deletingId === idx
-                    const characterNames = adventure.characters?.map(c => c.name).join(', ') || 'No characters'
+                    const title = inProgressTitle(adventure)
+                    const worldName = inProgressWorldName(adventure)
+                    const details = sessionDetails(adventure)
 
                     const options: CardOption[] = [
                         {
@@ -78,7 +127,7 @@ export function InProgressList({
                             type: 'custom',
                             icon: <Icon icon={Trash2} size={15}/>,
                             label: 'Delete',
-                            onClick: () => setPending({idx, name: adventure.scenario}),
+                            onClick: () => setPending({idx, name: title}),
                             disabled: isDeleting,
                             danger: true
                         },
@@ -87,20 +136,24 @@ export function InProgressList({
                     return (
                         <Card
                             key={adventure.id}
-                            title={adventure.scenario}
+                            title={title}
                             subtitle={
                                 <div className="flex flex-wrap items-center gap-1.5">
                                     <ModeBadge mode="adventure"/>
-                                    {adventure.world?.name && <Tag>{adventure.world.name}</Tag>}
+                                    {worldName && <Tag>{worldName}</Tag>}
                                 </div>
                             }
                             options={options}
                             onClick={() => onPlay ? onPlay(adventure) : onEdit(adventure)}
-                            imageUrl={resolveMediaUrl(adventure.image_url)}
-                            themeSongUrl={resolveMediaUrl(adventure.theme_song_url)}
+                            imageUrl={resolveMediaUrl(adventure.image_url ?? adventure.snapshot?.template?.image_url)}
+                            themeSongUrl={resolveMediaUrl(adventure.theme_song_url ?? adventure.snapshot?.template?.theme_song_url)}
                             className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >
-                            <p className="m-0 font-narrative text-sm text-parchment-400">Characters: {characterNames}</p>
+                            <div className="flex flex-col gap-1 font-narrative text-sm text-parchment-400">
+                                {details.map((detail) => (
+                                    <p key={detail} className="m-0">{detail}</p>
+                                ))}
+                            </div>
                             {adventure.turns && adventure.turns.length > 0 && (
                                 <div className="mt-2 border-t border-dashed border-parchment-50/10 pt-2 font-narrative text-sm italic text-parchment-400">
                                     Last

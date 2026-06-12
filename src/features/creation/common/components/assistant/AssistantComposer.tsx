@@ -8,6 +8,7 @@ const MAX_LENGTH = 4000
 interface AssistantComposerProps {
     streaming: boolean
     disabled?: boolean
+    placeholder?: string
     onSend: (text: string) => void
     onStop: () => void
 }
@@ -17,7 +18,7 @@ interface AssistantComposerProps {
  * type=submit button mid-click fires a phantom submit under React 19's
  * synchronous discrete-event commits, so both buttons stay type="button".
  */
-export function AssistantComposer({ streaming, disabled, onSend, onStop }: AssistantComposerProps) {
+export function AssistantComposer({ streaming, disabled, placeholder = 'Ask for a change...', onSend, onStop }: AssistantComposerProps) {
     const [input, setInput] = useState('')
     const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -48,7 +49,7 @@ export function AssistantComposer({ streaming, disabled, onSend, onStop }: Assis
                     onKeyDown={handleKeyDown}
                     rows={2}
                     maxLength={MAX_LENGTH}
-                    placeholder="Ask for a change..."
+                    placeholder={placeholder}
                     className={cx(controlClass, 'max-h-32 min-h-[44px] resize-none bg-ink-800 py-2.5 text-[14px]')}
                 />
                 {streaming ? (

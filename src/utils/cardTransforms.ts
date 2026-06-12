@@ -4,7 +4,8 @@
  * produce identical objects.
  */
 
-import type { Adventure, Character, World } from '../shared'
+import type { Adventure, Character, Item, World } from '../shared'
+import { readWorldPlaceType } from '../shared'
 
 /**
  * List endpoints return arrays, but a non-array can slip through (e.g. terminal
@@ -19,8 +20,19 @@ interface RawCardRow {
     uuid?: string
     name?: string
     description?: string
+    alias?: string | null
+    role?: Character['role']
+    is_default_persona?: boolean
     race?: string
+    place_type?: string
+    placeType?: string
     type?: string
+    rarity?: string | null
+    effects?: string[]
+    requirements?: string[]
+    limitations?: string[]
+    origin?: string | null
+    value?: string | null
     category?: Character['category']
     triggers?: string[]
     greeting?: string
@@ -40,6 +52,8 @@ export function transformCharacters(raw: unknown): Character[] {
     return (asArray(raw) as RawCardRow[]).map((char) => ({
         id: (char.id || char.uuid) as string,
         name: char.name as string,
+        role: char.role === 'persona' ? 'persona' : 'character',
+        is_default_persona: Boolean(char.is_default_persona),
         race: char.race || '',
         description: char.description || '',
         stats: {},
@@ -58,6 +72,7 @@ export function transformWorlds(raw: unknown): World[] {
     return (asArray(raw) as RawCardRow[]).map((world) => ({
         id: (world.id || world.uuid) as string,
         name: world.name as string,
+        place_type: readWorldPlaceType(world),
         type: world.type || '',
         description: world.description || '',
         details: {},
@@ -85,5 +100,27 @@ export function transformTemplates(raw: unknown): Adventure[] {
         theme_song_url: template.theme_song_url,
         createdAt: template.createdAt ?? template.created_at,
         updatedAt: template.updatedAt ?? template.updated_at,
+    }))
+}
+
+export function transformItems(raw: unknown): Item[] {
+    return (asArray(raw) as RawCardRow[]).map((item) => ({
+        id: (item.id || item.uuid) as string,
+        name: item.name as string,
+        alias: item.alias ?? null,
+        type: item.type ?? '',
+        rarity: item.rarity ?? '',
+        description: item.description || '',
+        effects: item.effects ?? [],
+        requirements: item.requirements ?? [],
+        limitations: item.limitations ?? [],
+        origin: item.origin ?? '',
+        value: item.value ?? '',
+        category: item.category,
+        triggers: item.triggers ?? [],
+        image_url: item.image_url,
+        theme_song_url: item.theme_song_url,
+        createdAt: item.createdAt ?? item.created_at,
+        updatedAt: item.updatedAt ?? item.updated_at,
     }))
 }

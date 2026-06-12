@@ -32,6 +32,9 @@ export type { AttributeManagerProps } from './AttributeManager';
 export { TriggersField } from './TriggersField';
 export type { TriggersFieldProps } from './TriggersField';
 
+export { StringListField } from './StringListField';
+export type { StringListFieldProps } from './StringListField';
+
 export { AiGeneratePanel } from './AiGeneratePanel';
 export type { AiGenerateOptions, AiGeneratePanelProps } from './AiGeneratePanel';
 
@@ -52,3 +55,7 @@ export type { CategoryFormProps } from './CategoryForm';
 
 export { FormActions } from './FormActions';
 export type { FormActionsProps } from './FormActions'; 
+
+export { QualityHint, TriggerHints } from './QualityHint';
+export type { QualityHintProps, TriggerHintsProps } from './QualityHint';
+export { findBroadTrigger } from './triggerQuality';

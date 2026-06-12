@@ -90,7 +90,7 @@ const profile: UserProfile = {
     user_type: 'consumer',
     user_usage: 21,
     membership,
-    card_counts: { character: 2, world: 1, adventure_template: 3 },
+    card_counts: { character: 2, world: 1, item: 6, adventure_template: 3 },
 }
 
 const noop = vi.fn()

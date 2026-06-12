@@ -37,7 +37,7 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
             className={cx('group relative flex min-h-[280px] flex-col', deleting && 'pointer-events-none opacity-60')}
             data-testid="lorebook-card"
         >
-            <div className="flex min-h-[132px] flex-col justify-between border-b border-parchment-50/[.08] bg-[linear-gradient(135deg,rgba(232,162,74,.14),rgba(143,111,227,.12)_52%,rgba(14,12,20,.4))] p-4">
+            <div className="flex min-h-[132px] flex-col justify-between border-b border-parchment-50/[.08] bg-gradient-to-br from-ember-500/15 via-arcane-500/10 to-ink-900/40 p-4">
                 <div className="flex items-start justify-between gap-3">
                     <span className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-parchment-50/10 bg-ink-900/50 text-ember-400">
                         <Icon icon={BookOpen} size={21} />
@@ -83,7 +83,7 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
                 </div>
                 {lorebook.tags.length > 0 && (
                     <div className="mt-auto flex flex-wrap gap-1.5">
-                        {lorebook.tags.slice(0, 4).map((tag) =>
+                        {lorebook.tags.slice(0, 3).map((tag) =>
                             onTagClick ? (
                                 <button
                                     key={tag}
@@ -99,6 +99,9 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
                             ) : (
                                 <Tag key={tag}>{tag}</Tag>
                             ),
+                        )}
+                        {lorebook.tags.length > 3 && (
+                            <Tag className="bg-ink-900/60 text-parchment-300">+{lorebook.tags.length - 3}</Tag>
                         )}
                     </div>
                 )}

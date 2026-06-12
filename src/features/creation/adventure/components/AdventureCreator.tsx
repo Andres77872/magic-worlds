@@ -11,8 +11,8 @@
 
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Globe, ScrollText, Tags, Target, UserCircle, Users } from 'lucide-react'
 import type { Adventure, Character, World } from '@/shared'
+import { readWorldPlaceType } from '@/shared'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService, ApiError } from '@/infrastructure/api'
 import type {
@@ -22,11 +22,13 @@ import type {
 } from '@/shared/types/aiCard.types'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
 import { Badge, Button } from '@/ui/primitives'
+import { isAiCharacterCard, personaCandidates } from '@/utils/characterRoles'
 import {
     CreatorStudio,
     StudioSection,
     StudioSectionNav,
     StudioPreviewDock,
+    SuggestedAttributes,
     CreatorField,
     CreatorTextarea,
     AttributeManager,
@@ -35,9 +37,15 @@ import {
     GeneratedDraftNotice,
     TriggersField,
     FormActions,
+    QualityHint,
+    TriggerHints,
     type StudioNavItem,
+    type AttributePreset,
 } from '../../common/components'
-import { useAttributeCategories, toCategoryPayload } from '../../common/hooks'
+import { GuidedSection, UseExampleLink, useGuidedCard, type CardTemplate } from '../../common/engine'
+import { CreatorIntro, TemplateGallery } from '../../common/templates'
+import { ADVENTURE_FIELDS, ADVENTURE_SECTIONS } from '../fields'
+import { ADVENTURE_GALLERY_HEADING, ADVENTURE_GALLERY_SUBHEADING, ADVENTURE_TEMPLATES } from '../templates'
 import { CastSelector, PersonaSelector, WorldSelector } from './scene'
 import { AdventurePreviewCard, type PreviewMember } from './preview'
 
@@ -46,13 +54,25 @@ const DEFAULT_CATEGORIES: AttributeCategory[] = [
     { id: 'objectives', name: 'Objectives', type: 'detail', description: 'Goals to accomplish in this adventure — optional.' },
 ]
 
+// One-click presets for the default "Objectives" category.
+const OBJECTIVE_PRESETS: AttributePreset[] = [
+    { key: 'Primary objective' },
+    { key: 'Hidden objective' },
+    { key: 'Personal stake' },
+]
+
 const FORM_ID = 'adventure-form'
+
+const PREMISE_GHOST =
+    'The tavern door bursts open. A hooded courier presses a sealed letter into your hand and whispers, “They\'re already here.”…'
 
 /** Map an embedded AI character response into the local Character shape. */
 function toCharacter(c: CharacterCardResponse): Character {
     return {
         id: c.id || c.uuid || c.name || '',
         name: c.name ?? '',
+        role: c.role === 'persona' ? 'persona' : 'character',
+        is_default_persona: Boolean(c.is_default_persona),
         race: c.race ?? '',
         description: c.description ?? '',
         stats: {},
@@ -68,6 +88,7 @@ function toWorld(w: WorldCardResponse): World {
     return {
         id: w.id || w.uuid || w.name || '',
         name: w.name ?? '',
+        place_type: readWorldPlaceType(w),
         type: w.type ?? '',
         description: w.description ?? '',
         details: {},
@@ -92,7 +113,7 @@ function sceneFromResponse(card: AdventureTemplateCardResponse): GeneratedScene 
     return {
         persona: card.persona ? member(card.persona) : undefined,
         cast: (card.characters ?? []).map(member),
-        world: w ? { name: w.name ?? '', type: w.type ?? '' } : undefined,
+        world: w ? { name: w.name ?? '', type: [readWorldPlaceType(w), w.type].filter(Boolean).join(' / ') } : undefined,
     }
 }
 
@@ -115,7 +136,16 @@ function toTemplate(card: AdventureTemplateCardResponse): Adventure {
 
 export function AdventureCreator() {
     const { setPage } = useNavigation()
-    const { characters, worlds, isLoading: dataLoading, editingTemplate, setEditingTemplate, loadData } = useData()
+    const {
+        characters,
+        worlds,
+        isLoading: dataLoading,
+        editingTemplate,
+        setEditingTemplate,
+        setEditingCharacter,
+        setEditingWorld,
+        loadData,
+    } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
 
     const [scenario, setScenario] = useState(editingTemplate?.scenario ?? '')
@@ -147,8 +177,10 @@ export function AdventureCreator() {
     // they're already saved on the persisted template. Cleared once the user edits
     // a selector (the preview then follows their library selections).
     const [generatedScene, setGeneratedScene] = useState<GeneratedScene | null>(null)
+    // undefined = template gallery (create mode); a pick (or null = empty/skip) shows the form.
+    const [template, setTemplate] = useState<CardTemplate | null | undefined>(editingTemplate ? null : undefined)
 
-    const attrs = useAttributeCategories({ defaults: DEFAULT_CATEGORIES, entity: editingTemplate })
+    const guided = useGuidedCard({ fields: ADVENTURE_FIELDS, defaults: DEFAULT_CATEGORIES, entity: editingTemplate })
 
     // Harden the edit-mode remap: the useState initializers read the library at
     // mount, but loadData() is async — on a cold deep-link into edit the library
@@ -173,6 +205,8 @@ export function AdventureCreator() {
 
     // --- Derived, client-side preview projection (no API) ---
     const characterById = useMemo(() => new Map(characters.map((c) => [c.id, c] as const)), [characters])
+    const aiCharacters = useMemo(() => characters.filter(isAiCharacterCard), [characters])
+    const playableCharacters = useMemo(() => personaCandidates(characters), [characters])
     const worldById = useMemo(() => new Map(worlds.map((w) => [w.id, w] as const)), [worlds])
 
     const personaMember = useMemo<PreviewMember | undefined>(() => {
@@ -203,23 +237,23 @@ export function AdventureCreator() {
     const previewCast = generatedScene ? generatedScene.cast : castMembers
     const previewWorld = generatedScene ? generatedScene.world : worldMeta
 
-    const objectivesCount = (attrs.attributes['objectives'] ?? []).filter((r) => r.key.trim() || r.value.trim()).length
+    const objectivesCount = (guided.attributes['objectives'] ?? []).filter((r) => r.key.trim() || r.value.trim()).length
     const derivedTitle = scenario.trim().split('\n')[0].slice(0, 80) || 'Untitled Adventure'
 
     const scenarioError = showErrors && !scenario.trim() ? 'A scenario premise is required.' : undefined
     const noCast = !dataLoading && previewCast.length === 0 && !previewPersona
 
+    const objectiveKeys = useMemo(
+        () => (guided.attributes['objectives'] || []).map((row) => row.key.toLowerCase()),
+        [guided.attributes],
+    )
+
     const navItems = useMemo<StudioNavItem[]>(
-        () => [
-            { id: 'scenario', label: 'Scenario', icon: ScrollText },
-            { id: 'cast', label: 'Cast', icon: Users },
-            { id: 'persona', label: 'Persona', icon: UserCircle },
-            { id: 'world', label: 'World', icon: Globe },
-            { id: 'objectives', label: 'Objectives', icon: Target },
-            { id: 'triggers', label: 'Triggers', icon: Tags },
-        ],
+        () => ADVENTURE_SECTIONS.map((section) => ({ id: section.id, label: String(section.title), icon: section.icon! })),
         [],
     )
+
+    const sectionById = useMemo(() => Object.fromEntries(ADVENTURE_SECTIONS.map((s) => [s.id, s])), [])
 
     /** Build the create/update payload from current form state. */
     const buildPayload = () => {
@@ -231,6 +265,8 @@ export function AdventureCreator() {
             // original card (and so edits stay isolated to the adventure's copy).
             source_card_id: c.id,
             name: c.name,
+            role: c.role === 'persona' ? 'persona' : 'character',
+            is_default_persona: Boolean(c.is_default_persona),
             race: c.race,
             description: c.description ?? '',
             category: c.category ?? [],
@@ -255,6 +291,7 @@ export function AdventureCreator() {
                 ? [{
                       source_card_id: selectedWorldObj.id,
                       name: selectedWorldObj.name,
+                      place_type: selectedWorldObj.place_type,
                       type: selectedWorldObj.type,
                       description: selectedWorldObj.description ?? '',
                       category: selectedWorldObj.category ?? [],
@@ -263,7 +300,7 @@ export function AdventureCreator() {
                       theme_song_url: selectedWorldObj.theme_song_url,
                   }]
                 : undefined,
-            category: toCategoryPayload(attrs.categories, attrs.attributes),
+            category: guided.toCategoryPayload(),
             image_url: imageUrl ?? null,
             theme_song_url: themeSongUrl,
         }
@@ -341,7 +378,7 @@ export function AdventureCreator() {
             layout="compact"
             cardType="adventure_template"
             noun="adventure"
-            template={{ name: derivedTitle, description: scenario, category: toCategoryPayload(attrs.categories, attrs.attributes) }}
+            template={{ name: derivedTitle, description: scenario, category: guided.toCategoryPayload() }}
             imageUrl={imageUrl}
             onImageUrl={handleImageUrl}
             themeSongUrl={themeSongUrl}
@@ -397,11 +434,13 @@ export function AdventureCreator() {
         setTriggers(card.triggers ?? [])
         setImageUrl(card.image_url)
         setThemeSongUrl(card.theme_song_url)
-        attrs.hydrateFrom(card)
+        guided.hydrateFrom(card, { preserveActive: true })
         setGeneratedScene(sceneFromResponse(card))
         setEditingTemplate(toTemplate(card))
         savedIdRef.current = card.id || card.uuid || null
         setAssistantApplied(true)
+        // AI generation skips the gallery; a picked template's scaffolding survives.
+        setTemplate((current) => (current === undefined ? null : current))
         void loadData()
     }
 
@@ -410,8 +449,22 @@ export function AdventureCreator() {
         setPage('landing')
     }
 
+    /** Back from the form: to the gallery while creating, to the library otherwise. */
+    const handleStudioBack = () => {
+        if (!editingTemplate && template !== undefined) {
+            setTemplate(undefined)
+            return
+        }
+        handleBack()
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && !isSubmitting) handleBack()
+        if (e.key === 'Escape' && !isSubmitting) handleStudioBack()
+    }
+
+    const pickTemplate = (picked: CardTemplate | null) => {
+        guided.applyTemplate(picked)
+        setTemplate(picked)
     }
 
     // Touching any selector replaces the read-only generated scene with the user's
@@ -424,6 +477,8 @@ export function AdventureCreator() {
     const selectPersona = (id: string | undefined) => {
         setGeneratedScene(null)
         setSelectedPersona(id)
+        // Playing a persona makes the agency contract relevant — surface it.
+        if (id) guided.activateField('direction.agency')
     }
 
     const selectWorld = (id: string | undefined) => {
@@ -431,11 +486,47 @@ export function AdventureCreator() {
         setSelectedWorld(id)
     }
 
+    const firstClass = template?.firstClassExamples ?? {}
+
+    const chatbot = (
+        <CardAssistantChatbot<AdventureTemplateCardResponse>
+            cardType="adventure_template"
+            cardId={editingTemplate?.id ?? null}
+            title={derivedTitle}
+            currentCard={buildPayload()}
+            onCard={applyAssistantCard}
+            isAuthenticated={isAuthenticated}
+            onAuthRequired={openLoginModal}
+        />
+    )
+
+    // The chatbot is rendered as a stable sibling of BOTH screens so the
+    // gallery → form transition never remounts an in-flight conversation.
+    if (template === undefined) {
+        return (
+            <>
+                <CreatorIntro title="Create Adventure" icon="🗺️" onBack={handleBack}>
+                    <TemplateGallery
+                        templates={ADVENTURE_TEMPLATES}
+                        fields={ADVENTURE_FIELDS}
+                        noun="adventure"
+                        heading={ADVENTURE_GALLERY_HEADING}
+                        subheading={ADVENTURE_GALLERY_SUBHEADING}
+                        onPick={pickTemplate}
+                        onSkip={() => setTemplate(null)}
+                    />
+                </CreatorIntro>
+                {chatbot}
+            </>
+        )
+    }
+
     return (
+        <>
         <CreatorStudio
             title={editingTemplate ? 'Edit Adventure' : 'Create Adventure'}
             icon="🗺️"
-            onBack={handleBack}
+            onBack={handleStudioBack}
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
@@ -463,36 +554,57 @@ export function AdventureCreator() {
         >
             <form id={FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-6" onKeyDown={handleKeyDown}>
                 <StudioSection
-                    id="scenario"
-                    icon={ScrollText}
-                    title="The Scenario"
-                    description="Set the opening scene — where does the story begin?"
+                    id={sectionById['scenario'].id}
+                    icon={sectionById['scenario'].icon}
+                    title={sectionById['scenario'].title}
+                    description={sectionById['scenario'].description}
                 >
-                    <CreatorField label="Premise" htmlFor="adventure-scenario" required error={scenarioError}>
+                    <CreatorField
+                        label="Premise"
+                        htmlFor="adventure-scenario"
+                        required
+                        error={scenarioError}
+                        tooltip="The standing brief the AI reads every turn: who you are, where it starts, and what's wrong."
+                    >
                         <CreatorTextarea
                             id="adventure-scenario"
                             value={scenario}
                             onChange={setScenario}
                             rows={5}
                             autoFocus
-                            placeholder="The tavern door bursts open. A hooded courier presses a sealed letter into your hand and whispers, “They're already here.”…"
+                            placeholder={firstClass.description ?? PREMISE_GHOST}
                             className="font-narrative text-base"
                         />
+                        <UseExampleLink value={scenario} hint={firstClass.description} onUse={setScenario} />
+                        {Boolean(scenario.trim()) && !guided.values['opening.scene']?.trim() && (
+                            <QualityHint>
+                                You have a premise but no first image. Add an{' '}
+                                <a href="#opening" className="underline underline-offset-2">opening scene</a> so turn one
+                                starts in a place, not a summary.
+                            </QualityHint>
+                        )}
                     </CreatorField>
                 </StudioSection>
 
+                <GuidedSection section={sectionById['opening']} guided={guided} />
+                <GuidedSection section={sectionById['stakes']} guided={guided} />
+                <GuidedSection section={sectionById['opposition']} guided={guided} />
+
                 <StudioSection
-                    id="cast"
-                    icon={Users}
-                    title="The Cast"
-                    description="Choose the characters who share this story."
+                    id={sectionById['cast'].id}
+                    icon={sectionById['cast'].icon}
+                    title={sectionById['cast'].title}
+                    description={sectionById['cast'].description}
                     right={<Badge tone="ember">{castMembers.length} chosen</Badge>}
                 >
                     <CastSelector
-                        characters={characters}
+                        characters={aiCharacters}
                         selectedIds={selectedCharacters}
                         onToggle={toggleCharacter}
-                        onCreateCharacter={() => setPage('character')}
+                        onCreateCharacter={() => {
+                            setEditingCharacter(null)
+                            setPage('character')
+                        }}
                         loading={dataLoading}
                     />
                     {noCast && (
@@ -503,79 +615,100 @@ export function AdventureCreator() {
                 </StudioSection>
 
                 <StudioSection
-                    id="persona"
-                    icon={UserCircle}
-                    title="Your Persona"
-                    description="Play as one of your characters — optional."
+                    id={sectionById['persona'].id}
+                    icon={sectionById['persona'].icon}
+                    title={sectionById['persona'].title}
+                    description={sectionById['persona'].description}
                 >
                     <PersonaSelector
-                        characters={characters}
+                        characters={playableCharacters}
                         selectedId={selectedPersona}
                         onSelect={selectPersona}
-                        onCreateCharacter={() => setPage('character')}
+                        onCreateCharacter={() => {
+                            setEditingCharacter(null)
+                            setPage('character')
+                        }}
                         loading={dataLoading}
                     />
                 </StudioSection>
 
                 <StudioSection
-                    id="world"
-                    icon={Globe}
-                    title="The World"
-                    description="Ground the adventure in one of your worlds — optional."
+                    id={sectionById['world'].id}
+                    icon={sectionById['world'].icon}
+                    title={sectionById['world'].title}
+                    description={sectionById['world'].description}
                 >
                     <WorldSelector
                         worlds={worlds}
                         selectedId={selectedWorld}
                         onSelect={selectWorld}
-                        onCreateWorld={() => setPage('world')}
+                        onCreateWorld={() => {
+                            setEditingWorld(null)
+                            setPage('world')
+                        }}
                         loading={dataLoading}
                     />
                 </StudioSection>
 
-                <StudioSection
-                    id="objectives"
-                    icon={Target}
-                    title="Objectives & Components"
-                    description="Add objectives, NPCs, or locations — and group them however you like. Optional."
-                >
-                    <AttributeManager
-                        title="Objective groups"
-                        icon="🎯"
-                        categories={attrs.categories}
-                        attributes={attrs.attributes}
-                        onAddCategory={attrs.addCategory}
-                        onDeleteCategory={attrs.deleteCategory}
-                        onAddAttribute={attrs.addAttribute}
-                        onUpdateAttribute={attrs.updateAttribute}
-                        onRemoveAttribute={attrs.removeAttribute}
-                    />
-                </StudioSection>
+                <GuidedSection
+                    section={sectionById['objectives']}
+                    guided={guided}
+                    footer={
+                        <>
+                            <div className="flex flex-col gap-2.5">
+                                <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
+                                    Quick add objectives
+                                </span>
+                                <SuggestedAttributes
+                                    presets={OBJECTIVE_PRESETS}
+                                    existingKeys={objectiveKeys}
+                                    onAdd={(preset) =>
+                                        guided.addAttributeWith('objectives', { key: preset.key, value: preset.value ?? '' })
+                                    }
+                                />
+                            </div>
+                            <AttributeManager
+                                title="Objective groups"
+                                icon="🎯"
+                                categories={guided.categories}
+                                attributes={guided.attributes}
+                                onAddCategory={guided.addCategory}
+                                onDeleteCategory={guided.deleteCategory}
+                                onAddAttribute={guided.addAttribute}
+                                onUpdateAttribute={guided.updateAttribute}
+                                onRemoveAttribute={guided.removeAttribute}
+                            />
+                        </>
+                    }
+                />
+
+                <GuidedSection section={sectionById['direction']} guided={guided} />
 
                 <StudioSection
-                    id="triggers"
-                    icon={Tags}
-                    title="Scene Triggers"
-                    description="Keywords that bring this adventure's context into the scene when mentioned in chat."
+                    id={sectionById['triggers'].id}
+                    icon={sectionById['triggers'].icon}
+                    title={sectionById['triggers'].title}
+                    description={sectionById['triggers'].description}
                 >
-                    <TriggersField values={triggers} onChange={setTriggers} label="Triggers" />
+                    <TriggersField
+                        values={triggers}
+                        onChange={setTriggers}
+                        label="Triggers"
+                        helper="Names and phrases that pull this adventure's context back into the scene mid-chat."
+                        placeholder="e.g. the sealed letter, crowned serpent, Mother Coil"
+                    />
+                    <TriggerHints triggers={triggers} hasContent={Boolean(scenario.trim())} />
                 </StudioSection>
 
                 <FormActions
-                    onCancel={handleBack}
+                    onCancel={handleStudioBack}
                     submitLabel={editingTemplate ? 'Update Adventure' : 'Create Adventure'}
                     isSubmitting={isSubmitting}
                     error={saveError}
                 />
             </form>
-            <CardAssistantChatbot<AdventureTemplateCardResponse>
-                cardType="adventure_template"
-                cardId={editingTemplate?.id ?? null}
-                title={derivedTitle}
-                currentCard={buildPayload()}
-                onCard={applyAssistantCard}
-                isAuthenticated={isAuthenticated}
-                onAuthRequired={openLoginModal}
-            />
         </CreatorStudio>
+        {chatbot}
+        </>
     )
 }

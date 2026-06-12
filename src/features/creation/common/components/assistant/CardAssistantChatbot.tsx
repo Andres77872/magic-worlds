@@ -1,10 +1,11 @@
-import { Layers, MessageCircle, X } from 'lucide-react'
+import { Layers, X } from 'lucide-react'
 import { Button, IconButton } from '@/ui/primitives'
 import type { CardAssistantCardResponse, CardAssistantCardType } from '@/shared/types/aiCard.types'
 import { AssistantBanner } from './AssistantBanner'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantHeader } from './AssistantHeader'
 import { AssistantMessageList } from './AssistantMessageList'
+import { AssistantShell } from './AssistantShell'
 import { ConversationMenu } from './ConversationMenu'
 import { ASSISTANT_SUGGESTIONS } from './suggestions'
 import { conversationKey, useCardAssistant } from './useCardAssistant'
@@ -21,17 +22,25 @@ export interface CardAssistantChatbotProps<TCard extends CardAssistantCardRespon
 }
 
 /** Offers a switched-to conversation's card snapshot for explicit application. */
-export function AssistantPendingCardBanner({ onApply, onDismiss }: { onApply: () => void; onDismiss: () => void }) {
+export function AssistantPendingCardBanner({
+    snapshotLabel = 'card',
+    onApply,
+    onDismiss,
+}: {
+    snapshotLabel?: string
+    onApply: () => void
+    onDismiss: () => void
+}) {
     return (
         <div className="flex items-center gap-2 border-b border-parchment-50/[.08] bg-arcane-500/10 px-3.5 py-2">
             <Layers size={14} className="shrink-0 text-arcane-300" />
             <p className="min-w-0 flex-1 font-ui text-[12px] leading-snug text-parchment-200">
-                This conversation has a saved card snapshot.
+                This conversation has a saved {snapshotLabel} snapshot.
             </p>
             <Button kind="secondary" size="sm" className="px-2.5 py-1.5" onClick={onApply}>
                 Apply to form
             </Button>
-            <IconButton label="Dismiss snapshot" size="sm" className="h-7 w-7" onClick={onDismiss}>
+            <IconButton label={`Dismiss ${snapshotLabel} snapshot`} size="sm" className="h-7 w-7" onClick={onDismiss}>
                 <X size={14} />
             </IconButton>
         </div>
@@ -49,25 +58,12 @@ export function CardAssistantChatbot<TCard extends CardAssistantCardResponse = C
     const streaming = assistant.status === 'streaming'
     const busy = assistant.status !== 'idle'
 
-    if (!assistant.open) {
-        return (
-            <button
-                type="button"
-                onClick={assistant.openPanel}
-                title="Card assistant"
-                aria-label="Open card assistant"
-                className="fixed bottom-5 right-5 z-50 grid h-14 w-14 cursor-pointer place-items-center rounded-full bg-ember-500 text-on-ember shadow-lg transition-all hover:bg-ember-400 hover:shadow-glow-ember active:scale-[.98]"
-            >
-                <MessageCircle size={24} />
-            </button>
-        )
-    }
-
     return (
-        <section
-            role="dialog"
-            aria-label="Card assistant"
-            className="fixed bottom-5 right-5 z-50 flex h-[min(640px,calc(100vh-2.5rem))] w-[min(420px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-800 shadow-xl"
+        <AssistantShell
+            open={assistant.open}
+            onOpen={assistant.openPanel}
+            fabLabel="Open card assistant"
+            dialogLabel="Card assistant"
         >
             <AssistantHeader
                 cardTitle={props.title}
@@ -112,6 +108,6 @@ export function CardAssistantChatbot<TCard extends CardAssistantCardResponse = C
                 onSend={(text) => void assistant.send(text)}
                 onStop={assistant.stop}
             />
-        </section>
+        </AssistantShell>
     )
 }

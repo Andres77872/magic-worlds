@@ -49,4 +49,33 @@ export const ASSISTANT_SUGGESTIONS: Record<CardAssistantCardType, AssistantSugge
             prompt: 'Draft the opening scene beats for this adventure and weave them into the description.',
         },
     ],
+    item: [
+        {
+            label: 'Create an item',
+            prompt: 'Create a brand-new item: give it an evocative name, type, rarity, description, effects, limits, and useful trigger keywords.',
+        },
+        {
+            label: 'Balance the effects',
+            prompt: 'Review this item and make its effects, requirements, and limitations clear and playable.',
+        },
+        {
+            label: 'Add origin lore',
+            prompt: 'Deepen this item with origin lore, value, and compact metadata categories.',
+        },
+    ],
 }
+
+export const LOREBOOK_ASSISTANT_SUGGESTIONS: AssistantSuggestion[] = [
+    {
+        label: 'Create a new lorebook',
+        prompt: 'Create a new lorebook for a fantasy campaign with 6 concise entries, practical activation keys, and a balanced token budget.',
+    },
+    {
+        label: 'Add missing entries',
+        prompt: 'Review this lorebook and add the most useful missing entries, keeping each entry concise and easy to activate.',
+    },
+    {
+        label: 'Tighten activation keys',
+        prompt: 'Improve the activation keys so entries trigger reliably without being too broad. Keep existing lore intact.',
+    },
+]

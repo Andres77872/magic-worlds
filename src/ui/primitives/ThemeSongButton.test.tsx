@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
+import { AudioPlaylistProvider } from '@/app/providers/AudioPlaylistProvider'
+import { PLAYLIST_STORAGE_KEY } from '@/app/providers/playlistReducer'
 import { ThemeSongButton } from './ThemeSongButton'
 
 // jsdom doesn't implement media playback; emulate play/pause by flipping `paused`
-// and emitting the events ThemeSongButton listens for.
+// and emitting the events the playlist engine listens for.
 function stubMedia() {
     const play = vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockImplementation(function (this: HTMLMediaElement) {
         Object.defineProperty(this, 'paused', { configurable: true, get: () => false })
@@ -17,22 +19,29 @@ function stubMedia() {
     return { play, pause }
 }
 
+function renderWithPlaylist(ui: React.ReactNode) {
+    return render(<AudioPlaylistProvider>{ui}</AudioPlaylistProvider>)
+}
+
 afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
+    localStorage.removeItem(PLAYLIST_STORAGE_KEY)
 })
 
 describe('ThemeSongButton', () => {
-    it('toggles play/pause state on click', () => {
+    it('plays through the global playlist and toggles pause on click', async () => {
         const { play, pause } = stubMedia()
-        render(<ThemeSongButton src="/generated-audio/t.mp3" />)
+        renderWithPlaylist(<ThemeSongButton src="/generated-audio/t.mp3" cardName="Lyra" />)
 
         const btn = screen.getByRole('button', { name: /play theme song/i })
         expect(btn.getAttribute('aria-pressed')).toBe('false')
 
         fireEvent.click(btn)
-        expect(play).toHaveBeenCalledTimes(1)
-        const playing = screen.getByRole('button', { name: /pause theme song/i })
+        // The playlist engine fetches the track (falling back to streaming in
+        // jsdom) before playing, so the play call lands asynchronously.
+        await waitFor(() => expect(play).toHaveBeenCalledTimes(1))
+        const playing = await screen.findByRole('button', { name: /pause theme song/i })
         expect(playing.getAttribute('aria-pressed')).toBe('true')
 
         fireEvent.click(playing)
@@ -43,7 +52,7 @@ describe('ThemeSongButton', () => {
     it('does not bubble clicks to an enclosing clickable parent', () => {
         stubMedia()
         const onParentClick = vi.fn()
-        render(
+        renderWithPlaylist(
             <div onClick={onParentClick}>
                 <ThemeSongButton src="/generated-audio/t.mp3" />
             </div>,

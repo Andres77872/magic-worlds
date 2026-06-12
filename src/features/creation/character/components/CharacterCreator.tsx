@@ -1,18 +1,21 @@
 /**
- * Character creator — a two-pane "Creator Studio": titled editor sections on the
- * left with a sticky live card preview on the right. The API payload and edit
- * hydration are unchanged from the original linear form.
+ * Character creator — a guided "Creator Studio": create mode opens on a
+ * template gallery (starting shapes + empty card), then a two-pane editor of
+ * role-adaptive guided fields that serialize into the unchanged API payload.
+ * Edit hydration, media generation, and the card assistant flows are preserved
+ * from the original creator.
  */
 
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
-import { ScrollText, Swords, Tags, User } from 'lucide-react'
+import { Bot, Plus, UserCircle } from 'lucide-react'
 import type { Character } from '@/shared'
+import type { CharacterRole } from '@/shared/types/character.types'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService, ApiError } from '@/infrastructure/api'
 import type { CharacterCardResponse } from '@/shared/types/aiCard.types'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
-import { Button } from '@/ui/primitives'
+import { Button, Chip, Icon, SuggestInput, SwitchRow } from '@/ui/primitives'
 import {
     CreatorStudio,
     StudioSection,
@@ -28,10 +31,15 @@ import {
     GeneratedDraftNotice,
     TriggersField,
     FormActions,
+    QualityHint,
+    TriggerHints,
     type StudioNavItem,
     type AttributePreset,
 } from '../../common/components'
-import { useAttributeCategories, toCategoryPayload } from '../../common/hooks'
+import { GuidedSection, UseExampleLink, useGuidedCard, type CardTemplate } from '../../common/engine'
+import { CreatorIntro, TemplateGallery } from '../../common/templates'
+import { getCharacterFields, getCharacterSections, RACE_OPTIONS } from '../fields'
+import { CHARACTER_GALLERY_HEADING, CHARACTER_GALLERY_SUBHEADING, CHARACTER_TEMPLATES } from '../templates'
 import { CharacterPreviewCard } from './CharacterPreviewCard'
 
 // One minimal default category; users add attributes here or create more groups.
@@ -51,11 +59,28 @@ const STAT_PRESETS: AttributePreset[] = [
 
 const FORM_ID = 'character-form'
 
+const DESCRIPTION_GHOST: Record<CharacterRole, string> = {
+    character:
+        'A scarred firesmith with ash-gray braids who talks to her forge like an old friend. Generous with strangers, ruthless with cheats, incapable of leaving a broken thing unmended.',
+    persona: 'More or less me: curious, a little guarded, braver in writing than in person.',
+}
+
+const GREETING_GHOST =
+    '*looks up from the forge, sparks dying* Well met, traveler. Mind the coals — and tell me who sent you.'
+
+const DIRECTION_GHOST: Record<CharacterRole, string> = {
+    character:
+        "Speak in short, warm sentences. Never reveal the vault's location. Call the player 'stranger' until they earn a name.",
+    persona: 'Address me directly. Never summarize my feelings back to me — show me the scene and wait.',
+}
+
 /** Map the AI/persisted card response into the local Character edit shape. */
 function toCharacter(card: CharacterCardResponse): Character {
     return {
         id: card.id || card.uuid || '',
         name: card.name ?? '',
+        role: card.role === 'persona' ? 'persona' : 'character',
+        is_default_persona: Boolean(card.is_default_persona),
         race: card.race ?? '',
         description: card.description ?? '',
         greeting: card.greeting,
@@ -74,6 +99,8 @@ export function CharacterCreator() {
     const { isAuthenticated, openLoginModal } = useAuth()
 
     const [name, setName] = useState(editingCharacter?.name ?? '')
+    const [role, setRole] = useState<CharacterRole>(editingCharacter?.role === 'persona' ? 'persona' : 'character')
+    const [isDefaultPersona, setIsDefaultPersona] = useState(Boolean(editingCharacter?.is_default_persona))
     const [race, setRace] = useState(editingCharacter?.race ?? '')
     const [description, setDescription] = useState(editingCharacter?.description ?? '')
     const [greeting, setGreeting] = useState(editingCharacter?.greeting ?? '')
@@ -87,36 +114,48 @@ export function CharacterCreator() {
     const [touched, setTouched] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
     const [assistantApplied, setAssistantApplied] = useState(false)
+    // undefined = template gallery (create mode); a pick (or null = empty/skip) shows the form.
+    const [template, setTemplate] = useState<CardTemplate | null | undefined>(editingCharacter ? null : undefined)
+    // Personas rarely need a greeting — it starts dormant for them until added.
+    const [greetingRevealed, setGreetingRevealed] = useState(false)
 
-    const attrs = useAttributeCategories({ defaults: DEFAULT_CATEGORIES, entity: editingCharacter })
+    const characterFields = useMemo(() => getCharacterFields(role), [role])
+    const sections = useMemo(() => getCharacterSections(role), [role])
+
+    const guided = useGuidedCard({
+        fields: characterFields,
+        defaults: DEFAULT_CATEGORIES,
+        entity: editingCharacter,
+        role,
+    })
 
     const nameError = touched && !name.trim() ? 'Name is required.' : undefined
     const raceError = touched && !race.trim() ? 'Race / species is required.' : undefined
 
     const statKeys = useMemo(
-        () => (attrs.attributes['stats'] || []).map((row) => row.key.toLowerCase()),
-        [attrs.attributes],
+        () => (guided.attributes['stats'] || []).map((row) => row.key.toLowerCase()),
+        [guided.attributes],
     )
 
-    const navItems = useMemo<StudioNavItem[]>(
-        () => [
-            { id: 'identity', label: 'Identity', icon: User },
-            { id: 'persona', label: 'Persona', icon: ScrollText },
-            { id: 'traits', label: 'Traits', icon: Swords },
-            { id: 'triggers', label: 'Triggers', icon: Tags },
-        ],
-        [],
-    )
+    const navItems = useMemo<StudioNavItem[]>(() => {
+        const ordered =
+            role === 'persona'
+                ? [sections.identity, sections.portrayal, sections.drives, sections.boundaries, sections.ties, sections.voice, sections.traits, sections.triggers]
+                : [sections.identity, sections.portrayal, sections.drives, sections.voice, sections.ties, sections.traits, sections.triggers]
+        return ordered.map((section) => ({ id: section.id, label: String(section.title), icon: section.icon! }))
+    }, [role, sections])
 
     /** Build the create/update payload from current form state. */
     const buildPayload = () => ({
         name,
+        role,
+        is_default_persona: role === 'persona' && isDefaultPersona,
         race,
         description,
         greeting: greeting.trim() || null,
         system_instructions: systemInstructions.trim() || null,
         triggers,
-        category: toCategoryPayload(attrs.categories, attrs.attributes),
+        category: guided.toCategoryPayload(),
         image_url: imageUrl ?? null,
         theme_song_url: themeSongUrl,
     })
@@ -194,7 +233,7 @@ export function CharacterCreator() {
             layout="compact"
             cardType="character"
             noun="character"
-            template={{ name, description, subtype: race, category: toCategoryPayload(attrs.categories, attrs.attributes) }}
+            template={{ name, description, subtype: race, category: guided.toCategoryPayload() }}
             imageUrl={imageUrl}
             onImageUrl={handleImageUrl}
             themeSongUrl={themeSongUrl}
@@ -245,6 +284,8 @@ export function CharacterCreator() {
 
     const applyAssistantCard = (card: CharacterCardResponse) => {
         setName(card.name ?? '')
+        setRole(card.role === 'persona' ? 'persona' : 'character')
+        setIsDefaultPersona(Boolean(card.is_default_persona))
         setRace(card.race ?? '')
         setDescription(card.description ?? '')
         setGreeting(card.greeting ?? '')
@@ -252,10 +293,12 @@ export function CharacterCreator() {
         setTriggers(card.triggers ?? [])
         setImageUrl(card.image_url)
         setThemeSongUrl(card.theme_song_url)
-        attrs.hydrateFrom(card)
+        guided.hydrateFrom(card, { preserveActive: true })
         setEditingCharacter(toCharacter(card))
         savedIdRef.current = card.id || card.uuid || null
         setAssistantApplied(true)
+        // AI generation skips the gallery; a picked template's scaffolding survives.
+        setTemplate((current) => (current === undefined ? null : current))
         void loadData()
     }
 
@@ -264,15 +307,78 @@ export function CharacterCreator() {
         setPage('landing')
     }
 
+    /** Back from the form: to the gallery while creating, to the library otherwise. */
+    const handleStudioBack = () => {
+        if (!editingCharacter && template !== undefined) {
+            setTemplate(undefined)
+            return
+        }
+        handleBack()
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && !isSubmitting) handleBack()
+        if (e.key === 'Escape' && !isSubmitting) handleStudioBack()
+    }
+
+    const setCardRole = (nextRole: CharacterRole) => {
+        setRole(nextRole)
+        if (nextRole !== 'persona') setIsDefaultPersona(false)
+        // Surface the new role's recommended fields without dropping anything.
+        guided.activateDefaultsForRole(nextRole)
+    }
+
+    const pickTemplate = (picked: CardTemplate | null) => {
+        if (picked?.role === 'persona' || picked?.role === 'character') {
+            setRole(picked.role)
+            if (picked.role !== 'persona') setIsDefaultPersona(false)
+        }
+        guided.applyTemplate(picked)
+        setTemplate(picked)
+    }
+
+    const firstClass = template?.firstClassExamples ?? {}
+    const isPersona = role === 'persona'
+    const greetingVisible = !isPersona || Boolean(greeting.trim()) || greetingRevealed
+
+    const chatbot = (
+        <CardAssistantChatbot<CharacterCardResponse>
+            cardType="character"
+            cardId={editingCharacter?.id ?? null}
+            title={name.trim() || 'Untitled Character'}
+            currentCard={buildPayload()}
+            onCard={applyAssistantCard}
+            isAuthenticated={isAuthenticated}
+            onAuthRequired={openLoginModal}
+        />
+    )
+
+    // The chatbot is rendered as a stable sibling of BOTH screens so the
+    // gallery → form transition never remounts an in-flight conversation.
+    if (template === undefined) {
+        return (
+            <>
+                <CreatorIntro title="Create Character" icon="🎭" onBack={handleBack}>
+                    <TemplateGallery
+                        templates={CHARACTER_TEMPLATES}
+                        fields={characterFields}
+                        noun="character"
+                        heading={CHARACTER_GALLERY_HEADING}
+                        subheading={CHARACTER_GALLERY_SUBHEADING}
+                        onPick={pickTemplate}
+                        onSkip={() => setTemplate(null)}
+                    />
+                </CreatorIntro>
+                {chatbot}
+            </>
+        )
     }
 
     return (
+        <>
         <CreatorStudio
             title={editingCharacter ? 'Edit Character' : 'Create Character'}
             icon="🎭"
-            onBack={handleBack}
+            onBack={handleStudioBack}
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
@@ -290,8 +396,8 @@ export function CharacterCreator() {
                         race={race}
                         description={description}
                         triggers={triggers}
-                        attributes={attrs.attributes}
-                        categories={attrs.categories}
+                        attributes={guided.previewAttributes}
+                        categories={guided.previewCategories}
                         imageUrl={imageUrl}
                     />
                 </StudioPreviewDock>
@@ -299,83 +405,200 @@ export function CharacterCreator() {
         >
             <form id={FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-6" onKeyDown={handleKeyDown}>
                 <StudioSection
-                    id="identity"
-                    icon={User}
-                    title="Identity"
-                    description="The essentials that name and root your character."
+                    id={sections.identity.id}
+                    icon={sections.identity.icon}
+                    title={sections.identity.title}
+                    description={sections.identity.description}
                 >
-                    <CreatorField label="Name" htmlFor="character-name" required error={nameError}>
+                    <CreatorField label="Card role">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            <button
+                                type="button"
+                                aria-pressed={role === 'character'}
+                                onClick={() => setCardRole('character')}
+                                className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
+                                    role === 'character'
+                                        ? 'border-arcane-500/70 bg-arcane-500/15'
+                                        : 'border-parchment-50/10 bg-ink-700 hover:border-arcane-500/45'
+                                }`}
+                            >
+                                <Bot size={18} className="shrink-0 text-arcane-300" />
+                                <span>
+                                    <span className="block font-ui text-sm font-semibold text-parchment-50">AI character</span>
+                                    <span className="block font-narrative text-xs text-parchment-400">Cast and chat target</span>
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                aria-pressed={role === 'persona'}
+                                onClick={() => setCardRole('persona')}
+                                className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
+                                    role === 'persona'
+                                        ? 'border-ember-500/70 bg-ember-500/15'
+                                        : 'border-parchment-50/10 bg-ink-700 hover:border-ember-500/45'
+                                }`}
+                            >
+                                <UserCircle size={18} className="shrink-0 text-ember-300" />
+                                <span>
+                                    <span className="block font-ui text-sm font-semibold text-parchment-50">User persona</span>
+                                    <span className="block font-narrative text-xs text-parchment-400">Player identity</span>
+                                </span>
+                            </button>
+                        </div>
+                    </CreatorField>
+
+                    {isPersona && (
+                        <SwitchRow
+                            label="Use as default persona"
+                            checked={isDefaultPersona}
+                            onChange={setIsDefaultPersona}
+                        />
+                    )}
+
+                    <CreatorField
+                        label="Name"
+                        htmlFor="character-name"
+                        required
+                        error={nameError}
+                        tooltip="The name the AI and every other card uses to recognize them."
+                    >
                         <CreatorInput
                             id="character-name"
                             value={name}
                             onChange={setName}
                             autoFocus
                             className="text-xl font-medium font-display"
-                            placeholder="e.g. Lyra Emberwind"
+                            placeholder={firstClass.name ?? 'e.g. Lyra Emberwind'}
                         />
                     </CreatorField>
 
-                    <CreatorField label="Race / Species" htmlFor="character-race" required error={raceError}>
-                        <CreatorInput
+                    <CreatorField
+                        label="Race / Species"
+                        htmlFor="character-race"
+                        required
+                        error={raceError}
+                        tooltip="Shapes how the AI imagines their body, lifespan, and instincts — pick one or invent your own."
+                    >
+                        <SuggestInput
                             id="character-race"
                             value={race}
                             onChange={setRace}
-                            className="capitalize"
-                            placeholder="e.g. Elf, Human, Construct"
+                            options={RACE_OPTIONS}
+                            placeholder={firstClass.race ?? 'e.g. Elf, Human, Construct'}
                         />
                     </CreatorField>
                 </StudioSection>
 
                 <StudioSection
-                    id="persona"
-                    icon={ScrollText}
-                    title="Persona"
-                    description="Appearance, personality, and backstory — this prose guides the AI's voice."
+                    id={sections.portrayal.id}
+                    icon={sections.portrayal.icon}
+                    title={sections.portrayal.title}
+                    description={sections.portrayal.description}
                 >
-                    <CreatorField label="Description" htmlFor="character-description">
+                    <CreatorField
+                        label="Description"
+                        htmlFor="character-description"
+                        tooltip="The AI reads this every turn — blend appearance with how they act and what they want, not looks alone."
+                    >
                         <CreatorTextarea
                             id="character-description"
                             value={description}
                             onChange={setDescription}
-                            placeholder="Describe your character's appearance, personality, and background…"
+                            placeholder={firstClass.description ?? DESCRIPTION_GHOST[role]}
                             rows={6}
                         />
-                    </CreatorField>
-
-                    <CreatorField
-                        label="Greeting"
-                        htmlFor="character-greeting"
-                        tooltip="The first thing they say when a one-on-one chat opens. Optional."
-                    >
-                        <CreatorTextarea
-                            id="character-greeting"
-                            value={greeting}
-                            onChange={setGreeting}
-                            placeholder="e.g. *looks up from her forge* Well met, traveler. What brings you to my flames?"
-                            rows={2}
+                        <UseExampleLink
+                            value={description}
+                            hint={firstClass.description ?? DESCRIPTION_GHOST[role]}
+                            onUse={setDescription}
                         />
+                        {!isPersona &&
+                            description.trim().length >= 200 &&
+                            !guided.values['personality.motivation']?.trim() &&
+                            !guided.values['personality.fear']?.trim() &&
+                            !guided.values['personality.secret']?.trim() && (
+                                <QualityHint>
+                                    This reads like a portrait. Add a drive in{' '}
+                                    <a href="#drives" className="underline underline-offset-2">Heart &amp; Drives</a> so the
+                                    AI can act as them — not just describe them.
+                                </QualityHint>
+                            )}
                     </CreatorField>
 
+                    {greetingVisible ? (
+                        <CreatorField
+                            label="Greeting"
+                            htmlFor="character-greeting"
+                            tooltip={
+                                isPersona
+                                    ? 'Rarely needed for personas — only used if this persona opens a chat.'
+                                    : 'Their first line when a one-on-one chat opens — it sets voice, pacing, and how bold replies will be.'
+                            }
+                        >
+                            <CreatorTextarea
+                                id="character-greeting"
+                                value={greeting}
+                                onChange={setGreeting}
+                                placeholder={firstClass.greeting ?? GREETING_GHOST}
+                                rows={2}
+                            />
+                            <UseExampleLink value={greeting} hint={firstClass.greeting} onUse={setGreeting} />
+                        </CreatorField>
+                    ) : (
+                        <div className="flex flex-wrap gap-2">
+                            <Chip
+                                onClick={() => setGreetingRevealed(true)}
+                                icon={<Icon icon={Plus} size={13} />}
+                                title="Rarely needed for personas — only used if this persona opens a chat."
+                            >
+                                Greeting
+                            </Chip>
+                        </div>
+                    )}
+
                     <CreatorField
-                        label="Roleplay direction"
+                        label={isPersona ? 'How the AI should treat you' : 'Roleplay direction'}
                         htmlFor="character-system-instructions"
-                        tooltip="Behind-the-scenes guidance for how this character speaks and behaves in 1:1 chat. Optional."
+                        tooltip={
+                            isPersona
+                                ? 'Standing instructions for how the story handles your character.'
+                                : 'Hard rules the AI must follow when playing them — the strictest lever you have over behavior.'
+                        }
                     >
                         <CreatorTextarea
                             id="character-system-instructions"
                             value={systemInstructions}
                             onChange={setSystemInstructions}
-                            placeholder="e.g. Speak tersely and warily; never reveal the location of the hidden vault; refer to the player as 'stranger'."
+                            placeholder={firstClass.system_instructions ?? DIRECTION_GHOST[role]}
                             rows={4}
+                        />
+                        <UseExampleLink
+                            value={systemInstructions}
+                            hint={firstClass.system_instructions}
+                            onUse={setSystemInstructions}
                         />
                     </CreatorField>
                 </StudioSection>
 
+                <GuidedSection section={sections.drives} guided={guided} />
+                {isPersona && <GuidedSection section={sections.boundaries} guided={guided} />}
+                {isPersona ? (
+                    <>
+                        <GuidedSection section={sections.ties} guided={guided} />
+                        <GuidedSection section={sections.voice} guided={guided} />
+                    </>
+                ) : (
+                    <>
+                        <GuidedSection section={sections.voice} guided={guided} />
+                        <GuidedSection section={sections.ties} guided={guided} />
+                    </>
+                )}
+
                 <StudioSection
-                    id="traits"
-                    icon={Swords}
-                    title="Traits & Features"
-                    description="Add stats, skills, or any traits — group them however you like."
+                    id={sections.traits.id}
+                    icon={sections.traits.icon}
+                    title={sections.traits.title}
+                    description={sections.traits.description}
                 >
                     <div className="flex flex-col gap-2.5">
                         <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
@@ -384,48 +607,48 @@ export function CharacterCreator() {
                         <SuggestedAttributes
                             presets={STAT_PRESETS}
                             existingKeys={statKeys}
-                            onAdd={(preset) => attrs.addAttributeWith('stats', { key: preset.key, value: preset.value ?? '' })}
+                            onAdd={(preset) => guided.addAttributeWith('stats', { key: preset.key, value: preset.value ?? '' })}
                         />
                     </div>
 
                     <AttributeManager
                         title="Attribute groups"
                         icon="⚔️"
-                        categories={attrs.categories}
-                        attributes={attrs.attributes}
-                        onAddCategory={attrs.addCategory}
-                        onDeleteCategory={attrs.deleteCategory}
-                        onAddAttribute={attrs.addAttribute}
-                        onUpdateAttribute={attrs.updateAttribute}
-                        onRemoveAttribute={attrs.removeAttribute}
+                        categories={guided.categories}
+                        attributes={guided.attributes}
+                        onAddCategory={guided.addCategory}
+                        onDeleteCategory={guided.deleteCategory}
+                        onAddAttribute={guided.addAttribute}
+                        onUpdateAttribute={guided.updateAttribute}
+                        onRemoveAttribute={guided.removeAttribute}
                     />
                 </StudioSection>
 
                 <StudioSection
-                    id="triggers"
-                    icon={Tags}
-                    title="Scene Triggers"
-                    description="Keywords that pull this character into the scene when mentioned in the adventure chat."
+                    id={sections.triggers.id}
+                    icon={sections.triggers.icon}
+                    title={sections.triggers.title}
+                    description={sections.triggers.description}
                 >
-                    <TriggersField values={triggers} onChange={setTriggers} label="Triggers" />
+                    <TriggersField
+                        values={triggers}
+                        onChange={setTriggers}
+                        label="Triggers"
+                        helper="When any of these words appear in chat, this card is pulled into the scene — add their name, nicknames, and titles."
+                        placeholder="e.g. Lyra, firesmith, the Emberwind"
+                    />
+                    <TriggerHints triggers={triggers} hasContent={Boolean(description.trim())} />
                 </StudioSection>
 
                 <FormActions
-                    onCancel={handleBack}
+                    onCancel={handleStudioBack}
                     submitLabel={editingCharacter ? 'Update Character' : 'Create Character'}
                     isSubmitting={isSubmitting}
                     error={saveError}
                 />
             </form>
-            <CardAssistantChatbot<CharacterCardResponse>
-                cardType="character"
-                cardId={editingCharacter?.id ?? null}
-                title={name.trim() || 'Untitled Character'}
-                currentCard={buildPayload()}
-                onCard={applyAssistantCard}
-                isAuthenticated={isAuthenticated}
-                onAuthRequired={openLoginModal}
-            />
         </CreatorStudio>
+        {chatbot}
+        </>
     )
 }

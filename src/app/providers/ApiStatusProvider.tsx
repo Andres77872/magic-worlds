@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { apiService } from '@/infrastructure/api'
-import { ApiStatusContext, type ApiStatus } from './apiStatusContext'
+import { ApiStatusContext, type ApiStatus, type ApiStatusContextValue } from './apiStatusContext'
 
 export const API_STATUS_POLL_INTERVAL_MS = 10_000
 export const API_STATUS_TIMEOUT_MS = 3_000
@@ -16,12 +16,13 @@ export function ApiStatusProvider({
     pollIntervalMs = API_STATUS_POLL_INTERVAL_MS,
     timeoutMs = API_STATUS_TIMEOUT_MS,
 }: ApiStatusProviderProps) {
-    const [status, setStatus] = useState<ApiStatus>('checking')
+    const [value, setValue] = useState<ApiStatusContextValue>({ status: 'checking', services: [] })
 
     useEffect(() => {
         let isMounted = true
         let isInFlight = false
         let controller: AbortController | null = null
+        const toApiStatus = (status: string): ApiStatus => status === 'ok' ? 'online' : 'offline'
 
         const check = async () => {
             if (isInFlight) return
@@ -30,13 +31,32 @@ export function ApiStatusProvider({
             const timeoutId = window.setTimeout(() => controller?.abort(), timeoutMs)
 
             try {
-                const health = await apiService.getHealth({ signal: controller.signal })
+                const health = await apiService.getDependencyHealth({ signal: controller.signal })
                 if (isMounted) {
-                    setStatus(health.status === 'ok' ? 'online' : 'offline')
+                    setValue({
+                        status: toApiStatus(health.status),
+                        services: health.services ?? [],
+                        checkedAt: health.checked_at,
+                    })
                 }
             } catch {
-                if (isMounted) {
-                    setStatus('offline')
+                if (!controller.signal.aborted) {
+                    try {
+                        const health = await apiService.getHealth({ signal: controller.signal })
+                        if (isMounted) {
+                            setValue({
+                                status: toApiStatus(health.status),
+                                services: [],
+                                checkedAt: undefined,
+                            })
+                        }
+                    } catch {
+                        if (isMounted) {
+                            setValue({ status: 'offline', services: [], checkedAt: undefined })
+                        }
+                    }
+                } else if (isMounted) {
+                    setValue({ status: 'offline', services: [], checkedAt: undefined })
                 }
             } finally {
                 window.clearTimeout(timeoutId)
@@ -54,8 +74,6 @@ export function ApiStatusProvider({
             window.clearInterval(intervalId)
         }
     }, [pollIntervalMs, timeoutMs])
-
-    const value = useMemo(() => ({ status }), [status])
 
     return <ApiStatusContext.Provider value={value}>{children}</ApiStatusContext.Provider>
 }

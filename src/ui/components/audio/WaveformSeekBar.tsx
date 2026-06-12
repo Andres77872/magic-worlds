@@ -2,7 +2,7 @@
  * WaveformSeekBar — a waveform strip that IS the seek bar. 48 flex bars sized
  * by peak value; the played fraction fills ember (candlelight), the rest stays
  * parchment-dim. Pointer-capture drag scrubs live; arrow keys nudge ±5s. Pure
- * and presentational — playback state comes from useAudioPlayer.
+ * and presentational — playback state comes from the global playlist player.
  */
 
 import { useRef, type KeyboardEvent, type PointerEvent } from 'react'

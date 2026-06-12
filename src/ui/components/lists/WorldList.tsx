@@ -17,13 +17,18 @@ interface WorldListProps {
     layout?: 'grid' | 'rail'
 }
 
+function meaningful(value?: string | null): string {
+    const text = value?.trim() ?? ''
+    return text.length > 1 ? text : ''
+}
+
 export function WorldList({
-                              worlds,
-                              onDelete,
-                              onEdit,
-                              loading = false,
-                              layout = 'grid',
-                          }: WorldListProps) {
+    worlds,
+    onDelete,
+    onEdit,
+    loading = false,
+    layout = 'grid',
+}: WorldListProps) {
     const [pending, setPending] = useState<{ idx: number; name: string } | null>(null)
     const [deletingId, setDeletingId] = useState<number | null>(null)
 
@@ -55,6 +60,7 @@ export function WorldList({
                             onClick: () => onEdit({
                                 id: '',
                                 name: 'New World',
+                                place_type: 'world',
                                 type: 'fantasy',
                                 details: {},
                                 description: ''
@@ -64,6 +70,10 @@ export function WorldList({
                 }
                 renderCard={(world, idx) => {
                     const isDeleting = deletingId === idx
+                    const title = meaningful(world.name) || 'Untitled world'
+                    const placeType = meaningful(world.place_type)
+                    const worldType = meaningful(world.type)
+                    const description = meaningful(world.description)
 
                     const options: CardOption[] = [
                         {
@@ -77,7 +87,7 @@ export function WorldList({
                             type: 'custom',
                             icon: <Icon icon={Trash2} size={15}/>,
                             label: 'Delete',
-                            onClick: () => setPending({idx, name: world.name}),
+                            onClick: () => setPending({idx, name: title}),
                             disabled: isDeleting,
                             danger: true
                         },
@@ -86,10 +96,11 @@ export function WorldList({
                     return (
                         <Card
                             key={world.id}
-                            title={world.name}
+                            title={title}
                             subtitle={
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                    {world.type && <Tag>{world.type}</Tag>}
+                                    {placeType && <Tag>{placeType}</Tag>}
+                                    {worldType && <Tag>{worldType}</Tag>}
                                 </div>
                             }
                             options={options}
@@ -99,8 +110,8 @@ export function WorldList({
                             className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >
                             <p className="m-0 font-narrative text-sm leading-normal text-parchment-400">
-                                {world.description
-                                    ? world.description.substring(0, 100) + (world.description.length > 100 ? '...' : '')
+                                {description
+                                    ? description.substring(0, 100) + (description.length > 100 ? '...' : '')
                                     : 'No description'}
                             </p>
                             {isDeleting && (

@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
-import { ArrowLeft, BookOpen, CheckCircle2, Library, Save, Search, Settings2, Tags } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { ArrowLeft, BookOpen, Library, Save, Search, Settings2, Tags } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
 import type { Lorebook, LorebookEntry } from '@/shared'
-import { Badge, Button, Card, Field, Icon, Input, PageHeader, Select, Textarea } from '@/ui/primitives'
+import { ConfirmDialog } from '@/ui/components'
+import { Badge, Button, Card, Field, Icon, Input, PageHeader, SwitchRow, Textarea, Toast } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
 import {
     blankEntryDraft,
@@ -15,6 +16,7 @@ import {
 } from '../lorebookTransforms'
 import { ActivationPreviewPanel } from './ActivationPreviewPanel'
 import { LorebookAttachPanel } from './LorebookAttachPanel'
+import { LorebookAssistantChatbot } from './LorebookAssistantChatbot'
 import { LoreEntryEditor } from './LoreEntryEditor'
 import { LoreEntryTable } from './LoreEntryTable'
 import { LorebookIssueList } from './LorebookIssueList'
@@ -62,21 +64,34 @@ export function LorebookStudio() {
     const [selectedId, setSelectedId] = useState<string | undefined>(() => (editingLorebook?.entries ?? [])[0]?.id)
     const [saving, setSaving] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
-    const [savedNotice, setSavedNotice] = useState<string | null>(null)
+    const [notice, setNotice] = useState<string | null>(null)
+    const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+    const editorRef = useRef<HTMLElement>(null)
 
     const selectedEntry = draft.entries.find((entry) => entry.id === selectedId)
+    const pendingDeleteEntry = draft.entries.find((entry) => entry.id === pendingDeleteId)
     const issues = useMemo(() => validateLorebookLocally(draft), [draft])
     const errorCount = issues.filter((issue) => issue.severity === 'error').length
     const saved = Boolean(draft.id)
 
     const patchDraft = (changes: Partial<Lorebook>) => {
         setDraft((current) => ({ ...current, ...changes }))
-        setSavedNotice(null)
     }
 
     const patchSettings = (changes: Partial<Lorebook['settings']>) => {
         setDraft((current) => ({ ...current, settings: { ...current.settings, ...changes } }))
-        setSavedNotice(null)
+    }
+
+    // Below the xl breakpoint the editor pane stacks far beneath the entry
+    // table, so bring it into view when an entry is picked.
+    const focusEditor = () => {
+        if (typeof window === 'undefined' || window.matchMedia('(min-width: 1280px)').matches) return
+        requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    }
+
+    const selectEntry = (entryId: string) => {
+        setSelectedId(entryId)
+        focusEditor()
     }
 
     const addEntry = () => {
@@ -85,7 +100,7 @@ export function LorebookStudio() {
             setSelectedId(entry.id)
             return { ...current, entries: [...current.entries, entry] }
         })
-        setSavedNotice(null)
+        focusEditor()
     }
 
     const updateEntry = (entry: LorebookEntry) => {
@@ -93,7 +108,6 @@ export function LorebookStudio() {
             ...current,
             entries: current.entries.map((candidate) => (candidate.id === entry.id ? entry : candidate)),
         }))
-        setSavedNotice(null)
     }
 
     const deleteEntry = async (entryId: string) => {
@@ -103,7 +117,6 @@ export function LorebookStudio() {
             if (selectedId === entryId) setSelectedId(nextEntries[0]?.id)
             return { ...current, entries: nextEntries }
         })
-        setSavedNotice(null)
         if (currentId && !entryId.startsWith('draft-entry-')) {
             try {
                 await apiService.deleteLorebookEntry(currentId, entryId)
@@ -113,13 +126,23 @@ export function LorebookStudio() {
         }
     }
 
+    const requestEntryDelete = (entryId: string) => {
+        const entry = draft.entries.find((candidate) => candidate.id === entryId)
+        if (!entry) return
+        const blank = !entry.title.trim() && !entry.content.trim() && entry.keys.length === 0
+        if (blank) {
+            void deleteEntry(entryId)
+            return
+        }
+        setPendingDeleteId(entryId)
+    }
+
     const saveLorebook = async () => {
         if (!isAuthenticated) {
             openLoginModal()
             return
         }
         setSaveError(null)
-        setSavedNotice(null)
         if (errorCount > 0) {
             setSaveError('Resolve validation errors before saving.')
             return
@@ -138,12 +161,22 @@ export function LorebookStudio() {
             setEditingLorebook(savedLorebook)
             setLorebooks(upsertLorebook(lorebooks, savedLorebook))
             setSelectedId((current) => current && savedLorebook.entries.some((entry) => entry.id === current) ? current : savedLorebook.entries[0]?.id)
-            setSavedNotice(draft.id ? 'Lorebook updated.' : 'Lorebook created.')
+            setNotice(draft.id ? 'Lorebook updated.' : 'Lorebook created.')
         } catch (error) {
             setSaveError(error instanceof Error ? error.message : 'Failed to save lorebook.')
         } finally {
             setSaving(false)
         }
+    }
+
+    const applyAssistantLorebook = (lorebook: Lorebook) => {
+        const next = normalizeLorebook(lorebook)
+        setDraft(next)
+        setEditingLorebook(next)
+        setLorebooks(upsertLorebook(lorebooks, next))
+        setSelectedId((current) => current && next.entries.some((entry) => entry.id === current) ? current : next.entries[0]?.id)
+        setSaveError(null)
+        setNotice(next.id === draft.id ? 'Lorebook updated by assistant.' : 'Lorebook created by assistant.')
     }
 
     return (
@@ -169,14 +202,6 @@ export function LorebookStudio() {
             {saveError && (
                 <div className="rounded-lg border border-blood-500/30 bg-blood-500/10 px-4 py-3 font-ui text-sm text-parchment-200" role="alert">
                     {saveError}
-                </div>
-            )}
-            {savedNotice && (
-                <div className="rounded-lg border border-verdant-500/25 bg-verdant-500/10 px-4 py-3 font-ui text-sm text-parchment-200" role="status">
-                    <span className="inline-flex items-center gap-2">
-                        <Icon icon={CheckCircle2} size={16} className="text-verdant-500" />
-                        {savedNotice}
-                    </span>
                 </div>
             )}
 
@@ -206,15 +231,12 @@ export function LorebookStudio() {
                                 helper="Library filters for genre, campaign, or source."
                                 placeholder="setting, factions, secrets"
                             />
-                            <label className="flex items-center justify-between gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-700 px-3 py-2.5">
-                                <span className="font-ui text-sm font-semibold text-parchment-50">Enabled</span>
-                                <input
-                                    type="checkbox"
-                                    checked={draft.enabled}
-                                    onChange={(event) => patchDraft({ enabled: event.target.checked })}
-                                    className="h-4 w-4 accent-ember-500"
-                                />
-                            </label>
+                            <SwitchRow
+                                label="Enabled"
+                                description="Disabled books never activate, even when attached."
+                                checked={draft.enabled}
+                                onChange={(enabled) => patchDraft({ enabled })}
+                            />
                         </div>
                     </Card>
 
@@ -230,27 +252,24 @@ export function LorebookStudio() {
                             <Field label="Token budget">
                                 <Input type="number" min={100} value={draft.settings.tokenBudget} onChange={(event) => patchSettings({ tokenBudget: Number(event.target.value) })} />
                             </Field>
-                            <Field label="Whole-word matching">
-                                <Select value={draft.settings.matchWholeWords ? 'yes' : 'no'} onChange={(event) => patchSettings({ matchWholeWords: event.target.value === 'yes' })}>
-                                    <option value="yes">On</option>
-                                    <option value="no">Off</option>
-                                </Select>
-                            </Field>
-                            <Field label="Case sensitivity">
-                                <Select value={draft.settings.caseSensitive ? 'yes' : 'no'} onChange={(event) => patchSettings({ caseSensitive: event.target.value === 'yes' })}>
-                                    <option value="no">Case-insensitive</option>
-                                    <option value="yes">Exact case</option>
-                                </Select>
-                            </Field>
-                            <label className="flex items-center justify-between gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-700 px-3 py-2.5">
-                                <span className="font-ui text-sm font-semibold text-parchment-50">Recursive scanning</span>
-                                <input
-                                    type="checkbox"
-                                    checked={draft.settings.recursiveScanning}
-                                    onChange={(event) => patchSettings({ recursiveScanning: event.target.checked })}
-                                    className="h-4 w-4 accent-arcane-500"
-                                />
-                            </label>
+                            <SwitchRow
+                                label="Whole-word matching"
+                                description="Avoid accidental partial-word key matches."
+                                checked={draft.settings.matchWholeWords}
+                                onChange={(matchWholeWords) => patchSettings({ matchWholeWords })}
+                            />
+                            <SwitchRow
+                                label="Case sensitivity"
+                                description="Require exact casing for key matches."
+                                checked={draft.settings.caseSensitive}
+                                onChange={(caseSensitive) => patchSettings({ caseSensitive })}
+                            />
+                            <SwitchRow
+                                label="Recursive scanning"
+                                description="Let activated entries trigger other entries."
+                                checked={draft.settings.recursiveScanning}
+                                onChange={(recursiveScanning) => patchSettings({ recursiveScanning })}
+                            />
                         </div>
                     </Card>
 
@@ -262,7 +281,7 @@ export function LorebookStudio() {
                         <div className="grid grid-cols-2 gap-2">
                             <Badge tone="ember">{draft.entries.length} entries</Badge>
                             <Badge tone="arcane">{draft.entries.reduce((sum, entry) => sum + entry.keys.length, 0)} keys</Badge>
-                            <Badge tone={errorCount > 0 ? 'nsfw' : 'live'}>{issues.length} issues</Badge>
+                            <Badge tone={errorCount > 0 ? 'danger' : 'live'}>{issues.length} issues</Badge>
                             <Badge tone={saved ? 'live' : 'neutral'}>{saved ? 'saved' : 'draft'}</Badge>
                         </div>
                     </Card>
@@ -272,9 +291,9 @@ export function LorebookStudio() {
                     <LoreEntryTable
                         entries={draft.entries}
                         selectedId={selectedId}
-                        onSelect={(entry) => setSelectedId(entry.id)}
+                        onSelect={(entry) => selectEntry(entry.id)}
                         onAdd={addEntry}
-                        onDelete={(entryId) => void deleteEntry(entryId)}
+                        onDelete={requestEntryDelete}
                     />
                     <div className="grid gap-6 lg:grid-cols-2">
                         <div className="flex flex-col gap-4 rounded-xl border border-parchment-50/10 bg-ink-800 p-5">
@@ -289,14 +308,43 @@ export function LorebookStudio() {
                     <ActivationPreviewPanel lorebook={draft} saved={saved} />
                 </main>
 
-                <aside className="min-w-0 xl:sticky xl:top-4 xl:self-start">
+                <aside ref={editorRef} className="min-w-0 scroll-mt-4 xl:sticky xl:top-4 xl:self-start">
                     <LoreEntryEditor
                         entry={selectedEntry}
                         onChange={updateEntry}
-                        onDelete={(entryId) => void deleteEntry(entryId)}
+                        onDelete={requestEntryDelete}
                     />
                 </aside>
             </div>
+            <ConfirmDialog
+                visible={pendingDeleteId !== null}
+                title="Delete entry"
+                message={`Delete "${(pendingDeleteEntry?.title.trim() || 'Untitled entry').slice(0, 80)}"? ${saved ? 'This removes it from the saved lorebook.' : 'This cannot be undone.'}`}
+                confirmLabel="Delete"
+                cancelLabel="Keep"
+                variant="danger"
+                onConfirm={() => {
+                    const entryId = pendingDeleteId
+                    setPendingDeleteId(null)
+                    if (entryId) void deleteEntry(entryId)
+                }}
+                onCancel={() => setPendingDeleteId(null)}
+            />
+            <Toast
+                open={Boolean(notice)}
+                tone="success"
+                title={notice ?? ''}
+                autoCloseMs={3200}
+                onClose={() => setNotice(null)}
+            />
+            <LorebookAssistantChatbot
+                lorebookId={draft.id || null}
+                title={draft.name.trim() || 'Untitled lorebook'}
+                currentLorebook={draft as unknown as Record<string, unknown>}
+                onLorebook={applyAssistantLorebook}
+                isAuthenticated={isAuthenticated}
+                onAuthRequired={openLoginModal}
+            />
         </div>
     )
 }

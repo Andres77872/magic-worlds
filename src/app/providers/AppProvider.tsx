@@ -4,6 +4,7 @@
 
 import type { ReactNode } from 'react'
 import { ApiStatusProvider } from './ApiStatusProvider'
+import { AudioPlaylistProvider } from './AudioPlaylistProvider'
 import { AuthProvider } from './AuthProvider'
 import { BackgroundTasksProvider } from './BackgroundTasksProvider'
 import { DataProvider } from './DataProvider'
@@ -20,7 +21,9 @@ export function AppProvider({ children }: AppProviderProps) {
                 <NavigationProvider>
                     <DataProvider>
                         <BackgroundTasksProvider>
-                            {children}
+                            <AudioPlaylistProvider>
+                                {children}
+                            </AudioPlaylistProvider>
                         </BackgroundTasksProvider>
                     </DataProvider>
                 </NavigationProvider>

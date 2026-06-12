@@ -9,6 +9,7 @@ import type { AttrMap } from '../../common/hooks'
 
 export interface WorldPreviewCardProps {
     name: string
+    placeType: string
     type: string
     description?: string
     triggers: string[]
@@ -17,13 +18,14 @@ export interface WorldPreviewCardProps {
     imageUrl?: string
 }
 
-export function WorldPreviewCard({ name, type, description, triggers, attributes, categories, imageUrl }: WorldPreviewCardProps) {
+export function WorldPreviewCard({ name, placeType, type, description, triggers, attributes, categories, imageUrl }: WorldPreviewCardProps) {
     return (
         <EntityPreviewCard
             name={name}
             unnamedLabel="Unnamed World"
-            badge={type}
-            badgePlaceholder="Add a type…"
+            badge={placeType}
+            secondaryBadge={type}
+            badgePlaceholder="Choose a place type…"
             description={description}
             triggers={triggers}
             attributes={attributes}

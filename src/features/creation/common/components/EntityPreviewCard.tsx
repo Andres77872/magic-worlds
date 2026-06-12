@@ -18,6 +18,8 @@ export interface EntityPreviewCardProps {
     unnamedLabel: string
     /** The race (character) or type (world) value. */
     badge: string
+    /** Optional second identity tag, e.g. world genre after place kind. */
+    secondaryBadge?: string
     /** Placeholder shown when the badge value is empty, e.g. "Add a race…". */
     badgePlaceholder: string
     description?: string
@@ -32,6 +34,7 @@ export function EntityPreviewCard({
     name,
     unnamedLabel,
     badge,
+    secondaryBadge,
     badgePlaceholder,
     description,
     triggers,
@@ -46,6 +49,7 @@ export function EntityPreviewCard({
         .slice(0, 3)
 
     const hasBody = topAttrs.length > 0 || Boolean(description?.trim()) || triggers.length > 0
+    const badgeItems = [badge, secondaryBadge].map((item) => item?.trim()).filter((item): item is string => Boolean(item))
 
     return (
         <div className="flex flex-col gap-2">
@@ -54,9 +58,11 @@ export function EntityPreviewCard({
                 title={name.trim() || unnamedLabel}
                 imageUrl={resolveMediaUrl(imageUrl)}
                 subtitle={
-                    badge.trim() ? (
+                    badgeItems.length > 0 ? (
                         <div className="flex flex-wrap items-center gap-1.5">
-                            <Tag>{badge}</Tag>
+                            {badgeItems.map((item) => (
+                                <Tag key={item}>{item}</Tag>
+                            ))}
                         </div>
                     ) : (
                         <span className="font-narrative italic text-parchment-400">{badgePlaceholder}</span>

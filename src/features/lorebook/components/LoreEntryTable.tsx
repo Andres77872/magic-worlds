@@ -2,6 +2,7 @@ import { EyeOff, KeyRound, Plus, ScrollText, Trash2 } from 'lucide-react'
 import type { LorebookEntry } from '@/shared'
 import { Badge, Button, Card, Icon, IconButton, cx } from '@/ui/primitives'
 import { estimateTokens } from '../lorebookTransforms'
+import { entryTypeLabel } from '../lorebookCopy'
 
 interface LoreEntryTableProps {
     entries: LorebookEntry[]
@@ -51,7 +52,8 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                                     <button
                                         type="button"
                                         onClick={() => onSelect(entry)}
-                                        className="min-w-0 text-left"
+                                        aria-pressed={active}
+                                        className="min-w-0 rounded-md text-left focus-visible:bg-parchment-50/[.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ember-500/60"
                                     >
                                         <div className="flex min-w-0 flex-wrap items-center gap-2">
                                             <span className="truncate font-ui text-sm font-semibold text-parchment-50">
@@ -69,7 +71,7 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                                             {entry.content || 'No prompt content yet.'}
                                         </p>
                                         <div className="mt-2 flex flex-wrap items-center gap-2 font-ui text-[11px] text-parchment-400">
-                                            <span>{entry.entryType}</span>
+                                            <span>{entryTypeLabel(entry.entryType)}</span>
                                             <span>{estimateTokens(entry.content)} tokens</span>
                                             {entry.keys.slice(0, 3).map((key) => (
                                                 <span key={key} className="inline-flex items-center gap-1 rounded-full bg-ink-900/50 px-2 py-0.5">
@@ -77,6 +79,9 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                                                     {key}
                                                 </span>
                                             ))}
+                                            {entry.keys.length > 3 && (
+                                                <span className="rounded-full bg-ink-900/50 px-2 py-0.5">+{entry.keys.length - 3}</span>
+                                            )}
                                         </div>
                                     </button>
                                     <IconButton

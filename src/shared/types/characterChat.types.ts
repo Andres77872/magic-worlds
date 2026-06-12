@@ -14,8 +14,12 @@ export interface CharacterChatSession {
     id: string
     /** Source library character this chat was started from. */
     character_id: string
+    /** Source library card used as the player's persona for this chat. */
+    persona_id?: string
     /** The frozen character (name/description/greeting/persona) for the sidebar. */
     character?: Character
+    /** The frozen user/player persona card used in the chat prompt. */
+    persona?: Character
     /** Conversation turns (greeting + history), parsed from the session's last_turn. */
     turns?: TurnEntry[]
     createdAt?: string

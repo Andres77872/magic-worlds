@@ -5,7 +5,8 @@
  * the gallery to it on click.
  */
 
-import { Eye, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { Eye, ImageOff, Trash2 } from 'lucide-react'
 import { Badge, cx, IconButton } from '@/ui/primitives'
 import { formatWhen, type CardRef, type MediaImageItem } from '../mediaGalleryTypes'
 
@@ -19,6 +20,8 @@ export interface MediaImageTileProps {
 }
 
 export function MediaImageTile({ item, deleting = false, onView, onDelete, onFilterCard }: MediaImageTileProps) {
+    const [imageFailed, setImageFailed] = useState(false)
+
     return (
         <div
             className={cx(
@@ -32,15 +35,28 @@ export function MediaImageTile({ item, deleting = false, onView, onDelete, onFil
             <button
                 type="button"
                 onClick={onView}
-                aria-label={`View image${item.card?.name ? ` for ${item.card.name}` : ''} full size`}
-                className="absolute inset-0 h-full w-full cursor-zoom-in"
+                disabled={imageFailed}
+                aria-label={
+                    imageFailed
+                        ? `Image${item.card?.name ? ` for ${item.card.name}` : ''} unavailable`
+                        : `View image${item.card?.name ? ` for ${item.card.name}` : ''} full size`
+                }
+                className="absolute inset-0 h-full w-full cursor-zoom-in disabled:cursor-default"
             >
-                <img
-                    src={item.url}
-                    alt={item.card?.name ? `Image for ${item.card.name}` : 'Generated image'}
-                    loading="lazy"
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                />
+                {imageFailed ? (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-ink-700 px-4 text-center">
+                        <ImageOff size={28} className="text-parchment-500" aria-hidden="true" />
+                        <span className="font-ui text-xs font-semibold text-parchment-300">Image unavailable</span>
+                    </div>
+                ) : (
+                    <img
+                        src={item.url}
+                        alt={item.card?.name ? `Image for ${item.card.name}` : 'Generated image'}
+                        loading="lazy"
+                        onError={() => setImageFailed(true)}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    />
+                )}
             </button>
 
             {item.card && (

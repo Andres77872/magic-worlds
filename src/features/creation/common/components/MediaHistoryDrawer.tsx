@@ -219,7 +219,8 @@ export function MediaHistoryDrawer({
         </button>
     )
 
-    const imageLabel = cardType === 'adventure_template' ? 'cover image' : 'portrait'
+    const imageLabel = cardType === 'adventure_template' ? 'cover image' : cardType === 'item' ? 'item image' : 'portrait'
+    const cardNoun = cardType === 'adventure_template' ? 'adventure' : cardType === 'item' ? 'item' : cardType
 
     return (
         <Drawer
@@ -244,7 +245,7 @@ export function MediaHistoryDrawer({
             {tab === 'images' ? (
                 <section className="flex flex-col gap-4">
                     <p className="font-narrative text-xs leading-snug text-parchment-400">
-                        Every {imageLabel} you've generated. Click <span className="text-parchment-200">Set</span> to make one this {cardType === 'adventure_template' ? 'adventure' : cardType}'s default.
+                        Every {imageLabel} you've generated. Click <span className="text-parchment-200">Set</span> to make one this {cardNoun}'s default.
                     </p>
 
                     {imgError && <p className="text-sm text-blood-500">{imgError}</p>}
@@ -386,6 +387,12 @@ export function MediaHistoryDrawer({
                                                     title={title}
                                                     durationMs={asset.duration_ms}
                                                     peakSeed={asset.asset_id}
+                                                    trackMeta={{
+                                                        cardName,
+                                                        cardType,
+                                                        cardId: themeTargetId,
+                                                        artworkUrl: resolveMediaUrl(currentImageUrl),
+                                                    }}
                                                 />
                                             </li>
                                         )

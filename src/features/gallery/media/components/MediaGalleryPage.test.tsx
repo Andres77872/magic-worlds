@@ -5,6 +5,39 @@ const openLoginModal = vi.fn()
 
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: true, openLoginModal }),
+    useData: () => ({
+        characters: [],
+        worlds: [{ id: 'card-2', name: 'Rivendell', image_url: '/generated-images/rivendell.jpeg' }],
+        items: [],
+        templateAdventures: [],
+    }),
+}))
+
+// AudioWavePlayer deep-imports the playlist hook (not the barrel), so the
+// global player gets its own inert stub.
+vi.mock('@/app/hooks/usePlaylist', () => ({
+    usePlaylist: () => ({
+        queue: [],
+        currentIndex: -1,
+        currentTrack: null,
+        isPlaying: false,
+        isLoading: false,
+        error: null,
+        currentTime: 0,
+        duration: null,
+        peaks: null,
+        playNow: vi.fn(),
+        enqueue: vi.fn(),
+        playQueueFrom: vi.fn(),
+        toggle: vi.fn(),
+        next: vi.fn(),
+        prev: vi.fn(),
+        stop: vi.fn(),
+        removeAt: vi.fn(),
+        clearAndClose: vi.fn(),
+        seekRatio: vi.fn(),
+        isQueued: () => false,
+    }),
 }))
 
 vi.mock('@/infrastructure/api', () => ({
@@ -15,6 +48,7 @@ vi.mock('@/infrastructure/api', () => ({
         deleteThemeSongAsset: vi.fn().mockResolvedValue(undefined),
         getCharacters: vi.fn().mockResolvedValue([]),
         getWorlds: vi.fn().mockResolvedValue([]),
+        getItems: vi.fn().mockResolvedValue([]),
         getAdventureTemplates: vi.fn().mockResolvedValue([]),
     },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,

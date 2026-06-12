@@ -6,7 +6,7 @@
  */
 
 import type { LucideIcon } from 'lucide-react'
-import { Feather, Globe, Infinity as InfinityIcon, Swords, Users, UsersRound } from 'lucide-react'
+import { Feather, Gem, Globe, Infinity as InfinityIcon, Swords, Users, UsersRound } from 'lucide-react'
 import type { Adventure } from '@/shared'
 
 export const GITHUB_URL = 'https://github.com/Andres77872/magic-worlds'
@@ -49,7 +49,7 @@ export const HOW_IT_WORKS_STEPS: HowStep[] = [
 
 /** The prominent in-page create / access menu. */
 export interface CreateAction {
-    key: 'character' | 'world' | 'adventure'
+    key: 'character' | 'world' | 'item' | 'adventure'
     icon: LucideIcon
     /** Arcane is reserved for AI/magic — the character is the AI persona. */
     tone: 'ember' | 'arcane'
@@ -71,6 +71,13 @@ export const CREATE_ACTIONS: CreateAction[] = [
         tone: 'ember',
         title: 'Build a world',
         desc: 'Set the stage: a place, its rules, and the lore that pulls characters in.',
+    },
+    {
+        key: 'item',
+        icon: Gem,
+        tone: 'ember',
+        title: 'Create an item',
+        desc: 'Define a relic, key, tool, or object with effects, limits, and hooks.',
     },
     {
         key: 'adventure',

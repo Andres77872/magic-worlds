@@ -38,19 +38,22 @@ function toOptions(raw: unknown, type: CardMediaTargetType): CardPickerOption[] 
         .filter((option) => option.id)
 }
 
-async function fetchCardOptions(cardType: CardTypeFilter, q?: string): Promise<CardPickerOption[]> {
+async function fetchCardOptions(cardType: CardTypeFilter, q?: string, limit = OPTIONS_PER_TYPE): Promise<CardPickerOption[]> {
     const sources: Array<[CardMediaTargetType, Promise<unknown>]> =
         cardType === 'all'
             ? [
-                  ['character', apiService.getCharacters(0, OPTIONS_PER_TYPE, q)],
-                  ['world', apiService.getWorlds(0, OPTIONS_PER_TYPE, q)],
-                  ['adventure_template', apiService.getAdventureTemplates(0, OPTIONS_PER_TYPE, q)],
+                  ['character', apiService.getCharacters(0, limit, q)],
+                  ['world', apiService.getWorlds(0, limit, q)],
+                  ['item', apiService.getItems(0, limit, q)],
+                  ['adventure_template', apiService.getAdventureTemplates(0, limit, q)],
               ]
             : cardType === 'character'
-              ? [['character', apiService.getCharacters(0, OPTIONS_PER_TYPE, q)]]
+              ? [['character', apiService.getCharacters(0, limit, q)]]
               : cardType === 'world'
-                ? [['world', apiService.getWorlds(0, OPTIONS_PER_TYPE, q)]]
-                : [['adventure_template', apiService.getAdventureTemplates(0, OPTIONS_PER_TYPE, q)]]
+                ? [['world', apiService.getWorlds(0, limit, q)]]
+                : cardType === 'item'
+                  ? [['item', apiService.getItems(0, limit, q)]]
+                  : [['adventure_template', apiService.getAdventureTemplates(0, limit, q)]]
     const results = await Promise.all(sources.map(([, promise]) => promise))
     return results.flatMap((raw, index) => toOptions(raw, sources[index][0]))
 }
@@ -59,6 +62,7 @@ export function useCardPickerOptions(
     cardType: CardTypeFilter,
     query: string,
     enabled: boolean,
+    limit?: number,
 ): { options: CardPickerOption[]; loading: boolean } {
     const [options, setOptions] = useState<CardPickerOption[]>([])
     const [loading, setLoading] = useState(false)
@@ -69,7 +73,7 @@ export function useCardPickerOptions(
         const seq = ++seqRef.current
         setLoading(true)
         const timer = setTimeout(() => {
-            fetchCardOptions(cardType, query.trim() || undefined)
+            fetchCardOptions(cardType, query.trim() || undefined, limit)
                 .then((next) => {
                     if (seq !== seqRef.current) return
                     setOptions(next)
@@ -83,7 +87,7 @@ export function useCardPickerOptions(
                 })
         }, SEARCH_DEBOUNCE_MS)
         return () => clearTimeout(timer)
-    }, [cardType, query, enabled])
+    }, [cardType, query, enabled, limit])
 
     return { options, loading }
 }

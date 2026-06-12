@@ -103,6 +103,24 @@ describe('useCardGallery', () => {
         expect(result.current.items.map((i) => i.id)).toEqual(['b', 'c'])
     })
 
+    it('upsertItem prepends a directly loaded card without advancing the cursor', async () => {
+        const config = makeConfig({
+            '0|': [makeItem('a'), makeItem('b')],
+            '2|': [makeItem('c')],
+        })
+        const { result } = renderHook(() => useCardGallery(config, PAGE_SIZE))
+        await waitFor(() => expect(result.current.loading).toBe(false))
+
+        act(() => result.current.upsertItem(makeItem('shared')))
+        expect(result.current.items.map((i) => i.id)).toEqual(['shared', 'a', 'b'])
+
+        act(() => result.current.loadMore())
+        await waitFor(() => expect(result.current.loadingMore).toBe(false))
+
+        expect(config.fetchPage).toHaveBeenLastCalledWith(2, PAGE_SIZE, undefined)
+        expect(result.current.items.map((i) => i.id)).toEqual(['shared', 'a', 'b', 'c'])
+    })
+
     it('surfaces fetch errors without crashing and clears on refresh', async () => {
         let fail = true
         const fetchPage = vi.fn(async () => {

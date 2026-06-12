@@ -6,6 +6,7 @@ export * from './Card/GalleryCard'
 
 // List components
 export * from './WorldList'
+export * from './ItemList'
 export * from './CharacterList'
 export * from './CharacterChatList'
 export * from './TemplateList'

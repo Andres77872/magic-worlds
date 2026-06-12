@@ -108,6 +108,7 @@ export function themeJobToItem(job: ThemeSongJobPublic): MediaThemeItem | null {
 const CARD_TYPE_PLURAL: Record<CardMediaTargetType, string> = {
     character: 'characters',
     world: 'worlds',
+    item: 'items',
     adventure_template: 'adventures',
 }
 

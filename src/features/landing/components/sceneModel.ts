@@ -25,13 +25,18 @@ function firstWords(text: string, count: number): string {
     return words.length > count ? `${slice}…` : slice
 }
 
+function meaningful(value?: string | null): string {
+    const text = value?.trim() ?? ''
+    return text.length > 1 ? text : ''
+}
+
 /** Persona name reads best ("who will you become"); fall back to the scenario. */
 export function sceneTitle(template: Adventure): string {
-    const persona = template.persona?.name?.trim()
+    const persona = meaningful(template.persona?.name)
     if (persona) return persona
-    const scenario = (template.scenario || '').trim()
+    const scenario = meaningful(template.scenario)
     if (scenario) return firstWords(scenario, 5)
-    return 'Untitled scene'
+    return 'Untitled adventure'
 }
 
 /** Up to three genre-ish tags, preferring category names, then triggers, then world type. */
@@ -39,7 +44,7 @@ export function sceneTags(template: Adventure): string[] {
     const out: string[] = []
     const seen = new Set<string>()
     const push = (value?: string) => {
-        const tag = (value || '').trim()
+        const tag = meaningful(value)
         if (!tag) return
         const key = tag.toLowerCase()
         if (seen.has(key)) return
@@ -57,8 +62,8 @@ export function toScene(template: Adventure): Scene {
     return {
         template,
         title,
-        location: template.world?.name?.trim() || template.persona?.race?.trim() || undefined,
-        description: (template.scenario || '').trim() || 'A scene waiting to begin.',
+        location: meaningful(template.world?.name) || meaningful(template.persona?.race) || undefined,
+        description: meaningful(template.scenario) || 'A scene waiting to begin.',
         tags: sceneTags(template),
         monogram: title.charAt(0).toUpperCase() || '?',
     }

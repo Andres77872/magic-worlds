@@ -11,6 +11,7 @@ import {
     Check,
     Copy,
     Crown,
+    Gem,
     Globe,
     Lock,
     LogOut,
@@ -101,9 +102,10 @@ export function ProfileView({ profile, onLogout, onDeleteAllData }: ProfileViewP
             </section>
 
             {/* ---------- Stats ---------- */}
-            <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                 <StatCard icon={Users} label="Characters" value={counts.character} />
                 <StatCard icon={Globe} label="Worlds" value={counts.world} />
+                <StatCard icon={Gem} label="Items" value={counts.item ?? 0} />
                 <StatCard icon={Swords} label="Adventures" value={counts.adventure_template} />
                 <StatCard icon={Zap} label="Credits" value={credits} />
             </section>
@@ -143,7 +145,7 @@ export function ProfileView({ profile, onLogout, onDeleteAllData }: ProfileViewP
                         <div className="flex flex-col gap-1">
                             <span className="font-ui text-[14px] font-semibold text-parchment-50">Delete all my data</span>
                             <span className="font-ui text-[13px] text-parchment-400">
-                                Permanently removes everything you've created — characters, worlds, adventures, chats and
+                                Permanently removes everything you've created — characters, worlds, items, adventures, chats and
                                 generated media. Your account stays active.
                             </span>
                         </div>

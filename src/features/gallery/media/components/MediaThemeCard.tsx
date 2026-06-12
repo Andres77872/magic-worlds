@@ -16,13 +16,15 @@ import { formatWhen, type CardRef, type MediaThemeItem } from '../mediaGalleryTy
 
 export interface MediaThemeCardProps {
     item: MediaThemeItem
+    /** Resolved card portrait/cover for the global playlist dock. */
+    artworkUrl?: string
     deleting?: boolean
     onDelete: () => void
     /** Filter the gallery to this theme's card. */
     onFilterCard?: (card: CardRef) => void
 }
 
-export function MediaThemeCard({ item, deleting = false, onDelete, onFilterCard }: MediaThemeCardProps) {
+export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, onFilterCard }: MediaThemeCardProps) {
     const [playing, setPlaying] = useState(false)
     const [downloading, setDownloading] = useState(false)
     const [downloadError, setDownloadError] = useState(false)
@@ -66,6 +68,12 @@ export function MediaThemeCard({ item, deleting = false, onDelete, onFilterCard 
                     title={item.title}
                     durationMs={item.durationMs}
                     peakSeed={item.id}
+                    trackMeta={{
+                        cardName: item.card?.name,
+                        cardType: item.card?.type,
+                        cardId: item.card?.id,
+                        artworkUrl,
+                    }}
                     onPlayingChange={setPlaying}
                 />
             </div>

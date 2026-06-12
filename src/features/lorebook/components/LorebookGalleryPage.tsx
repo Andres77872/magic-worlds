@@ -93,10 +93,14 @@ export function LorebookGalleryPage() {
                                 }}
                                 placeholder="Search lorebooks by name, tag, or key..."
                                 aria-label="Search lorebooks by name, tag, or key"
-                                className={`${controlClass} rounded-full pl-10 pr-12`}
+                                className={`${controlClass} rounded-full pl-10 ${gallery.searching && hasQuery ? 'pr-16' : 'pr-12'}`}
                             />
                             {gallery.searching && (
-                                <Loader2 className="absolute right-10 animate-spin text-ember-500" size={16} aria-hidden="true" />
+                                <Loader2
+                                    className={`absolute ${hasQuery ? 'right-12' : 'right-4'} animate-spin text-ember-500`}
+                                    size={16}
+                                    aria-hidden="true"
+                                />
                             )}
                             {hasQuery && (
                                 <IconButton

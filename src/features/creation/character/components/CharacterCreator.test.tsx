@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     sendCardAssistantMessage: vi.fn(),
     streamCardAssistantMessage: vi.fn(),
     setEditingCharacter: vi.fn(),
+    createCharacter: vi.fn(),
     updateCharacter: vi.fn(),
     generateCardPortrait: vi.fn(),
     isAuthenticated: true,
@@ -34,7 +35,7 @@ vi.mock('@/infrastructure/api', () => ({
         getCardAssistantConversation: mocks.getCardAssistantConversation,
         sendCardAssistantMessage: mocks.sendCardAssistantMessage,
         streamCardAssistantMessage: mocks.streamCardAssistantMessage,
-        createCharacter: vi.fn(),
+        createCharacter: mocks.createCharacter,
         updateCharacter: mocks.updateCharacter,
         generateCardPortrait: mocks.generateCardPortrait,
         waitForImageJob: vi.fn(),
@@ -75,6 +76,7 @@ describe('CharacterCreator AI generation', () => {
             onEvent({ type: 'final', ...assistantResponse })
         })
         mocks.loadData.mockResolvedValue(undefined)
+        mocks.createCharacter.mockResolvedValue({ id: 'char-1', name: 'Nyra', race: 'moon elf' })
     })
 
     it('sends a creator conversation turn and populates the creator in edit mode (no navigation)', async () => {
@@ -126,6 +128,93 @@ describe('CharacterCreator AI generation', () => {
         expect(mocks.sendCardAssistantMessage).not.toHaveBeenCalled()
         expect(mocks.streamCardAssistantMessage).not.toHaveBeenCalled()
         expect(mocks.loadData).not.toHaveBeenCalled()
+    })
+})
+
+describe('CharacterCreator role payload', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingCharacter = null
+        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.createCharacter.mockResolvedValue({ id: 'p1', name: 'Aria', race: 'Human', role: 'persona', is_default_persona: true })
+        mocks.loadData.mockResolvedValue(undefined)
+    })
+
+    it('creates a default persona card when the persona role is selected', async () => {
+        render(<CharacterCreator />)
+
+        // Create mode opens on the template gallery — continue with the standard fields.
+        fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
+
+        fireEvent.click(screen.getByText('User persona').closest('button')!)
+        fireEvent.click(screen.getByLabelText(/use as default persona/i))
+        fireEvent.change(screen.getByPlaceholderText(/lyra emberwind/i), { target: { value: 'Aria' } })
+        fireEvent.change(screen.getByPlaceholderText(/elf, human, construct/i), { target: { value: 'Human' } })
+        fireEvent.click(screen.getByRole('button', { name: /^Create Character$/i }))
+
+        await waitFor(() =>
+            expect(mocks.createCharacter).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    name: 'Aria',
+                    race: 'Human',
+                    role: 'persona',
+                    is_default_persona: true,
+                }),
+            ),
+        )
+    })
+
+    it('serializes guided template fields into the category payload via "use example"', async () => {
+        mocks.createCharacter.mockResolvedValue({ id: 'c2', name: 'Mara' })
+        const { container } = render(<CharacterCreator />)
+
+        // Pick a starting shape from the gallery.
+        fireEvent.click(screen.getByRole('button', { name: /the adversary/i }))
+
+        fireEvent.change(screen.getByPlaceholderText(/lyra emberwind/i), { target: { value: 'Mara' } })
+        fireEvent.change(screen.getByPlaceholderText(/elf, human, construct/i), { target: { value: 'Human' } })
+
+        // The template's guided fields are active with ghost examples; copy one in.
+        const motivation = screen.getByLabelText('Motivation')
+        expect(motivation).toHaveAttribute(
+            'placeholder',
+            'To finish the great work — they genuinely believe the world will thank them.',
+        )
+        const motivationRow = container.querySelector('[data-guided-field="personality.motivation"]') as HTMLElement
+        fireEvent.click(within(motivationRow).getByRole('button', { name: /use example/i }))
+
+        fireEvent.click(screen.getByRole('button', { name: /^Create Character$/i }))
+
+        await waitFor(() => expect(mocks.createCharacter).toHaveBeenCalledTimes(1))
+        const payload = mocks.createCharacter.mock.calls[0][0]
+        const personality = payload.category.find((c: { name: string }) => c.name === 'Personality')
+        expect(personality).toBeDefined()
+        expect(personality.description).toBe('What drives this character in play.')
+        expect(personality.attributes).toContainEqual({
+            Motivation: 'To finish the great work — they genuinely believe the world will thank them.',
+        })
+    })
+
+    it('removes a guided field so it no longer serializes', async () => {
+        mocks.createCharacter.mockResolvedValue({ id: 'c3', name: 'Bren' })
+        render(<CharacterCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
+        fireEvent.change(screen.getByPlaceholderText(/lyra emberwind/i), { target: { value: 'Bren' } })
+        fireEvent.change(screen.getByPlaceholderText(/elf, human, construct/i), { target: { value: 'Dwarf' } })
+
+        const motivation = screen.getByLabelText('Motivation')
+        fireEvent.change(motivation, { target: { value: 'Win the contest' } })
+        // Remove the filled field — confirm in the dialog — then save.
+        fireEvent.click(screen.getByRole('button', { name: /remove motivation/i }))
+        fireEvent.click(screen.getByRole('button', { name: /^Discard$/ }))
+
+        fireEvent.click(screen.getByRole('button', { name: /^Create Character$/i }))
+
+        await waitFor(() => expect(mocks.createCharacter).toHaveBeenCalledTimes(1))
+        const payload = mocks.createCharacter.mock.calls[0][0]
+        expect(payload.category.find((c: { name: string }) => c.name === 'Personality')).toBeUndefined()
     })
 })
 

@@ -19,6 +19,7 @@ export interface UserCardCounts {
     character: number
     world: number
     adventure_template: number
+    item: number
 }
 
 export interface MembershipCredits {

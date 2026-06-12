@@ -49,6 +49,8 @@ export interface CharacterCardResponse {
     id: string
     uuid?: string
     name: string
+    role?: 'character' | 'persona'
+    is_default_persona?: boolean
     race?: string
     description?: string
     /** In-character opening line for 1:1 chat (AI-generated drafts may include it). */
@@ -66,6 +68,7 @@ export interface WorldCardResponse {
     id: string
     uuid?: string
     name: string
+    place_type?: string
     type?: string
     description?: string
     category?: AiCardCategory[] | null
@@ -90,10 +93,30 @@ export interface AdventureTemplateCardResponse {
     [key: string]: unknown
 }
 
-export type CardAssistantCardType = 'character' | 'world' | 'adventure_template'
+export interface ItemCardResponse {
+    id: string
+    uuid?: string
+    name: string
+    alias?: string | null
+    type?: string | null
+    rarity?: string | null
+    description: string
+    effects?: string[]
+    requirements?: string[]
+    limitations?: string[]
+    origin?: string | null
+    value?: string | null
+    category?: AiCardCategory[] | null
+    triggers?: string[]
+    image_url?: string
+    theme_song_url?: string
+    [key: string]: unknown
+}
+
+export type CardAssistantCardType = 'character' | 'world' | 'adventure_template' | 'item'
 export type CardAssistantRole = 'system' | 'user' | 'assistant' | 'tool'
 export type CardAssistantStatus = 'pending' | 'completed' | 'failed'
-export type CardAssistantCardResponse = CharacterCardResponse | WorldCardResponse | AdventureTemplateCardResponse
+export type CardAssistantCardResponse = CharacterCardResponse | WorldCardResponse | AdventureTemplateCardResponse | ItemCardResponse
 
 export interface CardAssistantConversation {
     id?: number

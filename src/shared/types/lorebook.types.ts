@@ -147,3 +147,100 @@ export type LorebookEntryDraft = Omit<LorebookEntry, 'id' | 'lorebookId' | 'crea
 export type LorebookDraft = Omit<Lorebook, 'id' | 'entries' | 'attachments' | 'createdAt' | 'updatedAt'> & {
     entries?: LorebookEntryDraft[]
 }
+
+export type LorebookAssistantRole = 'system' | 'user' | 'assistant' | 'tool'
+export type LorebookAssistantStatus = 'pending' | 'completed' | 'failed'
+
+export interface LorebookAssistantConversation {
+    id?: number
+    conversation_id: number
+    lorebook_id?: string | null
+    title?: string | null
+    conversation_version?: number
+    active_request_id?: string | null
+    active_request_started_at?: string | null
+    created_at?: string
+    updated_at?: string
+}
+
+export interface LorebookAssistantMessage {
+    id?: number
+    message_id: number
+    conversation_id: number
+    sequence_no: number
+    sequence?: number
+    role: LorebookAssistantRole
+    status: LorebookAssistantStatus
+    content: string
+    tool_calls?: unknown
+    tool_call_id?: string | null
+    tool_name?: string | null
+    metadata?: Record<string, unknown>
+    created_at?: string
+    updated_at?: string
+    completed_at?: string | null
+}
+
+export interface LorebookAssistantConversationResponse {
+    conversation: LorebookAssistantConversation
+    messages: LorebookAssistantMessage[]
+    lorebook?: Lorebook | null
+}
+
+export interface LorebookAssistantConversationListResponse {
+    conversations: LorebookAssistantConversation[]
+}
+
+export interface LorebookAssistantAppliedAction {
+    type?: string
+    lorebook_id?: string
+    fields?: string[]
+}
+
+export interface LorebookAssistantTurnResponse {
+    conversation: LorebookAssistantConversation
+    user_message?: LorebookAssistantMessage
+    assistant_message?: LorebookAssistantMessage
+    tool_message?: LorebookAssistantMessage | null
+    messages?: LorebookAssistantMessage[]
+    lorebook?: Lorebook | null
+    applied_actions?: LorebookAssistantAppliedAction[]
+}
+
+export type LorebookAssistantStreamEvent =
+    | {
+        type: 'user_message'
+        request_id?: string
+        user_message?: LorebookAssistantMessage
+    }
+    | {
+        type: 'assistant_delta'
+        request_id?: string
+        delta: string
+    }
+    | ({
+        type: 'final'
+        request_id?: string
+    } & LorebookAssistantTurnResponse)
+    | {
+        type: 'error'
+        request_id?: string
+        detail?: string
+        error?: {
+            category?: string
+            code?: string
+            message?: string
+            request_id?: string
+            retryable?: boolean
+        }
+    }
+    | {
+        type: 'done'
+        request_id?: string
+    }
+
+export interface LorebookAssistantRequestOptions {
+    signal?: AbortSignal
+    requestId?: string
+    timeoutMs?: number
+}

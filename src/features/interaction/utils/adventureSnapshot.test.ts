@@ -128,6 +128,7 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
     const libWorld: World = {
         id: 'world-9',
         name: 'Sunspire',
+        place_type: 'city',
         type: 'City',
         description: 'A gilded city',
         details: {},
@@ -146,6 +147,7 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         expect(snapCard.category?.[0].attributes?.[0]).toEqual({ CHA: '17' })
 
         const w = libraryCardToSnapshotCard(libWorld, 'world')
+        expect(w.place_type).toBe('city')
         expect(w.type).toBe('City')
         expect(w.source_card_id).toBe('world-9')
     })
@@ -171,6 +173,7 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         expect(fields.persona?.image_url).toBe('/generated-images/lyra.jpeg')
         expect(fields.persona?.theme_song_url).toBe('/generated-audio/lyra.mp3')
         expect(fields.worlds[fields.worlds.length - 1]?.image_url).toBe('/generated-images/sunspire.jpeg')
+        expect(fields.worlds[fields.worlds.length - 1]?.place_type).toBe('city')
     })
 
     it('adds a card immutably and exposes its source id', () => {

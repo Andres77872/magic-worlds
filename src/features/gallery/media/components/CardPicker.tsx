@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { ChevronDown, Globe, Loader2, Search, Swords, Users, X } from 'lucide-react'
+import { ChevronDown, Gem, Globe, Loader2, Search, Swords, Users, X } from 'lucide-react'
 import type { CardMediaTargetType } from '@/shared'
 import { useClickOutside } from '@/shared/hooks'
 import { cx, Icon } from '@/ui/primitives'
@@ -17,6 +17,7 @@ import { useCardPickerOptions } from '../hooks/useCardPickerOptions'
 const TYPE_ICON: Record<CardMediaTargetType, typeof Users> = {
     character: Users,
     world: Globe,
+    item: Gem,
     adventure_template: Swords,
 }
 

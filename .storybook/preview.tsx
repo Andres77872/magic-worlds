@@ -4,12 +4,19 @@ import type { Preview, Decorator } from '@storybook/react-vite'
 // ring) and the .chat-prose component styles. Because the base layer styles
 // the preview <body>, every story renders on the Reverie canvas automatically.
 import '../src/ui/styles/theme.css'
+import { AudioPlaylistProvider } from '../src/app/providers/AudioPlaylistProvider'
 
-/** Light frame around each story: brand UI font + comfortable padding. */
+/**
+ * Light frame around each story: brand UI font + comfortable padding, plus
+ * the global playlist context so audio surfaces (ThemeSongButton,
+ * AudioWavePlayer, PlaylistDock) render in isolation.
+ */
 const withReverieFrame: Decorator = (Story) => (
-  <div className="font-ui text-parchment-50" style={{ padding: '1.5rem' }}>
-    <Story />
-  </div>
+  <AudioPlaylistProvider>
+    <div className="font-ui text-parchment-50" style={{ padding: '1.5rem' }}>
+      <Story />
+    </div>
+  </AudioPlaylistProvider>
 )
 
 const preview: Preview = {

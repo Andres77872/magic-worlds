@@ -1,12 +1,15 @@
 /**
  * ThemeSongButton — a circular play/pause control overlaid on a card portrait.
- * Lazily owns a single HTMLAudioElement for `src`, toggles playback, and reflects
- * the play state. Clicks never bubble to an enclosing clickable card (the card's
- * own onClick opens the editor / begins the scene), so playing a theme stays inert.
+ * A view of the global playlist player: clicking sends the card's theme to the
+ * app-wide queue (playing immediately), or pauses it when it's already the
+ * current track, so the music keeps playing in the floating dock after the
+ * card scrolls away or the page changes. Clicks never bubble to an enclosing
+ * clickable card (the card's own onClick opens the editor / begins the scene).
  */
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import type { MouseEvent } from 'react'
 import { Pause, Play } from 'lucide-react'
-import { claimAudioFocus } from '../components/audio/useAudioPlayer'
+import { usePlaylist } from '@/app/hooks/usePlaylist'
+import { themeTrack, type PlaylistTrack } from '@/app/providers/audioPlaylistContext'
 import { cx } from './cx'
 import { Icon } from './Icon'
 
@@ -14,7 +17,14 @@ export type ThemeSongButtonSize = 'sm' | 'md'
 
 interface ThemeSongButtonProps {
     /** Resolved (absolute) audio URL. */
-    src: string
+    src?: string
+    /** Song title shown in the player dock; falls back to "<cardName> theme". */
+    title?: string
+    cardName?: string
+    cardType?: PlaylistTrack['cardType']
+    cardId?: string
+    /** Card portrait shown as the dock thumbnail. */
+    artworkUrl?: string
     size?: ThemeSongButtonSize
     className?: string
 }
@@ -24,40 +34,25 @@ const DIM: Record<ThemeSongButtonSize, { box: string; icon: number }> = {
     md: { box: 'h-9 w-9', icon: 16 },
 }
 
-export function ThemeSongButton({ src, size = 'sm', className }: ThemeSongButtonProps) {
-    const audioRef = useRef<HTMLAudioElement | null>(null)
-    const [isPlaying, setIsPlaying] = useState(false)
-
-    // Pause + release the element if the card unmounts mid-playback.
-    useEffect(() => {
-        return () => {
-            audioRef.current?.pause()
-            audioRef.current = null
-        }
-    }, [])
+export function ThemeSongButton({
+    src,
+    title,
+    cardName,
+    cardType,
+    cardId,
+    artworkUrl,
+    size = 'sm',
+    className,
+}: ThemeSongButtonProps) {
+    const playlist = usePlaylist()
+    const isPlaying = Boolean(src) && playlist.currentTrack?.id === src && playlist.isPlaying
 
     const toggle = (e: MouseEvent) => {
         // Never let the play toggle trigger the enclosing clickable card.
         e.stopPropagation()
         e.preventDefault()
-        let audio = audioRef.current
-        if (!audio) {
-            const created = new Audio(src)
-            created.addEventListener('play', () => {
-                // One track at a time, app-wide (shared with AudioWavePlayer).
-                claimAudioFocus(created)
-                setIsPlaying(true)
-            })
-            created.addEventListener('pause', () => setIsPlaying(false))
-            created.addEventListener('ended', () => setIsPlaying(false))
-            audioRef.current = created
-            audio = created
-        }
-        if (audio.paused) {
-            void audio.play().catch(() => setIsPlaying(false))
-        } else {
-            audio.pause()
-        }
+        if (!src) return
+        playlist.playNow(themeTrack({ url: src, title, cardName, cardType, cardId, artworkUrl }))
     }
 
     const dim = DIM[size]

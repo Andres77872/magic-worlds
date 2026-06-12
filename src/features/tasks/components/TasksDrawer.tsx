@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react'
 import { AlertCircle, BookOpen, CalendarClock, CheckCircle2, Clock3, FileAudio, Loader2, Music2, RefreshCw, XCircle } from 'lucide-react'
 import { useBackgroundTasks, useData } from '@/app/hooks'
 import { apiService, resolveMediaUrl } from '@/infrastructure/api'
-import type { Adventure, BackgroundTaskBuckets, BackgroundTaskPublic, CardMediaTargetType, Character, World } from '@/shared'
-import { transformCharacters, transformTemplates, transformWorlds } from '@/utils/cardTransforms'
+import type { Adventure, BackgroundTaskBuckets, BackgroundTaskPublic, CardMediaTargetType, Character, Item, World } from '@/shared'
+import { readWorldPlaceType, worldPlaceTypeLabel } from '@/shared'
+import { transformCharacters, transformItems, transformTemplates, transformWorlds } from '@/utils/cardTransforms'
 import { formatRelativeTime } from '@/utils/time'
 import { AudioWavePlayer } from '@/ui/components/audio'
 import { EmptyState } from '@/ui/components/common/EmptyState'
@@ -92,6 +93,7 @@ function formatDuration(ms?: number | null): string {
 
 function targetTypeLabel(type: CardMediaTargetType): string {
     if (type === 'adventure_template') return 'Adventure'
+    if (type === 'item') return 'Item'
     return type === 'character' ? 'Character' : 'World'
 }
 
@@ -129,7 +131,23 @@ function toWorldPreview(card: World, targetId: string): AttachedCardPreview {
         id: card.id || targetId,
         type: 'world',
         title: card.name || 'Unnamed world',
-        badge: card.type || 'World',
+        badge: [worldPlaceTypeLabel(readWorldPlaceType(card)), card.type].filter(Boolean).join(' / ') || 'World',
+        description: card.description,
+        imageUrl: card.image_url,
+        themeSongUrl: card.theme_song_url,
+        triggers: card.triggers ?? [],
+        categories: card.category,
+        createdAt: card.createdAt,
+        updatedAt: card.updatedAt,
+    }
+}
+
+function toItemPreview(card: Item, targetId: string): AttachedCardPreview {
+    return {
+        id: card.id || targetId,
+        type: 'item',
+        title: card.name || 'Unnamed item',
+        badge: [card.type, card.rarity].filter(Boolean).join(' / ') || 'Item',
         description: card.description,
         imageUrl: card.image_url,
         themeSongUrl: card.theme_song_url,
@@ -158,7 +176,7 @@ function toAdventurePreview(card: Adventure, targetId: string): AttachedCardPrev
 
 export function TasksDrawer() {
     const { drawerOpen, closeDrawer, taskBuckets, refreshTasks, cancelTask } = useBackgroundTasks()
-    const { characters, worlds, templateAdventures } = useData()
+    const { characters, worlds, items, templateAdventures } = useData()
     const [activeTab, setActiveTab] = useState<TaskTab>('active')
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [selectedTask, setSelectedTask] = useState<BackgroundTaskPublic | null>(null)
@@ -184,6 +202,10 @@ export function TasksDrawer() {
             const card = worlds.find((item) => item.id === task.target.id)
             return card ? toWorldPreview(card, task.target.id) : null
         }
+        if (task.target.type === 'item') {
+            const card = items.find((item) => item.id === task.target.id)
+            return card ? toItemPreview(card, task.target.id) : null
+        }
         const card = templateAdventures.find((item) => item.id === task.target.id)
         return card ? toAdventurePreview(card, task.target.id) : null
     }
@@ -198,6 +220,10 @@ export function TasksDrawer() {
         if (task.target.type === 'world') {
             const card = transformWorlds([await apiService.getWorld(task.target.id)])[0]
             return card ? toWorldPreview(card, task.target.id) : null
+        }
+        if (task.target.type === 'item') {
+            const card = transformItems([await apiService.getItem(task.target.id)])[0]
+            return card ? toItemPreview(card, task.target.id) : null
         }
         const card = transformTemplates([await apiService.getAdventureTemplate(task.target.id)])[0]
         return card ? toAdventurePreview(card, task.target.id) : null
@@ -291,6 +317,7 @@ export function TasksDrawer() {
                             <TaskRow
                                 key={`${task.operation}:${task.task_id}`}
                                 task={task}
+                                attachedCard={findLocalCard(task)}
                                 onCancel={() => void cancelTask(task.operation, task.task_id)}
                                 onOpenCard={() => void openAttachedCard(task)}
                             />
@@ -309,7 +336,17 @@ export function TasksDrawer() {
     )
 }
 
-function TaskRow({ task, onCancel, onOpenCard }: { task: BackgroundTaskPublic; onCancel: () => void; onOpenCard: () => void }) {
+function TaskRow({
+    task,
+    attachedCard,
+    onCancel,
+    onOpenCard,
+}: {
+    task: BackgroundTaskPublic
+    attachedCard?: AttachedCardPreview | null
+    onCancel: () => void
+    onOpenCard: () => void
+}) {
     const IconCmp = statusIcon(task.status)
     const assetUrl = task.result?.assets?.[0]?.url
     const resolvedAudio = resolveMediaUrl(assetUrl)
@@ -380,7 +417,17 @@ function TaskRow({ task, onCancel, onOpenCard }: { task: BackgroundTaskPublic; o
             </div>
 
             {resolvedAudio && task.status === 'completed' && (
-                <AudioWavePlayer src={resolvedAudio} title={`${title} theme`} className="rounded-lg border border-arcane-500/20 bg-ink-900/50 p-2.5" />
+                <AudioWavePlayer
+                    src={resolvedAudio}
+                    title={`${title} theme`}
+                    trackMeta={{
+                        cardName: attachedCard?.title || task.target.display_name || undefined,
+                        cardType: task.target.type,
+                        cardId: task.target.id,
+                        artworkUrl: resolveMediaUrl(attachedCard?.imageUrl),
+                    }}
+                    className="rounded-lg border border-arcane-500/20 bg-ink-900/50 p-2.5"
+                />
             )}
             {task.error?.detail && (
                 <div className="flex items-start gap-2 rounded-md border border-blood-500/30 bg-blood-500/10 px-3 py-2">
