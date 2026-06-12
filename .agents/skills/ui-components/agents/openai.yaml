@@ -1,0 +1,3 @@
+display_name: Reverie UI components
+short_description: Primitive catalog and composition recipes for building screens
+default_prompt: Build the requested UI by reusing this repo's primitives and composition recipes instead of raw markup.

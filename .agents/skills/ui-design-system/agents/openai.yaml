@@ -1,0 +1,3 @@
+display_name: Reverie design system
+short_description: Look & feel rules and design tokens for this app's UI
+default_prompt: Apply the Reverie design-system rules (tokens, ember/arcane accents, typography, motion) to the current UI task.

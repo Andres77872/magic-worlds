@@ -26,6 +26,5 @@ storybook-static
 *.njsproj
 *.sln
 *.sw?
-.agents
-.claude
+.claude/settings.local.json
 .codex

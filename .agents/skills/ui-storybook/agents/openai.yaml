@@ -1,0 +1,3 @@
+display_name: Reverie Storybook conventions
+short_description: CSF3 story templates and Storybook workflow for this repo
+default_prompt: Write or update Storybook stories following this repo's CSF3 conventions and patterns.
