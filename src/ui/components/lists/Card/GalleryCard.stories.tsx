@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { Download, Link2, MessageCircle, Pencil, Trash2 } from 'lucide-react'
-import { Icon } from '@/ui/primitives'
+import { Button, Icon } from '@/ui/primitives'
 import { GalleryCard } from './GalleryCard'
 import type { CardOption } from './CardOptions'
 
@@ -94,4 +94,30 @@ export const NoActions: Story = {
 
 export const Deleting: Story = {
   args: { tags: ['bard'], options, deleting: true },
+}
+
+export const Compact: Story = {
+  args: {
+    size: 'compact',
+    imageUrl: 'https://picsum.photos/seed/compact-reverie/400/533',
+    tags: ['bard', 'moonlight', 'clipped-at-two'],
+    options,
+  },
+  decorators: [(Story) => <div className="w-[200px]"><Story /></div>],
+  parameters: { docs: { description: { story: 'Dashboard rails: smaller title, tighter vignette, tags capped at 2.' } } },
+}
+
+export const CompactWithFooter: Story = {
+  args: {
+    size: 'compact',
+    tags: ['innkeeper'],
+    options,
+    footer: (
+      <Button kind="arcane" size="sm" full iconLeft={<Icon icon={MessageCircle} size={15} />} onClick={() => {}}>
+        Chat
+      </Button>
+    ),
+  },
+  decorators: [(Story) => <div className="w-[200px]"><Story /></div>],
+  parameters: { docs: { description: { story: 'The cast rail pins the arcane Chat affordance into the vignette via the footer slot.' } } },
 }

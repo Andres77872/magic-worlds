@@ -307,7 +307,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
             if (!id) throw new Error('Missing assistant conversation id')
             await apiService.streamCardAssistantMessage(
                 id,
-                { message: text, current_card: currentCardRef.current, request_id: requestId },
+                { message: text, card_type: cardType, current_card: currentCardRef.current, request_id: requestId },
                 (event) => {
                     if (activeRequestRef.current !== requestId) return
                     if (event.type === 'user_message' && event.user_message) {
@@ -443,7 +443,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
             setStreamingMessageId(null)
             setStatus('idle')
         }
-    }, [isAuthenticated, onAuthRequired, timeoutMs, createConversation, reloadConversation])
+    }, [isAuthenticated, onAuthRequired, timeoutMs, createConversation, reloadConversation, cardType])
 
     const stop = useCallback(() => {
         if (!streamControllerRef.current) return

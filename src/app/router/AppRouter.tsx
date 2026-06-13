@@ -21,9 +21,11 @@ import { NovelGalleryPage, NovelStudio } from '../../features/novel'
 import { ProfilePage } from '../../features/profile'
 import { TasksDrawer } from '../../features/tasks'
 import { DocsPage } from '../../features/docs'
+import { LegalPage } from '../../features/legal'
 import { CardPreviewModal, useCardPreviewModal } from '../../features/cards'
 import { LoadingSpinner } from '../../ui/components/LoadingSpinner'
 import { PlaylistDock } from '../../ui/components/audio/PlaylistDock'
+import { GlowBackdrop } from '../../ui/primitives'
 
 export function AppRouter() {
     const { currentPage } = useNavigation()
@@ -44,7 +46,15 @@ export function AppRouter() {
     }
 
     return (
-        <div className="flex min-h-screen bg-ink-800 text-parchment-50">
+        // `isolate` makes this div a stacking context so the -z-10 ambience
+        // paints above bg-ink-800 yet below all content (sidebar included —
+        // its translucent bg-ink-900/80 lets the glow continue underneath).
+        <div className="isolate flex min-h-screen bg-ink-800 text-parchment-50">
+            {/* Viewport-fixed candlelight: app-level atmosphere that stays put
+                while <main> scrolls, so it never crops at a section edge. */}
+            <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
+                <GlowBackdrop variant="page" />
+            </div>
             <Sidebar />
             <main ref={mainRef} data-app-main className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
                 <ServicesDownBanner />
@@ -73,6 +83,10 @@ export function AppRouter() {
                         {currentPage === 'character-chat' && <CharacterChat />}
                         {currentPage === 'profile' && <ProfilePage />}
                         {currentPage === 'docs' && <DocsPage />}
+                        {currentPage === 'about' && <LegalPage page="about" />}
+                        {currentPage === 'contact' && <LegalPage page="contact" />}
+                        {currentPage === 'privacy' && <LegalPage page="privacy" />}
+                        {currentPage === 'disclaimer' && <LegalPage page="disclaimer" />}
                     </>
                 )}
             </main>

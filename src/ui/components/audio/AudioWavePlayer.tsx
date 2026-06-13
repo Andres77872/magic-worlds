@@ -9,12 +9,13 @@
  * the row is the current track.
  */
 
-import { useEffect, useMemo, type MouseEvent } from 'react'
-import { ListMusic, Loader2, Pause, Play, RotateCcw } from 'lucide-react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { Download, ListMusic, Loader2, Pause, Play, RotateCcw } from 'lucide-react'
 import { usePlaylist } from '@/app/hooks/usePlaylist'
 import { themeTrack, type PlaylistTrack } from '@/app/providers/audioPlaylistContext'
 import { cx, Icon, IconButton } from '@/ui/primitives'
 import { pseudoPeaks } from './audioData'
+import { downloadThemeSong } from './downloadThemeSong'
 import { formatSeconds } from './formatSeconds'
 import { WaveformSeekBar } from './WaveformSeekBar'
 
@@ -31,6 +32,8 @@ export interface AudioWavePlayerProps {
     trackMeta?: Pick<PlaylistTrack, 'cardName' | 'cardType' | 'cardId' | 'artworkUrl'>
     /** Show the add-to-playlist button. */
     showEnqueue?: boolean
+    /** Show the download button. */
+    showDownload?: boolean
     /** Lets the host card mirror the playing state (glow, action visibility). */
     onPlayingChange?: (playing: boolean) => void
     className?: string
@@ -43,14 +46,23 @@ export function AudioWavePlayer({
     peakSeed,
     trackMeta,
     showEnqueue = true,
+    showDownload = true,
     onPlayingChange,
     className,
 }: AudioWavePlayerProps) {
     const playlist = usePlaylist()
+    const [downloadState, setDownloadState] = useState<{
+        src: string
+        downloading: boolean
+        error: boolean
+    } | null>(null)
     const track = useMemo(
         () => themeTrack({ url: src, title, durationMs, ...trackMeta }),
         [src, title, durationMs, trackMeta],
     )
+    const activeDownloadState = downloadState?.src === src ? downloadState : null
+    const downloading = Boolean(activeDownloadState?.downloading)
+    const downloadError = Boolean(activeDownloadState?.error)
 
     // This row binds the global player's state only while it's the current
     // track; otherwise it renders dormant and any interaction promotes it.
@@ -92,6 +104,23 @@ export function AudioWavePlayer({
         e.stopPropagation()
         e.preventDefault()
         playlist.enqueue(track)
+    }
+
+    const download = (e: MouseEvent) => {
+        e.stopPropagation()
+        e.preventDefault()
+        if (downloading) return
+        const requestSrc = src
+        setDownloadState({ src: requestSrc, downloading: true, error: false })
+        void downloadThemeSong({ url: src, title: track.title })
+            .then(() => {
+                setDownloadState((state) => (state?.src === requestSrc ? null : state))
+            })
+            .catch(() => {
+                setDownloadState((state) =>
+                    state?.src === requestSrc ? { src: requestSrc, downloading: false, error: true } : state,
+                )
+            })
     }
 
     return (
@@ -160,12 +189,34 @@ export function AudioWavePlayer({
                         <ListMusic size={14} />
                     </IconButton>
                 )}
+                {showDownload && (
+                    <IconButton
+                        label={
+                            downloadError
+                                ? `Retry download ${trackName}`
+                                : downloading
+                                  ? `Downloading ${trackName}`
+                                  : `Download ${trackName}`
+                        }
+                        size="sm"
+                        tone={downloadError ? 'danger' : 'default'}
+                        className="h-7 w-7"
+                        disabled={downloading}
+                        onClick={download}
+                    >
+                        {downloading ? (
+                            <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                        ) : (
+                            <Download size={14} strokeWidth={1.75} />
+                        )}
+                    </IconButton>
+                )}
             </div>
 
             <div
                 className={cx(
                     'flex items-center justify-between pl-[46px] font-mono text-[10px]',
-                    showEnqueue && 'pr-[38px]',
+                    showEnqueue && showDownload ? 'pr-[74px]' : (showEnqueue || showDownload) && 'pr-[38px]',
                 )}
             >
                 <span className={cx(isPlaying ? 'text-ember-300' : 'text-parchment-400')}>

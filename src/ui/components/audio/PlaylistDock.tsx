@@ -20,6 +20,7 @@ import { createPortal } from 'react-dom'
 import {
     ChevronDown,
     ChevronUp,
+    Download,
     GripVertical,
     ListMusic,
     Loader2,
@@ -37,6 +38,7 @@ import { usePlaylist } from '@/app/hooks'
 import type { PlaylistTrack } from '@/app/providers/audioPlaylistContext'
 import { AuthenticatedImage, Button, cx, Eyebrow, Icon, IconButton } from '@/ui/primitives'
 import { pseudoPeaks } from './audioData'
+import { downloadThemeSong } from './downloadThemeSong'
 import { formatSeconds } from './formatSeconds'
 import { WaveformSeekBar } from './WaveformSeekBar'
 
@@ -115,6 +117,11 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
     const [queueMaxHeight, setQueueMaxHeight] = useState(288)
     const [position, setPosition] = useState<DockPosition | null>(() => readDockPosition())
     const [dragging, setDragging] = useState(false)
+    const [downloadState, setDownloadState] = useState<{
+        trackId: string
+        downloading: boolean
+        error: boolean
+    } | null>(null)
     const dockRef = useRef<HTMLElement>(null)
     const positionRef = useRef<DockPosition | null>(position)
     const dragRef = useRef<{
@@ -250,6 +257,9 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
     const atQueueEnd = playlist.currentIndex >= playlist.queue.length - 1
     const hasCardTarget = Boolean(onOpenCard && currentTrack.cardType && currentTrack.cardId)
     const currentCardLabel = currentTrack.cardName || currentTrack.title
+    const activeDownloadState = downloadState?.trackId === currentTrack.id ? downloadState : null
+    const downloading = Boolean(activeDownloadState?.downloading)
+    const downloadError = Boolean(activeDownloadState?.error)
     const customPosition = position !== null
     const wrapperStyle: CSSProperties | undefined = customPosition
         ? { left: position.x, top: position.y, width: 'min(calc(100vw - 2rem), 26rem)' }
@@ -262,6 +272,23 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
             id: currentTrack.cardId,
             fallbackName: currentCardLabel,
         })
+    }
+
+    const downloadCurrentTrack = () => {
+        if (downloading) return
+        const requestTrackId = currentTrack.id
+        setDownloadState({ trackId: requestTrackId, downloading: true, error: false })
+        void downloadThemeSong({ url: currentTrack.url, title: currentTrack.title, fallbackName: currentTrack.cardName })
+            .then(() => {
+                setDownloadState((state) => (state?.trackId === requestTrackId ? null : state))
+            })
+            .catch(() => {
+                setDownloadState((state) =>
+                    state?.trackId === requestTrackId
+                        ? { trackId: requestTrackId, downloading: false, error: true }
+                        : state,
+                )
+            })
     }
 
     const artwork = currentTrack.artworkUrl ? (
@@ -491,6 +518,26 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 onClick={playlist.next}
                             >
                                 <SkipForward size={14} />
+                            </IconButton>
+                            <IconButton
+                                label={
+                                    downloadError
+                                        ? `Retry download ${currentTrack.title}`
+                                        : downloading
+                                          ? `Downloading ${currentTrack.title}`
+                                          : `Download ${currentTrack.title}`
+                                }
+                                size="sm"
+                                tone={downloadError ? 'danger' : 'default'}
+                                className="h-7 w-7"
+                                disabled={downloading}
+                                onClick={downloadCurrentTrack}
+                            >
+                                {downloading ? (
+                                    <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                                ) : (
+                                    <Download size={14} strokeWidth={1.75} />
+                                )}
                             </IconButton>
                             <IconButton
                                 label={queueOpen ? 'Hide playlist' : 'Show playlist'}

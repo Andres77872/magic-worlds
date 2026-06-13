@@ -3,34 +3,58 @@
  *
  * Guests and fresh accounts get the marketing experience: a hero, a prominent
  * create menu, a "how it works" explainer, a row of sample worlds, and a closing
- * invitation. Returning users with content get their personalised dashboard:
- * greeting + search, the discovery gallery, and shelves for in-progress journeys,
- * characters, and worlds — plus a compact create strip.
+ * invitation. Returning users get a zoned dashboard: a cinematic recent-session
+ * gallery (or featured begin hero), the begin-anew discovery grid with the cast
+ * rail, a tabbed library band, and the create workbench — with a global search
+ * that sweeps across everything they own.
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { LucideIcon } from 'lucide-react'
-import { ArrowRight, BookOpenText, Feather, Play, Sparkles, Users, Wand2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowRight, Feather, Users, Wand2 } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
-import type { Character, CharacterChatSession, World, Item, Adventure, Story } from '@/shared'
+import type { Adventure, Character, CharacterChatSession, Item, PageType, Story, World } from '@/shared'
 import { MODE_META } from '@/shared/modes'
-import { CharacterList, CharacterChatList, WorldList, ItemList, InProgressList, CardGrid, Card, PersonaPickerDialog } from '@/ui/components'
+import { PersonaPickerDialog } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
-import { Button, Icon, SectionHeader } from '@/ui/primitives'
 import { isAiCharacterCard, isPersonaCard } from '@/utils/characterRoles'
 import { LandingLoading } from './LandingLoading'
 import { GreetingHeader } from './GreetingHeader'
-import { FilterChips } from './FilterChips'
-import { FeaturedScene } from './FeaturedScene'
-import { SceneCard } from './SceneCard'
+import { HeroScene, type HeroSceneProps } from './HeroScene'
+import { HeroSessionGallery } from './HeroSessionGallery'
+import { BeginZone } from './BeginZone'
+import { CastRail } from './CastRail'
+import { LibraryShelf, type LibraryTab } from './LibraryShelf'
+import { CreateBand } from './CreateBand'
+import { SearchResults } from './SearchResults'
 import { LandingHero, type HeroCta } from './LandingHero'
 import { AccessMenu } from './AccessMenu'
 import { HowItWorksSection } from './HowItWorksSection'
 import { TwoWaysToPlay } from './TwoWaysToPlay'
 import { ShowcaseWorlds } from './ShowcaseWorlds'
 import { ClosingCTA } from './ClosingCTA'
-import { toScene, sceneTitle, sceneMatchesFilter, sceneMatchesQuery } from './sceneModel'
-import { HERO_COPY, latestInProgress, type CreateAction } from './landingContent'
+import { LandingFooter } from './LandingFooter'
+import { toScene, sceneMatchesFilter, genresFromScenes } from './sceneModel'
+import { toResumeSessions, type ResumeSession } from './resumeModel'
+import { searchDashboard, type DashboardSearchGroup } from './searchModel'
+import { HERO_COPY, type CreateAction } from './landingContent'
+
+const GALLERY_PAGE_BY_GROUP: Partial<Record<DashboardSearchGroup['key'], PageType>> = {
+    adventures: 'gallery-adventures',
+    cast: 'gallery-characters',
+    personas: 'gallery-personas',
+    worlds: 'gallery-worlds',
+    items: 'gallery-items',
+    novels: 'gallery-stories',
+}
+
+const GALLERY_PAGE_BY_TAB: Record<LibraryTab, PageType> = {
+    personas: 'gallery-personas',
+    worlds: 'gallery-worlds',
+    items: 'gallery-items',
+    novels: 'gallery-stories',
+}
+
+const BEGIN_ZONE_ID = 'begin-zone'
 
 function startErrorCopy(error: unknown, fallback: string): string {
     return error instanceof Error && error.message.trim() ? error.message : fallback
@@ -60,11 +84,9 @@ export function LandingPage() {
         startTemplate,
         deleteTemplate,
         editInProgress,
-        deleteInProgress,
         startCharacterChat,
         characterChats,
         resumeCharacterChat,
-        deleteCharacterChat,
         stories,
         openStory,
         loadData,
@@ -110,10 +132,8 @@ export function LandingPage() {
         setPersonaPickError(null)
         setPersonaPick({ kind: 'chat', character: c })
     })
-    const handleChatResume = (chat: CharacterChatSession) => requireAuth(() => { resumeCharacterChat(chat); setPage('character-chat') })
     const handleWorldEdit = (w: World) => requireAuth(() => { editWorld(w); setPage('world') })
     const handleItemEdit = (item: Item) => requireAuth(() => { editItem(item); setPage('item') })
-    const handleInProgressEdit = (a: Adventure) => requireAuth(() => { editInProgress(a); setPage('interaction') })
     const handleStoryOpen = (story: Story) => requireAuth(() => {
         void openStory(story)
             .then(() => {
@@ -122,6 +142,16 @@ export function LandingPage() {
             .catch((error) => {
                 console.error('Failed to open story:', error)
             })
+    })
+
+    const openSession = (session: ResumeSession) => requireAuth(() => {
+        if (session.kind === 'adventure') {
+            editInProgress(session.source as Adventure)
+            setPage('interaction')
+        } else {
+            resumeCharacterChat(session.source as CharacterChatSession)
+            setPage('character-chat')
+        }
     })
 
     const createAdventure = () => requireAuth(() => { setEditingTemplate(null); setPage('adventure') })
@@ -133,6 +163,11 @@ export function LandingPage() {
         else if (key === 'world') createWorld()
         else if (key === 'item') createItem()
         else createAdventure()
+    }
+    const handleLibraryCreate = (tab: Exclude<LibraryTab, 'novels'>) => {
+        if (tab === 'personas') createCharacter()
+        else if (tab === 'worlds') createWorld()
+        else createItem()
     }
 
     const confirmTemplateDelete = () => {
@@ -148,44 +183,35 @@ export function LandingPage() {
     const scenes = useMemo(() => templateAdventures.map(toScene), [templateAdventures])
     const personaCards = useMemo(() => characters.filter(isPersonaCard), [characters])
     const aiCharacters = useMemo(() => characters.filter(isAiCharacterCard), [characters])
-
-    // Genre chips reflect the tags actually present across the user's scenes.
-    // Single-character scratch values read like leaked test data in a global filter.
-    const genres = useMemo(() => {
-        const byKey = new Map<string, string>()
-        scenes.forEach((scene) =>
-            scene.tags.forEach((tag) => {
-                if (tag.trim().length < 2) return
-                const key = tag.toLowerCase()
-                if (!byKey.has(key)) byKey.set(key, tag)
-            }),
-        )
-        return Array.from(byKey.values()).slice(0, 6)
-    }, [scenes])
-
-    const filtered = useMemo(
-        () => scenes.filter((scene) => sceneMatchesFilter(scene, filter) && sceneMatchesQuery(scene, query)),
-        [scenes, filter, query],
+    const sessions = useMemo(
+        () => toResumeSessions(inProgressAdventures, characterChats),
+        [inProgressAdventures, characterChats],
     )
-
-    const featured = filtered[0]
-    const rest = filtered.slice(1)
-
-    const latest = useMemo(() => latestInProgress(inProgressAdventures), [inProgressAdventures])
+    const genres = useMemo(() => genresFromScenes(scenes), [scenes])
+    // Chips scope the Begin zone only; the search field sweeps everything.
+    const chipFiltered = useMemo(
+        () => scenes.filter((scene) => sceneMatchesFilter(scene, filter)),
+        [scenes, filter],
+    )
+    const search = useMemo(
+        () =>
+            searchDashboard(query, {
+                sessions,
+                scenes,
+                cast: aiCharacters,
+                personas: personaCards,
+                worlds,
+                items,
+                stories,
+            }),
+        [query, sessions, scenes, aiCharacters, personaCards, worlds, items, stories],
+    )
 
     // Content-based mode: an authenticated-but-empty account still gets the
     // welcoming front-door (it doubles as the empty state).
     const hasScenes = templateAdventures.length > 0
-    const hasInProgress = inProgressAdventures.length > 0
-    const hasContent = hasScenes || hasInProgress || characters.length > 0 || worlds.length > 0 || items.length > 0 || characterChats.length > 0 || stories.length > 0
+    const hasContent = hasScenes || inProgressAdventures.length > 0 || characters.length > 0 || worlds.length > 0 || items.length > 0 || characterChats.length > 0 || stories.length > 0
     const mode: 'guest' | 'returning' = isAuthenticated && hasContent ? 'returning' : 'guest'
-
-    const resumeLatest = () =>
-        requireAuth(() => {
-            if (!latest) return
-            editInProgress(latest)
-            setPage('interaction')
-        })
 
     const closePersonaPick = () => {
         if (isPersonaPickConfirming) return
@@ -218,10 +244,19 @@ export function LandingPage() {
         }
     }
 
+    const prefersReducedMotion = () =>
+        typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
     const scrollToShowcase = () => {
-        const reduce =
-            typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-        showcaseRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+        showcaseRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' })
+    }
+    // By id, not ref: the hero captures this callback, and a ref read inside it
+    // would trip the React Compiler's render-safety analysis on the hero object.
+    const scrollToBegin = () => {
+        document.getElementById(BEGIN_ZONE_ID)?.scrollIntoView({
+            behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+            block: 'start',
+        })
     }
 
     if (isLoading) {
@@ -251,7 +286,6 @@ export function LandingPage() {
                     stat={HERO_COPY.stat}
                 />
                 <AccessMenu
-                    variant="full"
                     eyebrow={accessCopy.eyebrow}
                     title={accessCopy.title}
                     onAction={handleCreate}
@@ -260,220 +294,128 @@ export function LandingPage() {
                 <TwoWaysToPlay />
                 <ShowcaseWorlds sectionRef={showcaseRef} onTry={createAdventure} />
                 <ClosingCTA onAction={createAdventure} />
+                <LandingFooter onNavigate={setPage} />
             </div>
         )
     }
 
-    // ---------- RETURNING: personalised dashboard ----------
-    const resumeTitle = latest ? sceneTitle(latest) : ''
-    const resumeShort = resumeTitle.length > 28 ? `${resumeTitle.slice(0, 27)}…` : resumeTitle
-    const continueAction =
-        hasInProgress && latest ? (
-            <Button
-                kind="primary"
-                iconLeft={<Icon icon={Play} size={16} />}
-                onClick={resumeLatest}
-                className="shrink-0"
-            >
-                Continue: {resumeShort}
-            </Button>
-        ) : undefined
+    // ---------- RETURNING: zoned dashboard ----------
+    const heroSessions = sessions.slice(0, 10)
+    // In begin mode the hero takes the first chip-filtered scene; the grid gets the rest.
+    const heroScene = heroSessions.length === 0 ? chipFiltered[0] : undefined
+    const gridScenes = heroScene ? chipFiltered.slice(1) : chipFiltered
+
+    const hero: HeroSceneProps | null = heroScene
+          ? {
+                mode: 'begin',
+                eyebrow: `Featured adventure${heroScene.location ? ` · ${heroScene.location}` : ''}`,
+                title: heroScene.title,
+                description: heroScene.description,
+                imageUrl: heroScene.template.image_url,
+                seed: heroScene.title,
+                monogram: heroScene.monogram,
+                tags: heroScene.tags,
+                primary: {
+                    label: MODE_META.adventure.beginLabel,
+                    icon: Wand2,
+                    onClick: () => handleTemplateStart(heroScene.template),
+                },
+                secondary: { label: 'View all adventures', onClick: () => setPage('gallery-adventures') },
+            }
+          : null
 
     return (
-        <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-8 px-5 py-8 sm:px-8 sm:py-10">
-            <GreetingHeader query={query} onQueryChange={setQuery} action={continueAction} />
-
-            {genres.length > 0 && <FilterChips options={genres} active={filter} onChange={setFilter} />}
-
-            {hasScenes &&
-                (featured ? (
-                    <FeaturedScene
-                        eyebrow={`Featured adventure${featured.location ? ` · ${featured.location}` : ''}`}
-                        title={featured.title}
-                        description={featured.description}
-                        monogram={featured.monogram}
-                        seed={featured.title}
-                        tags={featured.tags}
-                        actionLabel={MODE_META.adventure.beginLabel}
-                        onAction={() => handleTemplateStart(featured.template)}
-                    />
-                ) : (
-                    <NoMatches onClear={() => { setQuery(''); setFilter('All') }} />
-                ))}
-
-            {rest.length > 0 && (
-                <section className="flex flex-col gap-5">
-                    <div className="flex items-end justify-between gap-4">
-                        <h2 className="font-display text-h3 font-semibold text-parchment-50">More adventures to begin</h2>
-                        <div className="flex items-center gap-3">
-                            <span className="font-ui text-[13px] text-parchment-400">
-                                {rest.length} {rest.length === 1 ? 'adventure' : 'adventures'}
-                            </span>
-                            <ViewAllButton
-                                count={templateAdventures.length}
-                                label="View all adventures"
-                                onClick={() => setPage('gallery-adventures')}
-                            />
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-5">
-                        {rest.map((scene) => (
-                            <SceneCard
-                                key={scene.template.id}
-                                scene={scene}
-                                onBegin={() => handleTemplateStart(scene.template)}
-                                onEdit={() => handleTemplateEdit(scene.template)}
-                                onDelete={() => setPendingDelete(scene.template)}
-                            />
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {hasInProgress && (
-                <Shelf
-                    title="Continue your journey"
-                    subtitle={MODE_META.adventure.tagline}
-                    icon={MODE_META.adventure.icon}
-                    tone={MODE_META.adventure.tone}
-                >
-                    <InProgressList
-                        adventures={inProgressAdventures}
-                        layout="rail"
-                        onEdit={handleInProgressEdit}
-                        onPlay={handleInProgressEdit}
-                        onDelete={deleteInProgress}
-                    />
-                </Shelf>
-            )}
-
-            {characterChats.length > 0 && (
-                <Shelf
-                    title="Recent chats"
-                    subtitle={MODE_META.chat.tagline}
-                    icon={MODE_META.chat.icon}
-                    tone={MODE_META.chat.tone}
-                >
-                    <CharacterChatList
-                        chats={characterChats}
-                        layout="rail"
-                        onResume={handleChatResume}
-                        onDelete={deleteCharacterChat}
-                    />
-                </Shelf>
-            )}
-
-            {stories.length > 0 && (
-                <Shelf
-                    title="Your novels"
-                    subtitle="Draft chapters from your cards and story codex."
-                    icon={BookOpenText}
-                    action={
-                        <ViewAllButton
-                            count={stories.length}
-                            label="View all novels"
-                            onClick={() => setPage('gallery-stories')}
+        <div className="flex w-full flex-col">
+            {/* ZONE 1 — hero: greeting + global search + the cinematic opener.
+                Ambient candlelight comes from the app shell (AppRouter), not a
+                section-scoped glow, so it never crops at this boundary. */}
+            <section className="relative">
+                <div className="relative mx-auto w-full max-w-[1240px] px-5 pt-8 sm:px-8 sm:pt-10">
+                    <div className="pb-6">
+                        <GreetingHeader
+                            query={query}
+                            onQueryChange={setQuery}
+                            resultsCount={search.active ? search.total : undefined}
                         />
-                    }
-                >
-                    <StoryRail stories={stories} onOpen={handleStoryOpen} />
-                </Shelf>
-            )}
+                    </div>
+                    {!search.active && heroSessions.length > 0 && (
+                        <HeroSessionGallery sessions={heroSessions} onOpen={openSession} onBeginNew={scrollToBegin} />
+                    )}
+                    {!search.active && hero && <HeroScene {...hero} />}
+                </div>
+            </section>
 
-            {personaCards.length > 0 && (
-                <Shelf
-                    title="Your personas"
-                    action={
-                        <ViewAllButton
-                            count={personaCards.length}
-                            label="View all personas"
-                            onClick={() => setPage('gallery-personas')}
-                        />
-                    }
-                >
-                    <CharacterList
-                        characters={personaCards}
-                        layout="rail"
-                        onEdit={handleCharacterEdit}
-                        onDelete={(index) => {
-                            const character = personaCards[index]
-                            if (character?.id) deleteCharacter(character.id)
+            {search.active ? (
+                <div className="mx-auto w-full max-w-[1160px] px-5 pb-16 pt-10 sm:px-8">
+                    <SearchResults
+                        results={search}
+                        onClear={() => setQuery('')}
+                        onOpenSession={openSession}
+                        onBeginTemplate={handleTemplateStart}
+                        onChatCharacter={handleCharacterChat}
+                        onEditCharacter={handleCharacterEdit}
+                        onEditWorld={handleWorldEdit}
+                        onEditItem={handleItemEdit}
+                        onOpenStory={handleStoryOpen}
+                        onCreateAdventure={createAdventure}
+                        onViewGallery={(key) => {
+                            const page = GALLERY_PAGE_BY_GROUP[key]
+                            if (page) setPage(page)
                         }}
                     />
-                </Shelf>
-            )}
-
-            {aiCharacters.length > 0 && (
-                <Shelf
-                    title="Your cast"
-                    action={
-                        <ViewAllButton
-                            count={aiCharacters.length}
-                            label="View all characters"
-                            onClick={() => setPage('gallery-characters')}
+                </div>
+            ) : (
+                <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-12 px-5 pb-16 pt-12 sm:gap-14 sm:px-8">
+                    {/* ZONE 2 — begin anew + the cast rail (chat entry point).
+                        Tighter than the inter-zone gap so the sub-rail reads as
+                        part of this zone, not a floating peer. */}
+                    <div id={BEGIN_ZONE_ID} className="flex flex-col gap-8">
+                        <BeginZone
+                            scenes={gridScenes}
+                            totalCount={templateAdventures.length}
+                            genres={genres}
+                            filter={filter}
+                            onFilterChange={setFilter}
+                            onBegin={handleTemplateStart}
+                            onEdit={handleTemplateEdit}
+                            onDelete={setPendingDelete}
+                            onViewAll={() => setPage('gallery-adventures')}
+                            onCreate={createAdventure}
                         />
-                    }
-                >
-                    <CharacterList
-                        characters={aiCharacters}
-                        layout="rail"
-                        onEdit={handleCharacterEdit}
-                        onChat={handleCharacterChat}
-                        onDelete={(index) => {
-                            const character = aiCharacters[index]
-                            if (character?.id) deleteCharacter(character.id)
-                        }}
-                    />
-                </Shelf>
-            )}
+                        {aiCharacters.length > 0 && (
+                            <CastRail
+                                cast={aiCharacters}
+                                onChat={handleCharacterChat}
+                                onEdit={handleCharacterEdit}
+                                onDelete={(character) => deleteCharacter(character.id)}
+                                onViewAll={() => setPage('gallery-characters')}
+                            />
+                        )}
+                    </div>
 
-            {worlds.length > 0 && (
-                <Shelf
-                    title="Your worlds"
-                    action={
-                        <ViewAllButton
-                            count={worlds.length}
-                            label="View all worlds"
-                            onClick={() => setPage('gallery-worlds')}
-                        />
-                    }
-                >
-                    <WorldList
+                    {/* ZONE 3 — the quiet library band */}
+                    <LibraryShelf
+                        personas={personaCards}
                         worlds={worlds}
-                        layout="rail"
-                        onEdit={handleWorldEdit}
-                        onDelete={(index) => {
-                            const world = worlds[index]
-                            if (world?.id) deleteWorld(world.id)
-                        }}
-                    />
-                </Shelf>
-            )}
-
-            {items.length > 0 && (
-                <Shelf
-                    title="Your items"
-                    action={
-                        <ViewAllButton
-                            count={items.length}
-                            label="View all items"
-                            onClick={() => setPage('gallery-items')}
-                        />
-                    }
-                >
-                    <ItemList
                         items={items}
-                        layout="rail"
-                        onEdit={handleItemEdit}
-                        onDelete={(index) => {
-                            const item = items[index]
-                            if (item?.id) deleteItem(item.id)
-                        }}
+                        stories={stories}
+                        onEditCharacter={handleCharacterEdit}
+                        onDeleteCharacter={(character) => deleteCharacter(character.id)}
+                        onEditWorld={handleWorldEdit}
+                        onDeleteWorld={(world) => deleteWorld(world.id)}
+                        onEditItem={handleItemEdit}
+                        onDeleteItem={(item) => deleteItem(item.id)}
+                        onOpenStory={handleStoryOpen}
+                        onViewAll={(tab) => setPage(GALLERY_PAGE_BY_TAB[tab])}
+                        onCreate={handleLibraryCreate}
                     />
-                </Shelf>
+
+                    {/* ZONE 4 — the create workbench */}
+                    <CreateBand onAction={handleCreate} />
+                </div>
             )}
 
-            <AccessMenu variant="compact" onAction={handleCreate} />
+            <LandingFooter onNavigate={setPage} />
 
             <ConfirmDialog
                 visible={pendingDelete !== null}
@@ -512,121 +454,5 @@ export function LandingPage() {
                 }}
             />
         </div>
-    )
-}
-
-function storyChapters(story: Story) {
-    return story.chapters ?? story.scenes ?? []
-}
-
-function storyWordCount(story: Story): number {
-    return storyChapters(story)
-        .map((chapter) => chapter.body)
-        .join(' ')
-        .split(/\s+/)
-        .filter(Boolean).length
-}
-
-function storyContextTags(story: Story): string[] {
-    return (story.activeCardRefs ?? [])
-        .map((ref) => {
-            const snapshot = ref.snapshot ?? {}
-            return String(snapshot.name ?? snapshot.title ?? snapshot.alias ?? '').trim()
-        })
-        .filter(Boolean)
-        .slice(0, 3)
-}
-
-function StoryRail({ stories, onOpen }: { stories: Story[]; onOpen: (story: Story) => void }) {
-    return (
-        <div className="flex flex-col gap-4 py-4">
-            <CardGrid
-                items={stories}
-                layout="rail"
-                getItemKey={(story) => story.id}
-                showEmptyState={false}
-                renderCard={(story) => {
-                    const chapters = storyChapters(story)
-                    const tags = storyContextTags(story)
-                    const words = storyWordCount(story)
-
-                    return (
-                        <Card
-                            key={story.id}
-                            title={story.title}
-                            subtitle={`${chapters.length || 1} chapter${chapters.length === 1 ? '' : 's'} · ${words} words`}
-                            onClick={() => onOpen(story)}
-                        >
-                            <div className="flex flex-1 flex-col gap-3">
-                                <p className="m-0 line-clamp-3 font-narrative text-sm leading-normal text-parchment-400">
-                                    {story.description?.trim() ||
-                                        chapters[0]?.body?.trim() ||
-                                        'A novel draft ready for its next chapter.'}
-                                </p>
-                                {tags.length > 0 && (
-                                    <div className="mt-auto flex flex-wrap gap-1.5">
-                                        {tags.map((tag) => (
-                                            <span
-                                                key={tag}
-                                                className="rounded-full bg-parchment-50/[.06] px-2 py-1 font-ui text-[11px] font-semibold text-parchment-300"
-                                            >
-                                                {tag}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </Card>
-                    )
-                }}
-            />
-        </div>
-    )
-}
-
-interface ShelfProps {
-    title: string
-    /** One-line mode descriptor under the title (e.g. "Game Master–led sessions"). */
-    subtitle?: string
-    icon?: LucideIcon
-    tone?: 'ember' | 'arcane'
-    /** Right-aligned affordance (e.g. a "View all" link to the full gallery). */
-    action?: ReactNode
-    children: ReactNode
-}
-
-function Shelf({ title, subtitle, icon, tone, action, children }: ShelfProps) {
-    return (
-        <section className="flex flex-col gap-1 border-t border-parchment-50/[.06] pt-6">
-            <SectionHeader title={title} icon={icon} tone={tone} right={action} />
-            {subtitle && <p className="m-0 font-ui text-[13px] text-parchment-400">{subtitle}</p>}
-            {children}
-        </section>
-    )
-}
-
-interface ViewAllButtonProps {
-    count: number
-    label: string
-    onClick: () => void
-}
-
-function ViewAllButton({ count, label, onClick }: ViewAllButtonProps) {
-    return (
-        <Button kind="ghost" size="sm" iconRight={<Icon icon={ArrowRight} size={14} />} onClick={onClick} aria-label={label}>
-            View all ({count})
-        </Button>
-    )
-}
-
-function NoMatches({ onClear }: { onClear: () => void }) {
-    return (
-        <section className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-parchment-50/[.12] bg-ink-800 p-12 text-center">
-            <Icon icon={Sparkles} size={28} className="text-parchment-500" />
-            <p className="font-narrative text-narrative text-parchment-300">No scenes match your search.</p>
-            <Button kind="secondary" size="sm" onClick={onClear}>
-                Clear filters
-            </Button>
-        </section>
     )
 }

@@ -60,4 +60,35 @@ describe('ThemeSongButton', () => {
         fireEvent.click(screen.getByRole('button', { name: /play theme song/i }))
         expect(onParentClick).not.toHaveBeenCalled()
     })
+
+    it('downloads the theme without bubbling to an enclosing clickable parent', async () => {
+        const onParentClick = vi.fn()
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => ({
+                ok: true,
+                status: 200,
+                blob: async () => new Blob(['audio']),
+            }) as unknown as Response),
+        )
+        vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:theme'), revokeObjectURL: vi.fn() })
+        let downloadName: string | null = null
+        const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+            this: HTMLAnchorElement,
+        ) {
+            downloadName = this.getAttribute('download')
+        })
+
+        renderWithPlaylist(
+            <div onClick={onParentClick}>
+                <ThemeSongButton src="https://x/lyra.mp3" cardName="Lyra" />
+            </div>,
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Download Lyra theme' }))
+
+        await waitFor(() => expect(click).toHaveBeenCalledTimes(1))
+        expect(downloadName).toBe('Lyra.mp3')
+        expect(onParentClick).not.toHaveBeenCalled()
+    })
 })

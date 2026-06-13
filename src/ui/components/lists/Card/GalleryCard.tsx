@@ -5,10 +5,11 @@
  * in a hover-revealed menu so a wall of cards stays calm until pointed at.
  */
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
-import { ListMusic, Pause, Play, Share2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { Download, ListMusic, Loader2, Pause, Play, Share2 } from 'lucide-react'
 import { usePlaylist } from '@/app/hooks/usePlaylist'
 import { themeTrack, type PlaylistTrack } from '@/app/providers/audioPlaylistContext'
+import { downloadThemeSong } from '@/ui/components/audio/downloadThemeSong'
 import { Badge, Card, cx, Icon, Portrait, Tag, ThemeSongButton } from '@/ui/primitives'
 import { CardActionMenu, CardOptions, type CardMenuAnchor, type CardOption } from './CardOptions'
 
@@ -37,6 +38,13 @@ export interface GalleryCardProps {
     shareLabel?: string
     highlighted?: boolean
     deleting?: boolean
+    /**
+     * `default` — gallery pages. `compact` — dashboard rails: smaller title,
+     * tighter vignette, tags capped at 2 so narrow cards stay legible.
+     */
+    size?: 'default' | 'compact'
+    /** Pinned action row at the bottom of the vignette (e.g. a Chat button). */
+    footer?: ReactNode
     'data-testid'?: string
 }
 
@@ -59,6 +67,8 @@ export function GalleryCard({
     shareLabel,
     highlighted = false,
     deleting = false,
+    size = 'default',
+    footer,
     'data-testid': testId = 'gallery-card',
 }: GalleryCardProps) {
     const interactive = Boolean(onClick) && !deleting
@@ -67,10 +77,35 @@ export function GalleryCard({
     const didLongPressRef = useRef(false)
     const [contextAnchor, setContextAnchor] = useState<CardMenuAnchor | null>(null)
     const [menuOpen, setMenuOpen] = useState(false)
+    const [themeDownloadState, setThemeDownloadState] = useState<{
+        url: string
+        downloading: boolean
+        error: boolean
+    } | null>(null)
     const playlist = usePlaylist()
     const isThemePlaying = Boolean(themeSongUrl) && playlist.currentTrack?.id === themeSongUrl && playlist.isPlaying
-    const visibleTags = tags.slice(0, 3)
+    const compact = size === 'compact'
+    const visibleTags = tags.slice(0, compact ? 2 : 3)
     const extraTagCount = Math.max(0, tags.length - visibleTags.length)
+    const activeThemeDownloadState =
+        themeSongUrl && themeDownloadState?.url === themeSongUrl ? themeDownloadState : null
+    const downloadingTheme = Boolean(activeThemeDownloadState?.downloading)
+    const themeDownloadError = Boolean(activeThemeDownloadState?.error)
+
+    const handleDownloadTheme = useCallback(() => {
+        if (!themeSongUrl || downloadingTheme) return
+        const requestUrl = themeSongUrl
+        setThemeDownloadState({ url: requestUrl, downloading: true, error: false })
+        void downloadThemeSong({ url: requestUrl, title })
+            .then(() => {
+                setThemeDownloadState((state) => (state?.url === requestUrl ? null : state))
+            })
+            .catch(() => {
+                setThemeDownloadState((state) =>
+                    state?.url === requestUrl ? { url: requestUrl, downloading: false, error: true } : state,
+                )
+            })
+    }, [downloadingTheme, themeSongUrl, title])
 
     const contextOptions = useMemo<CardOption[]>(() => {
         const musicOptions: CardOption[] = themeSongUrl
@@ -90,10 +125,38 @@ export function GalleryCard({
                       onClick: () =>
                           playlist.enqueue(themeTrack({ url: themeSongUrl, cardName: title, cardType, cardId, artworkUrl: imageUrl })),
                   },
+                  {
+                      type: 'custom',
+                      icon: downloadingTheme ? (
+                          <Icon icon={Loader2} size={15} className="animate-spin" />
+                      ) : (
+                          <Icon icon={Download} size={15} />
+                      ),
+                      label: themeDownloadError
+                          ? 'Retry theme download'
+                          : downloadingTheme
+                            ? 'Downloading theme...'
+                            : 'Download theme',
+                      disabled: downloadingTheme,
+                      onClick: handleDownloadTheme,
+                  },
               ]
             : []
         return [...musicOptions, ...(shareOptions ?? []), ...(options ?? [])]
-    }, [options, shareOptions, isThemePlaying, playlist, themeSongUrl, title, cardType, cardId, imageUrl])
+    }, [
+        options,
+        shareOptions,
+        isThemePlaying,
+        playlist,
+        themeSongUrl,
+        title,
+        cardType,
+        cardId,
+        imageUrl,
+        downloadingTheme,
+        themeDownloadError,
+        handleDownloadTheme,
+    ])
 
     const closeContextMenu = () => {
         setContextAnchor(null)
@@ -210,16 +273,19 @@ export function GalleryCard({
                     )}
                 </div>
 
-                <div className="absolute inset-x-0 bottom-0 z-[2] flex flex-col gap-2 p-3">
+                <div className={cx('absolute inset-x-0 bottom-0 z-[2] flex flex-col', compact ? 'gap-1.5 p-2.5' : 'gap-2 p-3')}>
                     <div className="flex min-w-0 items-start justify-between gap-2">
                         <h3
-                            className="m-0 line-clamp-2 min-w-0 flex-1 font-display text-[18px] font-semibold leading-[1.05] text-parchment-50"
+                            className={cx(
+                                'm-0 line-clamp-2 min-w-0 flex-1 font-display font-semibold leading-[1.05] text-parchment-50',
+                                compact ? 'text-[15px]' : 'text-[18px]',
+                            )}
                             title={title}
                         >
                             {title}
                         </h3>
                         {badge && (
-                            <Badge tone="glass" className="max-w-[45%] shrink-0 truncate">
+                            <Badge tone="glass" className={cx('shrink-0 truncate', compact ? 'max-w-[40%]' : 'max-w-[45%]')}>
                                 {badge}
                             </Badge>
                         )}
@@ -251,6 +317,11 @@ export function GalleryCard({
                                     +{extraTagCount}
                                 </Tag>
                             )}
+                        </div>
+                    )}
+                    {footer && (
+                        <div className="pt-1" onClick={(e: MouseEvent) => e.stopPropagation()}>
+                            {footer}
                         </div>
                     )}
                 </div>

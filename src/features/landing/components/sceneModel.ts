@@ -81,3 +81,19 @@ export function sceneMatchesFilter(scene: Scene, filter: string): boolean {
     if (filter === 'All') return true
     return scene.tags.some((tag) => tag.toLowerCase() === filter.toLowerCase())
 }
+
+/**
+ * Genre chips reflect the tags actually present across the user's scenes.
+ * Single-character scratch values read like leaked test data in a global filter.
+ */
+export function genresFromScenes(scenes: Scene[]): string[] {
+    const byKey = new Map<string, string>()
+    scenes.forEach((scene) =>
+        scene.tags.forEach((tag) => {
+            if (tag.trim().length < 2) return
+            const key = tag.toLowerCase()
+            if (!byKey.has(key)) byKey.set(key, tag)
+        }),
+    )
+    return Array.from(byKey.values()).slice(0, 6)
+}

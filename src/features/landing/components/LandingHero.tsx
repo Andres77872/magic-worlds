@@ -7,7 +7,7 @@
 
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Avatar, Button, Eyebrow, GlowBackdrop, Icon } from '@/ui/primitives'
+import { Avatar, Button, Eyebrow, Icon } from '@/ui/primitives'
 import { HeroPreviewCard } from './HeroPreviewCard'
 import { SHOWCASE_WORLDS } from './landingContent'
 
@@ -31,9 +31,8 @@ export interface LandingHeroProps {
 export function LandingHero({ eyebrow, title, subtitle, primary, secondary, stat }: LandingHeroProps) {
     return (
         <section className="relative flex w-full items-center px-5 pb-16 pt-12 sm:px-8 sm:pb-20 sm:pt-16 lg:min-h-[600px]">
-            {/* candlelight glows — soft, decorative, never harsh */}
-            <GlowBackdrop variant="hero" />
-
+            {/* Candlelight comes from the app-shell ambience (AppRouter), whose
+                ember/arcane pair already washes this top-of-page section. */}
             <div className="relative mx-auto flex w-full max-w-[1160px] flex-wrap items-center gap-x-14 gap-y-12">
                 {/* left column */}
                 <div className="flex-[1_1_460px] [min-width:min(320px,100%)]">

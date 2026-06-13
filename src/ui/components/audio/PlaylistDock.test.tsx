@@ -170,6 +170,23 @@ describe('PlaylistDock', () => {
         expect(screen.queryByRole('button', { name: 'Two' })).toBeNull()
     })
 
+    it('downloads the current track from the dock', async () => {
+        stubMedia()
+        let downloadName: string | null = null
+        const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+            this: HTMLAnchorElement,
+        ) {
+            downloadName = this.getAttribute('download')
+        })
+        renderDock()
+        fireEvent.click(screen.getByText('seed-one'))
+
+        fireEvent.click(screen.getByRole('button', { name: 'Download One' }))
+
+        await waitFor(() => expect(click).toHaveBeenCalledTimes(1))
+        expect(downloadName).toBe('One.mp3')
+    })
+
     it('drags the player position and persists it', () => {
         stubMedia()
         renderDock()

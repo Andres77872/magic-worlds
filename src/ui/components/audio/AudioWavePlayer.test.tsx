@@ -279,4 +279,32 @@ describe('AudioWavePlayer', () => {
         expect(queuedButton).toBeDisabled()
         expect(play).not.toHaveBeenCalled()
     })
+
+    it('downloads the track with a safe filename', async () => {
+        const fetchMock = stubFetchBlob()
+        let downloadName: string | null = null
+        const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+            this: HTMLAnchorElement,
+        ) {
+            downloadName = this.getAttribute('download')
+        })
+        renderWithPlaylist(<AudioWavePlayer src="https://x/download.mp3" title="Ember Hymn" />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Download Ember Hymn' }))
+
+        await waitFor(() => expect(click).toHaveBeenCalledTimes(1))
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+        expect(downloadName).toBe('Ember-Hymn.mp3')
+    })
+
+    it('keeps a failed download retryable', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500 }) as unknown as Response))
+        const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+        renderWithPlaylist(<AudioWavePlayer src="https://x/download-fail.mp3" title="Ember Hymn" />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Download Ember Hymn' }))
+
+        expect(await screen.findByRole('button', { name: 'Retry download Ember Hymn' })).toBeInTheDocument()
+        expect(click).not.toHaveBeenCalled()
+    })
 })

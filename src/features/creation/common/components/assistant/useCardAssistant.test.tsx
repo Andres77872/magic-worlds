@@ -162,7 +162,7 @@ describe('useCardAssistant: send + streaming', () => {
         )
         expect(mocks.streamCardAssistantMessage).toHaveBeenCalledWith(
             2,
-            expect.objectContaining({ message: 'Generate a glass desert', request_id: expect.stringMatching(/^mw-card-assistant-/) }),
+            expect.objectContaining({ message: 'Generate a glass desert', card_type: 'world', request_id: expect.stringMatching(/^mw-card-assistant-/) }),
             expect.any(Function),
             expect.objectContaining({ requestId: expect.stringMatching(/^mw-card-assistant-/), signal: expect.any(AbortSignal) }),
         )

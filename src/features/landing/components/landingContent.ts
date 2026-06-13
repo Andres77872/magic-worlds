@@ -7,8 +7,6 @@
 
 import type { LucideIcon } from 'lucide-react'
 import { Feather, Gem, Globe, Infinity as InfinityIcon, Swords, Users, UsersRound } from 'lucide-react'
-import type { Adventure } from '@/shared'
-import { parseApiTimestamp } from '@/utils/time'
 
 export const GITHUB_URL = 'https://github.com/Andres77872/magic-worlds'
 
@@ -56,6 +54,8 @@ export interface CreateAction {
     tone: 'ember' | 'arcane'
     title: string
     desc: string
+    /** One-breath hook for the compact create band tiles. */
+    shortDesc: string
 }
 
 export const CREATE_ACTIONS: CreateAction[] = [
@@ -65,6 +65,7 @@ export const CREATE_ACTIONS: CreateAction[] = [
         tone: 'arcane',
         title: 'Create a character',
         desc: 'Conjure a persona who speaks, reacts, and remembers — in a sentence or in depth.',
+        shortDesc: 'A voice that remembers',
     },
     {
         key: 'world',
@@ -72,6 +73,7 @@ export const CREATE_ACTIONS: CreateAction[] = [
         tone: 'ember',
         title: 'Build a world',
         desc: 'Set the stage: a place, its rules, and the lore that pulls characters in.',
+        shortDesc: 'A place with rules',
     },
     {
         key: 'item',
@@ -79,6 +81,7 @@ export const CREATE_ACTIONS: CreateAction[] = [
         tone: 'ember',
         title: 'Create an item',
         desc: 'Define a relic, key, tool, or object with effects, limits, and hooks.',
+        shortDesc: 'A relic with hooks',
     },
     {
         key: 'adventure',
@@ -86,6 +89,7 @@ export const CREATE_ACTIONS: CreateAction[] = [
         tone: 'ember',
         title: 'Forge an adventure',
         desc: 'Frame the opening scene and let the story improvise, turn by turn.',
+        shortDesc: 'An opening scene',
     },
 ]
 
@@ -196,23 +200,3 @@ export const SHOWCASE_WORLDS: ShowcaseWorld[] = [
         portrait: 'radial-gradient(120% 90% at 45% 25%,#2e5a3e,#1d3a2a 60%,#101f17)',
     },
 ]
-
-/**
- * Most-recently-touched in-progress adventure (for the dashboard "Continue"
- * CTA). Max by updatedAt ?? createdAt; falls back to the last element since new
- * sessions are appended.
- */
-export function latestInProgress(adventures: Adventure[]): Adventure | undefined {
-    if (adventures.length === 0) return undefined
-    let best = adventures[adventures.length - 1]
-    let bestTime = -Infinity
-    for (const adventure of adventures) {
-        const stamp = adventure.updatedAt ?? adventure.createdAt
-        const time = parseApiTimestamp(stamp)
-        if (!Number.isNaN(time) && time >= bestTime) {
-            bestTime = time
-            best = adventure
-        }
-    }
-    return best
-}

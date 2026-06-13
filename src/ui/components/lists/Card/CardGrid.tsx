@@ -18,6 +18,15 @@ interface CardGridProps<T> {
      */
     density?: 'comfortable' | 'compact'
     /**
+     * Rail card width: `default` (280px, text-forward shelves) or `compact`
+     * (200px, portrait GalleryCard rails).
+     */
+    railWidth?: 'default' | 'compact'
+    /**
+     * Alpha fade at the rail's right edge when more horizontal content exists.
+     */
+    fadeEdges?: boolean
+    /**
      * Stable keys for paginated/searched lists. Defaults to the item index,
      * which is only safe for static lists — pass this whenever items can be
      * inserted, removed, or reordered.
@@ -57,6 +66,8 @@ export function CardGrid<T>({
                                 renderCard,
                                 layout = 'grid',
                                 density = 'comfortable',
+                                railWidth = 'default',
+                                fadeEdges = false,
                                 getItemKey,
                                 emptyMessage,
                                 emptyStateTitle = 'No items found',
@@ -78,6 +89,7 @@ export function CardGrid<T>({
     const searchInputRef = useRef<HTMLInputElement>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [isSearching, setIsSearching] = useState(false)
+    const [railHasOverflow, setRailHasOverflow] = useState(false)
 
     // Enhanced search with debounce
     useEffect(() => {
@@ -119,6 +131,44 @@ export function CardGrid<T>({
             }
         }
     }, [hasMore, loadingMore, onLoadMore])
+
+    useEffect(() => {
+        if (layout !== 'rail' || !fadeEdges) {
+            setRailHasOverflow(false)
+            return
+        }
+
+        const node = gridRef.current
+        if (!node) return
+
+        let animationFrame = 0
+        const measureOverflow = () => {
+            animationFrame = 0
+            const hasOverflow = node.scrollWidth > node.clientWidth + 1
+            setRailHasOverflow((current) => (current === hasOverflow ? current : hasOverflow))
+        }
+        const scheduleMeasure = () => {
+            if (animationFrame) window.cancelAnimationFrame(animationFrame)
+            animationFrame = window.requestAnimationFrame(measureOverflow)
+        }
+
+        scheduleMeasure()
+
+        let resizeObserver: ResizeObserver | null = null
+        if (typeof ResizeObserver !== 'undefined') {
+            resizeObserver = new ResizeObserver(scheduleMeasure)
+            resizeObserver.observe(node)
+            Array.from(node.children).forEach((child) => resizeObserver?.observe(child))
+        } else {
+            window.addEventListener('resize', scheduleMeasure)
+        }
+
+        return () => {
+            if (animationFrame) window.cancelAnimationFrame(animationFrame)
+            resizeObserver?.disconnect()
+            if (!resizeObserver) window.removeEventListener('resize', scheduleMeasure)
+        }
+    }, [fadeEdges, items.length, layout, railWidth])
 
     // Enhanced entrance animation for cards
     useEffect(() => {
@@ -172,18 +222,20 @@ export function CardGrid<T>({
     const renderedCards = useMemo(() => {
         const wrapperClass =
             layout === 'rail'
-                ? 'w-[min(280px,78vw)] shrink-0 [scroll-snap-align:start]'
+                ? railWidth === 'compact'
+                    ? 'w-[min(200px,62vw)] shrink-0 [scroll-snap-align:start]'
+                    : 'w-[min(280px,78vw)] shrink-0 [scroll-snap-align:start]'
                 : 'contents'
         return items.map((item, index) => (
             <div
                 key={getItemKey ? getItemKey(item, index) : `card-${index}`}
                 className={wrapperClass}
-                data-card-wrapper
+                data-card-wrapper={layout}
             >
                 {renderCard(item, index)}
             </div>
         ))
-    }, [items, renderCard, layout, getItemKey])
+    }, [items, renderCard, layout, railWidth, getItemKey])
 
     // Enhanced loading state
     if (loading) {
@@ -216,6 +268,8 @@ export function CardGrid<T>({
             </EmptyState>
         )
     }
+
+    const railShouldFade = layout === 'rail' && fadeEdges && railHasOverflow
 
     return (
         <div className="w-full" data-testid={testId}>
@@ -259,43 +313,45 @@ export function CardGrid<T>({
                 </div>
             )}
 
-            <div
-                className={
-                    layout === 'rail'
-                        // A horizontal scroller clips vertically too (overflow-x:auto
-                        // forces overflow-y), so pad generously to give the cards'
-                        // hover-lift + ember glow room; the -mx cancels the inline
-                        // padding so cards still align with the section header.
-                        ? `flex gap-4 overflow-x-auto -mx-4 px-4 pb-9 pt-5 [scroll-snap-type:x_proximity] md:gap-5 ${className}`
-                        : density === 'compact'
-                          ? `grid w-full grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-5 ${className}`
-                          : `grid w-full grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] md:gap-6 ${className}`
-                }
-                role="list"
-                ref={gridRef}
-                aria-label={`${layout === 'rail' ? 'Shelf' : 'Grid'} of ${items.length} items`}
-                data-testid="card-grid-list"
-            >
-                {renderedCards}
+            <div className="contents">
+                <div
+                    className={
+                        layout === 'rail'
+                            // A horizontal scroller clips vertically too (overflow-x:auto
+                            // forces overflow-y), so pad generously to give the cards'
+                            // hover-lift + ember glow room; the -mx cancels the inline
+                            // padding so cards still align with the section header.
+                            ? `flex gap-4 overflow-x-auto -mx-4 pl-4 ${railShouldFade ? 'rail-fade-right pr-12' : 'pr-4'} pb-9 pt-5 [scroll-snap-type:x_proximity] md:gap-5 ${className}`
+                            : density === 'compact'
+                              ? `grid w-full grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-5 ${className}`
+                              : `grid w-full grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] md:gap-6 ${className}`
+                    }
+                    role="list"
+                    ref={gridRef}
+                    aria-label={`${layout === 'rail' ? 'Shelf' : 'Grid'} of ${items.length} items`}
+                    data-testid="card-grid-list"
+                >
+                    {renderedCards}
 
-                {/* Enhanced loading more indicator (paged grids only) */}
-                {layout === 'grid' && loadingMore && (
-                    <>
-                        {[...Array(3)].map((_, i) => (
-                            <SkeletonCard key={`skeleton-more-${i}`}/>
-                        ))}
-                    </>
-                )}
+                    {/* Enhanced loading more indicator (paged grids only) */}
+                    {layout === 'grid' && loadingMore && (
+                        <>
+                            {[...Array(3)].map((_, i) => (
+                                <SkeletonCard key={`skeleton-more-${i}`}/>
+                            ))}
+                        </>
+                    )}
 
-                {/* Infinite scroll trigger (paged grids only) */}
-                {layout === 'grid' && hasMore && !loadingMore && (
-                    <div
-                        ref={loadingRef}
-                        className="h-px w-full"
-                        aria-hidden="true"
-                        data-testid="load-more-trigger"
-                    />
-                )}
+                    {/* Infinite scroll trigger (paged grids only) */}
+                    {layout === 'grid' && hasMore && !loadingMore && (
+                        <div
+                            ref={loadingRef}
+                            className="h-px w-full"
+                            aria-hidden="true"
+                            data-testid="load-more-trigger"
+                        />
+                    )}
+                </div>
             </div>
 
             {/* End-of-results indicator — only for paginated galleries, never for
@@ -305,7 +361,7 @@ export function CardGrid<T>({
                     className="mt-6 border-t border-parchment-50/10 p-6 text-center text-sm text-parchment-400"
                     role="status"
                 >
-                    <p>✨ You've seen all available items ✨</p>
+                    <p>You've seen everything here.</p>
                 </div>
             )}
         </div>

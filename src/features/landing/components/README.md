@@ -1,80 +1,35 @@
-# Landing Page Components
+# Landing — the adaptive front door
 
-This directory contains the refactored landing page components for better maintainability and structure.
+One route, two experiences, picked in `LandingPage.tsx` by auth + content:
 
-## Component Architecture
+- **Guest / empty account** — the marketing front door: `LandingHero` (+ `HeroPreviewCard`),
+  `AccessMenu` (large create cards), `HowItWorksSection`, `TwoWaysToPlay`, `ShowcaseWorlds`,
+  `ClosingCTA`. Copy and sample data live in `landingContent.ts`.
+- **Returning user** — a zoned dashboard ordered by intent (resume → start new → manage → create),
+  each zone visually distinct per the Reverie zone grammar.
 
-The original monolithic `LandingPage` component has been broken down into the following modular components:
+## Dashboard zones (top → bottom)
 
-### Core Components
+| Zone | Component(s) | Treatment |
+|---|---|---|
+| 1 · Hero | `GreetingHeader` (global search) + `HeroSessionGallery` or `HeroScene` | Cinematic band, max-w 1240px; ambient candlelight comes from the app shell (`GlowBackdrop variant="page"` in `AppRouter`), not a section glow. Returning users with active sessions get a one-slide-per-view paged carousel (chevrons + dots, hidden scrollbar) of the last 10 chats/adventures; users without sessions get the featured begin-mode hero. Artwork blur-bleed, gradient + monogram fallback. |
+| 2 · Begin | `BeginZone` (+ `FilterChips`) and `CastRail` | Image-forward `GalleryCard` grid of templates (capped — the gallery exhausts); chips scope this zone only. The cast rail carries the arcane Chat affordance. |
+| 3 · Library | `LibraryShelf` (+ `StoryCard`) | The quiet band: hairline divider, muted eyebrow, Chip tabs (personas / worlds / items / novels) over one compact rail. |
+| 4 · Create | `CreateBand` | Raised workbench panel: ember hairline shimmer + `IconTile` tiles from `CREATE_ACTIONS`. |
 
-- **`LandingPage.tsx`** - Main container component that orchestrates all sub-components
-- **`LandingLoading.tsx`** - Loading state with magical spinner animation
-- **`LandingHero.tsx`** - Hero section with title, description, CTA button, and stats
-- **`LandingQuickActions.tsx`** - Quick action cards for creating characters, worlds, and adventures
-- **`LandingContentSections.tsx`** - Tabbed interface for viewing existing content (characters, worlds, templates, adventures)
-- **`LandingTips.tsx`** - Getting started tips for new users
-- **`LandingFooter.tsx`** - Footer with clear all data functionality
+While the search field has a query, zones 2–4 are replaced by `SearchResults` — grouped,
+cross-section matches rendered with each zone's own card language.
 
-### Styling Structure
+## View-models (pure, unit-tested)
 
-Each component has its own scoped CSS file to avoid class name conflicts:
+- `sceneModel.ts` — adventure template → discovery "scene" (title/tags/filter/search helpers).
+- `resumeModel.ts` — in-progress adventures + character chats → one recency-sorted
+  `ResumeSession` list (titles, snippets, mono meta) used by the hero gallery
+  and search results.
+- `searchModel.ts` — `searchDashboard()` sweeps every in-memory list into capped, ordered groups.
+- `libraryCards.ts` — typed entity → `GalleryCard` props, mirroring `galleryConfig.tsx` so the
+  dashboard and galleries present identical cards.
 
-- **`LandingPage.css`** - Main page layout and background effects
-- **`LandingLoading.css`** - Loading spinner and particle animations
-- **`LandingHero.css`** - Hero section, title animations, stats cards
-- **`LandingQuickActions.css`** - Action cards styling and hover effects
-- **`LandingContentSections.css`** - Tab interface and content panels
-- **`LandingTips.css`** - Tips cards and numbering
-- **`LandingFooter.css`** - Footer layout
-
-### CSS Variable Strategy
-
-All components use the same CSS custom properties (variables) from the main theme, ensuring:
-- Consistent colors, spacing, and animations across components
-- Easy theme updates by changing variables in one place
-- No class name conflicts between components (all prefixed with `landing-`)
-
-### Benefits of This Structure
-
-1. **Modularity**: Each component has a single responsibility
-2. **Maintainability**: Easier to find and modify specific functionality
-3. **Reusability**: Components can be reused or modified independently
-4. **Performance**: Better code splitting potential
-5. **Testing**: Each component can be tested in isolation
-6. **CSS Organization**: Scoped styles prevent conflicts and improve maintainability
-
-### Component Props Interface
-
-Each component receives only the props it needs, making dependencies clear:
-
-```typescript
-// Example: LandingHero only needs stats and one callback
-interface LandingHeroProps {
-    charactersCount: number
-    worldsCount: number
-    totalAdventures: number
-    hasContent: boolean
-    onStartJourney: () => void
-}
-```
-
-### Import Structure
-
-All components are exported from `index.ts` for clean imports:
-
-```typescript
-import { 
-    LandingLoading, 
-    LandingHero, 
-    LandingQuickActions,
-    // ... etc
-} from './'
-```
-
-## Migration Notes
-
-- The original monolithic CSS file has been split into component-specific files
-- All CSS class names remain the same to maintain visual consistency
-- Component interfaces match the original functionality exactly
-- No breaking changes to the parent component API 
+Conventions: components stay presentational (callbacks in, no data fetching); `LandingPage`
+owns auth gating (`requireAuth`), persona picking, and navigation; copy follows the Reverie
+voice (sentence case, no emoji, ember = play/create, arcane = the AI side).

@@ -1357,6 +1357,7 @@ class ApiService {
         conversationId: number,
         body: {
             message: string
+            card_type?: CardAssistantCardType
             current_card?: Record<string, unknown> | null
             request_id?: string
         },
@@ -1376,6 +1377,7 @@ class ApiService {
         conversationId: number,
         body: {
             message: string
+            card_type?: CardAssistantCardType
             current_card?: Record<string, unknown> | null
             request_id?: string
         },

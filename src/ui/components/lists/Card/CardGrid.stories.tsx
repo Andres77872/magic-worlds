@@ -3,6 +3,7 @@ import type { Character } from '@/shared/types'
 import { Tag } from '@/ui/primitives'
 import { Card } from './Card'
 import { CardGrid } from './CardGrid'
+import { GalleryCard } from './GalleryCard'
 import { characters } from '../fixtures'
 
 const renderCharacter = (c: Character) => (
@@ -11,6 +12,20 @@ const renderCharacter = (c: Character) => (
       {Object.entries(c.stats).map(([k, v]) => `${k}: ${v}`).join(' • ')}
     </div>
   </Card>
+)
+
+const railCharacters = [...characters, ...characters, ...characters].map((character, index) => ({
+  ...character,
+  id: `${character.id}-rail-${index}`,
+}))
+
+const renderRailCard = (c: Character) => (
+  <GalleryCard
+    title={c.name}
+    badge={c.race}
+    tags={c.class ? [c.class] : []}
+    size="compact"
+  />
 )
 
 const meta = {
@@ -47,5 +62,41 @@ export const Empty: Story = {
     items: [],
     emptyStateTitle: 'No characters yet',
     emptyStateDescription: 'Conjure your first companion to see them here.',
+  },
+}
+
+export const Rail: Story = {
+  args: {
+    items: railCharacters,
+    layout: 'rail',
+    railWidth: 'compact',
+    fadeEdges: true,
+    renderCard: renderRailCard,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Dashboard shelf mode: 200px portrait cards, scroll-snap, a right-edge fade hinting at more content, and the rail entrance animation (cards rise + fade in as they intersect the viewport).',
+      },
+    },
+  },
+}
+
+export const RailWithoutOverflow: Story = {
+  args: {
+    items: characters.slice(0, 2),
+    layout: 'rail',
+    railWidth: 'compact',
+    fadeEdges: true,
+    renderCard: renderRailCard,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Short shelf: fadeEdges is enabled, but no edge fade is applied because every card fits in the visible rail.',
+      },
+    },
   },
 }

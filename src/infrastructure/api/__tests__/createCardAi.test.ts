@@ -80,6 +80,7 @@ describe('AI card API methods', () => {
         }, { requestId: 'conv-req' })
         await apiService.sendCardAssistantMessage(7, {
             message: 'Make her older',
+            card_type: 'character',
             current_card: { name: 'Nyra' },
             request_id: 'turn-req',
         }, { requestId: 'turn-req' })
@@ -105,6 +106,7 @@ describe('AI card API methods', () => {
         })
         expect(JSON.parse(String(turnInit.body))).toEqual({
             message: 'Make her older',
+            card_type: 'character',
             current_card: { name: 'Nyra' },
             request_id: 'turn-req',
         })
@@ -139,6 +141,7 @@ describe('AI card API methods', () => {
         const events: unknown[] = []
         await apiService.streamCardAssistantMessage(7, {
             message: 'Make her older',
+            card_type: 'character',
             current_card: { name: 'Nyra' },
             request_id: 'turn-req',
         }, (event) => {
@@ -154,6 +157,7 @@ describe('AI card API methods', () => {
         })
         expect(JSON.parse(String(turnInit.body))).toEqual({
             message: 'Make her older',
+            card_type: 'character',
             current_card: { name: 'Nyra' },
             request_id: 'turn-req',
         })

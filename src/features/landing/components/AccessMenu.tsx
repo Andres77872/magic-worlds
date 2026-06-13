@@ -1,18 +1,17 @@
 /**
- * Access menu — the prominent in-page way to start creating, complementing the
- * slim icon sidebar. `full` is a row of large cards (the guest / empty view);
- * `compact` is a slim strip of buttons for returning users (below their shelves).
- * All actions route through the caller's gated handler.
+ * Access menu — the prominent in-page way to start creating on the guest /
+ * empty-account front door: a row of large IconTile cards. (Returning users
+ * get the CreateBand workbench instead.) All actions route through the
+ * caller's gated handler.
  */
 
 import type { KeyboardEvent } from 'react'
 import { ArrowRight } from 'lucide-react'
-import { Button, Card, Eyebrow, Icon, IconTile, SectionHeader } from '@/ui/primitives'
+import { Card, Eyebrow, Icon, IconTile } from '@/ui/primitives'
 import { CREATE_ACTIONS, type CreateAction } from './landingContent'
 
 export interface AccessMenuProps {
-    variant?: 'full' | 'compact'
-    /** Eyebrow + title for the full variant (varies by guest vs empty-account). */
+    /** Eyebrow + title (varies by guest vs empty-account). */
     eyebrow?: string
     title?: string
     onAction: (key: CreateAction['key']) => void
@@ -28,31 +27,10 @@ function activateOnKey(handler: () => void) {
 }
 
 export function AccessMenu({
-    variant = 'full',
     eyebrow = 'Step behind the curtain',
     title = 'Make it yours',
     onAction,
 }: AccessMenuProps) {
-    if (variant === 'compact') {
-        return (
-            <section className="flex flex-col gap-4 border-t border-parchment-50/[.06] pt-6">
-                <SectionHeader title="Create something new" />
-                <div className="flex flex-wrap gap-3">
-                    {CREATE_ACTIONS.map((action) => (
-                        <Button
-                            key={action.key}
-                            kind="secondary"
-                            iconLeft={<Icon icon={action.icon} size={16} />}
-                            onClick={() => onAction(action.key)}
-                        >
-                            {action.title}
-                        </Button>
-                    ))}
-                </div>
-            </section>
-        )
-    }
-
     return (
         <section className="w-full px-5 pb-12 pt-10 sm:px-8 sm:pb-16 sm:pt-12">
             <div className="mx-auto max-w-[1160px]">
