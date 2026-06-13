@@ -112,12 +112,16 @@ describe('LandingPage (returning dashboard)', () => {
         render(<LandingPage />)
 
         expect(screen.getByTestId('hero-session-gallery')).toBeTruthy()
+        expect(screen.getByTestId('character-chat-shelf')).toBeTruthy()
         expect(screen.getByRole('button', { name: 'Continue the tale' })).toBeTruthy()
         expect(screen.queryByTestId('resume-band')).toBeNull()
         expect(screen.getByTestId('begin-zone')).toBeTruthy()
         expect(screen.getByTestId('cast-rail')).toBeTruthy()
         expect(screen.getByTestId('library-shelf')).toBeTruthy()
         expect(screen.getByTestId('create-band')).toBeTruthy()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Open chatroom' }))
+        expect(setPage).toHaveBeenCalledWith('chatroom')
     })
 
     it('uses the begin-mode hero when the user has no active sessions', () => {

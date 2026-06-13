@@ -133,6 +133,7 @@ describe('Sidebar API status', () => {
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
 
         expect(await screen.findByRole('status', { name: 'API online' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Chatroom' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Items' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Docs' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Tasks' })).toBeInTheDocument()

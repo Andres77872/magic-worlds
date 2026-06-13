@@ -34,6 +34,7 @@ const PAGE_TO_HASH: Partial<Record<PageType, string>> = {
     lorebook: '#/lorebook',
     interaction: '#/interaction',
     'character-chat': '#/character-chat',
+    chatroom: '#/chatroom',
     profile: '#/profile',
     docs: '#/docs',
     about: '#/about',

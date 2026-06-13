@@ -19,6 +19,7 @@ import {
     ListChecks,
     LogIn,
     LogOut,
+    MessageCircle,
     Server,
     Swords,
     Users,
@@ -44,6 +45,7 @@ interface RailItem {
 // from the dashboard AccessMenu and each gallery's "New …" button.
 const NAV_ITEMS: RailItem[] = [
     { page: 'landing', label: 'Explore', icon: Compass },
+    { page: 'chatroom', label: 'Chatroom', icon: MessageCircle, gated: true },
     { page: 'gallery-characters', label: 'Characters', icon: Users, gated: true },
     { page: 'gallery-worlds', label: 'Worlds', icon: Globe, gated: true },
     { page: 'gallery-items', label: 'Items', icon: Gem, gated: true },

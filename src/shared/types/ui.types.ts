@@ -24,6 +24,7 @@ export type PageType =
     | 'lorebook'
     | 'interaction'
     | 'character-chat'
+    | 'chatroom'
     | 'profile'
     | 'docs'
     | 'about'

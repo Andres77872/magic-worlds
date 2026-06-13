@@ -4,3 +4,4 @@
 
 export { CharacterChat } from './CharacterChat'
 export { CharacterChatSidebar } from './CharacterChatSidebar'
+export { ChatroomPage } from './ChatroomPage'

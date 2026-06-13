@@ -10,12 +10,13 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Feather, Users, Wand2 } from 'lucide-react'
+import { ArrowRight, Feather, MessageCircle, Users, Wand2 } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
 import type { Adventure, Character, CharacterChatSession, Item, PageType, Story, World } from '@/shared'
 import { MODE_META } from '@/shared/modes'
 import { PersonaPickerDialog } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
+import { Button, Icon, SectionHeader } from '@/ui/primitives'
 import { isAiCharacterCard, isPersonaCard } from '@/utils/characterRoles'
 import { LandingLoading } from './LandingLoading'
 import { GreetingHeader } from './GreetingHeader'
@@ -27,6 +28,7 @@ import { LibraryShelf, type LibraryTab } from './LibraryShelf'
 import { CreateBand } from './CreateBand'
 import { SearchResults } from './SearchResults'
 import { LandingHero, type HeroCta } from './LandingHero'
+import { ResumeCard } from './ResumeCard'
 import { AccessMenu } from './AccessMenu'
 import { HowItWorksSection } from './HowItWorksSection'
 import { TwoWaysToPlay } from './TwoWaysToPlay'
@@ -87,6 +89,7 @@ export function LandingPage() {
         startCharacterChat,
         characterChats,
         resumeCharacterChat,
+        deleteCharacterChat,
         stories,
         openStory,
         loadData,
@@ -104,6 +107,8 @@ export function LandingPage() {
     const [query, setQuery] = useState('')
     const [filter, setFilter] = useState('All')
     const [pendingDelete, setPendingDelete] = useState<Adventure | null>(null)
+    const [pendingChatDelete, setPendingChatDelete] = useState<CharacterChatSession | null>(null)
+    const [deletingChatId, setDeletingChatId] = useState<string | null>(null)
     const [personaPick, setPersonaPick] = useState<
         | { kind: 'adventure'; template: Adventure }
         | { kind: 'chat'; character: Character }
@@ -180,12 +185,30 @@ export function LandingPage() {
         })
     }
 
+    const confirmChatDelete = async () => {
+        const target = pendingChatDelete
+        setPendingChatDelete(null)
+        if (!target) return
+        setDeletingChatId(target.id)
+        try {
+            await deleteCharacterChat(target.id)
+        } catch (error) {
+            console.error('Failed to delete character chat:', error)
+        } finally {
+            setDeletingChatId(null)
+        }
+    }
+
     const scenes = useMemo(() => templateAdventures.map(toScene), [templateAdventures])
     const personaCards = useMemo(() => characters.filter(isPersonaCard), [characters])
     const aiCharacters = useMemo(() => characters.filter(isAiCharacterCard), [characters])
     const sessions = useMemo(
         () => toResumeSessions(inProgressAdventures, characterChats),
         [inProgressAdventures, characterChats],
+    )
+    const chatSessions = useMemo(
+        () => toResumeSessions([], characterChats).slice(0, 4),
+        [characterChats],
     )
     const genres = useMemo(() => genresFromScenes(scenes), [scenes])
     // Chips scope the Begin zone only; the search field sweeps everything.
@@ -366,6 +389,37 @@ export function LandingPage() {
                 </div>
             ) : (
                 <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-12 px-5 pb-16 pt-12 sm:gap-14 sm:px-8">
+                    {chatSessions.length > 0 && (
+                        <section className="flex flex-col gap-4" data-testid="character-chat-shelf">
+                            <SectionHeader
+                                icon={MessageCircle}
+                                title="Active character conversations"
+                                tone="arcane"
+                                right={
+                                    <Button
+                                        kind="ghost"
+                                        size="sm"
+                                        iconRight={<Icon icon={ArrowRight} size={14} />}
+                                        onClick={() => setPage('chatroom')}
+                                    >
+                                        Open chatroom
+                                    </Button>
+                                }
+                            />
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {chatSessions.map((session) => (
+                                    <ResumeCard
+                                        key={session.id}
+                                        session={session}
+                                        onContinue={() => openSession(session)}
+                                        onDelete={() => setPendingChatDelete(session.source as CharacterChatSession)}
+                                        deleting={deletingChatId === session.id}
+                                    />
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
                     {/* ZONE 2 — begin anew + the cast rail (chat entry point).
                         Tighter than the inter-zone gap so the sub-rail reads as
                         part of this zone, not a floating peer. */}
@@ -429,6 +483,20 @@ export function LandingPage() {
                 variant="danger"
                 onConfirm={confirmTemplateDelete}
                 onCancel={() => setPendingDelete(null)}
+            />
+
+            <ConfirmDialog
+                visible={pendingChatDelete !== null}
+                title="Delete chat"
+                message={
+                    pendingChatDelete
+                        ? `Delete "${pendingChatDelete.character?.name?.slice(0, 80) || 'this chat'}"? This cannot be undone.`
+                        : ''
+                }
+                confirmLabel="Delete"
+                variant="danger"
+                onConfirm={() => void confirmChatDelete()}
+                onCancel={() => setPendingChatDelete(null)}
             />
 
             <PersonaPickerDialog

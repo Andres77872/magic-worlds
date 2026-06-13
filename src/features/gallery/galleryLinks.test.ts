@@ -3,6 +3,7 @@ import type { PageType } from '@/shared'
 import { pageFromHash, pageHash } from './galleryLinks'
 
 const STATIC_PAGE_HASHES: Array<[PageType, string]> = [
+    ['chatroom', '#/chatroom'],
     ['about', '#/about'],
     ['contact', '#/contact'],
     ['privacy', '#/privacy'],

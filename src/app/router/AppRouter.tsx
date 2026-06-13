@@ -14,7 +14,7 @@ import { WorldCreator } from '../../features/creation/world/components/WorldCrea
 import { ItemCreator } from '../../features/creation/item/components/ItemCreator'
 import { AdventureCreator } from '../../features/creation/adventure/components/AdventureCreator'
 import { AdventureInteraction } from '../../features/interaction/components/AdventureInteraction'
-import { CharacterChat } from '../../features/characterChat/components'
+import { CharacterChat, ChatroomPage } from '../../features/characterChat/components'
 import { GalleryPage, MediaGalleryPage } from '../../features/gallery'
 import { LorebookGalleryPage, LorebookStudio } from '../../features/lorebook'
 import { NovelGalleryPage, NovelStudio } from '../../features/novel'
@@ -81,6 +81,7 @@ export function AppRouter() {
                         {currentPage === 'story' && <NovelStudio />}
                         {currentPage === 'interaction' && <AdventureInteraction />}
                         {currentPage === 'character-chat' && <CharacterChat />}
+                        {currentPage === 'chatroom' && <ChatroomPage />}
                         {currentPage === 'profile' && <ProfilePage />}
                         {currentPage === 'docs' && <DocsPage />}
                         {currentPage === 'about' && <LegalPage page="about" />}
