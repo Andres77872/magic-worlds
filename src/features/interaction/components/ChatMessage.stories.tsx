@@ -54,6 +54,18 @@ export const GameMasterProse: Story = {}
 /** Markdown support: headings, lists, blockquotes, and inline code. */
 export const Markdown: Story = { args: { content: GM_MARKDOWN } }
 
+/** XML-derived response segments: narrator, spoken dialogue, and visible thought. */
+export const StructuredSegments: Story = {
+  args: {
+    content: 'Lyra: The door listens.',
+    segments: [
+      { kind: 'narrator', content: 'The tavern hushes as rain taps against the leaded glass.' },
+      { kind: 'speech', speaker_id: 'lyra', speaker_name: 'Lyra', content: '"The door listens," she says. "Ask it gently."' },
+      { kind: 'thought', speaker_id: 'morrow', speaker_name: 'Morrow', content: 'It remembers my hands on the old lock.' },
+    ],
+  },
+}
+
 /** The arcane "thinking" pulse while a reply streams in. */
 export const Streaming: Story = {
   args: { content: 'The figure leans forward, and the candle gutters as if it, too, is listening', isStreaming: true },

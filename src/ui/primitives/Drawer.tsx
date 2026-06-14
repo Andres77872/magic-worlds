@@ -5,6 +5,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { cx } from './cx'
 import { IconButton } from './IconButton'
@@ -46,6 +47,7 @@ export function Drawer({
     className,
     children,
 }: DrawerProps) {
+    const { t } = useTranslation()
     // Keep the panel mounted through the exit animation, then unmount.
     const [mounted, setMounted] = useState(open)
     const [entered, setEntered] = useState(false)
@@ -113,7 +115,7 @@ export function Drawer({
                             </div>
                         </div>
                         {showClose && (
-                            <IconButton label="Close" onClick={onClose}>
+                            <IconButton label={t('common.close')} onClick={onClose}>
                                 <X size={18} strokeWidth={1.75} />
                             </IconButton>
                         )}

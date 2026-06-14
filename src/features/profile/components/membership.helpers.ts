@@ -24,8 +24,8 @@ export function operationLabel(operation: string) {
     return OPERATION_LABELS[operation] ?? humanize(operation)
 }
 
-export function formatNumber(value: number) {
-    return new Intl.NumberFormat('en-US').format(value)
+export function formatNumber(value: number, locale?: string) {
+    return new Intl.NumberFormat(locale).format(value)
 }
 
 function humanize(value: string) {

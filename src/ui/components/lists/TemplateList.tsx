@@ -1,4 +1,5 @@
 import {useState} from 'react'
+import {useTranslation} from 'react-i18next'
 import type {Adventure} from '../../../shared/types'
 import {ConfirmDialog} from '../ConfirmDialog'
 import {Card, CardGrid} from './Card'
@@ -19,9 +20,10 @@ export function TemplateList({
                                  templates,
                                  onStart,
                                  onDelete,
-                                 onEdit,
-                                 loading = false,
-                             }: TemplateListProps) {
+                             onEdit,
+                             loading = false,
+                         }: TemplateListProps) {
+    const { t } = useTranslation()
     const [pending, setPending] = useState<{ idx: number; name: string } | null>(null)
     const [deletingId, setDeletingId] = useState<number | null>(null)
 
@@ -45,16 +47,16 @@ export function TemplateList({
                 emptyMessage={
                     <EmptyState
                         icon={<Icon icon={Plus} size={32}/>}
-                        message="No adventure templates yet"
+                        message={t('templateList.emptyTitle')}
                         button={{
-                            label: 'Create Your First Template',
+                            label: t('templateList.createFirst'),
                             onClick: () => onEdit({
                                 id: '',
-                                scenario: 'New Adventure',
+                                scenario: t('templateList.newAdventure'),
                                 characters: [],
                                 world: {
                                     id: 'new',
-                                    name: 'New World',
+                                    name: t('templateList.newWorld'),
                                     type: 'fantasy',
                                     details: {},
                                     description: ''
@@ -67,27 +69,27 @@ export function TemplateList({
                 }
                 renderCard={(template, idx) => {
                     const isDeleting = deletingId === idx
-                    const characterNames = template.characters?.map(c => c.name).join(', ') || 'No characters'
+                    const characterNames = template.characters?.map(c => c.name).join(', ') || t('templateList.noCharacters')
 
                     const options: CardOption[] = [
                         {
                             type: 'custom',
                             icon: <Icon icon={Pencil} size={15}/>,
-                            label: 'Edit',
+                            label: t('templateList.edit'),
                             onClick: () => onEdit(template),
                             disabled: isDeleting
                         },
                         {
                             type: 'custom',
                             icon: <Icon icon={Play} size={15}/>,
-                            label: 'Start',
+                            label: t('templateList.start'),
                             onClick: () => onStart(template),
                             disabled: isDeleting
                         },
                         {
                             type: 'custom',
                             icon: <Icon icon={Trash2} size={15}/>,
-                            label: 'Delete',
+                            label: t('templateList.delete'),
                             onClick: () => setPending({idx, name: template.scenario}),
                             disabled: isDeleting,
                             danger: true
@@ -108,7 +110,9 @@ export function TemplateList({
                             onClick={() => onEdit(template)}
                             className={isDeleting ? 'pointer-events-none opacity-50' : ''}
                         >
-                            <p className="m-0 font-narrative text-sm text-parchment-400">Characters: {characterNames}</p>
+                            <p className="m-0 font-narrative text-sm text-parchment-400">
+                                {t('templateList.characters', { characters: characterNames })}
+                            </p>
                             {template.turns && template.turns.length > 0 && (
                                 <div className="mt-2 border-t border-dashed border-parchment-50/10 pt-2 font-narrative text-sm italic text-parchment-400">
                                     {template.turns[0].content.substring(0, 100)}...
@@ -116,7 +120,7 @@ export function TemplateList({
                             )}
                             {isDeleting && (
                                 <div className="absolute inset-0 z-[1] flex items-center justify-center bg-ink-900/70 font-medium text-parchment-50">
-                                    Deleting...
+                                    {t('templateList.deleting')}
                                 </div>
                             )}
                         </Card>
@@ -126,8 +130,8 @@ export function TemplateList({
 
             <ConfirmDialog
                 visible={pending !== null}
-                title="Delete Template"
-                message={pending ? `Are you sure you want to delete the template "${pending.name}"? This action cannot be undone.` : ''}
+                title={t('templateList.deleteTitle')}
+                message={pending ? t('templateList.deleteMessage', { name: pending.name }) : ''}
                 onConfirm={handleDelete}
                 onCancel={() => setPending(null)}
                 variant="danger"

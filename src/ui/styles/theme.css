@@ -41,6 +41,7 @@
   /* Semantic hues */
   --color-verdant-500: #6fbf8b; /* success */
   --color-blood-500: #e2685f;   /* danger */
+  --color-blood-300: #f0938b;   /* danger text on tinted surfaces */
   --color-amber-500: #e8b04a;   /* warning */
   /* dark ink for text on ember fills */
   --color-on-ember: #1a1206;
@@ -73,6 +74,13 @@
   --default-transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   --animate-think: think 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
   --animate-shimmer: shimmer 1.6s linear infinite;
+  /* App-shell candlelight: two glow blobs breathe on different long periods so
+     the ambience feels organic, never synchronized. Transform + opacity only. */
+  --animate-candle-a: candle-a 16s var(--ease-in-out) infinite alternate;
+  --animate-candle-b: candle-b 22s var(--ease-in-out) infinite alternate;
+  /* Live call waveform: bars gently bounce while the character speaks (no client-side
+     audio analysis). Transform only. */
+  --animate-call-wave: call-wave 0.9s var(--ease-in-out) infinite alternate;
 
   /* ---------- type scale → text-* (size + line-height) ---------- */
   --text-display: clamp(44px, 6vw, 84px);
@@ -115,6 +123,42 @@
   }
   100% {
     background-position: -200% 0;
+  }
+}
+
+/* App-shell candlelight breathing. The two ambient glow blobs (GlowBackdrop
+   variant="page", AppRouter) drift + scale on independent long periods so the
+   warmth feels alive without ever reading as "motion". Composited (transform +
+   opacity only) — no per-frame repaint. Reduced motion (handled globally below)
+   freezes both at their neutral `from` state. */
+@keyframes candle-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: translate3d(6px, -4px, 0) scale(1.05);
+    opacity: 1;
+  }
+}
+@keyframes candle-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.04);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(-5px, 5px, 0) scale(1);
+    opacity: 0.88;
+  }
+}
+
+/* Call waveform bars while the character speaks. scaleY only (composited). */
+@keyframes call-wave {
+  from {
+    transform: scaleY(0.3);
+  }
+  to {
+    transform: scaleY(0.85);
   }
 }
 
@@ -178,6 +222,26 @@
    "Serif for story": Spectral narrative, ember dialogue, arcane thoughts.
    ============================================================ */
 @layer components {
+  /* App-shell stone grain. A one-time-rasterized fractalNoise tile gives the
+     dark canvas a faint mineral texture so it reads as candlelit stone, not a
+     flat fill. The noise is desaturated to neutral grey and its alpha is
+     CRUSHED inside the SVG (`feFuncA slope`) so the grain itself is the only
+     faint thing — the ink base stays fully opaque (no layer `opacity`, so the
+     canvas is never washed grey). A warm ember→arcane cast sits on top; no
+     mix-blend-mode, so it stays predictable inside the -z-10 isolated stacking
+     context (AppRouter). Static (never animated): `stitchTiles='stitch'` + a
+     fixed 200px tile keep the repeat seamless. Grain intensity knob = the
+     `feFuncA slope` value below (raise toward 0.08 for more stone, lower for
+     less). */
+  .app-stone {
+    background-color: var(--color-ink-800);
+    background-image:
+      linear-gradient(rgba(232, 162, 74, 0.03), rgba(143, 111, 227, 0.025)),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch' seed='7'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.04'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: no-repeat, repeat;
+    background-size: cover, 200px 200px;
+  }
+
   /* Animated placeholder shown over a generated scene image until its bytes
      paint. A soft arcane highlight sweeps across the dark ink canvas. Reduced
      motion (handled globally above) freezes it to a static tint. */
@@ -308,6 +372,7 @@
   }
 
   .story-editor-prose {
+    flex: 1 1 auto;
     min-height: 560px;
     padding: 28px;
     outline: none;
@@ -316,6 +381,10 @@
     line-height: 1.78;
     color: var(--color-parchment-100);
     caret-color: var(--color-ember-400);
+  }
+
+  .story-editor-prose:focus-visible {
+    box-shadow: none;
   }
 
   .story-editor-prose > *:first-child { margin-top: 0; }

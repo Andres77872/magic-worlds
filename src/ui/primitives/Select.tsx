@@ -19,6 +19,7 @@ import {
     type RefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { useClickOutside } from '../../shared/hooks/useClickOutside'
 import { cx } from './cx'
@@ -64,13 +65,14 @@ export function Select({
     options,
     value,
     onChange,
-    placeholder = 'Select…',
+    placeholder,
     disabled = false,
     size = 'md',
     id,
     className,
     'aria-label': ariaLabel,
 }: SelectProps) {
+    const { t } = useTranslation()
     const ctx = useFieldContext()
     const reactId = useId()
     const triggerId = id ?? ctx?.id ?? `select-${reactId}`
@@ -259,7 +261,7 @@ export function Select({
                 onKeyDown={handleKeyDown}
             >
                 <span className={cx('min-w-0 flex-1 truncate', !selected && 'text-parchment-400')}>
-                    {selected ? selected.label : placeholder}
+                    {selected ? selected.label : (placeholder ?? t('ui.select.placeholder'))}
                 </span>
                 <Icon icon={ChevronsUpDown} size={15} className="shrink-0 text-parchment-400" />
             </button>

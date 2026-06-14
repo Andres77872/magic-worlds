@@ -14,14 +14,20 @@ import { WorldCreator } from '../../features/creation/world/components/WorldCrea
 import { ItemCreator } from '../../features/creation/item/components/ItemCreator'
 import { AdventureCreator } from '../../features/creation/adventure/components/AdventureCreator'
 import { AdventureInteraction } from '../../features/interaction/components/AdventureInteraction'
+import { ActiveAdventuresPage } from '../../features/interaction/components/ActiveAdventuresPage'
 import { CharacterChat, ChatroomPage } from '../../features/characterChat/components'
-import { GalleryPage, MediaGalleryPage } from '../../features/gallery'
+import { CallsPage } from '../../features/call'
+import { CommunityGalleryPage, GalleryPage, MediaGalleryPage, SharedCardPage } from '../../features/gallery'
 import { LorebookGalleryPage, LorebookStudio } from '../../features/lorebook'
 import { NovelGalleryPage, NovelStudio } from '../../features/novel'
 import { ProfilePage } from '../../features/profile'
+import { PasswordResetPage, EmailVerifyPage, GoogleCallbackPage } from '../../features/auth'
 import { TasksDrawer } from '../../features/tasks'
 import { DocsPage } from '../../features/docs'
 import { LegalPage } from '../../features/legal'
+import { AdminVoicesPage } from '../../features/admin/voices'
+import { VoiceStudioPage } from '../../features/voices'
+import { AdminAgentsPage } from '../../features/admin/agents'
 import { CardPreviewModal, useCardPreviewModal } from '../../features/cards'
 import { LoadingSpinner } from '../../ui/components/LoadingSpinner'
 import { PlaylistDock } from '../../ui/components/audio/PlaylistDock'
@@ -50,10 +56,12 @@ export function AppRouter() {
         // paints above bg-ink-800 yet below all content (sidebar included —
         // its translucent bg-ink-900/80 lets the glow continue underneath).
         <div className="isolate flex min-h-screen bg-ink-800 text-parchment-50">
-            {/* Viewport-fixed candlelight: app-level atmosphere that stays put
-                while <main> scrolls, so it never crops at a section edge. */}
+            {/* Viewport-fixed app background: static stone grain underneath,
+                breathing candlelight on top. Stays put while <main> scrolls, so
+                it never crops at a section edge. */}
             <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
-                <GlowBackdrop variant="page" />
+                <div className="app-stone absolute inset-0" />
+                <GlowBackdrop variant="page" animated />
             </div>
             <Sidebar />
             <main ref={mainRef} data-app-main className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
@@ -73,16 +81,26 @@ export function AppRouter() {
                         {currentPage === 'gallery-lorebooks' && <LorebookGalleryPage />}
                         {currentPage === 'gallery-stories' && <NovelGalleryPage />}
                         {currentPage === 'gallery-media' && <MediaGalleryPage />}
+                        {currentPage === 'community' && <CommunityGalleryPage />}
+                        {currentPage === 'shared-card' && <SharedCardPage />}
                         {currentPage === 'character' && <CharacterCreator />}
                         {currentPage === 'world' && <WorldCreator />}
                         {currentPage === 'item' && <ItemCreator />}
                         {currentPage === 'adventure' && <AdventureCreator />}
                         {currentPage === 'lorebook' && <LorebookStudio />}
                         {currentPage === 'story' && <NovelStudio />}
+                        {currentPage === 'active-adventures' && <ActiveAdventuresPage />}
                         {currentPage === 'interaction' && <AdventureInteraction />}
                         {currentPage === 'character-chat' && <CharacterChat />}
                         {currentPage === 'chatroom' && <ChatroomPage />}
+                        {currentPage === 'calls' && <CallsPage />}
                         {currentPage === 'profile' && <ProfilePage />}
+                        {currentPage === 'password-reset' && <PasswordResetPage />}
+                        {currentPage === 'verify-email' && <EmailVerifyPage />}
+                        {currentPage === 'google-callback' && <GoogleCallbackPage />}
+                        {currentPage === 'voice-studio' && <VoiceStudioPage />}
+                        {currentPage === 'admin-voices' && <AdminVoicesPage />}
+                        {currentPage === 'admin-agents' && <AdminAgentsPage />}
                         {currentPage === 'docs' && <DocsPage />}
                         {currentPage === 'about' && <LegalPage page="about" />}
                         {currentPage === 'contact' && <LegalPage page="contact" />}

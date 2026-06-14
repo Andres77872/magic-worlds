@@ -8,18 +8,20 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { CharacterChatSession, TurnEntry } from '../../../shared'
-import { Menu } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '../../../app/hooks'
 import { LoadingSpinner } from '../../../ui/components'
-import { cx, IconButton } from '../../../ui/primitives'
 import { characterChatConfig } from '../../interaction/chatSessionConfig'
-import { InteractionCenterPanel } from '../../interaction/components'
+import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
+import { InteractionCenterPanel, InteractionTopBar, SidePanelDrawer } from '../../interaction/components'
+import { CallScreen } from '../../call'
 import { CharacterChatSidebar } from './CharacterChatSidebar'
 
 export function CharacterChat() {
-    const { previousPage, setPage } = useNavigation()
-    const { activeCharacterChat, editCharacter } = useData()
+    const { t } = useTranslation()
+    const { goBack, setPage } = useNavigation()
+    const { activeCharacterChat, activeCharacterChatMode, editCharacter, resumeCharacterChat } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
 
     // Gate behind auth — unauthenticated users cannot access chat.
@@ -40,96 +42,114 @@ export function CharacterChat() {
     if (!isAuthenticated) {
         return null
     }
-    if (!activeCharacterChat || !activeCharacterChat.character) {
-        return <LoadingSpinner message="Loading chat..." />
+    const activeCast = activeCharacterChat?.characters?.length
+        ? activeCharacterChat.characters
+        : activeCharacterChat?.character
+          ? [activeCharacterChat.character]
+          : []
+    if (!activeCharacterChat || activeCast.length === 0) {
+        return <LoadingSpinner message={t('characterChat.loading')} />
     }
 
-    const handleBack = () => setPage(previousPage || 'landing')
-    const handleEdit = () => {
-        editCharacter(activeCharacterChat.character!)
+    const handleBack = () => goBack('landing')
+    const handleEditCharacter = (character: CharacterChatSession['character']) => {
+        if (!character) return
+        editCharacter(character)
         setPage('character')
+    }
+    const voiceEnabled = isFrontendVoiceModeEnabled()
+    const mode = activeCharacterChatMode === 'voice' && voiceEnabled ? 'voice' : 'text'
+    // Flip the active chat between text and voice — text renders the chat engine, voice
+    // renders the immersive CallScreen (below), each keyed so they mount/unmount cleanly.
+    const handleSetMode = (next: 'text' | 'voice') => resumeCharacterChat(activeCharacterChat, { mode: next })
+
+    // Voice mode is its own immersive, hands-free surface — it never mounts the text
+    // chat engine or socket. Keyed by id so changing character remounts cleanly.
+    if (mode === 'voice') {
+        return (
+            <CallScreen
+                key={`${activeCharacterChat.id}:voice`}
+                character={activeCast[0]}
+                persona={activeCharacterChat.persona}
+                sessionId={Number(activeCharacterChat.id)}
+                onSwitchToText={() => handleSetMode('text')}
+            />
+        )
     }
 
     // Keyed by chat id: switching characters remounts the view so its `turns` seed
     // (and the socket) reset cleanly — no derived-state effect needed.
     return (
         <CharacterChatView
-            key={activeCharacterChat.id}
+            key={`${activeCharacterChat.id}:text`}
             chat={activeCharacterChat}
+            voiceEnabled={voiceEnabled}
+            onSetMode={handleSetMode}
             onBack={handleBack}
-            onEdit={handleEdit}
+            onEditCharacter={handleEditCharacter}
         />
     )
 }
 
 interface CharacterChatViewProps {
     chat: CharacterChatSession
+    voiceEnabled: boolean
+    onSetMode: (mode: 'text' | 'voice') => void
     onBack: () => void
-    onEdit: () => void
+    onEditCharacter: (character: CharacterChatSession['character']) => void
 }
 
-function CharacterChatView({ chat, onBack, onEdit }: CharacterChatViewProps) {
-    const character = chat.character!
+function CharacterChatView({ chat, voiceEnabled, onSetMode, onBack, onEditCharacter }: CharacterChatViewProps) {
+    const { t } = useTranslation()
+    const cast = chat.characters?.length ? chat.characters : chat.character ? [chat.character] : []
+    const isGroup = chat.kind === 'character_group' || cast.length > 1
+    const chatTitle = chat.title?.trim() || cast.map((character) => character.name).filter(Boolean).join(', ') || t('characterChat.fallbackTitle')
     // Seed from the chat the provider built (greeting + history); the center panel
     // re-hydrates from the server on socket open too.
     const [turns, setTurns] = useState<TurnEntry[]>(chat.turns ?? [])
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+    const [sidebarOpen, setSidebarOpen] = useState(false)
 
-    // Stable per-character config so the chat engine's callbacks/effects don't churn.
-    const chatConfig = useMemo(() => characterChatConfig(character.name ?? ''), [character.name])
-
-    // Close sidebar on escape (mobile drawer).
-    useEffect(() => {
-        const handleEscape = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') setIsSidebarOpen(false)
-        }
-        document.addEventListener('keydown', handleEscape)
-        return () => document.removeEventListener('keydown', handleEscape)
-    }, [])
-
-    const toggleBtn = 'absolute top-3 left-3 z-30 border border-parchment-50/10 bg-ink-700/80 backdrop-blur lg:hidden'
-    const panelBase =
-        'character-chat__panel fixed inset-0 z-20 bg-ink-900/60 backdrop-blur-sm transition-opacity ' +
-        'lg:static lg:inset-auto lg:z-auto lg:w-[320px] lg:shrink-0 lg:bg-transparent lg:backdrop-blur-none lg:opacity-100 lg:pointer-events-auto'
-    const panelContent =
-        'h-full w-[320px] max-w-[85%] overflow-y-auto bg-ink-900 transition-transform lg:max-w-none lg:translate-x-0'
-
-    const handleBackdropClick = (e: React.MouseEvent) => {
-        if (window.innerWidth <= 768) {
-            const target = e.target as HTMLElement
-            if (target.classList.contains('character-chat__panel')) setIsSidebarOpen(false)
-        }
-    }
+    // Text-only here — voice is its own CallScreen surface. Stable config per character.
+    const chatConfig = useMemo(
+        () => characterChatConfig(chatTitle, { group: isGroup }),
+        [chatTitle, isGroup],
+    )
 
     return (
-        <div className="relative flex h-full overflow-hidden bg-ink-800">
-            <IconButton
-                label="Toggle character details"
-                className={cx(toggleBtn, isSidebarOpen && 'border-ember-500/45 text-ember-400')}
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                aria-expanded={isSidebarOpen}
-            >
-                <Menu size={18} strokeWidth={1.75} />
-            </IconButton>
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-ink-800 lg:flex-row">
+            <InteractionTopBar
+                title={chatTitle}
+                mode="chat"
+                onToggleLeft={() => setSidebarOpen((v) => !v)}
+                leftOpen={sidebarOpen}
+            />
 
-            {/* Left: single-character sidebar */}
-            <div
-                className={cx(panelBase, isSidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0 lg:opacity-100 lg:pointer-events-auto')}
-                onClick={handleBackdropClick}
-            >
-                <div className={cx(panelContent, 'border-r border-parchment-50/10', isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0')}>
-                    <CharacterChatSidebar character={character} persona={chat.persona} onBack={onBack} onEdit={onEdit} />
+            <div className="flex min-h-0 flex-1 overflow-hidden lg:flex-row">
+                {/* Left: single-character sidebar */}
+                <SidePanelDrawer side="left" open={sidebarOpen} onClose={() => setSidebarOpen(false)} label={t('characterChat.sidebarLabel')}>
+                    <CharacterChatSidebar
+                        character={cast[0]}
+                        characters={cast}
+                        title={chatTitle}
+                        isGroup={isGroup}
+                        persona={chat.persona}
+                        mode="text"
+                        voiceEnabled={voiceEnabled}
+                        onSetMode={onSetMode}
+                        onBack={onBack}
+                        onEditCharacter={onEditCharacter}
+                    />
+                </SidePanelDrawer>
+
+                {/* Center: the shared chat engine, in character mode */}
+                <div className="min-w-0 flex-1">
+                    <InteractionCenterPanel
+                        sessionId={Number(chat.id)}
+                        turns={turns}
+                        setTurns={setTurns}
+                        config={chatConfig}
+                    />
                 </div>
-            </div>
-
-            {/* Center: the shared chat engine, in character mode */}
-            <div className="min-w-0 flex-1">
-                <InteractionCenterPanel
-                    sessionId={Number(chat.id)}
-                    turns={turns}
-                    setTurns={setTurns}
-                    config={chatConfig}
-                />
             </div>
         </div>
     )

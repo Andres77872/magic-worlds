@@ -247,22 +247,22 @@ export function validateLorebookLocally(lorebook: Lorebook | LorebookDraft): Lor
         const title = entry.title.trim() || 'Untitled entry'
         const entryId = (entry as Partial<LorebookEntry>).id
         if (!entry.content.trim()) {
-            issues.push({ severity: 'error', code: 'entry_content_required', message: `${title} needs prompt content.`, entryId })
+            issues.push({ severity: 'error', code: 'entry_content_required', message: `${title} needs prompt content.`, messageParams: { title }, entryId })
         }
         if (!entry.constant && entry.keys.length === 0) {
-            issues.push({ severity: 'warning', code: 'entry_keys_missing', message: `${title} needs activation keys or constant mode.`, entryId })
+            issues.push({ severity: 'warning', code: 'entry_keys_missing', message: `${title} needs activation keys or constant mode.`, messageParams: { title }, entryId })
         }
         if (estimateTokens(entry.content) > 220) {
-            issues.push({ severity: 'warning', code: 'entry_long', message: `${title} is long enough to pressure context budget.`, entryId })
+            issues.push({ severity: 'warning', code: 'entry_long', message: `${title} is long enough to pressure context budget.`, messageParams: { title }, entryId })
         }
         for (const key of entry.keys) {
             const normalized = key.toLowerCase()
             if (normalized.length <= 2) {
-                issues.push({ severity: 'warning', code: 'entry_key_short', message: `"${key}" is likely too broad to be a reliable key.`, entryId })
+                issues.push({ severity: 'warning', code: 'entry_key_short', message: `"${key}" is likely too broad to be a reliable key.`, messageParams: { key }, entryId })
             }
             const previous = seenKeys.get(normalized)
             if (previous && previous !== title) {
-                issues.push({ severity: 'warning', code: 'duplicate_key', message: `"${key}" is shared by ${previous} and ${title}.`, entryId })
+                issues.push({ severity: 'warning', code: 'duplicate_key', message: `"${key}" is shared by ${previous} and ${title}.`, messageParams: { key, previous, title }, entryId })
             } else {
                 seenKeys.set(normalized, title)
             }

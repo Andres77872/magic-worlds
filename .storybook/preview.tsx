@@ -1,23 +1,37 @@
+import { useEffect } from 'react'
 import type { Preview, Decorator } from '@storybook/react-vite'
+import { I18nextProvider } from 'react-i18next'
 // Single source of truth: this pulls in Tailwind, the @theme tokens, the base
 // layer (dark ink canvas, parchment text, Hanken UI font, candlelit focus
 // ring) and the .chat-prose component styles. Because the base layer styles
 // the preview <body>, every story renders on the Reverie canvas automatically.
 import '../src/ui/styles/theme.css'
+// Side-effect import initialises i18next so components that call useTranslation
+// render real copy (not raw keys) inside the isolated preview iframe.
+import { i18n } from '../src/app/i18n'
 import { AudioPlaylistProvider } from '../src/app/providers/AudioPlaylistProvider'
 
 /**
- * Light frame around each story: brand UI font + comfortable padding, plus
- * the global playlist context so audio surfaces (ThemeSongButton,
- * AudioWavePlayer, PlaylistDock) render in isolation.
+ * Light frame around each story: brand UI font + comfortable padding, the
+ * global playlist context so audio surfaces (ThemeSongButton, AudioWavePlayer,
+ * PlaylistDock) render in isolation, and the i18n provider so translated copy
+ * resolves. The `locale` toolbar global flips between English and Spanish.
  */
-const withReverieFrame: Decorator = (Story) => (
-  <AudioPlaylistProvider>
-    <div className="font-ui text-parchment-50" style={{ padding: '1.5rem' }}>
-      <Story />
-    </div>
-  </AudioPlaylistProvider>
-)
+const withReverieFrame: Decorator = (Story, context) => {
+  const locale = (context.globals.locale as string) ?? 'en'
+  useEffect(() => {
+    void i18n.changeLanguage(locale)
+  }, [locale])
+  return (
+    <I18nextProvider i18n={i18n}>
+      <AudioPlaylistProvider>
+        <div className="font-ui text-parchment-50" style={{ padding: '1.5rem' }}>
+          <Story />
+        </div>
+      </AudioPlaylistProvider>
+    </I18nextProvider>
+  )
+}
 
 const preview: Preview = {
   decorators: [withReverieFrame],
@@ -54,6 +68,21 @@ const preview: Preview = {
   },
   initialGlobals: {
     backgrounds: { value: 'ink800' },
+    locale: 'en',
+  },
+  globalTypes: {
+    locale: {
+      description: 'Interface language',
+      toolbar: {
+        title: 'Language',
+        icon: 'globe',
+        items: [
+          { value: 'en', title: 'English' },
+          { value: 'es', title: 'Español' },
+        ],
+        dynamicTitle: true,
+      },
+    },
   },
 }
 

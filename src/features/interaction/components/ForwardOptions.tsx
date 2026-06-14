@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { ArrowRight, Sparkles } from 'lucide-react'
 import type { ForwardOption } from '../../../shared'
 import { Eyebrow } from '../../../ui/primitives'
@@ -8,6 +9,7 @@ interface ForwardOptionsProps {
 }
 
 export function ForwardOptions({ options, onOptionClick }: ForwardOptionsProps) {
+    const { t } = useTranslation()
     if (!options?.length) {
         return null
     }
@@ -15,7 +17,7 @@ export function ForwardOptions({ options, onOptionClick }: ForwardOptionsProps) 
     return (
         <div className="mt-3 w-full">
             <div className="mb-2 flex items-center gap-2">
-                <Eyebrow tone="arcane">Suggested Actions</Eyebrow>
+                <Eyebrow tone="arcane">{t('interaction.forwardOptions.title')}</Eyebrow>
             </div>
             <div className="flex flex-col gap-2">
                 {options.map((option, index) => (

@@ -8,6 +8,8 @@
  */
 
 import { startTransition, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { Pencil, Trash2 } from 'lucide-react'
 import type { SnapshotCard } from '../../../shared'
 import {
@@ -35,28 +37,32 @@ import type { SnapshotCardEntry, SnapshotCardRef } from '../utils/adventureSnaps
 
 const FORM_ID = 'adventure-card-edit-form'
 
-const CHARACTER_DEFAULTS: AttributeCategory[] = [
-    { id: 'stats', name: 'Stats', type: 'stat', description: 'Core attributes like Strength or Agility — add only what you need.' },
-]
-const WORLD_DEFAULTS: AttributeCategory[] = [
-    { id: 'details', name: 'Details', type: 'detail', description: 'Key facts about this world — add only what matters.' },
-]
+function characterDefaults(t: TFunction): AttributeCategory[] {
+    return [
+        { id: 'stats', name: t('interaction.cardDrawer.statsName'), type: 'stat', description: t('interaction.cardDrawer.statsDesc') },
+    ]
+}
+function worldDefaults(t: TFunction): AttributeCategory[] {
+    return [
+        { id: 'details', name: t('interaction.cardDrawer.detailsName'), type: 'detail', description: t('interaction.cardDrawer.detailsDesc') },
+    ]
+}
 
-function roleLabel(ref: SnapshotCardRef): string {
-    if (ref.kind === 'persona') return 'Your Persona'
-    if (ref.kind === 'world') return 'World'
-    return 'Cast Member'
+function roleLabel(t: TFunction, ref: SnapshotCardRef): string {
+    if (ref.kind === 'persona') return t('interaction.cardDrawer.rolePersona')
+    if (ref.kind === 'world') return t('interaction.cardDrawer.roleWorld')
+    return t('interaction.cardDrawer.roleCast')
 }
 
 /** Map a save failure to a user-facing message — special-casing the active-stream 409. */
-function saveErrorMessage(error: unknown): string {
+function saveErrorMessage(t: TFunction, error: unknown): string {
     if (error instanceof ApiError) {
         if (error.status === 409) {
-            return "Can't edit cards while the story is generating — wait for the current turn to finish, then try again."
+            return t('interaction.cardDrawer.saveError409')
         }
         if (error.message) return error.message
     }
-    return "Couldn't save your changes. Please try again."
+    return t('interaction.cardDrawer.saveErrorGeneric')
 }
 
 interface AdventureCardDrawerProps {
@@ -69,6 +75,7 @@ interface AdventureCardDrawerProps {
 }
 
 export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: AdventureCardDrawerProps) {
+    const { t } = useTranslation()
     const [mode, setMode] = useState<'view' | 'edit'>('view')
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [removing, setRemoving] = useState(false)
@@ -102,7 +109,7 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
             setMode('view')
         } catch (error) {
             console.error('Failed to save adventure card:', error)
-            setSaveError(saveErrorMessage(error))
+            setSaveError(saveErrorMessage(t, error))
         } finally {
             setIsSubmitting(false)
         }
@@ -120,7 +127,7 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
         }
     }
 
-    const removeLabel = entry?.ref.kind === 'persona' ? 'Remove persona' : 'Remove'
+    const removeLabel = entry?.ref.kind === 'persona' ? t('interaction.cardDrawer.removePersona') : t('interaction.cardDrawer.remove')
 
     const footer = entry ? (
         mode === 'view' ? (
@@ -133,7 +140,7 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
                         disabled={removing}
                         className="text-blood-400 hover:text-blood-500"
                     >
-                        {removing ? 'Removing…' : removeLabel}
+                        {removing ? t('interaction.cardDrawer.removing') : removeLabel}
                     </Button>
                 ) : (
                     <span />
@@ -149,16 +156,16 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
                     onClick={() => startTransition(() => setMode('edit'))}
                     className="shrink-0"
                 >
-                    Edit card
+                    {t('interaction.cardDrawer.editCard')}
                 </Button>
             </div>
         ) : (
             <div className="flex w-full items-center justify-end gap-2">
                 <Button kind="ghost" onClick={() => startTransition(() => setMode('view'))} disabled={isSubmitting}>
-                    Cancel
+                    {t('common.cancel')}
                 </Button>
                 <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
-                    {isSubmitting ? 'Saving…' : 'Save changes'}
+                    {isSubmitting ? t('common.saving') : t('interaction.cardDrawer.saveChanges')}
                 </Button>
             </div>
         )
@@ -171,7 +178,7 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
             size="xl"
             eyebrow={
                 entry ? (
-                    <Eyebrow tone={entry.ref.kind === 'world' ? 'ember' : 'arcane'}>{roleLabel(entry.ref)}</Eyebrow>
+                    <Eyebrow tone={entry.ref.kind === 'world' ? 'ember' : 'arcane'}>{roleLabel(t, entry.ref)}</Eyebrow>
                 ) : undefined
             }
             footer={footer}
@@ -190,6 +197,7 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
 /* ----------------------------- read view ----------------------------- */
 
 function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
+    const { t } = useTranslation()
     const { card, ref } = entry
     const isWorld = ref.kind === 'world'
     const badges = isWorld
@@ -209,7 +217,7 @@ function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
             <Portrait name={card.name || ''} src={resolveMediaUrl(card.image_url)} height={180} className="rounded-xl">
                 <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 p-4">
                     <h3 className="font-display text-[26px] font-semibold leading-tight text-parchment-50">
-                        {card.name || 'Untitled'}
+                        {card.name || t('interaction.cardDrawer.untitled')}
                     </h3>
                     {badges.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5">
@@ -219,23 +227,23 @@ function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
                         </div>
                     ) : (
                         <span className="font-narrative text-[13px] italic text-parchment-300">
-                            {isWorld ? 'No type set' : 'No race set'}
+                            {isWorld ? t('interaction.cardDrawer.noTypeSet') : t('interaction.cardDrawer.noRaceSet')}
                         </span>
                     )}
                 </div>
             </Portrait>
 
-            <DetailSection title={isWorld ? 'Setting' : 'About'}>
+            <DetailSection title={isWorld ? t('interaction.cardDrawer.setting') : t('interaction.cardDrawer.about')}>
                 {description ? (
                     <p className="whitespace-pre-line font-narrative text-[15px] leading-relaxed text-parchment-200">
                         {description}
                     </p>
                 ) : (
-                    <EmptyHint>No description yet.</EmptyHint>
+                    <EmptyHint>{t('interaction.cardDrawer.noDescription')}</EmptyHint>
                 )}
             </DetailSection>
 
-            <DetailSection title={isWorld ? 'Details' : 'Attributes'}>
+            <DetailSection title={isWorld ? t('interaction.cardDrawer.details') : t('interaction.cardDrawer.attributes')}>
                 {groups.length > 0 ? (
                     <div className="flex flex-col gap-4">
                         {groups.map((group, gi) => (
@@ -243,11 +251,11 @@ function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
                         ))}
                     </div>
                 ) : (
-                    <EmptyHint>No attributes yet.</EmptyHint>
+                    <EmptyHint>{t('interaction.cardDrawer.noAttributes')}</EmptyHint>
                 )}
             </DetailSection>
 
-            <DetailSection title="Triggers" hint="Keywords that pull this card into the scene when mentioned in chat.">
+            <DetailSection title={t('interaction.cardDrawer.triggers')} hint={t('interaction.cardDrawer.triggersHint')}>
                 {triggers.length > 0 ? (
                     <div className="flex flex-wrap gap-1.5">
                         {triggers.map((trigger, i) => (
@@ -257,12 +265,12 @@ function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
                         ))}
                     </div>
                 ) : (
-                    <EmptyHint>No triggers yet.</EmptyHint>
+                    <EmptyHint>{t('interaction.cardDrawer.noTriggers')}</EmptyHint>
                 )}
             </DetailSection>
 
             <p className="font-ui text-[12px] leading-snug text-parchment-500">
-                This is this adventure's own copy — edits and removal never touch your original library card.
+                {t('interaction.cardDrawer.ownCopyNote')}
             </p>
         </div>
     )
@@ -321,6 +329,7 @@ function CardEditForm({
     onSubmit: (ref: SnapshotCardRef, card: SnapshotCard) => void
     error: string | null
 }) {
+    const { t } = useTranslation()
     const { card, ref } = entry
     const { isAuthenticated, openLoginModal } = useAuth()
     const isWorld = ref.kind === 'world'
@@ -340,7 +349,7 @@ function CardEditForm({
     const themeSourceId = card.source_card_id
     const themeDisabledReason = themeSourceId
         ? undefined
-        : "This adventure-only card has no library origin, so a music theme can't be attached here."
+        : t('interaction.cardDrawer.themeNoOrigin')
     const ensureSaved = async (): Promise<string> => {
         if (!themeSourceId) throw new Error('No library origin to attach a theme to.')
         return themeSourceId
@@ -358,11 +367,11 @@ function CardEditForm({
         return () => cancelAnimationFrame(id)
     }, [])
 
-    const defaults = isWorld ? WORLD_DEFAULTS : CHARACTER_DEFAULTS
+    const defaults = isWorld ? worldDefaults(t) : characterDefaults(t)
     const attrs = useAttributeCategories({ defaults, entity: card })
 
-    const nameError = touched && !name.trim() ? 'Name is required.' : undefined
-    const placeTypeError = touched && isWorld && !placeType.trim() ? 'Choose a place type or enter a custom one.' : undefined
+    const nameError = touched && !name.trim() ? t('interaction.cardDrawer.nameRequired') : undefined
+    const placeTypeError = touched && isWorld && !placeType.trim() ? t('interaction.cardDrawer.placeTypeRequired') : undefined
     const selectedPlaceTypeOption = worldPlaceTypeOptionValue(placeType)
 
     const handleSubmit = (e: FormEvent) => {
@@ -401,16 +410,16 @@ function CardEditForm({
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
-                <CreatorField label="Name" required error={nameError}>
-                    <CreatorInput value={name} onChange={setName} placeholder={isWorld ? 'World name' : 'Character name'} autoFocus />
+                <CreatorField label={t('interaction.cardDrawer.nameLabel')} required error={nameError}>
+                    <CreatorInput value={name} onChange={setName} placeholder={isWorld ? t('interaction.cardDrawer.worldNamePlaceholder') : t('interaction.cardDrawer.characterNamePlaceholder')} autoFocus />
                 </CreatorField>
 
                 {isWorld ? (
                     <CreatorField
-                        label="Place type"
+                        label={t('interaction.cardDrawer.placeTypeLabel')}
                         required
                         error={placeTypeError}
-                        tooltip="Literal scale used by image generation, such as world, country, continent, or a custom place kind."
+                        tooltip={t('interaction.cardDrawer.placeTypeTooltip')}
                     >
                         <Select
                             value={selectedPlaceTypeOption}
@@ -419,43 +428,43 @@ function CardEditForm({
                             }}
                             options={[
                                 ...WORLD_PLACE_TYPE_OPTIONS,
-                                { value: CUSTOM_WORLD_PLACE_TYPE, label: 'Custom' },
+                                { value: CUSTOM_WORLD_PLACE_TYPE, label: t('interaction.cardDrawer.customOption') },
                             ]}
                         />
                     </CreatorField>
                 ) : (
-                    <CreatorField label="Race / species">
-                        <CreatorInput value={badgeValue} onChange={setBadgeValue} placeholder="e.g. Elf" />
+                    <CreatorField label={t('interaction.cardDrawer.raceLabel')}>
+                        <CreatorInput value={badgeValue} onChange={setBadgeValue} placeholder={t('interaction.cardDrawer.racePlaceholder')} />
                     </CreatorField>
                 )}
             </div>
 
             {isWorld && selectedPlaceTypeOption === CUSTOM_WORLD_PLACE_TYPE && (
-                <CreatorField label="Custom place type" required error={placeTypeError}>
+                <CreatorField label={t('interaction.cardDrawer.customPlaceTypeLabel')} required error={placeTypeError}>
                     <CreatorInput
                         value={placeType}
                         onChange={setPlaceType}
-                        placeholder="e.g. archipelago, province, moon, star system"
+                        placeholder={t('interaction.cardDrawer.customPlaceTypePlaceholder')}
                     />
                 </CreatorField>
             )}
 
             {isWorld && (
                 <CreatorField
-                    label="Genre / Vibe"
-                    tooltip="The creative flavor of the place: fantasy, sci-fi, gothic, solarpunk, modern, and so on."
+                    label={t('interaction.cardDrawer.genreLabel')}
+                    tooltip={t('interaction.cardDrawer.genreTooltip')}
                 >
-                    <CreatorInput value={badgeValue} onChange={setBadgeValue} placeholder="e.g. Floating archipelago" />
+                    <CreatorInput value={badgeValue} onChange={setBadgeValue} placeholder={t('interaction.cardDrawer.genrePlaceholder')} />
                 </CreatorField>
             )}
 
-            <CreatorField label="Description" tooltip={isWorld ? 'Set the scene — geography, mood, history.' : 'Who they are, how they act.'}>
-                <CreatorTextarea value={description} onChange={setDescription} rows={5} placeholder="Describe this card…" />
+            <CreatorField label={t('interaction.cardDrawer.descriptionLabel')} tooltip={isWorld ? t('interaction.cardDrawer.descriptionTooltipWorld') : t('interaction.cardDrawer.descriptionTooltipCharacter')}>
+                <CreatorTextarea value={description} onChange={setDescription} rows={5} placeholder={t('interaction.cardDrawer.descriptionPlaceholder')} />
             </CreatorField>
 
             <AttributeManager
-                title={isWorld ? 'World details' : 'Attributes'}
-                subtitle="Key facts the game master should keep in mind for this adventure."
+                title={isWorld ? t('interaction.cardDrawer.worldDetailsTitle') : t('interaction.cardDrawer.attributesTitle')}
+                subtitle={t('interaction.cardDrawer.attributesSubtitle')}
                 categories={attrs.categories}
                 attributes={attrs.attributes}
                 onAddCategory={attrs.addCategory}

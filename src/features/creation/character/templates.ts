@@ -6,15 +6,17 @@
 import { BookOpen, Compass, HeartHandshake, Lamp, Skull, UserRound } from 'lucide-react'
 import type { CardTemplate } from '../common/engine'
 
-export const CHARACTER_GALLERY_HEADING = 'Who steps into the candlelight?'
-export const CHARACTER_GALLERY_SUBHEADING =
-    'Choose a shape to begin from — every field stays yours to change, remove, or rewrite.'
+/** i18n keys for the gallery masthead — resolved at the CharacterCreator. */
+export const CHARACTER_GALLERY_HEADING_KEY = 'creation.character.galleryHeading'
+export const CHARACTER_GALLERY_SUBHEADING_KEY = 'creation.character.gallerySubheading'
 
 export const CHARACTER_TEMPLATES: CardTemplate[] = [
     {
         id: 'companion',
         name: 'Loyal Companion',
+        nameKey: 'creation.character.templates.companion.name',
         tagline: 'An ally who walks beside you — and would walk into fire.',
+        taglineKey: 'creation.character.templates.companion.tagline',
         icon: HeartHandshake,
         role: 'character',
         fieldIds: [
@@ -48,7 +50,9 @@ export const CHARACTER_TEMPLATES: CardTemplate[] = [
     {
         id: 'adversary',
         name: 'The Adversary',
+        nameKey: 'creation.character.templates.adversary.name',
         tagline: "A villain who believes they're the hero.",
+        taglineKey: 'creation.character.templates.adversary.tagline',
         icon: Skull,
         role: 'character',
         fieldIds: [
@@ -81,7 +85,9 @@ export const CHARACTER_TEMPLATES: CardTemplate[] = [
     {
         id: 'mentor',
         name: 'The Mentor',
+        nameKey: 'creation.character.templates.mentor.name',
         tagline: 'They know the way — and the price of it.',
+        taglineKey: 'creation.character.templates.mentor.tagline',
         icon: Lamp,
         role: 'character',
         fieldIds: [
@@ -114,7 +120,9 @@ export const CHARACTER_TEMPLATES: CardTemplate[] = [
     {
         id: 'storykeeper',
         name: 'The Storykeeper',
+        nameKey: 'creation.character.templates.storykeeper.name',
         tagline: "A voice at the fire's edge who frames every scene.",
+        taglineKey: 'creation.character.templates.storykeeper.tagline',
         icon: BookOpen,
         role: 'character',
         fieldIds: ['voice.speech', 'personality.motivation'],
@@ -134,7 +142,9 @@ export const CHARACTER_TEMPLATES: CardTemplate[] = [
     {
         id: 'adventurer',
         name: 'The Adventurer',
+        nameKey: 'creation.character.templates.adventurer.name',
         tagline: 'A ready-made hero shape for you to wear.',
+        taglineKey: 'creation.character.templates.adventurer.tagline',
         icon: Compass,
         role: 'persona',
         fieldIds: [
@@ -162,7 +172,9 @@ export const CHARACTER_TEMPLATES: CardTemplate[] = [
     {
         id: 'everyday-you',
         name: 'Everyday You',
+        nameKey: 'creation.character.templates.everydayYou.name',
         tagline: 'Step into the story as yourself.',
+        taglineKey: 'creation.character.templates.everydayYou.tagline',
         icon: UserRound,
         role: 'persona',
         fieldIds: ['personality.motivation', 'boundaries.agency', 'boundaries.address', 'boundaries.lines'],

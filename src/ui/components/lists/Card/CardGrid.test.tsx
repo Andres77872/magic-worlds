@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { CardGrid } from './CardGrid'
@@ -66,5 +67,47 @@ describe('CardGrid rail fade', () => {
         await waitFor(() => {
             expect(screen.getByTestId('card-grid-list')).not.toHaveClass('rail-fade-right')
         })
+    })
+})
+
+describe('CardGrid loading skeletons', () => {
+    const renderGrid = (props: {
+        renderSkeleton?: () => ReactNode
+        skeletonCount?: number
+        layout?: 'grid' | 'rail'
+    } = {}) =>
+        render(
+            <CardGrid<string>
+                items={[]}
+                loading
+                renderCard={(name) => <div>{name}</div>}
+                {...props}
+            />,
+        )
+
+    it('renders a matched skeleton grid (not the spinner) when renderSkeleton is provided', () => {
+        renderGrid({ renderSkeleton: () => <div data-testid="sk" /> })
+
+        expect(screen.getAllByTestId('sk')).toHaveLength(8)
+        expect(screen.queryByText('Loading items...')).toBeNull()
+    })
+
+    it('honours a custom skeletonCount', () => {
+        renderGrid({ renderSkeleton: () => <div data-testid="sk" />, skeletonCount: 3 })
+
+        expect(screen.getAllByTestId('sk')).toHaveLength(3)
+    })
+
+    it('falls back to the centered spinner when no renderSkeleton is given', () => {
+        renderGrid()
+
+        expect(screen.getByText('Loading items...')).toBeInTheDocument()
+    })
+
+    it('keeps the spinner for rail layout even with a renderSkeleton', () => {
+        renderGrid({ layout: 'rail', renderSkeleton: () => <div data-testid="sk" /> })
+
+        expect(screen.queryByTestId('sk')).toBeNull()
+        expect(screen.getByText('Loading items...')).toBeInTheDocument()
     })
 })

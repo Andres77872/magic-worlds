@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { apiService, isProtectedMediaUrl, resolveMediaUrl } from './index'
+import { apiService } from './index'
+import { isProtectedMediaUrl, resolveMediaUrl } from './mediaUrl'
 
 interface AuthenticatedMediaUrlState {
     src?: string
@@ -26,7 +27,17 @@ export function useAuthenticatedMediaUrl(url?: string | null, accept: string = '
         let objectUrl: string | null = null
         setState({ src: undefined, loading: true, error: null })
 
-        apiService.fetchProtectedMediaBlob(resolved, accept)
+        const fetchProtectedMediaBlob = apiService.fetchProtectedMediaBlob
+        if (typeof fetchProtectedMediaBlob !== 'function') {
+            setState({
+                src: undefined,
+                loading: false,
+                error: new Error('Protected media could not be loaded.'),
+            })
+            return
+        }
+
+        fetchProtectedMediaBlob.call(apiService, resolved, accept)
             .then((blob) => {
                 if (canceled) return
                 objectUrl = URL.createObjectURL(blob)

@@ -3,6 +3,8 @@
  */
 
 import type {AttributeCategory} from '../../ui/components/common/AttributeList';
+import type { CardActor, CardVisibility } from './cardSharing.types'
+import type { CharacterVoice } from './voicePreset.types'
 
 export type CharacterRole = 'character' | 'persona'
 
@@ -33,6 +35,10 @@ export interface Character {
     image_url?: string
     /** Hosted URL of the card's generated theme song, if any. */
     theme_song_url?: string
+    /** Assigned narration voice (system voice or a copied preset recipe). */
+    voice?: CharacterVoice
+    visibility?: CardVisibility
+    original_creator?: CardActor
 
     [key: string]: any // Allow dynamic attribute categories
     createdAt?: string

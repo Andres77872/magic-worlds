@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Sparkles, Wand2 } from 'lucide-react'
 import { Chip, Eyebrow, IconTile } from '@/ui/primitives'
 import { AssistantMessage } from './AssistantMessage'
@@ -39,25 +40,28 @@ function LoadingSkeleton() {
 function EmptyState({
     suggestions,
     onSuggestion,
-    emptyTitle = 'Shape this card with words',
-    emptyDescription = 'Describe what you want and the assistant will draft, refine, and save it for you.',
+    emptyTitle,
+    emptyDescription,
 }: Pick<AssistantMessageListProps, 'suggestions' | 'onSuggestion' | 'emptyTitle' | 'emptyDescription'>) {
+    const { t } = useTranslation()
+    const title = emptyTitle ?? t('creation.common.assistant.emptyTitle')
+    const description = emptyDescription ?? t('creation.common.assistant.emptyDescription')
     return (
         <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
             <IconTile icon={Sparkles} tone="arcane" size="md" />
-            <h3 className="font-display text-[20px] font-semibold text-parchment-50">{emptyTitle}</h3>
+            <h3 className="font-display text-[20px] font-semibold text-parchment-50">{title}</h3>
             <p className="max-w-[280px] font-narrative text-[14px] leading-relaxed text-parchment-300">
-                {emptyDescription}
+                {description}
             </p>
             <div className="mt-1 flex w-full flex-col items-stretch gap-2">
                 {suggestions.map((suggestion) => (
                     <Chip
-                        key={suggestion.label}
+                        key={suggestion.labelKey}
                         icon={<Wand2 size={13} />}
                         className="justify-start"
                         onClick={() => onSuggestion(suggestion.prompt)}
                     >
-                        {suggestion.label}
+                        {t(suggestion.labelKey)}
                     </Chip>
                 ))}
             </div>
@@ -66,6 +70,7 @@ function EmptyState({
 }
 
 export function AssistantMessageList({ turns, status, suggestions, onSuggestion, conversationKey, emptyTitle, emptyDescription }: AssistantMessageListProps) {
+    const { t } = useTranslation()
     const scrollRef = useRef<HTMLDivElement | null>(null)
     const atBottomRef = useRef(true)
     // Mask stale turns while switching; on (re)open only skeleton an empty list.
@@ -102,7 +107,7 @@ export function AssistantMessageList({ turns, status, suggestions, onSuggestion,
             ))}
             {thinking && (
                 <div className="flex items-center gap-2">
-                    <Eyebrow tone="arcane" className="text-[10px]">Thinking</Eyebrow>
+                    <Eyebrow tone="arcane" className="text-[10px]">{t('creation.common.assistant.thinking')}</Eyebrow>
                     <StreamingDots />
                 </div>
             )}

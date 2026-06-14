@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { Lorebook } from '@/shared/types/lorebook.types'
 import { AssistantBanner } from '@/features/creation/common/components/assistant/AssistantBanner'
 import { AssistantComposer } from '@/features/creation/common/components/assistant/AssistantComposer'
@@ -21,6 +22,7 @@ interface LorebookAssistantChatbotProps {
 }
 
 export function LorebookAssistantChatbot(props: LorebookAssistantChatbotProps) {
+    const { t } = useTranslation()
     const assistant = useLorebookAssistant(props)
     const streaming = assistant.status === 'streaming'
     const busy = assistant.status !== 'idle'
@@ -29,15 +31,17 @@ export function LorebookAssistantChatbot(props: LorebookAssistantChatbotProps) {
         <AssistantShell
             open={assistant.open}
             onOpen={assistant.openPanel}
-            fabLabel="Open lorebook assistant"
-            dialogLabel="Lorebook assistant"
+            fabLabel={t('lorebookStudio.assistant.fabLabel')}
+            dialogLabel={t('lorebookStudio.assistant.dialogLabel')}
         >
             <AssistantHeader
-                title="Lorebook Assistant"
+                title={t('lorebookStudio.assistant.title')}
                 cardTitle={props.title}
                 streaming={streaming}
                 onClose={assistant.closePanel}
-                closeLabel="Close lorebook assistant"
+                closeLabel={t('lorebookStudio.assistant.close')}
+                onNewChat={assistant.newConversation}
+                newChatDisabled={busy}
                 menu={(
                     <ConversationMenu
                         conversations={assistant.conversations}
@@ -52,7 +56,7 @@ export function LorebookAssistantChatbot(props: LorebookAssistantChatbotProps) {
 
             {assistant.pendingLorebook && (
                 <AssistantPendingCardBanner
-                    snapshotLabel="lorebook"
+                    snapshotLabel={t('lorebookStudio.assistant.snapshotLabel')}
                     onApply={assistant.applyPendingLorebook}
                     onDismiss={assistant.dismissPendingLorebook}
                 />
@@ -64,8 +68,8 @@ export function LorebookAssistantChatbot(props: LorebookAssistantChatbotProps) {
                 suggestions={LOREBOOK_ASSISTANT_SUGGESTIONS}
                 onSuggestion={(prompt) => void assistant.send(prompt)}
                 conversationKey={conversationKey(assistant.activeConversation)}
-                emptyTitle="Shape this lorebook with words"
-                emptyDescription="Describe the context you need and the assistant will draft, organize, and save entries for you."
+                emptyTitle={t('lorebookStudio.assistant.emptyTitle')}
+                emptyDescription={t('lorebookStudio.assistant.emptyDescription')}
             />
 
             {assistant.notice && (
@@ -80,7 +84,7 @@ export function LorebookAssistantChatbot(props: LorebookAssistantChatbotProps) {
             <AssistantComposer
                 streaming={streaming}
                 disabled={assistant.status === 'switching'}
-                placeholder="Ask for a lorebook change..."
+                placeholder={t('lorebookStudio.assistant.composerPlaceholder')}
                 onSend={(text) => void assistant.send(text)}
                 onStop={assistant.stop}
             />

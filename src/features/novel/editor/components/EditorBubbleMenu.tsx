@@ -6,6 +6,7 @@
  */
 
 import type { MouseEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Editor } from '@tiptap/core'
 import { BubbleMenu } from '@tiptap/react/menus'
 import { Bold, Heading1, Heading2, Italic, Quote, Sparkles } from 'lucide-react'
@@ -13,11 +14,11 @@ import type { StoryGenerationCommand } from '@/shared'
 import { Button, Icon, IconButton, cx } from '@/ui/primitives'
 import type { InlineAIPhase } from '../types'
 
-const SELECTION_COMMANDS: Array<{ command: StoryGenerationCommand; label: string }> = [
-    { command: 'rewrite', label: 'Rewrite' },
-    { command: 'expand', label: 'Expand' },
-    { command: 'condense', label: 'Condense' },
-    { command: 'describe', label: 'Describe' },
+const SELECTION_COMMANDS: Array<{ command: StoryGenerationCommand; labelKey: string }> = [
+    { command: 'rewrite', labelKey: 'novelEditor.bubbleMenu.rewrite' },
+    { command: 'expand', labelKey: 'novelEditor.bubbleMenu.expand' },
+    { command: 'condense', labelKey: 'novelEditor.bubbleMenu.condense' },
+    { command: 'describe', labelKey: 'novelEditor.bubbleMenu.describe' },
 ]
 
 function preventToolbarBlur(event: MouseEvent) {
@@ -31,40 +32,41 @@ interface EditorBubbleMenuProps {
 }
 
 export function EditorBubbleMenu({ editor, phase, onSelectionCommand }: EditorBubbleMenuProps) {
+    const { t } = useTranslation()
     const aiDisabled = phase !== 'idle'
     return (
         <BubbleMenu
             editor={editor}
             className="flex items-center gap-1 rounded-md border border-parchment-50/10 bg-ink-900/95 p-1 shadow-lg"
         >
-            <ToolButton label="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
+            <ToolButton label={t('novelEditor.bubbleMenu.bold')} active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
                 <Icon icon={Bold} size={14} />
             </ToolButton>
-            <ToolButton label="Italic" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>
+            <ToolButton label={t('novelEditor.bubbleMenu.italic')} active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>
                 <Icon icon={Italic} size={14} />
             </ToolButton>
             <ToolButton
-                label="Heading"
+                label={t('novelEditor.bubbleMenu.heading')}
                 active={editor.isActive('heading', { level: 2 })}
                 onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
             >
                 <Icon icon={Heading1} size={14} />
             </ToolButton>
             <ToolButton
-                label="Subheading"
+                label={t('novelEditor.bubbleMenu.subheading')}
                 active={editor.isActive('heading', { level: 3 })}
                 onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
             >
                 <Icon icon={Heading2} size={14} />
             </ToolButton>
-            <ToolButton label="Quote" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
+            <ToolButton label={t('novelEditor.bubbleMenu.quote')} active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
                 <Icon icon={Quote} size={14} />
             </ToolButton>
             <span className="h-5 w-px bg-parchment-50/10" />
             <span className="pl-1 text-arcane-400" aria-hidden="true">
                 <Icon icon={Sparkles} size={13} />
             </span>
-            {SELECTION_COMMANDS.map(({ command, label }) => (
+            {SELECTION_COMMANDS.map(({ command, labelKey }) => (
                 <Button
                     key={command}
                     kind="ghost"
@@ -74,7 +76,7 @@ export function EditorBubbleMenu({ editor, phase, onSelectionCommand }: EditorBu
                     onClick={() => onSelectionCommand(command)}
                     className="text-arcane-300"
                 >
-                    {label}
+                    {t(labelKey)}
                 </Button>
             ))}
         </BubbleMenu>

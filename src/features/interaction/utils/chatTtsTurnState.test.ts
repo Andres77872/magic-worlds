@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatSocketServerMessage, TurnEntry } from '../../../shared'
-import { hasNonTerminalTtsJob, mergeHydratedTtsTurns, upsertChatTtsFrame, upsertTtsJobResult } from './chatTtsTurnState'
+import { hasNonTerminalTtsJob, mergeHydratedTtsTurns, nonTerminalTtsJobIds, upsertChatTtsFrame, upsertTtsJobResult, type ChatTtsFrame } from './chatTtsTurnState'
 
 const baseTurn: TurnEntry = {
   id: 'local-ai-1',
@@ -199,5 +199,102 @@ describe('chatTtsTurnState', () => {
     const twice = upsertChatTtsFrame(once, complete)
 
     expect(twice[0].ttsAssets).toHaveLength(1)
+  })
+})
+
+describe('chatTtsTurnState — per-segment multi-voice', () => {
+  const turn: TurnEntry = { ...baseTurn, assistantMessageId: 202, turnId: 'turn-2' }
+
+  const jobFrame = (segment_index: number, job_id: string, speaker_name: string): ChatTtsFrame => ({
+    type: 'tts_job',
+    adventure_id: 7,
+    assistant_message_id: 202,
+    turn_id: 'turn-2',
+    job_id,
+    status: 'synthesizing',
+    status_url: `/tts/jobs/${job_id}`,
+    result_url: `/tts/jobs/${job_id}/result`,
+    segment_index,
+    segment_count: 2,
+    kind: segment_index === 0 ? 'narrator' : 'speech',
+    speaker_name,
+  })
+
+  const completeFrame = (segment_index: number, job_id: string, asset_id: string): ChatTtsFrame => ({
+    type: 'tts_complete',
+    adventure_id: 7,
+    assistant_message_id: 202,
+    turn_id: 'turn-2',
+    job_id,
+    status: 'completed',
+    assets: [{ asset_id, url: `/tts/assets/${asset_id}.mp3`, content_type: 'audio/mpeg' }],
+    segment_index,
+    segment_count: 2,
+  })
+
+  it('assembles an ordered ttsSegments playlist from per-segment frames', () => {
+    let turns = upsertChatTtsFrame([turn], jobFrame(1, 'tts-seg-1', 'Aria'))
+    turns = upsertChatTtsFrame(turns, jobFrame(0, 'tts-seg-0', 'Narrator'))
+    const clips = turns[0].ttsSegments!
+    expect(clips.map((c) => c.segment_index)).toEqual([0, 1])
+    expect(clips[1].speaker_name).toBe('Aria')
+    // No clobbering of the legacy single-clip fields.
+    expect(turns[0].ttsJobId).toBeUndefined()
+  })
+
+  it('plays ready clips while later clips are still generating (partial completion)', () => {
+    let turns = upsertChatTtsFrame([turn], jobFrame(0, 'tts-seg-0', 'Narrator'))
+    turns = upsertChatTtsFrame(turns, jobFrame(1, 'tts-seg-1', 'Aria'))
+    turns = upsertChatTtsFrame(turns, completeFrame(0, 'tts-seg-0', 'asset-0'))
+    const clips = turns[0].ttsSegments!
+    expect(clips[0].status).toBe('completed')
+    expect(clips[0].url).toBe('/tts/assets/asset-0.mp3')
+    expect(clips[1].status).toBe('synthesizing')
+    // The turn still has a non-terminal clip → polling continues.
+    expect(hasNonTerminalTtsJob(turns[0])).toBe(true)
+    expect(nonTerminalTtsJobIds(turns[0])).toEqual(['tts-seg-1'])
+  })
+
+  it('aggregate goes terminal only when every clip is terminal', () => {
+    let turns = upsertChatTtsFrame([turn], jobFrame(0, 'tts-seg-0', 'Narrator'))
+    turns = upsertChatTtsFrame(turns, jobFrame(1, 'tts-seg-1', 'Aria'))
+    turns = upsertChatTtsFrame(turns, completeFrame(0, 'tts-seg-0', 'asset-0'))
+    turns = upsertChatTtsFrame(turns, completeFrame(1, 'tts-seg-1', 'asset-1'))
+    expect(hasNonTerminalTtsJob(turns[0])).toBe(false)
+    expect(nonTerminalTtsJobIds(turns[0])).toEqual([])
+  })
+
+  it('polled job results update the matching clip, not the legacy fields', () => {
+    let turns = upsertChatTtsFrame([turn], jobFrame(0, 'tts-seg-0', 'Narrator'))
+    turns = upsertTtsJobResult(turns, {
+      job_id: 'tts-seg-0',
+      status: 'completed',
+      assets: [{ asset_id: 'asset-0', url: '/tts/assets/asset-0.mp3', content_type: 'audio/mpeg' }],
+    })
+    expect(turns[0].ttsSegments![0].status).toBe('completed')
+    expect(turns[0].ttsSegments![0].url).toBe('/tts/assets/asset-0.mp3')
+    expect(turns[0].ttsJobId).toBeUndefined()
+  })
+
+  it('folds hydrated ttsSegments by index with terminal precedence', () => {
+    const live = upsertChatTtsFrame([turn], jobFrame(0, 'tts-seg-0', 'Narrator'))
+    const hydrated: TurnEntry[] = [
+      {
+        ...turn,
+        ttsSegments: [
+          {
+            segment_index: 0,
+            kind: 'narrator',
+            status: 'completed',
+            job_id: 'tts-seg-0',
+            assets: [{ asset_id: 'asset-0', url: '/tts/assets/asset-0.mp3', content_type: 'audio/mpeg' }],
+            url: '/tts/assets/asset-0.mp3',
+          },
+        ],
+      },
+    ]
+    const merged = mergeHydratedTtsTurns(live, hydrated)
+    expect(merged[0].ttsSegments![0].status).toBe('completed')
+    expect(merged[0].ttsSegments![0].url).toBe('/tts/assets/asset-0.mp3')
   })
 })

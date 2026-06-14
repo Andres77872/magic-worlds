@@ -3,17 +3,21 @@
  * the appropriate shell (loading / error / signed-out) around {@link ProfileView}.
  */
 import { UserCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuth, useData } from '@/app/hooks'
 import { Button, Icon } from '@/ui/primitives'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
 import { useUserProfile } from '../hooks/useUserProfile'
+import { useProfileSharedCards } from '../hooks/useProfileSharedCards'
 import { ProfileView } from './ProfileView'
 
 export function ProfilePage() {
+    const { t } = useTranslation()
     const { isAuthenticated, logout, openLoginModal } = useAuth()
     const { clearAllData } = useData()
     const { profile, isLoading, error, isTransientError, refresh } = useUserProfile()
+    const sharing = useProfileSharedCards()
 
     // Wipe all content server-side (and reset DataProvider caches), then re-fetch
     // /user/me so the profile's stat counts drop to zero. Rejection propagates so
@@ -29,16 +33,16 @@ export function ProfilePage() {
             <div className="mx-auto flex w-full max-w-[960px] px-5 py-10 sm:px-8">
                 <EmptyState
                     icon={<Icon icon={UserCircle} size={44} />}
-                    message="You're not signed in"
-                    secondaryText="Log in to view your profile, role, and everything you've created."
-                    button={{ label: 'Log in', onClick: openLoginModal }}
+                    message={t('profilePage.signedOutTitle')}
+                    secondaryText={t('profilePage.signedOutBody')}
+                    button={{ label: t('sidebar.login'), onClick: openLoginModal }}
                 />
             </div>
         )
     }
 
     if (isLoading && !profile) {
-        return <LoadingSpinner message="Loading your profile…" />
+        return <LoadingSpinner message={t('profilePage.loading')} />
     }
 
     // A transient backend outage (5xx) is shown gently — a neutral empty state
@@ -48,9 +52,9 @@ export function ProfilePage() {
             <div className="mx-auto flex w-full max-w-[960px] px-5 py-10 sm:px-8">
                 <EmptyState
                     icon={<Icon icon={UserCircle} size={44} />}
-                    message="Couldn't load your profile just now"
-                    secondaryText="The service is briefly unavailable. Please try again in a moment."
-                    button={{ label: 'Try again', onClick: refresh }}
+                    message={t('profilePage.transientTitle')}
+                    secondaryText={t('profilePage.transientBody')}
+                    button={{ label: t('common.tryAgain'), onClick: refresh }}
                 />
             </div>
         )
@@ -64,7 +68,7 @@ export function ProfilePage() {
                 </div>
                 <div>
                     <Button kind="secondary" size="sm" onClick={refresh}>
-                        Try again
+                        {t('common.tryAgain')}
                     </Button>
                 </div>
             </div>
@@ -75,5 +79,5 @@ export function ProfilePage() {
         return null
     }
 
-    return <ProfileView profile={profile} onLogout={logout} onDeleteAllData={handleDeleteAllData} />
+    return <ProfileView profile={profile} sharing={sharing} onLogout={logout} onDeleteAllData={handleDeleteAllData} />
 }

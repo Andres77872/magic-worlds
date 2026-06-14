@@ -32,6 +32,16 @@ const CHATS: CharacterChatSession[] = [
         turns: [{ id: 't2', type: 'user', content: 'Where is the key?', timestamp: '' }],
         updatedAt: '2026-06-11 09:00:00',
     },
+    {
+        id: 'chat-3',
+        kind: 'character_group',
+        character_ids: ['c1', 'c2'],
+        title: 'Lyra, Sable',
+        characters: CHARACTERS,
+        persona: { id: 'p1', name: 'Aria', stats: {}, role: 'persona' } as Character,
+        turns: [{ id: 't3', type: 'ai', content: 'Lyra: The door listens.', timestamp: '' }],
+        updatedAt: '2026-06-10 09:00:00',
+    },
 ]
 
 vi.mock('@/app/hooks', () => ({
@@ -52,6 +62,7 @@ beforeEach(() => {
 
 afterEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllEnvs()
 })
 
 describe('ChatroomPage', () => {
@@ -61,6 +72,7 @@ describe('ChatroomPage', () => {
         expect(screen.getByTestId('chatroom-page')).toBeInTheDocument()
         expect(screen.getByText('Lyra')).toBeInTheDocument()
         expect(screen.getByText('Sable')).toBeInTheDocument()
+        expect(screen.getByText('Lyra, Sable')).toBeInTheDocument()
         expect(loadData).toHaveBeenCalledWith({ silent: true })
 
         fireEvent.click(screen.getByRole('button', { name: 'Resume chat: Lyra' }))
@@ -76,10 +88,42 @@ describe('ChatroomPage', () => {
 
         expect(screen.queryByText('Lyra')).not.toBeInTheDocument()
         expect(screen.getByText('Sable')).toBeInTheDocument()
+        expect(screen.getByText('Lyra, Sable')).toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
 
         expect(screen.getByText('Lyra')).toBeInTheDocument()
+    })
+
+    it('navigates to character selection for a new group chat', () => {
+        render(<ChatroomPage />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'New group chat' }))
+
+        expect(setPage).toHaveBeenCalledWith('gallery-characters', {
+            hash: '#/gallery/characters?mode=group-chat',
+        })
+    })
+
+    it('hides voice-call actions while the frontend flag is off', async () => {
+        vi.stubEnv('VITE_VOICE_MODE_ENABLED', 'false')
+        render(<ChatroomPage />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))
+
+        expect(await screen.findByRole('menuitem', { name: 'Resume chat' })).toBeInTheDocument()
+        expect(screen.queryByRole('menuitem', { name: 'Start voice call' })).not.toBeInTheDocument()
+    })
+
+    it('resumes an existing chat in voice mode when the flag is enabled', async () => {
+        vi.stubEnv('VITE_VOICE_MODE_ENABLED', 'true')
+        render(<ChatroomPage />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))
+        fireEvent.click(await screen.findByRole('menuitem', { name: 'Start voice call' }))
+
+        expect(resumeCharacterChat).toHaveBeenCalledWith(CHATS[0], { mode: 'voice' })
+        expect(setPage).toHaveBeenCalledWith('character-chat')
     })
 
     it('deletes a chat after confirmation', async () => {

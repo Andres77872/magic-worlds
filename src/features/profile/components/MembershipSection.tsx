@@ -1,5 +1,8 @@
 import { CheckCircle2, Coins, Crown, Lock, Rocket, Sparkles, WalletCards } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
+import { useLanguage } from '@/app/hooks'
 import type {
     MembershipPaygProfileCard,
     MembershipProfileCardCredits,
@@ -23,10 +26,12 @@ const VISUAL_ICONS: Record<string, LucideIcon> = {
 }
 
 export function MembershipSection({ profile }: MembershipSectionProps) {
+    const { t } = useTranslation()
+    const { intlLocale } = useLanguage()
     const membership = profile.membership
 
     if (!membership?.profile_cards) {
-        return <LegacyCreditsCard credits={profile.user_usage} />
+        return <LegacyCreditsCard credits={profile.user_usage} t={t} locale={intlLocale} />
     }
 
     const { profile_cards: cards } = membership
@@ -35,21 +40,21 @@ export function MembershipSection({ profile }: MembershipSectionProps) {
         <section className="flex flex-col gap-4" aria-labelledby="membership-heading">
             <SectionHeader
                 icon={WalletCards}
-                title={<span id="membership-heading">Membership</span>}
-                right={<Badge tone="neutral">{formatNumber(membership.total_available_credits)} available</Badge>}
+                title={<span id="membership-heading">{t('membership.title')}</span>}
+                right={<Badge tone="neutral">{t('membership.available', { value: formatNumber(membership.total_available_credits, intlLocale) })}</Badge>}
             />
 
             <div className="grid gap-4 md:grid-cols-3">
                 {cards.tiers.map((tier) => (
-                    <TierCard key={tier.plan_code} tier={tier} />
+                    <TierCard key={tier.plan_code} tier={tier} t={t} locale={intlLocale} />
                 ))}
             </div>
-            <PaygCard card={cards.payg} />
+            <PaygCard card={cards.payg} t={t} locale={intlLocale} />
         </section>
     )
 }
 
-function TierCard({ tier }: { tier: MembershipTierProfileCard }) {
+function TierCard({ tier, t, locale }: { tier: MembershipTierProfileCard; t: TFunction; locale: string }) {
     const isCurrent = tier.status === 'current'
     const icon = iconFor(tier.visual.icon)
 
@@ -72,7 +77,7 @@ function TierCard({ tier }: { tier: MembershipTierProfileCard }) {
                 <p className="min-h-[44px] font-ui text-[13px] leading-relaxed text-parchment-300">{tier.description}</p>
             </div>
 
-            <AllowanceStat credits={tier.credits} current={isCurrent} />
+            <AllowanceStat credits={tier.credits} current={isCurrent} t={t} locale={locale} />
 
             <div className="flex flex-col gap-2">
                 {tier.highlights.slice(0, 3).map((highlight) => (
@@ -89,7 +94,7 @@ function TierCard({ tier }: { tier: MembershipTierProfileCard }) {
                 ))}
             </div>
 
-            <LimitRows limits={tier.limits} preview={!isCurrent} />
+            <LimitRows limits={tier.limits} preview={!isCurrent} t={t} locale={locale} />
 
             <Button kind={isCurrent ? 'secondary' : 'ghost'} size="sm" disabled full className="mt-auto">
                 {tier.action.label}
@@ -117,7 +122,17 @@ function TierIcon({ icon, current }: { icon: LucideIcon; current: boolean }) {
  * Plan-spec allowance stat. Live usage intentionally lives in the separate
  * "Today's usage" section, never on the plan cards.
  */
-function AllowanceStat({ credits, current }: { credits: MembershipProfileCardCredits; current: boolean }) {
+function AllowanceStat({
+    credits,
+    current,
+    t,
+    locale,
+}: {
+    credits: MembershipProfileCardCredits
+    current: boolean
+    t: TFunction
+    locale: string
+}) {
     return (
         <div className="flex flex-col gap-1">
             <div className="flex items-baseline gap-1.5">
@@ -127,18 +142,18 @@ function AllowanceStat({ credits, current }: { credits: MembershipProfileCardCre
                         current ? 'text-parchment-50' : 'text-parchment-100',
                     )}
                 >
-                    {formatNumber(credits.max)}
+                    {formatNumber(credits.max, locale)}
                 </span>
-                <span className="font-ui text-[12px] text-parchment-400">credits / day</span>
+                <span className="font-ui text-[12px] text-parchment-400">{t('membership.creditsPerDay')}</span>
             </div>
             <span className="font-ui text-[12px] text-parchment-400">
-                {current ? 'Included daily credits' : 'Indicative daily included credits'}
+                {current ? t('membership.includedDailyCredits') : t('membership.indicativeDailyIncludedCredits')}
             </span>
         </div>
     )
 }
 
-function PaygCard({ card }: { card: MembershipPaygProfileCard }) {
+function PaygCard({ card, t, locale }: { card: MembershipPaygProfileCard; t: TFunction; locale: string }) {
     return (
         <Card className="border-ember-500/25 p-5">
             <div className="flex flex-col gap-5 md:flex-row md:gap-8">
@@ -146,18 +161,18 @@ function PaygCard({ card }: { card: MembershipPaygProfileCard }) {
                     <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
                             <IconTile icon={Coins} tone="ember" size="sm" />
-                            <h3 className="font-display text-h3 font-semibold text-parchment-50">Pay as you go</h3>
+                            <h3 className="font-display text-h3 font-semibold text-parchment-50">{t('membership.paygTitle')}</h3>
                         </div>
                         <Badge tone="ember">{card.badge}</Badge>
                     </div>
 
                     <div className="rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3">
-                        <Eyebrow tone="muted">Wallet balance</Eyebrow>
+                        <Eyebrow tone="muted">{t('membership.walletBalance')}</Eyebrow>
                         <div className="mt-1.5 flex items-baseline gap-2">
                             <span className="font-display text-h2 font-semibold leading-none text-ember-300">
-                                {formatNumber(card.balance)}
+                                {formatNumber(card.balance, locale)}
                             </span>
-                            <span className="font-ui text-[13px] text-parchment-300">credits</span>
+                            <span className="font-ui text-[13px] text-parchment-300">{t('membership.credits')}</span>
                         </div>
                     </div>
                 </div>
@@ -166,20 +181,20 @@ function PaygCard({ card }: { card: MembershipPaygProfileCard }) {
                     <p className="font-ui text-[13px] leading-relaxed text-parchment-300">{card.description}</p>
 
                     <div className="flex flex-col gap-1.5">
-                        <Eyebrow tone="muted">How it works</Eyebrow>
+                        <Eyebrow tone="muted">{t('membership.howItWorks')}</Eyebrow>
                         <div className="flex flex-wrap gap-2">
-                            <Tag>1 credit per action</Tag>
-                            {card.non_expiring && <Tag>Non-expiring</Tag>}
-                            <Tag>After daily credits</Tag>
+                            <Tag>{t('membership.oneCredit')}</Tag>
+                            {card.non_expiring && <Tag>{t('membership.nonExpiring')}</Tag>}
+                            <Tag>{t('membership.afterDailyCredits')}</Tag>
                         </div>
                     </div>
 
                     {card.covered_operations.length > 0 && (
                         <div className="flex flex-col gap-1.5">
-                            <Eyebrow tone="muted">Covers</Eyebrow>
+                            <Eyebrow tone="muted">{t('membership.covers')}</Eyebrow>
                             <div className="flex flex-wrap gap-2">
                                 {card.covered_operations.map((operation) => (
-                                    <Tag key={operation}>{operationLabel(operation)}</Tag>
+                                    <Tag key={operation}>{operationName(operation, t)}</Tag>
                                 ))}
                             </div>
                         </div>
@@ -194,12 +209,22 @@ function PaygCard({ card }: { card: MembershipPaygProfileCard }) {
     )
 }
 
-function LimitRows({ limits, preview = false }: { limits: Record<string, MembershipProfileCardLimit>; preview?: boolean }) {
+function LimitRows({
+    limits,
+    preview = false,
+    t,
+    locale,
+}: {
+    limits: Record<string, MembershipProfileCardLimit>
+    preview?: boolean
+    t: TFunction
+    locale: string
+}) {
     const entries = orderedLimitEntries(limits)
 
     return (
         <div className="flex flex-col gap-1.5">
-            <Eyebrow tone="muted">{preview ? 'Indicative limits' : 'Daily limits'}</Eyebrow>
+            <Eyebrow tone="muted">{preview ? t('membership.indicativeLimits') : t('membership.dailyLimits')}</Eyebrow>
             <div className="flex flex-col overflow-hidden rounded-lg border border-parchment-50/[.08]">
                 {entries.map(([operation, limit]) => (
                     <div
@@ -207,11 +232,11 @@ function LimitRows({ limits, preview = false }: { limits: Record<string, Members
                         className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-parchment-50/[.06] px-3 py-2 last:border-b-0"
                     >
                         <span className="block min-w-0 truncate font-ui text-[12px] font-semibold text-parchment-100">
-                            {operationLabel(operation)}
+                            {operationName(operation, t)}
                         </span>
                         <div className="text-right font-ui text-[11px] text-parchment-300">
-                            <span className="block">{formatNumber(limit.daily_limit)}/day</span>
-                            <span className="block text-parchment-500">{limit.max_in_flight} in-flight</span>
+                            <span className="block">{formatNumber(limit.daily_limit, locale)}{t('membership.perDay')}</span>
+                            <span className="block text-parchment-500">{t('membership.inFlight', { count: limit.max_in_flight })}</span>
                         </div>
                     </div>
                 ))}
@@ -220,15 +245,15 @@ function LimitRows({ limits, preview = false }: { limits: Record<string, Members
     )
 }
 
-function LegacyCreditsCard({ credits }: { credits: number }) {
+function LegacyCreditsCard({ credits, t, locale }: { credits: number; t: TFunction; locale: string }) {
     return (
         <section className="flex flex-col gap-4" aria-labelledby="membership-heading">
-            <SectionHeader icon={WalletCards} title={<span id="membership-heading">Membership</span>} />
+            <SectionHeader icon={WalletCards} title={<span id="membership-heading">{t('membership.title')}</span>} />
             <Card className="flex flex-col gap-2 px-5 py-4">
-                <Eyebrow tone="muted">Available credits</Eyebrow>
-                <span className="font-display text-h2 font-semibold leading-none text-parchment-50">{formatNumber(credits)}</span>
+                <Eyebrow tone="muted">{t('membership.availableCredits')}</Eyebrow>
+                <span className="font-display text-h2 font-semibold leading-none text-parchment-50">{formatNumber(credits, locale)}</span>
                 <p className="font-ui text-[13px] text-parchment-400">
-                    Detailed membership tiers will appear here when the profile API includes them.
+                    {t('membership.legacyBody')}
                 </p>
             </Card>
         </section>
@@ -237,4 +262,8 @@ function LegacyCreditsCard({ credits }: { credits: number }) {
 
 function iconFor(icon: string) {
     return VISUAL_ICONS[icon] ?? Sparkles
+}
+
+function operationName(operation: string, t: TFunction) {
+    return t(`membership.operations.${operation}`, { defaultValue: operationLabel(operation) })
 }

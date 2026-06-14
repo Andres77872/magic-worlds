@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { BookMarked, BookOpenText, Plus } from 'lucide-react'
 import type { StoryCardKind } from '@/shared'
 import { EmptyState } from '@/ui/components/common/EmptyState'
@@ -24,6 +25,7 @@ interface CodexPanelProps {
 }
 
 export function CodexPanel({ codex, requireAuth }: CodexPanelProps) {
+    const { t } = useTranslation()
     const [cardPickerOpen, setCardPickerOpen] = useState(false)
     const [lorebookPickerOpen, setLorebookPickerOpen] = useState(false)
     const [editingEntry, setEditingEntry] = useState<CodexEntry | null>(null)
@@ -35,10 +37,10 @@ export function CodexPanel({ codex, requireAuth }: CodexPanelProps) {
     const addButtons = (
         <>
             <Button kind="secondary" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={openCardPicker}>
-                Add cards
+                {t('novelEditor.codex.addCards')}
             </Button>
             <Button kind="secondary" size="sm" iconLeft={<Icon icon={BookMarked} size={14} />} onClick={openLorebookPicker}>
-                Add lorebook
+                {t('novelEditor.codex.addLorebook')}
             </Button>
         </>
     )
@@ -46,34 +48,34 @@ export function CodexPanel({ codex, requireAuth }: CodexPanelProps) {
     return (
         <aside
             className="flex min-h-0 flex-col border-t border-parchment-50/10 bg-ink-900/35 lg:border-l lg:border-t-0"
-            aria-label="Codex"
+            aria-label={t('novelEditor.codex.title')}
             data-testid="codex-panel"
         >
             <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-4">
                 <h2 className="m-0 flex items-center gap-2 font-ui text-sm font-semibold text-parchment-100">
-                    Codex
+                    {t('novelEditor.codex.title')}
                     {codex.entries.length > 0 && <Badge tone="ember">{codex.entries.length}</Badge>}
                 </h2>
                 <div className="flex gap-1.5">{addButtons}</div>
             </div>
             <p className="m-0 px-4 pb-3 font-ui text-xs text-parchment-400">
-                Cloned copies that feed the AI and power @mentions in the editor.
+                {t('novelEditor.codex.subtitle')}
             </p>
 
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
                 {codex.entries.length === 0 ? (
                     <EmptyState
                         icon={<Icon icon={BookOpenText} size={32} />}
-                        message="Your codex is empty"
-                        secondaryText="Add cards or clone lorebook entries to ground the AI and unlock @mentions."
+                        message={t('novelEditor.codex.emptyTitle')}
+                        secondaryText={t('novelEditor.codex.emptyDescription')}
                     >
                         <div className="flex flex-wrap justify-center gap-2">{addButtons}</div>
                     </EmptyState>
                 ) : (
                     codex.groups.map((group) => (
-                        <section key={group.kind} aria-label={group.label}>
+                        <section key={group.kind} aria-label={t(group.labelKey)}>
                             <div className="mb-2 flex items-center gap-2">
-                                <Eyebrow tone={groupTone(group.kind)}>{group.label}</Eyebrow>
+                                <Eyebrow tone={groupTone(group.kind)}>{t(group.labelKey)}</Eyebrow>
                                 <span className="font-ui text-xs text-parchment-500">{group.entries.length}</span>
                             </div>
                             <div className="flex flex-col gap-1.5">
@@ -120,13 +122,13 @@ export function CodexPanel({ codex, requireAuth }: CodexPanelProps) {
             />
             <ConfirmDialog
                 visible={pendingRemove !== null}
-                title="Remove from codex"
+                title={t('novelEditor.codex.removeTitle')}
                 message={
                     pendingRemove
-                        ? `Remove "${pendingRemove.label}"? This novel's copy will be deleted; the source card is untouched.`
+                        ? t('novelEditor.codex.removeMessage', { label: pendingRemove.label })
                         : ''
                 }
-                confirmLabel="Remove"
+                confirmLabel={t('novelEditor.codex.remove')}
                 variant="danger"
                 onConfirm={() => {
                     if (pendingRemove && requireAuth()) void codex.removeEntry(pendingRemove)

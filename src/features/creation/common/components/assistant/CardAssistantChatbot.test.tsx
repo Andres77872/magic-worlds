@@ -25,7 +25,12 @@ vi.mock('@/infrastructure/api', () => {
             return this.status >= 500 || this.retryable === true
         }
     }
-    return { ApiError, apiService: mocks }
+    return {
+        ApiError,
+        apiService: mocks,
+        resolveMediaUrl: (url?: string | null) => url ?? undefined,
+        isProtectedMediaUrl: () => false,
+    }
 })
 
 import { ApiError } from '@/infrastructure/api'
@@ -225,6 +230,25 @@ describe('CardAssistantChatbot', () => {
         expect(mocks.createCardAssistantConversation).not.toHaveBeenCalled()
     })
 
+    it('resets locally from the header New chat shortcut', async () => {
+        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [CONVO] })
+        mocks.getCardAssistantConversation.mockResolvedValue({
+            conversation: CONVO,
+            messages: [{ message_id: 10, conversation_id: 2, sequence_no: 1, role: 'user', status: 'completed', content: 'old message' }],
+            card: null,
+        })
+        render(<CardAssistantChatbot {...defaultProps()} />)
+
+        openPanel()
+        await waitFor(() => expect(screen.getByText('old message')).toBeInTheDocument())
+
+        fireEvent.click(screen.getByRole('button', { name: /new chat/i }))
+
+        await waitFor(() => expect(screen.getByText('Shape this card with words')).toBeInTheDocument())
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+        expect(mocks.createCardAssistantConversation).not.toHaveBeenCalled()
+    })
+
     it('deletes a conversation after the inline confirm', async () => {
         mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [CONVO, OTHER] })
         render(<CardAssistantChatbot {...defaultProps()} />)
@@ -260,7 +284,7 @@ describe('CardAssistantChatbot', () => {
         expect(onCard).not.toHaveBeenCalled()
 
         fireEvent.click(screen.getByRole('button', { name: /apply to form/i }))
-        expect(onCard).toHaveBeenCalledWith(snapshot)
+        await waitFor(() => expect(onCard).toHaveBeenCalledWith(snapshot))
     })
 
     it('surfaces stream failures with a Retry that re-sends the message', async () => {

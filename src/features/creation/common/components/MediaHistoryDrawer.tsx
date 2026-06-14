@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { Check, Download, Eye, ImageOff, Loader2, Music2, Trash2 } from 'lucide-react'
 import type { CardMediaTargetType, ImageJobPublic, ThemeSongJobPublic } from '@/shared'
 import { apiService, resolveMediaUrl } from '@/infrastructure/api'
@@ -91,6 +92,7 @@ export function MediaHistoryDrawer({
     tab,
     onTabChange,
 }: MediaHistoryDrawerProps) {
+    const { t } = useTranslation()
     const [lightboxUrl, setLightboxUrl] = useState<string | undefined>(undefined)
 
     /* ---- image gallery state ---- */
@@ -118,12 +120,12 @@ export function MediaHistoryDrawer({
                 setImgNext(res.next_offset ?? null)
                 imgLoadedRef.current = true
             } catch {
-                setImgError('Could not load your image gallery. Try again.')
+                setImgError(t('creation.common.mediaHistory.errors.loadImages'))
             } finally {
                 setImgLoading(false)
             }
         },
-        [],
+        [t],
     )
 
     const loadThemes = useCallback(
@@ -138,12 +140,12 @@ export function MediaHistoryDrawer({
                 setThemeNext(res.next_offset ?? null)
                 themeLoadedRef.current = true
             } catch {
-                setThemeError("Could not load this card's themes. Try again.")
+                setThemeError(t('creation.common.mediaHistory.errors.loadThemes'))
             } finally {
                 setThemeLoading(false)
             }
         },
-        [cardType, themeTargetId],
+        [cardType, themeTargetId, t],
     )
 
     // On close, forget which tabs were loaded so a fresh open refetches (picking up
@@ -169,7 +171,7 @@ export function MediaHistoryDrawer({
             setImages((prev) => prev.filter((i) => i.assetId !== img.assetId))
             if (sameUrl(currentImageUrl, img.url)) onSelectImage(undefined)
         } catch {
-            setImgError('Could not delete that image. Try again.')
+            setImgError(t('creation.common.mediaHistory.errors.deleteImage'))
         }
     }
 
@@ -181,7 +183,7 @@ export function MediaHistoryDrawer({
             setThemes((prev) => prev.filter((j) => j.job_id !== job.job_id))
             if (sameUrl(currentThemeSongUrl, asset.url)) onSelectTheme(undefined)
         } catch {
-            setThemeError('Could not delete that theme. Try again.')
+            setThemeError(t('creation.common.mediaHistory.errors.deleteTheme'))
         }
     }
 
@@ -198,7 +200,7 @@ export function MediaHistoryDrawer({
             const title = job.lyrics?.song_title?.trim() || 'theme'
             downloadBlob(blob, `${safeFilename(title, 'theme')}.${asset.output_format ?? 'mp3'}`)
         } catch {
-            setThemeError('Could not download that theme. Try again.')
+            setThemeError(t('creation.common.mediaHistory.errors.downloadTheme'))
         } finally {
             setDownloadingThemeId(null)
         }
@@ -219,33 +221,47 @@ export function MediaHistoryDrawer({
         </button>
     )
 
-    const imageLabel = cardType === 'adventure_template' ? 'cover image' : cardType === 'item' ? 'item image' : 'portrait'
-    const cardNoun = cardType === 'adventure_template' ? 'adventure' : cardType === 'item' ? 'item' : cardType
+    const imageLabel = cardType === 'adventure_template'
+        ? t('creation.common.mediaHistory.imageLabel.cover')
+        : cardType === 'item'
+          ? t('creation.common.mediaHistory.imageLabel.item')
+          : t('creation.common.mediaHistory.imageLabel.portrait')
+    const cardNoun = cardType === 'adventure_template'
+        ? t('creation.common.mediaHistory.cardNoun.adventure')
+        : cardType === 'item'
+          ? t('creation.common.mediaHistory.cardNoun.item')
+          : cardType === 'world'
+            ? t('creation.common.mediaHistory.cardNoun.world')
+            : t('creation.common.mediaHistory.cardNoun.character')
 
     return (
         <Drawer
             open={open}
             onClose={onClose}
             size="2xl"
-            eyebrow={<Eyebrow tone="arcane">Media history</Eyebrow>}
-            title="Browse & set defaults"
+            eyebrow={<Eyebrow tone="arcane">{t('creation.common.mediaHistory.eyebrow')}</Eyebrow>}
+            title={t('creation.common.mediaHistory.title')}
             footer={
                 <Button kind="secondary" onClick={onClose}>
-                    Done
+                    {t('creation.common.mediaHistory.done')}
                 </Button>
             }
         >
             <ImageLightbox open={Boolean(lightboxUrl)} src={lightboxUrl} alt={cardName} onClose={() => setLightboxUrl(undefined)} />
 
             <div className="mb-4 flex items-center gap-5 border-b border-parchment-50/10">
-                {tabBtn('images', 'Your gallery', images.length)}
-                {tabBtn('themes', "This card's themes", themes.length)}
+                {tabBtn('images', t('creation.common.mediaHistory.tabImages'), images.length)}
+                {tabBtn('themes', t('creation.common.mediaHistory.tabThemes'), themes.length)}
             </div>
 
             {tab === 'images' ? (
                 <section className="flex flex-col gap-4">
                     <p className="font-narrative text-xs leading-snug text-parchment-400">
-                        Every {imageLabel} you've generated. Click <span className="text-parchment-200">Set</span> to make one this {cardNoun}'s default.
+                        <Trans
+                            i18nKey="creation.common.mediaHistory.imagesIntro"
+                            values={{ label: imageLabel, noun: cardNoun }}
+                            components={[<span className="text-parchment-200" />]}
+                        />
                     </p>
 
                     {imgError && <p className="text-sm text-blood-500">{imgError}</p>}
@@ -253,8 +269,8 @@ export function MediaHistoryDrawer({
                     {images.length === 0 && !imgLoading && !imgError ? (
                         <EmptyState
                             icon={ImageOff}
-                            title="No images yet"
-                            hint={`Generate a ${imageLabel} from the studio and it'll appear here.`}
+                            title={t('creation.common.mediaHistory.noImagesTitle')}
+                            hint={t('creation.common.mediaHistory.noImagesHint', { label: imageLabel })}
                         />
                     ) : (
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -272,17 +288,17 @@ export function MediaHistoryDrawer({
                                         <AuthenticatedImage src={resolved} alt={cardName} loading="lazy" className="h-full w-full object-cover" />
                                         {current && (
                                             <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-arcane-500/90 px-2 py-0.5 font-ui text-[10px] font-semibold uppercase tracking-wide text-parchment-50">
-                                                <Check size={11} strokeWidth={2.5} /> Current
+                                                <Check size={11} strokeWidth={2.5} /> {t('creation.common.mediaHistory.current')}
                                             </span>
                                         )}
                                         <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-ink-900/85 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                                             <span className="font-ui text-[10px] text-parchment-300">{formatWhen(img.createdAt)}</span>
                                             <div className="flex items-center gap-1">
-                                                <IconButton label="View full size" size="sm" onClick={() => setLightboxUrl(resolved)}>
+                                                <IconButton label={t('creation.common.mediaHistory.viewFullSize')} size="sm" onClick={() => setLightboxUrl(resolved)}>
                                                     <Eye size={15} strokeWidth={1.75} />
                                                 </IconButton>
                                                 <IconButton
-                                                    label={current ? 'Current default' : 'Set as default'}
+                                                    label={current ? t('creation.common.mediaHistory.currentDefault') : t('creation.common.mediaHistory.setAsDefault')}
                                                     size="sm"
                                                     tone={current ? 'default' : 'active'}
                                                     disabled={current}
@@ -290,7 +306,7 @@ export function MediaHistoryDrawer({
                                                 >
                                                     <Check size={15} strokeWidth={1.75} />
                                                 </IconButton>
-                                                <IconButton label="Delete image" size="sm" tone="danger" onClick={() => void handleDeleteImage(img)}>
+                                                <IconButton label={t('creation.common.mediaHistory.deleteImage')} size="sm" tone="danger" onClick={() => void handleDeleteImage(img)}>
                                                     <Trash2 size={15} strokeWidth={1.75} />
                                                 </IconButton>
                                             </div>
@@ -301,34 +317,45 @@ export function MediaHistoryDrawer({
                         </div>
                     )}
 
-                    {imgLoading && <LoadingRow label="Loading gallery…" />}
+                    {imgLoading && <LoadingRow label={t('creation.common.mediaHistory.loadingGallery')} />}
                     {imgNext != null && !imgLoading && (
                         <Button kind="secondary" size="sm" onClick={() => void loadImages(imgNext)}>
-                            Load more
+                            {t('creation.common.mediaHistory.loadMore')}
                         </Button>
                     )}
                 </section>
             ) : (
                 <section className="flex flex-col gap-4">
                     {!themeTargetId ? (
-                        <EmptyState icon={Music2} title="Save the card first" hint="Once the card is saved, its generated themes show up here." />
+                        <EmptyState
+                            icon={Music2}
+                            title={t('creation.common.mediaHistory.saveFirstTitle')}
+                            hint={t('creation.common.mediaHistory.saveFirstHint')}
+                        />
                     ) : (
                         <>
                             <p className="font-narrative text-xs leading-snug text-parchment-400">
-                                Themes you've composed for this card. Click <span className="text-parchment-200">Set</span> to make one its default.
+                                <Trans
+                                    i18nKey="creation.common.mediaHistory.themesIntro"
+                                    components={[<span className="text-parchment-200" />]}
+                                />
                             </p>
 
                             {themeError && <p className="text-sm text-blood-500">{themeError}</p>}
 
                             {themes.length === 0 && !themeLoading && !themeError ? (
-                                <EmptyState icon={Music2} title="No themes yet" hint="Compose a theme from the studio and it'll appear here." />
+                                <EmptyState
+                                    icon={Music2}
+                                    title={t('creation.common.mediaHistory.noThemesTitle')}
+                                    hint={t('creation.common.mediaHistory.noThemesHint')}
+                                />
                             ) : (
                                 <ul className="flex flex-col gap-3">
                                     {themes.map((job) => {
                                         const asset = firstThemeAsset(job)
                                         if (!asset) return null
                                         const current = sameUrl(currentThemeSongUrl, asset.url)
-                                        const title = job.lyrics?.song_title?.trim() || `Theme · ${formatWhen(job.created_at)}`
+                                        const title = job.lyrics?.song_title?.trim() || t('creation.common.mediaHistory.themeTitleFallback', { when: formatWhen(job.created_at) })
                                         const tags = job.lyrics?.style_tags ?? []
                                         return (
                                             <li
@@ -346,7 +373,7 @@ export function MediaHistoryDrawer({
                                                     <div className="flex shrink-0 items-center gap-1.5">
                                                         {current ? (
                                                             <span className="inline-flex items-center gap-1 rounded-full bg-arcane-500/90 px-2 py-0.5 font-ui text-[10px] font-semibold uppercase tracking-wide text-parchment-50">
-                                                                <Check size={11} strokeWidth={2.5} /> Current
+                                                                <Check size={11} strokeWidth={2.5} /> {t('creation.common.mediaHistory.current')}
                                                             </span>
                                                         ) : (
                                                             <Button
@@ -355,11 +382,11 @@ export function MediaHistoryDrawer({
                                                                 onClick={() => onSelectTheme(asset.url)}
                                                                 iconLeft={<Icon icon={Check} size={14} />}
                                                             >
-                                                                Set
+                                                                {t('creation.common.mediaHistory.set')}
                                                             </Button>
                                                         )}
                                                         <IconButton
-                                                            label="Download theme"
+                                                            label={t('creation.common.mediaHistory.downloadTheme')}
                                                             size="sm"
                                                             disabled={downloadingThemeId === job.job_id}
                                                             onClick={() => void handleDownloadTheme(job)}
@@ -370,7 +397,7 @@ export function MediaHistoryDrawer({
                                                                 <Download size={15} strokeWidth={1.75} />
                                                             )}
                                                         </IconButton>
-                                                        <IconButton label="Delete theme" size="sm" tone="danger" onClick={() => void handleDeleteTheme(job)}>
+                                                        <IconButton label={t('creation.common.mediaHistory.deleteTheme')} size="sm" tone="danger" onClick={() => void handleDeleteTheme(job)}>
                                                             <Trash2 size={15} strokeWidth={1.75} />
                                                         </IconButton>
                                                     </div>
@@ -400,10 +427,10 @@ export function MediaHistoryDrawer({
                                 </ul>
                             )}
 
-                            {themeLoading && <LoadingRow label="Loading themes…" />}
+                            {themeLoading && <LoadingRow label={t('creation.common.mediaHistory.loadingThemes')} />}
                             {themeNext != null && !themeLoading && (
                                 <Button kind="secondary" size="sm" onClick={() => void loadThemes(themeNext)}>
-                                    Load more
+                                    {t('creation.common.mediaHistory.loadMore')}
                                 </Button>
                             )}
                         </>

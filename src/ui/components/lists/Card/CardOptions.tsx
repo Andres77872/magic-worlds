@@ -9,6 +9,7 @@ import {
     type RefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { ExternalLink, MoreVertical, Pencil, Play, Trash2 } from 'lucide-react'
 import { useClickOutside } from '../../../../shared/hooks/useClickOutside'
 import { cx, Icon, IconButton } from '@/ui/primitives'
@@ -268,8 +269,10 @@ export function CardOptions({
     menuTestId = 'card-options-menu',
     optionTestIdPrefix = 'card-option',
     onOpenChange,
-    'aria-label': ariaLabel = 'Card options',
+    'aria-label': ariaLabelProp,
 }: CardOptionsProps) {
+    const { t } = useTranslation()
+    const ariaLabel = ariaLabelProp ?? t('ui.cardOptions.label')
     const id = useId()
     const buttonId = `card-options-button-${id}`
     const menuId = `card-options-menu-${id}`

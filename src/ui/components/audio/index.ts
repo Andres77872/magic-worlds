@@ -1,4 +1,5 @@
 export { AudioWavePlayer } from './AudioWavePlayer'
+export { VoiceClipPlayer, type VoiceClipPlayerProps } from './VoiceClipPlayer'
 export { PlaylistDock } from './PlaylistDock'
 export { WaveformSeekBar } from './WaveformSeekBar'
 export { claimAudioFocus, releaseAudioFocus } from './audioFocus'

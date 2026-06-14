@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { I18nextProvider } from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { i18n } from '@/app/i18n'
 import type { BackgroundTaskBuckets, BackgroundTaskPublic, Character } from '@/shared'
 import { formatApiDateTime } from '@/utils/time'
 import { TasksDrawer } from './TasksDrawer'
@@ -71,7 +73,7 @@ const character: Character = {
     createdAt: '2026-06-01T09:00:00',
 }
 
-function renderDrawer(buckets: BackgroundTaskBuckets) {
+function mockDrawerState(buckets: BackgroundTaskBuckets) {
     mocks.useBackgroundTasks.mockReturnValue({
         tasks: [...buckets.active, ...buckets.completed, ...buckets.failed],
         taskBuckets: buckets,
@@ -91,11 +93,22 @@ function renderDrawer(buckets: BackgroundTaskBuckets) {
         items: [],
         templateAdventures: [],
     })
+}
+
+function renderDrawer(buckets: BackgroundTaskBuckets) {
+    mockDrawerState(buckets)
     return render(<TasksDrawer />)
 }
 
+function renderDrawerSpanish(buckets: BackgroundTaskBuckets) {
+    mockDrawerState(buckets)
+    const localI18n = i18n.cloneInstance({ lng: 'es' })
+    return render(<I18nextProvider i18n={localI18n}><TasksDrawer /></I18nextProvider>)
+}
+
 describe('TasksDrawer', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+        await i18n.changeLanguage('en')
         vi.resetAllMocks()
     })
 
@@ -177,5 +190,22 @@ describe('TasksDrawer', () => {
 
         const created = await screen.findByText(`Created ${rtf.format(-9, 'minute')}`)
         expect(created).toHaveAttribute('title', absolute)
+    })
+
+    it('renders drawer tabs, statuses, and audio labels in Spanish', async () => {
+        renderDrawerSpanish({
+            active: [],
+            completed: [task('completed', 'done-1')],
+            failed: [],
+        })
+
+        expect(await screen.findByText('Tareas')).toBeInTheDocument()
+        expect(screen.getByRole('group', { name: 'Filtrar tareas por estado' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /Activas\s*0/i })).toHaveAttribute('aria-pressed', 'true')
+        expect(screen.getByText('No hay tareas activas')).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: /Completadas\s*1/i }))
+        expect(screen.getByText('Listo')).toBeInTheDocument()
+        expect(screen.getByText('Tema de Moonlit Card')).toBeInTheDocument()
     })
 })

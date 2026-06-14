@@ -8,14 +8,15 @@
 
 import type { ReactNode } from 'react'
 import { Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { controlClass, cx, Icon, PageHeader } from '@/ui/primitives'
 
-function greeting(): string {
+function greetingKey(): string {
     const hour = new Date().getHours()
-    if (hour < 5) return 'Good night'
-    if (hour < 12) return 'Good morning'
-    if (hour < 18) return 'Good afternoon'
-    return 'Good evening'
+    if (hour < 5) return 'landing.greeting.night'
+    if (hour < 12) return 'landing.greeting.morning'
+    if (hour < 18) return 'landing.greeting.afternoon'
+    return 'landing.greeting.evening'
 }
 
 export interface GreetingHeaderProps {
@@ -28,11 +29,12 @@ export interface GreetingHeaderProps {
 }
 
 export function GreetingHeader({ query, onQueryChange, resultsCount, action }: GreetingHeaderProps) {
+    const { t } = useTranslation()
     const searching = query.trim() !== ''
     return (
         <PageHeader
-            eyebrow={greeting()}
-            title="Who will you become tonight?"
+            eyebrow={t(greetingKey())}
+            title={t('landing.greeting.title')}
             size="md"
             actions={
                 <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto md:justify-end">
@@ -48,8 +50,8 @@ export function GreetingHeader({ query, onQueryChange, resultsCount, action }: G
                             onKeyDown={(e) => {
                                 if (e.key === 'Escape') onQueryChange('')
                             }}
-                            placeholder="Search everything — characters, worlds, adventures…"
-                            aria-label="Search your library"
+                            placeholder={t('landing.greeting.searchPlaceholder')}
+                            aria-label={t('landing.greeting.searchLabel')}
                             className={cx(
                                 `${controlClass} rounded-full pl-10`,
                                 searching && 'border-ember-500/45 pr-20 shadow-glow-ember',
@@ -60,12 +62,12 @@ export function GreetingHeader({ query, onQueryChange, resultsCount, action }: G
                                 className="pointer-events-none absolute right-4 font-mono text-[11px] text-ember-300"
                                 data-testid="greeting-search-count"
                             >
-                                {resultsCount} found
+                                {t('landing.greeting.found', { count: resultsCount })}
                             </span>
                         )}
                         <span className="sr-only" aria-live="polite">
                             {searching && resultsCount !== undefined
-                                ? `${resultsCount} results for ${query.trim()}`
+                                ? t('landing.greeting.resultsAnnounce', { count: resultsCount, query: query.trim() })
                                 : ''}
                         </span>
                     </div>

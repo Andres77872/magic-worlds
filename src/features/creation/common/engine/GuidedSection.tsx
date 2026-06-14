@@ -7,6 +7,7 @@
  * e.g. the persona-only Boundaries section while editing an AI character.
  */
 import { useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { StudioSection } from '../components/StudioSection'
 import { GuidedFieldRow } from './GuidedFieldRow'
@@ -26,6 +27,7 @@ export interface GuidedSectionProps {
 }
 
 export function GuidedSection({ section, guided, children, footer, right }: GuidedSectionProps) {
+    const { t } = useTranslation()
     const [pendingRemove, setPendingRemove] = useState<CardFieldDefinition | null>(null)
 
     const inSection = (field: CardFieldDefinition) => section.fieldIds.includes(field.id)
@@ -65,9 +67,9 @@ export function GuidedSection({ section, guided, children, footer, right }: Guid
             <FieldPalette fields={palette} onAdd={guided.activateField} />
             <ConfirmDialog
                 visible={pendingRemove !== null}
-                title={`Discard “${pendingRemove?.label ?? ''}”?`}
-                message="This field has content — removing it clears the text and returns the field to the palette."
-                confirmLabel="Discard"
+                title={t('creation.common.guidedSection.discardTitle', { label: pendingRemove?.label ?? '' })}
+                message={t('creation.common.guidedSection.discardMessage')}
+                confirmLabel={t('creation.common.guidedSection.discardConfirm')}
                 variant="danger"
                 onConfirm={() => {
                     if (pendingRemove) guided.removeField(pendingRemove.id)

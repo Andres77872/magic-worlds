@@ -11,6 +11,7 @@
  */
 
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
@@ -65,9 +66,13 @@ function menuAnchorFor(container: HTMLElement | null, clientRect: (() => DOMRect
 }
 
 export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(function NovelEditor(props, ref) {
+    const { t } = useTranslation()
     const containerRef = useRef<HTMLDivElement | null>(null)
     const propsRef = useRef(props)
     propsRef.current = props
+    // Read live inside the memoized extensions so language changes take effect.
+    const tRef = useRef(t)
+    tRef.current = t
     const codexRef = useRef<EditorCodexEntry[]>(props.codexEntries)
     codexRef.current = props.codexEntries
 
@@ -111,7 +116,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                 strike: false,
             }),
             Markdown.configure({ indentation: { style: 'space', size: 2 } }),
-            Placeholder.configure({ placeholder: 'Begin the chapter… "/" asks the muse, "@" names your codex.' }),
+            Placeholder.configure({ placeholder: tRef.current('novelEditor.editor.placeholder') }),
             Typography,
             AiSuggestion.configure({
                 onPhaseChange: (nextPhase) => {
@@ -127,6 +132,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
             createSlashCommand({
                 controllerRef: slashControllerRef,
                 getPhase: () => phaseRef.current,
+                getT: () => tRef.current,
                 onSubmit: (item) => submitSlashRef.current(item),
             }),
             createCodexMention(() => codexRef.current).configure({
@@ -160,7 +166,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         contentType: 'markdown',
         editorProps: {
             attributes: {
-                'aria-label': 'Chapter body',
+                'aria-label': tRef.current('novelEditor.editor.bodyLabel'),
                 class: 'story-editor-prose',
             },
         },
@@ -326,11 +332,11 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         <>
             <div
                 ref={containerRef}
-                className="story-editor-shell relative min-h-[480px] flex-1 overflow-auto rounded-md border border-parchment-50/10 bg-ink-900/45 transition focus-within:border-ember-500/60"
+                className="story-editor-shell relative flex min-h-[480px] flex-1 flex-col overflow-auto rounded-md border border-parchment-50/10 bg-ink-900/45 transition focus-within:border-ember-500/60"
                 data-testid="novel-editor"
             >
                 {editor && <EditorBubbleMenu editor={editor} phase={phase} onSelectionCommand={handleSelectionCommand} />}
-                <EditorContent editor={editor} />
+                <EditorContent editor={editor} className="flex min-h-0 flex-1 flex-col" />
                 {slashMenu && (
                     <SlashCommandMenu
                         items={slashMenu.items}
@@ -356,7 +362,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
             <Toast
                 open={Boolean(inlineAI.error)}
                 tone="error"
-                title="The muse faltered"
+                title={t('novelEditor.editor.museFaltered')}
                 message={inlineAI.error ?? undefined}
                 onClose={inlineAI.clearError}
             />

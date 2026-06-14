@@ -27,6 +27,17 @@ const userTurn: DemoTurn = {
   timestamp: '2026-06-06T21:46:00Z',
 }
 
+const structuredTurn: DemoTurn = {
+  ...gmTurn,
+  id: 't-ai-structured',
+  content: 'Lyra: The door listens.',
+  segments: [
+    { kind: 'narrator', content: 'The tavern hushes as rain taps against the leaded glass.' },
+    { kind: 'speech', speaker_id: 'lyra', speaker_name: 'Lyra', content: '"The door listens," she says. "Ask it gently."' },
+    { kind: 'thought', speaker_id: 'morrow', speaker_name: 'Morrow', content: 'It remembers my hands on the old lock.' },
+  ],
+}
+
 const meta = {
   title: 'Interaction/ChatTurn',
   component: ChatTurn,
@@ -60,6 +71,9 @@ export const GameMasterTurn: Story = {}
 
 /** Player turn — ember bubble, right-aligned. */
 export const PlayerTurn: Story = { args: { turn: userTurn } }
+
+/** Parsed XML segments with narrator, speech, and visible thought blocks. */
+export const StructuredSegments: Story = { args: { turn: structuredTurn } }
 
 /** Streaming — actions are hidden and the thinking dots show. */
 export const Streaming: Story = { args: { turn: { ...gmTurn, forwardOptions: undefined, isStreaming: true } } }

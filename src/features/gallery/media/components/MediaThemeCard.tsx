@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Download, Loader2, Trash2 } from 'lucide-react'
 import { Badge, cx, IconButton, Tag } from '@/ui/primitives'
 import { AudioWavePlayer, getAudioBlob } from '@/ui/components/audio'
@@ -25,6 +26,7 @@ export interface MediaThemeCardProps {
 }
 
 export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, onFilterCard }: MediaThemeCardProps) {
+    const { t } = useTranslation()
     const [playing, setPlaying] = useState(false)
     const [downloading, setDownloading] = useState(false)
     const [downloadError, setDownloadError] = useState(false)
@@ -43,6 +45,7 @@ export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, o
             setDownloading(false)
         }
     }
+    const cardName = item.card?.name
 
     return (
         <div
@@ -58,7 +61,7 @@ export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, o
         >
             {/* Subtle arcane wash so audio reads differently from images. */}
             <div
-                className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(139,92,246,0.12),transparent_60%)]"
+                className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(143,111,227,0.12),transparent_60%)]"
                 aria-hidden="true"
             />
 
@@ -99,10 +102,27 @@ export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, o
                         className={cx('max-w-[65%]', onFilterCard && 'cursor-pointer hover:text-arcane-200')}
                         onClick={onFilterCard ? () => onFilterCard(item.card!) : undefined}
                         role={onFilterCard ? 'button' : undefined}
-                        title={onFilterCard ? `Show all media for ${item.card.name ?? 'this card'}` : undefined}
+                        tabIndex={onFilterCard ? 0 : undefined}
+                        onKeyDown={
+                            onFilterCard
+                                ? (e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault()
+                                          onFilterCard(item.card!)
+                                      }
+                                  }
+                                : undefined
+                        }
+                        title={
+                            onFilterCard
+                                ? cardName
+                                    ? t('mediaGallery.tile.showAllMediaForCard', { name: cardName })
+                                    : t('mediaGallery.tile.showAllMediaForThisCard')
+                                : undefined
+                        }
                         data-testid="media-card-badge"
                     >
-                        <span className="truncate">{item.card.name ?? 'Card'}</span>
+                        <span className="min-w-0 truncate">{cardName ?? t('mediaGallery.tile.cardFallback')}</span>
                     </Badge>
                 ) : (
                     <span />
@@ -115,10 +135,10 @@ export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, o
                     )}
                 >
                     <IconButton
-                        label="Download theme"
+                        label={t('mediaGallery.tile.downloadTheme')}
                         size="sm"
                         tone={downloadError ? 'danger' : 'default'}
-                        title={downloadError ? 'Download failed — try again' : 'Download theme'}
+                        title={downloadError ? t('mediaGallery.tile.downloadFailed') : t('mediaGallery.tile.downloadTheme')}
                         disabled={downloading}
                         onClick={() => void handleDownload()}
                     >
@@ -128,7 +148,7 @@ export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, o
                             <Download size={15} strokeWidth={1.75} />
                         )}
                     </IconButton>
-                    <IconButton label="Delete theme" size="sm" tone="danger" onClick={onDelete}>
+                    <IconButton label={t('mediaGallery.tile.deleteTheme')} size="sm" tone="danger" onClick={onDelete}>
                         <Trash2 size={15} strokeWidth={1.75} />
                     </IconButton>
                 </div>

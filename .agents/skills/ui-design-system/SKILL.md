@@ -60,7 +60,7 @@ Shadows `shadow-sm/md/lg/xl` for elevation (md = default card, lg = modal/drawer
 - **Never hardcode** a color, font, radius, shadow, or duration in a component — use token utilities. No `#fff`, no `#000`, no `white`/`black`.
 - Focus ring is global and always visible (`:focus-visible` = ember ring in theme.css) — do not `outline-none` without replacing it, do not invent per-component focus styles.
 - Microcopy: sentence case, no emoji, no exclamation-mark enthusiasm. Voice rules in Storybook → Design System/Brand/Voice.
-- z-index ladder (convention, not tokens): content `z-0`/`z-[2]`/`z-[10]` → PlaylistDock `z-[45]` → Modal/Drawer `z-50` → Toast `z-[110]`. Pick from the ladder; don't invent new layers.
+- z-index ladder (convention, not tokens): content `z-0`/`z-[2]`/`z-[10]` → PlaylistDock `z-[45]` → Modal/Drawer `z-50` → lightbox / above-modal overlay `z-[60]` (ImageLightbox — opened from inside a drawer, must paint above it) → portal popover/dropdown `z-[100]` (Select, SuggestInput, CardOptions, ChatActions menus — must clear modals/drawers) → Toast `z-[110]`. Pick from the ladder; don't invent new layers.
 - Ambient page glow is app-shell-level only: `GlowBackdrop variant="page"` lives once in `AppRouter` (fixed, -z-10). Never add page-top section glows.
 
 ## Known exceptions (don't "fix" blindly, don't copy)

@@ -32,12 +32,41 @@ interface AudioPlaylistProviderProps {
     children: ReactNode
 }
 
+interface PlaylistAudioPrefs {
+    volume: number
+    muted: boolean
+}
+
+export const PLAYLIST_AUDIO_PREFS_STORAGE_KEY = 'magic_worlds:playlist_audio_prefs:v1'
+const DEFAULT_RESTORED_VOLUME = 0.8
+const DEFAULT_AUDIO_PREFS: PlaylistAudioPrefs = { volume: 1, muted: false }
+
 function clamp01(value: number): number {
     return Math.min(Math.max(value, 0), 1)
 }
 
 function currentTrackOf(state: PlaylistQueueState): PlaylistTrack | null {
     return state.currentIndex >= 0 ? (state.queue[state.currentIndex] ?? null) : null
+}
+
+function restoreAudioPrefs(raw: string | null): PlaylistAudioPrefs {
+    if (!raw) return DEFAULT_AUDIO_PREFS
+    try {
+        const parsed = JSON.parse(raw) as { volume?: unknown; muted?: unknown }
+        const volume = typeof parsed.volume === 'number' && Number.isFinite(parsed.volume)
+            ? clamp01(parsed.volume)
+            : DEFAULT_AUDIO_PREFS.volume
+        return {
+            volume,
+            muted: typeof parsed.muted === 'boolean' ? parsed.muted : DEFAULT_AUDIO_PREFS.muted,
+        }
+    } catch {
+        return DEFAULT_AUDIO_PREFS
+    }
+}
+
+function serializeAudioPrefs(prefs: PlaylistAudioPrefs): string {
+    return JSON.stringify(prefs)
 }
 
 export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) {
@@ -50,6 +79,9 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
     const [currentTime, setCurrentTime] = useState(0)
     const [metaDuration, setMetaDuration] = useState<number | null>(null)
     const [peaks, setPeaks] = useState<number[] | null>(null)
+    const [audioPrefs, setAudioPrefs] = useState<PlaylistAudioPrefs>(() =>
+        restoreAudioPrefs(localStorage.getItem(PLAYLIST_AUDIO_PREFS_STORAGE_KEY)),
+    )
 
     const audioRef = useRef<HTMLAudioElement | null>(null)
     const objectUrlRef = useRef<string | null>(null)
@@ -62,6 +94,8 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
     const isLoadingRef = useRef(false)
     /** Consecutive failed tracks — stops the auto-skip from looping forever. */
     const failuresRef = useRef(0)
+    const effectiveMuted = audioPrefs.muted || audioPrefs.volume === 0
+    const lastAudibleVolumeRef = useRef(audioPrefs.volume > 0 ? audioPrefs.volume : DEFAULT_RESTORED_VOLUME)
 
     const stateRef = useRef(state)
     useEffect(() => {
@@ -77,6 +111,8 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
         let el = audioRef.current
         if (el) return el
         el = new Audio()
+        el.volume = audioPrefs.volume
+        el.muted = effectiveMuted
         el.addEventListener('play', () => {
             claimAudioFocus(el)
             failuresRef.current = 0
@@ -84,8 +120,14 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
         })
         el.addEventListener('pause', () => setIsPlaying(false))
         el.addEventListener('ended', () => {
-            const { queue, currentIndex } = stateRef.current
-            if (currentIndex >= 0 && currentIndex < queue.length - 1) {
+            const { queue, currentIndex, loopMode } = stateRef.current
+            if (loopMode === 'track') {
+                el.currentTime = 0
+                setCurrentTime(0)
+                void el.play().catch(() => setIsPlaying(false))
+                return
+            }
+            if (currentIndex >= 0 && (currentIndex < queue.length - 1 || (loopMode === 'queue' && queue.length > 0))) {
                 dispatch({ type: 'NEXT' })
                 return
             }
@@ -111,16 +153,19 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
             // Drop the loaded marker so the next toggle retries from scratch.
             loadedTrackIdRef.current = null
             failuresRef.current += 1
-            const { queue, currentIndex } = stateRef.current
+            const { queue, currentIndex, loopMode } = stateRef.current
             // Skip a dead track (deleted asset etc.) but give up once a whole
             // pass over the queue has failed.
-            if (failuresRef.current < queue.length && currentIndex < queue.length - 1) {
+            if (
+                failuresRef.current < queue.length &&
+                (currentIndex < queue.length - 1 || (loopMode === 'queue' && queue.length > 1))
+            ) {
                 dispatch({ type: 'NEXT' })
             }
         })
         audioRef.current = el
         return el
-    }, [setLoading])
+    }, [audioPrefs.volume, effectiveMuted, setLoading])
 
     /** Pause and detach whatever is loaded; the next play rebuilds fresh. */
     const resetElement = useCallback(() => {
@@ -202,6 +247,18 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
         if (state.queue.length === 0) localStorage.removeItem(PLAYLIST_STORAGE_KEY)
         else localStorage.setItem(PLAYLIST_STORAGE_KEY, serializePlaylist(state))
     }, [state])
+
+    useEffect(() => {
+        const el = audioRef.current
+        if (el) {
+            el.volume = audioPrefs.volume
+            el.muted = effectiveMuted
+        }
+        localStorage.setItem(
+            PLAYLIST_AUDIO_PREFS_STORAGE_KEY,
+            serializeAudioPrefs({ volume: audioPrefs.volume, muted: effectiveMuted }),
+        )
+    }, [audioPrefs.volume, effectiveMuted])
 
     // Release the element on app teardown.
     useEffect(() => {
@@ -296,6 +353,29 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
 
     const removeAt = useCallback((index: number) => dispatch({ type: 'REMOVE_AT', index }), [])
 
+    const cycleLoopMode = useCallback(() => dispatch({ type: 'CYCLE_LOOP_MODE' }), [])
+
+    const setVolume = useCallback((value: number) => {
+        const volume = clamp01(value)
+        setAudioPrefs(() => {
+            if (volume > 0) lastAudibleVolumeRef.current = volume
+            return { volume, muted: volume === 0 ? true : false }
+        })
+    }, [])
+
+    const toggleMute = useCallback(() => {
+        setAudioPrefs((prefs) => {
+            const muted = prefs.muted || prefs.volume === 0
+            if (muted) {
+                const volume = prefs.volume > 0 ? prefs.volume : lastAudibleVolumeRef.current || DEFAULT_RESTORED_VOLUME
+                lastAudibleVolumeRef.current = volume
+                return { volume, muted: false }
+            }
+            if (prefs.volume > 0) lastAudibleVolumeRef.current = prefs.volume
+            return { ...prefs, muted: true }
+        })
+    }, [])
+
     const clearAndClose = useCallback(() => {
         resetElement()
         dispatch({ type: 'CLEAR' })
@@ -311,12 +391,15 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
             queue: state.queue,
             currentIndex: state.currentIndex,
             currentTrack,
+            loopMode: state.loopMode,
             isPlaying,
             isLoading,
             error,
             currentTime,
             duration: metaDuration ?? fallbackDuration,
             peaks,
+            volume: audioPrefs.volume,
+            muted: effectiveMuted,
             playNow,
             enqueue,
             playQueueFrom,
@@ -327,11 +410,15 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
             removeAt,
             clearAndClose,
             seekRatio,
+            cycleLoopMode,
+            setVolume,
+            toggleMute,
             isQueued,
         }),
         [
             state.queue,
             state.currentIndex,
+            state.loopMode,
             currentTrack,
             isPlaying,
             isLoading,
@@ -340,6 +427,8 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
             metaDuration,
             fallbackDuration,
             peaks,
+            audioPrefs.volume,
+            effectiveMuted,
             playNow,
             enqueue,
             playQueueFrom,
@@ -350,6 +439,9 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
             removeAt,
             clearAndClose,
             seekRatio,
+            cycleLoopMode,
+            setVolume,
+            toggleMute,
             isQueued,
         ],
     )

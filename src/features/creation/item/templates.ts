@@ -5,15 +5,17 @@
 import { Backpack, Fingerprint, FlaskConical, KeyRound, Sparkles } from 'lucide-react'
 import type { CardTemplate } from '../common/engine'
 
-export const ITEM_GALLERY_HEADING = 'What do they find?'
-export const ITEM_GALLERY_SUBHEADING =
-    'An object becomes a story the moment someone can use it. Start with a shape.'
+/** i18n keys for the gallery masthead — resolved at the ItemCreator. */
+export const ITEM_GALLERY_HEADING_KEY = 'creation.item.galleryHeading'
+export const ITEM_GALLERY_SUBHEADING_KEY = 'creation.item.gallerySubheading'
 
 export const ITEM_TEMPLATES: CardTemplate[] = [
     {
         id: 'artifact',
         name: 'The Artifact',
+        nameKey: 'creation.item.templates.artifact.name',
         tagline: 'Power with a hook in it.',
+        taglineKey: 'creation.item.templates.artifact.tagline',
         icon: Sparkles,
         fieldIds: [
             'use.how',
@@ -49,7 +51,9 @@ export const ITEM_TEMPLATES: CardTemplate[] = [
     {
         id: 'key',
         name: 'The Key',
+        nameKey: 'creation.item.templates.key.name',
         tagline: 'It opens one thing, somewhere.',
+        taglineKey: 'creation.item.templates.key.tagline',
         icon: KeyRound,
         fieldIds: ['use.how', 'use.activation', 'use.cost', 'whereabouts.location', 'whereabouts.condition', 'story.seekers'],
         examples: {
@@ -71,7 +75,9 @@ export const ITEM_TEMPLATES: CardTemplate[] = [
     {
         id: 'clue',
         name: 'The Clue',
+        nameKey: 'creation.item.templates.clue.name',
         tagline: 'It knows something; make them earn it.',
+        taglineKey: 'creation.item.templates.clue.tagline',
         icon: Fingerprint,
         fieldIds: ['whereabouts.location', 'whereabouts.condition', 'story.truth', 'story.reveal'],
         examples: {
@@ -91,7 +97,9 @@ export const ITEM_TEMPLATES: CardTemplate[] = [
     {
         id: 'equipment',
         name: 'Trusty Equipment',
+        nameKey: 'creation.item.templates.equipment.name',
         tagline: 'Worn, reliable, full of stories.',
+        taglineKey: 'creation.item.templates.equipment.tagline',
         icon: Backpack,
         fieldIds: ['whereabouts.owner', 'whereabouts.condition'],
         examples: {
@@ -111,7 +119,9 @@ export const ITEM_TEMPLATES: CardTemplate[] = [
     {
         id: 'consumable',
         name: 'The Consumable',
+        nameKey: 'creation.item.templates.consumable.name',
         tagline: 'One use; make it count.',
+        taglineKey: 'creation.item.templates.consumable.tagline',
         icon: FlaskConical,
         fieldIds: ['use.cost', 'whereabouts.condition'],
         examples: {

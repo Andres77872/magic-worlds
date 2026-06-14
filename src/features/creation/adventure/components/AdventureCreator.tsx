@@ -11,6 +11,7 @@
 
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import type { Adventure, Character, World } from '@/shared'
 import { readWorldPlaceType } from '@/shared'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
@@ -21,7 +22,8 @@ import type {
     WorldCardResponse,
 } from '@/shared/types/aiCard.types'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
-import { Badge, Button } from '@/ui/primitives'
+import { Map as MapIcon } from 'lucide-react'
+import { Badge, Button, Icon } from '@/ui/primitives'
 import { isAiCharacterCard, personaCandidates } from '@/utils/characterRoles'
 import {
     CreatorStudio,
@@ -44,15 +46,10 @@ import {
 } from '../../common/components'
 import { GuidedSection, UseExampleLink, useGuidedCard, type CardTemplate } from '../../common/engine'
 import { CreatorIntro, TemplateGallery } from '../../common/templates'
-import { ADVENTURE_FIELDS, ADVENTURE_SECTIONS } from '../fields'
-import { ADVENTURE_GALLERY_HEADING, ADVENTURE_GALLERY_SUBHEADING, ADVENTURE_TEMPLATES } from '../templates'
+import { getAdventureFields, getAdventureSections } from '../fields'
+import { ADVENTURE_GALLERY_HEADING_KEY, ADVENTURE_GALLERY_SUBHEADING_KEY, ADVENTURE_TEMPLATES } from '../templates'
 import { CastSelector, PersonaSelector, WorldSelector } from './scene'
 import { AdventurePreviewCard, type PreviewMember } from './preview'
-
-// One minimal default component; users add more or create their own categories.
-const DEFAULT_CATEGORIES: AttributeCategory[] = [
-    { id: 'objectives', name: 'Objectives', type: 'detail', description: 'Goals to accomplish in this adventure — optional.' },
-]
 
 // One-click presets for the default "Objectives" category.
 const OBJECTIVE_PRESETS: AttributePreset[] = [
@@ -135,7 +132,8 @@ function toTemplate(card: AdventureTemplateCardResponse): Adventure {
 }
 
 export function AdventureCreator() {
-    const { setPage } = useNavigation()
+    const { t } = useTranslation()
+    const { setPage, goBack } = useNavigation()
     const {
         characters,
         worlds,
@@ -147,6 +145,15 @@ export function AdventureCreator() {
         loadData,
     } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
+
+    // One minimal default component; `id`/`name` are saved-card data; description is display copy.
+    const defaultCategories = useMemo<AttributeCategory[]>(
+        () => [{ id: 'objectives', name: 'Objectives', type: 'detail', description: t('creation.adventure.objectivesCategory.description') }],
+        [t],
+    )
+
+    const adventureFields = useMemo(() => getAdventureFields(t), [t])
+    const adventureSections = useMemo(() => getAdventureSections(t), [t])
 
     const [scenario, setScenario] = useState(editingTemplate?.scenario ?? '')
     // Templates persist embedded character/world snapshots (no library ids).
@@ -180,7 +187,7 @@ export function AdventureCreator() {
     // undefined = template gallery (create mode); a pick (or null = empty/skip) shows the form.
     const [template, setTemplate] = useState<CardTemplate | null | undefined>(editingTemplate ? null : undefined)
 
-    const guided = useGuidedCard({ fields: ADVENTURE_FIELDS, defaults: DEFAULT_CATEGORIES, entity: editingTemplate })
+    const guided = useGuidedCard({ fields: adventureFields, defaults: defaultCategories, entity: editingTemplate })
 
     // Harden the edit-mode remap: the useState initializers read the library at
     // mount, but loadData() is async — on a cold deep-link into edit the library
@@ -240,7 +247,7 @@ export function AdventureCreator() {
     const objectivesCount = (guided.attributes['objectives'] ?? []).filter((r) => r.key.trim() || r.value.trim()).length
     const derivedTitle = scenario.trim().split('\n')[0].slice(0, 80) || 'Untitled Adventure'
 
-    const scenarioError = showErrors && !scenario.trim() ? 'A scenario premise is required.' : undefined
+    const scenarioError = showErrors && !scenario.trim() ? t('creation.adventure.validation.scenarioRequired') : undefined
     const noCast = !dataLoading && previewCast.length === 0 && !previewPersona
 
     const objectiveKeys = useMemo(
@@ -249,11 +256,11 @@ export function AdventureCreator() {
     )
 
     const navItems = useMemo<StudioNavItem[]>(
-        () => ADVENTURE_SECTIONS.map((section) => ({ id: section.id, label: String(section.title), icon: section.icon! })),
-        [],
+        () => adventureSections.map((section) => ({ id: section.id, label: String(section.title), icon: section.icon! })),
+        [adventureSections],
     )
 
-    const sectionById = useMemo(() => Object.fromEntries(ADVENTURE_SECTIONS.map((s) => [s.id, s])), [])
+    const sectionById = useMemo(() => Object.fromEntries(adventureSections.map((s) => [s.id, s])), [adventureSections])
 
     /** Build the create/update payload from current form state. */
     const buildPayload = () => {
@@ -313,11 +320,11 @@ export function AdventureCreator() {
     const ensureSaved = async (): Promise<string> => {
         if (!isAuthenticated) {
             openLoginModal()
-            throw new Error('Please log in to continue.')
+            throw new Error(t('creation.adventure.validation.loginToContinue'))
         }
         if (!scenario.trim()) {
             setShowErrors(true)
-            throw new Error('Add a scenario before generating a theme.')
+            throw new Error(t('creation.adventure.validation.scenarioForTheme'))
         }
         if (editingTemplate) {
             await apiService.updateAdventureTemplate(editingTemplate.id, buildPayload())
@@ -413,7 +420,7 @@ export function AdventureCreator() {
 
             setEditingTemplate(null)
             await loadData()
-            setPage('landing')
+            goBack('landing')
         } catch (error) {
             console.error('Failed to save adventure template:', error)
             // Gentle, non-blocking inline message — the form stays put so the
@@ -421,8 +428,8 @@ export function AdventureCreator() {
             const transient = error instanceof ApiError && error.isTransient
             setSaveError(
                 transient
-                    ? 'The service is briefly unavailable — please try again in a moment.'
-                    : 'Couldn\'t save your adventure. Please try again.'
+                    ? t('creation.adventure.save.transient')
+                    : t('creation.adventure.save.saveFailed')
             )
         } finally {
             setIsSubmitting(false)
@@ -441,12 +448,12 @@ export function AdventureCreator() {
         setAssistantApplied(true)
         // AI generation skips the gallery; a picked template's scaffolding survives.
         setTemplate((current) => (current === undefined ? null : current))
-        void loadData()
+        void loadData({ silent: true })
     }
 
     const handleBack = () => {
         setEditingTemplate(null)
-        setPage('landing')
+        goBack('landing')
     }
 
     /** Back from the form: to the gallery while creating, to the library otherwise. */
@@ -505,13 +512,13 @@ export function AdventureCreator() {
     if (template === undefined) {
         return (
             <>
-                <CreatorIntro title="Create Adventure" icon="🗺️" onBack={handleBack}>
+                <CreatorIntro title={t('creation.adventure.createTitle')} icon={<Icon icon={MapIcon} size={28} />} onBack={handleBack}>
                     <TemplateGallery
                         templates={ADVENTURE_TEMPLATES}
-                        fields={ADVENTURE_FIELDS}
+                        fields={adventureFields}
                         noun="adventure"
-                        heading={ADVENTURE_GALLERY_HEADING}
-                        subheading={ADVENTURE_GALLERY_SUBHEADING}
+                        heading={t(ADVENTURE_GALLERY_HEADING_KEY)}
+                        subheading={t(ADVENTURE_GALLERY_SUBHEADING_KEY)}
                         onPick={pickTemplate}
                         onSkip={() => setTemplate(null)}
                     />
@@ -524,14 +531,14 @@ export function AdventureCreator() {
     return (
         <>
         <CreatorStudio
-            title={editingTemplate ? 'Edit Adventure' : 'Create Adventure'}
-            icon="🗺️"
+            title={editingTemplate ? t('creation.adventure.editTitle') : t('creation.adventure.createTitle')}
+            icon={<Icon icon={MapIcon} size={28} />}
             onBack={handleStudioBack}
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
                 <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
-                    {isSubmitting ? 'Saving…' : editingTemplate ? 'Update' : 'Create'}
+                    {isSubmitting ? t('common.saving') : editingTemplate ? t('creation.common.studio.update') : t('creation.adventure.create')}
                 </Button>
             }
             preview={
@@ -560,11 +567,11 @@ export function AdventureCreator() {
                     description={sectionById['scenario'].description}
                 >
                     <CreatorField
-                        label="Premise"
+                        label={t('creation.adventure.fieldsForm.premiseLabel')}
                         htmlFor="adventure-scenario"
                         required
                         error={scenarioError}
-                        tooltip="The standing brief the AI reads every turn: who you are, where it starts, and what's wrong."
+                        tooltip={t('creation.adventure.fieldsForm.premiseTooltip')}
                     >
                         <CreatorTextarea
                             id="adventure-scenario"
@@ -578,9 +585,10 @@ export function AdventureCreator() {
                         <UseExampleLink value={scenario} hint={firstClass.description} onUse={setScenario} />
                         {Boolean(scenario.trim()) && !guided.values['opening.scene']?.trim() && (
                             <QualityHint>
-                                You have a premise but no first image. Add an{' '}
-                                <a href="#opening" className="underline underline-offset-2">opening scene</a> so turn one
-                                starts in a place, not a summary.
+                                <Trans
+                                    i18nKey="creation.adventure.premiseHint"
+                                    components={[<a href="#opening" className="underline underline-offset-2" />]}
+                                />
                             </QualityHint>
                         )}
                     </CreatorField>
@@ -595,7 +603,7 @@ export function AdventureCreator() {
                     icon={sectionById['cast'].icon}
                     title={sectionById['cast'].title}
                     description={sectionById['cast'].description}
-                    right={<Badge tone="ember">{castMembers.length} chosen</Badge>}
+                    right={<Badge tone="ember">{t('creation.adventure.cast.chosen', { count: castMembers.length })}</Badge>}
                 >
                     <CastSelector
                         characters={aiCharacters}
@@ -609,7 +617,7 @@ export function AdventureCreator() {
                     />
                     {noCast && (
                         <p className="font-narrative text-xs italic text-parchment-400">
-                            No cast yet — the AI will improvise characters as the story unfolds.
+                            {t('creation.adventure.cast.noCast')}
                         </p>
                     )}
                 </StudioSection>
@@ -657,7 +665,7 @@ export function AdventureCreator() {
                         <>
                             <div className="flex flex-col gap-2.5">
                                 <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
-                                    Quick add objectives
+                                    {t('creation.adventure.quickAddObjectives')}
                                 </span>
                                 <SuggestedAttributes
                                     presets={OBJECTIVE_PRESETS}
@@ -668,8 +676,8 @@ export function AdventureCreator() {
                                 />
                             </div>
                             <AttributeManager
-                                title="Objective groups"
-                                icon="🎯"
+                                title={t('creation.adventure.objectiveGroups')}
+                                icon="*"
                                 categories={guided.categories}
                                 attributes={guided.attributes}
                                 onAddCategory={guided.addCategory}
@@ -693,16 +701,16 @@ export function AdventureCreator() {
                     <TriggersField
                         values={triggers}
                         onChange={setTriggers}
-                        label="Triggers"
-                        helper="Names and phrases that pull this adventure's context back into the scene mid-chat."
-                        placeholder="e.g. the sealed letter, crowned serpent, Mother Coil"
+                        label={t('creation.adventure.fieldsForm.triggersLabel')}
+                        helper={t('creation.adventure.fieldsForm.triggersHelper')}
+                        placeholder={t('creation.adventure.fieldsForm.triggersPlaceholder')}
                     />
                     <TriggerHints triggers={triggers} hasContent={Boolean(scenario.trim())} />
                 </StudioSection>
 
                 <FormActions
                     onCancel={handleStudioBack}
-                    submitLabel={editingTemplate ? 'Update Adventure' : 'Create Adventure'}
+                    submitLabel={editingTemplate ? t('creation.adventure.actions.updateAdventure') : t('creation.adventure.actions.createAdventure')}
                     isSubmitting={isSubmitting}
                     error={saveError}
                 />

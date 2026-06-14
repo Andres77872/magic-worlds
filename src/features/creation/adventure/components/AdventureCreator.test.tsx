@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
     setPage: vi.fn(),
+    goBack: vi.fn(),
     loadData: vi.fn(),
     openLoginModal: vi.fn(),
     registerThemeSongJob: vi.fn(),
@@ -19,7 +20,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useNavigation: () => ({ setPage: mocks.setPage }),
+    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack }),
     useData: () => ({
         characters: [],
         worlds: [],
@@ -35,6 +36,7 @@ vi.mock('@/app/hooks', () => ({
 vi.mock('@/infrastructure/api', () => ({
     ApiError: class ApiError extends Error { status = 500; isTransient = true },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
+    isProtectedMediaUrl: () => false,
     apiService: {
         createCardAssistantConversation: mocks.createCardAssistantConversation,
         listCardAssistantConversations: mocks.listCardAssistantConversations,
@@ -162,6 +164,41 @@ describe('AdventureCreator cover persistence', () => {
                 expect.objectContaining({ image_url: '/generated-images/a.png' }),
             ),
         )
+    })
+})
+
+describe('AdventureCreator navigation', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingTemplate = null
+        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.loadData.mockResolvedValue(undefined)
+    })
+
+    it('returns to the origin after saving a new adventure', async () => {
+        const { apiService } = await import('@/infrastructure/api')
+        ;(apiService.createAdventureTemplate as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'tmpl-2', name: 'Quest' })
+
+        render(<AdventureCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
+        fireEvent.change(screen.getByLabelText(/premise/i), { target: { value: 'The beacons are lit.' } })
+        fireEvent.click(screen.getByRole('button', { name: /^Create Adventure$/i }))
+
+        await waitFor(() => expect(apiService.createAdventureTemplate).toHaveBeenCalledTimes(1))
+        await waitFor(() => expect(mocks.goBack).toHaveBeenCalledWith('landing'))
+        expect(mocks.setPage).not.toHaveBeenCalledWith('landing')
+    })
+
+    it('returns to the origin from edit back', () => {
+        mocks.editingTemplate = { id: 'tmpl-1', scenario: 'A heist into the volcano fortress.', characters: [], triggers: [] }
+        render(<AdventureCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /^Back$/i }))
+
+        expect(mocks.setEditingTemplate).toHaveBeenCalledWith(null)
+        expect(mocks.goBack).toHaveBeenCalledWith('landing')
     })
 })
 

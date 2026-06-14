@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ArrowLeft, BookOpen, Library, Save, Search, Settings2, Tags } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
@@ -57,6 +58,7 @@ function upsertLorebook(list: Lorebook[], next: Lorebook): Lorebook[] {
 }
 
 export function LorebookStudio() {
+    const { t } = useTranslation()
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const { editingLorebook, setEditingLorebook, lorebooks, setLorebooks } = useData()
@@ -144,7 +146,7 @@ export function LorebookStudio() {
         }
         setSaveError(null)
         if (errorCount > 0) {
-            setSaveError('Resolve validation errors before saving.')
+            setSaveError(t('lorebookStudio.shell.errors.resolveValidation'))
             return
         }
         setSaving(true)
@@ -161,9 +163,9 @@ export function LorebookStudio() {
             setEditingLorebook(savedLorebook)
             setLorebooks(upsertLorebook(lorebooks, savedLorebook))
             setSelectedId((current) => current && savedLorebook.entries.some((entry) => entry.id === current) ? current : savedLorebook.entries[0]?.id)
-            setNotice(draft.id ? 'Lorebook updated.' : 'Lorebook created.')
+            setNotice(draft.id ? t('lorebookStudio.shell.notices.updated') : t('lorebookStudio.shell.notices.created'))
         } catch (error) {
-            setSaveError(error instanceof Error ? error.message : 'Failed to save lorebook.')
+            setSaveError(error instanceof Error ? error.message : t('lorebookStudio.shell.errors.saveFailed'))
         } finally {
             setSaving(false)
         }
@@ -176,24 +178,24 @@ export function LorebookStudio() {
         setLorebooks(upsertLorebook(lorebooks, next))
         setSelectedId((current) => current && next.entries.some((entry) => entry.id === current) ? current : next.entries[0]?.id)
         setSaveError(null)
-        setNotice(next.id === draft.id ? 'Lorebook updated by assistant.' : 'Lorebook created by assistant.')
+        setNotice(next.id === draft.id ? t('lorebookStudio.shell.notices.updatedByAssistant') : t('lorebookStudio.shell.notices.createdByAssistant'))
     }
 
     return (
         <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-5 py-8 sm:px-8 sm:py-10">
             <PageHeader
-                eyebrow="Lorebook Studio"
-                title={draft.name.trim() || 'Untitled lorebook'}
-                subtitle="Edit entries, keys, budget, attachments, and activation behavior from one workbench."
+                eyebrow={t('lorebookStudio.shell.header.eyebrow')}
+                title={draft.name.trim() || t('lorebookStudio.shell.header.untitled')}
+                subtitle={t('lorebookStudio.shell.header.subtitle')}
                 icon={<span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-ember-500/15 text-ember-400"><Icon icon={BookOpen} size={22} /></span>}
                 divider
                 actions={
                     <>
                         <Button kind="ghost" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={() => setPage('gallery-lorebooks')}>
-                            Back
+                            {t('common.back')}
                         </Button>
                         <Button kind="primary" iconLeft={<Icon icon={Save} size={16} />} onClick={saveLorebook} disabled={saving}>
-                            {saving ? 'Saving...' : 'Save'}
+                            {saving ? t('common.saving') : t('common.save')}
                         </Button>
                     </>
                 }
@@ -210,30 +212,30 @@ export function LorebookStudio() {
                     <Card className="p-4">
                         <div className="mb-4 flex items-center gap-2 font-ui text-sm font-semibold text-parchment-50">
                             <Icon icon={Library} size={16} className="text-ember-400" />
-                            Book profile
+                            {t('lorebookStudio.shell.sections.profile')}
                         </div>
                         <div className="flex flex-col gap-4">
-                            <Field label="Name">
-                                <Input value={draft.name} onChange={(event) => patchDraft({ name: event.target.value })} placeholder="Aurelian Lore" />
+                            <Field label={t('lorebookStudio.shell.fields.name.label')}>
+                                <Input value={draft.name} onChange={(event) => patchDraft({ name: event.target.value })} placeholder={t('lorebookStudio.shell.fields.name.placeholder')} />
                             </Field>
-                            <Field label="Description">
+                            <Field label={t('lorebookStudio.shell.fields.description.label')}>
                                 <Textarea
                                     value={draft.description ?? ''}
                                     onChange={(event) => patchDraft({ description: event.target.value })}
-                                    placeholder="What this book controls and where it should be used."
+                                    placeholder={t('lorebookStudio.shell.fields.description.placeholder')}
                                     className="min-h-[110px]"
                                 />
                             </Field>
                             <TriggersField
                                 values={draft.tags}
                                 onChange={(tags) => patchDraft({ tags })}
-                                label="Tags"
-                                helper="Library filters for genre, campaign, or source."
-                                placeholder="setting, factions, secrets"
+                                label={t('lorebookStudio.shell.fields.tags.label')}
+                                helper={t('lorebookStudio.shell.fields.tags.helper')}
+                                placeholder={t('lorebookStudio.shell.fields.tags.placeholder')}
                             />
                             <SwitchRow
-                                label="Enabled"
-                                description="Disabled books never activate, even when attached."
+                                label={t('lorebookStudio.shell.toggles.enabled.label')}
+                                description={t('lorebookStudio.shell.toggles.enabled.description')}
                                 checked={draft.enabled}
                                 onChange={(enabled) => patchDraft({ enabled })}
                             />
@@ -243,30 +245,30 @@ export function LorebookStudio() {
                     <Card className="p-4">
                         <div className="mb-4 flex items-center gap-2 font-ui text-sm font-semibold text-parchment-50">
                             <Icon icon={Settings2} size={16} className="text-arcane-300" />
-                            Defaults
+                            {t('lorebookStudio.shell.sections.defaults')}
                         </div>
                         <div className="grid gap-4">
-                            <Field label="Scan depth">
+                            <Field label={t('lorebookStudio.shell.fields.scanDepth.label')}>
                                 <Input type="number" min={1} value={draft.settings.scanDepth} onChange={(event) => patchSettings({ scanDepth: Number(event.target.value) })} />
                             </Field>
-                            <Field label="Token budget">
+                            <Field label={t('lorebookStudio.shell.fields.tokenBudget.label')}>
                                 <Input type="number" min={100} value={draft.settings.tokenBudget} onChange={(event) => patchSettings({ tokenBudget: Number(event.target.value) })} />
                             </Field>
                             <SwitchRow
-                                label="Whole-word matching"
-                                description="Avoid accidental partial-word key matches."
+                                label={t('lorebookStudio.shell.toggles.wholeWord.label')}
+                                description={t('lorebookStudio.shell.toggles.wholeWord.description')}
                                 checked={draft.settings.matchWholeWords}
                                 onChange={(matchWholeWords) => patchSettings({ matchWholeWords })}
                             />
                             <SwitchRow
-                                label="Case sensitivity"
-                                description="Require exact casing for key matches."
+                                label={t('lorebookStudio.shell.toggles.caseSensitive.label')}
+                                description={t('lorebookStudio.shell.toggles.caseSensitive.description')}
                                 checked={draft.settings.caseSensitive}
                                 onChange={(caseSensitive) => patchSettings({ caseSensitive })}
                             />
                             <SwitchRow
-                                label="Recursive scanning"
-                                description="Let activated entries trigger other entries."
+                                label={t('lorebookStudio.shell.toggles.recursive.label')}
+                                description={t('lorebookStudio.shell.toggles.recursive.description')}
                                 checked={draft.settings.recursiveScanning}
                                 onChange={(recursiveScanning) => patchSettings({ recursiveScanning })}
                             />
@@ -276,13 +278,13 @@ export function LorebookStudio() {
                     <Card className="p-4">
                         <div className="mb-3 flex items-center gap-2 font-ui text-sm font-semibold text-parchment-50">
                             <Icon icon={Tags} size={16} className="text-ember-400" />
-                            Summary
+                            {t('lorebookStudio.shell.sections.summary')}
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                            <Badge tone="ember">{draft.entries.length} entries</Badge>
-                            <Badge tone="arcane">{draft.entries.reduce((sum, entry) => sum + entry.keys.length, 0)} keys</Badge>
-                            <Badge tone={errorCount > 0 ? 'danger' : 'live'}>{issues.length} issues</Badge>
-                            <Badge tone={saved ? 'live' : 'neutral'}>{saved ? 'saved' : 'draft'}</Badge>
+                            <Badge tone="ember">{t('lorebookStudio.shell.summary.entries', { count: draft.entries.length })}</Badge>
+                            <Badge tone="arcane">{t('lorebookStudio.shell.summary.keys', { count: draft.entries.reduce((sum, entry) => sum + entry.keys.length, 0) })}</Badge>
+                            <Badge tone={errorCount > 0 ? 'danger' : 'live'}>{t('lorebookStudio.shell.summary.issues', { count: issues.length })}</Badge>
+                            <Badge tone={saved ? 'live' : 'neutral'}>{saved ? t('lorebookStudio.shell.summary.saved') : t('lorebookStudio.shell.summary.draft')}</Badge>
                         </div>
                     </Card>
                 </aside>
@@ -299,7 +301,7 @@ export function LorebookStudio() {
                         <div className="flex flex-col gap-4 rounded-xl border border-parchment-50/10 bg-ink-800 p-5">
                             <div className="flex items-center gap-2">
                                 <Icon icon={Search} size={16} className="text-ember-400" />
-                                <h3 className="font-display text-xl font-semibold text-parchment-50">Validation</h3>
+                                <h3 className="font-display text-xl font-semibold text-parchment-50">{t('lorebookStudio.shell.sections.validation')}</h3>
                             </div>
                             <LorebookIssueList issues={issues} />
                         </div>
@@ -318,10 +320,13 @@ export function LorebookStudio() {
             </div>
             <ConfirmDialog
                 visible={pendingDeleteId !== null}
-                title="Delete entry"
-                message={`Delete "${(pendingDeleteEntry?.title.trim() || 'Untitled entry').slice(0, 80)}"? ${saved ? 'This removes it from the saved lorebook.' : 'This cannot be undone.'}`}
-                confirmLabel="Delete"
-                cancelLabel="Keep"
+                title={t('lorebookStudio.shell.delete.title')}
+                message={t('lorebookStudio.shell.delete.message', {
+                    title: (pendingDeleteEntry?.title.trim() || t('lorebookStudio.shell.delete.untitledEntry')).slice(0, 80),
+                    tail: saved ? t('lorebookStudio.shell.delete.tailSaved') : t('lorebookStudio.shell.delete.tailUnsaved'),
+                })}
+                confirmLabel={t('common.delete')}
+                cancelLabel={t('lorebookStudio.shell.delete.keep')}
                 variant="danger"
                 onConfirm={() => {
                     const entryId = pendingDeleteId
@@ -339,7 +344,7 @@ export function LorebookStudio() {
             />
             <LorebookAssistantChatbot
                 lorebookId={draft.id || null}
-                title={draft.name.trim() || 'Untitled lorebook'}
+                title={draft.name.trim() || t('lorebookStudio.shell.header.untitled')}
                 currentLorebook={draft as unknown as Record<string, unknown>}
                 onLorebook={applyAssistantLorebook}
                 isAuthenticated={isAuthenticated}

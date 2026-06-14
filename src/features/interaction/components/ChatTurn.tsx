@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { ChatImageAsset, ForwardOption, ImageLifecycleStatus, TurnEntry } from '../../../shared'
+import { useTranslation } from 'react-i18next'
+import type { ChatImageAsset, ChatNarratorIdentity, ChatResponseSegment, ForwardOption, ImageLifecycleStatus, TurnEntry } from '../../../shared'
 import { cx, Eyebrow } from '../../../ui/primitives'
 import { formatApiTime } from '@/utils/time'
 import { isSafeAssetUrl } from '../utils/chatImageTurnState'
@@ -14,7 +15,9 @@ import { TurnNarration } from './TurnNarration'
 // Extend TurnEntry to include forward options and the (out-of-scope) image prompt
 interface ExtendedTurnEntry extends TurnEntry {
     forwardOptions?: ForwardOption[]
+    segments?: ChatResponseSegment[]
     isStreaming?: boolean
+    narratorIdentity?: ChatNarratorIdentity | null
     imagePrompt?: string
     imageStatus?: ImageLifecycleStatus
     imageAssets?: ChatImageAsset[]
@@ -26,6 +29,8 @@ interface ChatTurnProps {
     onForwardOptionClick: (message: string) => void
     onRegenerateClick?: (turnId: string) => void
     onDeleteClick?: (turnId: string) => void
+    onConfirmDeleteClick?: (turnId: string) => void
+    onCancelDeleteClick?: () => void
     onEditClick?: (turnId: string, newContent: string) => void
     onRequestNarration?: (assistantMessageId?: number, turnId?: string) => void
     /** Label for the AI speaker (e.g. "Game Master" or a character's name). */
@@ -34,9 +39,15 @@ interface ChatTurnProps {
     showForwardOptions?: boolean
     /** Render per-turn generated scene images. Off for 1:1 character chat. */
     showImage?: boolean
+    /** Hide mutating turn actions while the session is busy. */
+    actionsDisabled?: boolean
+    confirmingDelete?: boolean
+    deleting?: boolean
 }
 
-export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onEditClick, onRequestNarration, aiLabel = 'Game Master', showForwardOptions = true, showImage = true }: ChatTurnProps) {
+export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onConfirmDeleteClick, onCancelDeleteClick, onEditClick, onRequestNarration, aiLabel, showForwardOptions = true, showImage = true, actionsDisabled = false, confirmingDelete = false, deleting = false }: ChatTurnProps) {
+    const { t } = useTranslation()
+    const resolvedAiLabel = aiLabel ?? t('interaction.chat.gameMaster')
     const isUser = turn.type === 'user'
     const [isEditing, setIsEditing] = useState(false)
 
@@ -64,10 +75,10 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
 
             <div className={cx('flex min-w-0 max-w-[640px] flex-col gap-1.5', isUser ? 'items-end' : 'items-start')}>
                 <div className={cx('flex items-center gap-2', isUser && 'flex-row-reverse')}>
-                    <Eyebrow tone={isUser ? 'ember' : 'arcane'} className="text-[11px] tracking-[0.16em]">
-                        {isUser ? 'Player' : aiLabel}
+                    <Eyebrow tone={isUser ? 'ember' : 'arcane'} className="min-w-0 truncate text-[11px] tracking-[0.16em]">
+                        {isUser ? t('interaction.chat.player') : turn.narratorIdentity?.name || resolvedAiLabel}
                     </Eyebrow>
-                    <div className={cx('flex items-center gap-2', isUser && 'flex-row-reverse')}>
+                    <div className={cx('flex shrink-0 items-center gap-2', isUser && 'flex-row-reverse')}>
                         <span className="font-mono text-[11px] text-parchment-500">
                             {formatApiTime(turn.timestamp)}
                         </span>
@@ -75,6 +86,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                             <TurnNarration
                                 status={turn.ttsStatus}
                                 url={turn.ttsUrl ?? turn.ttsAssets?.[0]?.url}
+                                segments={turn.ttsSegments}
                                 errorDetail={turn.ttsError?.detail}
                                 canRequest={!turn.isStreaming && Boolean(turn.assistantMessageId || turn.turnId)}
                                 onRequest={() => onRequestNarration(turn.assistantMessageId, turn.turnId)}
@@ -84,10 +96,14 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                             turnId={turn.id}
                             isUser={isUser}
                             isEditing={isEditing}
-                            isStreaming={turn.isStreaming}
+                            isStreaming={turn.isStreaming || actionsDisabled}
                             onEditClick={onEditClick ? handleEditStart : undefined}
                             onRegenerateClick={onRegenerateClick}
                             onDeleteClick={onDeleteClick}
+                            confirmingDelete={confirmingDelete}
+                            deleting={deleting}
+                            onConfirmDelete={() => onConfirmDeleteClick?.(turn.id)}
+                            onCancelDelete={onCancelDeleteClick}
                         />
                     </div>
                 </div>
@@ -103,7 +119,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                     onCancel={handleEditCancel}
                                 />
                             ) : (
-                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} />
+                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} />
                             )}
                         </div>
                     ) : (
@@ -116,7 +132,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                     onCancel={handleEditCancel}
                                 />
                             ) : (
-                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} />
+                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} narratorIdentity={turn.narratorIdentity} aiLabel={resolvedAiLabel} />
                             )}
                             {!isUser && !isEditing && showImage && (
                                 <GeneratedImage

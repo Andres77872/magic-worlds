@@ -14,6 +14,8 @@
  */
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { Eye, History, ImagePlus, ImageUp, Music2, Sparkles, Trash2 } from 'lucide-react'
 import type { CardMediaTargetType, CardPortraitRequest, ThemeSongJobPublic } from '@/shared'
 import { useBackgroundTasks } from '@/app/hooks'
@@ -44,15 +46,16 @@ function PortraitActions({
     onRemove: () => void
     disabled?: boolean
 }) {
+    const { t } = useTranslation()
     return (
         <div className="absolute inset-0 flex items-start justify-end gap-1 rounded-xl bg-gradient-to-b from-ink-900/60 via-transparent to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-            <IconButton label="View image" size="sm" onClick={onView} disabled={disabled}>
+            <IconButton label={t('creation.common.media.viewImage')} size="sm" onClick={onView} disabled={disabled}>
                 <Eye size={16} strokeWidth={1.75} />
             </IconButton>
-            <IconButton label="Replace image" size="sm" onClick={onReplace} disabled={disabled}>
+            <IconButton label={t('creation.common.media.replaceImage')} size="sm" onClick={onReplace} disabled={disabled}>
                 <ImageUp size={16} strokeWidth={1.75} />
             </IconButton>
-            <IconButton label="Remove image" size="sm" tone="danger" onClick={onRemove} disabled={disabled}>
+            <IconButton label={t('creation.common.media.removeImage')} size="sm" tone="danger" onClick={onRemove} disabled={disabled}>
                 <Trash2 size={16} strokeWidth={1.75} />
             </IconButton>
         </div>
@@ -104,22 +107,25 @@ export interface MediaStudioSectionProps {
 
 const EXTRA_DIRECTION_MAX = 600
 
-function mediaErrorCopy(error: unknown, noun: string): string {
+function mediaErrorCopy(error: unknown, noun: string, t: TFunction): string {
     const err = error as { message?: string; category?: string; status?: number; retryAfterSeconds?: number; requestId?: string }
-    const suffix = err.requestId ? ` Support ID: ${err.requestId}` : ''
+    const suffix = err.requestId ? t('creation.common.media.errors.supportId', { requestId: err.requestId }) : ''
     const Noun = noun.charAt(0).toUpperCase() + noun.slice(1)
     if (err.category === 'quota_exceeded' || err.status === 429) {
-        return `You've reached today's ${noun} generation limit.${err.retryAfterSeconds ? ` Try again in about ${Math.ceil(err.retryAfterSeconds / 3600)} hour(s).` : ' Try again later.'}${suffix}`
+        const retry = err.retryAfterSeconds
+            ? t('creation.common.media.errors.quotaRetryHours', { count: Math.ceil(err.retryAfterSeconds / 3600) })
+            : t('creation.common.media.errors.quotaRetryLater')
+        return `${t('creation.common.media.errors.quotaExceeded', { noun })}${retry}${suffix}`
     }
     if (err.category === 'unavailable' || err.status === 503) {
-        return `${Noun} generation is temporarily unavailable. Try again later.${suffix}`
+        return `${t('creation.common.media.errors.unavailable', { noun: Noun })}${suffix}`
     }
-    if (err.category === 'not_found') return `Save the card first, then generate its ${noun}.${suffix}`
-    if (err.category === 'invalid') return `${err.message || 'That request was rejected — adjust the card details and retry.'}${suffix}`
+    if (err.category === 'not_found') return `${t('creation.common.media.errors.notFound', { noun })}${suffix}`
+    if (err.category === 'invalid') return `${err.message || t('creation.common.media.errors.invalid')}${suffix}`
     if (err.status === 0 || err.category === 'timeout') {
-        return `This is taking a while. It may still finish in the background — check back in a moment.${suffix}`
+        return `${t('creation.common.media.errors.timeout')}${suffix}`
     }
-    return err.message || `Couldn't generate the ${noun}. Please try again.`
+    return err.message || t('creation.common.media.errors.generic', { noun })
 }
 
 function firstCompletedThemeUrl(jobs: ThemeSongJobPublic[]): string | undefined {
@@ -145,6 +151,7 @@ export function MediaStudioSection({
     onAuthRequired,
     layout = 'full',
 }: MediaStudioSectionProps) {
+    const { t } = useTranslation()
     const { tasks, registerThemeSongJob } = useBackgroundTasks()
     const mountedRef = useRef(true)
     useEffect(() => {
@@ -171,11 +178,11 @@ export function MediaStudioSection({
             return
         }
         if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
-            setImgError('Choose a JPEG, PNG, or WebP image.')
+            setImgError(t('creation.common.media.notices.chooseImageType'))
             return
         }
         if (file.size > MAX_UPLOAD_BYTES) {
-            setImgError('That image is larger than 15 MB — pick a smaller file.')
+            setImgError(t('creation.common.media.notices.tooLarge'))
             return
         }
         const controller = new AbortController()
@@ -190,9 +197,9 @@ export function MediaStudioSection({
         } catch (err) {
             if (!mountedRef.current) return
             if (controller.signal.aborted) {
-                setImgError('Upload canceled.')
+                setImgError(t('creation.common.media.notices.uploadCanceled'))
             } else {
-                setImgError(mediaErrorCopy(err, 'image'))
+                setImgError(mediaErrorCopy(err, 'image', t))
             }
         } finally {
             if (mountedRef.current) setImgBusy(false)
@@ -218,7 +225,7 @@ export function MediaStudioSection({
             return
         }
         if (!template.name.trim()) {
-            setImgError(`Give your ${noun} a name first — the portrait is drawn from it.`)
+            setImgError(t('creation.common.media.notices.nameFirst', { noun }))
             return
         }
         const controller = new AbortController()
@@ -248,14 +255,14 @@ export function MediaStudioSection({
             if (job.status === 'completed' && url) {
                 onImageUrl(url)
             } else {
-                setImgError(mediaErrorCopy(job.error ?? { category: job.status }, 'portrait'))
+                setImgError(mediaErrorCopy(job.error ?? { category: job.status }, 'portrait', t))
             }
         } catch (err) {
             if (!mountedRef.current) return
             if (controller.signal.aborted) {
-                setImgError('Canceled. The image may still finish in the background — try again to check.')
+                setImgError(t('creation.common.media.notices.imageCanceled'))
             } else {
-                setImgError(mediaErrorCopy(err, 'portrait'))
+                setImgError(mediaErrorCopy(err, 'portrait', t))
             }
         } finally {
             if (mountedRef.current) setImgBusy(false)
@@ -307,7 +314,7 @@ export function MediaStudioSection({
                 if (url) {
                     setThemeUrl(url)
                     onGeneratedThemeSongUrl?.(url)
-                    setThemeNotice('Theme is ready.')
+                    setThemeNotice(t('creation.common.media.themeReady'))
                 }
                 setThemeJobId(null)
             }, 0)
@@ -315,7 +322,7 @@ export function MediaStudioSection({
         }
         if (task.status === 'failed' || task.status === 'canceled') {
             const timer = window.setTimeout(() => {
-                setThemeError(task.error?.detail || mediaErrorCopy({ category: task.status }, 'theme'))
+                setThemeError(task.error?.detail || mediaErrorCopy({ category: task.status }, 'theme', t))
                 setThemeNotice(null)
                 setThemeJobId(null)
             }, 0)
@@ -337,10 +344,11 @@ export function MediaStudioSection({
         try {
             const targetId = await ensureSaved()
             if (!targetId) {
-                setThemeError(`Save the ${noun} first, then generate its theme.`)
+                setThemeError(t('creation.common.media.notices.saveFirst', { noun }))
                 return
             }
-            const description = songDirection.trim() || `An evocative theme song for ${template.name.trim() || `this ${noun}`}.`
+            const themeFor = template.name.trim() || t('creation.common.media.notices.defaultThemeTarget', { noun })
+            const description = songDirection.trim() || t('creation.common.media.notices.defaultThemeDescription', { name: themeFor })
             const job = await apiService.generateThemeSong(
                 { target_type: cardType, target_id: targetId, description },
                 { signal: controller.signal },
@@ -352,18 +360,18 @@ export function MediaStudioSection({
             if (job.status === 'completed' && url) {
                 setThemeUrl(url)
                 onGeneratedThemeSongUrl?.(url)
-                setThemeNotice('Theme is ready.')
+                setThemeNotice(t('creation.common.media.themeReady'))
             } else if (job.status === 'failed') {
-                setThemeError(mediaErrorCopy(job.error ?? { category: job.status }, 'theme'))
+                setThemeError(mediaErrorCopy(job.error ?? { category: job.status }, 'theme', t))
             } else {
-                setThemeNotice('Theme is composing in Tasks.')
+                setThemeNotice(t('creation.common.media.themeComposing'))
             }
         } catch (err) {
             if (!mountedRef.current) return
             if (controller.signal.aborted) {
-                setThemeError('Canceled before the task was accepted.')
+                setThemeError(t('creation.common.media.notices.themeCanceled'))
             } else {
-                setThemeError(mediaErrorCopy(err, 'theme'))
+                setThemeError(mediaErrorCopy(err, 'theme', t))
             }
         } finally {
             if (mountedRef.current) setThemeBusy(false)
@@ -411,8 +419,14 @@ export function MediaStudioSection({
     const resolvedImage = resolveMediaUrl(imageUrl)
     const resolvedTheme = resolveMediaUrl(themeUrl)
     const isAdventure = cardType === 'adventure_template'
-    const imageLabel = isAdventure ? 'Cover image' : cardType === 'world' ? 'Setting image' : cardType === 'item' ? 'Item image' : 'Profile image'
-    const imgBusyLabel = imgBusyKind === 'upload' ? 'Uploading…' : 'Generating…'
+    const imageLabel = isAdventure
+        ? t('creation.common.media.coverImage')
+        : cardType === 'world'
+          ? t('creation.common.media.settingImage')
+          : cardType === 'item'
+            ? t('creation.common.media.itemImage')
+            : t('creation.common.media.profileImage')
+    const imgBusyLabel = imgBusyKind === 'upload' ? t('creation.common.media.uploading') : t('creation.common.media.generating')
 
     // Rendered once per layout — the hidden picker drives Replace/Upload, the
     // lightbox drives View. Both read the same refs/state as the action buttons.
@@ -433,9 +447,9 @@ export function MediaStudioSection({
         return (
             <div className="flex flex-col gap-4 rounded-xl border border-parchment-50/10 bg-ink-800 p-4 shadow-sm">
                 <div className="flex flex-col gap-0.5">
-                    <Eyebrow tone="arcane">{isAdventure ? 'Cover & Theme' : 'Portrait & Theme'}</Eyebrow>
+                    <Eyebrow tone="arcane">{isAdventure ? t('creation.common.media.coverTheme') : t('creation.common.media.portraitTheme')}</Eyebrow>
                     <p className="font-narrative text-xs leading-snug text-parchment-400">
-                        Generate art and a theme — the image lands in the preview above; the theme plays here.
+                        {t('creation.common.media.compactBlurb')}
                     </p>
                 </div>
 
@@ -462,13 +476,13 @@ export function MediaStudioSection({
                         onChange={setDirection}
                         rows={2}
                         maxLength={EXTRA_DIRECTION_MAX}
-                        placeholder="Add art direction (optional) — mood, palette, setting…"
+                        placeholder={t('creation.common.media.artDirectionPlaceholderCompact')}
                     />
                     {imgError && <p className="text-xs text-blood-500">{imgError}</p>}
                     {imgBusy ? (
                         <div className="flex justify-end gap-2">
                             <Button kind="secondary" size="sm" onClick={() => imgAbortRef.current?.abort()}>
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
                             <Button kind="arcane" size="sm" disabled iconLeft={<Icon icon={Sparkles} size={15} />}>
                                 {imgBusyLabel}
@@ -477,7 +491,9 @@ export function MediaStudioSection({
                     ) : (
                         <>
                             <Button kind="arcane" size="sm" full onClick={handleGenerateImage} iconLeft={<Icon icon={Sparkles} size={15} />}>
-                                {resolvedImage ? `Regenerate ${imageLabel.toLowerCase()}` : `Generate ${imageLabel.toLowerCase()}`}
+                                {resolvedImage
+                                    ? t('creation.common.media.regenerateImage', { label: imageLabel.toLowerCase() })
+                                    : t('creation.common.media.generateImage', { label: imageLabel.toLowerCase() })}
                             </Button>
                             <div className="flex items-center justify-center gap-3">
                                 {!resolvedImage && (
@@ -486,7 +502,7 @@ export function MediaStudioSection({
                                         onClick={openFilePicker}
                                         className="text-[11px] text-parchment-400 underline-offset-2 transition-colors hover:text-parchment-200 hover:underline"
                                     >
-                                        or upload your own image
+                                        {t('creation.common.media.uploadOwn')}
                                     </button>
                                 )}
                                 <button
@@ -494,7 +510,7 @@ export function MediaStudioSection({
                                     onClick={() => openHistory('images')}
                                     className="inline-flex items-center gap-1 text-[11px] text-arcane-300 underline-offset-2 transition-colors hover:text-arcane-200 hover:underline"
                                 >
-                                    <Icon icon={History} size={12} /> Browse your gallery
+                                    <Icon icon={History} size={12} /> {t('creation.common.media.browseGallery')}
                                 </button>
                             </div>
                         </>
@@ -507,12 +523,12 @@ export function MediaStudioSection({
                 <div className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-2">
                         <Icon icon={Music2} size={15} className="text-arcane-300" />
-                        <span className="font-ui text-[11px] font-semibold uppercase tracking-[0.12em] text-parchment-300">Music theme</span>
+                        <span className="font-ui text-[11px] font-semibold uppercase tracking-[0.12em] text-parchment-300">{t('creation.common.media.musicTheme')}</span>
                     </div>
                     {resolvedTheme && (
                         <AudioWavePlayer
                             src={resolvedTheme}
-                            title={template.name.trim() ? `${template.name.trim()} theme` : 'theme'}
+                            title={template.name.trim() ? t('creation.common.media.themeSuffix', { name: template.name.trim() }) : t('creation.common.media.themeFallback')}
                             trackMeta={{
                                 cardName: template.name.trim() || undefined,
                                 cardType,
@@ -527,7 +543,7 @@ export function MediaStudioSection({
                         onChange={setSongDirection}
                         rows={2}
                         maxLength={EXTRA_DIRECTION_MAX}
-                        placeholder="Song direction (optional) — tempo, instruments, emotion…"
+                        placeholder={t('creation.common.media.songDirectionPlaceholderCompact')}
                     />
                     {themeDisabledReason ? (
                         <Eyebrow tone="muted">{themeDisabledReason}</Eyebrow>
@@ -540,10 +556,10 @@ export function MediaStudioSection({
                     {themeBusy ? (
                         <div className="flex justify-end gap-2">
                             <Button kind="secondary" size="sm" onClick={() => themeAbortRef.current?.abort()}>
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
                             <Button kind="arcane" size="sm" disabled iconLeft={<Icon icon={Sparkles} size={15} />}>
-                                Starting…
+                                {t('creation.common.media.starting')}
                             </Button>
                         </div>
                     ) : (
@@ -555,7 +571,7 @@ export function MediaStudioSection({
                             disabled={Boolean(themeDisabledReason)}
                             iconLeft={<Icon icon={Sparkles} size={15} />}
                         >
-                            {resolvedTheme ? 'Regenerate theme' : 'Generate theme'}
+                            {resolvedTheme ? t('creation.common.media.regenerateTheme') : t('creation.common.media.generateTheme')}
                         </Button>
                     )}
                     <button
@@ -563,7 +579,7 @@ export function MediaStudioSection({
                         onClick={() => openHistory('themes')}
                         className="inline-flex items-center justify-center gap-1 self-center text-[11px] text-arcane-300 underline-offset-2 transition-colors hover:text-arcane-200 hover:underline"
                     >
-                        <Icon icon={History} size={12} /> Browse this card&apos;s themes
+                        <Icon icon={History} size={12} /> {t('creation.common.media.browseThemes')}
                     </button>
                 </div>
 
@@ -591,29 +607,29 @@ export function MediaStudioSection({
                         )}
                     </div>
                     <div className="flex flex-col gap-3">
-                        <CreatorField label="Add art direction (optional)" tooltip="Steer the look — mood, palette, setting. The full prompt is built for you.">
+                        <CreatorField label={t('creation.common.media.artDirectionLabel')} tooltip={t('creation.common.media.artDirectionHelper')}>
                             <CreatorTextarea
                                 value={direction}
                                 onChange={setDirection}
                                 rows={3}
                                 maxLength={EXTRA_DIRECTION_MAX}
-                                placeholder="e.g. moody candlelight, rain-soaked alley, muted palette…"
+                                placeholder={t('creation.common.media.artDirectionPlaceholder')}
                             />
                         </CreatorField>
                         {imgError && <p className="text-sm text-blood-500">{imgError}</p>}
                         <div className="flex items-center justify-between gap-2">
                             <Button kind="ghost" onClick={() => openHistory('images')} iconLeft={<Icon icon={History} size={16} />}>
-                                Gallery
+                                {t('creation.common.media.gallery')}
                             </Button>
                             <div className="flex justify-end gap-2">
                                 {imgBusy && (
                                     <Button kind="secondary" onClick={() => imgAbortRef.current?.abort()}>
-                                        Cancel
+                                        {t('common.cancel')}
                                     </Button>
                                 )}
                                 {!imgBusy && !resolvedImage && (
                                     <Button kind="secondary" onClick={openFilePicker} iconLeft={<Icon icon={ImageUp} size={16} />}>
-                                        Upload
+                                        {t('creation.common.media.upload')}
                                     </Button>
                                 )}
                                 <Button
@@ -622,7 +638,7 @@ export function MediaStudioSection({
                                     disabled={imgBusy}
                                     iconLeft={<Icon icon={Sparkles} size={16} />}
                                 >
-                                    {imgBusy ? imgBusyLabel : resolvedImage ? 'Regenerate portrait' : 'Generate portrait'}
+                                    {imgBusy ? imgBusyLabel : resolvedImage ? t('creation.common.media.regeneratePortrait') : t('creation.common.media.generatePortrait')}
                                 </Button>
                             </div>
                         </div>
@@ -632,11 +648,11 @@ export function MediaStudioSection({
 
             {/* Theme song */}
             <div className="flex flex-col gap-4">
-                <SectionHeader icon={Music2} tone="arcane" title="Music theme" />
+                <SectionHeader icon={Music2} tone="arcane" title={t('creation.common.media.musicTheme')} />
                 {resolvedTheme && (
                     <AudioWavePlayer
                         src={resolvedTheme}
-                        title={template.name.trim() ? `${template.name.trim()} theme` : 'theme'}
+                        title={template.name.trim() ? t('creation.common.media.themeSuffix', { name: template.name.trim() }) : t('creation.common.media.themeFallback')}
                         trackMeta={{
                             cardName: template.name.trim() || undefined,
                             cardType,
@@ -646,13 +662,13 @@ export function MediaStudioSection({
                         className="rounded-xl border border-arcane-500/20 bg-ink-800/60 p-3"
                     />
                 )}
-                <CreatorField label="Song direction (optional)" tooltip="Describe the vibe — tempo, instruments, emotion. Card details are included automatically.">
+                <CreatorField label={t('creation.common.media.songDirectionLabel')} tooltip={t('creation.common.media.songDirectionHelper')}>
                     <CreatorTextarea
                         value={songDirection}
                         onChange={setSongDirection}
                         rows={3}
                         maxLength={EXTRA_DIRECTION_MAX}
-                        placeholder="e.g. brooding orchestral, slow build, lonely cello…"
+                        placeholder={t('creation.common.media.songDirectionPlaceholder')}
                     />
                 </CreatorField>
                 {themeDisabledReason ? (
@@ -665,12 +681,12 @@ export function MediaStudioSection({
                 )}
                 <div className="flex items-center justify-between gap-2">
                     <Button kind="ghost" onClick={() => openHistory('themes')} iconLeft={<Icon icon={History} size={16} />}>
-                        History
+                        {t('creation.common.media.history')}
                     </Button>
                     <div className="flex justify-end gap-2">
                         {themeBusy && (
                             <Button kind="secondary" onClick={() => themeAbortRef.current?.abort()}>
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
                         )}
                         <Button
@@ -679,7 +695,7 @@ export function MediaStudioSection({
                             disabled={themeBusy || Boolean(themeDisabledReason)}
                             iconLeft={<Icon icon={Sparkles} size={16} />}
                         >
-                            {themeBusy ? 'Starting…' : resolvedTheme ? 'Regenerate theme' : 'Generate theme'}
+                            {themeBusy ? t('creation.common.media.starting') : resolvedTheme ? t('creation.common.media.regenerateTheme') : t('creation.common.media.generateTheme')}
                         </Button>
                     </div>
                 </div>

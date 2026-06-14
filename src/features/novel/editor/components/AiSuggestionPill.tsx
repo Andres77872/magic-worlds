@@ -4,6 +4,7 @@
  * anywhere instead of clicking is the implicit accept.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Check, X } from 'lucide-react'
 import { Icon, cx } from '@/ui/primitives'
 
@@ -14,12 +15,13 @@ interface AiSuggestionPillProps {
 }
 
 export function AiSuggestionPill({ anchor, onAccept, onReject }: AiSuggestionPillProps) {
+    const { t } = useTranslation()
     return (
         <div
             className="absolute z-30 flex items-center gap-1 rounded-full border border-arcane-500/35 bg-ink-700/95 p-1 shadow-lg"
             style={{ left: anchor.left, top: anchor.top }}
             role="toolbar"
-            aria-label="Review AI suggestion"
+            aria-label={t('novelEditor.suggestion.review')}
             data-testid="ai-suggestion-pill"
         >
             <PillButton
@@ -28,7 +30,7 @@ export function AiSuggestionPill({ anchor, onAccept, onReject }: AiSuggestionPil
                 testId="ai-suggestion-accept"
             >
                 <Icon icon={Check} size={13} />
-                Keep
+                {t('novelEditor.suggestion.keep')}
                 <kbd className="font-mono text-[10px] opacity-70">Tab</kbd>
             </PillButton>
             <PillButton
@@ -37,7 +39,7 @@ export function AiSuggestionPill({ anchor, onAccept, onReject }: AiSuggestionPil
                 testId="ai-suggestion-reject"
             >
                 <Icon icon={X} size={13} />
-                Discard
+                {t('novelEditor.suggestion.discard')}
                 <kbd className="font-mono text-[10px] opacity-70">Esc</kbd>
             </PillButton>
         </div>

@@ -6,7 +6,8 @@
 
 import type { Story } from '@/shared'
 import { apiService, resolveMediaUrl } from '@/infrastructure/api'
-import { chaptersFor, storySourceLabel, wordCount } from './utils/novelUtils'
+import type { TFunction } from 'i18next'
+import { chaptersFor, wordCount } from './utils/novelUtils'
 
 export interface NovelGalleryItem {
     id: string
@@ -27,7 +28,21 @@ function coverFromRefs(story: Story): string | undefined {
     return undefined
 }
 
-export function novelItems(raw: unknown): NovelGalleryItem[] {
+function sourceLabelFor(story: Story, t: TFunction): string {
+    const source = story.source
+    if (!source || source.kind === 'blank') return t('novelGallery.source.blank')
+    if (source.title) return source.title
+    if (source.kind === 'character') return t('novelGallery.source.character')
+    if (source.kind === 'world') return t('novelGallery.source.world')
+    if (source.kind === 'item') return t('novelGallery.source.item')
+    if (source.kind === 'adventure_template') return t('novelGallery.source.adventure')
+    if (source.kind === 'adventure_session') return t('novelGallery.source.adventureSession')
+    if (source.kind === 'character_chat') return t('novelGallery.source.characterChat')
+    if (source.kind === 'lorebook') return t('novelGallery.source.lorebook')
+    return t('novelGallery.source.blank')
+}
+
+export function novelItems(raw: unknown, t: TFunction): NovelGalleryItem[] {
     const stories = Array.isArray(raw) ? (raw as Story[]) : []
     return stories.map((story) => {
         const chapters = chaptersFor(story)
@@ -35,23 +50,28 @@ export function novelItems(raw: unknown): NovelGalleryItem[] {
         return {
             id: story.id,
             title: story.title,
-            badge: storySourceLabel(story),
-            tags: [`${chapters.length} chapter${chapters.length === 1 ? '' : 's'}`, `${words.toLocaleString()} words`],
+            badge: sourceLabelFor(story, t),
+            tags: [
+                t('novelGallery.tags.chapter', { count: chapters.length }),
+                t('novelGallery.tags.words', { count: words.toLocaleString() }),
+            ],
             imageUrl: coverFromRefs(story),
             source: story,
         }
     })
 }
 
-export const NOVEL_GALLERY_CONFIG = {
-    eyebrow: 'Your library',
-    title: 'Novels',
-    searchPlaceholder: 'Search novels by title or text…',
-    emptyTitle: 'No novels yet',
-    emptyDescription: 'Begin your first novel and weave your cards into its chapters.',
-    noMatchTitle: 'No novels match',
-    noMatchDescription: 'Try a different title or a phrase from the text.',
-    createLabel: 'New novel',
-    fetchPage: (skip: number, limit: number, q?: string) => apiService.getStories(skip, limit, q),
-    toItems: novelItems,
+export function getNovelGalleryConfig(t: TFunction) {
+    return {
+        eyebrow: t('novelGallery.header.eyebrow'),
+        title: t('novelGallery.header.title'),
+        searchPlaceholder: t('novelGallery.search.placeholder'),
+        emptyTitle: t('novelGallery.empty.noItemsTitle'),
+        emptyDescription: t('novelGallery.empty.noItemsDescription'),
+        noMatchTitle: t('novelGallery.empty.noMatchTitle'),
+        noMatchDescription: t('novelGallery.empty.noMatchDescription'),
+        createLabel: t('novelGallery.actions.new'),
+        fetchPage: (skip: number, limit: number, q?: string) => apiService.getStories(skip, limit, q),
+        toItems: (raw: unknown) => novelItems(raw, t),
+    }
 }

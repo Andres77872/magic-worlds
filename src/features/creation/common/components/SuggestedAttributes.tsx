@@ -7,6 +7,7 @@
  * engine only — it never changes the API payload shape.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Check, Plus } from 'lucide-react'
 import { Chip, Icon } from '@/ui/primitives'
 
@@ -23,6 +24,7 @@ export interface SuggestedAttributesProps {
 }
 
 export function SuggestedAttributes({ presets, existingKeys, onAdd }: SuggestedAttributesProps) {
+    const { t } = useTranslation()
     return (
         <div className="flex flex-wrap gap-2">
             {presets.map((preset) => {
@@ -34,7 +36,9 @@ export function SuggestedAttributes({ presets, existingKeys, onAdd }: SuggestedA
                         disabled={used}
                         onClick={() => !used && onAdd(preset)}
                         icon={<Icon icon={used ? Check : Plus} size={13} />}
-                        title={used ? `${preset.key} added` : `Add ${preset.key}`}
+                        title={used
+                            ? t('creation.common.suggestedAttributes.added', { key: preset.key })
+                            : t('creation.common.suggestedAttributes.add', { key: preset.key })}
                     >
                         {preset.key}
                     </Chip>

@@ -5,6 +5,7 @@
  * the chosen world, objectives count, and trigger chips.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Avatar, Badge, Card, Chip, Eyebrow, Portrait, Tag } from '@/ui/primitives'
 import { resolveMediaUrl } from '@/infrastructure/api'
 
@@ -27,17 +28,18 @@ export interface AdventurePreviewCardProps {
 }
 
 export function AdventurePreviewCard({ title, scenario, cast, persona, world, objectivesCount, triggers, imageUrl }: AdventurePreviewCardProps) {
+    const { t } = useTranslation()
     const hasMeta = objectivesCount > 0 || triggers.length > 0
 
     return (
         <div className="flex flex-col gap-2">
-            <Eyebrow tone="muted">Live preview</Eyebrow>
+            <Eyebrow tone="muted">{t('creation.adventure.preview.livePreview')}</Eyebrow>
             <Card>
                 <Portrait name={title} src={resolveMediaUrl(imageUrl)} height={150}>
                     <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 p-4">
-                        <Eyebrow tone="ember">Now Playing</Eyebrow>
+                        <Eyebrow tone="ember">{t('creation.adventure.preview.nowPlaying')}</Eyebrow>
                         <h3 className="m-0 line-clamp-2 font-display text-xl font-semibold leading-tight text-parchment-50">
-                            {title || 'Untitled Adventure'}
+                            {title || t('creation.adventure.preview.untitled')}
                         </h3>
                         {world && (
                             <Badge tone="arcane" className="self-start capitalize">
@@ -50,12 +52,12 @@ export function AdventurePreviewCard({ title, scenario, cast, persona, world, ob
 
                 <div className="flex flex-col gap-4 p-4">
                     <p className="line-clamp-4 font-narrative text-sm leading-relaxed text-parchment-200">
-                        {scenario.trim() || <span className="italic text-parchment-400">Set the opening scene…</span>}
+                        {scenario.trim() || <span className="italic text-parchment-400">{t('creation.adventure.preview.setOpeningScene')}</span>}
                     </p>
 
                     <div>
                         <Eyebrow tone="muted" className="mb-2 block">
-                            The Cast
+                            {t('creation.adventure.preview.theCast')}
                         </Eyebrow>
                         <div className="flex flex-wrap items-center gap-2.5">
                             {persona && (
@@ -63,7 +65,7 @@ export function AdventurePreviewCard({ title, scenario, cast, persona, world, ob
                                     <Avatar name={persona.name} size={36} ring="ember" />
                                     <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2">
                                         <Badge tone="ember" className="px-1.5 py-0 text-[9px] leading-tight">
-                                            You
+                                            {t('creation.adventure.preview.you')}
                                         </Badge>
                                     </span>
                                 </span>
@@ -72,7 +74,7 @@ export function AdventurePreviewCard({ title, scenario, cast, persona, world, ob
                                 <Avatar key={m.id} name={m.name} size={36} />
                             ))}
                             {cast.length === 0 && !persona && (
-                                <span className="font-narrative text-xs italic text-parchment-400">No cast chosen yet</span>
+                                <span className="font-narrative text-xs italic text-parchment-400">{t('creation.adventure.preview.noCastChosen')}</span>
                             )}
                         </div>
                     </div>
@@ -81,12 +83,12 @@ export function AdventurePreviewCard({ title, scenario, cast, persona, world, ob
                         <div className="flex flex-wrap items-center gap-2 border-t border-parchment-50/[.08] pt-3">
                             {objectivesCount > 0 && (
                                 <Tag>
-                                    {objectivesCount} objective{objectivesCount > 1 ? 's' : ''}
+                                    {t('creation.adventure.preview.objectives', { count: objectivesCount })}
                                 </Tag>
                             )}
-                            {triggers.slice(0, 6).map((t, i) => (
-                                <Chip key={`${t}-${i}`} active disabled tabIndex={-1} className="pointer-events-none">
-                                    {t}
+                            {triggers.slice(0, 6).map((trigger, i) => (
+                                <Chip key={`${trigger}-${i}`} active disabled tabIndex={-1} className="pointer-events-none">
+                                    {trigger}
                                 </Chip>
                             ))}
                             {triggers.length > 6 && <Tag>+{triggers.length - 6}</Tag>}

@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Download, ListMusic, Loader2, Pause, Play, RotateCcw } from 'lucide-react'
 import { usePlaylist } from '@/app/hooks/usePlaylist'
 import { themeTrack, type PlaylistTrack } from '@/app/providers/audioPlaylistContext'
@@ -50,6 +51,7 @@ export function AudioWavePlayer({
     onPlayingChange,
     className,
 }: AudioWavePlayerProps) {
+    const { t } = useTranslation()
     const playlist = usePlaylist()
     const [downloadState, setDownloadState] = useState<{
         src: string
@@ -80,7 +82,7 @@ export function AudioWavePlayer({
 
     const engaged = isPlaying || currentTime > 0
     const progress = duration && duration > 0 ? currentTime / duration : 0
-    const trackName = title?.trim() || 'theme'
+    const trackName = title?.trim() || t('ui.audio.trackFallback')
 
     // Mirror the authoritative play state to the host (card glow). Driven by the
     // media events, so a pause forced by another player's audio focus syncs too.
@@ -128,9 +130,15 @@ export function AudioWavePlayer({
             <div className="flex items-center gap-2.5">
                 <button
                     type="button"
-                    aria-label={error ? `Retry ${trackName}` : isPlaying ? `Pause ${trackName}` : `Play ${trackName}`}
+                    aria-label={
+                        error
+                            ? t('ui.audio.retry', { title: trackName })
+                            : isPlaying
+                              ? t('ui.audio.pause', { title: trackName })
+                              : t('ui.audio.play', { title: trackName })
+                    }
                     aria-pressed={isPlaying}
-                    title={error ?? (isPlaying ? 'Pause theme' : 'Play theme')}
+                    title={error ?? (isPlaying ? t('ui.audio.pauseTheme') : t('ui.audio.playTheme'))}
                     disabled={isLoading}
                     onClick={toggle}
                     className={cx(
@@ -163,7 +171,7 @@ export function AudioWavePlayer({
                         onSeekRatio={seekRatio}
                         engaged={engaged}
                         disabled={Boolean(error)}
-                        label={`Seek within ${trackName}`}
+                        label={t('ui.audio.seekWithin', { title: trackName })}
                         className={cx(!engaged && 'opacity-70', error && 'opacity-25')}
                     />
                     {isLoading && (
@@ -179,7 +187,11 @@ export function AudioWavePlayer({
 
                 {showEnqueue && (
                     <IconButton
-                        label={queued ? `${trackName} is in the playlist` : `Add ${trackName} to playlist`}
+                        label={
+                            queued
+                                ? t('ui.audio.inPlaylist', { title: trackName })
+                                : t('ui.audio.addToPlaylist', { title: trackName })
+                        }
                         size="sm"
                         tone={queued ? 'active' : 'default'}
                         className="h-7 w-7"
@@ -193,10 +205,10 @@ export function AudioWavePlayer({
                     <IconButton
                         label={
                             downloadError
-                                ? `Retry download ${trackName}`
+                                ? t('ui.audio.retryDownload', { title: trackName })
                                 : downloading
-                                  ? `Downloading ${trackName}`
-                                  : `Download ${trackName}`
+                                  ? t('ui.audio.downloading', { title: trackName })
+                                  : t('ui.audio.download', { title: trackName })
                         }
                         size="sm"
                         tone={downloadError ? 'danger' : 'default'}

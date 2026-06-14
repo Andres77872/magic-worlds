@@ -5,6 +5,7 @@
  */
 
 import type { Adventure, Character, Item, World } from '../shared'
+import type { CardActor, CardVisibility } from '../shared'
 import { readWorldPlaceType } from '../shared'
 
 /**
@@ -39,6 +40,8 @@ interface RawCardRow {
     system_instructions?: string
     image_url?: string
     theme_song_url?: string
+    visibility?: CardVisibility
+    original_creator?: CardActor
     persona?: Character
     characters?: Character[]
     world?: World[]
@@ -63,6 +66,8 @@ export function transformCharacters(raw: unknown): Character[] {
         system_instructions: char.system_instructions,
         image_url: char.image_url,
         theme_song_url: char.theme_song_url,
+        visibility: char.visibility,
+        original_creator: char.original_creator,
         createdAt: char.createdAt ?? char.created_at,
         updatedAt: char.updatedAt ?? char.updated_at,
     }))
@@ -80,6 +85,8 @@ export function transformWorlds(raw: unknown): World[] {
         triggers: world.triggers ?? [],
         image_url: world.image_url,
         theme_song_url: world.theme_song_url,
+        visibility: world.visibility,
+        original_creator: world.original_creator,
         createdAt: world.createdAt ?? world.created_at,
         updatedAt: world.updatedAt ?? world.updated_at,
     }))
@@ -98,6 +105,8 @@ export function transformTemplates(raw: unknown): Adventure[] {
         triggers: template.triggers ?? [],
         image_url: template.image_url,
         theme_song_url: template.theme_song_url,
+        visibility: template.visibility,
+        original_creator: template.original_creator,
         createdAt: template.createdAt ?? template.created_at,
         updatedAt: template.updatedAt ?? template.updated_at,
     }))
@@ -120,6 +129,8 @@ export function transformItems(raw: unknown): Item[] {
         triggers: item.triggers ?? [],
         image_url: item.image_url,
         theme_song_url: item.theme_song_url,
+        visibility: item.visibility,
+        original_creator: item.original_creator,
         createdAt: item.createdAt ?? item.created_at,
         updatedAt: item.updatedAt ?? item.updated_at,
     }))

@@ -18,6 +18,7 @@ import {
     type RefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { Check } from 'lucide-react'
 import { useClickOutside } from '../../shared/hooks/useClickOutside'
 import { cx } from './cx'
@@ -63,6 +64,7 @@ export function SuggestInput({
     autoFocus,
     'aria-label': ariaLabel,
 }: SuggestInputProps) {
+    const { t } = useTranslation()
     const ctx = useFieldContext()
     const reactId = useId()
     const inputId = id ?? ctx?.id ?? `suggest-${reactId}`
@@ -211,7 +213,7 @@ export function SuggestInput({
                         ref={listRef}
                         id={listboxId}
                         role="listbox"
-                        aria-label={ariaLabel ?? 'Suggestions'}
+                        aria-label={ariaLabel ?? t('ui.suggest.label')}
                         style={{
                             position: 'fixed',
                             top: position?.top ?? -9999,

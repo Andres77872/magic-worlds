@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { i18n } from '@/app/i18n'
 import type { CardAssistantMessage } from '@/shared/types/aiCard.types'
 import {
     attachAppliedChanges,
@@ -8,6 +9,8 @@ import {
     parseToolMessageActions,
     type AppliedChangeSummary,
 } from './appliedActions'
+
+const t = i18n.t.bind(i18n)
 
 function message(overrides: Partial<CardAssistantMessage>): CardAssistantMessage {
     return {
@@ -110,16 +113,16 @@ describe('attachAppliedChanges', () => {
 
 describe('formatAppliedChange', () => {
     it('labels replace as Card saved', () => {
-        expect(formatAppliedChange({ kind: 'replace', fields: [] })).toEqual({ label: 'Card saved' })
+        expect(formatAppliedChange({ kind: 'replace', fields: [] }, t)).toEqual({ label: 'Card saved' })
     })
 
     it('labels a fieldless patch as Card updated', () => {
-        expect(formatAppliedChange({ kind: 'patch', fields: [] })).toEqual({ label: 'Card updated' })
+        expect(formatAppliedChange({ kind: 'patch', fields: [] }, t)).toEqual({ label: 'Card updated' })
     })
 
     it('lists up to four fields then truncates with +N more, keeping the full list in title', () => {
-        expect(formatAppliedChange({ kind: 'patch', fields: ['name', 'race'] }).label).toBe('Updated: name, race')
-        const long = formatAppliedChange({ kind: 'patch', fields: ['a', 'b', 'c', 'd', 'e', 'f'] })
+        expect(formatAppliedChange({ kind: 'patch', fields: ['name', 'race'] }, t).label).toBe('Updated: name, race')
+        const long = formatAppliedChange({ kind: 'patch', fields: ['a', 'b', 'c', 'd', 'e', 'f'] }, t)
         expect(long.label).toBe('Updated: a, b, c, d +2 more')
         expect(long.title).toBe('Updated fields: a, b, c, d, e, f')
     })

@@ -2,6 +2,7 @@
  * Common form actions component for creator forms
  */
 
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/primitives';
 
 export interface FormActionsProps {
@@ -19,10 +20,12 @@ export interface FormActionsProps {
 export function FormActions({
     onCancel,
     submitLabel,
-    cancelLabel = 'Cancel',
+    cancelLabel,
     isSubmitting = false,
     error = null
 }: FormActionsProps) {
+    const { t } = useTranslation();
+    const resolvedCancelLabel = cancelLabel ?? t('common.cancel');
     return (
         <div className="mt-8 border-t-2 border-parchment-50/10 pt-6">
             {error && (
@@ -41,7 +44,7 @@ export function FormActions({
                     disabled={isSubmitting}
                     className="max-sm:w-full"
                 >
-                    {cancelLabel}
+                    {resolvedCancelLabel}
                 </Button>
                 <Button
                     kind="primary"
@@ -49,7 +52,7 @@ export function FormActions({
                     disabled={isSubmitting}
                     className="max-sm:w-full"
                 >
-                    {isSubmitting ? 'Saving...' : submitLabel}
+                    {isSubmitting ? t('creation.common.formActions.saving') : submitLabel}
                 </Button>
             </div>
         </div>

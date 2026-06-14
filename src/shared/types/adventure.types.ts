@@ -3,7 +3,9 @@
  */
 
 import type { Character } from './character.types'
-import type { ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from './interaction.types'
+import type { CardActor, CardVisibility } from './cardSharing.types'
+import type { ChatImageAsset, ChatImageError, ChatResponseSegment, ChatTtsAsset, ChatTtsError, ChatTtsSegmentClip, ImageLifecycleStatus, TtsLifecycleStatus } from './interaction.types'
+import type { CharacterVoice } from './voicePreset.types'
 import type { World } from './world.types'
 
 export interface Adventure {
@@ -26,6 +28,8 @@ export interface Adventure {
     image_url?: string
     /** Hosted URL of the adventure's generated theme song, if any. */
     theme_song_url?: string
+    visibility?: CardVisibility
+    original_creator?: CardActor
     /**
      * The adventure's own cloned cards (persona/cast/world/scenario), captured when
      * the session was started. Editing this copy never affects the original library
@@ -87,6 +91,10 @@ export interface AdventureSnapshot {
     source?: string
     template_card_id?: string
     template: SnapshotTemplate
+    /** Narrator/GM voice for multi-voice narration (falls back to the global default). */
+    narrator_voice?: CharacterVoice | null
+    /** Whether visible character thoughts are voiced during narration (default off). */
+    narrate_thoughts?: boolean
 }
 
 export type AdventureStatus = 'draft' | 'in-progress' | 'completed' | 'archived'
@@ -96,6 +104,7 @@ export interface TurnEntry {
     type: 'user' | 'ai' | 'system'
     content: string
     timestamp: string
+    segments?: ChatResponseSegment[]
     isStreaming?: boolean
     metadata?: Record<string, unknown>
     assistantMessageId?: number
@@ -116,6 +125,8 @@ export interface TurnEntry {
     ttsAssets?: ChatTtsAsset[]
     ttsUrl?: string
     ttsError?: ChatTtsError
+    /** Per-segment multi-voice narration clips (RP/group), played in order. */
+    ttsSegments?: ChatTtsSegmentClip[]
 }
 
 export interface AdventureFormData {

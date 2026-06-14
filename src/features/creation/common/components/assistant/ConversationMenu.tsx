@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Check, History, Plus, Trash2 } from 'lucide-react'
 import { cx, IconButton } from '@/ui/primitives'
 import { formatApiDateTime, formatRelativeTime } from '@/utils/time'
@@ -22,6 +23,7 @@ interface ConversationMenuProps {
 
 /** Header popover: "New chat" plus the conversation history with inline delete. */
 export function ConversationMenu({ conversations, activeId, disabled, onSelect, onNew, onDelete }: ConversationMenuProps) {
+    const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const [confirmId, setConfirmId] = useState<number | null>(null)
     const containerRef = useRef<HTMLDivElement | null>(null)
@@ -56,7 +58,7 @@ export function ConversationMenu({ conversations, activeId, disabled, onSelect, 
     return (
         <div ref={containerRef} className="relative">
             <IconButton
-                label="Conversations"
+                label={t('creation.common.assistant.conversations')}
                 size="sm"
                 disabled={disabled}
                 aria-haspopup="menu"
@@ -70,7 +72,7 @@ export function ConversationMenu({ conversations, activeId, disabled, onSelect, 
             {open && (
                 <div
                     role="menu"
-                    aria-label="Assistant conversations"
+                    aria-label={t('creation.common.assistant.assistantConversations')}
                     className="absolute right-0 top-full z-10 mt-2 w-72 rounded-lg border border-parchment-50/10 bg-ink-700 p-1.5 shadow-lg"
                 >
                     <button
@@ -83,17 +85,17 @@ export function ConversationMenu({ conversations, activeId, disabled, onSelect, 
                         className="mb-1 flex w-full items-center gap-2 rounded-sm border-b border-parchment-50/[.08] px-2.5 py-2 pb-3 text-left font-ui text-[13px] font-semibold text-ember-300 hover:bg-parchment-50/[.06]"
                     >
                         <Plus size={14} />
-                        New chat
+                        {t('creation.common.assistant.newChat')}
                     </button>
 
                     <div className="max-h-64 overflow-y-auto">
                         {!conversations.length && (
-                            <p className="px-2.5 py-3 text-center font-ui text-[12px] text-parchment-400">No previous chats.</p>
+                            <p className="px-2.5 py-3 text-center font-ui text-[12px] text-parchment-400">{t('creation.common.assistant.noPreviousChats')}</p>
                         )}
                         {conversations.map((conversation, index) => {
                             const id = conversationKey(conversation)
                             if (!id) return null
-                            const title = conversation.title || `Conversation ${conversations.length - index}`
+                            const title = conversation.title || t('creation.common.assistant.conversationFallback', { number: conversations.length - index })
                             const isActive = id === activeId
                             const updatedAt = formatApiDateTime(conversation.updated_at)
                             return (
@@ -127,11 +129,11 @@ export function ConversationMenu({ conversations, activeId, disabled, onSelect, 
                                             }}
                                             className="shrink-0 rounded-sm px-2 py-1.5 font-ui text-[11px] font-semibold text-blood-500 hover:bg-blood-500/10"
                                         >
-                                            Delete?
+                                            {t('creation.common.assistant.deleteConfirm')}
                                         </button>
                                     ) : (
                                         <IconButton
-                                            label={`Delete ${title}`}
+                                            label={t('creation.common.assistant.deleteConversation', { title })}
                                             size="sm"
                                             tone="danger"
                                             className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"

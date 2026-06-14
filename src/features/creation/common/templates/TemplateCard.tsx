@@ -2,6 +2,7 @@
  * TemplateCard — one pickable starting shape in the template gallery: icon
  * tile, name, evocative tagline, and a few chips naming the fields it sets up.
  */
+import { useTranslation } from 'react-i18next'
 import { Feather } from 'lucide-react'
 import { IconTile, Tag, cx } from '@/ui/primitives'
 import type { CardFieldDefinition, CardTemplate } from '../engine'
@@ -17,11 +18,14 @@ export interface TemplateCardProps {
 const MAX_FIELD_CHIPS = 4
 
 export function TemplateCard({ template, fields, onPick, tone = 'ember' }: TemplateCardProps) {
+    const { t } = useTranslation()
     const fieldLabels = template.fieldIds
         .map((id) => fields.find((f) => f.id === id)?.label)
         .filter((label): label is string => Boolean(label))
     const shown = fieldLabels.slice(0, MAX_FIELD_CHIPS)
     const more = fieldLabels.length - shown.length
+    const name = template.nameKey ? t(template.nameKey) : template.name
+    const tagline = template.taglineKey ? t(template.taglineKey) : template.tagline
 
     return (
         <button
@@ -35,10 +39,10 @@ export function TemplateCard({ template, fields, onPick, tone = 'ember' }: Templ
             <IconTile icon={template.icon ?? Feather} tone={tone} size="sm" glow />
             <div className="min-w-0">
                 <h3 className="font-display text-[19px] font-semibold leading-tight text-parchment-50">
-                    {template.name}
+                    {name}
                 </h3>
                 <p className="mt-1 font-narrative text-sm italic leading-snug text-parchment-300">
-                    {template.tagline}
+                    {tagline}
                 </p>
             </div>
             {shown.length > 0 && (
@@ -46,7 +50,7 @@ export function TemplateCard({ template, fields, onPick, tone = 'ember' }: Templ
                     {shown.map((label) => (
                         <Tag key={label}>{label}</Tag>
                     ))}
-                    {more > 0 && <Tag>+{more} more</Tag>}
+                    {more > 0 && <Tag>{t('creation.common.templateGallery.moreFields', { count: more })}</Tag>}
                 </div>
             )}
         </button>
@@ -55,6 +59,7 @@ export function TemplateCard({ template, fields, onPick, tone = 'ember' }: Templ
 
 /** The dashed "start from nothing" tile that closes every gallery. */
 export function EmptyCardTile({ noun, onPick }: { noun: string; onPick: () => void }) {
+    const { t } = useTranslation()
     return (
         <button
             type="button"
@@ -66,9 +71,9 @@ export function EmptyCardTile({ noun, onPick }: { noun: string; onPick: () => vo
         >
             <IconTile icon={Feather} tone="arcane" size="sm" glow />
             <div>
-                <h3 className="font-display text-[19px] font-semibold leading-tight text-parchment-50">Empty card</h3>
+                <h3 className="font-display text-[19px] font-semibold leading-tight text-parchment-50">{t('creation.common.templateGallery.emptyCardTitle')}</h3>
                 <p className="mt-1 font-narrative text-sm italic leading-snug text-parchment-300">
-                    Just the essentials — raise your {noun} from nothing.
+                    {t('creation.common.templateGallery.emptyCardDescription', { noun })}
                 </p>
             </div>
         </button>

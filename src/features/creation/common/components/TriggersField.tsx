@@ -8,6 +8,7 @@
  */
 
 import { useState, type KeyboardEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { Chip, Field, Icon, Input } from '@/ui/primitives'
 
@@ -22,10 +23,14 @@ export interface TriggersFieldProps {
 export function TriggersField({
     values,
     onChange,
-    label = 'Triggers:',
-    helper = 'Keywords that pull this into the scene when mentioned in the adventure chat. Press Enter or comma to add.',
-    placeholder = 'e.g. wizard, ancient ruins, the king…',
+    label,
+    helper,
+    placeholder,
 }: TriggersFieldProps) {
+    const { t } = useTranslation()
+    const resolvedLabel = label ?? t('creation.common.triggers.label')
+    const resolvedHelper = helper ?? t('creation.common.triggers.helper')
+    const resolvedPlaceholder = placeholder ?? t('creation.common.triggers.placeholder')
     const [draft, setDraft] = useState('')
 
     const commit = (raw: string) => {
@@ -51,7 +56,7 @@ export function TriggersField({
     }
 
     return (
-        <Field label={label} helper={helper}>
+        <Field label={resolvedLabel} helper={resolvedHelper}>
             {values.length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-2">
                     {values.map((trigger, index) => (
@@ -59,7 +64,7 @@ export function TriggersField({
                             key={`${trigger}-${index}`}
                             active
                             onClick={() => remove(index)}
-                            title="Remove trigger"
+                            title={t('creation.common.triggers.removeTrigger')}
                             icon={<Icon icon={X} size={13} />}
                         >
                             {trigger}
@@ -72,7 +77,7 @@ export function TriggersField({
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={() => commit(draft)}
-                placeholder={placeholder}
+                placeholder={resolvedPlaceholder}
             />
         </Field>
     )

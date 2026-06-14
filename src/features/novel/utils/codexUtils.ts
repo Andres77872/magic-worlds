@@ -10,8 +10,10 @@ import type { Lorebook, LorebookEntry, StoryCardKind, StoryCardRef } from '@/sha
 
 export interface CodexKindMeta {
     kind: StoryCardKind
-    label: string
-    plural: string
+    /** i18n key for the singular label; resolve with t() at render. */
+    labelKey: string
+    /** i18n key for the plural label; resolve with t() at render. */
+    pluralKey: string
 }
 
 export const KIND_ICONS: Record<StoryCardKind, LucideIcon> = {
@@ -26,13 +28,13 @@ export const KIND_ICONS: Record<StoryCardKind, LucideIcon> = {
 
 /** Display order for codex groups. */
 export const KIND_META: CodexKindMeta[] = [
-    { kind: 'character', label: 'Character', plural: 'Characters' },
-    { kind: 'world', label: 'World', plural: 'Worlds' },
-    { kind: 'item', label: 'Item', plural: 'Items' },
-    { kind: 'adventure_template', label: 'Adventure', plural: 'Adventures' },
-    { kind: 'lorebook_entry', label: 'Lore entry', plural: 'Lore entries' },
-    { kind: 'lorebook', label: 'Lorebook', plural: 'Lorebooks' },
-    { kind: 'snapshot_card', label: 'Snapshot', plural: 'Snapshots' },
+    { kind: 'character', labelKey: 'novelEditor.codexKind.character', pluralKey: 'novelEditor.codexKind.characters' },
+    { kind: 'world', labelKey: 'novelEditor.codexKind.world', pluralKey: 'novelEditor.codexKind.worlds' },
+    { kind: 'item', labelKey: 'novelEditor.codexKind.item', pluralKey: 'novelEditor.codexKind.items' },
+    { kind: 'adventure_template', labelKey: 'novelEditor.codexKind.adventure', pluralKey: 'novelEditor.codexKind.adventures' },
+    { kind: 'lorebook_entry', labelKey: 'novelEditor.codexKind.loreEntry', pluralKey: 'novelEditor.codexKind.loreEntries' },
+    { kind: 'lorebook', labelKey: 'novelEditor.codexKind.lorebook', pluralKey: 'novelEditor.codexKind.lorebooks' },
+    { kind: 'snapshot_card', labelKey: 'novelEditor.codexKind.snapshot', pluralKey: 'novelEditor.codexKind.snapshots' },
 ]
 
 export function snapshotLabel(ref: StoryCardRef): string {

@@ -95,8 +95,7 @@ export function HeroScene({
                     }}
                 />
                 <div
-                    className="absolute inset-x-0 bottom-0 h-28"
-                    style={{ background: 'linear-gradient(180deg, transparent, rgba(14,12,20,.5))' }}
+                    className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-b from-transparent to-ink-900/50"
                 />
                 {!hasImage && !media.loading && (
                     <span

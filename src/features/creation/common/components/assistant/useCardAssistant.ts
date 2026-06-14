@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { apiService, ApiError } from '@/infrastructure/api'
 import type {
     CardAssistantCardResponse,
@@ -59,7 +61,7 @@ export interface UseCardAssistantResult<TCard extends CardAssistantCardResponse>
     deleteConversation: (id: number) => Promise<void>
     applyPendingCard: () => void
     dismissPendingCard: () => void
-    reloadConversation: () => Promise<boolean>
+    reloadConversation: (options?: { applyCard?: boolean }) => Promise<boolean>
     clearNotice: () => void
 }
 
@@ -74,13 +76,13 @@ export function conversationKey(conversation: { conversation_id?: number; id?: n
     return conversation?.conversation_id ?? conversation?.id ?? null
 }
 
-function assistantErrorMessage(error: unknown): string {
+function assistantErrorMessage(error: unknown, t: TFunction): string {
     if (error instanceof ApiError) {
         return error.isTransient
-            ? 'The assistant is briefly unavailable. Try again in a moment.'
+            ? t('creation.common.assistant.notices.transient')
             : error.message
     }
-    return 'The assistant could not complete that request.'
+    return t('creation.common.assistant.notices.generic')
 }
 
 function isAbortError(error: unknown): boolean {
@@ -99,6 +101,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
     onAuthRequired,
     timeoutMs = DEFAULT_TIMEOUT_MS,
 }: UseCardAssistantOptions<TCard>): UseCardAssistantResult<TCard> {
+    const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const [status, setStatus] = useState<AssistantStatus>('idle')
     const [conversations, setConversations] = useState<CardAssistantConversation[]>([])
@@ -118,6 +121,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
     const activeConversationRef = useRef<CardAssistantConversation | null>(null)
     const conversationsRef = useRef<CardAssistantConversation[]>([])
     const pendingCardRef = useRef<TCard | null>(null)
+    const tRef = useRef<TFunction>(t)
     useEffect(() => {
         currentCardRef.current = currentCard
         onCardRef.current = onCard
@@ -126,6 +130,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
         activeConversationRef.current = activeConversation
         conversationsRef.current = conversations
         pendingCardRef.current = pendingCard
+        tRef.current = t
     })
 
     const localIdRef = useRef(0)
@@ -186,7 +191,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                 setMessages(detail.messages ?? [])
             })
             .catch((err) => {
-                if (!cancelled) setNotice({ kind: 'error', message: assistantErrorMessage(err) })
+                if (!cancelled) setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current) })
             })
             .finally(() => {
                 if (!cancelled) setStatus((prev) => (prev === 'initializing' ? 'idle' : prev))
@@ -250,7 +255,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
         return response.conversation
     }, [cardType])
 
-    const reloadConversation = useCallback(async (): Promise<boolean> => {
+    const reloadConversation = useCallback(async (options: { applyCard?: boolean } = {}): Promise<boolean> => {
         const id = conversationKey(activeConversationRef.current)
         if (!id) return false
         try {
@@ -259,10 +264,19 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
             setMessages(detail.messages ?? [])
             setInterruptedIds(new Set())
             setNotice(null)
+            const recoveredCard = (detail.card as TCard | null | undefined) ?? null
+            if (recoveredCard) {
+                if (options.applyCard) {
+                    onCardRef.current(recoveredCard)
+                    setPendingCard(null)
+                } else {
+                    setPendingCard(recoveredCard)
+                }
+            }
             const lastAssistant = [...(detail.messages ?? [])].reverse().find((message) => message.role === 'assistant')
             return Boolean(lastAssistant && lastAssistant.status === 'completed')
         } catch (err) {
-            setNotice({ kind: 'error', message: assistantErrorMessage(err), canReload: true })
+            setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current), canReload: true })
             return false
         }
     }, [])
@@ -372,7 +386,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                     }
                     if (event.type === 'error') {
                         receivedError = true
-                        const message = event.detail || event.error?.message || 'The assistant could not complete that request.'
+                        const message = event.detail || event.error?.message || tRef.current('creation.common.assistant.notices.generic')
                         setMessages((prev) => {
                             const withoutPlaceholder = prev.filter((item) => item.message_id !== placeholderId)
                             return [
@@ -398,11 +412,11 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
             if (!receivedFinal && !receivedError) {
                 // The stream closed without a result. The server may still
                 // have persisted the turn — pick up its truth before erroring.
-                const recovered = await reloadConversation()
+                const recovered = await reloadConversation({ applyCard: true })
                 if (!recovered) {
                     setNotice({
                         kind: 'error',
-                        message: 'The assistant stream ended before returning a result.',
+                        message: tRef.current('creation.common.assistant.notices.streamEnded'),
                         canRetry: true,
                         canReload: true,
                     })
@@ -414,7 +428,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                     setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                     setNotice({
                         kind: 'info',
-                        message: 'Stopped. The assistant may still finish and save its reply.',
+                        message: tRef.current('creation.common.assistant.notices.stopped'),
                         canReload: true,
                     })
                 }
@@ -423,7 +437,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                 setMessages((prev) => prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId))
                 setNotice({
                     kind: 'error',
-                    message: 'The assistant is still finishing a previous request.',
+                    message: tRef.current('creation.common.assistant.notices.busy'),
                     canRetry: true,
                     canReload: true,
                 })
@@ -432,7 +446,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                 setNotice({ kind: 'error', message: err.message, canReload: true })
             } else {
                 setMessages((prev) => prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId))
-                setNotice({ kind: 'error', message: assistantErrorMessage(err), canRetry: true })
+                setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current), canRetry: true })
             }
         } finally {
             if (activeRequestRef.current === requestId) {
@@ -500,7 +514,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
             // the user choose to apply it.
             setPendingCard((detail.card as TCard | null | undefined) ?? null)
         } catch (err) {
-            setNotice({ kind: 'error', message: assistantErrorMessage(err) })
+            setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current) })
         } finally {
             setStatus('idle')
         }
@@ -512,9 +526,9 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
             await apiService.deleteCardAssistantConversation(id, { timeoutMs: META_TIMEOUT_MS })
         } catch (err) {
             if (err instanceof ApiError && err.status === 409) {
-                setNotice({ kind: 'error', message: 'That conversation is still processing a message. Try again shortly.' })
+                setNotice({ kind: 'error', message: tRef.current('creation.common.assistant.notices.deleteBusy') })
             } else {
-                setNotice({ kind: 'error', message: assistantErrorMessage(err) })
+                setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current) })
             }
             return
         }

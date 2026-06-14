@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { i18n } from '@/app/i18n'
 import { apiService } from '@/infrastructure/api'
 import { parseApiTimestamp } from '@/utils/time'
 import {
@@ -169,7 +170,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE): MediaGallery {
                 setItems((prev) => (reset ? page : appendDedupedById(prev, page)))
             } catch (e) {
                 if (seq !== seqRef.current) return
-                setError(e instanceof Error ? e.message : 'Failed to load')
+                setError(e instanceof Error ? e.message : i18n.t('mediaGallery.error.loadFailed'))
                 if (reset) setItems([])
                 setHasMore(false)
             } finally {

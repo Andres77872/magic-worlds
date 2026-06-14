@@ -7,6 +7,7 @@
  * clickable card (the card's own onClick opens the editor / begins the scene).
  */
 import { useState, type MouseEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Download, Loader2, Pause, Play } from 'lucide-react'
 import { usePlaylist } from '@/app/hooks/usePlaylist'
 import { themeTrack, type PlaylistTrack } from '@/app/providers/audioPlaylistContext'
@@ -48,6 +49,7 @@ export function ThemeSongButton({
     showDownload = true,
     className,
 }: ThemeSongButtonProps) {
+    const { t } = useTranslation()
     const playlist = usePlaylist()
     const [downloadState, setDownloadState] = useState<{
         src: string
@@ -58,7 +60,9 @@ export function ThemeSongButton({
     const activeDownloadState = src && downloadState?.src === src ? downloadState : null
     const downloading = Boolean(activeDownloadState?.downloading)
     const downloadError = Boolean(activeDownloadState?.error)
-    const downloadName = title?.trim() || (cardName?.trim() ? `${cardName.trim()} theme` : 'theme song')
+    const downloadName =
+        title?.trim() ||
+        (cardName?.trim() ? t('ui.themeSong.cardTheme', { name: cardName.trim() }) : t('ui.themeSong.fallbackName'))
 
     const toggle = (e: MouseEvent) => {
         // Never let the play toggle trigger the enclosing clickable card.
@@ -90,9 +94,9 @@ export function ThemeSongButton({
         <>
             <button
                 type="button"
-                aria-label={isPlaying ? 'Pause theme song' : 'Play theme song'}
+                aria-label={isPlaying ? t('ui.themeSong.pause') : t('ui.themeSong.play')}
                 aria-pressed={isPlaying}
-                title={isPlaying ? 'Pause theme' : 'Play theme'}
+                title={isPlaying ? t('ui.themeSong.pauseShort') : t('ui.themeSong.playShort')}
                 onClick={toggle}
                 className={cx(
                     'inline-flex shrink-0 items-center justify-center rounded-full border backdrop-blur-sm transition-all',
@@ -110,10 +114,10 @@ export function ThemeSongButton({
                 <IconButton
                     label={
                         downloadError
-                            ? `Retry download ${downloadName}`
+                            ? t('ui.themeSong.retryDownload', { name: downloadName })
                             : downloading
-                              ? `Downloading ${downloadName}`
-                              : `Download ${downloadName}`
+                              ? t('ui.themeSong.downloading', { name: downloadName })
+                              : t('ui.themeSong.download', { name: downloadName })
                     }
                     size="sm"
                     tone={downloadError ? 'danger' : 'default'}

@@ -4,6 +4,7 @@
  */
 import { useId, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { cx } from './cx'
 import { IconButton } from './IconButton'
@@ -19,6 +20,7 @@ interface ModalProps {
     size?: ModalSize
     footer?: ReactNode
     className?: string
+    closeLabel?: string
     children: ReactNode
 }
 
@@ -37,8 +39,10 @@ export function Modal({
     size = 'md',
     footer,
     className,
+    closeLabel,
     children,
 }: ModalProps) {
+    const { t } = useTranslation()
     const titleId = useId()
 
     if (!open) return null
@@ -71,7 +75,7 @@ export function Modal({
                             )}
                         </div>
                         {showClose && (
-                            <IconButton label="Close" onClick={onClose}>
+                            <IconButton label={closeLabel ?? t('common.close')} onClick={onClose}>
                                 <X size={18} strokeWidth={1.75} />
                             </IconButton>
                         )}

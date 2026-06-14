@@ -25,7 +25,14 @@ export type PageType =
     | 'interaction'
     | 'character-chat'
     | 'chatroom'
+    | 'active-adventures'
+    | 'calls'
+    | 'community'
+    | 'shared-card'
     | 'profile'
+    | 'voice-studio'
+    | 'admin-voices'
+    | 'admin-agents'
     | 'docs'
     | 'about'
     | 'contact'
@@ -40,6 +47,9 @@ export type PageType =
     | 'gallery-media'
     | 'gallery-stories'
     | 'story'
+    | 'password-reset'
+    | 'verify-email'
+    | 'google-callback'
 
 export interface NavigationState {
     currentPage: PageType

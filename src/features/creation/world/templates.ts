@@ -6,8 +6,9 @@
 import { Castle, Ghost, Landmark, Rocket } from 'lucide-react'
 import type { CardTemplate } from '../common/engine'
 
-export const WORLD_GALLERY_HEADING = 'Where does the story live?'
-export const WORLD_GALLERY_SUBHEADING = 'Pick a starting frame for your setting, or raise it from nothing.'
+/** i18n keys for the gallery masthead — resolved at the WorldCreator. */
+export const WORLD_GALLERY_HEADING_KEY = 'creation.world.galleryHeading'
+export const WORLD_GALLERY_SUBHEADING_KEY = 'creation.world.gallerySubheading'
 
 /** Place-type the template frames scenes at — applied on pick (still editable). */
 export const WORLD_TEMPLATE_PLACE_TYPE: Record<string, string> = {
@@ -21,7 +22,9 @@ export const WORLD_TEMPLATES: CardTemplate[] = [
     {
         id: 'fantasy-realm',
         name: 'Fantasy Realm',
+        nameKey: 'creation.world.templates.fantasyRealm.name',
         tagline: 'Old magic, older pacts, a kingdom holding its breath.',
+        taglineKey: 'creation.world.templates.fantasyRealm.tagline',
         icon: Castle,
         fieldIds: [
             'sensory.sights',
@@ -50,7 +53,9 @@ export const WORLD_TEMPLATES: CardTemplate[] = [
     {
         id: 'city-of-intrigue',
         name: 'City of Intrigue',
+        nameKey: 'creation.world.templates.cityOfIntrigue.name',
         tagline: 'Marble above, knives below.',
+        taglineKey: 'creation.world.templates.cityOfIntrigue.tagline',
         icon: Landmark,
         fieldIds: [
             'sensory.smells',
@@ -81,7 +86,9 @@ export const WORLD_TEMPLATES: CardTemplate[] = [
     {
         id: 'haunted-place',
         name: 'The Haunted Place',
+        nameKey: 'creation.world.templates.hauntedPlace.name',
         tagline: 'Somewhere that remembers being loved.',
+        taglineKey: 'creation.world.templates.hauntedPlace.tagline',
         icon: Ghost,
         fieldIds: [
             'sensory.sights',
@@ -114,7 +121,9 @@ export const WORLD_TEMPLATES: CardTemplate[] = [
     {
         id: 'frontier-colony',
         name: 'Frontier Colony',
+        nameKey: 'creation.world.templates.frontierColony.name',
         tagline: 'Thin air, thinner promises, a new world underneath.',
+        taglineKey: 'creation.world.templates.frontierColony.tagline',
         icon: Rocket,
         fieldIds: [
             'sensory.sights',

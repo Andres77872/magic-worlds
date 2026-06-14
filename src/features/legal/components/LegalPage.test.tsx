@@ -1,5 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ReactElement } from 'react'
+import { I18nextProvider } from 'react-i18next'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { i18n } from '@/app/i18n'
 import { LegalPage } from './LegalPage'
 import type { LegalPageId } from './legalContent'
 
@@ -8,6 +11,15 @@ const setPage = vi.fn()
 vi.mock('@/app/hooks', () => ({
     useNavigation: () => ({ setPage }),
 }))
+
+function renderSpanish(ui: ReactElement) {
+    const localI18n = i18n.cloneInstance({ lng: 'es' })
+    return render(<I18nextProvider i18n={localI18n}>{ui}</I18nextProvider>)
+}
+
+beforeEach(async () => {
+    await i18n.changeLanguage('en')
+})
 
 afterEach(() => {
     cleanup()
@@ -42,5 +54,16 @@ describe('LegalPage', () => {
 
         expect(setPage).toHaveBeenNthCalledWith(1, 'contact')
         expect(setPage).toHaveBeenNthCalledWith(2, 'landing')
+    })
+
+    it('renders legal page chrome and body in Spanish', () => {
+        renderSpanish(<LegalPage page="privacy" />)
+
+        expect(screen.getByRole('heading', { name: 'Cómo Magic Worlds maneja los datos' })).toBeTruthy()
+        expect(screen.getByText((text) => text.includes('El almacenamiento solo local y el modo de cero retención'))).toBeTruthy()
+        expect(screen.getByText('Última actualización: 12 de junio de 2026')).toBeTruthy()
+
+        const nav = within(screen.getByRole('navigation', { name: 'Páginas legales' }))
+        expect(nav.getByRole('button', { name: 'Política de privacidad' })).toHaveAttribute('aria-current', 'page')
     })
 })

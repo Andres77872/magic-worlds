@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Icon, Button, Drawer, Field, Input, Tag, Textarea } from '@/ui/primitives'
 import type { CodexEntry } from '../../hooks/useCodex'
 import { KIND_ICONS, KIND_META } from '../../utils/codexUtils'
@@ -17,6 +18,7 @@ interface CodexEntryDrawerProps {
 }
 
 export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDrawerProps) {
+    const { t } = useTranslation()
     const [label, setLabel] = useState('')
     const [description, setDescription] = useState('')
 
@@ -29,6 +31,7 @@ export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDra
     }, [entryId])
 
     const meta = entry ? KIND_META.find((item) => item.kind === entry.kind) : null
+    const metaLabel = meta ? t(meta.labelKey) : null
     const keys = Array.isArray(entry?.ref.snapshot?.keys) ? (entry.ref.snapshot.keys as unknown[]).map(String) : []
     const sourceLorebookName =
         typeof entry?.ref.snapshot?.source_lorebook_name === 'string' ? entry.ref.snapshot.source_lorebook_name : null
@@ -43,17 +46,17 @@ export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDra
         <Drawer
             open={entry !== null}
             onClose={onClose}
-            eyebrow={meta?.label ?? 'Codex entry'}
+            eyebrow={metaLabel ?? t('novelEditor.entryDrawer.defaultEyebrow')}
             title={entry?.label ?? ''}
             icon={entry ? <Icon icon={KIND_ICONS[entry.kind]} size={18} /> : undefined}
             size="lg"
             footer={
                 <div className="flex w-full items-center justify-end gap-2">
                     <Button kind="ghost" onClick={onClose} disabled={busy}>
-                        Cancel
+                        {t('common.cancel')}
                     </Button>
                     <Button kind="primary" onClick={() => void submit()} disabled={busy} data-testid="codex-entry-save">
-                        {busy ? 'Saving…' : 'Save'}
+                        {busy ? t('common.saving') : t('common.save')}
                     </Button>
                 </div>
             }
@@ -61,12 +64,12 @@ export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDra
             {entry && (
                 <div className="flex flex-col gap-4">
                     <p className="m-0 font-ui text-xs text-parchment-400">
-                        This is this novel's private copy of {entry.label} — the source {meta?.label.toLowerCase() ?? 'card'} is unaffected.
+                        {t('novelEditor.entryDrawer.privateCopy', { label: entry.label, kind: metaLabel ? metaLabel.toLowerCase() : t('novelEditor.entryDrawer.defaultKind') })}
                     </p>
-                    <Field label="Name">
+                    <Field label={t('novelEditor.entryDrawer.name')}>
                         <Input value={label} onChange={(e) => setLabel(e.target.value)} data-testid="codex-entry-name" />
                     </Field>
-                    <Field label={entry.kind === 'lorebook_entry' ? 'Content' : 'Description'}>
+                    <Field label={entry.kind === 'lorebook_entry' ? t('novelEditor.entryDrawer.content') : t('novelEditor.entryDrawer.description')}>
                         <Textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
@@ -78,14 +81,14 @@ export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDra
                         <div className="flex flex-col gap-2">
                             {keys.length > 0 && (
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                    <span className="font-ui text-xs text-parchment-400">Keys:</span>
+                                    <span className="font-ui text-xs text-parchment-400">{t('novelEditor.entryDrawer.keys')}</span>
                                     {keys.map((key) => (
                                         <Tag key={key}>{key}</Tag>
                                     ))}
                                 </div>
                             )}
                             {sourceLorebookName && (
-                                <p className="m-0 font-ui text-xs text-parchment-400">Cloned from “{sourceLorebookName}”.</p>
+                                <p className="m-0 font-ui text-xs text-parchment-400">{t('novelEditor.entryDrawer.clonedFrom', { name: sourceLorebookName })}</p>
                             )}
                         </div>
                     )}

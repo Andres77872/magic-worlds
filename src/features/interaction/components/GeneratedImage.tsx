@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Sparkles } from 'lucide-react'
 import { useAuthenticatedMediaUrl } from '../../../infrastructure/api/useAuthenticatedMediaUrl'
 import type { ImageLifecycleStatus } from '../../../shared'
@@ -31,9 +32,10 @@ const PENDING_STATUSES: ImageLifecycleStatus[] = ['pending', 'in_progress', 'mir
 const FAILED_STATUSES: ImageLifecycleStatus[] = ['failed', 'canceled', 'invalid', 'quota_exceeded']
 
 function ImageError({ detail }: { detail?: string }) {
+    const { t } = useTranslation()
     return (
         <div className="mt-3 rounded-xl border border-blood-500/25 bg-blood-500/10 px-4 py-3 text-[13px] text-blood-200">
-            {detail || 'Image generation failed.'}
+            {detail || t('interaction.image.failed')}
         </div>
     )
 }
@@ -43,6 +45,7 @@ function ImageError({ detail }: { detail?: string }) {
  * load/fade state resets for free whenever the source changes (e.g. regenerate).
  */
 function SceneImage({ url, aspectRatio, errorDetail }: { url: string; aspectRatio: number; errorDetail?: string }) {
+    const { t } = useTranslation()
     const [loaded, setLoaded] = useState(false)
     const [errored, setErrored] = useState(false)
     const media = useAuthenticatedMediaUrl(url, 'image/*')
@@ -64,7 +67,7 @@ function SceneImage({ url, aspectRatio, errorDetail }: { url: string; aspectRati
                         if (node?.complete && node.naturalWidth > 0) setLoaded(true)
                     }}
                     src={imageSrc}
-                    alt="Generated scene"
+                    alt={t('interaction.image.alt')}
                     className={cx(
                         'absolute inset-0 h-full w-full object-contain transition-opacity duration-500',
                         loaded ? 'opacity-100' : 'opacity-0',
@@ -86,6 +89,7 @@ function SceneImage({ url, aspectRatio, errorDetail }: { url: string; aspectRati
 }
 
 export function GeneratedImage({ status, url, width, height, errorDetail }: GeneratedImageProps) {
+    const { t } = useTranslation()
     const completed = status === 'completed'
     // 'unavailable' means image generation is turned off server-side — not a
     // per-turn failure the player can act on, so it renders nothing.
@@ -106,7 +110,7 @@ export function GeneratedImage({ status, url, width, height, errorDetail }: Gene
     return (
         <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-arcane-400/25 bg-arcane-500/10 px-4 py-3 text-[13px] text-arcane-200">
             <Icon icon={Sparkles} size={14} className="animate-pulse text-arcane-300" />
-            Conjuring the scene…
+            {t('interaction.image.conjuring')}
         </div>
     )
 }

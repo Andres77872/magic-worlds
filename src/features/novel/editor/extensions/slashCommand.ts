@@ -9,6 +9,7 @@
 import { Extension, type Editor, type Range } from '@tiptap/core'
 import { PluginKey } from '@tiptap/pm/state'
 import { Suggestion, type SuggestionProps } from '@tiptap/suggestion'
+import type { TFunction } from 'i18next'
 import type { StoryGenerationCommand } from '@/shared'
 import type { InlineAIPhase } from '../types'
 
@@ -22,20 +23,33 @@ export interface SlashItem {
     instruction?: string
 }
 
-const CANNED_ITEMS: SlashItem[] = [
-    { key: 'continue', label: 'Continue writing', description: 'Carry the chapter forward in the same voice', command: 'continue' },
-    { key: 'describe', label: 'Describe the moment', description: 'Paint the current scene in vivid detail', command: 'describe' },
-    { key: 'critique', label: 'Critique chapter', description: 'Craft and continuity feedback — never touches the text', command: 'critique' },
+interface CannedSlashSpec {
+    key: string
+    labelKey: string
+    descriptionKey: string
+    command: StoryGenerationCommand
+}
+
+const CANNED_ITEMS: CannedSlashSpec[] = [
+    { key: 'continue', labelKey: 'novelEditor.slash.continue.label', descriptionKey: 'novelEditor.slash.continue.description', command: 'continue' },
+    { key: 'describe', labelKey: 'novelEditor.slash.describe.label', descriptionKey: 'novelEditor.slash.describe.description', command: 'describe' },
+    { key: 'critique', labelKey: 'novelEditor.slash.critique.label', descriptionKey: 'novelEditor.slash.critique.description', command: 'critique' },
 ]
 
-export function buildSlashItems(query: string): SlashItem[] {
+export function buildSlashItems(query: string, t: TFunction): SlashItem[] {
     const trimmed = query.trim()
-    const canned = CANNED_ITEMS.filter((item) => item.label.toLowerCase().includes(trimmed.toLowerCase()))
+    const resolved = CANNED_ITEMS.map((spec) => ({
+        key: spec.key,
+        label: t(spec.labelKey),
+        description: t(spec.descriptionKey),
+        command: spec.command,
+    }))
+    const canned = resolved.filter((item) => item.label.toLowerCase().includes(trimmed.toLowerCase()))
     if (!trimmed) return canned
     const custom: SlashItem = {
         key: 'custom',
-        label: `Write: “${trimmed}”`,
-        description: 'Send this instruction with the chapter',
+        label: t('novelEditor.slash.custom.label', { text: trimmed }),
+        description: t('novelEditor.slash.custom.description'),
         command: 'custom',
         instruction: trimmed,
     }
@@ -53,11 +67,13 @@ export interface SlashMenuController {
 export interface SlashCommandConfig {
     controllerRef: { current: SlashMenuController | null }
     getPhase: () => InlineAIPhase
+    /** Resolve the slash item copy; read live so language changes take effect. */
+    getT: () => TFunction
     /** Selecting an item: the query range is already deleted before this fires. */
     onSubmit: (item: SlashItem) => void
 }
 
-export function createSlashCommand({ controllerRef, getPhase, onSubmit }: SlashCommandConfig) {
+export function createSlashCommand({ controllerRef, getPhase, getT, onSubmit }: SlashCommandConfig) {
     return Extension.create({
         name: 'novelSlashCommand',
 
@@ -70,7 +86,7 @@ export function createSlashCommand({ controllerRef, getPhase, onSubmit }: SlashC
                     allowSpaces: true,
                     decorationClass: 'slash-query',
                     allow: () => getPhase() === 'idle' || getPhase() === 'prompting',
-                    items: ({ query }) => buildSlashItems(query),
+                    items: ({ query }) => buildSlashItems(query, getT()),
                     command: ({ editor, range, props }: { editor: Editor; range: Range; props: SlashItem }) => {
                         editor.chain().focus().deleteRange(range).run()
                         onSubmit(props)

@@ -36,7 +36,7 @@ export function CastMemberCard({ name, race, description, selected, mode, onTogg
             <Avatar name={name} size={40} ring={selected ? 'ember' : 'none'} />
             <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate font-display text-[15px] font-semibold text-parchment-50">{name}</span>
+                    <span className="min-w-0 truncate font-display text-[15px] font-semibold text-parchment-50">{name}</span>
                     {race && <Tag className="capitalize">{race}</Tag>}
                     {badge}
                 </div>

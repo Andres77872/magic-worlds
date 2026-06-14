@@ -33,6 +33,38 @@ export interface TurnMetadata {
     imagePrompt: string
 }
 
+export type ChatResponseSegmentKind = 'narrator' | 'speech' | 'thought'
+
+export interface ChatResponseSegment {
+    kind: ChatResponseSegmentKind
+    content: string
+    speaker_id?: string
+    speaker_name?: string
+    /** Resolved from the `speakers` roster (live + post-done) for portrait avatars. */
+    image_url?: string | null
+    /** True only for the currently-open segment while a turn streams. */
+    streaming?: boolean
+}
+
+/**
+ * One AI speaker in the transient `speakers` roster frame the server emits before
+ * the first `delta`. Lets the client paint live attribution (who is speaking /
+ * thinking) and resolve `speaker_id → name + portrait` while the turn streams.
+ */
+export interface ChatSpeakerRosterEntry {
+    speaker_id: string
+    name: string
+    image_url?: string | null
+    has_voice?: boolean
+}
+
+/** Narrator identity for a turn. `kind: 'scene'` = un-attributed scene-setting (character chat). */
+export interface ChatNarratorIdentity {
+    name?: string | null
+    image_url?: string | null
+    kind?: 'narrator' | 'scene'
+}
+
 export type ImageLifecycleStatus =
     | 'pending'
     | 'in_progress'
@@ -99,6 +131,36 @@ export interface ChatTtsError {
     retry_after_seconds?: number | null
 }
 
+/**
+ * One narration clip in a per-segment multi-voice turn. RP/group turns narrate
+ * each line in its own voice (narrator in the narrator voice); the client plays
+ * the clips in `segment_index` order. Snake_case to match both the WS `tts_*`
+ * frames and the server projection's `ttsSegments`.
+ */
+export interface ChatTtsSegmentClip {
+    segment_index: number
+    segment_count?: number
+    kind?: ChatResponseSegmentKind
+    speaker_id?: string | null
+    speaker_name?: string | null
+    job_id?: string
+    status?: TtsLifecycleStatus
+    status_url?: string | null
+    result_url?: string | null
+    url?: string | null
+    assets?: ChatTtsAsset[]
+    error?: ChatTtsError | null
+}
+
+/** Per-segment narration fields the `tts_*` frames carry for multi-voice turns. */
+interface ChatTtsSegmentFrameFields {
+    segment_index?: number
+    segment_count?: number
+    kind?: ChatResponseSegmentKind
+    speaker_id?: string | null
+    speaker_name?: string | null
+}
+
 export interface ChatState {
     messages: Message[]
     isLoading: boolean
@@ -121,16 +183,18 @@ export type ChatSocketClientMessage =
 
 export type ChatSocketServerMessage =
     | { type: 'ready' }
+    | { type: 'speakers'; roster: ChatSpeakerRosterEntry[]; narrator?: ChatNarratorIdentity | null }
     | { type: 'delta'; content: string }
     | { type: 'metadata'; forwardOptions: ForwardOption[]; imagePrompt: string }
+    | { type: 'segments'; responseFormat: string; segments: ChatResponseSegment[]; displayText?: string }
     | { type: 'image_job'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: Extract<ImageLifecycleStatus, 'pending' | 'in_progress' | 'mirroring'>; status_url: string; result_url: string }
     | { type: 'image_complete'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: 'completed'; assets: ChatImageAsset[]; status_url?: string; result_url?: string }
     | { type: 'image_failed'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string | null; status: Extract<ImageLifecycleStatus, 'failed' | 'canceled' | 'unavailable' | 'invalid' | 'quota_exceeded'>; error: ChatImageError; status_url?: string | null; result_url?: string | null }
     | { type: 'image'; [key: string]: unknown } // reserved for a future image step
-    | { type: 'tts_job'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: Extract<TtsLifecycleStatus, 'pending' | 'in_progress' | 'synthesizing' | 'mirroring'>; status_url: string; result_url: string }
-    | { type: 'tts_complete'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: 'completed'; url?: string; assets: ChatTtsAsset[]; status_url?: string; result_url?: string }
-    | { type: 'tts_failed'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string | null; status: Extract<TtsLifecycleStatus, 'failed' | 'invalid' | 'unavailable' | 'quota_exceeded' | 'rate_limited' | 'timeout' | 'content_blocked'>; error: ChatTtsError; status_url?: string | null; result_url?: string | null }
+    | ({ type: 'tts_job'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: Extract<TtsLifecycleStatus, 'pending' | 'in_progress' | 'synthesizing' | 'mirroring'>; status_url: string; result_url: string } & ChatTtsSegmentFrameFields)
+    | ({ type: 'tts_complete'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: 'completed'; url?: string; assets: ChatTtsAsset[]; status_url?: string; result_url?: string } & ChatTtsSegmentFrameFields)
+    | ({ type: 'tts_failed'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string | null; status: Extract<TtsLifecycleStatus, 'failed' | 'invalid' | 'unavailable' | 'quota_exceeded' | 'rate_limited' | 'timeout' | 'content_blocked'>; error: ChatTtsError; status_url?: string | null; result_url?: string | null } & ChatTtsSegmentFrameFields)
     | { type: 'action'; [key: string]: unknown } // reserved for future actions
-    | { type: 'done'; interrupted?: boolean; assistant_message_id?: number; turn_id?: string }
+    | { type: 'done'; interrupted?: boolean; user_message_id?: number; assistant_message_id?: number; turn_id?: string }
     | { type: 'error'; message: string; category?: string }
     | { type: 'pong' }

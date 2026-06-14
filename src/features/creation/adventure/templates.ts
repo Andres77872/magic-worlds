@@ -6,15 +6,17 @@
 import { Coffee, MoonStar, Search, Sword } from 'lucide-react'
 import type { CardTemplate } from '../common/engine'
 
-export const ADVENTURE_GALLERY_HEADING = 'How does it begin?'
-export const ADVENTURE_GALLERY_SUBHEADING =
-    'Every adventure is a promise about the first hour of play. Choose yours.'
+/** i18n keys for the gallery masthead — resolved at the AdventureCreator. */
+export const ADVENTURE_GALLERY_HEADING_KEY = 'creation.adventure.galleryHeading'
+export const ADVENTURE_GALLERY_SUBHEADING_KEY = 'creation.adventure.gallerySubheading'
 
 export const ADVENTURE_TEMPLATES: CardTemplate[] = [
     {
         id: 'heroic-quest',
         name: 'Heroic Quest',
+        nameKey: 'creation.adventure.templates.heroicQuest.name',
         tagline: 'A relic lost, a road dark, a deadline of moons.',
+        taglineKey: 'creation.adventure.templates.heroicQuest.tagline',
         icon: Sword,
         fieldIds: [
             'opening.scene',
@@ -47,7 +49,9 @@ export const ADVENTURE_TEMPLATES: CardTemplate[] = [
     {
         id: 'investigation',
         name: 'The Investigation',
+        nameKey: 'creation.adventure.templates.investigation.name',
         tagline: 'A locked door, a dead man, one wrong star.',
+        taglineKey: 'creation.adventure.templates.investigation.tagline',
         icon: Search,
         fieldIds: [
             'opening.scene',
@@ -82,7 +86,9 @@ export const ADVENTURE_TEMPLATES: CardTemplate[] = [
     {
         id: 'long-night',
         name: 'The Long Night',
+        nameKey: 'creation.adventure.templates.longNight.name',
         tagline: 'Eleven travelers, one storm, something knocking.',
+        taglineKey: 'creation.adventure.templates.longNight.tagline',
         icon: MoonStar,
         fieldIds: [
             'opening.scene',
@@ -117,7 +123,9 @@ export const ADVENTURE_TEMPLATES: CardTemplate[] = [
     {
         id: 'quiet-days',
         name: 'Quiet Days',
+        nameKey: 'creation.adventure.templates.quietDays.name',
         tagline: 'Small stakes that feel enormous.',
+        taglineKey: 'creation.adventure.templates.quietDays.tagline',
         icon: Coffee,
         fieldIds: [
             'opening.scene',

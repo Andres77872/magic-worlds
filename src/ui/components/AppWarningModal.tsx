@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { Button, Icon, Modal } from '../primitives'
 
 export const APP_WARNING_ACCEPTANCE_KEY = 'magic_worlds:app-warning-accepted:v1'
@@ -14,7 +16,9 @@ function hasAcceptedAppWarning() {
 }
 
 export function AppWarningModal() {
+    const { t } = useTranslation()
     const [isOpen, setIsOpen] = useState(() => !hasAcceptedAppWarning())
+    const voiceModeEnabled = isFrontendVoiceModeEnabled()
 
     const acceptWarning = () => {
         try {
@@ -29,7 +33,7 @@ export function AppWarningModal() {
         <Modal
             open={isOpen}
             onClose={() => {}}
-            title="Before you continue"
+            title={t('warning.title')}
             icon={<Icon icon={AlertTriangle} size={22} className="text-amber-500" />}
             showClose={false}
             size="lg"
@@ -39,23 +43,23 @@ export function AppWarningModal() {
                     onClick={acceptWarning}
                     iconLeft={<CheckCircle2 size={16} strokeWidth={1.75} />}
                 >
-                    I understand and accept
+                    {t('warning.accept')}
                 </Button>
             }
         >
             <div className="flex flex-col gap-4 text-[15px] leading-relaxed text-parchment-200">
-                <p>
-                    Magic Worlds is free during this preview, but it is still under active development.
-                    Please review these limits before using the app.
-                </p>
+                <p>{t('warning.body')}</p>
 
                 <ul className="list-disc space-y-2 pl-5">
-                    <li>Your content is saved on the backend so the app can work.</li>
-                    <li>Local-only storage and zero-retention mode are not supported right now.</li>
-                    <li>Login or registration is required, registration is open, and no email is required.</li>
-                    <li>Backend content and database records may be wiped without notice during development.</li>
-                    <li>NSFW content is not currently allowed.</li>
-                    <li>Credits are only informational reference values for now.</li>
+                    <li>{t('warning.contentSaved')}</li>
+                    <li>{t('warning.localOnly')}</li>
+                    <li>{t('warning.authRequired')}</li>
+                    <li>{t('warning.wipe')}</li>
+                    <li>{t('warning.nsfw')}</li>
+                    <li>{t('warning.credits')}</li>
+                    {voiceModeEnabled && (
+                        <li>{t('warning.voice')}</li>
+                    )}
                 </ul>
             </div>
         </Modal>

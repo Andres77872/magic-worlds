@@ -12,11 +12,14 @@ import {
     useEffect,
     useRef,
     useState,
+    type ChangeEvent,
     type CSSProperties,
+    type FocusEvent,
     type KeyboardEvent,
     type PointerEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import {
     ChevronDown,
     ChevronUp,
@@ -27,15 +30,20 @@ import {
     Music,
     Pause,
     Play,
+    Repeat,
+    Repeat1,
     RotateCcw,
     SkipBack,
     SkipForward,
     Square,
     Trash2,
+    Volume1,
+    Volume2,
+    VolumeX,
     X,
 } from 'lucide-react'
 import { usePlaylist } from '@/app/hooks'
-import type { PlaylistTrack } from '@/app/providers/audioPlaylistContext'
+import type { PlaylistLoopMode, PlaylistTrack } from '@/app/providers/audioPlaylistContext'
 import { AuthenticatedImage, Button, cx, Eyebrow, Icon, IconButton } from '@/ui/primitives'
 import { pseudoPeaks } from './audioData'
 import { downloadThemeSong } from './downloadThemeSong'
@@ -65,7 +73,7 @@ interface DockSize {
 const DOCK_POSITION_STORAGE_KEY = 'magic_worlds:playlist_dock_position:v1'
 const DOCK_VIEWPORT_PADDING = 16
 const DOCK_DEFAULT_SIZE: DockSize = { width: 416, height: 112 }
-
+const VOLUME_CLOSE_DELAY_MS = 240
 function readDockPosition(): DockPosition | null {
     if (typeof window === 'undefined') return null
     try {
@@ -111,10 +119,13 @@ function dockSizeFrom(element: HTMLElement | null): DockSize {
 }
 
 export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
+    const { t } = useTranslation()
     const playlist = usePlaylist()
     const [queueOpen, setQueueOpen] = useState(false)
     const [queuePlacement, setQueuePlacement] = useState<'above' | 'below'>('above')
     const [queueMaxHeight, setQueueMaxHeight] = useState(288)
+    const [volumeOpen, setVolumeOpen] = useState(false)
+    const [volumePlacement, setVolumePlacement] = useState<'above' | 'below'>('above')
     const [position, setPosition] = useState<DockPosition | null>(() => readDockPosition())
     const [dragging, setDragging] = useState(false)
     const [downloadState, setDownloadState] = useState<{
@@ -123,6 +134,8 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
         error: boolean
     } | null>(null)
     const dockRef = useRef<HTMLElement>(null)
+    const volumeClusterRef = useRef<HTMLDivElement>(null)
+    const volumeCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const positionRef = useRef<DockPosition | null>(position)
     const dragRef = useRef<{
         pointerId: number
@@ -177,6 +190,54 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
         window.addEventListener('resize', updateQueueMetrics)
         return () => window.removeEventListener('resize', updateQueueMetrics)
     }, [queueOpen, position, playlist.queue.length, updateQueueMetrics])
+
+    const updateVolumePlacement = useCallback(() => {
+        const rect = volumeClusterRef.current?.getBoundingClientRect()
+        if (!rect) return
+        const gap = 8
+        const spaceAbove = rect.top - DOCK_VIEWPORT_PADDING - gap
+        const spaceBelow = window.innerHeight - rect.bottom - DOCK_VIEWPORT_PADDING - gap
+        setVolumePlacement(spaceAbove >= 120 || spaceAbove >= spaceBelow ? 'above' : 'below')
+    }, [])
+
+    useEffect(() => {
+        if (!volumeOpen) return undefined
+        updateVolumePlacement()
+        window.addEventListener('resize', updateVolumePlacement)
+        return () => window.removeEventListener('resize', updateVolumePlacement)
+    }, [volumeOpen, position, updateVolumePlacement])
+
+    const clearVolumeCloseTimer = useCallback(() => {
+        if (!volumeCloseTimerRef.current) return
+        clearTimeout(volumeCloseTimerRef.current)
+        volumeCloseTimerRef.current = null
+    }, [])
+
+    const scheduleVolumeClose = useCallback(() => {
+        clearVolumeCloseTimer()
+        volumeCloseTimerRef.current = setTimeout(() => {
+            volumeCloseTimerRef.current = null
+            const activeElement = document.activeElement
+            if (activeElement instanceof Node && volumeClusterRef.current?.contains(activeElement)) return
+            setVolumeOpen(false)
+        }, VOLUME_CLOSE_DELAY_MS)
+    }, [clearVolumeCloseTimer])
+
+    useEffect(() => {
+        return clearVolumeCloseTimer
+    }, [clearVolumeCloseTimer])
+
+    useEffect(() => {
+        if (!volumeOpen) return undefined
+        const closeOnOutsidePointerDown = (e: globalThis.PointerEvent) => {
+            const target = e.target
+            if (target instanceof Node && volumeClusterRef.current?.contains(target)) return
+            clearVolumeCloseTimer()
+            setVolumeOpen(false)
+        }
+        document.addEventListener('pointerdown', closeOnOutsidePointerDown)
+        return () => document.removeEventListener('pointerdown', closeOnOutsidePointerDown)
+    }, [clearVolumeCloseTimer, volumeOpen])
 
     const startDrag = (e: PointerEvent<HTMLButtonElement>) => {
         if (e.button !== 0) return
@@ -254,7 +315,8 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
     const progress =
         playlist.duration && playlist.duration > 0 ? playlist.currentTime / playlist.duration : 0
     const peaks = playlist.peaks ?? pseudoPeaks(currentTrack.id)
-    const atQueueEnd = playlist.currentIndex >= playlist.queue.length - 1
+    const atQueueEnd = playlist.loopMode !== 'queue' && playlist.currentIndex >= playlist.queue.length - 1
+    const LoopIcon = playlist.loopMode === 'track' ? Repeat1 : Repeat
     const hasCardTarget = Boolean(onOpenCard && currentTrack.cardType && currentTrack.cardId)
     const currentCardLabel = currentTrack.cardName || currentTrack.title
     const activeDownloadState = downloadState?.trackId === currentTrack.id ? downloadState : null
@@ -291,6 +353,33 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
             })
     }
 
+    const openVolumeControl = () => {
+        clearVolumeCloseTimer()
+        updateVolumePlacement()
+        setVolumeOpen(true)
+    }
+
+    const toggleMute = () => {
+        playlist.toggleMute()
+        openVolumeControl()
+    }
+
+    const changeVolume = (e: ChangeEvent<HTMLInputElement>) => {
+        playlist.setVolume(Number(e.currentTarget.value) / 100)
+    }
+
+    const closeVolumeOnBlur = (e: FocusEvent<HTMLDivElement>) => {
+        const nextTarget = e.relatedTarget
+        if (!(nextTarget instanceof Node) || !e.currentTarget.contains(nextTarget)) setVolumeOpen(false)
+    }
+
+    const closeVolumeOnEscape = (e: KeyboardEvent<HTMLDivElement>) => {
+        if (e.key !== 'Escape') return
+        e.preventDefault()
+        e.stopPropagation()
+        setVolumeOpen(false)
+    }
+
     const artwork = currentTrack.artworkUrl ? (
         <AuthenticatedImage src={currentTrack.artworkUrl} alt="" className="h-full w-full object-cover" />
     ) : (
@@ -298,6 +387,14 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
             <Icon icon={Music} size={15} />
         </span>
     )
+    const volumePercent = Math.round(playlist.volume * 100)
+    const VolumeIcon = playlist.muted ? VolumeX : playlist.volume < 0.5 ? Volume1 : Volume2
+    const volumeButtonLabel = playlist.muted ? t('playlist.unmutePlayer') : t('playlist.mutePlayer')
+    const loopLabel: Record<PlaylistLoopMode, string> = {
+        off: t('playlist.loopOff'),
+        track: t('playlist.repeatCurrent'),
+        queue: t('playlist.repeatPlaylist'),
+    }
 
     return createPortal(
         <div
@@ -311,7 +408,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
         >
             <section
                 ref={dockRef}
-                aria-label="Now playing"
+                aria-label={t('playlist.nowPlaying')}
                 className={cx(
                     'pointer-events-auto relative flex w-full max-w-[min(calc(100vw-2rem),26rem)] flex-col rounded-lg border bg-ink-800/95 ring-1 ring-ink-900/60 backdrop-blur-md',
                     'transition-all motion-reduce:transition-none',
@@ -341,7 +438,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                             type="button"
                                             onClick={() => playlist.playQueueFrom(index)}
                                             aria-current={isCurrent || undefined}
-                                            aria-label={`Play track ${index + 1}: ${track.title}`}
+                                            aria-label={t('playlist.playTrack', { index: index + 1, title: track.title })}
                                             className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 px-3 py-2 text-left"
                                         >
                                             <span className="w-5 shrink-0 text-center font-mono text-[10px] text-parchment-400">
@@ -377,7 +474,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                             </span>
                                         </button>
                                         <IconButton
-                                            label={`Remove ${track.title} from playlist`}
+                                            label={t('playlist.removeFromPlaylist', { title: track.title })}
                                             size="sm"
                                             tone="danger"
                                             className="h-7 w-7"
@@ -391,7 +488,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                         </ul>
                         <div className="flex items-center justify-between border-t border-parchment-50/10 py-1 pl-3 pr-1">
                             <Eyebrow tone="muted" className="text-[10px]">
-                                {playlist.queue.length} {playlist.queue.length === 1 ? 'track' : 'tracks'}
+                                {t('playlist.track', { count: playlist.queue.length })}
                             </Eyebrow>
                             <div className="flex items-center">
                                 <Button
@@ -400,7 +497,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                     iconLeft={<Icon icon={Square} size={13} />}
                                     onClick={playlist.stop}
                                 >
-                                    Stop
+                                    {t('playlist.stop')}
                                 </Button>
                                 <Button
                                     kind="ghost"
@@ -408,7 +505,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                     iconLeft={<Icon icon={Trash2} size={13} />}
                                     onClick={playlist.clearAndClose}
                                 >
-                                    Clear
+                                    {t('playlist.clear')}
                                 </Button>
                             </div>
                         </div>
@@ -420,8 +517,8 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                         {hasCardTarget ? (
                             <button
                                 type="button"
-                                aria-label={`Open card ${currentCardLabel}`}
-                                title={`Open ${currentCardLabel}`}
+                                aria-label={t('playlist.openCard', { title: currentCardLabel })}
+                                title={t('playlist.open', { title: currentCardLabel })}
                                 onClick={openCurrentCard}
                                 className="h-9 w-9 shrink-0 cursor-pointer overflow-hidden rounded-md border border-parchment-50/10 bg-ink-700 transition-all hover:border-ember-500/45 hover:shadow-glow-ember"
                             >
@@ -453,8 +550,8 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                         <div className="flex shrink-0 items-center gap-0.5">
                             <button
                                 type="button"
-                                aria-label="Drag player"
-                                title="Drag player"
+                                aria-label={t('playlist.dragPlayer')}
+                                title={t('playlist.dragPlayer')}
                                 onPointerDown={startDrag}
                                 onPointerMove={moveDrag}
                                 onPointerUp={endDrag}
@@ -468,7 +565,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 <GripVertical size={14} />
                             </button>
                             <IconButton
-                                label="Previous track"
+                                label={t('playlist.previousTrack')}
                                 size="sm"
                                 className="h-7 w-7"
                                 onClick={playlist.prev}
@@ -479,13 +576,13 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 type="button"
                                 aria-label={
                                     playlist.error
-                                        ? `Retry ${currentTrack.title}`
+                                        ? t('playlist.retryTrack', { title: currentTrack.title })
                                         : playlist.isPlaying
-                                          ? `Pause ${currentTrack.title}`
-                                          : `Play ${currentTrack.title}`
+                                          ? t('playlist.pauseTrack', { title: currentTrack.title })
+                                          : t('playlist.playTrackNamed', { title: currentTrack.title })
                                 }
                                 aria-pressed={playlist.isPlaying}
-                                title={playlist.error ?? (playlist.isPlaying ? 'Pause' : 'Play')}
+                                title={playlist.error ?? (playlist.isPlaying ? t('playlist.pause') : t('playlist.play'))}
                                 disabled={playlist.isLoading}
                                 onClick={playlist.toggle}
                                 className={cx(
@@ -511,7 +608,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 )}
                             </button>
                             <IconButton
-                                label="Next track"
+                                label={t('playlist.nextTrack')}
                                 size="sm"
                                 className="h-7 w-7"
                                 disabled={atQueueEnd}
@@ -520,12 +617,77 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 <SkipForward size={14} />
                             </IconButton>
                             <IconButton
+                                label={loopLabel[playlist.loopMode]}
+                                size="sm"
+                                tone={playlist.loopMode === 'off' ? 'default' : 'active'}
+                                className="h-7 w-7"
+                                aria-pressed={playlist.loopMode !== 'off'}
+                                onClick={playlist.cycleLoopMode}
+                            >
+                                <Icon icon={LoopIcon} size={14} />
+                            </IconButton>
+                            <div
+                                ref={volumeClusterRef}
+                                data-testid="volume-control"
+                                className="relative inline-flex"
+                                onPointerEnter={openVolumeControl}
+                                onPointerLeave={scheduleVolumeClose}
+                                onFocus={openVolumeControl}
+                                onBlur={closeVolumeOnBlur}
+                                onKeyDown={closeVolumeOnEscape}
+                            >
+                                <IconButton
+                                    label={volumeButtonLabel}
+                                    size="sm"
+                                    tone={volumeOpen ? 'active' : 'default'}
+                                    className="h-7 w-7"
+                                    aria-haspopup="dialog"
+                                    aria-expanded={volumeOpen}
+                                    aria-pressed={playlist.muted}
+                                    onClick={toggleMute}
+                                >
+                                    <Icon icon={VolumeIcon} size={14} />
+                                </IconButton>
+                                {volumeOpen && (
+                                    <div
+                                        role="dialog"
+                                        aria-label={t('playlist.volumeControls')}
+                                        onPointerEnter={openVolumeControl}
+                                        onPointerLeave={scheduleVolumeClose}
+                                        className={cx(
+                                            'absolute right-0 z-20 w-40 rounded-md border border-parchment-50/10 bg-ink-800/95 p-3 shadow-xl ring-1 ring-ink-900/70 backdrop-blur-md',
+                                            volumePlacement === 'above'
+                                                ? 'bottom-[calc(100%+0.5rem)]'
+                                                : 'top-[calc(100%+0.5rem)]',
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <Icon icon={VolumeIcon} size={14} className="shrink-0 text-ember-300" />
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={100}
+                                                step={1}
+                                                value={volumePercent}
+                                                aria-label={t('playlist.volume')}
+                                                aria-valuetext={playlist.muted ? t('playlist.muted') : `${volumePercent}%`}
+                                                onChange={changeVolume}
+                                                className="h-2 min-w-0 flex-1 cursor-pointer accent-ember-500"
+                                            />
+                                            <span className="w-8 shrink-0 text-right font-mono text-[10px] text-parchment-400">
+                                                {playlist.muted ? t('playlist.muteShort') : `${volumePercent}%`}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <IconButton
                                 label={
                                     downloadError
-                                        ? `Retry download ${currentTrack.title}`
+                                        ? t('playlist.retryDownload', { title: currentTrack.title })
                                         : downloading
-                                          ? `Downloading ${currentTrack.title}`
-                                          : `Download ${currentTrack.title}`
+                                          ? t('playlist.downloading', { title: currentTrack.title })
+                                          : t('playlist.download', { title: currentTrack.title })
                                 }
                                 size="sm"
                                 tone={downloadError ? 'danger' : 'default'}
@@ -540,7 +702,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 )}
                             </IconButton>
                             <IconButton
-                                label={queueOpen ? 'Hide playlist' : 'Show playlist'}
+                                label={queueOpen ? t('playlist.hidePlaylist') : t('playlist.showPlaylist')}
                                 size="sm"
                                 tone={queueOpen ? 'active' : 'default'}
                                 className="relative h-7 w-7"
@@ -562,7 +724,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 />
                             </IconButton>
                             <IconButton
-                                label="Close player"
+                                label={t('playlist.closePlayer')}
                                 size="sm"
                                 className="h-7 w-7"
                                 onClick={playlist.clearAndClose}
@@ -590,7 +752,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 onSeekRatio={playlist.seekRatio}
                                 engaged={engaged}
                                 disabled={Boolean(playlist.error)}
-                                label={`Seek within ${currentTrack.title}`}
+                                label={t('ui.audio.seekWithin', { title: currentTrack.title })}
                                 className={cx('h-6', !engaged && 'opacity-70', playlist.error && 'opacity-25')}
                             />
                             {playlist.isLoading && (

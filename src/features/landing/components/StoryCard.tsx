@@ -4,6 +4,7 @@
  * LandingPage StoryRail helpers).
  */
 
+import { useTranslation } from 'react-i18next'
 import type { Story } from '@/shared'
 import { Card } from '@/ui/components/lists/Card'
 
@@ -35,6 +36,7 @@ export interface StoryCardProps {
 }
 
 export function StoryCard({ story, onOpen }: StoryCardProps) {
+    const { t } = useTranslation()
     const chapters = storyChapters(story)
     const tags = storyContextTags(story)
     const words = storyWordCount(story)
@@ -42,14 +44,14 @@ export function StoryCard({ story, onOpen }: StoryCardProps) {
     return (
         <Card
             title={story.title}
-            subtitle={`${chapters.length || 1} chapter${chapters.length === 1 ? '' : 's'} · ${words} words`}
+            subtitle={t('landing.story.chapters', { count: chapters.length || 1, words })}
             onClick={() => onOpen(story)}
         >
             <div className="flex flex-1 flex-col gap-3">
                 <p className="m-0 line-clamp-3 font-narrative text-sm leading-normal text-parchment-400">
                     {story.description?.trim() ||
                         chapters[0]?.body?.trim() ||
-                        'A novel draft ready for its next chapter.'}
+                        t('landing.story.fallback')}
                 </p>
                 {tags.length > 0 && (
                     <div className="mt-auto flex flex-wrap gap-1.5">

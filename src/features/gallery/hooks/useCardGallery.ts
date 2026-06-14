@@ -56,6 +56,7 @@ export function useCardGallery<T extends { id: string } = GalleryItem>(config: C
     // Server cursor — tracked apart from items.length so local removals
     // (removeItem) keep later pages aligned with the shrunken server list.
     const skipRef = useRef(0)
+    const localUpsertIdsRef = useRef<Set<string>>(new Set())
 
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS)
@@ -76,7 +77,14 @@ export function useCardGallery<T extends { id: string } = GalleryItem>(config: C
                 skipRef.current = skip + page.length
                 // Bare-array responses carry no total; a full page implies more.
                 setHasMore(page.length === pageSize)
-                setItems((prev) => (reset ? page : appendDedupedById(prev, page)))
+                setItems((prev) => {
+                    if (!reset) return appendDedupedById(prev, page)
+                    const pageIds = new Set(page.map((item) => item.id))
+                    const localItems = prev.filter(
+                        (item) => localUpsertIdsRef.current.has(item.id) && !pageIds.has(item.id),
+                    )
+                    return [...localItems, ...page]
+                })
             } catch (e) {
                 if (seq !== seqRef.current) return
                 setError(e instanceof Error ? e.message : 'Failed to load')
@@ -111,9 +119,11 @@ export function useCardGallery<T extends { id: string } = GalleryItem>(config: C
             if (next.length !== prev.length) skipRef.current -= 1
             return next
         })
+        localUpsertIdsRef.current.delete(id)
     }, [])
 
     const upsertItem = useCallback((item: T) => {
+        localUpsertIdsRef.current.add(item.id)
         setItems((prev) => {
             const existingIndex = prev.findIndex((current) => current.id === item.id)
             if (existingIndex < 0) return [item, ...prev]

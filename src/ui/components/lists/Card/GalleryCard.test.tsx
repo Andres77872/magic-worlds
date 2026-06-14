@@ -31,6 +31,23 @@ afterEach(() => {
 })
 
 describe('GalleryCard', () => {
+    it('does not trigger the card action when a footer action is clicked', () => {
+        const onCardClick = vi.fn()
+        const onFooterClick = vi.fn()
+        renderWithPlaylist(
+            <GalleryCard
+                title="Lyra Dawnwhisper"
+                onClick={onCardClick}
+                footer={<button type="button" onClick={onFooterClick}>Chat</button>}
+            />,
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Chat' }))
+
+        expect(onFooterClick).toHaveBeenCalledTimes(1)
+        expect(onCardClick).not.toHaveBeenCalled()
+    })
+
     it('downloads a theme from the context menu', async () => {
         let downloadName: string | null = null
         const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (

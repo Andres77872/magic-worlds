@@ -4,7 +4,7 @@ import { AttributeList } from './AttributeList'
 import type { Attribute, AttributeCategory } from './AttributeList'
 
 const meta = {
-  title: 'Components/AttributeList',
+  title: 'Components/Common/AttributeList',
   component: AttributeList,
   tags: ['autodocs'],
   parameters: {

@@ -3,6 +3,7 @@
  * book's own people, places, and lore.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Icon, cx } from '@/ui/primitives'
 import type { EditorCodexEntry } from '../types'
 import { KIND_ICONS } from '../../utils/codexUtils'
@@ -16,10 +17,11 @@ interface MentionMenuProps {
 }
 
 export function MentionMenu({ items, selectedIndex, anchor, onHover, onSelect }: MentionMenuProps) {
+    const { t } = useTranslation()
     return (
         <div
             role="listbox"
-            aria-label="Codex entries"
+            aria-label={t('novelEditor.mention.label')}
             className="absolute z-30 w-[260px] overflow-hidden rounded-lg border border-ember-500/30 bg-ink-700 shadow-xl"
             style={{ left: anchor.left, top: anchor.top }}
             data-testid="mention-menu"
@@ -48,7 +50,7 @@ export function MentionMenu({ items, selectedIndex, anchor, onHover, onSelect }:
                     </li>
                 ))}
                 {items.length === 0 && (
-                    <li className="px-2.5 py-2 font-ui text-xs text-parchment-500">No codex entry matches.</li>
+                    <li className="px-2.5 py-2 font-ui text-xs text-parchment-500">{t('novelEditor.mention.noMatches')}</li>
                 )}
             </ul>
         </div>

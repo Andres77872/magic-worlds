@@ -5,7 +5,7 @@
  */
 
 import { Gem, Globe, Swords, UserCircle, Users, type LucideIcon } from 'lucide-react'
-import type { Adventure, Character, Item, PageType, World } from '@/shared'
+import type { Adventure, CardActor, CardVisibility, Character, Item, PageType, SharedCardResource, ShareableCardType, World } from '@/shared'
 import { apiService, resolveMediaUrl } from '@/infrastructure/api'
 import { transformCharacters, transformItems, transformTemplates, transformWorlds } from '../../utils/cardTransforms'
 import { sceneTags, sceneTitle } from '../landing/components/sceneModel'
@@ -20,6 +20,12 @@ export interface GalleryItem {
     tags: string[]
     imageUrl?: string
     themeSongUrl?: string
+    visibility?: CardVisibility
+    resource?: SharedCardResource
+    ownerName?: string | null
+    originalCreatorName?: string | null
+    backendType: ShareableCardType
+    galleryType: GalleryType
     /** Original typed entity, for wiring actions. */
     source: Character | World | Item | Adventure
 }
@@ -49,6 +55,10 @@ const characterItems = (raw: unknown): GalleryItem[] =>
         tags: character.triggers ?? [],
         imageUrl: resolveMediaUrl(character.image_url),
         themeSongUrl: resolveMediaUrl(character.theme_song_url),
+        visibility: character.visibility,
+        originalCreatorName: character.original_creator?.username ?? null,
+        backendType: 'character',
+        galleryType: 'character',
         source: character,
     }))
 
@@ -60,6 +70,10 @@ const personaItems = (raw: unknown): GalleryItem[] =>
         tags: character.triggers ?? [],
         imageUrl: resolveMediaUrl(character.image_url),
         themeSongUrl: resolveMediaUrl(character.theme_song_url),
+        visibility: character.visibility,
+        originalCreatorName: character.original_creator?.username ?? null,
+        backendType: 'character',
+        galleryType: 'persona',
         source: character,
     }))
 
@@ -71,6 +85,10 @@ const worldItems = (raw: unknown): GalleryItem[] =>
         tags: world.triggers ?? [],
         imageUrl: resolveMediaUrl(world.image_url),
         themeSongUrl: resolveMediaUrl(world.theme_song_url),
+        visibility: world.visibility,
+        originalCreatorName: world.original_creator?.username ?? null,
+        backendType: 'world',
+        galleryType: 'world',
         source: world,
     }))
 
@@ -82,6 +100,10 @@ const itemItems = (raw: unknown): GalleryItem[] =>
         tags: item.triggers ?? [],
         imageUrl: resolveMediaUrl(item.image_url),
         themeSongUrl: resolveMediaUrl(item.theme_song_url),
+        visibility: item.visibility,
+        originalCreatorName: item.original_creator?.username ?? null,
+        backendType: 'item',
+        galleryType: 'item',
         source: item,
     }))
 
@@ -94,11 +116,103 @@ const adventureItems = (raw: unknown): GalleryItem[] =>
         tags: sceneTags(template),
         imageUrl: resolveMediaUrl(template.image_url),
         themeSongUrl: resolveMediaUrl(template.theme_song_url),
+        visibility: template.visibility,
+        originalCreatorName: template.original_creator?.username ?? null,
+        backendType: 'adventure_template',
+        galleryType: 'adventure',
         source: template,
     }))
 
 const firstItem = (mapper: (raw: unknown) => GalleryItem[], raw: unknown): GalleryItem | null =>
     mapper(Array.isArray(raw) ? raw : [raw])[0] ?? null
+
+function resourceActorName(actor?: CardActor | null): string | null {
+    return actor?.username?.trim() || null
+}
+
+function resourceCard(resource: SharedCardResource): Record<string, unknown> {
+    const card = resource.card && typeof resource.card === 'object' ? { ...resource.card } as Record<string, unknown> : {}
+    if (resource.visibility) card.visibility = resource.visibility
+    if (resource.original_creator) card.original_creator = resource.original_creator
+    return card
+}
+
+function resourceList(raw: unknown): SharedCardResource[] {
+    if (Array.isArray(raw)) return raw as SharedCardResource[]
+    if (raw && typeof raw === 'object' && Array.isArray((raw as { items?: unknown }).items)) {
+        return (raw as { items: SharedCardResource[] }).items
+    }
+    if (raw && typeof raw === 'object' && 'card_type' in raw && 'card' in raw) return [raw as SharedCardResource]
+    return []
+}
+
+function annotateResourceItems(items: GalleryItem[], resource: SharedCardResource, galleryType: GalleryType): GalleryItem[] {
+    return items.map((item) => ({
+        ...item,
+        resource,
+        visibility: resource.visibility ?? item.visibility,
+        ownerName: resourceActorName(resource.owner),
+        originalCreatorName: resourceActorName(resource.original_creator) ?? item.originalCreatorName,
+        backendType: resource.card_type,
+        galleryType,
+    }))
+}
+
+export function backendCardTypeFor(type: GalleryType): ShareableCardType {
+    if (type === 'adventure') return 'adventure_template'
+    if (type === 'persona') return 'character'
+    return type
+}
+
+export function roleForGalleryType(type: GalleryType): 'character' | 'persona' | undefined {
+    if (type === 'character') return 'character'
+    if (type === 'persona') return 'persona'
+    return undefined
+}
+
+export function galleryTypeForResource(resource: SharedCardResource): GalleryType {
+    if (resource.card_type === 'adventure_template') return 'adventure'
+    if (resource.card_type === 'character') {
+        const card = resource.card as { role?: unknown } | undefined
+        return card?.role === 'persona' ? 'persona' : 'character'
+    }
+    return resource.card_type
+}
+
+export function publicItems(raw: unknown, fallbackType?: GalleryType): GalleryItem[] {
+    return resourceList(raw).flatMap((resource) => {
+        const galleryType = galleryTypeForResource(resource)
+        if (fallbackType && galleryType !== fallbackType) return []
+        const card = resourceCard(resource)
+        if (resource.card_type === 'character') {
+            const mapper = galleryType === 'persona' ? personaItems : characterItems
+            return annotateResourceItems(mapper([card]), resource, galleryType)
+        }
+        if (resource.card_type === 'world') return annotateResourceItems(worldItems([card]), resource, 'world')
+        if (resource.card_type === 'item') return annotateResourceItems(itemItems([card]), resource, 'item')
+        if (resource.card_type === 'adventure_template') return annotateResourceItems(adventureItems([card]), resource, 'adventure')
+        return []
+    })
+}
+
+export function publicConfigFor(type: GalleryType): GalleryConfig {
+    const base = GALLERY_CONFIG[type]
+    const cardType = backendCardTypeFor(type)
+    const role = roleForGalleryType(type)
+    return {
+        ...base,
+        eyebrow: 'Community gallery',
+        searchPlaceholder: `Search public ${base.title.toLowerCase()} by name or trigger...`,
+        emptyTitle: `No public ${base.title.toLowerCase()} yet`,
+        emptyDescription: 'Published cards from the community will appear here.',
+        noMatchTitle: `No public ${base.title.toLowerCase()} match`,
+        noMatchDescription: 'Try a different name or trigger keyword.',
+        fetchPage: (skip, limit, q) => apiService.listPublicCards(skip, limit, q, cardType, role),
+        fetchItem: (id) => apiService.getPublicCard(cardType, id),
+        toItems: (raw) => publicItems(raw, type),
+        toItem: (raw) => publicItems(raw, type)[0] ?? null,
+    }
+}
 
 export const GALLERY_CONFIG: Record<GalleryType, GalleryConfig> = {
     character: {

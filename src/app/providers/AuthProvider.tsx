@@ -5,10 +5,13 @@
 import { createContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 import type { AuthState, BrowserAuthResponse, LoginCredentials, RegisterData, User, Project } from '../../shared'
 import { apiService } from '../../infrastructure'
+import { i18n } from '@/app/i18n'
 
 interface AuthContextValue extends AuthState {
     login: (credentials: LoginCredentials) => Promise<boolean>
     register: (data: RegisterData) => Promise<boolean>
+    loginWithGoogle: (rememberMe?: boolean) => Promise<void>
+    completeGoogleLogin: (code: string) => Promise<boolean>
     logout: () => void
     clearError: () => void
     isLoginModalOpen: boolean
@@ -74,7 +77,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             clearAuthState()
             localStorage.removeItem(TOKEN_STORAGE_KEY)
             localStorage.removeItem(USER_STORAGE_KEY)
-            setError('Session expired, please log in again')
+            setError(i18n.t('auth.errors.sessionExpired'))
             setIsLoginModalOpen(true)
         }
 
@@ -130,14 +133,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
                 return true
             } else {
-                setError(data.message || 'Login failed')
+                setError(data.message || i18n.t('auth.errors.loginFailed'))
                 return false
             }
         } catch (error) {
             if (error instanceof TypeError && error.message === 'Failed to fetch') {
-                setError('Authentication service unavailable')
+                setError(i18n.t('auth.errors.authUnavailable'))
             } else {
-                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
+                const errorMessage = error instanceof Error ? error.message : i18n.t('auth.errors.unexpected')
                 setError(errorMessage)
             }
             return false
@@ -175,12 +178,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
             return await login({ username: data.username, password: data.password })
         } catch (error) {
             if (error instanceof TypeError && error.message === 'Failed to fetch') {
-                setError('Registration service unavailable')
+                setError(i18n.t('auth.errors.registrationUnavailable'))
             } else {
-                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
+                const errorMessage = error instanceof Error ? error.message : i18n.t('auth.errors.unexpected')
                 // Check for 409 conflict
                 if (errorMessage.includes('409') || errorMessage.includes('already exists')) {
-                    setError('Username already exists')
+                    setError(i18n.t('auth.errors.usernameExists'))
                 } else {
                     setError(errorMessage)
                 }
@@ -190,6 +193,64 @@ export function AuthProvider({ children }: AuthProviderProps) {
             setIsLoading(false)
         }
     }
+
+    // Step 1 of "Continue with Google": mint a provider-init token, then navigate
+    // the browser top-level to the BFF start-shim (→ Google). This call ends by
+    // leaving the page, so the success path does not reset isLoading.
+    const loginWithGoogle = useCallback(async (rememberMe = false): Promise<void> => {
+        setIsLoading(true)
+        setError(null)
+        try {
+            const origin = window.location.origin
+            const init = await apiService.createGoogleProviderInit(origin)
+            if (!init.provider_init_token) {
+                throw new Error('missing provider_init_token')
+            }
+            window.location.assign(apiService.buildGoogleStartUrl(init.provider_init_token, rememberMe, origin))
+        } catch (error) {
+            if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                setError(i18n.t('auth.errors.authUnavailable'))
+            } else {
+                setError(i18n.t('auth.errors.unexpected'))
+            }
+            setIsLoading(false)
+        }
+    }, [])
+
+    // Final step: the BFF redirected back with a one-time delivery code (the
+    // GoogleCallbackPage calls this). Exchange it for the session, mirroring the
+    // password-login success path, and notify the WS/API layers via auth:refreshed.
+    const completeGoogleLogin = useCallback(async (code: string): Promise<boolean> => {
+        setIsLoading(true)
+        setError(null)
+        try {
+            const data = await apiService.exchangeGoogleReturn(code)
+            const nextToken = selectAccessToken(data)
+
+            if (data.success && nextToken && data.user) {
+                setToken(nextToken)
+                setUser(data.user)
+                setProjects(data.accessible_projects || [])
+                setIsAuthenticated(true)
+                localStorage.setItem(TOKEN_STORAGE_KEY, nextToken)
+                localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.user))
+                window.dispatchEvent(new CustomEvent<AuthRefreshedDetail>('auth:refreshed', { detail: { ...data, token: nextToken } }))
+                return true
+            }
+            setError(data.message || i18n.t('auth.errors.loginFailed'))
+            return false
+        } catch (error) {
+            if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                setError(i18n.t('auth.errors.authUnavailable'))
+            } else {
+                const errorMessage = error instanceof Error ? error.message : i18n.t('auth.errors.unexpected')
+                setError(errorMessage)
+            }
+            return false
+        } finally {
+            setIsLoading(false)
+        }
+    }, [])
 
     const logout = () => {
         // Fire-and-forget: call API logout, then clear local state
@@ -229,6 +290,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isLoginModalOpen,
         login,
         register,
+        loginWithGoogle,
+        completeGoogleLogin,
         logout,
         clearError,
         openLoginModal,

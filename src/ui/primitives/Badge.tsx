@@ -16,8 +16,8 @@ const TONE: Record<BadgeTone, string> = {
     ember: 'bg-ember-500/15 text-ember-300',
     arcane: 'bg-arcane-500/15 text-arcane-300',
     live: 'bg-verdant-500/15 text-verdant-500',
-    danger: 'bg-blood-500/15 text-[#F0938B]',
-    nsfw: 'bg-blood-500/15 text-[#F0938B]',
+    danger: 'bg-blood-500/15 text-blood-300',
+    nsfw: 'bg-blood-500/15 text-blood-300',
     neutral: 'bg-ink-600 text-parchment-200',
     glass: 'bg-ink-900/60 text-arcane-300 backdrop-blur',
 }

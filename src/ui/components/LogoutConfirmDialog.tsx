@@ -1,4 +1,5 @@
 import { LogOut } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button, Icon, Modal } from '../primitives'
 
 interface LogoutConfirmDialogProps {
@@ -9,20 +10,22 @@ interface LogoutConfirmDialogProps {
 }
 
 export function LogoutConfirmDialog({ open, username, onCancel, onConfirm }: LogoutConfirmDialogProps) {
+    const { t } = useTranslation()
+
     return (
         <Modal
             open={open}
             onClose={onCancel}
-            title="Log out?"
+            title={t('logout.title')}
             icon={<Icon icon={LogOut} size={21} className="text-ember-400" />}
             showClose={false}
             footer={
                 <>
                     <Button kind="secondary" onClick={onCancel}>
-                        Cancel
+                        {t('logout.cancel')}
                     </Button>
                     <Button kind="primary" onClick={onConfirm} iconLeft={<Icon icon={LogOut} size={16} />}>
-                        Log out
+                        {t('logout.confirm')}
                     </Button>
                 </>
             }
@@ -31,14 +34,14 @@ export function LogoutConfirmDialog({ open, username, onCancel, onConfirm }: Log
                 <p>
                     {username ? (
                         <>
-                            You are signed in as{' '}
+                            {t('logout.signedInAs')}{' '}
                             <span className="font-ui font-semibold text-parchment-50">{username}</span>.
                         </>
                     ) : (
-                        'You are signed in.'
+                        t('logout.signedIn')
                     )}
                 </p>
-                <p>Confirm to end this session on this device. Any unsaved changes in open forms may be lost.</p>
+                <p>{t('logout.body')}</p>
             </div>
         </Modal>
     )

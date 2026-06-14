@@ -24,7 +24,7 @@ export interface ChatSessionCopy {
     placeholder: string
     /** Streaming hint shown under the composer. */
     loadingHint: string
-    /** window.confirm() text for the Reset button. */
+    /** Confirmation copy for the Reset button. */
     resetConfirm: string
 }
 
@@ -36,11 +36,15 @@ export interface ChatSessionConfig {
     loadTurns: (sessionId: number) => Promise<TurnEntry[]>
     /** Persist the client's turn mirror for a session id. */
     saveTurns: (sessionId: number, turns: TurnEntry[]) => Promise<void>
+    /** Delete one canonical message and return the server-projected turns. */
+    deleteMessage: (sessionId: number, messageId: number) => Promise<TurnEntry[]>
+    /** Clear all canonical messages and return the server-projected turns. */
+    clearMessages: (sessionId: number) => Promise<TurnEntry[]>
     /** Label shown on AI turns ("Game Master" or the character's name). */
     aiLabel: string
-    /** Render the suggested-replies (forwardOptions) UI. Off for 1:1 chat. */
+    /** Render the suggested-replies (forwardOptions) UI. */
     showForwardOptions: boolean
-    /** Render per-turn generated scene images. */
+    /** Render per-turn generated images. */
     showImages: boolean
     /** localStorage prefix for the auto-narrate toggle (namespaced per kind to avoid id collisions). */
     autoNarrateKeyPrefix: string
@@ -57,6 +61,14 @@ export function adventureChatConfig(): ChatSessionConfig {
         },
         saveTurns: async (sessionId, turns) => {
             await apiService.updateAdventureSession(sessionId, JSON.stringify({ turns }))
+        },
+        deleteMessage: async (sessionId, messageId) => {
+            const session = await apiService.deleteAdventureSessionMessage(sessionId, messageId)
+            return parseTurnState(session.adventure_last_turn)
+        },
+        clearMessages: async (sessionId) => {
+            const session = await apiService.clearAdventureSessionMessages(sessionId)
+            return parseTurnState(session.adventure_last_turn)
         },
         aiLabel: 'Game Master',
         showForwardOptions: true,
@@ -75,8 +87,9 @@ export function adventureChatConfig(): ChatSessionConfig {
     }
 }
 
-export function characterChatConfig(characterName: string): ChatSessionConfig {
-    const name = characterName?.trim() || 'this character'
+export function characterChatConfig(characterName: string, opts?: { group?: boolean }): ChatSessionConfig {
+    const name = characterName?.trim() || (opts?.group ? 'the group' : 'this character')
+    const subject = opts?.group ? 'the group' : name
     return {
         kind: 'character',
         basePath: 'character-chats',
@@ -87,19 +100,26 @@ export function characterChatConfig(characterName: string): ChatSessionConfig {
         saveTurns: async (sessionId, turns) => {
             await apiService.updateCharacterChat(sessionId, JSON.stringify({ turns }))
         },
+        deleteMessage: async (sessionId, messageId) => {
+            const session = await apiService.deleteCharacterChatMessage(sessionId, messageId)
+            return parseTurnState(session.last_turn)
+        },
+        clearMessages: async (sessionId) => {
+            const session = await apiService.clearCharacterChatMessages(sessionId)
+            return parseTurnState(session.last_turn)
+        },
         aiLabel: name,
-        // 1:1 chat is conversation-first: no suggested-action buttons, no scene images.
-        showForwardOptions: false,
-        showImages: false,
+        showForwardOptions: true,
+        showImages: true,
         autoNarrateKeyPrefix: 'mw:autonarrate:char:',
         copy: {
-            emptyTitle: `Chat with ${name}`,
-            emptyBody: `Say hello to ${name} to begin your conversation.`,
-            emptyHint: 'Speak naturally — this is a one-on-one conversation.',
-            waitingTitle: `Waiting for ${name}`,
+            emptyTitle: opts?.group ? `Group chat with ${name}` : `Chat with ${name}`,
+            emptyBody: opts?.group ? `Say hello to ${name} to begin the conversation.` : `Say hello to ${name} to begin your conversation.`,
+            emptyHint: opts?.group ? 'Speak naturally — the cast will answer in character.' : 'Speak naturally — this is a one-on-one conversation.',
+            waitingTitle: `Waiting for ${subject}`,
             waitingHint: 'Click to generate a reply (optional)',
-            placeholder: `Message ${name}…`,
-            loadingHint: `${name} is typing…`,
+            placeholder: opts?.group ? 'Message the group…' : `Message ${name}…`,
+            loadingHint: opts?.group ? 'The group is responding…' : `${name} is typing…`,
             resetConfirm: `Clear your chat with ${name}? All messages will be deleted.`,
         },
     }

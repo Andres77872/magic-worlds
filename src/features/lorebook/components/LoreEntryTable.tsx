@@ -1,8 +1,9 @@
+import { useTranslation } from 'react-i18next'
 import { EyeOff, KeyRound, Plus, ScrollText, Trash2 } from 'lucide-react'
 import type { LorebookEntry } from '@/shared'
 import { Badge, Button, Card, Icon, IconButton, cx } from '@/ui/primitives'
 import { estimateTokens } from '../lorebookTransforms'
-import { entryTypeLabel } from '../lorebookCopy'
+import { entryTypeLabelKey } from '../lorebookCopy'
 
 interface LoreEntryTableProps {
     entries: LorebookEntry[]
@@ -13,15 +14,16 @@ interface LoreEntryTableProps {
 }
 
 export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete }: LoreEntryTableProps) {
+    const { t } = useTranslation()
     return (
         <Card className="rounded-xl">
             <div className="flex items-center justify-between gap-4 border-b border-parchment-50/[.08] px-4 py-3">
                 <div>
-                    <h3 className="font-display text-xl font-semibold text-parchment-50">Entries</h3>
-                    <p className="font-ui text-xs text-parchment-300">{entries.length} stored facts and activation rules</p>
+                    <h3 className="font-display text-xl font-semibold text-parchment-50">{t('lorebookStudio.entryTable.heading')}</h3>
+                    <p className="font-ui text-xs text-parchment-300">{t('lorebookStudio.entryTable.subtitle', { count: entries.length })}</p>
                 </div>
                 <Button size="sm" kind="secondary" iconLeft={<Icon icon={Plus} size={15} />} onClick={onAdd}>
-                    Entry
+                    {t('lorebookStudio.entryTable.addEntry')}
                 </Button>
             </div>
             <div className="max-h-[calc(100vh-280px)] min-h-[360px] overflow-y-auto">
@@ -32,9 +34,9 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                         className="flex min-h-[280px] w-full flex-col items-center justify-center gap-3 px-6 text-center text-parchment-300 transition-colors hover:bg-parchment-50/[.03] hover:text-parchment-100"
                     >
                         <Icon icon={ScrollText} size={34} className="text-ember-400" />
-                        <span className="font-display text-xl text-parchment-50">Start the first entry</span>
+                        <span className="font-display text-xl text-parchment-50">{t('lorebookStudio.entryTable.empty.title')}</span>
                         <span className="max-w-[34ch] font-narrative text-sm">
-                            Entries are the facts the prompt retrieval engine can activate from chat text.
+                            {t('lorebookStudio.entryTable.empty.description')}
                         </span>
                     </button>
                 ) : (
@@ -57,22 +59,22 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                                     >
                                         <div className="flex min-w-0 flex-wrap items-center gap-2">
                                             <span className="truncate font-ui text-sm font-semibold text-parchment-50">
-                                                {entry.title || 'Untitled entry'}
+                                                {entry.title || t('lorebookStudio.entryTable.untitled')}
                                             </span>
-                                            {!entry.enabled && <Badge tone="neutral">disabled</Badge>}
-                                            {entry.constant && <Badge tone="arcane">constant</Badge>}
+                                            {!entry.enabled && <Badge tone="neutral">{t('lorebookStudio.entryTable.badges.disabled')}</Badge>}
+                                            {entry.constant && <Badge tone="arcane">{t('lorebookStudio.entryTable.badges.constant')}</Badge>}
                                             {entry.isSecret && (
                                                 <Badge tone="nsfw" icon={<Icon icon={EyeOff} size={11} />}>
-                                                    secret
+                                                    {t('lorebookStudio.entryTable.badges.secret')}
                                                 </Badge>
                                             )}
                                         </div>
                                         <p className="mt-1 line-clamp-2 font-narrative text-sm leading-snug text-parchment-300">
-                                            {entry.content || 'No prompt content yet.'}
+                                            {entry.content || t('lorebookStudio.entryTable.noContent')}
                                         </p>
                                         <div className="mt-2 flex flex-wrap items-center gap-2 font-ui text-[11px] text-parchment-400">
-                                            <span>{entryTypeLabel(entry.entryType)}</span>
-                                            <span>{estimateTokens(entry.content)} tokens</span>
+                                            <span>{t(entryTypeLabelKey(entry.entryType))}</span>
+                                            <span>{t('lorebookStudio.entryTable.tokens', { count: estimateTokens(entry.content) })}</span>
                                             {entry.keys.slice(0, 3).map((key) => (
                                                 <span key={key} className="inline-flex items-center gap-1 rounded-full bg-ink-900/50 px-2 py-0.5">
                                                     <Icon icon={KeyRound} size={10} />
@@ -87,7 +89,7 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                                     <IconButton
                                         size="sm"
                                         tone="danger"
-                                        label={`Delete ${entry.title || 'entry'}`}
+                                        label={t('lorebookStudio.entryTable.deleteEntry', { title: entry.title || t('lorebookStudio.entryTable.entryFallback') })}
                                         onClick={() => onDelete(entry.id)}
                                         className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
                                     >

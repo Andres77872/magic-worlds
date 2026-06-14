@@ -14,13 +14,13 @@ import { sceneMatchesQuery } from './sceneModel'
 export const SEARCH_GROUP_CAP = 8
 
 export type DashboardSearchGroup =
-    | { key: 'sessions'; label: string; total: number; items: ResumeSession[] }
-    | { key: 'adventures'; label: string; total: number; items: Scene[] }
-    | { key: 'cast'; label: string; total: number; items: Character[] }
-    | { key: 'personas'; label: string; total: number; items: Character[] }
-    | { key: 'worlds'; label: string; total: number; items: World[] }
-    | { key: 'items'; label: string; total: number; items: Item[] }
-    | { key: 'novels'; label: string; total: number; items: Story[] }
+    | { key: 'sessions'; labelKey: string; total: number; items: ResumeSession[] }
+    | { key: 'adventures'; labelKey: string; total: number; items: Scene[] }
+    | { key: 'cast'; labelKey: string; total: number; items: Character[] }
+    | { key: 'personas'; labelKey: string; total: number; items: Character[] }
+    | { key: 'worlds'; labelKey: string; total: number; items: World[] }
+    | { key: 'items'; labelKey: string; total: number; items: Item[] }
+    | { key: 'novels'; labelKey: string; total: number; items: Story[] }
 
 export interface DashboardSearchResults {
     active: boolean
@@ -87,19 +87,19 @@ export function searchDashboard(query: string, input: DashboardSearchInput): Das
 
     const groups: DashboardSearchGroup[] = []
     if (sessions.length > 0)
-        groups.push({ key: 'sessions', label: 'Stories in motion', total: sessions.length, items: sessions.slice(0, SEARCH_GROUP_CAP) })
+        groups.push({ key: 'sessions', labelKey: 'landing.search.groupSessions', total: sessions.length, items: sessions.slice(0, SEARCH_GROUP_CAP) })
     if (scenes.length > 0)
-        groups.push({ key: 'adventures', label: 'Adventures to begin', total: scenes.length, items: scenes.slice(0, SEARCH_GROUP_CAP) })
+        groups.push({ key: 'adventures', labelKey: 'landing.search.groupAdventures', total: scenes.length, items: scenes.slice(0, SEARCH_GROUP_CAP) })
     if (cast.length > 0)
-        groups.push({ key: 'cast', label: 'Your cast', total: cast.length, items: cast.slice(0, SEARCH_GROUP_CAP) })
+        groups.push({ key: 'cast', labelKey: 'landing.search.groupCast', total: cast.length, items: cast.slice(0, SEARCH_GROUP_CAP) })
     if (personas.length > 0)
-        groups.push({ key: 'personas', label: 'Your personas', total: personas.length, items: personas.slice(0, SEARCH_GROUP_CAP) })
+        groups.push({ key: 'personas', labelKey: 'landing.search.groupPersonas', total: personas.length, items: personas.slice(0, SEARCH_GROUP_CAP) })
     if (worlds.length > 0)
-        groups.push({ key: 'worlds', label: 'Your worlds', total: worlds.length, items: worlds.slice(0, SEARCH_GROUP_CAP) })
+        groups.push({ key: 'worlds', labelKey: 'landing.search.groupWorlds', total: worlds.length, items: worlds.slice(0, SEARCH_GROUP_CAP) })
     if (items.length > 0)
-        groups.push({ key: 'items', label: 'Your items', total: items.length, items: items.slice(0, SEARCH_GROUP_CAP) })
+        groups.push({ key: 'items', labelKey: 'landing.search.groupItems', total: items.length, items: items.slice(0, SEARCH_GROUP_CAP) })
     if (stories.length > 0)
-        groups.push({ key: 'novels', label: 'Your novels', total: stories.length, items: stories.slice(0, SEARCH_GROUP_CAP) })
+        groups.push({ key: 'novels', labelKey: 'landing.search.groupNovels', total: stories.length, items: stories.slice(0, SEARCH_GROUP_CAP) })
 
     const total = sessions.length + scenes.length + cast.length + personas.length + worlds.length + items.length + stories.length
 

@@ -4,6 +4,7 @@ import { Tag } from '@/ui/primitives'
 import { Card } from './Card'
 import { CardGrid } from './CardGrid'
 import { GalleryCard } from './GalleryCard'
+import { GalleryCardSkeleton } from './GalleryCardSkeleton'
 import { characters } from '../fixtures'
 
 const renderCharacter = (c: Character) => (
@@ -56,6 +57,18 @@ export const WithSearch: Story = {
 }
 
 export const Loading: Story = { args: { loading: true } }
+
+export const LoadingSkeletons: Story = {
+  args: { loading: true, density: 'compact', renderSkeleton: () => <GalleryCardSkeleton /> },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Image-forward galleries pass `renderSkeleton` so the initial load reserves the cards’ 3:4 box (a matched skeleton grid) instead of flashing a centered spinner, and infinite-scroll appends the same skeleton.',
+      },
+    },
+  },
+}
 
 export const Empty: Story = {
   args: {

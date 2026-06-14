@@ -5,6 +5,7 @@
 
 import {Plus, Trash2, X} from 'lucide-react';
 import {useState} from 'react';
+import {Trans, useTranslation} from 'react-i18next';
 import {ConfirmDialog} from '../ConfirmDialog';
 import {Button, Icon, IconButton, Input, Textarea} from '@/ui/primitives';
 
@@ -49,7 +50,9 @@ export const AttributeList = ({
   valuePlaceholder,
   addButtonLabel
 }: AttributeListProps) => {
+  const {t} = useTranslation();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const singularName = category.name.slice(0, -1);
 
   // Handle delete category button click
   const handleDeleteClick = () => {
@@ -63,9 +66,9 @@ export const AttributeList = ({
   };
 
   // Generate placeholders based on category name or use provided ones
-  const defaultKeyPlaceholder = `${category.name.slice(0, -1)} name`;
-  const defaultValuePlaceholder = "Value";
-  const defaultAddButtonLabel = `Add ${category.name.slice(0, -1)}`;
+  const defaultKeyPlaceholder = t('ui.attributeList.namePlaceholder', {name: singularName});
+  const defaultValuePlaceholder = t('ui.attributeList.valuePlaceholder');
+  const defaultAddButtonLabel = t('ui.attributeList.add', {name: singularName});
 
   return (
     <div className="mb-4 rounded-lg border border-parchment-50/10 bg-ink-700 p-4">
@@ -83,7 +86,7 @@ export const AttributeList = ({
             size="sm"
             iconLeft={<Icon icon={Plus} size={14} />}
             onClick={onAddAttribute}
-            title={`Add a new ${category.name.slice(0, -1)}`}
+            title={t('ui.attributeList.addNew', {name: singularName})}
           >
             {addButtonLabel || defaultAddButtonLabel}
           </Button>
@@ -94,9 +97,9 @@ export const AttributeList = ({
               size="sm"
               iconLeft={<Icon icon={Trash2} size={14} />}
               onClick={handleDeleteClick}
-              title={`Delete ${category.name} category`}
+              title={t('ui.attributeList.deleteCategoryTitle', {name: category.name})}
             >
-              Delete
+              {t('ui.attributeList.delete')}
             </Button>
           )}
         </div>
@@ -105,7 +108,7 @@ export const AttributeList = ({
       <div className="flex flex-col gap-2">
         {attributes.length === 0 && (
           <div className="rounded-sm bg-ink-600 p-4 text-center font-narrative italic text-parchment-400">
-            <p className="m-0">No {category.name.toLowerCase()} added yet. Click the button above to add some.</p>
+            <p className="m-0">{t('ui.attributeList.emptyHint', {name: category.name.toLowerCase()})}</p>
           </div>
         )}
 
@@ -142,7 +145,7 @@ export const AttributeList = ({
               tone="danger"
               size="sm"
               onClick={() => onRemoveAttribute(index)}
-              label="Remove"
+              label={t('ui.attributeList.remove')}
             >
               <Icon icon={X} size={14} />
             </IconButton>
@@ -153,11 +156,17 @@ export const AttributeList = ({
       {/* Confirmation dialog */}
       <ConfirmDialog
         visible={showDeleteConfirm}
-        title={`Delete ${category.name}`}
+        title={t('ui.attributeList.deleteTitle', {name: category.name})}
         message={
           <>
-            <p>Are you sure you want to delete the <strong>{category.name}</strong> category?</p>
-            <p>This will remove {attributes.length} attribute{attributes.length !== 1 ? 's' : ''} associated with this category.</p>
+            <p>
+              <Trans
+                i18nKey="ui.attributeList.deleteQuestion"
+                values={{name: category.name}}
+                components={[<strong key="name" />]}
+              />
+            </p>
+            <p>{t('ui.attributeList.deleteWarning', {count: attributes.length})}</p>
           </>
         }
         onConfirm={() => {
@@ -165,8 +174,8 @@ export const AttributeList = ({
           onDeleteCategory?.(category.id);
         }}
         onCancel={() => setShowDeleteConfirm(false)}
-        confirmLabel="Delete Category"
-        cancelLabel="Cancel"
+        confirmLabel={t('ui.attributeList.confirmDelete')}
+        cancelLabel={t('common.cancel')}
         variant="danger"
       />
     </div>

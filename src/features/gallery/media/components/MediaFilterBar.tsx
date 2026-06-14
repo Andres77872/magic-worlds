@@ -7,6 +7,7 @@
  */
 
 import { Gem, Globe, Image as ImageIcon, Music2, Swords, Users } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Chip, Icon } from '@/ui/primitives'
 import type { CardRef, CardTypeFilter, MediaGalleryFilters, MediaTypeFilter } from '../mediaGalleryTypes'
 import { CardPicker } from './CardPicker'
@@ -18,27 +19,28 @@ export interface MediaFilterBarProps {
     onCard: (c: CardRef | undefined) => void
 }
 
-const MEDIA_CHIPS: Array<{ key: MediaTypeFilter; label: string; icon?: typeof ImageIcon }> = [
-    { key: 'all', label: 'All' },
-    { key: 'images', label: 'Images', icon: ImageIcon },
-    { key: 'themes', label: 'Themes', icon: Music2 },
+const MEDIA_CHIPS: Array<{ key: MediaTypeFilter; icon?: typeof ImageIcon }> = [
+    { key: 'all' },
+    { key: 'images', icon: ImageIcon },
+    { key: 'themes', icon: Music2 },
 ]
 
-const CARD_TYPE_CHIPS: Array<{ key: CardTypeFilter; label: string; icon?: typeof Users }> = [
-    { key: 'all', label: 'All types' },
-    { key: 'character', label: 'Characters', icon: Users },
-    { key: 'world', label: 'Worlds', icon: Globe },
-    { key: 'item', label: 'Items', icon: Gem },
-    { key: 'adventure_template', label: 'Adventures', icon: Swords },
+const CARD_TYPE_CHIPS: Array<{ key: CardTypeFilter; icon?: typeof Users }> = [
+    { key: 'all' },
+    { key: 'character', icon: Users },
+    { key: 'world', icon: Globe },
+    { key: 'item', icon: Gem },
+    { key: 'adventure_template', icon: Swords },
 ]
 
 export function MediaFilterBar({ filters, onMediaType, onCardType, onCard }: MediaFilterBarProps) {
+    const { t } = useTranslation()
     const showLegacyHint = filters.mediaType !== 'themes' && (filters.cardType !== 'all' || Boolean(filters.card))
 
     return (
         <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
-                <div role="group" aria-label="Media type" className="flex items-center gap-2">
+                <div role="group" aria-label={t('mediaGallery.filters.mediaType')} className="flex items-center gap-2">
                     {MEDIA_CHIPS.map((chip) => (
                         <Chip
                             key={chip.key}
@@ -47,14 +49,14 @@ export function MediaFilterBar({ filters, onMediaType, onCardType, onCard }: Med
                             onClick={() => onMediaType(chip.key)}
                             data-testid={`media-filter-${chip.key}`}
                         >
-                            {chip.label}
+                            {t(`mediaGallery.filters.media.${chip.key}`)}
                         </Chip>
                     ))}
                 </div>
 
                 <span className="mx-1 hidden h-5 w-px bg-parchment-50/10 sm:block" aria-hidden="true" />
 
-                <div role="group" aria-label="Card type" className="flex flex-wrap items-center gap-2">
+                <div role="group" aria-label={t('mediaGallery.filters.cardType')} className="flex flex-wrap items-center gap-2">
                     {CARD_TYPE_CHIPS.map((chip) => (
                         <Chip
                             key={chip.key}
@@ -63,7 +65,7 @@ export function MediaFilterBar({ filters, onMediaType, onCardType, onCard }: Med
                             onClick={() => onCardType(chip.key)}
                             data-testid={`card-type-filter-${chip.key}`}
                         >
-                            {chip.label}
+                            {t(`mediaGallery.filters.card.${chip.key}`)}
                         </Chip>
                     ))}
                 </div>
@@ -75,8 +77,7 @@ export function MediaFilterBar({ filters, onMediaType, onCardType, onCard }: Med
 
             {showLegacyHint && (
                 <p className="font-narrative text-xs text-parchment-500">
-                    Older images generated before card tagging aren't linked to a card, so they only appear without a
-                    card filter.
+                    {t('mediaGallery.filters.legacyHint')}
                 </p>
             )}
         </div>

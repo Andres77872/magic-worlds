@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { I18nextProvider } from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { i18n } from '@/app/i18n'
 
 const setPage = vi.fn()
 const createStory = vi.fn()
@@ -83,8 +86,14 @@ const STORIES: Story[] = [
     },
 ]
 
+function renderSpanish(ui: ReactElement) {
+    const localI18n = i18n.cloneInstance({ lng: 'es' })
+    return render(<I18nextProvider i18n={localI18n}>{ui}</I18nextProvider>)
+}
+
 describe('NovelGalleryPage', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+        await i18n.changeLanguage('en')
         vi.clearAllMocks()
         if (!globalThis.IntersectionObserver) {
             vi.stubGlobal('IntersectionObserver', class IntersectionObserver {
@@ -171,5 +180,21 @@ describe('NovelGalleryPage', () => {
         fireEvent.click(await screen.findByTestId('novel-create-source-card'))
 
         expect(screen.getByTestId('novel-create-submit')).toBeDisabled()
+    })
+
+    it('renders novel gallery and create modal chrome in Spanish', async () => {
+        vi.mocked(apiService.getStories).mockResolvedValue([])
+
+        renderSpanish(<NovelGalleryPage />)
+
+        expect(await screen.findByText('Aún no hay novelas')).toBeInTheDocument()
+        expect(screen.getByPlaceholderText('Buscar novelas por título o texto…')).toBeInTheDocument()
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'Nueva novela' })[0])
+
+        expect(await screen.findByRole('dialog', { name: 'Nueva novela' })).toBeInTheDocument()
+        expect(screen.getByLabelText('Título')).toBeInTheDocument()
+        expect(screen.getByText('Empezar desde')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Crear novela' })).toBeInTheDocument()
     })
 })

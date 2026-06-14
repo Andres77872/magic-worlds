@@ -7,6 +7,7 @@
  * deleted — only the user's content (see DELETE /user/data).
  */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { TriangleAlert } from 'lucide-react'
 import { Button, Field, Icon, Input, Modal } from '@/ui/primitives'
 
@@ -20,6 +21,7 @@ interface DeleteDataDialogProps {
 }
 
 export function DeleteDataDialog({ open, username, onClose, onConfirm }: DeleteDataDialogProps) {
+    const { t } = useTranslation()
     const [typed, setTyped] = useState('')
     const [isProcessing, setIsProcessing] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -48,7 +50,7 @@ export function DeleteDataDialog({ open, username, onClose, onConfirm }: DeleteD
             await onConfirm()
             close()
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to delete your data. Please try again.')
+            setError(err instanceof Error ? err.message : t('profile.danger.deleteError'))
         } finally {
             setIsProcessing(false)
         }
@@ -58,25 +60,24 @@ export function DeleteDataDialog({ open, username, onClose, onConfirm }: DeleteD
         <Modal
             open={open}
             onClose={requestClose}
-            title="Delete all my data"
+            title={t('profile.danger.dialogTitle')}
             icon={<Icon icon={TriangleAlert} size={22} className="text-blood-500" />}
             showClose={false}
             footer={
                 <>
                     <Button kind="secondary" onClick={requestClose} disabled={isProcessing}>
-                        Cancel
+                        {t('common.cancel')}
                     </Button>
                     <Button kind="danger" onClick={handleConfirm} disabled={!matches || isProcessing}>
-                        {isProcessing ? 'Deleting…' : 'Delete all'}
+                        {isProcessing ? t('profile.danger.deleting') : t('profile.danger.deleteAllConfirm')}
                     </Button>
                 </>
             }
         >
             <div className="flex flex-col gap-4">
                 <p className="text-[15px] leading-relaxed text-parchment-200">
-                    This permanently removes every character, world, adventure, chat, and generated
-                    image or theme song you've created. Your account — username, role and credits —
-                    stays active. <span className="font-semibold text-parchment-50">This cannot be undone.</span>
+                    {t('profile.danger.dialogBody')}{' '}
+                    <span className="font-semibold text-parchment-50">{t('profile.danger.irreversible')}</span>
                 </p>
 
                 <form
@@ -87,9 +88,7 @@ export function DeleteDataDialog({ open, username, onClose, onConfirm }: DeleteD
                 >
                     <Field
                         label={
-                            <>
-                                Type <span className="font-mono text-blood-500">{username}</span> to confirm
-                            </>
+                            <span>{t('profile.danger.typeToConfirm', { username })}</span>
                         }
                     >
                         <Input
@@ -99,7 +98,7 @@ export function DeleteDataDialog({ open, username, onClose, onConfirm }: DeleteD
                             autoFocus
                             autoComplete="off"
                             spellCheck={false}
-                            aria-label="Type your username to confirm deletion"
+                            aria-label={t('profile.danger.inputLabel')}
                         />
                     </Field>
                 </form>

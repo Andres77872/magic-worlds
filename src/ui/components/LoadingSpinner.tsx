@@ -2,6 +2,7 @@
  * Reusable loading spinner — Reverie candlelight.
  */
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface LoadingSpinnerProps {
     message?: string
@@ -14,11 +15,14 @@ const SIZE: Record<NonNullable<LoadingSpinnerProps['size']>, number> = {
     large: 40,
 }
 
-export function LoadingSpinner({ message = 'Loading...', size = 'medium' }: LoadingSpinnerProps) {
+export function LoadingSpinner({ message, size = 'medium' }: LoadingSpinnerProps) {
+    const { t } = useTranslation()
+    const displayMessage = message ?? t('loading.default')
+
     return (
         <div className="flex flex-col items-center justify-center gap-3 py-12 text-parchment-200">
             <Loader2 size={SIZE[size]} strokeWidth={1.75} className="animate-spin text-ember-400" />
-            {message && <p className="font-narrative text-[15px] text-parchment-400">{message}</p>}
+            {displayMessage && <p className="font-narrative text-[15px] text-parchment-400">{displayMessage}</p>}
         </div>
     )
 }

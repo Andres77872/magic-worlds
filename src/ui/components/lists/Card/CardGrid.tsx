@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useTranslation} from 'react-i18next'
 import {Loader2, Search, X} from 'lucide-react'
 import {controlClass, Icon, IconButton} from '@/ui/primitives'
 import {EmptyState} from '../../common/EmptyState'
@@ -35,6 +36,15 @@ interface CardGridProps<T> {
     emptyMessage?: React.ReactNode
     loading?: boolean
     loadingComponent?: React.ReactNode
+    /**
+     * Per-item skeleton for the loading/loading-more states (grid layout). When
+     * provided, the initial `loading` state renders a skeleton grid (instead of
+     * a centered spinner) and `loadingMore` appends matching skeletons — so the
+     * placeholder reserves the real card's box and the swap never shifts layout.
+     */
+    renderSkeleton?: () => React.ReactNode
+    /** Skeletons rendered for the initial `loading` grid (default 8). */
+    skeletonCount?: number
     className?: string
     onLoadMore?: () => void
     hasMore?: boolean
@@ -70,26 +80,32 @@ export function CardGrid<T>({
                                 fadeEdges = false,
                                 getItemKey,
                                 emptyMessage,
-                                emptyStateTitle = 'No items found',
-                                emptyStateDescription = 'There are no items to display at the moment.',
+                                emptyStateTitle,
+                                emptyStateDescription,
                                 emptyStateAction,
                                 loading = false,
                                 loadingComponent,
+                                renderSkeleton,
+                                skeletonCount = 8,
                                 loadingMore = false,
                                 hasMore = false,
                                 className = '',
                                 onLoadMore,
-                                searchPlaceholder = 'Search items...',
+                                searchPlaceholder,
                                 onSearch,
                                 showEmptyState = true,
                                 'data-testid': testId = 'card-grid'
                             }: CardGridProps<T>) {
+    const { t } = useTranslation()
     const gridRef = useRef<HTMLDivElement>(null)
     const loadingRef = useRef<HTMLDivElement>(null)
     const searchInputRef = useRef<HTMLInputElement>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [isSearching, setIsSearching] = useState(false)
     const [railHasOverflow, setRailHasOverflow] = useState(false)
+    const resolvedEmptyStateTitle = emptyStateTitle ?? t('cardGrid.noItemsFound')
+    const resolvedEmptyStateDescription = emptyStateDescription ?? t('cardGrid.noItemsDescription')
+    const resolvedSearchPlaceholder = searchPlaceholder ?? t('cardGrid.searchItems')
 
     // Enhanced search with debounce
     useEffect(() => {
@@ -237,15 +253,36 @@ export function CardGrid<T>({
         ))
     }, [items, renderCard, layout, railWidth, getItemKey])
 
+    // Grid track sizing, shared by the content grid and the skeleton grid so the
+    // two can never drift (a skeleton in a differently-sized track would shift).
+    const gridClass =
+        density === 'compact'
+            ? `grid w-full grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-5 ${className}`
+            : `grid w-full grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] md:gap-6 ${className}`
+
     // Enhanced loading state
     if (loading) {
+        // A matched skeleton grid reserves layout and avoids the spinner→grid
+        // pop; falls back to the centered spinner for rails/lists without one.
+        if (renderSkeleton && layout === 'grid') {
+            return (
+                <div className="w-full" data-testid={testId}>
+                    <div className={gridClass} role="status" aria-busy="true" aria-label={t('cardGrid.loadingItems')}>
+                        {Array.from({ length: skeletonCount }).map((_, i) => (
+                            <div key={`skeleton-${i}`} className="contents">{renderSkeleton()}</div>
+                        ))}
+                        <span className="sr-only">{t('cardGrid.loadingContent')}</span>
+                    </div>
+                </div>
+            )
+        }
         return (
             <div className="flex flex-col items-center justify-center gap-4 p-8 text-parchment-400" role="status" aria-live="polite">
                 {loadingComponent || (
                     <>
                         <Loader2 className="h-8 w-8 animate-spin text-ember-500" aria-hidden="true"/>
-                        <p>Loading items...</p>
-                        <span className="sr-only">Loading content, please wait...</span>
+                        <p>{t('cardGrid.loadingItems')}</p>
+                        <span className="sr-only">{t('cardGrid.loadingContent')}</span>
                     </>
                 )}
             </div>
@@ -261,8 +298,8 @@ export function CardGrid<T>({
         return (
             <EmptyState
                 icon={<Icon icon={Search} size={48}/>}
-                message={emptyStateTitle}
-                secondaryText={emptyStateDescription}
+                message={resolvedEmptyStateTitle}
+                secondaryText={resolvedEmptyStateDescription}
             >
                 {emptyStateAction}
             </EmptyState>
@@ -282,12 +319,12 @@ export function CardGrid<T>({
                         <input
                             ref={searchInputRef}
                             type="text"
-                            placeholder={searchPlaceholder}
+                            placeholder={resolvedSearchPlaceholder}
                             value={searchQuery}
                             onChange={handleSearchChange}
                             onKeyDown={handleSearchKeyDown}
                             className={`${controlClass} pl-10 pr-12`}
-                            aria-label="Search items"
+                            aria-label={t('cardGrid.searchItems')}
                             data-testid="card-grid-search-input"
                         />
                         {isSearching && (
@@ -302,7 +339,7 @@ export function CardGrid<T>({
                             <IconButton
                                 size="sm"
                                 onClick={handleClearSearch}
-                                label="Clear search"
+                                label={t('cardGrid.clearSearch')}
                                 className="absolute right-2 z-[2]"
                                 data-testid="search-clear"
                             >
@@ -322,23 +359,27 @@ export function CardGrid<T>({
                             // hover-lift + ember glow room; the -mx cancels the inline
                             // padding so cards still align with the section header.
                             ? `flex gap-4 overflow-x-auto -mx-4 pl-4 ${railShouldFade ? 'rail-fade-right pr-12' : 'pr-4'} pb-9 pt-5 [scroll-snap-type:x_proximity] md:gap-5 ${className}`
-                            : density === 'compact'
-                              ? `grid w-full grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-5 ${className}`
-                              : `grid w-full grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] md:gap-6 ${className}`
+                            : gridClass
                     }
                     role="list"
                     ref={gridRef}
-                    aria-label={`${layout === 'rail' ? 'Shelf' : 'Grid'} of ${items.length} items`}
+                    aria-label={t(layout === 'rail' ? 'cardGrid.shelfLabel' : 'cardGrid.gridLabel', { count: items.length })}
                     data-testid="card-grid-list"
                 >
                     {renderedCards}
 
-                    {/* Enhanced loading more indicator (paged grids only) */}
+                    {/* Enhanced loading more indicator (paged grids only). Matches the
+                        card via renderSkeleton when given; the generic text-card
+                        SkeletonCard is the fallback for callers without one. */}
                     {layout === 'grid' && loadingMore && (
                         <>
-                            {[...Array(3)].map((_, i) => (
-                                <SkeletonCard key={`skeleton-more-${i}`}/>
-                            ))}
+                            {[...Array(3)].map((_, i) =>
+                                renderSkeleton ? (
+                                    <div key={`skeleton-more-${i}`} className="contents">{renderSkeleton()}</div>
+                                ) : (
+                                    <SkeletonCard key={`skeleton-more-${i}`}/>
+                                ),
+                            )}
                         </>
                     )}
 
@@ -361,7 +402,7 @@ export function CardGrid<T>({
                     className="mt-6 border-t border-parchment-50/10 p-6 text-center text-sm text-parchment-400"
                     role="status"
                 >
-                    <p>You've seen everything here.</p>
+                    <p>{t('cardGrid.endOfResults')}</p>
                 </div>
             )}
         </div>

@@ -5,6 +5,7 @@
  * invites a review-and-save pass.
  */
 
+import { useTranslation } from 'react-i18next'
 import { CheckCircle2 } from 'lucide-react'
 import { Icon } from '@/ui/primitives'
 
@@ -14,6 +15,7 @@ export interface GeneratedDraftNoticeProps {
 }
 
 export function GeneratedDraftNotice({ noun }: GeneratedDraftNoticeProps) {
+    const { t } = useTranslation()
     return (
         <div
             role="status"
@@ -21,7 +23,7 @@ export function GeneratedDraftNotice({ noun }: GeneratedDraftNoticeProps) {
         >
             <Icon icon={CheckCircle2} size={14} className="shrink-0 text-arcane-300" />
             <span>
-                ✨ Draft {noun} generated — review &amp; save your changes.
+                {t('creation.common.generatedDraft.notice', { noun })}
             </span>
         </div>
     )

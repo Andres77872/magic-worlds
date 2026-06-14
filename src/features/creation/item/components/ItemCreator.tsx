@@ -8,6 +8,7 @@
 
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Gem } from 'lucide-react'
 import type { Item } from '@/shared'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
@@ -38,13 +39,9 @@ import {
 } from '../../common/components'
 import { GuidedSection, UseExampleLink, useGuidedCard, type CardTemplate } from '../../common/engine'
 import { CreatorIntro, TemplateGallery } from '../../common/templates'
-import { ITEM_FIELDS, ITEM_RARITY_OPTIONS, ITEM_SECTIONS, ITEM_TYPE_OPTIONS } from '../fields'
-import { ITEM_GALLERY_HEADING, ITEM_GALLERY_SUBHEADING, ITEM_TEMPLATES } from '../templates'
+import { getItemFields, getItemRarityOptions, getItemSections, getItemTypeOptions } from '../fields'
+import { ITEM_GALLERY_HEADING_KEY, ITEM_GALLERY_SUBHEADING_KEY, ITEM_TEMPLATES } from '../templates'
 import { ItemPreviewCard } from './ItemPreviewCard'
-
-const DEFAULT_CATEGORIES: AttributeCategory[] = [
-    { id: 'traits', name: 'Traits', type: 'detail', description: 'Compact facts that make this item easy to use in scenes.' },
-]
 
 // Bearer/Condition/Secret/Hook from the old presets are guided fields now;
 // existing cards' rows still hydrate into Traits unchanged.
@@ -85,9 +82,21 @@ function toItem(card: ItemCardResponse): Item {
 }
 
 export function ItemCreator() {
-    const { setPage } = useNavigation()
+    const { t } = useTranslation()
+    const { goBack } = useNavigation()
     const { editingItem, setEditingItem, loadData } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
+
+    // One minimal default category; `id`/`name` are saved-card data; description is display copy.
+    const defaultCategories = useMemo<AttributeCategory[]>(
+        () => [{ id: 'traits', name: 'Traits', type: 'detail', description: t('creation.item.traitsCategory.description') }],
+        [t],
+    )
+
+    const itemFields = useMemo(() => getItemFields(t), [t])
+    const itemSections = useMemo(() => getItemSections(t), [t])
+    const itemTypeOptions = useMemo(() => getItemTypeOptions(t), [t])
+    const itemRarityOptions = useMemo(() => getItemRarityOptions(t), [t])
 
     const [name, setName] = useState(editingItem?.name ?? '')
     const [alias, setAlias] = useState(editingItem?.alias ?? '')
@@ -111,13 +120,13 @@ export function ItemCreator() {
     const [template, setTemplate] = useState<CardTemplate | null | undefined>(editingItem ? null : undefined)
 
     const guided = useGuidedCard({
-        fields: ITEM_FIELDS,
-        defaults: DEFAULT_CATEGORIES,
+        fields: itemFields,
+        defaults: defaultCategories,
         entity: editingItem,
     })
 
-    const nameError = touched && !name.trim() ? 'Name is required.' : undefined
-    const descriptionError = touched && !description.trim() ? 'Description is required.' : undefined
+    const nameError = touched && !name.trim() ? t('creation.item.validation.nameRequired') : undefined
+    const descriptionError = touched && !description.trim() ? t('creation.item.validation.descriptionRequired') : undefined
 
     const traitKeys = useMemo(
         () => (guided.attributes['traits'] || []).map((row) => row.key.toLowerCase()),
@@ -125,11 +134,11 @@ export function ItemCreator() {
     )
 
     const navItems = useMemo<StudioNavItem[]>(
-        () => ITEM_SECTIONS.map((section) => ({ id: section.id, label: String(section.title), icon: section.icon! })),
-        [],
+        () => itemSections.map((section) => ({ id: section.id, label: String(section.title), icon: section.icon! })),
+        [itemSections],
     )
 
-    const sectionById = useMemo(() => Object.fromEntries(ITEM_SECTIONS.map((s) => [s.id, s])), [])
+    const sectionById = useMemo(() => Object.fromEntries(itemSections.map((s) => [s.id, s])), [itemSections])
 
     const buildPayload = () => ({
         name,
@@ -151,11 +160,11 @@ export function ItemCreator() {
     const ensureSaved = async (): Promise<string> => {
         if (!isAuthenticated) {
             openLoginModal()
-            throw new Error('Please log in to continue.')
+            throw new Error(t('creation.item.validation.loginToContinue'))
         }
         if (!name.trim() || !description.trim()) {
             setTouched(true)
-            throw new Error('Add a name and description before generating media.')
+            throw new Error(t('creation.item.validation.nameAndDescriptionForMedia'))
         }
         if (editingItem) {
             await apiService.updateItem(editingItem.id, buildPayload())
@@ -236,14 +245,16 @@ export function ItemCreator() {
             }
             setEditingItem(null)
             await loadData()
-            setPage('landing')
+            goBack('landing')
         } catch (error) {
             console.error(`Failed to ${editingItem ? 'update' : 'create'} item:`, error)
             const transient = error instanceof ApiError && error.isTransient
             setSaveError(
                 transient
-                    ? 'The service is briefly unavailable — please try again in a moment.'
-                    : `Couldn't ${editingItem ? 'update' : 'create'} your item. Please try again.`,
+                    ? t('creation.item.save.transient')
+                    : editingItem
+                      ? t('creation.item.save.updateFailed')
+                      : t('creation.item.save.createFailed'),
             )
         } finally {
             setIsSubmitting(false)
@@ -270,12 +281,12 @@ export function ItemCreator() {
         setAssistantApplied(true)
         // AI generation skips the gallery; a picked template's scaffolding survives.
         setTemplate((current) => (current === undefined ? null : current))
-        void loadData()
+        void loadData({ silent: true })
     }
 
     const handleBack = () => {
         setEditingItem(null)
-        setPage('landing')
+        goBack('landing')
     }
 
     /** Back from the form: to the gallery while creating, to the library otherwise. */
@@ -302,7 +313,7 @@ export function ItemCreator() {
         <CardAssistantChatbot<ItemCardResponse>
             cardType="item"
             cardId={editingItem?.id ?? null}
-            title={name.trim() || 'Untitled Item'}
+            title={name.trim() || t('creation.item.untitled')}
             currentCard={buildPayload()}
             onCard={applyAssistantCard}
             isAuthenticated={isAuthenticated}
@@ -315,13 +326,13 @@ export function ItemCreator() {
     if (template === undefined) {
         return (
             <>
-                <CreatorIntro title="Create Item" icon={<Icon icon={Gem} size={28} />} onBack={handleBack}>
+                <CreatorIntro title={t('creation.item.createTitle')} icon={<Icon icon={Gem} size={28} />} onBack={handleBack}>
                     <TemplateGallery
                         templates={ITEM_TEMPLATES}
-                        fields={ITEM_FIELDS}
+                        fields={itemFields}
                         noun="item"
-                        heading={ITEM_GALLERY_HEADING}
-                        subheading={ITEM_GALLERY_SUBHEADING}
+                        heading={t(ITEM_GALLERY_HEADING_KEY)}
+                        subheading={t(ITEM_GALLERY_SUBHEADING_KEY)}
                         onPick={pickTemplate}
                         onSkip={() => setTemplate(null)}
                     />
@@ -334,14 +345,14 @@ export function ItemCreator() {
     return (
         <>
         <CreatorStudio
-            title={editingItem ? 'Edit Item' : 'Create Item'}
+            title={editingItem ? t('creation.item.editTitle') : t('creation.item.createTitle')}
             icon={<Icon icon={Gem} size={28} />}
             onBack={handleStudioBack}
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
                 <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
-                    {isSubmitting ? 'Saving...' : editingItem ? 'Update' : 'Create'}
+                    {isSubmitting ? t('creation.common.formActions.saving') : editingItem ? t('creation.common.studio.update') : t('creation.item.create')}
                 </Button>
             }
             preview={
@@ -371,11 +382,11 @@ export function ItemCreator() {
                 >
                     <div className="grid gap-4 sm:grid-cols-2">
                         <CreatorField
-                            label="Name"
+                            label={t('creation.item.fieldsForm.nameLabel')}
                             htmlFor="item-name"
                             required
                             error={nameError}
-                            tooltip="The name players will say in chat — also the item's strongest trigger."
+                            tooltip={t('creation.item.fieldsForm.nameTooltip')}
                         >
                             <CreatorInput
                                 id="item-name"
@@ -383,50 +394,50 @@ export function ItemCreator() {
                                 onChange={setName}
                                 autoFocus
                                 className="font-display text-xl font-medium"
-                                placeholder={firstClass.name ?? 'e.g. Moonlit Compass'}
+                                placeholder={firstClass.name ?? t('creation.item.fieldsForm.namePlaceholder')}
                             />
                         </CreatorField>
 
                         <CreatorField
-                            label="Alias"
+                            label={t('creation.item.fieldsForm.aliasLabel')}
                             htmlFor="item-alias"
-                            tooltip="What people call it in rumor and song — a second handle for recognition."
+                            tooltip={t('creation.item.fieldsForm.aliasTooltip')}
                         >
                             <CreatorInput
                                 id="item-alias"
                                 value={alias ?? ''}
                                 onChange={setAlias}
-                                placeholder="e.g. The Wayfinder"
+                                placeholder={t('creation.item.fieldsForm.aliasPlaceholder')}
                             />
                         </CreatorField>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
                         <CreatorField
-                            label="Type"
+                            label={t('creation.item.fieldsForm.typeLabel')}
                             htmlFor="item-type"
-                            tooltip="What kind of object this is — type tells the AI how it's held, used, and lost."
+                            tooltip={t('creation.item.fieldsForm.typeTooltip')}
                         >
                             <SuggestInput
                                 id="item-type"
                                 value={type ?? ''}
                                 onChange={setType}
-                                options={ITEM_TYPE_OPTIONS}
-                                placeholder={firstClass.type ?? 'e.g. Relic, Weapon, Key'}
+                                options={itemTypeOptions}
+                                placeholder={firstClass.type ?? t('creation.item.fieldsForm.typePlaceholder')}
                             />
                         </CreatorField>
 
                         <CreatorField
-                            label="Rarity"
+                            label={t('creation.item.fieldsForm.rarityLabel')}
                             htmlFor="item-rarity"
-                            tooltip="How hard it is to find another — rarity sets how much attention it attracts."
+                            tooltip={t('creation.item.fieldsForm.rarityTooltip')}
                         >
                             <SuggestInput
                                 id="item-rarity"
                                 value={rarity ?? ''}
                                 onChange={setRarity}
-                                options={ITEM_RARITY_OPTIONS}
-                                placeholder={firstClass.rarity ?? 'e.g. Rare, Cursed, Unique'}
+                                options={itemRarityOptions}
+                                placeholder={firstClass.rarity ?? t('creation.item.fieldsForm.rarityPlaceholder')}
                             />
                         </CreatorField>
                     </div>
@@ -439,11 +450,11 @@ export function ItemCreator() {
                     description={sectionById['overview'].description}
                 >
                     <CreatorField
-                        label="Description"
+                        label={t('creation.item.fieldsForm.descriptionLabel')}
                         htmlFor="item-description"
                         required
                         error={descriptionError}
-                        tooltip="Appearance plus the one sentence that says why it matters — the AI quotes this when it appears."
+                        tooltip={t('creation.item.fieldsForm.descriptionTooltip')}
                     >
                         <CreatorTextarea
                             id="item-description"
@@ -467,39 +478,39 @@ export function ItemCreator() {
                     description={sectionById['effects'].description}
                 >
                     <StringListField
-                        label="Effects"
+                        label={t('creation.item.fieldsForm.effectsLabel')}
                         values={effects}
                         onChange={setEffects}
-                        placeholder={firstClass.effects ?? 'e.g. Points toward whatever the bearer most recently lost'}
-                        helper="What it concretely does in play — one effect per entry, in plain language the AI can act on."
-                        removeLabel="Remove effect"
+                        placeholder={firstClass.effects ?? t('creation.item.fieldsForm.effectsPlaceholder')}
+                        helper={t('creation.item.fieldsForm.effectsHelper')}
+                        removeLabel={t('creation.item.fieldsForm.removeEffect')}
                     />
                     {effects.length > 0 &&
                         requirements.length === 0 &&
                         limitations.length === 0 &&
                         !guided.values['use.cost']?.trim() && (
                             <QualityHint>
-                                Powerful and free is boring — add a cost or a limit so using it stays a choice.
+                                {t('creation.item.effectsHint')}
                             </QualityHint>
                         )}
                 </StudioSection>
 
                 <GuidedSection section={sectionById['limits']} guided={guided}>
                     <StringListField
-                        label="Requirements"
+                        label={t('creation.item.fieldsForm.requirementsLabel')}
                         values={requirements}
                         onChange={setRequirements}
-                        placeholder={firstClass.requirements ?? 'e.g. The bearer must truly miss what they seek'}
-                        helper="What using it demands — ownership, timing, place, or a price of activation."
-                        removeLabel="Remove requirement"
+                        placeholder={firstClass.requirements ?? t('creation.item.fieldsForm.requirementsPlaceholder')}
+                        helper={t('creation.item.fieldsForm.requirementsHelper')}
+                        removeLabel={t('creation.item.fieldsForm.removeRequirement')}
                     />
                     <StringListField
-                        label="Limitations"
+                        label={t('creation.item.fieldsForm.limitationsLabel')}
                         values={limitations}
                         onChange={setLimitations}
-                        placeholder={firstClass.limitations ?? 'e.g. Cannot find the living; spins uselessly for the lying'}
-                        helper="Where it fails — limits keep a powerful item playable instead of a plot solvent."
-                        removeLabel="Remove limitation"
+                        placeholder={firstClass.limitations ?? t('creation.item.fieldsForm.limitationsPlaceholder')}
+                        helper={t('creation.item.fieldsForm.limitationsHelper')}
+                        removeLabel={t('creation.item.fieldsForm.removeLimitation')}
                     />
                 </GuidedSection>
 
@@ -511,35 +522,35 @@ export function ItemCreator() {
                     footer={
                         guided.values['story.truth']?.trim() && !guided.values['story.reveal']?.trim() ? (
                             <QualityHint>
-                                A secret with no reveal rule either leaks at random or never surfaces — add a condition.
+                                {t('creation.item.secretHint')}
                             </QualityHint>
                         ) : undefined
                     }
                 >
                     <div className="grid gap-4 sm:grid-cols-2">
                         <CreatorField
-                            label="Origin"
+                            label={t('creation.item.fieldsForm.originLabel')}
                             htmlFor="item-origin"
-                            tooltip="Who made it and why — origin is where its hooks and enemies come from."
+                            tooltip={t('creation.item.fieldsForm.originTooltip')}
                         >
                             <CreatorInput
                                 id="item-origin"
                                 value={origin ?? ''}
                                 onChange={setOrigin}
-                                placeholder={firstClass.origin ?? 'e.g. Built by a lighthouse keeper who lost her daughter to the fog.'}
+                                placeholder={firstClass.origin ?? t('creation.item.fieldsForm.originPlaceholder')}
                             />
                         </CreatorField>
 
                         <CreatorField
-                            label="Value"
+                            label={t('creation.item.fieldsForm.valueLabel')}
                             htmlFor="item-value"
-                            tooltip="What it's worth and to whom — value invites theft, trade, and temptation."
+                            tooltip={t('creation.item.fieldsForm.valueTooltip')}
                         >
                             <CreatorInput
                                 id="item-value"
                                 value={value ?? ''}
                                 onChange={setValue}
-                                placeholder={firstClass.value ?? 'e.g. Priceless to the grieving; ten coins to a scrap dealer.'}
+                                placeholder={firstClass.value ?? t('creation.item.fieldsForm.valuePlaceholder')}
                             />
                         </CreatorField>
                     </div>
@@ -553,7 +564,7 @@ export function ItemCreator() {
                 >
                     <div className="flex flex-col gap-2.5">
                         <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
-                            Quick add traits
+                            {t('creation.item.quickAddTraits')}
                         </span>
                         <SuggestedAttributes
                             presets={TRAIT_PRESETS}
@@ -563,7 +574,7 @@ export function ItemCreator() {
                     </div>
 
                     <AttributeManager
-                        title="Trait groups"
+                        title={t('creation.item.traitGroups')}
                         icon="*"
                         categories={guided.categories}
                         attributes={guided.attributes}
@@ -584,16 +595,16 @@ export function ItemCreator() {
                     <TriggersField
                         values={triggers}
                         onChange={setTriggers}
-                        label="Triggers"
-                        helper="Words that summon this card — its name, alias, inscription, and what it does."
-                        placeholder="e.g. compass, Wayfinder, the cracked glass"
+                        label={t('creation.item.fieldsForm.triggersLabel')}
+                        helper={t('creation.item.fieldsForm.triggersHelper')}
+                        placeholder={t('creation.item.fieldsForm.triggersPlaceholder')}
                     />
                     <TriggerHints triggers={triggers} hasContent={Boolean(description.trim())} />
                 </StudioSection>
 
                 <FormActions
                     onCancel={handleStudioBack}
-                    submitLabel={editingItem ? 'Update Item' : 'Create Item'}
+                    submitLabel={editingItem ? t('creation.item.actions.updateItem') : t('creation.item.actions.createItem')}
                     isSubmitting={isSubmitting}
                     error={saveError}
                 />

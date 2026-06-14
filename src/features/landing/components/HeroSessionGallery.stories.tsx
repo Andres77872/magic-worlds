@@ -35,6 +35,15 @@ const SESSIONS: ResumeSession[] = [
     updatedAtMs: 0,
     source: { id: 'a2' } as ResumeSession['source'],
   },
+  {
+    kind: 'novel',
+    id: 'n1',
+    title: 'Siege of Ash',
+    snippet: 'A siege told from the walls, where the smoke never quite clears.',
+    meta: '4 chapters · 3,120 words · 5d ago',
+    updatedAtMs: 0,
+    source: { id: 'n1' } as ResumeSession['source'],
+  },
 ]
 
 const meta = {
@@ -46,7 +55,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'The returning-user hero banner: a one-slide-per-view paged carousel of the last 10 chats and adventures — chevrons + pagination dots, hidden scrollbar, mode-specific CTAs.',
+          'The returning-user hero banner: a one-slide-per-view paged carousel of the most recent adventures, chats, and novels — chevrons + pagination dots, hidden scrollbar, kind-specific CTAs.',
       },
     },
   },

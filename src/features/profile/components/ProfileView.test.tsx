@@ -6,12 +6,25 @@ import { ProfileView } from './ProfileView'
 const membership: Membership = {
     plan_code: 'free',
     display_name: 'Free',
-    credits: { period: 'daily', max: 20, used: 3, remaining: 17, usage_date: '2026-06-10' },
+    credits: { period: 'daily', max: 50, used: 3, remaining: 47, usage_date: '2026-06-10' },
     payg: { balance: 4 },
-    total_available_credits: 21,
+    total_available_credits: 51,
     limits: {
         chat_interaction: { daily_limit: 20, used_today: 2, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
         image_generation: { daily_limit: 20, used_today: 1, max_in_flight: 2, in_flight: 0, credit_cost: 1 },
+    },
+    monthly_usage: {
+        period: 'calendar_month',
+        month: '2026-06',
+        start_date: '2026-06-01',
+        end_date: '2026-06-10',
+        credits_used: 34,
+        included_credits_used: 30,
+        payg_credits_used: 4,
+        operations: {
+            chat_interaction: { used: 20, credits_used: 20, included_credits_used: 20, payg_credits_used: 0 },
+            image_generation: { used: 14, credits_used: 14, included_credits_used: 10, payg_credits_used: 4 },
+        },
     },
     profile_cards: {
         current_plan_code: 'free',
@@ -24,8 +37,8 @@ const membership: Membership = {
                 reference_only: false,
                 badge: 'Current',
                 description: 'Included daily credits for everyday creation.',
-                highlights: ['20 daily included credits', 'PAYG credits cover overage', 'Core generation tools'],
-                credits: { period: 'daily', max: 20, used: 3, remaining: 17, usage_date: '2026-06-10', preview: false },
+                highlights: ['50 daily included credits', 'PAYG credits cover overage', 'Core generation tools'],
+                credits: { period: 'daily', max: 50, used: 3, remaining: 47, usage_date: '2026-06-10', preview: false },
                 limits: {
                     chat_interaction: { daily_limit: 20, used_today: 2, max_in_flight: 1, in_flight: 0, credit_cost: 1, preview: false },
                     image_generation: { daily_limit: 20, used_today: 1, max_in_flight: 2, in_flight: 0, credit_cost: 1, preview: false },
@@ -88,7 +101,7 @@ const profile: UserProfile = {
     user_hash: 'usr-profile',
     username: 'Lyra',
     user_type: 'consumer',
-    user_usage: 21,
+    user_usage: 51,
     membership,
     card_counts: { character: 2, world: 1, item: 6, adventure_template: 3 },
 }
@@ -105,11 +118,11 @@ describe('ProfileView membership section', () => {
         expect(screen.getByRole('heading', { name: 'Plus' })).toBeInTheDocument()
         expect(screen.getByRole('heading', { name: 'Pro' })).toBeInTheDocument()
         expect(screen.getByRole('heading', { name: 'Pay as you go' })).toBeInTheDocument()
-        expect(screen.getByText('21 available')).toBeInTheDocument()
-        expect(screen.getByText('20')).toBeInTheDocument()
+        expect(screen.getByText('51 available')).toBeInTheDocument()
+        expect(screen.getByText('50')).toBeInTheDocument()
         expect(screen.getByText('100')).toBeInTheDocument()
         expect(screen.getByText('500')).toBeInTheDocument()
-        expect(screen.getByText('4')).toBeInTheDocument()
+        expect(screen.getAllByText('4').length).toBeGreaterThan(0)
         expect(screen.getAllByText('credits / day')).toHaveLength(3)
         expect(screen.getAllByText('Chat').length).toBeGreaterThan(0)
         expect(screen.getAllByText('Images').length).toBeGreaterThan(0)
@@ -117,15 +130,21 @@ describe('ProfileView membership section', () => {
         expect(screen.getAllByText('Daily limits')).toHaveLength(1)
         // Plan cards carry no live usage — that lives in the usage section below.
         expect(screen.queryByText(/used today/)).not.toBeInTheDocument()
-        expect(screen.getByRole('heading', { name: "Today's usage" })).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: 'Usage monitor' })).toBeInTheDocument()
+        expect(screen.getByText('June 2026 to date')).toBeInTheDocument()
         expect(screen.getAllByRole('progressbar')).toHaveLength(3)
         const creditsBar = screen.getByRole('progressbar', { name: 'Included daily credits used' })
         expect(creditsBar).toHaveAttribute('aria-valuenow', '3')
-        expect(creditsBar).toHaveAttribute('aria-valuemax', '20')
-        expect(screen.getByText('3 of 20')).toBeInTheDocument()
-        expect(screen.getByText('17 remaining today')).toBeInTheDocument()
+        expect(creditsBar).toHaveAttribute('aria-valuemax', '50')
+        expect(screen.getByText('3 of 50')).toBeInTheDocument()
+        expect(screen.getByText('47 remaining today')).toBeInTheDocument()
         expect(screen.getByRole('progressbar', { name: 'Chat usage today' })).toHaveAttribute('aria-valuenow', '2')
         expect(screen.getByRole('progressbar', { name: 'Images usage today' })).toHaveAttribute('aria-valuenow', '1')
+        expect(screen.getByText('Credits this month')).toBeInTheDocument()
+        expect(screen.getByText('34')).toBeInTheDocument()
+        expect(screen.getByText('30')).toBeInTheDocument()
+        expect(screen.getByText('10 included / 4 PAYG')).toBeInTheDocument()
+        expect(screen.getByText('14 actions')).toBeInTheDocument()
         expect(screen.getByText('1 credit per action')).toBeInTheDocument()
         expect(screen.getByText('Non-expiring')).toBeInTheDocument()
         expect(screen.queryByText(/checkout/i)).not.toBeInTheDocument()
@@ -147,8 +166,23 @@ describe('ProfileView membership section', () => {
         expect(screen.getByText('1,000')).toBeInTheDocument()
         expect(screen.getByText(/Detailed membership tiers will appear here/i)).toBeInTheDocument()
         expect(screen.queryByRole('heading', { name: 'Plus' })).not.toBeInTheDocument()
-        expect(screen.queryByRole('heading', { name: "Today's usage" })).not.toBeInTheDocument()
+        expect(screen.queryByRole('heading', { name: 'Usage monitor' })).not.toBeInTheDocument()
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    })
+
+    it('renders daily usage when the monthly rollout field is absent', () => {
+        render(
+            <ProfileView
+                profile={{ ...profile, membership: { ...membership, monthly_usage: undefined } }}
+                onLogout={noop}
+                onDeleteAllData={deleteAll}
+            />,
+        )
+
+        expect(screen.getByRole('heading', { name: 'Usage monitor' })).toBeInTheDocument()
+        expect(screen.getAllByRole('progressbar')).toHaveLength(3)
+        expect(screen.queryByText('Credits this month')).not.toBeInTheDocument()
+        expect(screen.queryByText('June 2026 to date')).not.toBeInTheDocument()
     })
 
     it('confirms before logging out', () => {

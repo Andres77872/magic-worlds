@@ -7,6 +7,7 @@ export interface ApiStatusContextValue {
     status: ApiStatus
     services?: ApiDependencyService[]
     checkedAt?: string
+    showServicesDownBanner?: boolean
 }
 
 export const ApiStatusContext = createContext<ApiStatusContextValue | undefined>(undefined)

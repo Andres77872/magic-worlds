@@ -35,7 +35,7 @@ describe('useApiStatus', () => {
         vi.useRealTimers()
     })
 
-    it('checks immediately and polls every 10 seconds by default', async () => {
+    it('checks immediately and polls every 60 seconds by default', async () => {
         getDependencyHealth.mockResolvedValue({
             status: 'ok',
             checked_at: '2026-06-11T20:11:09.721371Z',
@@ -49,11 +49,12 @@ describe('useApiStatus', () => {
         expect(result.current.status).toBe('online')
         expect(result.current.services).toHaveLength(1)
         expect(result.current.checkedAt).toBe('2026-06-11T20:11:09.721371Z')
+        expect(result.current.showServicesDownBanner).toBe(false)
         expect(getDependencyHealth).toHaveBeenCalledTimes(1)
         expect(getHealth).not.toHaveBeenCalled()
 
         await act(async () => {
-            await vi.advanceTimersByTimeAsync(10_000)
+            await vi.advanceTimersByTimeAsync(60_000)
             await Promise.resolve()
         })
 
@@ -75,12 +76,62 @@ describe('useApiStatus', () => {
         expect(result.current.status).toBe('online')
 
         await act(async () => {
-            await vi.advanceTimersByTimeAsync(10_000)
+            await vi.advanceTimersByTimeAsync(60_000)
             await Promise.resolve()
         })
 
         expect(result.current.status).toBe('offline')
+        expect(result.current.showServicesDownBanner).toBe(false)
         expect(result.current.services?.[0]?.id).toBe('user_providers')
+    })
+
+    it('shows the services-down banner after two consecutive offline polls', async () => {
+        getDependencyHealth
+            .mockResolvedValueOnce({
+                status: 'offline',
+                services: [{ id: 'user_providers', label: 'User / Auth Providers', status: 'offline', components: [] }],
+            })
+            .mockResolvedValueOnce({
+                status: 'offline',
+                services: [{ id: 'user_providers', label: 'User / Auth Providers', status: 'offline', components: [] }],
+            })
+
+        const { result } = renderHook(() => useApiStatus(), { wrapper })
+
+        await flushPromises()
+        expect(result.current.status).toBe('offline')
+        expect(result.current.showServicesDownBanner).toBe(false)
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(60_000)
+            await Promise.resolve()
+        })
+
+        expect(result.current.status).toBe('offline')
+        expect(result.current.showServicesDownBanner).toBe(true)
+    })
+
+    it('keeps the services-down banner hidden for a transient offline poll', async () => {
+        getDependencyHealth
+            .mockResolvedValueOnce({
+                status: 'offline',
+                services: [{ id: 'user_providers', label: 'User / Auth Providers', status: 'offline', components: [] }],
+            })
+            .mockResolvedValueOnce({ status: 'ok', services: [] })
+
+        const { result } = renderHook(() => useApiStatus(), { wrapper })
+
+        await flushPromises()
+        expect(result.current.status).toBe('offline')
+        expect(result.current.showServicesDownBanner).toBe(false)
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(60_000)
+            await Promise.resolve()
+        })
+
+        expect(result.current.status).toBe('online')
+        expect(result.current.showServicesDownBanner).toBe(false)
     })
 
     it('falls back to the legacy health endpoint when dependency details are unavailable', async () => {
@@ -94,6 +145,22 @@ describe('useApiStatus', () => {
         expect(result.current.status).toBe('online')
         expect(result.current.services).toEqual([])
         expect(getHealth).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not start another dependency health request while one is in flight', async () => {
+        getDependencyHealth.mockImplementation(() => new Promise(() => undefined))
+
+        renderHook(() => useApiStatus(), { wrapper })
+
+        expect(getDependencyHealth).toHaveBeenCalledTimes(1)
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(60_000)
+            await Promise.resolve()
+        })
+
+        expect(getDependencyHealth).toHaveBeenCalledTimes(1)
+        expect(getHealth).not.toHaveBeenCalled()
     })
 
     it('aborts the active health request on unmount', async () => {

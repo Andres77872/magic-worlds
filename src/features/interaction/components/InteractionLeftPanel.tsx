@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from 'react'
-import { ArrowLeft, Check, Globe, Info, Pencil, Plus, UserCircle, Users, X } from 'lucide-react'
-import type { Adventure, AdventureSnapshot } from '../../../shared'
+import { useTranslation } from 'react-i18next'
+import { ArrowLeft, AudioLines, Check, Globe, Info, Pencil, Plus, UserCircle, Users, Volume2, X } from 'lucide-react'
+import type { Adventure, AdventureSnapshot, CharacterVoice } from '../../../shared'
 import { readWorldPlaceType, worldPlaceTypeLabel } from '../../../shared'
-import { Button, Icon, IconButton, SectionHeader, Tag, Textarea } from '../../../ui/primitives'
+import { Button, Icon, IconButton, SectionHeader, SwitchRow, Tag, Textarea } from '../../../ui/primitives'
+import { VoicePickerDialog } from '../../voices/components/VoicePickerDialog'
 import { Card } from '../../../ui/components/lists/Card'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
 import { resolveMediaUrl } from '../../../infrastructure/api'
@@ -37,6 +39,7 @@ interface InteractionLeftPanelProps {
 }
 
 export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: InteractionLeftPanelProps) {
+    const { t } = useTranslation()
     const { characters: libraryCharacters, worlds: libraryWorlds } = useData()
     const snapshot = ensureAdventureSnapshot(adventure)
     const persona = personaEntry(snapshot)
@@ -99,7 +102,7 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
         <div className="flex flex-col gap-6 p-5">
             <div className="flex items-center gap-2">
                 <Button kind="secondary" full iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack} className="flex-1">
-                    Back to Adventures
+                    {t('interaction.leftPanel.backToAdventures')}
                 </Button>
                 <ModeBadge mode="adventure" />
             </div>
@@ -109,42 +112,51 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
             <section className="flex flex-col gap-2.5">
                 <SectionHeader
                     icon={UserCircle}
-                    title="Your Persona"
+                    title={t('interaction.leftPanel.personaTitle')}
                     tone="arcane"
-                    right={editable && !persona ? <AddButton label="Choose persona" onClick={() => setPicker('persona')} /> : undefined}
+                    right={editable && !persona ? <AddButton label={t('interaction.leftPanel.choosePersona')} onClick={() => setPicker('persona')} /> : undefined}
                 />
                 {persona ? (
                     <CardList entries={[persona]} onOpen={setSelectedRef} />
                 ) : (
-                    <EmptyState>No persona — you play as yourself.</EmptyState>
+                    <EmptyState>{t('interaction.leftPanel.noPersona')}</EmptyState>
                 )}
             </section>
 
             <section className="flex flex-col gap-2.5">
                 <SectionHeader
                     icon={Globe}
-                    title="World Setting"
-                    right={editable ? <AddButton label="Add world" onClick={() => setPicker('world')} /> : undefined}
+                    title={t('interaction.leftPanel.worldTitle')}
+                    right={editable ? <AddButton label={t('interaction.leftPanel.addWorld')} onClick={() => setPicker('world')} /> : undefined}
                 />
                 {worlds.length > 0 ? (
                     <CardList entries={worlds} onOpen={setSelectedRef} />
                 ) : (
-                    <EmptyState>No world selected</EmptyState>
+                    <EmptyState>{t('interaction.leftPanel.noWorld')}</EmptyState>
                 )}
             </section>
 
             <section className="flex flex-col gap-2.5">
                 <SectionHeader
                     icon={Users}
-                    title="Characters"
-                    right={editable ? <AddButton label="Add character" onClick={() => setPicker('cast')} /> : undefined}
+                    title={t('interaction.leftPanel.charactersTitle')}
+                    right={editable ? <AddButton label={t('interaction.leftPanel.addCharacter')} onClick={() => setPicker('cast')} /> : undefined}
                 />
                 {cast.length > 0 ? (
                     <CardList entries={cast} onOpen={setSelectedRef} />
                 ) : (
-                    <EmptyState>No characters selected</EmptyState>
+                    <EmptyState>{t('interaction.leftPanel.noCharacters')}</EmptyState>
                 )}
             </section>
+
+            {editable && (
+                <NarrationSection
+                    voice={snapshot.narrator_voice ?? null}
+                    narrateThoughts={Boolean(snapshot.narrate_thoughts)}
+                    onVoiceChange={(narrator_voice) => onSnapshotChange?.({ ...snapshot, narrator_voice })}
+                    onNarrateThoughtsChange={(narrate_thoughts) => onSnapshotChange?.({ ...snapshot, narrate_thoughts })}
+                />
+            )}
 
             <AdventureCardDrawer
                 open={Boolean(selectedEntry)}
@@ -157,13 +169,13 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
             <AddCardModal
                 open={picker !== null}
                 single={picker === 'persona'}
-                title={picker === 'world' ? 'Add a world' : picker === 'persona' ? 'Choose your persona' : 'Add characters'}
-                confirmNoun={picker === 'world' ? 'world' : 'character'}
+                title={picker === 'world' ? t('interaction.leftPanel.addWorldModalTitle') : picker === 'persona' ? t('interaction.leftPanel.choosePersonaModalTitle') : t('interaction.leftPanel.addCharactersModalTitle')}
+                confirmKind={picker === 'world' ? 'world' : 'character'}
                 candidates={picker === 'world' ? worldCandidates : picker === 'persona' ? personaCandidates : castCandidates}
                 emptyHint={
                     picker === 'world'
-                        ? 'No more worlds in your library to add. Create one from the Worlds page first.'
-                        : 'No more characters in your library to add. Create one from the Characters page first.'
+                        ? t('interaction.leftPanel.noMoreWorlds')
+                        : t('interaction.leftPanel.noMoreCharacters')
                 }
                 onClose={() => setPicker(null)}
                 onConfirm={handleAddConfirm}
@@ -177,6 +189,66 @@ function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
         <IconButton label={label} size="sm" onClick={onClick}>
             <Plus size={16} strokeWidth={1.75} />
         </IconButton>
+    )
+}
+
+/* ------------------------------ narration ------------------------------ */
+
+/**
+ * Session-level narration settings: the narrator/GM voice used for `<narrator>`
+ * lines in multi-voice TTS (characters speak in their own assigned voices), plus
+ * whether visible inner thoughts are voiced. Saved into the snapshot envelope.
+ */
+function NarrationSection({
+    voice,
+    narrateThoughts,
+    onVoiceChange,
+    onNarrateThoughtsChange,
+}: {
+    voice: CharacterVoice | null
+    narrateThoughts: boolean
+    onVoiceChange: (voice: CharacterVoice | null) => void
+    onNarrateThoughtsChange: (value: boolean) => void
+}) {
+    const { t } = useTranslation()
+    const [pickerOpen, setPickerOpen] = useState(false)
+    return (
+        <section className="flex flex-col gap-2.5">
+            <SectionHeader icon={Volume2} title={t('interaction.narration.title')} tone="ember" />
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-700/70 px-3.5 py-3">
+                <div className="min-w-0">
+                    <p className="font-ui text-sm font-semibold text-parchment-50">{t('interaction.narration.narratorVoice')}</p>
+                    {voice?.voice_id ? (
+                        <code className="font-mono text-xs text-parchment-400">{voice.preset_name || voice.voice_id}</code>
+                    ) : (
+                        <p className="font-ui text-xs text-parchment-300">{t('interaction.narration.usesDefault')}</p>
+                    )}
+                </div>
+                <Button
+                    kind="secondary"
+                    size="sm"
+                    iconLeft={<Icon icon={AudioLines} size={14} />}
+                    onClick={() => setPickerOpen(true)}
+                >
+                    {voice?.voice_id ? t('interaction.narration.change') : t('interaction.narration.chooseVoice')}
+                </Button>
+            </div>
+            <SwitchRow
+                label={t('interaction.narration.narrateThoughts')}
+                description={t('interaction.narration.narrateThoughtsDesc')}
+                checked={narrateThoughts}
+                onChange={onNarrateThoughtsChange}
+            />
+            <VoicePickerDialog
+                open={pickerOpen}
+                currentVoice={voice}
+                onSelect={(next) => {
+                    onVoiceChange(next)
+                    setPickerOpen(false)
+                }}
+                onClose={() => setPickerOpen(false)}
+            />
+        </section>
     )
 }
 
@@ -201,6 +273,7 @@ function CardList({
 }
 
 function CompactCard({ entry, onOpen }: { entry: SnapshotCardEntry; onOpen: (ref: SnapshotCardRef) => void }) {
+    const { t } = useTranslation()
     const { card, ref } = entry
     const isWorld = ref.kind === 'world'
     const badge = isWorld
@@ -208,7 +281,7 @@ function CompactCard({ entry, onOpen }: { entry: SnapshotCardEntry; onOpen: (ref
         : card.race || ''
     return (
         <Card
-            title={card.name || 'Untitled'}
+            title={card.name || t('interaction.leftPanel.untitled')}
             subtitle={badge ? <Tag>{badge}</Tag> : undefined}
             highlight={ref.kind === 'persona'}
             onClick={() => onOpen(ref)}
@@ -237,6 +310,7 @@ function ScenarioSection({
     editable: boolean
     onSave: (text: string) => Promise<void>
 }) {
+    const { t } = useTranslation()
     const [editing, setEditing] = useState(false)
     const [draft, setDraft] = useState(scenario)
     const [saving, setSaving] = useState(false)
@@ -256,7 +330,7 @@ function ScenarioSection({
             setEditing(false)
         } catch (e) {
             console.error('Failed to save scenario:', e)
-            setError("Couldn't save. Please try again.")
+            setError(t('interaction.scenario.saveError'))
         } finally {
             setSaving(false)
         }
@@ -266,10 +340,10 @@ function ScenarioSection({
         <section className="flex flex-col gap-2.5">
             <SectionHeader
                 icon={Info}
-                title="Adventure Scenario"
+                title={t('interaction.scenario.title')}
                 right={
                     editable && !editing ? (
-                        <IconButton label="Edit scenario" size="sm" onClick={startEdit}>
+                        <IconButton label={t('interaction.scenario.edit')} size="sm" onClick={startEdit}>
                             <Pencil size={15} strokeWidth={1.75} />
                         </IconButton>
                     ) : undefined
@@ -287,10 +361,10 @@ function ScenarioSection({
                             onClick={() => setEditing(false)}
                             disabled={saving}
                         >
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
                         <Button kind="primary" size="sm" iconLeft={<Icon icon={Check} size={15} />} onClick={submit} disabled={saving}>
-                            {saving ? 'Saving…' : 'Save'}
+                            {saving ? t('common.saving') : t('common.save')}
                         </Button>
                     </div>
                 </div>
@@ -302,7 +376,7 @@ function ScenarioSection({
                         </p>
                     ) : (
                         <p className="font-narrative text-[14px] italic text-parchment-400">
-                            No scenario set{editable ? ' — tap the pencil to add one.' : '.'}
+                            {editable ? t('interaction.scenario.emptyEditable') : t('interaction.scenario.empty')}
                         </p>
                     )}
                 </div>

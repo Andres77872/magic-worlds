@@ -41,7 +41,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
   {
     label: 'Semantic',
     note: 'verdant = success · blood = danger · amber = warning · on-ember = dark text on ember fills.',
-    tokens: ['--color-verdant-500', '--color-blood-500', '--color-amber-500', '--color-on-ember'],
+    tokens: ['--color-verdant-500', '--color-blood-300', '--color-blood-500', '--color-amber-500', '--color-on-ember'],
   },
 ]
 

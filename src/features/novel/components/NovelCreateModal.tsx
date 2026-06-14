@@ -7,6 +7,7 @@
 
 import { useState } from 'react'
 import { BookOpenText, Feather, Sparkles } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { StoryCreateRequest } from '@/shared'
 import { CardPicker } from '@/features/gallery/media/components/CardPicker'
 import type { CardRef } from '@/features/gallery/media/mediaGalleryTypes'
@@ -22,6 +23,7 @@ export interface NovelCreateModalProps {
 }
 
 export function NovelCreateModal({ open, creating, onClose, onCreate }: NovelCreateModalProps) {
+    const { t } = useTranslation()
     const [title, setTitle] = useState('')
     const [description, setDescription] = useState('')
     const [sourceMode, setSourceMode] = useState<SourceMode>('blank')
@@ -75,13 +77,14 @@ export function NovelCreateModal({ open, creating, onClose, onCreate }: NovelCre
         <Modal
             open={open}
             onClose={close}
-            title="New novel"
+            title={t('novelGallery.create.title')}
             icon={<Icon icon={BookOpenText} size={20} />}
             size="lg"
+            closeLabel={t('common.close')}
             footer={
                 <div className="flex w-full items-center justify-end gap-2">
                     <Button kind="ghost" onClick={close} disabled={creating}>
-                        Cancel
+                        {t('novelGallery.create.cancel')}
                     </Button>
                     <Button
                         kind="primary"
@@ -90,40 +93,40 @@ export function NovelCreateModal({ open, creating, onClose, onCreate }: NovelCre
                         iconLeft={<Icon icon={Sparkles} size={15} />}
                         data-testid="novel-create-submit"
                     >
-                        {creating ? 'Creating…' : 'Create novel'}
+                        {creating ? t('novelGallery.create.creating') : t('novelGallery.create.create')}
                     </Button>
                 </div>
             }
         >
             <div className="flex flex-col gap-4">
-                <Field label="Title">
+                <Field label={t('novelGallery.create.titleField')}>
                     <Input
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        placeholder="Untitled Novel"
+                        placeholder={t('novelGallery.create.titlePlaceholder')}
                         autoFocus
                         data-testid="novel-create-title"
                     />
                 </Field>
-                <Field label="Description" helper="Optional — a line about the book's premise.">
+                <Field label={t('novelGallery.create.descriptionField')} helper={t('novelGallery.create.descriptionHelper')}>
                     <Textarea
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         rows={3}
-                        placeholder="A siege novel about…"
+                        placeholder={t('novelGallery.create.descriptionPlaceholder')}
                     />
                 </Field>
-                <Field label="Begin from">
+                <Field label={t('novelGallery.create.beginFrom')}>
                     <div className="flex flex-wrap items-center gap-2">
-                        {modeButton('blank', 'Blank page', Feather)}
-                        {modeButton('card', 'A card', BookOpenText)}
+                        {modeButton('blank', t('novelGallery.create.blank'), Feather)}
+                        {modeButton('card', t('novelGallery.create.card'), BookOpenText)}
                         {sourceMode === 'card' && (
                             <CardPicker cardType="all" value={sourceCard} onChange={setSourceCard} />
                         )}
                     </div>
                     {sourceMode === 'card' && (
                         <p className="m-0 mt-2 font-ui text-xs text-parchment-400">
-                            The card is cloned into the novel's codex — later edits to the library card won't touch this book.
+                            {t('novelGallery.create.cardHint')}
                         </p>
                     )}
                 </Field>

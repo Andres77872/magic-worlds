@@ -17,6 +17,8 @@ const guestAuth: AuthValue = {
   isLoginModalOpen: false,
   login: async () => false,
   register: async () => false,
+  loginWithGoogle: async () => {},
+  completeGoogleLogin: async () => false,
   logout: () => {},
   clearError: () => {},
   openLoginModal: () => {},

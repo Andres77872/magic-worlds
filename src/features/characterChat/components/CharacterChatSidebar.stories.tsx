@@ -14,6 +14,27 @@ const lyra: Character = {
   triggers: ['glass', 'ranger', 'dunes'],
 }
 
+const dorn: Character = {
+  id: 'char-dorn',
+  name: 'Dorn Embervein',
+  race: 'Dwarf',
+  stats: {},
+  description: 'A forge-priest who answers most questions with a proverb and a hammer tap.',
+  greeting: 'Keep your voice low. The old iron is listening.',
+  image_url: 'https://picsum.photos/seed/reverie-dorn/400/533',
+  triggers: ['forge', 'iron', 'priest'],
+}
+
+const aria: Character = {
+  id: 'persona-aria',
+  name: 'Aria Vale',
+  role: 'persona',
+  race: 'Human',
+  stats: {},
+  description: 'A careful wanderer with a map full of deliberate blank spaces.',
+  triggers: ['traveler'],
+}
+
 const meta = {
   title: 'Features/CharacterChat/Sidebar',
   component: CharacterChatSidebar,
@@ -36,10 +57,12 @@ const meta = {
   ],
   argTypes: {
     character: { control: false },
+    characters: { control: false },
+    persona: { control: false },
     onBack: { control: false },
-    onEdit: { control: false },
+    onEditCharacter: { control: false },
   },
-  args: { character: lyra, onBack: () => {}, onEdit: () => {} },
+  args: { character: lyra, onBack: () => {}, onEditCharacter: () => {} },
 } satisfies Meta<typeof CharacterChatSidebar>
 
 export default meta
@@ -50,4 +73,14 @@ export const Default: Story = {}
 /** No portrait yet — the warm deterministic gradient stands in. */
 export const NoPortrait: Story = {
   args: { character: { ...lyra, image_url: undefined } },
+}
+
+export const GroupChat: Story = {
+  args: {
+    character: undefined,
+    characters: [lyra, dorn],
+    title: 'Lyra & Dorn',
+    isGroup: true,
+    persona: aria,
+  },
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, Textarea } from '../../../ui/primitives'
 
 interface EditModeProps {
@@ -9,6 +10,7 @@ interface EditModeProps {
 }
 
 export function EditMode({ initialContent, isUser, onSave, onCancel }: EditModeProps) {
+    const { t } = useTranslation()
     const [editContent, setEditContent] = useState(initialContent)
 
     useEffect(() => {
@@ -41,21 +43,21 @@ export function EditMode({ initialContent, isUser, onSave, onCancel }: EditModeP
                 onKeyDown={handleKeyDown}
                 placeholder={
                     isUser
-                        ? 'Enter your action...'
-                        : 'Enter the assistant response (markdown supported)...'
+                        ? t('interaction.edit.placeholderUser')
+                        : t('interaction.edit.placeholderAi')
                 }
                 autoFocus
                 rows={isUser ? 3 : 8}
             />
             <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm" onClick={handleSave} disabled={!editContent.trim()}>
-                    Save
+                    {t('common.save')}
                 </Button>
                 <Button kind="secondary" size="sm" onClick={onCancel}>
-                    Cancel
+                    {t('common.cancel')}
                 </Button>
                 <span className="text-[12px] italic text-parchment-400">
-                    Ctrl+Enter to save, Escape to cancel
+                    {t('interaction.edit.keyboardHint')}
                 </span>
             </div>
         </div>

@@ -10,6 +10,7 @@
 
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { World } from '@/shared'
 import {
     CUSTOM_WORLD_PLACE_TYPE,
@@ -51,19 +52,21 @@ import {
     type CardTemplate,
 } from '../../common/engine'
 import { CreatorIntro, TemplateGallery } from '../../common/templates'
-import { GENRE_OPTIONS, PLACE_TYPE_MIRROR, PLACE_TYPE_SELECT_OPTIONS, WORLD_FIELDS, WORLD_SECTIONS } from '../fields'
 import {
-    WORLD_GALLERY_HEADING,
-    WORLD_GALLERY_SUBHEADING,
+    PLACE_TYPE_MIRROR,
+    getGenreOptions,
+    getPlaceTypeSelectOptions,
+    getWorldFields,
+    getWorldSections,
+    placeTypeMirror,
+} from '../fields'
+import {
+    WORLD_GALLERY_HEADING_KEY,
+    WORLD_GALLERY_SUBHEADING_KEY,
     WORLD_TEMPLATE_PLACE_TYPE,
     WORLD_TEMPLATES,
 } from '../templates'
 import { WorldPreviewCard } from './WorldPreviewCard'
-
-// One minimal default category; users add details here or create more groups.
-const DEFAULT_CATEGORIES: AttributeCategory[] = [
-    { id: 'details', name: 'Details', type: 'detail', description: 'Key facts about your world — add only what matters.' },
-]
 
 // One-click presets for the default "Details" category.
 const DETAIL_PRESETS: AttributePreset[] = [
@@ -106,9 +109,22 @@ function initialPlaceType(world: World | null | undefined): string {
 }
 
 export function WorldCreator() {
-    const { setPage } = useNavigation()
+    const { t } = useTranslation()
+    const { goBack } = useNavigation()
     const { editingWorld, setEditingWorld, loadData } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
+
+    // One minimal default category; users add details here or create more groups.
+    // `id`/`name` are saved-card data; the description is display copy.
+    const defaultCategories = useMemo<AttributeCategory[]>(
+        () => [{ id: 'details', name: 'Details', type: 'detail', description: t('creation.world.detailsCategory.description') }],
+        [t],
+    )
+
+    const worldFields = useMemo(() => getWorldFields(t), [t])
+    const worldSections = useMemo(() => getWorldSections(t), [t])
+    const genreOptions = useMemo(() => getGenreOptions(t), [t])
+    const placeTypeSelectOptions = useMemo(() => getPlaceTypeSelectOptions(t), [t])
 
     const [name, setName] = useState(editingWorld?.name ?? '')
     const [placeType, setPlaceType] = useState(() => initialPlaceType(editingWorld))
@@ -127,21 +143,21 @@ export function WorldCreator() {
     const [template, setTemplate] = useState<CardTemplate | null | undefined>(editingWorld ? null : undefined)
 
     const guided = useGuidedCard({
-        fields: WORLD_FIELDS,
-        defaults: DEFAULT_CATEGORIES,
+        fields: worldFields,
+        defaults: defaultCategories,
         entity: editingWorld,
         mirrors: [
             {
-                ...PLACE_TYPE_MIRROR,
+                ...placeTypeMirror(t),
                 value: placeType.trim() || DEFAULT_WORLD_PLACE_TYPE,
                 onHydrate: (value) => setPlaceType(value),
             },
         ],
     })
 
-    const nameError = touched && !name.trim() ? 'Name is required.' : undefined
-    const placeTypeError = touched && !placeType.trim() ? 'Choose a place type or enter a custom one.' : undefined
-    const typeError = touched && !type.trim() ? 'Genre / vibe is required.' : undefined
+    const nameError = touched && !name.trim() ? t('creation.world.validation.nameRequired') : undefined
+    const placeTypeError = touched && !placeType.trim() ? t('creation.world.validation.placeTypeRequired') : undefined
+    const typeError = touched && !type.trim() ? t('creation.world.validation.genreRequired') : undefined
     const selectedPlaceTypeOption = worldPlaceTypeOptionValue(placeType)
 
     const detailKeys = useMemo(
@@ -150,11 +166,11 @@ export function WorldCreator() {
     )
 
     const navItems = useMemo<StudioNavItem[]>(
-        () => WORLD_SECTIONS.map((section) => ({ id: section.id, label: String(section.title), icon: section.icon! })),
-        [],
+        () => worldSections.map((section) => ({ id: section.id, label: String(section.title), icon: section.icon! })),
+        [worldSections],
     )
 
-    const sectionById = useMemo(() => Object.fromEntries(WORLD_SECTIONS.map((s) => [s.id, s])), [])
+    const sectionById = useMemo(() => Object.fromEntries(worldSections.map((s) => [s.id, s])), [worldSections])
 
     /** Build the create/update payload from current form state. */
     const buildPayload = () => ({
@@ -175,11 +191,11 @@ export function WorldCreator() {
     const ensureSaved = async (): Promise<string> => {
         if (!isAuthenticated) {
             openLoginModal()
-            throw new Error('Please log in to continue.')
+            throw new Error(t('creation.world.validation.loginToContinue'))
         }
         if (!name.trim() || !type.trim() || !placeType.trim()) {
             setTouched(true)
-            throw new Error('Add a name, place type, and genre before generating a theme.')
+            throw new Error(t('creation.world.validation.fieldsForTheme'))
         }
         if (editingWorld) {
             await apiService.updateWorld(editingWorld.id, buildPayload())
@@ -279,7 +295,7 @@ export function WorldCreator() {
             }
             setEditingWorld(null)
             await loadData()
-            setPage('landing')
+            goBack('landing')
         } catch (error) {
             console.error(`Failed to ${editingWorld ? 'update' : 'create'} world:`, error)
             // Gentle, non-blocking inline message — the form stays put so the
@@ -287,8 +303,10 @@ export function WorldCreator() {
             const transient = error instanceof ApiError && error.isTransient
             setSaveError(
                 transient
-                    ? 'The service is briefly unavailable — please try again in a moment.'
-                    : `Couldn't ${editingWorld ? 'update' : 'create'} your world. Please try again.`
+                    ? t('creation.world.save.transient')
+                    : editingWorld
+                      ? t('creation.world.save.updateFailed')
+                      : t('creation.world.save.createFailed')
             )
         } finally {
             setIsSubmitting(false)
@@ -310,12 +328,12 @@ export function WorldCreator() {
         setAssistantApplied(true)
         // AI generation skips the gallery; a picked template's scaffolding survives.
         setTemplate((current) => (current === undefined ? null : current))
-        void loadData()
+        void loadData({ silent: true })
     }
 
     const handleBack = () => {
         setEditingWorld(null)
-        setPage('landing')
+        goBack('landing')
     }
 
     /** Back from the form: to the gallery while creating, to the library otherwise. */
@@ -347,7 +365,7 @@ export function WorldCreator() {
         <CardAssistantChatbot<WorldCardResponse>
             cardType="world"
             cardId={editingWorld?.id ?? null}
-            title={name.trim() || 'Untitled World'}
+            title={name.trim() || t('creation.world.untitled')}
             currentCard={buildPayload()}
             onCard={applyAssistantCard}
             isAuthenticated={isAuthenticated}
@@ -360,13 +378,13 @@ export function WorldCreator() {
     if (template === undefined) {
         return (
             <>
-                <CreatorIntro title="Create World" icon="✨" onBack={handleBack}>
+                <CreatorIntro title={t('creation.world.createTitle')} icon="✨" onBack={handleBack}>
                     <TemplateGallery
                         templates={WORLD_TEMPLATES}
-                        fields={WORLD_FIELDS}
+                        fields={worldFields}
                         noun="world"
-                        heading={WORLD_GALLERY_HEADING}
-                        subheading={WORLD_GALLERY_SUBHEADING}
+                        heading={t(WORLD_GALLERY_HEADING_KEY)}
+                        subheading={t(WORLD_GALLERY_SUBHEADING_KEY)}
                         onPick={pickTemplate}
                         onSkip={() => setTemplate(null)}
                     />
@@ -379,14 +397,14 @@ export function WorldCreator() {
     return (
         <>
         <CreatorStudio
-            title={editingWorld ? 'Edit World' : 'Create World'}
+            title={editingWorld ? t('creation.world.editTitle') : t('creation.world.createTitle')}
             icon="✨"
             onBack={handleStudioBack}
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
                 <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
-                    {isSubmitting ? 'Saving…' : editingWorld ? 'Update' : 'Create'}
+                    {isSubmitting ? t('common.saving') : editingWorld ? t('creation.common.studio.update') : t('creation.world.create')}
                 </Button>
             }
             preview={
@@ -416,11 +434,11 @@ export function WorldCreator() {
                 >
                     <div className="grid gap-4 sm:grid-cols-2">
                         <CreatorField
-                            label="Name"
+                            label={t('creation.world.fieldsForm.nameLabel')}
                             htmlFor="world-name"
                             required
                             error={nameError}
-                            tooltip="The name that anchors the setting in chat — and its strongest trigger."
+                            tooltip={t('creation.world.fieldsForm.nameTooltip')}
                         >
                             <CreatorInput
                                 id="world-name"
@@ -428,16 +446,16 @@ export function WorldCreator() {
                                 onChange={setName}
                                 autoFocus
                                 className="text-xl font-medium font-display"
-                                placeholder={firstClass.name ?? 'e.g. The Shattered Isles'}
+                                placeholder={firstClass.name ?? t('creation.world.fieldsForm.namePlaceholder')}
                             />
                         </CreatorField>
 
                         <CreatorField
-                            label="Place type"
+                            label={t('creation.world.fieldsForm.placeTypeLabel')}
                             htmlFor="world-place-type"
                             required
                             error={placeTypeError}
-                            tooltip="Sets the camera distance — the AI and image generation frame scenes at this scale."
+                            tooltip={t('creation.world.fieldsForm.placeTypeTooltip')}
                         >
                             <Select
                                 id="world-place-type"
@@ -445,35 +463,35 @@ export function WorldCreator() {
                                 onChange={(next) => {
                                     setPlaceType(next === CUSTOM_WORLD_PLACE_TYPE ? '' : next)
                                 }}
-                                options={PLACE_TYPE_SELECT_OPTIONS}
+                                options={placeTypeSelectOptions}
                             />
                         </CreatorField>
                     </div>
 
                     {selectedPlaceTypeOption === CUSTOM_WORLD_PLACE_TYPE && (
-                        <CreatorField label="Custom place type" htmlFor="world-place-type-custom" required error={placeTypeError}>
+                        <CreatorField label={t('creation.world.fieldsForm.customPlaceTypeLabel')} htmlFor="world-place-type-custom" required error={placeTypeError}>
                             <CreatorInput
                                 id="world-place-type-custom"
                                 value={placeType}
                                 onChange={setPlaceType}
-                                placeholder="e.g. archipelago, province, moon, star system"
+                                placeholder={t('creation.world.fieldsForm.customPlaceTypePlaceholder')}
                             />
                         </CreatorField>
                     )}
 
                     <CreatorField
-                        label="Genre / Vibe"
+                        label={t('creation.world.fieldsForm.genreLabel')}
                         htmlFor="world-type"
                         required
                         error={typeError}
-                        tooltip="The promise you're making about tone — the AI matches narration and dangers to it."
+                        tooltip={t('creation.world.fieldsForm.genreTooltip')}
                     >
                         <SuggestInput
                             id="world-type"
                             value={type}
                             onChange={setType}
-                            options={GENRE_OPTIONS}
-                            placeholder={firstClass.type ?? 'e.g. Dark Fantasy, Sci-Fi, Cozy'}
+                            options={genreOptions}
+                            placeholder={firstClass.type ?? t('creation.world.fieldsForm.genrePlaceholder')}
                         />
                     </CreatorField>
                 </StudioSection>
@@ -485,9 +503,9 @@ export function WorldCreator() {
                     description={sectionById['overview'].description}
                 >
                     <CreatorField
-                        label="Description"
+                        label={t('creation.world.fieldsForm.descriptionLabel')}
                         htmlFor="world-description"
-                        tooltip="Lead with what a visitor sees, hears, and must reckon with — this is the AI's standing picture."
+                        tooltip={t('creation.world.fieldsForm.descriptionTooltip')}
                     >
                         <CreatorTextarea
                             id="world-description"
@@ -513,7 +531,7 @@ export function WorldCreator() {
                     footer={
                         guided.values['secrets.truth']?.trim() && !guided.values['secrets.reveal']?.trim() ? (
                             <QualityHint>
-                                A secret with no reveal rule either leaks at random or never surfaces — add a condition.
+                                {t('creation.world.secretHint')}
                             </QualityHint>
                         ) : undefined
                     }
@@ -528,7 +546,7 @@ export function WorldCreator() {
                 >
                     <div className="flex flex-col gap-2.5">
                         <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
-                            Quick add details
+                            {t('creation.world.quickAddDetails')}
                         </span>
                         <SuggestedAttributes
                             presets={DETAIL_PRESETS}
@@ -538,7 +556,7 @@ export function WorldCreator() {
                     </div>
 
                     <AttributeManager
-                        title="Detail groups"
+                        title={t('creation.world.detailGroups')}
                         icon="🌍"
                         categories={guided.categories}
                         attributes={guided.attributes}
@@ -559,16 +577,16 @@ export function WorldCreator() {
                     <TriggersField
                         values={triggers}
                         onChange={setTriggers}
-                        label="Triggers"
-                        helper="When chat mentions these names, factions, or landmarks, this world's lore enters the scene."
-                        placeholder="e.g. Shattered Isles, fog bells, Ferrymen"
+                        label={t('creation.world.fieldsForm.triggersLabel')}
+                        helper={t('creation.world.fieldsForm.triggersHelper')}
+                        placeholder={t('creation.world.fieldsForm.triggersPlaceholder')}
                     />
                     <TriggerHints triggers={triggers} hasContent={Boolean(description.trim())} />
                 </StudioSection>
 
                 <FormActions
                     onCancel={handleStudioBack}
-                    submitLabel={editingWorld ? 'Update World' : 'Create World'}
+                    submitLabel={editingWorld ? t('creation.world.actions.updateWorld') : t('creation.world.actions.createWorld')}
                     isSubmitting={isSubmitting}
                     error={saveError}
                 />

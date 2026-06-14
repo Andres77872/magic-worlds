@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Info, X } from 'lucide-react'
 import { Button, cx, IconButton } from '@/ui/primitives'
 import type { AssistantNotice } from './useCardAssistant'
@@ -11,6 +12,7 @@ interface AssistantBannerProps {
 
 /** Error/info strip above the composer with Retry / Check-conversation actions. */
 export function AssistantBanner({ notice, onRetry, onReload, onDismiss }: AssistantBannerProps) {
+    const { t } = useTranslation()
     const isError = notice.kind === 'error'
     return (
         <div
@@ -27,15 +29,15 @@ export function AssistantBanner({ notice, onRetry, onReload, onDismiss }: Assist
             <div className="flex shrink-0 items-center gap-1">
                 {notice.canRetry && (
                     <Button kind="ghost" size="sm" className="px-2 py-1 text-ember-300" onClick={onRetry}>
-                        Retry
+                        {t('creation.common.assistant.retry')}
                     </Button>
                 )}
                 {notice.canReload && (
                     <Button kind="ghost" size="sm" className="px-2 py-1 text-ember-300" onClick={onReload}>
-                        Check conversation
+                        {t('creation.common.assistant.checkConversation')}
                     </Button>
                 )}
-                <IconButton label="Dismiss notice" size="sm" className="h-6 w-6" onClick={onDismiss}>
+                <IconButton label={t('creation.common.assistant.dismissNotice')} size="sm" className="h-6 w-6" onClick={onDismiss}>
                     <X size={13} />
                 </IconButton>
             </div>

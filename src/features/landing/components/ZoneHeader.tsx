@@ -1,7 +1,7 @@
 /**
  * ZoneHeader — the dashboard's zone register: Eyebrow over a display h2, with
- * an optional right-aligned affordance row. One component so ResumeBand,
- * BeginZone, and LibraryShelf align at exactly the same visual register.
+ * an optional right-aligned affordance row. The "loud" zone heading (BeginZone
+ * uses it) — quieter sections use the smaller SectionHeader primitive instead.
  * Carries no outer margin; zones space their content below it (`mt-4` for
  * chip/tab rows, `mt-5` for grids and rails).
  */

@@ -6,6 +6,7 @@
  * description, and triggers as ember chips.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Card } from '@/ui/components/lists/Card'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
 import { Chip, Eyebrow, Tag } from '@/ui/primitives'
@@ -42,6 +43,7 @@ export function EntityPreviewCard({
     categories,
     imageUrl,
 }: EntityPreviewCardProps) {
+    const { t } = useTranslation()
     // Same filter as toCategoryPayload — only fully-filled rows count.
     const topAttrs = categories
         .flatMap((category) => attributes[category.id] || [])
@@ -53,7 +55,7 @@ export function EntityPreviewCard({
 
     return (
         <div className="flex flex-col gap-2">
-            <Eyebrow tone="muted">Live preview</Eyebrow>
+            <Eyebrow tone="muted">{t('creation.common.entityPreview.livePreview')}</Eyebrow>
             <Card
                 title={name.trim() || unnamedLabel}
                 imageUrl={resolveMediaUrl(imageUrl)}
@@ -98,7 +100,7 @@ export function EntityPreviewCard({
                     </div>
                 ) : (
                     <p className="font-narrative text-sm italic text-parchment-400">
-                        Your card takes shape here as you fill in the details.
+                        {t('creation.common.entityPreview.placeholder')}
                     </p>
                 )}
             </Card>

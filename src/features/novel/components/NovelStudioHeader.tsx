@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { BookMarked, History, Minimize2, PanelRightOpen, Save } from 'lucide-react'
 import type { Story } from '@/shared'
 import { Button, Eyebrow, Icon, cx } from '@/ui/primitives'
@@ -39,6 +40,7 @@ export function NovelStudioHeader({
     onOpenHistory,
     onSaveMeta,
 }: NovelStudioHeaderProps) {
+    const { t } = useTranslation()
     const [title, setTitle] = useState(story.title)
     const [description, setDescription] = useState(story.description ?? '')
 
@@ -51,7 +53,7 @@ export function NovelStudioHeader({
     }, [storyId])
 
     const commitTitle = () => {
-        const next = title.trim() || 'Untitled Novel'
+        const next = title.trim() || t('novelEditor.header.untitled')
         setTitle(next)
         if (next !== story.title) onSaveMeta({ title: next })
     }
@@ -69,15 +71,15 @@ export function NovelStudioHeader({
         <header className="border-b border-parchment-50/10 bg-ink-900/70 px-5 py-4 sm:px-8">
             <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <Eyebrow tone="ember">{`Novel Studio / ${storySourceLabel(story)}`}</Eyebrow>
+                    <Eyebrow tone="ember">{t('novelEditor.header.eyebrow', { source: storySourceLabel(story, t) })}</Eyebrow>
                     <input
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         onBlur={commitTitle}
                         onKeyDown={blurOnEnter}
-                        aria-label="Novel title"
-                        className="m-0 w-full max-w-[34ch] border-none bg-transparent p-0 font-display text-[28px] font-semibold tracking-tight text-parchment-50 outline-none placeholder:text-parchment-500 focus-visible:shadow-none"
-                        placeholder="Untitled Novel"
+                        aria-label={t('novelEditor.header.titleLabel')}
+                        className="m-0 w-full max-w-[34ch] border-none bg-transparent p-0 font-display text-[28px] font-semibold tracking-tight text-parchment-50 outline-none placeholder:text-parchment-500"
+                        placeholder={t('novelEditor.header.untitled')}
                         data-testid="novel-title-input"
                     />
                     <input
@@ -85,9 +87,9 @@ export function NovelStudioHeader({
                         onChange={(e) => setDescription(e.target.value)}
                         onBlur={commitDescription}
                         onKeyDown={blurOnEnter}
-                        aria-label="Novel description"
-                        className="m-0 w-full max-w-[60ch] border-none bg-transparent p-0 font-narrative text-[15px] text-parchment-300 outline-none placeholder:text-parchment-500 focus-visible:shadow-none"
-                        placeholder="Add a one-line premise…"
+                        aria-label={t('novelEditor.header.descriptionLabel')}
+                        className="m-0 w-full max-w-[60ch] border-none bg-transparent p-0 font-narrative text-[15px] text-parchment-300 outline-none placeholder:text-parchment-500"
+                        placeholder={t('novelEditor.header.descriptionPlaceholder')}
                     />
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -98,11 +100,11 @@ export function NovelStudioHeader({
                         )}
                         data-testid="novel-save-state"
                     >
-                        {formatSaveState(saveState, lastSavedAt)}
+                        {formatSaveState(saveState, lastSavedAt, t)}
                     </span>
-                    <span className="font-ui text-xs text-parchment-400">{words.toLocaleString()} words</span>
+                    <span className="font-ui text-xs text-parchment-400">{t('novelEditor.header.words', { count: words, formatted: words.toLocaleString() })}</span>
                     <Button kind="ghost" size="sm" iconLeft={<Icon icon={History} size={15} />} onClick={onOpenHistory}>
-                        History
+                        {t('novelEditor.header.history')}
                     </Button>
                     {!focusMode && (
                         <Button
@@ -112,7 +114,7 @@ export function NovelStudioHeader({
                             onClick={onToggleCodex}
                             aria-pressed={codexOpen}
                         >
-                            Codex
+                            {t('novelEditor.header.codex')}
                         </Button>
                     )}
                     <Button
@@ -121,7 +123,7 @@ export function NovelStudioHeader({
                         iconLeft={<Icon icon={focusMode ? PanelRightOpen : Minimize2} size={15} />}
                         onClick={onToggleFocusMode}
                     >
-                        {focusMode ? 'Panels' : 'Focus'}
+                        {focusMode ? t('novelEditor.header.panels') : t('novelEditor.header.focus')}
                     </Button>
                     <Button
                         kind="primary"
@@ -130,7 +132,7 @@ export function NovelStudioHeader({
                         onClick={onSave}
                         disabled={saveState === 'saving' || saveDisabled}
                     >
-                        {saveState === 'saving' ? 'Saving' : 'Save'}
+                        {saveState === 'saving' ? t('novelEditor.save.saving') : t('common.save')}
                     </Button>
                 </div>
             </div>

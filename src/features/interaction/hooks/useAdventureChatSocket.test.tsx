@@ -87,6 +87,49 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
     expect(onError).not.toHaveBeenCalled()
   })
 
+  it('dispatches parsed response segments', () => {
+    const onSegments = vi.fn()
+
+    renderHook(() =>
+      useAdventureChatSocket(7, {
+        onSegments,
+      }),
+    )
+
+    socketHandlers?.onMessage({
+      type: 'segments',
+      responseFormat: 'mw_xml_v1',
+      displayText: 'Lyra: The door listens.',
+      segments: [{ kind: 'speech', speaker_id: 'lyra', speaker_name: 'Lyra', content: 'The door listens.' }],
+    })
+
+    expect(onSegments).toHaveBeenCalledWith({
+      type: 'segments',
+      responseFormat: 'mw_xml_v1',
+      displayText: 'Lyra: The door listens.',
+      segments: [{ kind: 'speech', speaker_id: 'lyra', speaker_name: 'Lyra', content: 'The door listens.' }],
+    })
+  })
+
+  it('dispatches done frames with user and assistant message ids', () => {
+    const onDone = vi.fn()
+
+    renderHook(() =>
+      useAdventureChatSocket(7, {
+        onDone,
+      }),
+    )
+
+    socketHandlers?.onMessage({ type: 'done', user_message_id: 100, assistant_message_id: 101, turn_id: 'turn-1' })
+
+    expect(onDone).toHaveBeenCalledWith({
+      interrupted: false,
+      userMessageId: 100,
+      assistantMessageId: 101,
+      turnId: 'turn-1',
+    })
+  })
+
   it('recreates the socket when the auth key changes for the same session', () => {
     const { rerender, unmount } = renderHook(
       ({ authKey }) => useAdventureChatSocket(7, {}, authKey),
@@ -106,5 +149,39 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
 
     unmount()
     expect(socketInstances[1].close).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays disconnected when text chat is disabled for voice mode', () => {
+    const { result } = renderHook(() => useAdventureChatSocket(null, {}))
+
+    result.current.sendChat([{ role: 'user', content: 'this must not leave over ChatSocket' }])
+    result.current.sendTts(101, 'turn-1')
+    result.current.cancel()
+
+    expect(socketInstances).toHaveLength(0)
+  })
+
+  it('ignores voice transport frames on the text chat hook', () => {
+    const onDelta = vi.fn()
+    const onDone = vi.fn()
+    const onError = vi.fn()
+    const onTtsComplete = vi.fn()
+
+    renderHook(() =>
+      useAdventureChatSocket(7, {
+        onDelta,
+        onDone,
+        onError,
+        onTtsComplete,
+      }),
+    )
+
+    socketHandlers?.onMessage({ type: 'voice_audio_chunk', data_b64: 'raw-audio-must-stay-voice-only' })
+    socketHandlers?.onMessage({ type: 'voice_state_snapshot', voice_session_id: 'voice-1', last_audio_seq: 1 })
+
+    expect(onDelta).not.toHaveBeenCalled()
+    expect(onDone).not.toHaveBeenCalled()
+    expect(onError).not.toHaveBeenCalled()
+    expect(onTtsComplete).not.toHaveBeenCalled()
   })
 })

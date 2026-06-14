@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next'
 import type { CardAssistantAppliedAction } from '@/shared/types/aiCard.types'
 
 /** Human-readable summary of one card mutation the assistant performed. */
@@ -114,14 +115,19 @@ export function attachAppliedChanges<TMessage extends AssistantChatMessage>(
 }
 
 /** Chip copy for one applied change; `title` carries the untruncated field list. */
-export function formatAppliedChange(change: AppliedChangeSummary): { label: string; title?: string } {
-    const subject = change.subject === 'lorebook' ? 'Lorebook' : 'Card'
-    if (change.kind === 'replace') return { label: `${subject} saved` }
-    if (!change.fields.length) return { label: `${subject} updated` }
+export function formatAppliedChange(change: AppliedChangeSummary, t: TFunction): { label: string; title?: string } {
+    const subject = change.subject === 'lorebook'
+        ? t('creation.common.assistant.applied.lorebook')
+        : t('creation.common.assistant.applied.card')
+    if (change.kind === 'replace') return { label: t('creation.common.assistant.applied.saved', { subject }) }
+    if (!change.fields.length) return { label: t('creation.common.assistant.applied.updated', { subject }) }
     const shown = change.fields.slice(0, 4)
     const extra = change.fields.length - shown.length
+    const fields = shown.join(', ')
     return {
-        label: `Updated: ${shown.join(', ')}${extra > 0 ? ` +${extra} more` : ''}`,
-        title: `Updated fields: ${change.fields.join(', ')}`,
+        label: extra > 0
+            ? t('creation.common.assistant.applied.updatedFieldsMore', { fields, count: extra })
+            : t('creation.common.assistant.applied.updatedFields', { fields }),
+        title: t('creation.common.assistant.applied.updatedFieldsTitle', { fields: change.fields.join(', ') }),
     }
 }

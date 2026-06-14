@@ -2,6 +2,7 @@
  * Reusable confirmation dialog — Reverie (composed from the Modal primitive).
  */
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, Modal } from '../primitives'
 
 interface ConfirmDialogProps {
@@ -10,10 +11,12 @@ interface ConfirmDialogProps {
     message: React.ReactNode
     onConfirm: () => void
     onCancel: () => void
+    icon?: React.ReactNode
     confirmLabel?: string
     cancelLabel?: string
     variant?: 'primary' | 'danger' | 'warning'
     isProcessing?: boolean
+    processingLabel?: string
 }
 
 export function ConfirmDialog({
@@ -22,26 +25,36 @@ export function ConfirmDialog({
     message,
     onConfirm,
     onCancel,
-    confirmLabel = 'Confirm',
-    cancelLabel = 'Cancel',
+    icon,
+    confirmLabel,
+    cancelLabel,
     variant = 'primary',
     isProcessing = false,
+    processingLabel,
 }: ConfirmDialogProps) {
+    const { t } = useTranslation()
     const confirmKind = variant === 'danger' ? 'danger' : 'primary'
+    const resolvedConfirmLabel = confirmLabel ?? t('common.confirm')
+    const resolvedCancelLabel = cancelLabel ?? t('common.cancel')
+    const resolvedProcessingLabel = processingLabel ?? t('common.processing')
+    const requestCancel = () => {
+        if (!isProcessing) onCancel()
+    }
 
     return (
         <Modal
             open={visible}
-            onClose={onCancel}
+            onClose={requestCancel}
             title={title}
+            icon={icon}
             showClose={false}
             footer={
                 <>
-                    <Button kind="secondary" onClick={onCancel} disabled={isProcessing}>
-                        {cancelLabel}
+                    <Button kind="secondary" onClick={requestCancel} disabled={isProcessing}>
+                        {resolvedCancelLabel}
                     </Button>
                     <Button kind={confirmKind} onClick={onConfirm} disabled={isProcessing}>
-                        {isProcessing ? 'Processing…' : confirmLabel}
+                        {isProcessing ? resolvedProcessingLabel : resolvedConfirmLabel}
                     </Button>
                 </>
             }

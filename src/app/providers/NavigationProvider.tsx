@@ -7,8 +7,8 @@ import type { PageType, NavigationState } from '../../shared'
 import { pageFromHash, pageHash } from '../../features/gallery/galleryLinks'
 
 interface NavigationContextValue extends NavigationState {
-    setPage: (page: PageType) => void
-    goBack: () => void
+    setPage: (page: PageType, opts?: { hash?: string }) => void
+    goBack: (fallback?: PageType) => void
 }
 
 const NavigationContext = createContext<NavigationContextValue | undefined>(undefined)
@@ -17,18 +17,35 @@ interface NavigationProviderProps {
     children: ReactNode
 }
 
+interface NavigationEntry {
+    page: PageType
+    hash: string
+}
+
 export function NavigationProvider({ children }: NavigationProviderProps) {
     const [currentPage, setCurrentPage] = useState<PageType>(() => pageFromHash() ?? 'landing')
-    const [previousPage, setPreviousPage] = useState<PageType | undefined>(undefined)
+    const [backStack, setBackStack] = useState<NavigationEntry[]>([])
     const currentPageRef = useRef(currentPage)
+    const backStackRef = useRef(backStack)
 
     useEffect(() => {
         currentPageRef.current = currentPage
     }, [currentPage])
 
-    const writeHash = (page: PageType, replace = false) => {
+    useEffect(() => {
+        backStackRef.current = backStack
+    }, [backStack])
+
+    const hashForPage = (page: PageType, hash?: string): string => {
+        if (hash) return hash
+        if (typeof window === 'undefined') return pageHash(page)
+        const currentHash = window.location.hash
+        return currentHash && pageFromHash(currentHash) === page ? currentHash : pageHash(page)
+    }
+
+    const writeHash = (page: PageType, replace = false, hash?: string) => {
         if (typeof window === 'undefined') return
-        const nextHash = pageHash(page)
+        const nextHash = hash ?? pageHash(page)
         if (window.location.hash === nextHash) return
         try {
             if (replace) window.history.replaceState(null, '', nextHash)
@@ -38,18 +55,23 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         }
     }
 
-    const setPage = (page: PageType) => {
-        setPreviousPage(currentPage)
+    const sameEntry = (a: NavigationEntry, b: NavigationEntry) => a.page === b.page && a.hash === b.hash
+
+    const setPage = (page: PageType, opts?: { hash?: string }) => {
+        const currentEntry = { page: currentPageRef.current, hash: hashForPage(currentPageRef.current) }
+        const nextEntry = { page, hash: hashForPage(page, opts?.hash) }
+        if (!sameEntry(currentEntry, nextEntry)) {
+            setBackStack((stack) => [...stack, currentEntry])
+        }
         setCurrentPage(page)
-        writeHash(page)
+        writeHash(page, false, opts?.hash)
     }
 
-    const goBack = () => {
-        if (previousPage) {
-            setCurrentPage(previousPage)
-            setPreviousPage(undefined)
-            writeHash(previousPage)
-        }
+    const goBack = (fallback: PageType = 'landing') => {
+        const target = backStackRef.current[backStackRef.current.length - 1] ?? { page: fallback, hash: pageHash(fallback) }
+        setBackStack((stack) => stack.slice(0, -1))
+        setCurrentPage(target.page)
+        writeHash(target.page, true, target.hash)
     }
 
     useEffect(() => {
@@ -57,7 +79,15 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         const syncFromHash = () => {
             const page = pageFromHash()
             if (!page) return
-            setPreviousPage((prev) => (page === currentPageRef.current ? prev : currentPageRef.current))
+            const nextEntry = { page, hash: hashForPage(page) }
+            const currentEntry = { page: currentPageRef.current, hash: hashForPage(currentPageRef.current) }
+            if (!sameEntry(nextEntry, currentEntry)) {
+                setBackStack((stack) => {
+                    const top = stack[stack.length - 1]
+                    if (top && sameEntry(top, nextEntry)) return stack.slice(0, -1)
+                    return [...stack, currentEntry]
+                })
+            }
             setCurrentPage(page)
         }
         window.addEventListener('hashchange', syncFromHash)
@@ -72,7 +102,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
 
     const value: NavigationContextValue = {
         currentPage,
-        previousPage,
+        previousPage: backStack[backStack.length - 1]?.page,
         setPage,
         goBack
     }

@@ -8,9 +8,11 @@
  * playing row) load the new current track paused.
  */
 
-import type { PlaylistTrack } from './audioPlaylistContext'
+import type { PlaylistLoopMode, PlaylistTrack } from './audioPlaylistContext'
 
 export const PLAYLIST_STORAGE_KEY = 'magic_worlds:playlist:v1'
+
+const LOOP_MODE_ORDER: PlaylistLoopMode[] = ['off', 'track', 'queue']
 
 export interface PlaylistQueueState {
     queue: PlaylistTrack[]
@@ -18,6 +20,7 @@ export interface PlaylistQueueState {
     currentIndex: number
     /** Monotonic play-intent counter (reset only by CLEAR). */
     playEpoch: number
+    loopMode: PlaylistLoopMode
 }
 
 export type PlaylistAction =
@@ -27,9 +30,10 @@ export type PlaylistAction =
     | { type: 'NEXT' }
     | { type: 'PREV' }
     | { type: 'REMOVE_AT'; index: number }
+    | { type: 'CYCLE_LOOP_MODE' }
     | { type: 'CLEAR' }
 
-export const EMPTY_PLAYLIST_STATE: PlaylistQueueState = { queue: [], currentIndex: -1, playEpoch: 0 }
+export const EMPTY_PLAYLIST_STATE: PlaylistQueueState = { queue: [], currentIndex: -1, playEpoch: 0, loopMode: 'off' }
 
 function fallbackTitle(track: PlaylistTrack): string {
     return track.cardName ? `${track.cardName} theme` : 'Theme song'
@@ -80,7 +84,7 @@ export function playlistReducer(state: PlaylistQueueState, action: PlaylistActio
             }
             const insertAt = state.currentIndex + 1
             const queue = [...state.queue.slice(0, insertAt), action.track, ...state.queue.slice(insertAt)]
-            return { queue, currentIndex: insertAt, playEpoch: state.playEpoch + 1 }
+            return { queue, currentIndex: insertAt, playEpoch: state.playEpoch + 1, loopMode: state.loopMode }
         }
         case 'ENQUEUE': {
             const existing = state.queue.findIndex((track) => track.id === action.track.id)
@@ -104,14 +108,22 @@ export function playlistReducer(state: PlaylistQueueState, action: PlaylistActio
             return { ...state, currentIndex: action.index, playEpoch: state.playEpoch + 1 }
         }
         case 'NEXT': {
-            // Clamped, no wrap — ending the last track leaves it current.
-            if (state.currentIndex >= state.queue.length - 1) return state
-            return { ...state, currentIndex: state.currentIndex + 1, playEpoch: state.playEpoch + 1 }
+            if (state.currentIndex < 0 || state.queue.length === 0) return state
+            const atEnd = state.currentIndex >= state.queue.length - 1
+            if (atEnd && state.loopMode !== 'queue') return state
+            return {
+                ...state,
+                currentIndex: atEnd ? 0 : state.currentIndex + 1,
+                playEpoch: state.playEpoch + 1,
+            }
         }
         case 'PREV': {
-            if (state.currentIndex < 0) return state
-            // At the first track this restarts it (epoch bump, same index).
-            const currentIndex = Math.max(state.currentIndex - 1, 0)
+            if (state.currentIndex < 0 || state.queue.length === 0) return state
+            // At the first track this restarts it unless queue loop wraps back.
+            const currentIndex =
+                state.currentIndex === 0 && state.loopMode === 'queue'
+                    ? state.queue.length - 1
+                    : Math.max(state.currentIndex - 1, 0)
             return { ...state, currentIndex, playEpoch: state.playEpoch + 1 }
         }
         case 'REMOVE_AT': {
@@ -124,6 +136,11 @@ export function playlistReducer(state: PlaylistQueueState, action: PlaylistActio
             // with no epoch bump — it loads paused.
             else if (action.index === state.currentIndex) currentIndex = Math.min(currentIndex, queue.length - 1)
             return { ...state, queue, currentIndex }
+        }
+        case 'CYCLE_LOOP_MODE': {
+            const index = LOOP_MODE_ORDER.indexOf(state.loopMode)
+            const loopMode = LOOP_MODE_ORDER[(index + 1) % LOOP_MODE_ORDER.length] ?? 'off'
+            return { ...state, loopMode }
         }
         case 'CLEAR':
             return EMPTY_PLAYLIST_STATE
@@ -143,18 +160,27 @@ function isPlaylistTrack(value: unknown): value is PlaylistTrack {
 
 /** The persisted slice: the queue and position, never play state. */
 export function serializePlaylist(state: PlaylistQueueState): string {
-    return JSON.stringify({ queue: state.queue, currentIndex: state.currentIndex })
+    return JSON.stringify({ queue: state.queue, currentIndex: state.currentIndex, loopMode: state.loopMode })
+}
+
+function isPlaylistLoopMode(value: unknown): value is PlaylistLoopMode {
+    return value === 'off' || value === 'track' || value === 'queue'
 }
 
 /** Restore a persisted queue, dropping anything malformed. Always paused. */
 export function restorePlaylistState(raw: string | null): PlaylistQueueState {
     if (!raw) return EMPTY_PLAYLIST_STATE
     try {
-        const parsed = JSON.parse(raw) as { queue?: unknown; currentIndex?: unknown }
+        const parsed = JSON.parse(raw) as { queue?: unknown; currentIndex?: unknown; loopMode?: unknown }
         const queue = Array.isArray(parsed.queue) ? parsed.queue.filter(isPlaylistTrack) : []
         if (queue.length === 0) return EMPTY_PLAYLIST_STATE
         const index = typeof parsed.currentIndex === 'number' ? Math.trunc(parsed.currentIndex) : 0
-        return { queue, currentIndex: Math.min(Math.max(index, 0), queue.length - 1), playEpoch: 0 }
+        return {
+            queue,
+            currentIndex: Math.min(Math.max(index, 0), queue.length - 1),
+            playEpoch: 0,
+            loopMode: isPlaylistLoopMode(parsed.loopMode) ? parsed.loopMode : 'off',
+        }
     } catch {
         return EMPTY_PLAYLIST_STATE
     }

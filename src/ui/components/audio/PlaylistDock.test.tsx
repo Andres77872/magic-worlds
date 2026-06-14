@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react'
-import { AudioPlaylistProvider } from '@/app/providers/AudioPlaylistProvider'
+import { AudioPlaylistProvider, PLAYLIST_AUDIO_PREFS_STORAGE_KEY } from '@/app/providers/AudioPlaylistProvider'
 import { themeTrack } from '@/app/providers/audioPlaylistContext'
 import { PLAYLIST_STORAGE_KEY } from '@/app/providers/playlistReducer'
 import { usePlaylist } from '@/app/hooks/usePlaylist'
@@ -67,6 +67,7 @@ function renderDock(onOpenCard?: ComponentProps<typeof PlaylistDock>['onOpenCard
 beforeEach(() => {
     clearAudioDataCaches()
     localStorage.removeItem(PLAYLIST_STORAGE_KEY)
+    localStorage.removeItem(PLAYLIST_AUDIO_PREFS_STORAGE_KEY)
     vi.stubGlobal(
         'fetch',
         vi.fn(async () => ({ ok: true, status: 200, blob: async () => new Blob(['audio']) }) as unknown as Response),
@@ -79,6 +80,7 @@ afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
     localStorage.removeItem(PLAYLIST_STORAGE_KEY)
+    localStorage.removeItem(PLAYLIST_AUDIO_PREFS_STORAGE_KEY)
 })
 
 describe('PlaylistDock', () => {
@@ -145,6 +147,88 @@ describe('PlaylistDock', () => {
 
         fireEvent.click(screen.getByText('seed-two'))
         expect(screen.getByRole('button', { name: 'Next track' })).not.toBeDisabled()
+    })
+
+    it('cycles loop modes from the dock and enables Next when the playlist repeats', () => {
+        stubMedia()
+        renderDock()
+        fireEvent.click(screen.getByText('seed-one'))
+
+        expect(screen.getByRole('button', { name: 'Next track' })).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Loop off' })).toHaveAttribute('aria-pressed', 'false')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Loop off' }))
+        expect(screen.getByRole('button', { name: 'Repeat current track' })).toHaveAttribute('aria-pressed', 'true')
+        expect(screen.getByRole('button', { name: 'Next track' })).toBeDisabled()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Repeat current track' }))
+        expect(screen.getByRole('button', { name: 'Repeat playlist' })).toHaveAttribute('aria-pressed', 'true')
+        expect(screen.getByRole('button', { name: 'Next track' })).not.toBeDisabled()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Repeat playlist' }))
+        expect(screen.getByRole('button', { name: 'Loop off' })).toHaveAttribute('aria-pressed', 'false')
+        expect(screen.getByRole('button', { name: 'Next track' })).toBeDisabled()
+    })
+
+    it('opens the volume popover and changes volume from the slider', async () => {
+        stubMedia()
+        renderDock()
+        fireEvent.click(screen.getByText('seed-one'))
+
+        const button = screen.getByRole('button', { name: 'Mute player' })
+        expect(button).toHaveAttribute('aria-pressed', 'false')
+
+        fireEvent.focus(button)
+        const slider = screen.getByRole('slider', { name: 'Volume' }) as HTMLInputElement
+        expect(slider.value).toBe('100')
+
+        fireEvent.change(slider, { target: { value: '35' } })
+
+        await waitFor(() => expect(slider.value).toBe('35'))
+        expect(screen.getByText('35%')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Mute player' })).toHaveAttribute('aria-pressed', 'false')
+    })
+
+    it('keeps the volume popover open while the pointer crosses to the slider', () => {
+        vi.useFakeTimers()
+        try {
+            stubMedia()
+            renderDock()
+            fireEvent.click(screen.getByText('seed-one'))
+
+            const cluster = screen.getByTestId('volume-control')
+            fireEvent.pointerEnter(cluster)
+            expect(screen.getByRole('slider', { name: 'Volume' })).toBeInTheDocument()
+
+            fireEvent.pointerLeave(cluster)
+            act(() => {
+                vi.advanceTimersByTime(120)
+            })
+            expect(screen.getByRole('slider', { name: 'Volume' })).toBeInTheDocument()
+
+            fireEvent.pointerEnter(screen.getByRole('dialog', { name: 'Volume controls' }))
+            act(() => {
+                vi.advanceTimersByTime(240)
+            })
+            expect(screen.getByRole('slider', { name: 'Volume' })).toBeInTheDocument()
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('mutes and unmutes from the speaker button', () => {
+        stubMedia()
+        renderDock()
+        fireEvent.click(screen.getByText('seed-one'))
+
+        fireEvent.click(screen.getByRole('button', { name: 'Mute player' }))
+
+        expect(screen.getByRole('button', { name: 'Unmute player' })).toHaveAttribute('aria-pressed', 'true')
+        expect(screen.getByText('Mute')).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Unmute player' }))
+
+        expect(screen.getByRole('button', { name: 'Mute player' })).toHaveAttribute('aria-pressed', 'false')
     })
 
     it('opens the current card from the thumbnail and card name', () => {

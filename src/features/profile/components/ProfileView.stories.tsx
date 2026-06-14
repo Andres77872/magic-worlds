@@ -8,19 +8,35 @@ export const membership: Membership = {
     display_name: 'Free',
     credits: {
         period: 'daily',
-        max: 20,
+        max: 50,
         used: 6,
-        remaining: 14,
+        remaining: 44,
         usage_date: '2026-06-10',
     },
     payg: { balance: 12 },
-    total_available_credits: 26,
+    total_available_credits: 56,
     limits: {
         chat_interaction: { daily_limit: 20, used_today: 3, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
         ai_card_generation: { daily_limit: 20, used_today: 1, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
         image_generation: { daily_limit: 20, used_today: 2, max_in_flight: 2, in_flight: 0, credit_cost: 1 },
         theme_song_generation: { daily_limit: 5, used_today: 0, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
         tts_generation: { daily_limit: 20, used_today: 0, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
+    },
+    monthly_usage: {
+        period: 'calendar_month',
+        month: '2026-06',
+        start_date: '2026-06-01',
+        end_date: '2026-06-10',
+        credits_used: 46,
+        included_credits_used: 40,
+        payg_credits_used: 6,
+        operations: {
+            chat_interaction: { used: 24, credits_used: 24, included_credits_used: 24, payg_credits_used: 0 },
+            ai_card_generation: { used: 6, credits_used: 6, included_credits_used: 6, payg_credits_used: 0 },
+            image_generation: { used: 9, credits_used: 9, included_credits_used: 6, payg_credits_used: 3 },
+            theme_song_generation: { used: 2, credits_used: 2, included_credits_used: 0, payg_credits_used: 2 },
+            tts_generation: { used: 5, credits_used: 5, included_credits_used: 4, payg_credits_used: 1 },
+        },
     },
     profile_cards: {
         current_plan_code: 'free',
@@ -33,8 +49,8 @@ export const membership: Membership = {
                 reference_only: false,
                 badge: 'Current',
                 description: 'Included daily credits for everyday creation.',
-                highlights: ['20 daily included credits', 'PAYG credits cover overage', 'Core generation tools'],
-                credits: { period: 'daily', max: 20, used: 6, remaining: 14, usage_date: '2026-06-10', preview: false },
+                highlights: ['50 daily included credits', 'PAYG credits cover overage', 'Core generation tools'],
+                credits: { period: 'daily', max: 50, used: 6, remaining: 44, usage_date: '2026-06-10', preview: false },
                 limits: {
                     chat_interaction: { daily_limit: 20, used_today: 3, max_in_flight: 1, in_flight: 0, credit_cost: 1, preview: false },
                     ai_card_generation: { daily_limit: 20, used_today: 1, max_in_flight: 1, in_flight: 0, credit_cost: 1, preview: false },
@@ -106,7 +122,7 @@ export const baseProfile: UserProfile = {
     user_hash: 'usr-4f2c9a17-8d3b-4e6a-9c21-7b5e0a1d6f84',
     username: 'Lyra',
     user_type: 'consumer',
-    user_usage: 26,
+    user_usage: 56,
     membership,
     card_counts: { character: 7, world: 3, item: 6, adventure_template: 5 },
 }
@@ -150,11 +166,11 @@ export const Root: Story = {
             ...baseProfile,
             username: 'Root',
             user_type: 'root',
-            user_usage: 612,
+            user_usage: 556,
             membership: {
                 ...membership,
                 payg: { balance: 512 },
-                total_available_credits: 612,
+                total_available_credits: 556,
                 profile_cards: {
                     ...membership.profile_cards!,
                     payg: {
@@ -173,12 +189,24 @@ export const FreshAccount: Story = {
         profile: {
             ...baseProfile,
             username: 'Newcomer',
-            user_usage: 20,
+            user_usage: 50,
             membership: {
                 ...membership,
-                credits: { ...membership.credits, used: 0, remaining: 20 },
+                credits: { ...membership.credits, used: 0, remaining: 50 },
                 payg: { balance: 0 },
-                total_available_credits: 20,
+                total_available_credits: 50,
+                monthly_usage: {
+                    ...membership.monthly_usage!,
+                    credits_used: 0,
+                    included_credits_used: 0,
+                    payg_credits_used: 0,
+                    operations: Object.fromEntries(
+                        Object.keys(membership.monthly_usage!.operations).map((operation) => [
+                            operation,
+                            { used: 0, credits_used: 0, included_credits_used: 0, payg_credits_used: 0 },
+                        ]),
+                    ),
+                },
                 limits: Object.fromEntries(
                     Object.entries(membership.limits).map(([operation, limit]) => [
                         operation,
@@ -191,7 +219,7 @@ export const FreshAccount: Story = {
                         tier.plan_code === 'free'
                             ? {
                                   ...tier,
-                                  credits: { ...tier.credits, used: 0, remaining: 20 },
+                                  credits: { ...tier.credits, used: 0, remaining: 50 },
                                   limits: Object.fromEntries(
                                       Object.entries(tier.limits).map(([operation, limit]) => [
                                           operation,
@@ -222,7 +250,7 @@ export const HeavyUsage: Story = {
             user_usage: 15,
             membership: {
                 ...membership,
-                credits: { ...membership.credits, used: 17, remaining: 3 },
+                credits: { ...membership.credits, used: 47, remaining: 3 },
                 total_available_credits: 15,
                 limits: {
                     ...membership.limits,
@@ -230,6 +258,31 @@ export const HeavyUsage: Story = {
                     image_generation: { daily_limit: 20, used_today: 17, max_in_flight: 2, in_flight: 1, credit_cost: 1 },
                     theme_song_generation: { daily_limit: 5, used_today: 2, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
                 },
+                monthly_usage: {
+                    ...membership.monthly_usage!,
+                    credits_used: 136,
+                    included_credits_used: 92,
+                    payg_credits_used: 44,
+                    operations: {
+                        chat_interaction: { used: 72, credits_used: 72, included_credits_used: 52, payg_credits_used: 20 },
+                        ai_card_generation: { used: 16, credits_used: 16, included_credits_used: 12, payg_credits_used: 4 },
+                        image_generation: { used: 29, credits_used: 29, included_credits_used: 18, payg_credits_used: 11 },
+                        theme_song_generation: { used: 8, credits_used: 8, included_credits_used: 4, payg_credits_used: 4 },
+                        tts_generation: { used: 11, credits_used: 11, included_credits_used: 6, payg_credits_used: 5 },
+                    },
+                },
+            },
+        },
+    },
+}
+
+export const NoMonthlyUsage: Story = {
+    args: {
+        profile: {
+            ...baseProfile,
+            membership: {
+                ...membership,
+                monthly_usage: undefined,
             },
         },
     },

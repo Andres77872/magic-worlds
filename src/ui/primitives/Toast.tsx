@@ -1,5 +1,6 @@
 import { useEffect, useId, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle, CheckCircle2, X } from 'lucide-react'
 import { cx } from './cx'
 import { IconButton } from './IconButton'
@@ -22,6 +23,7 @@ const TONE: Record<ToastTone, string> = {
 
 /** Floating app notice for short-lived action feedback. */
 export function Toast({ open, tone, title, message, onClose, autoCloseMs }: ToastProps) {
+    const { t } = useTranslation()
     const titleId = useId()
 
     useEffect(() => {
@@ -65,7 +67,7 @@ export function Toast({ open, tone, title, message, onClose, autoCloseMs }: Toas
                         </p>
                     )}
                 </div>
-                <IconButton label="Dismiss notice" size="sm" className="h-7 w-7" onClick={onClose}>
+                <IconButton label={t('ui.toast.dismiss')} size="sm" className="h-7 w-7" onClick={onClose}>
                     <X size={14} />
                 </IconButton>
             </div>

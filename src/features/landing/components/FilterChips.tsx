@@ -4,6 +4,7 @@
  */
 
 import { Sparkles } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Chip, Icon } from '@/ui/primitives'
 
 export interface FilterChipsProps {
@@ -15,6 +16,7 @@ export interface FilterChipsProps {
 }
 
 export function FilterChips({ options, active, onChange }: FilterChipsProps) {
+    const { t } = useTranslation()
     if (options.length === 0) return null
     return (
         <div className="flex flex-wrap gap-2">
@@ -23,7 +25,7 @@ export function FilterChips({ options, active, onChange }: FilterChipsProps) {
                 onClick={() => onChange('All')}
                 icon={<Icon icon={Sparkles} size={13} />}
             >
-                All
+                {t('landing.begin.all')}
             </Chip>
             {options.map((option) => (
                 <Chip key={option} active={active === option} onClick={() => onChange(option)}>

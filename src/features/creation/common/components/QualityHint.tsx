@@ -4,6 +4,7 @@
  * never gate saving). Amber italic narrative, one line.
  */
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Flame } from 'lucide-react'
 import { Icon } from '@/ui/primitives'
 import { findBroadTrigger } from './triggerQuality'
@@ -29,18 +30,19 @@ export interface TriggerHintsProps {
 
 /** Activation-section nudges: too-broad triggers and the no-triggers note. */
 export function TriggerHints({ triggers, hasContent }: TriggerHintsProps) {
+    const { t } = useTranslation()
     const broad = findBroadTrigger(triggers)
     if (broad) {
         return (
             <QualityHint>
-                ‘{broad.trim()}’ will fire in almost every scene — try a name or a distinctive phrase instead.
+                {t('creation.common.triggerHints.broad', { trigger: broad.trim() })}
             </QualityHint>
         )
     }
     if (triggers.length === 0 && hasContent) {
         return (
             <QualityHint>
-                Without triggers, this card only enters scenes when you pick it by hand.
+                {t('creation.common.triggerHints.none')}
             </QualityHint>
         )
     }

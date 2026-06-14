@@ -4,6 +4,7 @@
  * storyEditorUtils module.
  */
 
+import type { TFunction } from 'i18next'
 import type { Story, StoryChapter } from '@/shared'
 
 export type NovelSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
@@ -17,25 +18,25 @@ export function wordCount(text: string): number {
     return text.split(/\s+/).filter(Boolean).length
 }
 
-export function kindLabel(kind: string): string {
-    if (kind === 'adventure_template') return 'Adventure'
-    if (kind === 'snapshot_card') return 'Snapshot'
-    if (kind === 'lorebook_entry') return 'Lore entry'
+export function kindLabel(kind: string, t: TFunction): string {
+    if (kind === 'adventure_template') return t('novelEditor.kind.adventure')
+    if (kind === 'snapshot_card') return t('novelEditor.kind.snapshot')
+    if (kind === 'lorebook_entry') return t('novelEditor.kind.loreEntry')
     return kind.charAt(0).toUpperCase() + kind.slice(1)
 }
 
-export function storySourceLabel(story: Story): string {
+export function storySourceLabel(story: Story, t: TFunction): string {
     const source = story.source
-    if (!source || source.kind === 'blank') return 'Blank'
-    return source.title || kindLabel(source.kind)
+    if (!source || source.kind === 'blank') return t('novelEditor.source.blank')
+    return source.title || kindLabel(source.kind, t)
 }
 
-export function formatSaveState(state: NovelSaveState, lastSavedAt: Date | null): string {
-    if (state === 'saving') return 'Saving'
-    if (state === 'error') return 'Save failed'
-    if (state === 'dirty') return 'Unsaved'
-    if (lastSavedAt) return `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-    return 'Saved'
+export function formatSaveState(state: NovelSaveState, lastSavedAt: Date | null, t: TFunction): string {
+    if (state === 'saving') return t('novelEditor.save.saving')
+    if (state === 'error') return t('novelEditor.save.failed')
+    if (state === 'dirty') return t('novelEditor.save.unsaved')
+    if (lastSavedAt) return t('novelEditor.save.savedAt', { time: lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })
+    return t('novelEditor.save.saved')
 }
 
 export function markdownFor(story: Story): string {

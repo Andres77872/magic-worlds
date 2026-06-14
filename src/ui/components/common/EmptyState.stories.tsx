@@ -4,7 +4,7 @@ import { Icon } from '@/ui/primitives'
 import { EmptyState } from './EmptyState'
 
 const meta = {
-  title: 'Components/EmptyState',
+  title: 'Components/Common/EmptyState',
   component: EmptyState,
   tags: ['autodocs'],
   parameters: {

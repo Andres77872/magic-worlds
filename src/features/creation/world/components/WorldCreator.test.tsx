@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
     setPage: vi.fn(),
+    goBack: vi.fn(),
     loadData: vi.fn(),
     openLoginModal: vi.fn(),
     registerThemeSongJob: vi.fn(),
@@ -20,7 +21,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useNavigation: () => ({ setPage: mocks.setPage }),
+    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack }),
     useData: () => ({ editingWorld: mocks.editingWorld, setEditingWorld: mocks.setEditingWorld, loadData: mocks.loadData }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
     useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
@@ -29,6 +30,7 @@ vi.mock('@/app/hooks', () => ({
 vi.mock('@/infrastructure/api', () => ({
     ApiError: class ApiError extends Error { status = 500; isTransient = true },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
+    isProtectedMediaUrl: () => false,
     apiService: {
         createCardAssistantConversation: mocks.createCardAssistantConversation,
         listCardAssistantConversations: mocks.listCardAssistantConversations,
@@ -171,6 +173,40 @@ describe('WorldCreator portrait persistence', () => {
                 expect.objectContaining({ image_url: '/generated-images/w.png' }),
             ),
         )
+    })
+})
+
+describe('WorldCreator navigation', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingWorld = null
+        mocks.createWorld.mockResolvedValue({ id: 'world-2', name: 'Glass Province' })
+        mocks.loadData.mockResolvedValue(undefined)
+        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+    })
+
+    it('returns to the origin after saving a new world', async () => {
+        render(<WorldCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
+        fireEvent.change(screen.getByRole('textbox', { name: /^name/i }), { target: { value: 'Glass Province' } })
+        fireEvent.change(screen.getByLabelText(/genre \/ vibe/i), { target: { value: 'Mystery' } })
+        fireEvent.click(screen.getByRole('button', { name: /^Create World$/i }))
+
+        await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledTimes(1))
+        await waitFor(() => expect(mocks.goBack).toHaveBeenCalledWith('landing'))
+        expect(mocks.setPage).not.toHaveBeenCalledWith('landing')
+    })
+
+    it('returns to the origin from edit back', () => {
+        mocks.editingWorld = { id: 'world-1', name: 'Glass', type: 'desert', description: '', triggers: [] }
+        render(<WorldCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /^Back$/i }))
+
+        expect(mocks.setEditingWorld).toHaveBeenCalledWith(null)
+        expect(mocks.goBack).toHaveBeenCalledWith('landing')
     })
 })
 

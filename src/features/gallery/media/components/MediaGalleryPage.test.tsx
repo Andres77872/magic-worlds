@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { I18nextProvider } from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { i18n } from '@/app/i18n'
 
 const openLoginModal = vi.fn()
 
@@ -46,6 +49,7 @@ vi.mock('@/infrastructure/api', () => ({
         listUserThemeSongs: vi.fn(),
         deleteImageAsset: vi.fn().mockResolvedValue(undefined),
         deleteThemeSongAsset: vi.fn().mockResolvedValue(undefined),
+        fetchProtectedMediaBlob: vi.fn().mockResolvedValue(new Blob(['media'], { type: 'image/jpeg' })),
         getCharacters: vi.fn().mockResolvedValue([]),
         getWorlds: vi.fn().mockResolvedValue([]),
         getItems: vi.fn().mockResolvedValue([]),
@@ -94,10 +98,17 @@ const THEME_JOB: ThemeSongJobPublic = {
     updated_at: '2026-06-10T09:00:00',
 }
 
+function renderSpanish(ui: ReactElement) {
+    const localI18n = i18n.cloneInstance({ lng: 'es' })
+    return render(<I18nextProvider i18n={localI18n}>{ui}</I18nextProvider>)
+}
+
 describe('MediaGalleryPage', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+        await i18n.changeLanguage('en')
         vi.clearAllMocks()
         clearAudioDataCaches()
+        vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:protected-media'), revokeObjectURL: vi.fn() })
         vi.mocked(apiService.listImageJobs).mockResolvedValue({
             items: [IMAGE_JOB],
             limit: 24,
@@ -160,8 +171,8 @@ describe('MediaGalleryPage', () => {
         render(<MediaGalleryPage />)
         await screen.findByTestId('media-image-tile')
 
-        fireEvent.click(screen.getByRole('button', { name: 'Delete image' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+        fireEvent.click(screen.getByRole('button', { name: i18n.t('mediaGallery.tile.deleteImage') }))
+        fireEvent.click(screen.getByRole('button', { name: i18n.t('mediaGallery.actions.delete') }))
 
         await waitFor(() => expect(apiService.deleteImageAsset).toHaveBeenCalledWith('img-1'))
         await waitFor(() => expect(screen.queryByTestId('media-image-tile')).not.toBeInTheDocument())
@@ -196,7 +207,7 @@ describe('MediaGalleryPage', () => {
             })
 
         try {
-            fireEvent.click(screen.getByRole('button', { name: 'Download theme' }))
+            fireEvent.click(screen.getByRole('button', { name: i18n.t('mediaGallery.tile.downloadTheme') }))
 
             await waitFor(() => expect(click).toHaveBeenCalledTimes(1))
             expect(fetchMock).toHaveBeenCalledWith('/generated-audio/1.mp3')
@@ -214,8 +225,8 @@ describe('MediaGalleryPage', () => {
         render(<MediaGalleryPage />)
         await screen.findByTestId('media-theme-card')
 
-        fireEvent.click(screen.getByRole('button', { name: 'Delete theme' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+        fireEvent.click(screen.getByRole('button', { name: i18n.t('mediaGallery.tile.deleteTheme') }))
+        fireEvent.click(screen.getByRole('button', { name: i18n.t('mediaGallery.actions.delete') }))
 
         await waitFor(() => expect(apiService.deleteThemeSongAsset).toHaveBeenCalledWith('theme-1'))
         await waitFor(() => expect(screen.queryByTestId('media-theme-card')).not.toBeInTheDocument())
@@ -239,13 +250,51 @@ describe('MediaGalleryPage', () => {
             next_offset: null,
         })
         render(<MediaGalleryPage />)
-        await waitFor(() => expect(screen.getByText('No media yet')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByText(i18n.t('mediaGallery.empty.noMedia'))).toBeInTheDocument())
 
         fireEvent.click(screen.getByTestId('card-type-filter-world'))
-        await waitFor(() => expect(screen.getByText('No media for your worlds yet')).toBeInTheDocument())
+        await waitFor(() =>
+            expect(
+                screen.getByText(i18n.t('mediaGallery.empty.noMediaForType', {
+                    type: i18n.t('mediaGallery.empty.type.world'),
+                })),
+            ).toBeInTheDocument(),
+        )
 
-        fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
-        await waitFor(() => expect(screen.getByText('No media yet')).toBeInTheDocument())
+        fireEvent.click(screen.getByRole('button', { name: i18n.t('mediaGallery.actions.clearFilters') }))
+        await waitFor(() => expect(screen.getByText(i18n.t('mediaGallery.empty.noMedia'))).toBeInTheDocument())
+    })
+
+    it('renders media gallery chrome and empty states in Spanish', async () => {
+        vi.mocked(apiService.listImageJobs).mockResolvedValue({ items: [], limit: 24, offset: 0, next_offset: null })
+        vi.mocked(apiService.listUserThemeSongs).mockResolvedValue({
+            items: [],
+            limit: 24,
+            offset: 0,
+            next_offset: null,
+        })
+
+        renderSpanish(<MediaGalleryPage />)
+
+        expect(screen.getByRole('heading', { name: 'Medios' })).toBeInTheDocument()
+        expect(screen.getByRole('group', { name: 'Tipo de medio' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Todo' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Imágenes' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Temas' })).toBeInTheDocument()
+        await waitFor(() => expect(screen.getByText('Aún no hay medios')).toBeInTheDocument())
+
+        fireEvent.click(screen.getByTestId('card-type-filter-world'))
+        await waitFor(() => expect(screen.getByText('Aún no hay medios para tus mundos')).toBeInTheDocument())
+        expect(screen.getByRole('button', { name: 'Limpiar filtros' })).toBeInTheDocument()
+    })
+
+    it('renders media item actions in Spanish', async () => {
+        renderSpanish(<MediaGalleryPage />)
+
+        await screen.findByTestId('media-image-tile')
+        expect(screen.getByRole('button', { name: 'Eliminar imagen' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Descargar tema' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Eliminar tema' })).toBeInTheDocument()
     })
 
     it('surfaces a load error with Retry', async () => {
@@ -254,7 +303,7 @@ describe('MediaGalleryPage', () => {
 
         expect(await screen.findByRole('alert')).toHaveTextContent('network down')
 
-        fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+        fireEvent.click(screen.getByRole('button', { name: i18n.t('mediaGallery.actions.retry') }))
         await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
         expect(await screen.findByTestId('media-image-tile')).toBeInTheDocument()
     })

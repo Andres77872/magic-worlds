@@ -5,14 +5,15 @@
  * scroll, image-forward GalleryCard grid, and DataProvider-backed actions.
  */
 
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { BookOpenText, Loader2, Plus, Search, Trash2, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import type { StoryCreateRequest } from '@/shared'
 import { CardGrid, GalleryCard, type CardOption } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { Button, controlClass, Icon, IconButton, PageHeader, Toast } from '@/ui/primitives'
-import { NOVEL_GALLERY_CONFIG, type NovelGalleryItem } from '../novelGalleryConfig'
+import { getNovelGalleryConfig, type NovelGalleryItem } from '../novelGalleryConfig'
 import { useCardGallery } from '@/features/gallery/hooks/useCardGallery'
 import { NovelCreateModal } from './NovelCreateModal'
 
@@ -23,7 +24,9 @@ interface ActionNotice {
 }
 
 export function NovelGalleryPage() {
-    const gallery = useCardGallery<NovelGalleryItem>(NOVEL_GALLERY_CONFIG)
+    const { t } = useTranslation()
+    const galleryConfig = useMemo(() => getNovelGalleryConfig(t), [t])
+    const gallery = useCardGallery<NovelGalleryItem>(galleryConfig)
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const { createStory, openStory, deleteStory } = useData()
@@ -51,7 +54,7 @@ export function NovelGalleryPage() {
                 .then(() => setPage('story'))
                 .catch((error) => {
                     console.error('Failed to open novel:', error)
-                    setActionNotice({ tone: 'error', title: 'Could not open novel', message: 'Try again.' })
+                    setActionNotice({ tone: 'error', title: t('novelGallery.notice.openFailed'), message: t('novelGallery.notice.tryAgain') })
                 })
                 .finally(() => setOpeningId(null))
         })
@@ -65,7 +68,7 @@ export function NovelGalleryPage() {
             setPage('story')
         } catch (error) {
             console.error('Failed to create novel:', error)
-            setActionNotice({ tone: 'error', title: 'Could not create novel', message: 'Try again.' })
+            setActionNotice({ tone: 'error', title: t('novelGallery.notice.createFailed'), message: t('novelGallery.notice.tryAgain') })
         } finally {
             setCreating(false)
         }
@@ -81,7 +84,7 @@ export function NovelGalleryPage() {
             gallery.removeItem(target.id)
         } catch (error) {
             console.error('Failed to delete novel:', error)
-            setActionNotice({ tone: 'error', title: 'Could not delete novel', message: 'Try again.' })
+            setActionNotice({ tone: 'error', title: t('novelGallery.notice.deleteFailed'), message: t('novelGallery.notice.tryAgain') })
         } finally {
             setDeletingId(null)
         }
@@ -91,13 +94,13 @@ export function NovelGalleryPage() {
         {
             type: 'custom',
             icon: <Icon icon={BookOpenText} size={15} />,
-            label: 'Open',
+            label: t('novelGallery.actions.open'),
             onClick: () => openNovel(item),
         },
         {
             type: 'custom',
             icon: <Icon icon={Trash2} size={15} />,
-            label: 'Delete',
+            label: t('novelGallery.actions.delete'),
             onClick: () => requireAuth(() => setPendingDelete(item)),
             danger: true,
         },
@@ -107,7 +110,7 @@ export function NovelGalleryPage() {
 
     const emptyAction: ReactNode = hasQuery ? (
         <Button kind="secondary" size="sm" onClick={() => gallery.setQuery('')}>
-            Clear search
+            {t('novelGallery.actions.clearSearch')}
         </Button>
     ) : (
         <Button
@@ -116,15 +119,15 @@ export function NovelGalleryPage() {
             iconLeft={<Icon icon={Plus} size={16} />}
             onClick={() => requireAuth(() => setCreateOpen(true))}
         >
-            {NOVEL_GALLERY_CONFIG.createLabel}
+            {galleryConfig.createLabel}
         </Button>
     )
 
     return (
         <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-6 px-5 py-8 sm:px-8 sm:py-10">
             <PageHeader
-                eyebrow={NOVEL_GALLERY_CONFIG.eyebrow}
-                title={NOVEL_GALLERY_CONFIG.title}
+                eyebrow={galleryConfig.eyebrow}
+                title={galleryConfig.title}
                 size="lg"
                 actions={
                     <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto md:justify-end">
@@ -139,8 +142,8 @@ export function NovelGalleryPage() {
                                 onKeyDown={(e) => {
                                     if (e.key === 'Escape') gallery.setQuery('')
                                 }}
-                                placeholder={NOVEL_GALLERY_CONFIG.searchPlaceholder}
-                                aria-label={NOVEL_GALLERY_CONFIG.searchPlaceholder}
+                                placeholder={galleryConfig.searchPlaceholder}
+                                aria-label={galleryConfig.searchPlaceholder}
                                 className={`${controlClass} rounded-full pl-10 ${gallery.searching && hasQuery ? 'pr-16' : 'pr-12'}`}
                                 data-testid="gallery-search-input"
                             />
@@ -156,7 +159,7 @@ export function NovelGalleryPage() {
                                 <IconButton
                                     size="sm"
                                     onClick={() => gallery.setQuery('')}
-                                    label="Clear search"
+                                    label={t('novelGallery.actions.clearSearch')}
                                     className="absolute right-2"
                                     data-testid="gallery-search-clear"
                                 >
@@ -170,7 +173,7 @@ export function NovelGalleryPage() {
                             onClick={() => requireAuth(() => setCreateOpen(true))}
                             className="shrink-0"
                         >
-                            {NOVEL_GALLERY_CONFIG.createLabel}
+                            {galleryConfig.createLabel}
                         </Button>
                     </div>
                 }
@@ -183,7 +186,7 @@ export function NovelGalleryPage() {
                 >
                     <span>{gallery.error}</span>
                     <Button kind="secondary" size="sm" onClick={gallery.refresh}>
-                        Retry
+                        {t('novelGallery.actions.retry')}
                     </Button>
                 </div>
             )}
@@ -206,8 +209,8 @@ export function NovelGalleryPage() {
                 hasMore={gallery.hasMore}
                 loadingMore={gallery.loadingMore}
                 onLoadMore={gallery.loadMore}
-                emptyStateTitle={hasQuery ? NOVEL_GALLERY_CONFIG.noMatchTitle : NOVEL_GALLERY_CONFIG.emptyTitle}
-                emptyStateDescription={hasQuery ? NOVEL_GALLERY_CONFIG.noMatchDescription : NOVEL_GALLERY_CONFIG.emptyDescription}
+                emptyStateTitle={hasQuery ? galleryConfig.noMatchTitle : galleryConfig.emptyTitle}
+                emptyStateDescription={hasQuery ? galleryConfig.noMatchDescription : galleryConfig.emptyDescription}
                 emptyStateAction={emptyAction}
                 data-testid="gallery-grid-novel"
                 renderCard={(item) => (
@@ -219,7 +222,7 @@ export function NovelGalleryPage() {
                         imageUrl={item.imageUrl}
                         deleting={deletingId === item.id}
                         onClick={() => openNovel(item)}
-                        actionLabel={`Open ${item.title}`}
+                        actionLabel={t('novelGallery.actions.openNamed', { title: item.title })}
                         options={optionsFor(item)}
                     />
                 )}
@@ -227,9 +230,9 @@ export function NovelGalleryPage() {
 
             <ConfirmDialog
                 visible={pendingDelete !== null}
-                title="Delete novel"
-                message={pendingDelete ? `Delete "${pendingDelete.title.slice(0, 80)}"? Its chapters and codex cannot be recovered.` : ''}
-                confirmLabel="Delete"
+                title={t('novelGallery.deleteDialog.title')}
+                message={pendingDelete ? t('novelGallery.deleteDialog.message', { title: pendingDelete.title.slice(0, 80) }) : ''}
+                confirmLabel={t('novelGallery.actions.delete')}
                 variant="danger"
                 onConfirm={() => void confirmDelete()}
                 onCancel={() => setPendingDelete(null)}

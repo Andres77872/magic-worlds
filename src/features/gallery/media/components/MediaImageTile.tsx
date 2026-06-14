@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Eye, ImageOff, Trash2 } from 'lucide-react'
 import { AuthenticatedImage, Badge, cx, IconButton } from '@/ui/primitives'
 import { formatWhen, type CardRef, type MediaImageItem } from '../mediaGalleryTypes'
@@ -20,7 +21,19 @@ export interface MediaImageTileProps {
 }
 
 export function MediaImageTile({ item, deleting = false, onView, onDelete, onFilterCard }: MediaImageTileProps) {
+    const { t } = useTranslation()
     const [imageFailed, setImageFailed] = useState(false)
+    const cardName = item.card?.name
+    const imageLabel = cardName
+        ? t('mediaGallery.tile.imageFor', { name: cardName })
+        : t('mediaGallery.tile.generatedImage')
+    const viewLabel = imageFailed
+        ? cardName
+            ? t('mediaGallery.tile.imageUnavailableFor', { name: cardName })
+            : t('mediaGallery.tile.imageUnavailable')
+        : cardName
+          ? t('mediaGallery.tile.viewImageForFullSize', { name: cardName })
+          : t('mediaGallery.tile.viewImageFullSize')
 
     return (
         <div
@@ -36,22 +49,20 @@ export function MediaImageTile({ item, deleting = false, onView, onDelete, onFil
                 type="button"
                 onClick={onView}
                 disabled={imageFailed}
-                aria-label={
-                    imageFailed
-                        ? `Image${item.card?.name ? ` for ${item.card.name}` : ''} unavailable`
-                        : `View image${item.card?.name ? ` for ${item.card.name}` : ''} full size`
-                }
+                aria-label={viewLabel}
                 className="absolute inset-0 h-full w-full cursor-zoom-in disabled:cursor-default"
             >
                 {imageFailed ? (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-ink-700 px-4 text-center">
                         <ImageOff size={28} className="text-parchment-500" aria-hidden="true" />
-                        <span className="font-ui text-xs font-semibold text-parchment-300">Image unavailable</span>
+                        <span className="font-ui text-xs font-semibold text-parchment-300">
+                            {t('mediaGallery.tile.imageUnavailable')}
+                        </span>
                     </div>
                 ) : (
                     <AuthenticatedImage
                         src={item.url}
-                        alt={item.card?.name ? `Image for ${item.card.name}` : 'Generated image'}
+                        alt={imageLabel}
                         loading="lazy"
                         onError={() => setImageFailed(true)}
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
@@ -72,20 +83,38 @@ export function MediaImageTile({ item, deleting = false, onView, onDelete, onFil
                             : undefined
                     }
                     role={onFilterCard ? 'button' : undefined}
-                    title={onFilterCard ? `Show all media for ${item.card.name ?? 'this card'}` : undefined}
+                    tabIndex={onFilterCard ? 0 : undefined}
+                    onKeyDown={
+                        onFilterCard
+                            ? (e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      onFilterCard(item.card!)
+                                  }
+                              }
+                            : undefined
+                    }
+                    title={
+                        onFilterCard
+                            ? cardName
+                                ? t('mediaGallery.tile.showAllMediaForCard', { name: cardName })
+                                : t('mediaGallery.tile.showAllMediaForThisCard')
+                            : undefined
+                    }
                     data-testid="media-card-badge"
                 >
-                    <span className="truncate">{item.card.name ?? 'Card'}</span>
+                    <span className="min-w-0 truncate">{cardName ?? t('mediaGallery.tile.cardFallback')}</span>
                 </Badge>
             )}
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-ink-900/85 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                 <span className="font-mono text-[10px] text-parchment-300">{formatWhen(item.createdAt)}</span>
                 <div className="pointer-events-auto flex items-center gap-1">
-                    <IconButton label="View full size" size="sm" onClick={onView}>
+                    <IconButton label={t('mediaGallery.tile.viewFullSize')} size="sm" onClick={onView}>
                         <Eye size={15} strokeWidth={1.75} />
                     </IconButton>
-                    <IconButton label="Delete image" size="sm" tone="danger" onClick={onDelete}>
+                    <IconButton label={t('mediaGallery.tile.deleteImage')} size="sm" tone="danger" onClick={onDelete}>
                         <Trash2 size={15} strokeWidth={1.75} />
                     </IconButton>
                 </div>

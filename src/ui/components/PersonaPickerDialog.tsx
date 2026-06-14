@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CheckCircle2, Circle, Loader2, UserCircle } from 'lucide-react'
 import type { Character } from '@/shared'
 import { resolveMediaUrl } from '@/infrastructure/api'
@@ -31,6 +32,7 @@ export function PersonaPickerDialog({
     onClose,
     onCreateCharacter,
 }: PersonaPickerDialogProps) {
+    const { t } = useTranslation()
     const candidates = useMemo(() => personaCandidates(characters), [characters])
     const preferred = useMemo(() => defaultPersona(characters) ?? candidates[0], [characters, candidates])
     const [selectedId, setSelectedId] = useState<string | undefined>(preferred?.id)
@@ -50,14 +52,14 @@ export function PersonaPickerDialog({
             size="lg"
             footer={
                 <>
-                    <Button kind="ghost" disabled={isConfirming} onClick={onClose}>Cancel</Button>
+                    <Button kind="ghost" disabled={isConfirming} onClick={onClose}>{t('common.cancel')}</Button>
                     <Button
                         kind="primary"
                         disabled={!selected || isConfirming}
                         iconLeft={isConfirming ? <Loader2 size={15} className="animate-spin" /> : undefined}
                         onClick={() => selected && onConfirm(selected)}
                     >
-                        {isConfirming ? 'Starting...' : actionLabel}
+                        {isConfirming ? t('ui.personaPicker.starting') : actionLabel}
                     </Button>
                 </>
             }
@@ -80,9 +82,13 @@ export function PersonaPickerDialog({
             {candidates.length === 0 ? (
                 <EmptyState
                     icon={<Icon icon={UserCircle} size={32} />}
-                    message="No persona cards available"
-                    secondaryText="Create a character or persona before starting."
-                    button={onCreateCharacter ? { label: 'Create Character', onClick: onCreateCharacter } : undefined}
+                    message={t('ui.personaPicker.noPersonas')}
+                    secondaryText={t('ui.personaPicker.noPersonasHint')}
+                    button={
+                        onCreateCharacter
+                            ? { label: t('ui.personaPicker.createCharacter'), onClick: onCreateCharacter }
+                            : undefined
+                    }
                 />
             ) : (
                 <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto pr-1">
@@ -112,10 +118,10 @@ export function PersonaPickerDialog({
                                 <span className="min-w-0 flex-1">
                                     <span className="flex flex-wrap items-center gap-2">
                                         <span className="truncate font-display text-[15px] font-semibold text-parchment-50">
-                                            {character.name || 'Untitled'}
+                                            {character.name || t('ui.personaPicker.untitled')}
                                         </span>
-                                        <Tag>{role === 'persona' ? 'Persona' : 'Character'}</Tag>
-                                        {character.is_default_persona && <Badge tone="ember">Default</Badge>}
+                                        <Tag>{role === 'persona' ? t('ui.personaPicker.persona') : t('ui.personaPicker.character')}</Tag>
+                                        {character.is_default_persona && <Badge tone="ember">{t('ui.personaPicker.default')}</Badge>}
                                     </span>
                                     {character.description && (
                                         <span className="mt-1 line-clamp-2 block font-narrative text-xs leading-snug text-parchment-400">

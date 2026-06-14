@@ -39,6 +39,8 @@ function PanelComposition({
         cardTitle="The Vitrine Expanse"
         streaming={streaming}
         onClose={() => {}}
+        onNewChat={() => {}}
+        newChatDisabled={streaming}
         menu={(
           <ConversationMenu
             conversations={SAMPLE_CONVERSATIONS}
@@ -72,7 +74,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          'The floating AI copilot for the card creators (FAB bottom-right → this 420px panel). Composed here statically from the assistant subcomponents; in the app, `CardAssistantChatbot` + `useCardAssistant` add live SSE streaming, tool-call application, and conversation management on top of this exact layout.',
+          'The floating AI copilot for the card creators (FAB bottom-right -> this 420px panel). Composed here statically from the assistant subcomponents; in the app, `CardAssistantChatbot` + `useCardAssistant` add live SSE streaming, tool-call application, quick new-chat reset, and conversation management on top of this exact layout.',
       },
     },
   },

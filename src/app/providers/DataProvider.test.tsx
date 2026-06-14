@@ -32,6 +32,7 @@ vi.mock('@/infrastructure', () => {
             getStories: vi.fn().mockResolvedValue([]),
             createAdventureSession: vi.fn().mockResolvedValue({}),
             createCharacterChat: vi.fn().mockResolvedValue({}),
+            createCharacterGroupChat: vi.fn().mockResolvedValue({}),
             updateAdventureSnapshot: vi.fn().mockResolvedValue({}),
             updateCharacter: vi.fn().mockResolvedValue({}),
             updateWorld: vi.fn().mockResolvedValue({}),
@@ -111,12 +112,17 @@ function ChatProbe() {
         <div>
             <span data-testid="chat-count">{ctx?.characterChats.length}</span>
             <span data-testid="active-chat">{ctx?.activeCharacterChat?.id ?? 'none'}</span>
+            <span data-testid="active-chat-mode">{ctx?.activeCharacterChatMode ?? 'none'}</span>
             <span data-testid="active-persona">{ctx?.activeCharacterChat?.persona?.name ?? 'none'}</span>
             {ctx?.characterChats.map((chat) => (
                 <span key={chat.id} data-testid={`chat-${chat.id}`}>{chat.character?.name}</span>
             ))}
             <button onClick={() => ctx?.startCharacterChat(CHAT_CHARACTER, CHAT_PERSONA)}>start chat</button>
+            <button onClick={() => ctx?.startCharacterGroupChat([CHAT_CHARACTER, { id: 'c2', name: 'Dorn', race: 'Dwarf', role: 'character' as const, stats: {} }], CHAT_PERSONA)}>
+                start group chat
+            </button>
             <button onClick={() => ctx?.resumeCharacterChat(ctx.characterChats[0])}>resume</button>
+            <button onClick={() => ctx?.resumeCharacterChat(ctx.characterChats[0], { mode: 'voice' })}>resume voice</button>
             <button onClick={() => ctx?.deleteCharacterChat('9')}>delete</button>
         </div>
     )
@@ -159,6 +165,37 @@ describe('DataProvider character chats', () => {
 
         await waitFor(() => expect(apiService.createCharacterChat).toHaveBeenCalledWith('c1', 'p1'))
         await waitFor(() => expect(screen.getByTestId('active-chat')).toHaveTextContent('10'))
+        expect(screen.getByTestId('active-chat-mode')).toHaveTextContent('text')
+        expect(screen.getByTestId('active-persona')).toHaveTextContent('Aria')
+    })
+
+    it('creates a fresh group chat with selected character ids', async () => {
+        vi.mocked(apiService.createCharacterGroupChat).mockResolvedValue({
+            chat_id: 12,
+            kind: 'character_group',
+            character_ids: ['c1', 'c2'],
+            characters: [
+                CHAT_CHARACTER,
+                { id: 'c2', name: 'Dorn', race: 'Dwarf', role: 'character', stats: {} },
+            ],
+            persona_id: 'p1',
+            persona: CHAT_PERSONA,
+            title: 'Lyra, Dorn',
+            last_turn: '{}',
+            created_at: '2026-06-10T00:00:00',
+            updated_at: '2026-06-10T00:00:00',
+        })
+        render(
+            <DataProvider>
+                <ChatProbe />
+            </DataProvider>,
+        )
+
+        fireEvent.click(screen.getByText('start group chat'))
+
+        await waitFor(() => expect(apiService.createCharacterGroupChat).toHaveBeenCalledWith(['c1', 'c2'], 'p1'))
+        await waitFor(() => expect(screen.getByTestId('active-chat')).toHaveTextContent('12'))
+        expect(screen.getByTestId('active-chat-mode')).toHaveTextContent('text')
         expect(screen.getByTestId('active-persona')).toHaveTextContent('Aria')
     })
 
@@ -173,7 +210,23 @@ describe('DataProvider character chats', () => {
         fireEvent.click(screen.getByText('resume'))
 
         await waitFor(() => expect(screen.getByTestId('active-chat')).toHaveTextContent('9'))
+        expect(screen.getByTestId('active-chat-mode')).toHaveTextContent('text')
         expect(apiService.getCharacterChats).toHaveBeenCalledTimes(1) // only the initial load
+    })
+
+    it('resume can mark an existing character chat as voice mode without network calls', async () => {
+        render(
+            <DataProvider>
+                <ChatProbe />
+            </DataProvider>,
+        )
+        await waitFor(() => expect(screen.getByTestId('chat-count')).toHaveTextContent('1'))
+
+        fireEvent.click(screen.getByText('resume voice'))
+
+        await waitFor(() => expect(screen.getByTestId('active-chat')).toHaveTextContent('9'))
+        expect(screen.getByTestId('active-chat-mode')).toHaveTextContent('voice')
+        expect(apiService.getCharacterChats).toHaveBeenCalledTimes(1)
     })
 
     it('delete removes the row and clears a matching active chat', async () => {

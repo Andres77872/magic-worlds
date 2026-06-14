@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MessageSquareQuote } from 'lucide-react'
 import { useAuth, useData } from '@/app/hooks'
 import type { StoryContextSettings, StoryGeneration } from '@/shared'
@@ -32,6 +33,7 @@ const DEFAULT_CONTEXT_SETTINGS: StoryContextSettings = {
 }
 
 export function NovelStudio() {
+    const { t } = useTranslation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const { generateStoryCandidate, acceptStoryGeneration, discardStoryGeneration } = useData()
 
@@ -75,8 +77,8 @@ export function NovelStudio() {
     }
 
     const handleGenerate = async (request: InlineAIRequest): Promise<StoryGeneration> => {
-        if (!requireAuth()) throw new Error('Login required to write with the muse')
-        if (!activeChapter) throw new Error('No chapter selected')
+        if (!requireAuth()) throw new Error(t('novelEditor.studio.loginRequired'))
+        if (!activeChapter) throw new Error(t('novelEditor.studio.noChapter'))
         return generateStoryCandidate(story.id, {
             sceneId: activeChapter.id,
             command: request.command,
@@ -130,9 +132,9 @@ export function NovelStudio() {
                     <input
                         value={draft.title}
                         onChange={(event) => draft.setTitle(event.target.value)}
-                        className="min-w-0 border-0 bg-transparent font-display text-2xl font-semibold leading-tight text-parchment-50 outline-none placeholder:text-parchment-500 focus-visible:shadow-none"
-                        aria-label="Chapter title"
-                        placeholder="Chapter title"
+                        className="min-w-0 border-0 bg-transparent font-display text-2xl font-semibold leading-tight text-parchment-50 outline-none placeholder:text-parchment-500"
+                        aria-label={t('novelEditor.studio.chapterTitleLabel')}
+                        placeholder={t('novelEditor.studio.chapterTitlePlaceholder')}
                         data-testid="novel-chapter-title"
                     />
                     {activeChapter && (
@@ -175,8 +177,8 @@ export function NovelStudio() {
             <Drawer
                 open={critique !== null}
                 onClose={() => setCritique(null)}
-                eyebrow="The muse's notes"
-                title="Critique"
+                eyebrow={t('novelEditor.critique.eyebrow')}
+                title={t('novelEditor.critique.title')}
                 icon={<Icon icon={MessageSquareQuote} size={18} />}
                 size="lg"
             >

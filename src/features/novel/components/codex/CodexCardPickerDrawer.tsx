@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Check, Loader2, Search } from 'lucide-react'
 import type { CardMediaTargetType, StoryCardKind } from '@/shared'
 import { useCardPickerOptions } from '@/features/gallery/media/hooks/useCardPickerOptions'
@@ -23,6 +24,7 @@ interface CodexCardPickerDrawerProps {
 }
 
 export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, onAdd }: CodexCardPickerDrawerProps) {
+    const { t } = useTranslation()
     const [kind, setKind] = useState<CardMediaTargetType>('character')
     const [query, setQuery] = useState('')
     const [selected, setSelected] = useState<Map<string, { kind: StoryCardKind; cardId: string }>>(new Map())
@@ -53,13 +55,13 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, o
         <Drawer
             open={open}
             onClose={close}
-            eyebrow="Codex"
-            title="Add cards"
+            eyebrow={t('novelEditor.codex.title')}
+            title={t('novelEditor.cardPicker.title')}
             size="lg"
             footer={
                 <div className="flex w-full items-center justify-end gap-2">
                     <Button kind="ghost" onClick={close} disabled={busy}>
-                        Cancel
+                        {t('common.cancel')}
                     </Button>
                     <Button
                         kind="primary"
@@ -67,14 +69,18 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, o
                         disabled={busy || selected.size === 0}
                         data-testid="codex-add-cards-submit"
                     >
-                        {busy ? 'Adding…' : `Add ${selected.size || ''} to codex`.replace('  ', ' ')}
+                        {busy
+                            ? t('novelEditor.cardPicker.adding')
+                            : selected.size > 0
+                              ? t('novelEditor.cardPicker.addCount', { count: selected.size })
+                              : t('novelEditor.cardPicker.add')}
                     </Button>
                 </div>
             }
         >
             <div className="flex flex-col gap-3">
                 <p className="m-0 font-ui text-xs text-parchment-400">
-                    Cards are cloned into this novel's codex — later edits to the library card won't touch this book.
+                    {t('novelEditor.cardPicker.hint')}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                     {PICKER_KINDS.map((pickerKind) => {
@@ -94,7 +100,7 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, o
                                 )}
                             >
                                 <Icon icon={KIND_ICONS[pickerKind]} size={13} />
-                                {meta?.plural ?? pickerKind}
+                                {meta ? t(meta.pluralKey) : pickerKind}
                             </button>
                         )
                     })}
@@ -107,9 +113,9 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, o
                         type="search"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search your cards…"
-                        aria-label="Search your cards"
-                        className="w-full rounded-md border border-parchment-50/10 bg-ink-800 py-2 pl-9 pr-9 font-ui text-sm text-parchment-50 placeholder:text-parchment-500 focus:outline-none"
+                        placeholder={t('novelEditor.cardPicker.searchPlaceholder')}
+                        aria-label={t('novelEditor.cardPicker.searchPlaceholder')}
+                        className="w-full rounded-md border border-parchment-50/10 bg-ink-800 py-2 pl-9 pr-9 font-ui text-sm text-parchment-50 placeholder:text-parchment-500 focus:outline-none focus:border-ember-500"
                         data-testid="codex-card-search"
                     />
                     {loading && <Loader2 size={15} className="absolute right-3 animate-spin text-ember-500" aria-hidden="true" />}
@@ -145,7 +151,7 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, o
                                     )}
                                     <span className="min-w-0 flex-1 truncate font-ui text-sm text-parchment-100">{option.name}</span>
                                     {inCodex ? (
-                                        <Tag className="shrink-0">In codex</Tag>
+                                        <Tag className="shrink-0">{t('novelEditor.codex.inCodex')}</Tag>
                                     ) : (
                                         <span
                                             aria-hidden="true"
@@ -164,7 +170,7 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, o
                         )
                     })}
                     {options.length === 0 && !loading && (
-                        <li className="px-2 py-4 text-center font-ui text-xs text-parchment-500">No cards match.</li>
+                        <li className="px-2 py-4 text-center font-ui text-xs text-parchment-500">{t('novelEditor.cardPicker.noMatches')}</li>
                     )}
                 </ul>
             </div>

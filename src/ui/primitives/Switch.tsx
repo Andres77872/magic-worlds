@@ -60,7 +60,6 @@ export function Switch({
                 'relative inline-flex shrink-0 cursor-pointer items-center rounded-full transition-colors',
                 TRACK_SIZE[size],
                 checked ? 'border border-transparent bg-ember-500' : 'border border-parchment-50/15 bg-ink-600',
-                'focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgba(232,162,74,.25)]',
                 'disabled:cursor-not-allowed disabled:opacity-50',
                 className,
             )}

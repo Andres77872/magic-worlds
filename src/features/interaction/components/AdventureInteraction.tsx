@@ -2,26 +2,29 @@
  * Adventure interaction component
  */
 
-import {useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
+import { useTranslation } from 'react-i18next'
 import type {Adventure, AdventureSnapshot, TurnEntry} from '../../../shared'
-import { Menu, ScrollText } from 'lucide-react'
 import { useNavigation, useData, useAuth } from '../../../app/hooks'
 import { LoadingSpinner } from '../../../ui/components'
 import { apiService } from '../../../infrastructure/api'
 import { parseTurnState } from '../../../utils/turnState'
-import { cx, IconButton } from '../../../ui/primitives'
 import { adventureChatConfig } from '../chatSessionConfig'
-import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel} from './index'
+import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel, InteractionTopBar, SidePanelDrawer} from './index'
 
 export function AdventureInteraction() {
-    const { previousPage, setPage } = useNavigation()
+    const { t } = useTranslation()
+    const { goBack, setPage } = useNavigation()
     const { editingInProgress, saveInProgressSnapshot } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
     const [currentAdventure, setCurrentAdventure] = useState<Adventure | null>(null)
     const [turns, setTurns] = useState<TurnEntry[]>([])
     const [isLoading, setIsLoading] = useState(true)
-    const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false)
-    const [isRightPanelOpen, setIsRightPanelOpen] = useState(false)
+    // One source of truth so the two mobile drawers are mutually exclusive —
+    // opening one closes the other (no stacked scrims).
+    const [openPanelId, setOpenPanelId] = useState<'left' | 'right' | null>(null)
+    const openPanel = (id: 'left' | 'right') => setOpenPanelId((cur) => (cur === id ? null : id))
+    const closePanels = useCallback(() => setOpenPanelId(null), [])
     // Stable per-mount config so the chat engine's callbacks/effects don't churn.
     const chatConfig = useMemo(() => adventureChatConfig(), [])
 
@@ -105,7 +108,7 @@ export function AdventureInteraction() {
     }, [currentAdventure?.id, isAuthenticated])
 
     const handleBack = () => {
-        setPage(previousPage || 'landing')
+        goBack('landing')
     }
 
     // Persist an edit to this adventure's cloned-card snapshot. saveInProgressSnapshot
@@ -117,31 +120,6 @@ export function AdventureInteraction() {
             prev ? { ...prev, snapshot, scenario: snapshot.template.description ?? prev.scenario } : prev,
         )
     }
-
-    // Handle panel clicks on mobile
-    const handlePanelBackdropClick = (e: React.MouseEvent) => {
-        // Only close on mobile when clicking the backdrop
-        if (window.innerWidth <= 768) {
-            const target = e.target as HTMLElement
-            if (target.classList.contains('adventure-interaction__panel')) {
-                setIsLeftPanelOpen(false)
-                setIsRightPanelOpen(false)
-            }
-        }
-    }
-
-    // Close panels on escape key
-    useEffect(() => {
-        const handleEscape = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                setIsLeftPanelOpen(false)
-                setIsRightPanelOpen(false)
-            }
-        }
-        
-        document.addEventListener('keydown', handleEscape)
-        return () => document.removeEventListener('keydown', handleEscape)
-    }, [])
 
     if (!isAuthenticated) {
         return null
@@ -155,61 +133,32 @@ export function AdventureInteraction() {
         return <LoadingSpinner message="Loading adventure turns..." />
     }
 
-    const toggleBtn = 'absolute top-3 z-30 border border-parchment-50/10 bg-ink-700/80 backdrop-blur lg:hidden'
-    // Mobile drawer: the panel element is a full-screen backdrop (its class is the
-    // close-on-click hook); the inner content slides in. On lg+ it docks inline.
-    const panelBase =
-        'adventure-interaction__panel fixed inset-0 z-20 bg-ink-900/60 backdrop-blur-sm transition-opacity ' +
-        'lg:static lg:inset-auto lg:z-auto lg:w-[320px] lg:shrink-0 lg:bg-transparent lg:backdrop-blur-none lg:opacity-100 lg:pointer-events-auto'
-    const panelContent =
-        'h-full w-[320px] max-w-[85%] overflow-y-auto bg-ink-900 transition-transform lg:max-w-none lg:translate-x-0'
+    const title = currentAdventure.snapshot?.template?.name?.trim() || 'Adventure'
 
     return (
-        <div className="relative flex h-full overflow-hidden bg-ink-800">
-            {/* Left Panel Toggle Button (mobile) */}
-            <IconButton
-                label="Toggle adventure details"
-                className={cx(toggleBtn, 'left-3', isLeftPanelOpen && 'border-ember-500/45 text-ember-400')}
-                onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
-                aria-expanded={isLeftPanelOpen}
-            >
-                <Menu size={18} strokeWidth={1.75} />
-            </IconButton>
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-ink-800 lg:flex-row">
+            <InteractionTopBar
+                title={title}
+                mode="adventure"
+                onToggleLeft={() => openPanel('left')}
+                leftOpen={openPanelId === 'left'}
+                onToggleRight={() => openPanel('right')}
+                rightOpen={openPanelId === 'right'}
+            />
 
-            {/* Left Panel */}
-            <div
-                className={cx(panelBase, isLeftPanelOpen ? 'opacity-100' : 'pointer-events-none opacity-0 lg:opacity-100 lg:pointer-events-auto')}
-                onClick={handlePanelBackdropClick}
-            >
-                <div className={cx(panelContent, 'border-r border-parchment-50/10', isLeftPanelOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0')}>
+            <div className="flex min-h-0 flex-1 overflow-hidden lg:flex-row">
+                <SidePanelDrawer side="left" open={openPanelId === 'left'} onClose={closePanels} label={t('interaction.panels.detailsLabel')}>
                     <InteractionLeftPanel adventure={currentAdventure} onBack={handleBack} onSnapshotChange={handleSnapshotChange} />
+                </SidePanelDrawer>
+
+                <div className="min-w-0 flex-1">
+                    <InteractionCenterPanel sessionId={Number(currentAdventure.id)} turns={turns} setTurns={setTurns} config={chatConfig} />
                 </div>
-            </div>
 
-            {/* Center Panel */}
-            <div className="min-w-0 flex-1">
-                <InteractionCenterPanel sessionId={Number(currentAdventure.id)} turns={turns} setTurns={setTurns} config={chatConfig} />
-            </div>
-
-            {/* Right Panel */}
-            <div
-                className={cx(panelBase, isRightPanelOpen ? 'opacity-100' : 'pointer-events-none opacity-0 lg:opacity-100 lg:pointer-events-auto')}
-                onClick={handlePanelBackdropClick}
-            >
-                <div className={cx(panelContent, 'ml-auto border-l border-parchment-50/10', isRightPanelOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0')}>
+                <SidePanelDrawer side="right" open={openPanelId === 'right'} onClose={closePanels} label={t('interaction.panels.logLabel')}>
                     <InteractionRightPanel turns={turns} />
-                </div>
+                </SidePanelDrawer>
             </div>
-
-            {/* Right Panel Toggle Button (mobile) */}
-            <IconButton
-                label="Toggle turn history"
-                className={cx(toggleBtn, 'right-3', isRightPanelOpen && 'border-ember-500/45 text-ember-400')}
-                onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
-                aria-expanded={isRightPanelOpen}
-            >
-                <ScrollText size={18} strokeWidth={1.75} />
-            </IconButton>
         </div>
     )
 }

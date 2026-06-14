@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { apiService } from '@/infrastructure/api'
 import { ApiStatusContext, type ApiStatus, type ApiStatusContextValue } from './apiStatusContext'
 
-export const API_STATUS_POLL_INTERVAL_MS = 10_000
+export const API_STATUS_POLL_INTERVAL_MS = 60_000
 export const API_STATUS_TIMEOUT_MS = 3_000
+export const API_STATUS_BANNER_OFFLINE_THRESHOLD = 2
 
 interface ApiStatusProviderProps {
     children: ReactNode
@@ -16,13 +17,31 @@ export function ApiStatusProvider({
     pollIntervalMs = API_STATUS_POLL_INTERVAL_MS,
     timeoutMs = API_STATUS_TIMEOUT_MS,
 }: ApiStatusProviderProps) {
-    const [value, setValue] = useState<ApiStatusContextValue>({ status: 'checking', services: [] })
+    const [value, setValue] = useState<ApiStatusContextValue>({
+        status: 'checking',
+        services: [],
+        showServicesDownBanner: false,
+    })
 
     useEffect(() => {
         let isMounted = true
         let isInFlight = false
         let controller: AbortController | null = null
+        let offlineChecks = 0
         const toApiStatus = (status: string): ApiStatus => status === 'ok' ? 'online' : 'offline'
+
+        const updateStatus = (nextValue: Omit<ApiStatusContextValue, 'showServicesDownBanner'>) => {
+            if (nextValue.status === 'offline') {
+                offlineChecks += 1
+            } else {
+                offlineChecks = 0
+            }
+
+            setValue({
+                ...nextValue,
+                showServicesDownBanner: offlineChecks >= API_STATUS_BANNER_OFFLINE_THRESHOLD,
+            })
+        }
 
         const check = async () => {
             if (isInFlight) return
@@ -33,7 +52,7 @@ export function ApiStatusProvider({
             try {
                 const health = await apiService.getDependencyHealth({ signal: controller.signal })
                 if (isMounted) {
-                    setValue({
+                    updateStatus({
                         status: toApiStatus(health.status),
                         services: health.services ?? [],
                         checkedAt: health.checked_at,
@@ -44,7 +63,7 @@ export function ApiStatusProvider({
                     try {
                         const health = await apiService.getHealth({ signal: controller.signal })
                         if (isMounted) {
-                            setValue({
+                            updateStatus({
                                 status: toApiStatus(health.status),
                                 services: [],
                                 checkedAt: undefined,
@@ -52,11 +71,11 @@ export function ApiStatusProvider({
                         }
                     } catch {
                         if (isMounted) {
-                            setValue({ status: 'offline', services: [], checkedAt: undefined })
+                            updateStatus({ status: 'offline', services: [], checkedAt: undefined })
                         }
                     }
                 } else if (isMounted) {
-                    setValue({ status: 'offline', services: [], checkedAt: undefined })
+                    updateStatus({ status: 'offline', services: [], checkedAt: undefined })
                 }
             } finally {
                 window.clearTimeout(timeoutId)

@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { i18n } from '@/app/i18n'
 import type { CardMediaTargetType } from '@/shared'
 import { apiService, resolveMediaUrl } from '@/infrastructure/api'
 import { asArray } from '../../../../utils/cardTransforms'
@@ -32,7 +33,7 @@ function toOptions(raw: unknown, type: CardMediaTargetType): CardPickerOption[] 
         .map((row) => ({
             type,
             id: (row.id || row.uuid || '') as string,
-            name: row.name?.trim() || 'Untitled',
+            name: row.name?.trim() || i18n.t('mediaGallery.picker.untitled'),
             imageUrl: resolveMediaUrl(row.image_url),
         }))
         .filter((option) => option.id)

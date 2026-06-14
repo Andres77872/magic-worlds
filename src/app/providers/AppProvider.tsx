@@ -8,6 +8,7 @@ import { AudioPlaylistProvider } from './AudioPlaylistProvider'
 import { AuthProvider } from './AuthProvider'
 import { BackgroundTasksProvider } from './BackgroundTasksProvider'
 import { DataProvider } from './DataProvider'
+import { LanguageProvider } from './LanguageProvider'
 import { NavigationProvider } from './NavigationProvider'
 
 interface AppProviderProps {
@@ -18,15 +19,17 @@ export function AppProvider({ children }: AppProviderProps) {
     return (
         <ApiStatusProvider>
             <AuthProvider>
-                <NavigationProvider>
-                    <DataProvider>
-                        <BackgroundTasksProvider>
-                            <AudioPlaylistProvider>
-                                {children}
-                            </AudioPlaylistProvider>
-                        </BackgroundTasksProvider>
-                    </DataProvider>
-                </NavigationProvider>
+                <LanguageProvider>
+                    <NavigationProvider>
+                        <DataProvider>
+                            <BackgroundTasksProvider>
+                                <AudioPlaylistProvider>
+                                    {children}
+                                </AudioPlaylistProvider>
+                            </BackgroundTasksProvider>
+                        </DataProvider>
+                    </NavigationProvider>
+                </LanguageProvider>
             </AuthProvider>
         </ApiStatusProvider>
     )

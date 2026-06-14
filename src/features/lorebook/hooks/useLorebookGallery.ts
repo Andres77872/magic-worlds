@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { i18n } from '@/app/i18n'
 import { apiService } from '@/infrastructure/api'
 import type { Lorebook } from '@/shared'
 import { normalizeLorebookList } from '../lorebookTransforms'
@@ -42,7 +43,7 @@ export function useLorebookGallery(pageSize = PAGE_SIZE) {
             setHasMore(page.length === pageSize)
         } catch (e) {
             if (seq !== seqRef.current) return
-            setError(e instanceof Error ? e.message : 'Failed to load lorebooks')
+            setError(e instanceof Error ? e.message : i18n.t('lorebookGallery.error.loadFailed'))
             if (reset) setItems([])
             setHasMore(false)
         } finally {

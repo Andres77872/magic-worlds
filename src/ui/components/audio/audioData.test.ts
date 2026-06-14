@@ -94,7 +94,8 @@ describe('getAudioPeaks', () => {
 
     it('rejects when Web Audio is unavailable (caller falls back to pseudoPeaks)', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => okBlobResponse()))
-        // jsdom has no AudioContext by default — ensure it stays undefined.
+        vi.stubGlobal('AudioContext', undefined)
+        vi.stubGlobal('webkitAudioContext', undefined)
         await expect(getAudioPeaks('https://x/no-webaudio.mp3')).rejects.toThrow('Web Audio is unavailable')
     })
 })

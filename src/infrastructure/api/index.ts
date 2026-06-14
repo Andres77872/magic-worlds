@@ -3,16 +3,54 @@
  */
 
 import type {
+    AdminVoiceCloneRequest,
+    AdminVoiceCloneResponse,
+    AdminVoiceClonePurpose,
+    AdminVoiceCloneUploadResponse,
+    AdminVoiceConcreteType,
+    AdminVoiceDeleteResponse,
+    AdminVoiceDesignRequest,
+    AdminVoiceDesignResponse,
+    AdminVoiceListResponse,
+    AdminVoiceQueryType,
+    AdminVoiceTestRequest,
+    AdminVoiceTestResponse,
+} from '../../shared/types/adminVoice.types'
+import type {
+    VoicePreset,
+    VoicePresetCreatePayload,
+    VoicePresetPreviewRequest,
+    VoicePresetUpdatePayload,
+} from '../../shared/types/voicePreset.types'
+import type {
+    AgentCreateRequest,
+    AgentDetail,
+    AgentModelsResponse,
+    AgentSummary,
+    AgentTestRequest,
+    AgentTestResponse,
+    AgentUpdateDraftRequest,
+    AgentVersionsResponse,
+} from '../../shared/types/agent.types'
+import type {
     BrowserAuthResponse,
+    ChangePasswordResponse,
+    EmailListResponse,
+    GenericMessageResponse,
     LoginCredentials,
     LoginResponse,
     RegisterData,
     RegisterResponse,
+    UserPreferences,
+    UserPreferencesUpdate,
     UserProfile,
 } from '../../shared/types/auth.types'
 import { API_BASE_URL } from './baseUrl'
+import { getProtectedMediaPath } from './mediaUrl'
 import { configureChatSocketAuthRefresh } from './chatSocket'
+import { configureVoiceSocketAuthRefresh } from './voiceSocket'
 import type { ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from '../../shared/types/interaction.types'
+import type { VoiceCallLimits, VoiceCallListResponse, VoiceCallTranscriptResponse, VoiceSegmentUploadRequest, VoiceSegmentUploadResponse } from '../../shared/types/voice.types'
 import type { AdventureSnapshot } from '../../shared/types/adventure.types'
 import type {
     LoreActivationPreviewRequest,
@@ -45,6 +83,13 @@ import type {
     ItemCardResponse,
     WorldCardResponse,
 } from '../../shared/types/aiCard.types'
+import type {
+    CardCloneResponse,
+    CardShareLinkResponse,
+    SharedCardListResponse,
+    SharedCardResource,
+    ShareableCardType,
+} from '../../shared/types/cardSharing.types'
 import type {
     CardMediaTargetType,
     CardPortraitRequest,
@@ -118,7 +163,20 @@ export interface ApiDependencyHealthResponse {
     services: ApiDependencyService[]
 }
 
+export interface VoiceConsentResponse {
+    status: 'accepted'
+    consent_version: string
+    limits: VoiceCallLimits
+}
+
+export interface VoiceEndResponse {
+    status: 'ended' | 'not_found'
+    voice_session_id: string | null
+    reason: string
+}
+
 export type CardExportType = 'character' | 'world' | 'adventure_template' | 'item'
+export type CardShareType = ShareableCardType
 
 const TOKEN_STORAGE_KEY = 'magic_worlds:token'
 const USER_STORAGE_KEY = 'magic_worlds:user'
@@ -142,8 +200,10 @@ export class ApiError extends Error {
     readonly retryable?: boolean
     readonly retryAfterSeconds?: number
     readonly action?: string
+    /** The raw structured `detail` object, when the server returned one (e.g. a 409 already-imported conflict). */
+    readonly details?: Record<string, unknown>
 
-    constructor(status: number, message: string, metadata: Partial<Pick<ApiError, 'category' | 'code' | 'requestId' | 'retryable' | 'retryAfterSeconds' | 'action'>> = {}) {
+    constructor(status: number, message: string, metadata: Partial<Pick<ApiError, 'category' | 'code' | 'requestId' | 'retryable' | 'retryAfterSeconds' | 'action' | 'details'>> = {}) {
         super(message)
         this.name = 'ApiError'
         this.status = status
@@ -153,6 +213,7 @@ export class ApiError extends Error {
         this.retryable = metadata.retryable
         this.retryAfterSeconds = metadata.retryAfterSeconds
         this.action = metadata.action
+        this.details = metadata.details
     }
 
     /** A transient server-side failure (502/503/504, or any 5xx) worth retrying. */
@@ -169,6 +230,7 @@ interface ParsedApiError {
     retryable?: boolean
     retryAfterSeconds?: number
     action?: string
+    details?: Record<string, unknown>
 }
 
 type ApiRequestOptions = RequestInit & {
@@ -345,6 +407,8 @@ class ApiService {
             || path === '/auth/platform/login'
             || path === '/auth/refresh'
             || path === '/auth/logout'
+            || path === '/auth/provider-init/google'
+            || path === '/auth/google/exchange'
     }
 
     private withAuthorization(config: RequestInit, token: string): RequestInit {
@@ -460,9 +524,20 @@ class ApiService {
             if (body && typeof body === 'object') {
                 const envelope = body as Partial<AiCardErrorEnvelope>
                 const publicError = envelope.error as AiCardPublicError | undefined
+                const detail = envelope.detail
+                const voiceError = detail && typeof detail === 'object'
+                    ? detail as { type?: unknown; category?: unknown; message?: unknown; detail?: unknown; retry_after_seconds?: unknown; fatal?: unknown }
+                    : null
+                const structuredDetail = detail && typeof detail === 'object' && !Array.isArray(detail)
+                    ? detail as Record<string, unknown>
+                    : undefined
                 const message =
-                    typeof envelope.detail === 'string'
-                        ? envelope.detail
+                    typeof detail === 'string'
+                        ? detail
+                        : voiceError?.type === 'voice_error' && typeof voiceError.message === 'string'
+                          ? voiceError.message
+                        : typeof voiceError?.detail === 'string'
+                          ? voiceError.detail
                         : publicError?.message
                           ? String(publicError.message)
                           : typeof (body as { message?: unknown }).message === 'string'
@@ -471,12 +546,15 @@ class ApiService {
                 if (message) {
                     return {
                         message,
-                        category: publicError?.category,
+                        category: typeof voiceError?.category === 'string' ? voiceError.category : publicError?.category,
                         code: publicError?.code,
                         requestId: publicError?.request_id || envelope.request_id || requestIdHeader,
                         retryable: publicError?.retryable,
-                        retryAfterSeconds: publicError?.retry_after_seconds ?? (Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined),
+                        retryAfterSeconds: typeof voiceError?.retry_after_seconds === 'number'
+                            ? voiceError.retry_after_seconds
+                            : publicError?.retry_after_seconds ?? (Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined),
                         action: publicError?.action,
+                        details: structuredDetail,
                     }
                 }
             }
@@ -574,6 +652,145 @@ class ApiService {
             credentials: 'include',
             headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         }, true, true)
+    }
+
+    /**
+     * Mint an opaque Google provider-init token (step 1 of "Continue with Google").
+     *
+     * The BFF binds the strict project/group scope server-side and returns only the
+     * opaque token. We then navigate the browser top-level to the BFF start-shim
+     * (see {@link buildGoogleStartUrl}). `returnOrigin` must equal the origin used
+     * here so the provider-init binding validates on redeem.
+     */
+    async createGoogleProviderInit(returnOrigin: string): Promise<{ provider_init_token: string; expires_in: number; provider?: string }> {
+        return this.request<{ provider_init_token: string; expires_in: number; provider?: string }>('/auth/provider-init/google', {
+            method: 'POST',
+            credentials: 'include',
+            body: { return_origin: returnOrigin, purpose: 'login' } as unknown as BodyInit,
+        }, true, true)
+    }
+
+    /**
+     * Build the top-level navigation URL to the BFF Google start-shim (step 2).
+     *
+     * api.auth's /auth/google/start is POST+JSON, so the browser cannot navigate to
+     * it directly; the BFF shim accepts this GET and 303-redirects to Google. Use
+     * with `window.location.assign(...)` — this is a full navigation, not a fetch.
+     */
+    buildGoogleStartUrl(providerInitToken: string, rememberMe: boolean, returnOrigin: string): string {
+        const params = new URLSearchParams({
+            pit: providerInitToken,
+            return_origin: returnOrigin,
+            remember_me: String(rememberMe),
+        })
+        return `${this.baseUrl}/auth/google/start/shim?${params.toString()}`
+    }
+
+    /**
+     * Redeem the one-time delivery code from the Google return (final step).
+     *
+     * After the OAuth dance the BFF set the HttpOnly refresh cookie and redirected
+     * the browser to the SPA with an opaque single-use code. This exchanges it for
+     * the sanitized auth body (access token + user), the same shape as /auth/login.
+     */
+    async exchangeGoogleReturn(code: string): Promise<LoginResponse> {
+        return this.request<LoginResponse>('/auth/google/exchange', {
+            method: 'POST',
+            credentials: 'include',
+            body: { code } as unknown as BodyInit,
+        }, true, true)
+    }
+
+    /**
+     * Request a password-reset email by email or username. The BFF always
+     * returns a generic accepted body (it never discloses whether the account
+     * exists), so this resolves rather than throwing for an unknown identifier.
+     */
+    async requestPasswordReset(emailOrUsername: string): Promise<GenericMessageResponse> {
+        return this.request<GenericMessageResponse>('/auth/password/forgot', {
+            method: 'POST',
+            body: { email_or_username: emailOrUsername } as unknown as BodyInit,
+        }, true, true)
+    }
+
+    /**
+     * Consume a password-reset link token and set a new password. Unauthenticated
+     * and cookie-free; a weak password surfaces as a 422 ApiError. On success the
+     * provider revokes all sessions and mints none, so the user must sign in after.
+     */
+    async resetPassword(token: string, newPassword: string): Promise<GenericMessageResponse> {
+        return this.request<GenericMessageResponse>('/auth/password/reset', {
+            method: 'POST',
+            body: { token, new_password: newPassword } as unknown as BodyInit,
+        }, true, true)
+    }
+
+    /**
+     * Change the signed-in user's password. `isAuthEndpoint=true` skips the auto
+     * refresh-and-retry on 401, so a wrong-current-password 401 (AUTH_1001)
+     * surfaces as a form error instead of logging the user out. The provider
+     * preserves the current session, so the user stays signed in on success.
+     */
+    async changePassword(currentPassword: string, newPassword: string): Promise<ChangePasswordResponse> {
+        const token = this.getStoredToken()
+        return this.request<ChangePasswordResponse>('/auth/password/change', {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            body: { current_password: currentPassword, new_password: newPassword } as unknown as BodyInit,
+        }, true, true)
+    }
+
+    /**
+     * Consume an email-activation link token. Unauthenticated; generic accepted
+     * body. On success the provider activates the address AND revokes the user's
+     * sessions, so the caller must clear local auth and sign in again.
+     */
+    async verifyEmail(token: string): Promise<GenericMessageResponse> {
+        return this.request<GenericMessageResponse>('/auth/email/verify', {
+            method: 'POST',
+            body: { token } as unknown as BodyInit,
+        }, true, true)
+    }
+
+    /** List the signed-in user's email addresses (masked). */
+    async listEmails(): Promise<EmailListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<EmailListResponse>('/user/me/emails', token, {
+            method: 'GET',
+        })
+    }
+
+    /** Add an email address and enqueue an activation link. */
+    async addEmail(email: string): Promise<GenericMessageResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<GenericMessageResponse>('/user/me/emails', token, {
+            method: 'POST',
+            body: { email } as unknown as BodyInit,
+        })
+    }
+
+    /** Resend the activation link for a pending email address. */
+    async resendEmailActivation(emailId: string): Promise<GenericMessageResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<GenericMessageResponse>(
+            `/user/me/emails/${encodeURIComponent(emailId)}/resend`, token, { method: 'POST' },
+        )
+    }
+
+    /** Remove one of the user's email addresses. */
+    async removeEmail(emailId: string): Promise<GenericMessageResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<GenericMessageResponse>(
+            `/user/me/emails/${encodeURIComponent(emailId)}`, token, { method: 'DELETE' },
+        )
+    }
+
+    /** Mark an activated email as the user's primary address. */
+    async setPrimaryEmail(emailId: string): Promise<GenericMessageResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<GenericMessageResponse>(
+            `/user/me/emails/${encodeURIComponent(emailId)}/primary`, token, { method: 'POST' },
+        )
     }
 
     /**
@@ -816,6 +1033,203 @@ class ApiService {
         })
     }
 
+    async getUserPreferences(): Promise<UserPreferences> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<UserPreferences>('/user/preferences', token, {
+            method: 'GET',
+        })
+    }
+
+    async updateUserPreferences(body: UserPreferencesUpdate): Promise<UserPreferences> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<UserPreferences>('/user/preferences', token, {
+            method: 'PATCH',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    async listAdminVoices(voiceType: AdminVoiceQueryType = 'all'): Promise<AdminVoiceListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AdminVoiceListResponse>(
+            `/admin/voices?voice_type=${encodeURIComponent(voiceType)}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    async designAdminVoice(body: AdminVoiceDesignRequest): Promise<AdminVoiceDesignResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AdminVoiceDesignResponse>('/admin/voices/design', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    async deleteAdminVoice(
+        voiceType: Exclude<AdminVoiceConcreteType, 'system'>,
+        voiceId: string,
+    ): Promise<AdminVoiceDeleteResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AdminVoiceDeleteResponse>(
+            `/admin/voices/${encodeURIComponent(voiceType)}/${encodeURIComponent(voiceId)}`,
+            token,
+            { method: 'DELETE' },
+        )
+    }
+
+    async testAdminVoice(body: AdminVoiceTestRequest): Promise<AdminVoiceTestResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AdminVoiceTestResponse>('/admin/voices/test', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    // --- Voice presets (user-facing) ---------------------------------------
+
+    async listVoicePresets(q?: string): Promise<VoicePreset[]> {
+        const token = this.getStoredToken()
+        const query = q && q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''
+        return this.authenticatedRequest<VoicePreset[]>(`/voice-presets${query}`, token, { method: 'GET' })
+    }
+
+    async createVoicePreset(body: VoicePresetCreatePayload): Promise<VoicePreset> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<VoicePreset>('/voice-presets', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    async updateVoicePreset(presetId: string, body: VoicePresetUpdatePayload): Promise<VoicePreset> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<VoicePreset>(`/voice-presets/${encodeURIComponent(presetId)}`, token, {
+            method: 'PUT',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    async deleteVoicePreset(presetId: string): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/voice-presets/${encodeURIComponent(presetId)}`, token, { method: 'DELETE' })
+    }
+
+    /** Authenticated (non-root) catalog of MiniMax system voices for the studio + picker. */
+    async listSystemVoices(): Promise<AdminVoiceListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AdminVoiceListResponse>('/voice-presets/system-voices', token, { method: 'GET' })
+    }
+
+    /** Ephemeral, non-root preview synthesis of a system voice + recipe (hex audio). */
+    async previewVoice(body: VoicePresetPreviewRequest): Promise<AdminVoiceTestResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AdminVoiceTestResponse>('/voice-presets/preview', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    // --- Agent Studio (root-only) ------------------------------------------
+
+    async listAgents(): Promise<AgentSummary[]> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AgentSummary[]>('/admin/agents', token, { method: 'GET' })
+    }
+
+    async getAgent(workflowKey: string): Promise<AgentDetail> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AgentDetail>(`/admin/agents/${encodeURIComponent(workflowKey)}`, token, {
+            method: 'GET',
+        })
+    }
+
+    async createAgent(body: AgentCreateRequest): Promise<AgentDetail> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AgentDetail>('/admin/agents', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    async updateAgentDraft(workflowKey: string, body: AgentUpdateDraftRequest): Promise<AgentDetail> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AgentDetail>(`/admin/agents/${encodeURIComponent(workflowKey)}/draft`, token, {
+            method: 'PUT',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    async publishAgent(workflowKey: string): Promise<AgentDetail> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AgentDetail>(`/admin/agents/${encodeURIComponent(workflowKey)}/publish`, token, {
+            method: 'POST',
+        })
+    }
+
+    async listAgentVersions(workflowKey: string): Promise<AgentVersionsResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AgentVersionsResponse>(
+            `/admin/agents/${encodeURIComponent(workflowKey)}/versions`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    async rollbackAgentVersion(workflowKey: string, versionId: string): Promise<AgentDetail> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AgentDetail>(
+            `/admin/agents/${encodeURIComponent(workflowKey)}/rollback/${encodeURIComponent(versionId)}`,
+            token,
+            { method: 'POST' },
+        )
+    }
+
+    async deleteAgent(workflowKey: string): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/admin/agents/${encodeURIComponent(workflowKey)}`, token, {
+            method: 'DELETE',
+        })
+    }
+
+    async testAgent(workflowKey: string, body: AgentTestRequest): Promise<AgentTestResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AgentTestResponse>(`/admin/agents/${encodeURIComponent(workflowKey)}/test`, token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    async listAgentModels(): Promise<AgentModelsResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AgentModelsResponse>('/admin/agents/models', token, { method: 'GET' })
+    }
+
+    /** Step 1 of cloning: upload an audio sample (multipart). The browser sets the boundary. */
+    async uploadAdminVoiceCloneSample(
+        file: File,
+        purpose: AdminVoiceClonePurpose = 'voice_clone',
+        options: { signal?: AbortSignal } = {},
+    ): Promise<AdminVoiceCloneUploadResponse> {
+        const token = this.getStoredToken()
+        const form = new FormData()
+        form.append('file', file)
+        form.append('purpose', purpose)
+        return this.authenticatedRequest<AdminVoiceCloneUploadResponse>('/admin/voices/clone-file', token, {
+            method: 'POST',
+            body: form as unknown as BodyInit,
+            signal: options.signal,
+        })
+    }
+
+    /** Step 2 of cloning: create the custom voice from an uploaded sample reference. */
+    async cloneAdminVoice(body: AdminVoiceCloneRequest): Promise<AdminVoiceCloneResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AdminVoiceCloneResponse>('/admin/voices/clone', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
     /**
      * Create a new character
      */
@@ -865,6 +1279,66 @@ class ApiService {
             `/cards/${cardType}/${encodeURIComponent(cardId)}/export.png`,
             'Card image could not be exported.',
             'image/png',
+        )
+    }
+
+    async createCardShareLink(cardType: CardShareType, cardId: string): Promise<CardShareLinkResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardShareLinkResponse>(
+            `/cards/${cardType}/${encodeURIComponent(cardId)}/share`,
+            token,
+            { method: 'POST' },
+        )
+    }
+
+    async getSharedCard(shareToken: string): Promise<SharedCardResource> {
+        return this.request<SharedCardResource>(`/cards/shared/${encodeURIComponent(shareToken)}`, {
+            method: 'GET',
+        })
+    }
+
+    async importSharedCard(shareToken: string, opts?: { force?: boolean }): Promise<CardCloneResponse> {
+        const token = this.getStoredToken()
+        const query = opts?.force ? '?force=true' : ''
+        return this.authenticatedRequest<CardCloneResponse>(
+            `/cards/shared/${encodeURIComponent(shareToken)}/import${query}`,
+            token,
+            { method: 'POST' },
+        )
+    }
+
+    async revokeSharedCardLink(shareToken: string): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/cards/shared/${encodeURIComponent(shareToken)}`, token, {
+            method: 'DELETE',
+        })
+    }
+
+    async publishCard(cardType: CardShareType, cardId: string): Promise<SharedCardResource> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<SharedCardResource>(
+            `/cards/${cardType}/${encodeURIComponent(cardId)}/public`,
+            token,
+            { method: 'POST' },
+        )
+    }
+
+    async unpublishCard(cardType: CardShareType, cardId: string): Promise<SharedCardResource> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<SharedCardResource>(
+            `/cards/${cardType}/${encodeURIComponent(cardId)}/public`,
+            token,
+            { method: 'DELETE' },
+        )
+    }
+
+    async cloneCard(cardType: CardShareType, cardId: string, opts?: { force?: boolean }): Promise<CardCloneResponse> {
+        const token = this.getStoredToken()
+        const query = opts?.force ? '?force=true' : ''
+        return this.authenticatedRequest<CardCloneResponse>(
+            `/cards/${cardType}/${encodeURIComponent(cardId)}/clone${query}`,
+            token,
+            { method: 'POST' },
         )
     }
 
@@ -959,6 +1433,76 @@ class ApiService {
     private listQuery(skip: number, limit: number, q?: string): string {
         const term = q?.trim()
         return `?skip=${skip}&limit=${limit}${term ? `&q=${encodeURIComponent(term)}` : ''}`
+    }
+
+    private sharedCardListQuery(
+        skip: number,
+        limit: number,
+        q?: string,
+        cardType?: CardShareType,
+        role?: 'character' | 'persona',
+    ): string {
+        const params = new URLSearchParams()
+        params.set('skip', String(skip))
+        params.set('limit', String(limit))
+        if (q?.trim()) params.set('q', q.trim())
+        if (cardType) params.set('card_type', cardType)
+        if (role) params.set('role', role)
+        return `?${params.toString()}`
+    }
+
+    async listPublicCards(
+        skip: number = 0,
+        limit: number = 100,
+        q?: string,
+        cardType?: CardShareType,
+        role?: 'character' | 'persona',
+    ): Promise<SharedCardListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<SharedCardListResponse>(
+            `/cards/public${this.sharedCardListQuery(skip, limit, q, cardType, role)}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    async getPublicCard(cardType: CardShareType, cardId: string): Promise<SharedCardResource> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<SharedCardResource>(
+            `/cards/public/${cardType}/${encodeURIComponent(cardId)}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    async listMyPublicCards(
+        skip: number = 0,
+        limit: number = 100,
+        q?: string,
+        cardType?: CardShareType,
+        role?: 'character' | 'persona',
+    ): Promise<SharedCardListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<SharedCardListResponse>(
+            `/cards/me/public${this.sharedCardListQuery(skip, limit, q, cardType, role)}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    async listMyShareLinks(
+        skip: number = 0,
+        limit: number = 100,
+        q?: string,
+        cardType?: CardShareType,
+        role?: 'character' | 'persona',
+    ): Promise<SharedCardListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<SharedCardListResponse>(
+            `/cards/me/share-links${this.sharedCardListQuery(skip, limit, q, cardType, role)}`,
+            token,
+            { method: 'GET' },
+        )
     }
 
     /**
@@ -1721,6 +2265,20 @@ class ApiService {
         })
     }
 
+    async deleteAdventureSessionMessage(sessionId: number, messageId: number): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/adventure-sessions/${sessionId}/messages/${messageId}`, token, {
+            method: 'DELETE'
+        })
+    }
+
+    async clearAdventureSessionMessages(sessionId: number): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/adventure-sessions/${sessionId}/messages`, token, {
+            method: 'DELETE'
+        })
+    }
+
     async getImageJob(jobId: string): Promise<ImageJobPublicResponse> {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/images/jobs/${encodeURIComponent(jobId)}`, token, {
@@ -1732,6 +2290,61 @@ class ApiService {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/images/jobs/${encodeURIComponent(jobId)}/result`, token, {
             method: 'GET'
+        })
+    }
+
+    /* ------------------------------ voice call ------------------------------ */
+
+    async saveVoiceConsent(sessionId: number, options: { signal?: AbortSignal } = {}): Promise<VoiceConsentResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<VoiceConsentResponse>(`/character-chats/${sessionId}/voice-consent`, token, {
+            method: 'POST',
+            body: {} as unknown as BodyInit,
+            signal: options.signal,
+        })
+    }
+
+    async uploadVoiceSegment(
+        sessionId: number,
+        body: VoiceSegmentUploadRequest,
+        options: { signal?: AbortSignal } = {},
+    ): Promise<VoiceSegmentUploadResponse> {
+        const token = this.getStoredToken()
+        const form = new FormData()
+        form.append('voice_session_id', body.voice_session_id)
+        form.append('client_call_id', body.client_call_id)
+        form.append('seq', String(body.seq))
+        form.append('started_at_ms', String(body.started_at_ms))
+        form.append('duration_ms', String(body.duration_ms))
+        form.append('encoding', body.encoding)
+        form.append('sample_rate', String(body.sample_rate))
+        form.append('channels', String(body.channels))
+        form.append('audio_sha256', body.audio_sha256)
+        form.append('vad_json', JSON.stringify(body.vad))
+        form.append('audio', body.audio, `voice-segment-${body.seq}`)
+        const idempotencyKey = `voice:${body.voice_session_id}:${body.seq}:${body.audio_sha256}`
+
+        return this.authenticatedRequest<VoiceSegmentUploadResponse>(`/character-chats/${sessionId}/voice-segments`, token, {
+            method: 'POST',
+            headers: { 'Idempotency-Key': idempotencyKey },
+            body: form as unknown as BodyInit,
+            signal: options.signal,
+        })
+    }
+
+    async endVoiceCall(
+        sessionId: number,
+        body: { voiceSessionId?: string | null; reason?: 'user' | 'navigation' | 'permission_lost' | string } = {},
+        options: { signal?: AbortSignal } = {},
+    ): Promise<VoiceEndResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<VoiceEndResponse>(`/character-chats/${sessionId}/voice-end`, token, {
+            method: 'POST',
+            body: {
+                voice_session_id: body.voiceSessionId ?? null,
+                reason: body.reason ?? 'user',
+            } as unknown as BodyInit,
+            signal: options.signal,
         })
     }
 
@@ -2097,6 +2710,19 @@ class ApiService {
         })
     }
 
+    /**
+     * Start a new group character chat with 2-6 AI character cards.
+     * Unlike 1:1 chat, this intentionally creates a fresh room every time.
+     */
+    async createCharacterGroupChat(characterIds: string[], personaId: string): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest('/character-chats/groups', token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { character_ids: characterIds, persona_id: personaId } as unknown as BodyInit
+        })
+    }
+
     /** List the user's 1:1 character chats (most recent state per chat). */
     async getCharacterChats(): Promise<any> {
         const token = this.getStoredToken()
@@ -2110,6 +2736,44 @@ class ApiService {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/character-chats/${chatId}`, token, {
             method: 'GET'
+        })
+    }
+
+    /** Recent voice calls across all of the user's character chats (call-history feed). */
+    async getRecentVoiceCalls(params: { skip?: number; limit?: number } = {}): Promise<VoiceCallListResponse> {
+        const token = this.getStoredToken()
+        const query = this.listQuery(params.skip ?? 0, params.limit ?? 20)
+        return this.authenticatedRequest<VoiceCallListResponse>(`/voice-calls${query}`, token, { method: 'GET' })
+    }
+
+    /** Voice calls that belong to one character chat, newest first. */
+    async getCharacterChatCalls(chatId: number, params: { skip?: number; limit?: number } = {}): Promise<VoiceCallListResponse> {
+        const token = this.getStoredToken()
+        const query = this.listQuery(params.skip ?? 0, params.limit ?? 20)
+        return this.authenticatedRequest<VoiceCallListResponse>(`/character-chats/${chatId}/calls${query}`, token, { method: 'GET' })
+    }
+
+    /** Ordered transcript for one call (user STT lines + character lines with saved audio). */
+    async getVoiceCallTranscript(voiceSessionId: string): Promise<VoiceCallTranscriptResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<VoiceCallTranscriptResponse>(
+            `/voice-calls/${encodeURIComponent(voiceSessionId)}/transcript`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    async deleteCharacterChatMessage(chatId: number, messageId: number): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}/messages/${messageId}`, token, {
+            method: 'DELETE'
+        })
+    }
+
+    async clearCharacterChatMessages(chatId: number): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}/messages`, token, {
+            method: 'DELETE'
         })
     }
 
@@ -2137,45 +2801,13 @@ class ApiService {
 
 export const apiService = new ApiService()
 configureChatSocketAuthRefresh(() => apiService.refreshAccessToken())
-
-const PROTECTED_MEDIA_PATH_PREFIXES = [
-    '/images/assets/',
-    '/theme-songs/assets/',
-    '/generated-images/',
-    '/generated-audio/',
-    '/tts/assets/',
-]
-
-function getProtectedMediaPath(url?: string | null): string | undefined {
-    if (!url || /^(data:|blob:)/i.test(url)) return undefined
-    try {
-        const parsed = new URL(url, API_BASE_URL)
-        if (!PROTECTED_MEDIA_PATH_PREFIXES.some((prefix) => parsed.pathname.startsWith(prefix))) return undefined
-        return `${parsed.pathname}${parsed.search}`
-    } catch {
-        return undefined
-    }
-}
-
-/**
- * Resolve a media asset URL for use in media fetches. The backend returns owned
- * generated assets as root-relative protected routes; prefix those with the API
- * base. Absolute/data/blob URLs pass through unchanged.
- */
-export function resolveMediaUrl(url?: string | null): string | undefined {
-    if (!url) return undefined
-    const protectedPath = getProtectedMediaPath(url)
-    if (protectedPath) return `${API_BASE_URL}${protectedPath}`
-    if (/^(https?:|data:|blob:)/i.test(url)) return url
-    return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
-}
-
-export function isProtectedMediaUrl(url?: string | null): boolean {
-    return Boolean(getProtectedMediaPath(url))
-}
+configureVoiceSocketAuthRefresh(() => apiService.refreshAccessToken())
 
 export const refreshAccessToken = (oldToken?: string): Promise<string> => apiService.refreshAccessToken(oldToken)
 export type { ApiService }
 
+export { isProtectedMediaUrl, isPublicMediaUrl, resolveMediaUrl } from './mediaUrl'
 export { ChatSocket, AdventureChatSocket, configureChatSocketAuthRefresh } from './chatSocket'
 export type { ChatSocketStatus, ChatSocketHandlers } from './chatSocket'
+export { VoiceSocket, configureVoiceSocketAuthRefresh } from './voiceSocket'
+export type { VoiceSocketStatus, VoiceSocketHandlers } from './voiceSocket'

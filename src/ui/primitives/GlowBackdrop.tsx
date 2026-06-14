@@ -29,9 +29,12 @@ const PAGE_ARCANE = 'rgba(143,111,227,.14)'
 interface GlowBackdropProps {
     variant?: GlowVariant
     className?: string
+    /** App-shell only: breathe the two `page` blobs on independent long periods
+     *  for an organic candlelight. No effect on other variants. */
+    animated?: boolean
 }
 
-export function GlowBackdrop({ variant = 'hero', className }: GlowBackdropProps) {
+export function GlowBackdrop({ variant = 'hero', className, animated = false }: GlowBackdropProps) {
     return (
         <div aria-hidden className={cx('pointer-events-none absolute inset-0 overflow-hidden', className)}>
             {variant === 'hero' && (
@@ -63,15 +66,25 @@ export function GlowBackdrop({ variant = 'hero', className }: GlowBackdropProps)
             )}
             {variant === 'page' && (
                 <>
-                    {/* Centers pushed past the viewport corners so the radial
-                        fade finishes on-screen and never reads as a cut edge. */}
+                    {/* Diagonal candlelight wrap: ember warms the top-left, arcane
+                        cools the bottom-right, each a full-viewport radial fading
+                        toward center. Brightness varies smoothly across the whole
+                        viewport — no top-pinned pair, so there's no horizontal fade
+                        line that reads as a "cut" while content scrolls under this
+                        fixed layer. */}
                     <div
-                        className="absolute -left-[8%] -top-[12%] h-[55vh] min-h-[380px] w-[45vw] min-w-[460px]"
-                        style={{ background: `radial-gradient(circle, ${PAGE_EMBER}, transparent 65%)` }}
+                        className="absolute inset-0"
+                        style={{
+                            background: `radial-gradient(120% 110% at 0% 0%, ${PAGE_EMBER}, transparent 68%)`,
+                            animation: animated ? 'var(--animate-candle-a)' : undefined,
+                        }}
                     />
                     <div
-                        className="absolute -right-[10%] top-[16%] h-[62vh] min-h-[420px] w-[48vw] min-w-[500px]"
-                        style={{ background: `radial-gradient(circle, ${PAGE_ARCANE}, transparent 62%)` }}
+                        className="absolute inset-0"
+                        style={{
+                            background: `radial-gradient(120% 110% at 100% 100%, ${PAGE_ARCANE}, transparent 68%)`,
+                            animation: animated ? 'var(--animate-candle-b)' : undefined,
+                        }}
                     />
                 </>
             )}

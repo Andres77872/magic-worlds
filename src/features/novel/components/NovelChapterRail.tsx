@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Trash2 } from 'lucide-react'
 import type { StoryChapter } from '@/shared'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
@@ -20,13 +21,14 @@ interface NovelChapterRailProps {
 }
 
 export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, onDelete }: NovelChapterRailProps) {
+    const { t } = useTranslation()
     const [pendingDelete, setPendingDelete] = useState<StoryChapter | null>(null)
 
     return (
         <aside className="flex min-h-0 flex-col border-b border-parchment-50/10 bg-ink-900/35 lg:border-b-0 lg:border-r">
             <div className="flex items-center justify-between px-4 pb-2 pt-4">
-                <h2 className="m-0 font-ui text-sm font-semibold text-parchment-100">Chapters</h2>
-                <IconButton label="Add chapter" size="sm" onClick={onAdd}>
+                <h2 className="m-0 font-ui text-sm font-semibold text-parchment-100">{t('novelEditor.chapters.title')}</h2>
+                <IconButton label={t('novelEditor.chapters.add')} size="sm" onClick={onAdd}>
                     <Icon icon={Plus} size={16} />
                 </IconButton>
             </div>
@@ -47,15 +49,15 @@ export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, o
                                 data-testid="novel-chapter-row"
                             >
                                 <span className="block truncate pr-7 font-ui text-sm font-semibold text-parchment-100">
-                                    {chapter.title || `Chapter ${index + 1}`}
+                                    {chapter.title || t('novelEditor.chapters.fallbackTitle', { number: index + 1 })}
                                 </span>
                                 <span className="mt-1 block font-ui text-xs text-parchment-400">
-                                    {wordCount(chapter.body)} words
+                                    {t('novelEditor.chapters.words', { count: wordCount(chapter.body) })}
                                 </span>
                             </button>
                             {chapters.length > 1 && (
                                 <IconButton
-                                    label={`Delete ${chapter.title || `Chapter ${index + 1}`}`}
+                                    label={t('novelEditor.chapters.deleteLabel', { title: chapter.title || t('novelEditor.chapters.fallbackTitle', { number: index + 1 }) })}
                                     size="sm"
                                     tone="danger"
                                     onClick={() => setPendingDelete(chapter)}
@@ -71,9 +73,9 @@ export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, o
 
             <ConfirmDialog
                 visible={pendingDelete !== null}
-                title="Delete chapter"
-                message={pendingDelete ? `Delete "${pendingDelete.title}"? Its text cannot be recovered.` : ''}
-                confirmLabel="Delete"
+                title={t('novelEditor.chapters.deleteTitle')}
+                message={pendingDelete ? t('novelEditor.chapters.deleteMessage', { title: pendingDelete.title }) : ''}
+                confirmLabel={t('novelEditor.chapters.deleteConfirm')}
                 variant="danger"
                 onConfirm={() => {
                     if (pendingDelete) onDelete(pendingDelete.id)

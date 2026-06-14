@@ -10,8 +10,13 @@ import {
 
 const track = (id: string) => themeTrack({ url: id, title: id })
 
-function state(ids: string[], currentIndex: number, playEpoch = 0): PlaylistQueueState {
-    return { queue: ids.map(track), currentIndex, playEpoch }
+function state(
+    ids: string[],
+    currentIndex: number,
+    playEpoch = 0,
+    loopMode: PlaylistQueueState['loopMode'] = 'off',
+): PlaylistQueueState {
+    return { queue: ids.map(track), currentIndex, playEpoch, loopMode }
 }
 
 describe('playlistReducer', () => {
@@ -112,6 +117,12 @@ describe('playlistReducer', () => {
         expect(playlistReducer(next, { type: 'NEXT' })).toBe(next)
     })
 
+    it('NEXT wraps at the end in queue loop mode', () => {
+        const next = playlistReducer(state(['a', 'b'], 1, 1, 'queue'), { type: 'NEXT' })
+        expect(next.currentIndex).toBe(0)
+        expect(next.playEpoch).toBe(2)
+    })
+
     it('PREV steps back, restarts at the first track, and ignores empty queues', () => {
         const back = playlistReducer(state(['a', 'b'], 1, 1), { type: 'PREV' })
         expect(back.currentIndex).toBe(0)
@@ -120,6 +131,12 @@ describe('playlistReducer', () => {
         expect(restart.currentIndex).toBe(0)
         expect(restart.playEpoch).toBe(3)
         expect(playlistReducer(EMPTY_PLAYLIST_STATE, { type: 'PREV' })).toBe(EMPTY_PLAYLIST_STATE)
+    })
+
+    it('PREV wraps from the first track in queue loop mode', () => {
+        const next = playlistReducer(state(['a', 'b'], 0, 1, 'queue'), { type: 'PREV' })
+        expect(next.currentIndex).toBe(1)
+        expect(next.playEpoch).toBe(2)
     })
 
     it('REMOVE_AT keeps the current index pointing at the same track when removing before it', () => {
@@ -142,16 +159,34 @@ describe('playlistReducer', () => {
     })
 
     it('CLEAR resets to the empty state', () => {
-        expect(playlistReducer(state(['a', 'b'], 1, 7), { type: 'CLEAR' })).toEqual(EMPTY_PLAYLIST_STATE)
+        expect(playlistReducer(state(['a', 'b'], 1, 7, 'queue'), { type: 'CLEAR' })).toEqual(EMPTY_PLAYLIST_STATE)
+    })
+
+    it('CYCLE_LOOP_MODE steps through off, current track, playlist, then off', () => {
+        const trackLoop = playlistReducer(state(['a'], 0), { type: 'CYCLE_LOOP_MODE' })
+        expect(trackLoop.loopMode).toBe('track')
+        const queueLoop = playlistReducer(trackLoop, { type: 'CYCLE_LOOP_MODE' })
+        expect(queueLoop.loopMode).toBe('queue')
+        const off = playlistReducer(queueLoop, { type: 'CYCLE_LOOP_MODE' })
+        expect(off.loopMode).toBe('off')
     })
 })
 
 describe('playlist persistence', () => {
     it('round-trips the queue and position, always restoring paused (epoch 0)', () => {
-        const restored = restorePlaylistState(serializePlaylist(state(['a', 'b'], 1, 9)))
+        const restored = restorePlaylistState(serializePlaylist(state(['a', 'b'], 1, 9, 'queue')))
         expect(restored.queue.map((t) => t.id)).toEqual(['a', 'b'])
         expect(restored.currentIndex).toBe(1)
         expect(restored.playEpoch).toBe(0)
+        expect(restored.loopMode).toBe('queue')
+    })
+
+    it('restores old saved playlists and malformed loop modes with loop off', () => {
+        expect(restorePlaylistState(JSON.stringify({ queue: [track('a')], currentIndex: 0 })).loopMode).toBe('off')
+        expect(
+            restorePlaylistState(JSON.stringify({ queue: [track('a')], currentIndex: 0, loopMode: 'forever' }))
+                .loopMode,
+        ).toBe('off')
     })
 
     it('clamps an out-of-range persisted index', () => {

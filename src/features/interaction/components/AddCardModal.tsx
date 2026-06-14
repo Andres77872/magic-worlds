@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Check, Plus } from 'lucide-react'
 import { Button, Icon, Input, Modal, Tag, cx } from '../../../ui/primitives'
 
@@ -18,7 +19,8 @@ export interface AddCandidate {
 interface AddCardModalProps {
     open: boolean
     title: string
-    confirmNoun: string // e.g. "character" / "world"
+    /** Which kind of card is being picked — drives the localized noun/plurals. */
+    confirmKind: 'character' | 'world'
     candidates: AddCandidate[]
     emptyHint: string
     /** Single-select (radio) instead of multi-select — used for the persona. */
@@ -27,7 +29,8 @@ interface AddCardModalProps {
     onConfirm: (ids: string[]) => void | Promise<void>
 }
 
-export function AddCardModal({ open, title, confirmNoun, candidates, emptyHint, single, onClose, onConfirm }: AddCardModalProps) {
+export function AddCardModal({ open, title, confirmKind, candidates, emptyHint, single, onClose, onConfirm }: AddCardModalProps) {
+    const { t } = useTranslation()
     const [selected, setSelected] = useState<string[]>([])
     const [query, setQuery] = useState('')
     const [busy, setBusy] = useState(false)
@@ -83,12 +86,12 @@ export function AddCardModal({ open, title, confirmNoun, candidates, emptyHint, 
                         disabled={busy || selected.length === 0}
                     >
                         {busy
-                            ? 'Saving…'
+                            ? t('common.saving')
                             : single
-                              ? `Choose ${confirmNoun}`
+                              ? t(`interaction.addCard.choose_${confirmKind}`)
                               : selected.length
-                                ? `Add ${selected.length} ${confirmNoun}${selected.length === 1 ? '' : 's'}`
-                                : `Add ${confirmNoun}s`}
+                                ? t(`interaction.addCard.addCount_${confirmKind}`, { count: selected.length })
+                                : t(`interaction.addCard.addAll_${confirmKind}`)}
                     </Button>
                 </>
             }
@@ -101,7 +104,7 @@ export function AddCardModal({ open, title, confirmNoun, candidates, emptyHint, 
                         <Input
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            placeholder={`Search ${confirmNoun}s…`}
+                            placeholder={t(`interaction.addCard.searchPlaceholder_${confirmKind}`)}
                         />
                     )}
                     <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto pr-1">
@@ -131,7 +134,7 @@ export function AddCardModal({ open, title, confirmNoun, candidates, emptyHint, 
                                     <span className="min-w-0 flex flex-col gap-1">
                                         <span className="flex flex-wrap items-center gap-2">
                                             <span className="font-display text-[16px] font-semibold leading-tight text-parchment-50">
-                                                {c.name || 'Untitled'}
+                                                {c.name || t('interaction.addCard.untitled')}
                                             </span>
                                             {c.badge && <Tag>{c.badge}</Tag>}
                                         </span>
@@ -146,7 +149,7 @@ export function AddCardModal({ open, title, confirmNoun, candidates, emptyHint, 
                         })}
                         {filtered.length === 0 && (
                             <p className="px-1 py-3 text-center font-narrative text-sm italic text-parchment-400">
-                                No {confirmNoun}s match “{query}”.
+                                {t(`interaction.addCard.noMatch_${confirmKind}`, { query })}
                             </p>
                         )}
                     </div>

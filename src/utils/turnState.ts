@@ -13,7 +13,8 @@
  * keeps callers from crashing on a malformed or wrapped payload.
  */
 
-import type { ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus, TurnEntry } from '@/shared'
+import type { ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ChatTtsSegmentClip, ImageLifecycleStatus, TtsLifecycleStatus, TurnEntry } from '@/shared'
+import { safeResponseSegments } from '@/utils/chatSegments'
 
 export function parseTurnState(raw?: string | null): TurnEntry[] {
     if (!raw) return []
@@ -36,8 +37,10 @@ export function parseTurnState(raw?: string | null): TurnEntry[] {
 function sanitizeTurn(turn: TurnEntry): TurnEntry {
     const assets = safeAssets(turn.imageAssets)
     const ttsAssets = safeTtsAssets(turn.ttsAssets)
+    const segments = safeResponseSegments(turn.segments)
     return {
         ...turn,
+        segments: segments.length > 0 ? segments : undefined,
         assistantMessageId: typeof turn.assistantMessageId === 'number' ? turn.assistantMessageId : numberFromUnknown(turn.assistantMessageId),
         turnId: typeof turn.turnId === 'string' ? turn.turnId : undefined,
         imageStatus: isImageStatus(turn.imageStatus) ? turn.imageStatus : undefined,
@@ -52,7 +55,36 @@ function sanitizeTurn(turn: TurnEntry): TurnEntry {
         ttsAssets: ttsAssets.length > 0 ? ttsAssets : undefined,
         ttsUrl: ttsAssets[0]?.url ?? safeTtsAudioUrl(turn.ttsUrl),
         ttsError: safeTtsError(turn.ttsError),
+        ttsSegments: safeTtsSegments(turn.ttsSegments),
     }
+}
+
+function safeTtsSegments(value: unknown): ChatTtsSegmentClip[] | undefined {
+    if (!Array.isArray(value)) return undefined
+    const clips: ChatTtsSegmentClip[] = []
+    for (const item of value) {
+        if (!item || typeof item !== 'object') continue
+        const raw = item as ChatTtsSegmentClip
+        if (typeof raw.segment_index !== 'number') continue
+        const assets = safeTtsAssets(raw.assets)
+        clips.push({
+            segment_index: raw.segment_index,
+            segment_count: typeof raw.segment_count === 'number' ? raw.segment_count : undefined,
+            kind: raw.kind === 'narrator' || raw.kind === 'speech' || raw.kind === 'thought' ? raw.kind : undefined,
+            speaker_id: typeof raw.speaker_id === 'string' ? raw.speaker_id : null,
+            speaker_name: typeof raw.speaker_name === 'string' ? raw.speaker_name : null,
+            job_id: typeof raw.job_id === 'string' ? raw.job_id : undefined,
+            status: isTtsStatus(raw.status) ? raw.status : undefined,
+            status_url: safeRoute(raw.status_url, '/tts/jobs/'),
+            result_url: safeRoute(raw.result_url, '/tts/jobs/'),
+            assets: assets.length > 0 ? assets : undefined,
+            url: assets[0]?.url ?? safeTtsAudioUrl(raw.url),
+            error: safeTtsError(raw.error),
+        })
+    }
+    if (clips.length === 0) return undefined
+    clips.sort((a, b) => a.segment_index - b.segment_index)
+    return clips
 }
 
 function safeAssets(value: unknown): ChatImageAsset[] {

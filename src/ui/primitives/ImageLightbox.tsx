@@ -5,6 +5,7 @@
  */
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { AuthenticatedImage } from './AuthenticatedImage'
 import { IconButton } from './IconButton'
@@ -17,6 +18,7 @@ interface ImageLightboxProps {
 }
 
 export function ImageLightbox({ open, src, alt = '', onClose }: ImageLightboxProps) {
+    const { t } = useTranslation()
     useEffect(() => {
         if (!open) return
         const onKey = (e: KeyboardEvent) => {
@@ -32,7 +34,7 @@ export function ImageLightbox({ open, src, alt = '', onClose }: ImageLightboxPro
             className="fixed inset-0 z-[60] flex items-center justify-center bg-ink-900/80 p-4 backdrop-blur-sm"
             onClick={onClose}
         >
-            <IconButton label="Close" onClick={onClose} className="absolute right-4 top-4 bg-ink-900/40">
+            <IconButton label={t('common.close')} onClick={onClose} className="absolute right-4 top-4 bg-ink-900/40">
                 <X size={20} strokeWidth={1.75} />
             </IconButton>
             <AuthenticatedImage

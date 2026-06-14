@@ -311,21 +311,23 @@ describe('useCardAssistant: send + streaming', () => {
         expect(result.current.status).toBe('idle')
     })
 
-    it('a stream that ends without final auto-reloads the conversation once', async () => {
+    it('a stream that ends without final auto-reloads and applies the recovered card', async () => {
         mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [CONVO] })
         const stream = controllableStream()
-        const { result } = renderHook(() => useCardAssistant(hookOptions()))
+        const onCard = vi.fn()
+        const { result } = renderHook(() => useCardAssistant(hookOptions({ onCard })))
 
         act(() => result.current.openPanel())
         await waitFor(() => expect(result.current.activeConversation).not.toBeNull())
 
+        const recoveredCard = { id: 'world-1', name: 'Recovered Glass' }
         mocks.getCardAssistantConversation.mockResolvedValue({
             conversation: CONVO,
             messages: [
                 message({ message_id: 20, content: 'Generate it' }),
                 message({ message_id: 21, role: 'assistant', content: 'Recovered reply.' }),
             ],
-            card: null,
+            card: recoveredCard,
         })
 
         let sendPromise!: Promise<void>
@@ -340,6 +342,8 @@ describe('useCardAssistant: send + streaming', () => {
         // Initial open + recovery reload.
         expect(mocks.getCardAssistantConversation).toHaveBeenCalledTimes(2)
         expect(last(result.current.turns)?.message.content).toBe('Recovered reply.')
+        expect(onCard).toHaveBeenCalledWith(recoveredCard)
+        expect(result.current.pendingCard).toBeNull()
         expect(result.current.notice).toBeNull()
     })
 })
@@ -378,6 +382,32 @@ describe('useCardAssistant: sessions', () => {
         await act(async () => { await result.current.selectConversation(3) })
 
         expect(result.current.turns.map((turn) => turn.message.message_id)).toEqual([30])
+        expect(onCard).not.toHaveBeenCalled()
+        expect(result.current.pendingCard).toEqual(snapshot)
+
+        act(() => result.current.applyPendingCard())
+        expect(onCard).toHaveBeenCalledWith(snapshot)
+        expect(result.current.pendingCard).toBeNull()
+    })
+
+    it('manual reload stages a recovered card snapshot behind explicit Apply', async () => {
+        const onCard = vi.fn()
+        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [CONVO] })
+        mocks.getCardAssistantConversation.mockResolvedValue({ conversation: CONVO, messages: [], card: null })
+        const { result } = renderHook(() => useCardAssistant(hookOptions({ onCard })))
+
+        act(() => result.current.openPanel())
+        await waitFor(() => expect(result.current.activeConversation).not.toBeNull())
+
+        const snapshot = { id: 'world-10', name: 'Reloaded Glass' }
+        mocks.getCardAssistantConversation.mockResolvedValue({
+            conversation: { ...CONVO, card_id: 'world-10' },
+            messages: [message({ message_id: 40, role: 'assistant', content: 'Recovered card.' })],
+            card: snapshot,
+        })
+
+        await act(async () => { await result.current.reloadConversation() })
+
         expect(onCard).not.toHaveBeenCalled()
         expect(result.current.pendingCard).toEqual(snapshot)
 

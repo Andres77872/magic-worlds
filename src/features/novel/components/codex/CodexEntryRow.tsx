@@ -3,6 +3,7 @@
  * enabled switch, and a hover cluster to open or remove the entry.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Pencil, Trash2 } from 'lucide-react'
 import { Icon, IconButton, IconTile, Switch, cx } from '@/ui/primitives'
 import type { CodexEntry } from '../../hooks/useCodex'
@@ -17,6 +18,7 @@ interface CodexEntryRowProps {
 }
 
 export function CodexEntryRow({ entry, disabled, onToggle, onEdit, onRemove }: CodexEntryRowProps) {
+    const { t } = useTranslation()
     const arcane = entry.kind === 'world' || entry.kind === 'lorebook' || entry.kind === 'lorebook_entry'
     return (
         <div
@@ -31,7 +33,7 @@ export function CodexEntryRow({ entry, disabled, onToggle, onEdit, onRemove }: C
                 type="button"
                 onClick={() => onEdit(entry)}
                 className="min-w-0 flex-1 cursor-pointer border-none bg-transparent p-0 text-left"
-                aria-label={`Open ${entry.label}`}
+                aria-label={t('novelEditor.codexRow.open', { label: entry.label })}
             >
                 <span className="block truncate font-ui text-sm font-semibold text-parchment-100">{entry.label}</span>
                 {entry.description && (
@@ -40,10 +42,10 @@ export function CodexEntryRow({ entry, disabled, onToggle, onEdit, onRemove }: C
             </button>
             <div className="flex shrink-0 items-center gap-1">
                 <span className="flex gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                    <IconButton label={`Edit ${entry.label}`} size="sm" onClick={() => onEdit(entry)} disabled={disabled}>
+                    <IconButton label={t('novelEditor.codexRow.edit', { label: entry.label })} size="sm" onClick={() => onEdit(entry)} disabled={disabled}>
                         <Icon icon={Pencil} size={14} />
                     </IconButton>
-                    <IconButton label={`Remove ${entry.label}`} size="sm" tone="danger" onClick={() => onRemove(entry)} disabled={disabled}>
+                    <IconButton label={t('novelEditor.codexRow.remove', { label: entry.label })} size="sm" tone="danger" onClick={() => onRemove(entry)} disabled={disabled}>
                         <Icon icon={Trash2} size={14} />
                     </IconButton>
                 </span>
@@ -52,7 +54,7 @@ export function CodexEntryRow({ entry, disabled, onToggle, onEdit, onRemove }: C
                     onChange={() => onToggle(entry)}
                     size="sm"
                     disabled={disabled}
-                    aria-label={`${entry.enabled ? 'Disable' : 'Enable'} ${entry.label}`}
+                    aria-label={entry.enabled ? t('novelEditor.codexRow.disable', { label: entry.label }) : t('novelEditor.codexRow.enable', { label: entry.label })}
                 />
             </div>
         </div>

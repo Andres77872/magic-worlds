@@ -7,12 +7,27 @@ const deleteCharacter = vi.fn().mockResolvedValue(undefined)
 const editItem = vi.fn()
 const deleteItem = vi.fn().mockResolvedValue(undefined)
 const startCharacterChat = vi.fn().mockResolvedValue(undefined)
+const startCharacterGroupChat = vi.fn().mockResolvedValue(undefined)
 const startTemplate = vi.fn().mockResolvedValue(undefined)
 const deleteTemplateById = vi.fn().mockResolvedValue(undefined)
 const originalCreateObjectURL = URL.createObjectURL
 const originalRevokeObjectURL = URL.revokeObjectURL
 const originalClipboard = navigator.clipboard
 const originalScrollIntoView = Element.prototype.scrollIntoView
+
+const mockData = vi.hoisted(() => ({
+    characters: [
+        {
+            id: 'p1',
+            name: 'Aria',
+            race: 'Human',
+            description: 'A steady traveler.',
+            role: 'persona',
+            is_default_persona: true,
+        },
+        { id: 'c1', name: 'Lyra', race: 'Half-elf', role: 'character' },
+    ],
+}))
 
 // GalleryCard deep-imports the playlist hook (not the barrel) to keep the
 // primitives module graph light, so it gets its own mock.
@@ -30,20 +45,11 @@ vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: true, openLoginModal: vi.fn() }),
     useNavigation: () => ({ setPage }),
     useData: () => ({
-        characters: [
-            {
-                id: 'p1',
-                name: 'Aria',
-                race: 'Human',
-                description: 'A steady traveler.',
-                role: 'persona',
-                is_default_persona: true,
-            },
-            { id: 'c1', name: 'Lyra', race: 'Half-elf', role: 'character' },
-        ],
+        characters: mockData.characters,
         editCharacter,
         deleteCharacter,
         startCharacterChat,
+        startCharacterGroupChat,
         editWorld: vi.fn(),
         deleteWorld: vi.fn(),
         editItem,
@@ -52,6 +58,7 @@ vi.mock('@/app/hooks', () => ({
         editTemplate: vi.fn(),
         startTemplate,
         deleteTemplateById,
+        loadData: vi.fn().mockResolvedValue(undefined),
     }),
 }))
 
@@ -66,8 +73,15 @@ vi.mock('@/infrastructure/api', () => ({
         getAdventureTemplates: vi.fn(),
         getAdventureTemplate: vi.fn(),
         exportCardImage: vi.fn(),
+        createCardShareLink: vi.fn(),
+        publishCard: vi.fn(),
+        unpublishCard: vi.fn(),
+        listPublicCards: vi.fn().mockResolvedValue({ items: [], skip: 0, limit: 24 }),
+        getPublicCard: vi.fn(),
+        cloneCard: vi.fn(),
     },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
+    isProtectedMediaUrl: () => false,
 }))
 
 import { apiService } from '@/infrastructure/api'
@@ -136,6 +150,45 @@ describe('GalleryPage', () => {
         vi.mocked(apiService.getAdventureTemplates).mockResolvedValue([])
         vi.mocked(apiService.getAdventureTemplate).mockResolvedValue(ADVENTURES[0])
         vi.mocked(apiService.exportCardImage).mockResolvedValue(new Blob(['png'], { type: 'image/png' }))
+        vi.mocked(apiService.createCardShareLink).mockResolvedValue({
+            share_token: 'share-token-1',
+            share_url: 'http://localhost/cards/shared/share-token-1',
+            resource: {
+                card_type: 'character',
+                card: CHARACTERS[0],
+                visibility: { share_link: true },
+                original_card_id: 'c1',
+            },
+        })
+        vi.mocked(apiService.publishCard).mockResolvedValue({
+            card_type: 'character',
+            card: CHARACTERS[0],
+            visibility: { public: true },
+            original_card_id: 'c1',
+        })
+        vi.mocked(apiService.unpublishCard).mockResolvedValue({
+            card_type: 'character',
+            card: CHARACTERS[0],
+            visibility: { public: false },
+            original_card_id: 'c1',
+        })
+        vi.mocked(apiService.cloneCard).mockResolvedValue({
+            card_type: 'character',
+            card: CHARACTERS[0],
+            source_access: 'public',
+            original_card_id: 'c1',
+        })
+        mockData.characters = [
+            {
+                id: 'p1',
+                name: 'Aria',
+                race: 'Human',
+                description: 'A steady traveler.',
+                role: 'persona',
+                is_default_persona: true,
+            },
+            { id: 'c1', name: 'Lyra', race: 'Half-elf', role: 'character' },
+        ]
         Element.prototype.scrollIntoView = vi.fn()
         window.location.hash = ''
     })
@@ -248,13 +301,14 @@ describe('GalleryPage', () => {
         await screen.findByText('Lyra')
 
         fireEvent.click(screen.getAllByTestId('card-share-button')[0])
-        fireEvent.click(screen.getAllByRole('menuitem', { name: 'Share' })[0])
+        fireEvent.click(screen.getAllByRole('menuitem', { name: 'Copy unlisted link' })[0])
 
+        await waitFor(() => expect(apiService.createCardShareLink).toHaveBeenCalledWith('character', 'c1'))
         await waitFor(() =>
-            expect(writeText).toHaveBeenCalledWith(expect.stringContaining('#/gallery/characters?card=c1')),
+            expect(writeText).toHaveBeenCalledWith(expect.stringContaining('#/shared/share-token-1')),
         )
-        const toast = await screen.findByRole('status', { name: 'Share link copied' })
-        expect(within(toast).getByText('Lyra')).toBeInTheDocument()
+        const toast = await screen.findByRole('status', { name: 'Unlisted link copied' })
+        expect(within(toast).getByText('"Lyra" is accessible only through this link.')).toBeInTheDocument()
         expect(screen.queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument()
     })
 
@@ -265,7 +319,8 @@ describe('GalleryPage', () => {
         fireEvent.contextMenu(card, { clientX: 120, clientY: 140 })
 
         const menu = await screen.findByTestId('card-context-menu')
-        expect(within(menu).getByRole('menuitem', { name: 'Share' })).toBeInTheDocument()
+        expect(within(menu).getByRole('menuitem', { name: 'Copy unlisted link' })).toBeInTheDocument()
+        expect(within(menu).getByRole('menuitem', { name: 'Share as public' })).toBeInTheDocument()
         expect(within(menu).getByRole('menuitem', { name: 'Download PNG' })).toBeInTheDocument()
         expect(within(menu).getByRole('menuitem', { name: 'Write' })).toBeInTheDocument()
         expect(within(menu).getByRole('menuitem', { name: 'Chat' })).toBeInTheDocument()
@@ -300,8 +355,8 @@ describe('GalleryPage', () => {
 
         render(<GalleryPage type="character" />)
 
+        await waitFor(() => expect(apiService.getCharacter).toHaveBeenCalledWith('c99'))
         expect(await screen.findByText('Zed')).toBeInTheDocument()
-        expect(apiService.getCharacter).toHaveBeenCalledWith('c99')
         expect(screen.getByText('Zed').closest('[data-gallery-card-id="c99"]')).toHaveClass('ring-1')
     })
 
@@ -392,17 +447,76 @@ describe('GalleryPage', () => {
         expect(setPage).not.toHaveBeenCalledWith('interaction')
     })
 
-    it('starts a character chat with the selected persona', async () => {
+    it('fast-starts a character chat with the default persona', async () => {
         render(<GalleryPage type="character" />)
         await screen.findByText('Lyra')
 
-        fireEvent.click(screen.getAllByTestId('card-options-button')[0])
-        fireEvent.click(screen.getAllByRole('menuitem', { name: 'Chat' })[0])
-        const dialog = await screen.findByRole('dialog')
+        fireEvent.click(screen.getAllByRole('button', { name: 'Chat' })[0])
+
+        await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'c1' }),
+            expect.objectContaining({ id: 'p1' }),
+        ))
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        await waitFor(() => expect(setPage).toHaveBeenCalledWith('character-chat'))
+    })
+
+    it('falls back to the persona picker when no default persona is set', async () => {
+        mockData.characters = [
+            {
+                id: 'p1',
+                name: 'Aria',
+                race: 'Human',
+                description: 'A steady traveler.',
+                role: 'persona',
+                is_default_persona: false,
+            },
+            { id: 'c1', name: 'Lyra', race: 'Half-elf', role: 'character' },
+        ]
+        render(<GalleryPage type="character" />)
+        await screen.findByText('Lyra')
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'Chat' })[0])
+        const dialog = await screen.findByRole('dialog', { name: 'Choose your persona' })
         fireEvent.click(within(dialog).getByRole('button', { name: 'Start chat' }))
 
         expect(startCharacterChat).toHaveBeenCalledWith(
             expect.objectContaining({ id: 'c1' }),
+            expect.objectContaining({ id: 'p1' }),
+        )
+        await waitFor(() => expect(setPage).toHaveBeenCalledWith('character-chat'))
+    })
+
+    it('reports a fast character chat start failure without navigating', async () => {
+        startCharacterChat.mockRejectedValueOnce(new Error('Chat service down'))
+        render(<GalleryPage type="character" />)
+        await screen.findByText('Lyra')
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'Chat' })[0])
+
+        expect(await screen.findByText('Could not start this chat')).toBeInTheDocument()
+        expect(screen.getByText('Chat service down')).toBeInTheDocument()
+        expect(setPage).not.toHaveBeenCalledWith('character-chat')
+    })
+
+    it('starts a group chat from selected character cards', async () => {
+        render(<GalleryPage type="character" />)
+        await screen.findByText('Lyra')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Group chat' }))
+        expect(screen.getByText('0 selected for group chat')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Add to group chat: Lyra' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Add to group chat: Dorn' }))
+        expect(screen.getByText('2 selected for group chat')).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Start group chat' }))
+        const dialog = await screen.findByRole('dialog')
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Start group chat' }))
+
+        expect(startCharacterGroupChat).toHaveBeenCalledWith(
+            [expect.objectContaining({ id: 'c1' }), expect.objectContaining({ id: 'c2' })],
             expect.objectContaining({ id: 'p1' }),
         )
         await waitFor(() => expect(setPage).toHaveBeenCalledWith('character-chat'))

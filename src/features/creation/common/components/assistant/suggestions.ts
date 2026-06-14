@@ -1,7 +1,9 @@
 import type { CardAssistantCardType } from '@/shared/types/aiCard.types'
 
 export interface AssistantSuggestion {
-    label: string
+    /** i18n key for the chip label (UI copy); resolved with t() at the call site. */
+    labelKey: string
+    /** Sent verbatim to the LLM — never localize. */
     prompt: string
 }
 
@@ -9,57 +11,57 @@ export interface AssistantSuggestion {
 export const ASSISTANT_SUGGESTIONS: Record<CardAssistantCardType, AssistantSuggestion[]> = {
     character: [
         {
-            label: 'Create a new character',
+            labelKey: 'creation.common.suggestions.character.createNew',
             prompt: 'Create a brand-new character: pick an evocative name and race, and write a vivid two-paragraph description.',
         },
         {
-            label: 'Write a greeting line',
+            labelKey: 'creation.common.suggestions.character.writeGreeting',
             prompt: 'Write an in-character greeting line this character would open a one-on-one chat with.',
         },
         {
-            label: 'Add personality quirks',
+            labelKey: 'creation.common.suggestions.character.addQuirks',
             prompt: 'Deepen the description with three memorable personality quirks and how they surface in roleplay.',
         },
     ],
     world: [
         {
-            label: 'Invent a world from scratch',
+            labelKey: 'creation.common.suggestions.world.invent',
             prompt: 'Invent a new world from scratch: name it, choose its type, and write a rich two-paragraph description.',
         },
         {
-            label: 'Deepen the description',
+            labelKey: 'creation.common.suggestions.world.deepen',
             prompt: 'Expand the current description with sensory details, notable factions, and one simmering conflict.',
         },
         {
-            label: 'Suggest scene triggers',
+            labelKey: 'creation.common.suggestions.world.suggestTriggers',
             prompt: 'Suggest trigger keywords that should pull this world into a scene, and update the card with them.',
         },
     ],
     adventure_template: [
         {
-            label: 'Pitch an adventure hook',
+            labelKey: 'creation.common.suggestions.adventure_template.pitchHook',
             prompt: 'Pitch a compelling adventure hook for this template and fold it into the description.',
         },
         {
-            label: 'Raise the stakes',
+            labelKey: 'creation.common.suggestions.adventure_template.raiseStakes',
             prompt: 'Raise the stakes of this adventure: add a ticking clock and a hard moral choice to the description.',
         },
         {
-            label: 'Draft opening scenes',
+            labelKey: 'creation.common.suggestions.adventure_template.draftScenes',
             prompt: 'Draft the opening scene beats for this adventure and weave them into the description.',
         },
     ],
     item: [
         {
-            label: 'Create an item',
+            labelKey: 'creation.common.suggestions.item.create',
             prompt: 'Create a brand-new item: give it an evocative name, type, rarity, description, effects, limits, and useful trigger keywords.',
         },
         {
-            label: 'Balance the effects',
+            labelKey: 'creation.common.suggestions.item.balance',
             prompt: 'Review this item and make its effects, requirements, and limitations clear and playable.',
         },
         {
-            label: 'Add origin lore',
+            labelKey: 'creation.common.suggestions.item.addLore',
             prompt: 'Deepen this item with origin lore, value, and compact metadata categories.',
         },
     ],
@@ -67,15 +69,15 @@ export const ASSISTANT_SUGGESTIONS: Record<CardAssistantCardType, AssistantSugge
 
 export const LOREBOOK_ASSISTANT_SUGGESTIONS: AssistantSuggestion[] = [
     {
-        label: 'Create a new lorebook',
+        labelKey: 'creation.common.suggestions.lorebook.createNew',
         prompt: 'Create a new lorebook for a fantasy campaign with 6 concise entries, practical activation keys, and a balanced token budget.',
     },
     {
-        label: 'Add missing entries',
+        labelKey: 'creation.common.suggestions.lorebook.addEntries',
         prompt: 'Review this lorebook and add the most useful missing entries, keeping each entry concise and easy to activate.',
     },
     {
-        label: 'Tighten activation keys',
+        labelKey: 'creation.common.suggestions.lorebook.tightenKeys',
         prompt: 'Improve the activation keys so entries trigger reliably without being too broad. Keep existing lore intact.',
     },
 ]

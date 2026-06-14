@@ -3,6 +3,8 @@
  * description, greeting…). Guided fields get this behavior from GuidedFieldRow;
  * this is the same affordance for fields that live outside the engine.
  */
+import { useTranslation } from 'react-i18next'
+
 export interface UseExampleLinkProps {
     value: string
     hint?: string
@@ -10,15 +12,16 @@ export interface UseExampleLinkProps {
 }
 
 export function UseExampleLink({ value, hint, onUse }: UseExampleLinkProps) {
+    const { t } = useTranslation()
     if (value.trim() || !hint) return null
     return (
         <button
             type="button"
             onClick={() => onUse(hint)}
             className="self-start font-narrative text-[12px] italic text-arcane-300 transition-colors hover:text-arcane-400"
-            title="Copy the example into the field to edit"
+            title={t('creation.common.fieldRow.useExampleTitle')}
         >
-            Use example
+            {t('creation.common.fieldRow.useExample')}
         </button>
     )
 }

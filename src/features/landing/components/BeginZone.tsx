@@ -6,6 +6,7 @@
  */
 
 import { ArrowRight, Pencil, Play, Plus, Sparkles, Trash2, Wand2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { Adventure } from '@/shared'
 import { MODE_META } from '@/shared/modes'
 import { GalleryCard, type CardOption } from '@/ui/components/lists/Card'
@@ -45,6 +46,7 @@ export function BeginZone({
     onViewAll,
     onCreate,
 }: BeginZoneProps) {
+    const { t } = useTranslation()
     if (totalCount === 0) {
         return (
             <section className="flex flex-col" data-testid="begin-zone">
@@ -52,17 +54,16 @@ export function BeginZone({
                 <div className="relative mt-5 flex flex-col items-center gap-4 overflow-hidden rounded-2xl border border-parchment-50/10 bg-ink-800 px-8 py-14 text-center">
                     <GlowBackdrop variant="center" />
                     <div className="relative flex flex-col items-center gap-3">
-                        <Eyebrow tone="ember">Two ways to play</Eyebrow>
+                        <Eyebrow tone="ember">{t('landing.begin.emptyEyebrow')}</Eyebrow>
                         <h3 className="m-0 font-display text-h3 font-semibold text-parchment-50">
-                            Forge your first adventure
+                            {t('landing.begin.emptyTitle')}
                         </h3>
                         <p className="m-0 max-w-[46ch] font-narrative text-narrative text-parchment-300">
-                            Frame an opening scene — a world, a cast, a first line — and let the story improvise from
-                            there.
+                            {t('landing.begin.emptyBody')}
                         </p>
                         <div className="pt-2">
                             <Button kind="primary" iconLeft={<Icon icon={Wand2} size={16} />} onClick={onCreate}>
-                                Forge an adventure
+                                {t('landing.begin.emptyAction')}
                             </Button>
                         </div>
                     </div>
@@ -95,13 +96,13 @@ export function BeginZone({
                             {
                                 type: 'custom',
                                 icon: <Icon icon={Pencil} size={15} />,
-                                label: 'Edit',
+                                label: t('gallery.edit'),
                                 onClick: () => onEdit(scene.template),
                             },
                             {
                                 type: 'custom',
                                 icon: <Icon icon={Trash2} size={15} />,
-                                label: 'Delete',
+                                label: t('gallery.delete'),
                                 onClick: () => onDelete(scene.template),
                                 danger: true,
                             },
@@ -123,10 +124,10 @@ export function BeginZone({
                 <div className="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-parchment-50/[.12] bg-ink-800 p-12 text-center">
                     <Icon icon={Sparkles} size={28} className="text-parchment-500" />
                     <p className="m-0 font-narrative text-narrative text-parchment-300">
-                        No adventures match this genre.
+                        {t('landing.begin.noGenreMatch')}
                     </p>
                     <Button kind="secondary" size="sm" onClick={() => onFilterChange('All')}>
-                        Clear filter
+                        {t('landing.begin.clearFilter')}
                     </Button>
                 </div>
             ) : null}
@@ -135,14 +136,15 @@ export function BeginZone({
 }
 
 function BeginHeader({ count, onViewAll, onCreate }: { count: number; onViewAll?: () => void; onCreate: () => void }) {
+    const { t } = useTranslation()
     return (
         <ZoneHeader
-            eyebrow="Begin anew"
-            title="Adventures waiting to start"
+            eyebrow={t('landing.begin.eyebrow')}
+            title={t('landing.begin.title')}
             right={
                 <>
                     <Button kind="ghost" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={onCreate}>
-                        New adventure
+                        {t('landing.begin.newAdventure')}
                     </Button>
                     {onViewAll && (
                         <Button
@@ -150,9 +152,9 @@ function BeginHeader({ count, onViewAll, onCreate }: { count: number; onViewAll?
                             size="sm"
                             iconRight={<Icon icon={ArrowRight} size={14} />}
                             onClick={onViewAll}
-                            aria-label="View all adventures"
+                            aria-label={t('landing.begin.viewAllAria')}
                         >
-                            View all ({count})
+                            {t('landing.begin.viewAll', { count })}
                         </Button>
                     )}
                 </>

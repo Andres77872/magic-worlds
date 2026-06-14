@@ -6,7 +6,14 @@ import { useCardGallery } from './useCardGallery'
 const PAGE_SIZE = 2
 
 function makeItem(id: string): GalleryItem {
-    return { id, title: `Item ${id}`, tags: [], source: { id } as never }
+    return {
+        id,
+        title: `Item ${id}`,
+        tags: [],
+        backendType: 'item',
+        galleryType: 'item',
+        source: { id } as never,
+    }
 }
 
 /** Config whose fetchPage resolves pre-seeded pages keyed by `skip|q`. */

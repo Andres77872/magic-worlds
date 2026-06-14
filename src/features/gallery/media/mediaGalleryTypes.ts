@@ -6,6 +6,7 @@
  */
 
 import type { CardMediaTargetType, ImageJobPublic, ThemeSongJobPublic } from '@/shared'
+import type { TFunction } from 'i18next'
 import { resolveMediaUrl } from '@/infrastructure/api'
 import { dateFromApiTimestamp } from '@/utils/time'
 
@@ -105,29 +106,35 @@ export function themeJobToItem(job: ThemeSongJobPublic): MediaThemeItem | null {
     }
 }
 
-const CARD_TYPE_PLURAL: Record<CardMediaTargetType, string> = {
-    character: 'characters',
-    world: 'worlds',
-    item: 'items',
-    adventure_template: 'adventures',
-}
-
 /** Empty-state copy keyed off the active filter combination. */
-export function emptyCopy(filters: MediaGalleryFilters): { title: string; description: string } {
-    const noun =
-        filters.mediaType === 'images' ? 'images' : filters.mediaType === 'themes' ? 'themes' : 'media'
-    const scope = filters.card?.name
-        ? `for ${filters.card.name}`
-        : filters.card
-          ? 'for that card'
-          : filters.cardType !== 'all'
-            ? `for your ${CARD_TYPE_PLURAL[filters.cardType]}`
-            : ''
-    const filtered = Boolean(scope) || filters.mediaType !== 'all'
+export function emptyCopy(filters: MediaGalleryFilters, t: TFunction): { title: string; description: string } {
+    const nounKey =
+        filters.mediaType === 'images' ? 'Images' : filters.mediaType === 'themes' ? 'Themes' : 'Media'
+    const filtered = Boolean(filters.card) || filters.cardType !== 'all' || filters.mediaType !== 'all'
+    if (filters.card?.name) {
+        return {
+            title: t(`mediaGallery.empty.no${nounKey}ForCard`, { name: filters.card.name }),
+            description: t('mediaGallery.empty.filteredDescription'),
+        }
+    }
+    if (filters.card) {
+        return {
+            title: t(`mediaGallery.empty.no${nounKey}ForThatCard`),
+            description: t('mediaGallery.empty.filteredDescription'),
+        }
+    }
+    if (filters.cardType !== 'all') {
+        return {
+            title: t(`mediaGallery.empty.no${nounKey}ForType`, {
+                type: t(`mediaGallery.empty.type.${filters.cardType}`),
+            }),
+            description: t('mediaGallery.empty.filteredDescription'),
+        }
+    }
     return {
-        title: scope ? `No ${noun} ${scope} yet` : `No ${noun} yet`,
+        title: t(`mediaGallery.empty.no${nounKey}`),
         description: filtered
-            ? 'Try widening the filters, or conjure something new from a card’s studio.'
-            : 'Generate a portrait or compose a theme from any card’s studio and it will gather here.',
+            ? t('mediaGallery.empty.filteredDescription')
+            : t('mediaGallery.empty.defaultDescription'),
     }
 }

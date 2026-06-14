@@ -123,4 +123,4 @@ FieldContext wires `label htmlFor` to the control's generated id — works for I
 ## Spacing & layering
 
 - Density steps: tight `p-3 gap-2` · comfortable `p-4 gap-3` · spacious `p-6 gap-4`.
-- z-index ladder: content `z-0/2/10` → PlaylistDock `z-[45]` → Modal/Drawer `z-50` → Toast `z-[110]`.
+- z-index ladder: content `z-0/2/10` → PlaylistDock `z-[45]` → Modal/Drawer `z-50` → lightbox/above-modal `z-[60]` → portal popover/dropdown `z-[100]` → Toast `z-[110]`.

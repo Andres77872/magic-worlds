@@ -21,11 +21,14 @@ export interface PlaylistTrack {
     durationMs?: number | null
 }
 
+export type PlaylistLoopMode = 'off' | 'track' | 'queue'
+
 export interface AudioPlaylistContextValue {
     queue: PlaylistTrack[]
     /** -1 when the queue is empty. */
     currentIndex: number
     currentTrack: PlaylistTrack | null
+    loopMode: PlaylistLoopMode
     isPlaying: boolean
     /** True while the current track's bytes are being fetched. */
     isLoading: boolean
@@ -37,6 +40,10 @@ export interface AudioPlaylistContextValue {
     duration: number | null
     /** Decoded waveform peaks for the current track; null → pseudo-peaks. */
     peaks: number[] | null
+    /** Playlist output volume, normalized 0..1. */
+    volume: number
+    /** Effective mute state; true when explicitly muted or volume is 0. */
+    muted: boolean
     /**
      * Play a track immediately: the current track toggles pause, a queued
      * track is jumped to, a new track is inserted after the current one.
@@ -56,6 +63,9 @@ export interface AudioPlaylistContextValue {
     clearAndClose: () => void
     /** Seek to a 0..1 position; while idle this starts playback from there. */
     seekRatio: (ratio: number) => void
+    cycleLoopMode: () => void
+    setVolume: (volume: number) => void
+    toggleMute: () => void
     isQueued: (id: string) => boolean
 }
 

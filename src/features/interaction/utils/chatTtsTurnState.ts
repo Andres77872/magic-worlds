@@ -1,4 +1,4 @@
-import type { ChatTtsAsset, ChatTtsError, ChatSocketServerMessage, TtsLifecycleStatus, TurnEntry } from '../../../shared'
+import type { ChatTtsAsset, ChatTtsError, ChatTtsSegmentClip, ChatSocketServerMessage, TtsLifecycleStatus, TurnEntry } from '../../../shared'
 import { isSafeAssetUrl } from './chatImageTurnState'
 
 /**
@@ -32,7 +32,18 @@ const TERMINAL_STATUSES = new Set<TtsLifecycleStatus>([
 const NON_TERMINAL_STATUSES = new Set<TtsLifecycleStatus>(['pending', 'in_progress', 'synthesizing', 'mirroring'])
 
 export function hasNonTerminalTtsJob(turn: TurnEntry): boolean {
-  return Boolean(turn.ttsJobId && turn.ttsStatus && NON_TERMINAL_STATUSES.has(turn.ttsStatus))
+  if (turn.ttsJobId && turn.ttsStatus && NON_TERMINAL_STATUSES.has(turn.ttsStatus)) return true
+  return (turn.ttsSegments ?? []).some((clip) => clip.status != null && NON_TERMINAL_STATUSES.has(clip.status))
+}
+
+/** All non-terminal job ids for a turn (legacy single clip + per-segment clips), for polling. */
+export function nonTerminalTtsJobIds(turn: TurnEntry): string[] {
+  const ids: string[] = []
+  if (turn.ttsJobId && turn.ttsStatus && NON_TERMINAL_STATUSES.has(turn.ttsStatus)) ids.push(turn.ttsJobId)
+  for (const clip of turn.ttsSegments ?? []) {
+    if (clip.job_id && clip.status && NON_TERMINAL_STATUSES.has(clip.status)) ids.push(clip.job_id)
+  }
+  return ids
 }
 
 export function upsertChatTtsFrame(turns: TurnEntry[], frame: ChatTtsFrame): TurnEntry[] {
@@ -42,13 +53,28 @@ export function upsertChatTtsFrame(turns: TurnEntry[], frame: ChatTtsFrame): Tur
     turnId: frame.turn_id,
   })
   if (index < 0) return turns
+  const segmentIndex = (frame as { segment_index?: number }).segment_index
+  if (typeof segmentIndex === 'number') {
+    return turns.map((turn, idx) => (idx === index ? mergeSegmentFrame(turn, frame, segmentIndex) : turn))
+  }
   return turns.map((turn, idx) => (idx === index ? mergeTtsState(turn, stateFromFrame(frame)) : turn))
 }
 
 export function upsertTtsJobResult(turns: TurnEntry[], result: TtsJobHydration): TurnEntry[] {
   const index = findTurnIndex(turns, { jobId: result.job_id })
   if (index < 0) return turns
-  return turns.map((turn, idx) => (idx === index ? mergeTtsState(turn, stateFromJobResult(result)) : turn))
+  return turns.map((turn, idx) => {
+    if (idx !== index) return turn
+    // A polled job_id that belongs to a narration clip updates that clip, not the
+    // legacy single-clip fields.
+    if ((turn.ttsSegments ?? []).some((clip) => clip.job_id === result.job_id)) {
+      const segments = (turn.ttsSegments ?? []).map((clip) =>
+        clip.job_id === result.job_id ? mergeClip(clip, clipFromJobResult(result, clip.segment_index)) : clip,
+      )
+      return { ...turn, ttsSegments: segments }
+    }
+    return mergeTtsState(turn, stateFromJobResult(result))
+  })
 }
 
 /**
@@ -68,8 +94,110 @@ export function mergeHydratedTtsTurns(current: TurnEntry[], hydrated: TurnEntry[
     if (hydratedMatch < 0) return turn
     // current is the live state; hydrated is the incoming patch. Terminal
     // precedence in mergeTtsState protects a live completed/failed turn.
-    return mergeTtsState(turn, sanitizeTurnTtsState(hydrated[hydratedMatch]))
+    const merged = mergeTtsState(turn, sanitizeTurnTtsState(hydrated[hydratedMatch]))
+    const segments = mergeSegmentLists(turn.ttsSegments, hydrated[hydratedMatch].ttsSegments)
+    return segments ? { ...merged, ttsSegments: segments } : merged
   })
+}
+
+// -- per-segment multi-voice narration ------------------------------------
+
+function clipFromSegmentFrame(frame: ChatTtsFrame, index: number): ChatTtsSegmentClip {
+  const f = frame as ChatTtsFrame & { segment_count?: number; kind?: ChatTtsSegmentClip['kind']; speaker_id?: string | null; speaker_name?: string | null }
+  const base: ChatTtsSegmentClip = {
+    segment_index: index,
+    segment_count: f.segment_count,
+    kind: f.kind,
+    speaker_id: f.speaker_id ?? null,
+    speaker_name: f.speaker_name ?? null,
+    job_id: frame.job_id ?? undefined,
+    status: frame.status,
+    status_url: frame.status_url ?? undefined,
+    result_url: frame.result_url ?? undefined,
+  }
+  if (frame.type === 'tts_complete') {
+    const assets = safeAssets(frame.assets)
+    return { ...base, status: 'completed', assets, url: assets[0]?.url ?? safeAssetUrl(frame.url) ?? null, error: null }
+  }
+  if (frame.type === 'tts_failed') {
+    return { ...base, error: safeError(frame.error) }
+  }
+  return base
+}
+
+function clipFromJobResult(result: TtsJobHydration, index: number): ChatTtsSegmentClip {
+  const assets = safeAssets(result.assets ?? [])
+  return {
+    segment_index: index,
+    job_id: result.job_id,
+    status: result.status,
+    status_url: result.status_url ?? undefined,
+    result_url: result.result_url ?? undefined,
+    assets: assets.length > 0 ? assets : undefined,
+    url: assets[0]?.url ?? safeAssetUrl(result.url) ?? null,
+    error: result.error ? safeError(result.error) : undefined,
+  }
+}
+
+function mergeClip(existing: ChatTtsSegmentClip | undefined, incoming: ChatTtsSegmentClip): ChatTtsSegmentClip {
+  if (!existing) return incoming
+  const existingTerminal = existing.status ? TERMINAL_STATUSES.has(existing.status) : false
+  const incomingTerminal = incoming.status ? TERMINAL_STATUSES.has(incoming.status) : false
+  const keepTerminal = existingTerminal && !incomingTerminal
+  const assets = dedupeAssets([...(existing.assets ?? []), ...(incoming.assets ?? [])])
+  return {
+    ...existing,
+    ...incoming,
+    segment_index: existing.segment_index,
+    segment_count: incoming.segment_count ?? existing.segment_count,
+    kind: incoming.kind ?? existing.kind,
+    speaker_id: incoming.speaker_id ?? existing.speaker_id,
+    speaker_name: incoming.speaker_name ?? existing.speaker_name,
+    status: keepTerminal ? existing.status : incoming.status ?? existing.status,
+    assets: assets.length > 0 ? assets : undefined,
+    url: assets[0]?.url ?? incoming.url ?? existing.url ?? null,
+    error: incoming.status === 'completed' ? undefined : keepTerminal ? existing.error : incoming.error ?? existing.error,
+  }
+}
+
+function upsertClip(segments: ChatTtsSegmentClip[] | undefined, incoming: ChatTtsSegmentClip): ChatTtsSegmentClip[] {
+  const next = [...(segments ?? [])]
+  const at = next.findIndex((clip) => clip.segment_index === incoming.segment_index)
+  if (at >= 0) next[at] = mergeClip(next[at], incoming)
+  else next.push(incoming)
+  next.sort((a, b) => a.segment_index - b.segment_index)
+  return next
+}
+
+function mergeSegmentFrame(turn: TurnEntry, frame: ChatTtsFrame, index: number): TurnEntry {
+  return {
+    ...turn,
+    assistantMessageId: frame.assistant_message_id ?? turn.assistantMessageId,
+    turnId: frame.turn_id ?? turn.turnId,
+    ttsSegments: upsertClip(turn.ttsSegments, clipFromSegmentFrame(frame, index)),
+  }
+}
+
+function sanitizeClip(clip: ChatTtsSegmentClip): ChatTtsSegmentClip {
+  const assets = safeAssets(clip.assets ?? [])
+  return {
+    ...clip,
+    assets: assets.length > 0 ? assets : undefined,
+    url: assets[0]?.url ?? (clip.url && isSafeTtsAudioUrl(clip.url) ? clip.url : undefined),
+    error: clip.error ? safeError(clip.error) : undefined,
+  }
+}
+
+function mergeSegmentLists(
+  current: ChatTtsSegmentClip[] | undefined,
+  hydrated: ChatTtsSegmentClip[] | undefined,
+): ChatTtsSegmentClip[] | undefined {
+  if (!hydrated?.length) return current
+  let merged = current
+  for (const clip of hydrated) {
+    merged = upsertClip(merged, sanitizeClip(clip))
+  }
+  return merged
 }
 
 function stateFromFrame(frame: ChatTtsFrame): Partial<TurnEntry> {
@@ -139,7 +267,9 @@ function mergeTtsState(turn: TurnEntry, incoming: Partial<TurnEntry>): TurnEntry
 
 function findTurnIndex(turns: TurnEntry[], keys: { jobId?: string | null; assistantMessageId?: number; turnId?: string }): number {
   if (keys.jobId) {
-    const byJob = turns.findIndex((turn) => turn.ttsJobId === keys.jobId)
+    const byJob = turns.findIndex(
+      (turn) => turn.ttsJobId === keys.jobId || (turn.ttsSegments ?? []).some((clip) => clip.job_id === keys.jobId),
+    )
     if (byJob >= 0) return byJob
   }
   if (keys.assistantMessageId) {

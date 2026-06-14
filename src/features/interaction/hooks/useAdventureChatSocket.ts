@@ -4,12 +4,16 @@ import type { ChatSocketServerMessage, ForwardOption } from '../../../shared'
 import { AdventureChatSocket, type ChatSocketStatus } from '../../../infrastructure/api'
 
 export interface AdventureChatHandlers {
+    /** Transient speaker roster + narrator identity, sent once before the first delta. */
+    onSpeakers?: (frame: Extract<ChatSocketServerMessage, { type: 'speakers' }>) => void
     /** A narrative text chunk arrived. */
     onDelta?: (content: string) => void
     /** Validated turn metadata (suggested actions + image prompt) arrived. */
     onMetadata?: (meta: { forwardOptions: ForwardOption[]; imagePrompt: string }) => void
+    /** Parsed XML response segments arrived after the narrative stream completed. */
+    onSegments?: (frame: Extract<ChatSocketServerMessage, { type: 'segments' }>) => void
     /** The turn finished streaming (`interrupted` when stopped early). */
-    onDone?: (done: { interrupted: boolean; assistantMessageId?: number; turnId?: string }) => void
+    onDone?: (done: { interrupted: boolean; userMessageId?: number; assistantMessageId?: number; turnId?: string }) => void
     onImageJob?: (frame: Extract<ChatSocketServerMessage, { type: 'image_job' }>) => void
     onImageComplete?: (frame: Extract<ChatSocketServerMessage, { type: 'image_complete' }>) => void
     onImageFailed?: (frame: Extract<ChatSocketServerMessage, { type: 'image_failed' }>) => void
@@ -59,6 +63,9 @@ export function useAdventureChatSocket(
             onMessage: (message: ChatSocketServerMessage) => {
                 const current = handlersRef.current
                 switch (message.type) {
+                    case 'speakers':
+                        current.onSpeakers?.(message)
+                        break
                     case 'delta':
                         current.onDelta?.(message.content)
                         break
@@ -68,9 +75,13 @@ export function useAdventureChatSocket(
                             imagePrompt: message.imagePrompt,
                         })
                         break
+                    case 'segments':
+                        current.onSegments?.(message)
+                        break
                     case 'done':
                         current.onDone?.({
                             interrupted: Boolean(message.interrupted),
+                            userMessageId: message.user_message_id,
                             assistantMessageId: message.assistant_message_id,
                             turnId: message.turn_id,
                         })

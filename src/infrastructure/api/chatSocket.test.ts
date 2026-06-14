@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AdventureChatSocket, configureChatSocketAuthRefresh } from './chatSocket'
+import type { ChatMessage } from '@/shared/types/auth.types'
 
 type Protocols = string | string[] | undefined
 
@@ -210,5 +211,26 @@ describe('AdventureChatSocket auth recovery', () => {
         expect(console.error).not.toHaveBeenCalledWith(expect.stringContaining('old-token'), expect.anything())
         expect(console.warn).not.toHaveBeenCalledWith(expect.stringContaining('old-token'), expect.anything())
         expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining('old-token'), expect.anything())
+    })
+
+    it('keeps character text chat on /ws with text-only control frame types', async () => {
+        vi.useFakeTimers()
+        const socket = new AdventureChatSocket(7, { onMessage: vi.fn() }, 'character-chats')
+        socket.connect()
+
+        expect(MockWebSocket.instances[0].url).toContain('/character-chats/7/ws')
+        expect(MockWebSocket.instances[0].url).not.toContain('/ws-voice')
+
+        MockWebSocket.instances[0].emitOpen()
+        socket.sendChat([{ role: 'user', content: 'hello' } satisfies ChatMessage])
+        socket.sendTts(101, 'turn-1', 'tts-request-1')
+        socket.cancel()
+        await vi.advanceTimersByTimeAsync(25_000)
+
+        const frames = MockWebSocket.instances[0].send.mock.calls.map(([payload]) => JSON.parse(String(payload)))
+        expect(frames.map((frame) => frame.type)).toEqual(['chat', 'tts', 'cancel', 'ping'])
+        expect(JSON.stringify(frames)).not.toContain('raw_audio')
+        expect(JSON.stringify(frames)).not.toContain('audio_b64')
+        expect(JSON.stringify(frames)).not.toContain('data_b64')
     })
 })

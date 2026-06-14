@@ -4,7 +4,18 @@
  * absolute timestamp in a `title` attribute for hover detail.
  */
 
-const RTF = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto', style: 'narrow' })
+import { resolveIntlLocale } from '@/app/i18n'
+
+const RTF_CACHE = new Map<string, Intl.RelativeTimeFormat>()
+
+function relativeTimeFormatter(locale?: string) {
+    const key = locale || resolveIntlLocale()
+    const cached = RTF_CACHE.get(key)
+    if (cached) return cached
+    const formatter = new Intl.RelativeTimeFormat(key, { numeric: 'auto', style: 'narrow' })
+    RTF_CACHE.set(key, formatter)
+    return formatter
+}
 
 const DIVISIONS: Array<{ amount: number; unit: Intl.RelativeTimeFormatUnit }> = [
     { amount: 60, unit: 'second' },
@@ -41,17 +52,17 @@ export function dateFromApiTimestamp(value?: string | null): Date | null {
     return Number.isNaN(stamp) ? null : new Date(stamp)
 }
 
-export function formatApiTime(value?: string | null, options?: Intl.DateTimeFormatOptions): string {
+export function formatApiTime(value?: string | null, options?: Intl.DateTimeFormatOptions, locale?: string): string {
     const date = dateFromApiTimestamp(value)
     if (!date) return ''
-    return date.toLocaleTimeString([], options ?? { hour: '2-digit', minute: '2-digit' })
+    return date.toLocaleTimeString(locale || resolveIntlLocale(), options ?? { hour: '2-digit', minute: '2-digit' })
 }
 
-export function formatApiDateTime(value?: string | null, options?: Intl.DateTimeFormatOptions): string {
+export function formatApiDateTime(value?: string | null, options?: Intl.DateTimeFormatOptions, locale?: string): string {
     const date = dateFromApiTimestamp(value)
     if (!date) return ''
     return new Intl.DateTimeFormat(
-        undefined,
+        locale || resolveIntlLocale(),
         options ?? { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' },
     ).format(date)
 }
@@ -61,13 +72,14 @@ export function formatApiDateTime(value?: string | null, options?: Intl.DateTime
  * within 45 seconds of `now` collapse to the locale's "now". Returns '' for
  * missing or unparseable input. `now` is injectable for deterministic tests.
  */
-export function formatRelativeTime(value?: string | null, now: number = Date.now()): string {
+export function formatRelativeTime(value?: string | null, now: number = Date.now(), locale?: string): string {
     const stamp = parseApiTimestamp(value)
     if (Number.isNaN(stamp)) return ''
-    if (Math.abs(stamp - now) < 45_000) return RTF.format(0, 'second')
+    const rtf = relativeTimeFormatter(locale)
+    if (Math.abs(stamp - now) < 45_000) return rtf.format(0, 'second')
     let duration = (stamp - now) / 1000
     for (const division of DIVISIONS) {
-        if (Math.abs(duration) < division.amount) return RTF.format(Math.round(duration), division.unit)
+        if (Math.abs(duration) < division.amount) return rtf.format(Math.round(duration), division.unit)
         duration /= division.amount
     }
     return ''

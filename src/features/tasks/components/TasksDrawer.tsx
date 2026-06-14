@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { AlertCircle, BookOpen, CalendarClock, CheckCircle2, Clock3, FileAudio, Loader2, Music2, RefreshCw, XCircle } from 'lucide-react'
+import type { TFunction } from 'i18next'
+import { useTranslation } from 'react-i18next'
 import { useBackgroundTasks, useData } from '@/app/hooks'
 import { apiService, resolveMediaUrl } from '@/infrastructure/api'
 import type { Adventure, BackgroundTaskBuckets, BackgroundTaskPublic, CardMediaTargetType, Character, Item, World } from '@/shared'
@@ -31,16 +33,10 @@ interface AttachedCardPreview {
     updatedAt?: string
 }
 
-const TAB_LABEL: Record<TaskTab, string> = {
-    active: 'Active',
-    completed: 'Completed',
-    failed: 'Failed',
-}
-
-const EMPTY_COPY: Record<TaskTab, { icon: typeof Music2; message: string; secondaryText: string }> = {
-    active: { icon: Music2, message: 'No active tasks', secondaryText: 'Theme songs you generate will appear here while they compose.' },
-    completed: { icon: CheckCircle2, message: 'No completed songs yet', secondaryText: 'Finished theme songs land here, ready to play.' },
-    failed: { icon: XCircle, message: 'No failed tasks', secondaryText: 'Tasks that fail or are canceled will appear here.' },
+const EMPTY_ICON: Record<TaskTab, typeof Music2> = {
+    active: Music2,
+    completed: CheckCircle2,
+    failed: XCircle,
 }
 
 type StatusTone = 'live' | 'nsfw' | 'arcane'
@@ -51,23 +47,8 @@ const TILE_TONE: Record<StatusTone, string> = {
     arcane: 'bg-arcane-500/12 text-arcane-300',
 }
 
-function statusCopy(status: BackgroundTaskPublic['status']): string {
-    switch (status) {
-        case 'pending':
-            return 'Queued'
-        case 'in_progress':
-            return 'Starting'
-        case 'synthesizing':
-            return 'Composing'
-        case 'mirroring':
-            return 'Saving audio'
-        case 'completed':
-            return 'Ready'
-        case 'failed':
-            return 'Failed'
-        case 'canceled':
-            return 'Canceled'
-    }
+function statusCopy(status: BackgroundTaskPublic['status'], t: TFunction): string {
+    return t(`tasksDrawer.status.${status}`)
 }
 
 function statusIcon(status: BackgroundTaskPublic['status']) {
@@ -89,31 +70,29 @@ function formatDuration(ms?: number | null): string {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
-function targetTypeLabel(type: CardMediaTargetType): string {
-    if (type === 'adventure_template') return 'Adventure'
-    if (type === 'item') return 'Item'
-    return type === 'character' ? 'Character' : 'World'
+function targetTypeLabel(type: CardMediaTargetType, t: TFunction): string {
+    return t(`tasksDrawer.types.${type}`)
 }
 
-function attachedCardLabel(task: BackgroundTaskPublic): string {
+function attachedCardLabel(task: BackgroundTaskPublic, t: TFunction): string {
     const name = task.target.display_name || task.target.id
-    return `${targetTypeLabel(task.target.type)} - ${name}`
+    return t('tasksDrawer.attached.label', { type: targetTypeLabel(task.target.type, t), name })
 }
 
-function taskTitle(task: BackgroundTaskPublic): string {
-    return task.result?.lyrics?.song_title || 'Theme song'
+function taskTitle(task: BackgroundTaskPublic, t: TFunction): string {
+    return task.result?.lyrics?.song_title || t('tasksDrawer.fallback.themeSong')
 }
 
 function tabTasks(buckets: BackgroundTaskBuckets, tab: TaskTab): BackgroundTaskPublic[] {
     return buckets[tab]
 }
 
-function toCharacterPreview(card: Character, targetId: string): AttachedCardPreview {
+function toCharacterPreview(card: Character, targetId: string, t: TFunction): AttachedCardPreview {
     return {
         id: card.id || targetId,
         type: 'character',
-        title: card.name || 'Unnamed character',
-        badge: card.race || 'Character',
+        title: card.name || t('tasksDrawer.fallback.character'),
+        badge: card.race || targetTypeLabel('character', t),
         description: card.description,
         imageUrl: card.image_url,
         themeSongUrl: card.theme_song_url,
@@ -124,12 +103,12 @@ function toCharacterPreview(card: Character, targetId: string): AttachedCardPrev
     }
 }
 
-function toWorldPreview(card: World, targetId: string): AttachedCardPreview {
+function toWorldPreview(card: World, targetId: string, t: TFunction): AttachedCardPreview {
     return {
         id: card.id || targetId,
         type: 'world',
-        title: card.name || 'Unnamed world',
-        badge: [worldPlaceTypeLabel(readWorldPlaceType(card)), card.type].filter(Boolean).join(' / ') || 'World',
+        title: card.name || t('tasksDrawer.fallback.world'),
+        badge: [worldPlaceTypeLabel(readWorldPlaceType(card)), card.type].filter(Boolean).join(' / ') || targetTypeLabel('world', t),
         description: card.description,
         imageUrl: card.image_url,
         themeSongUrl: card.theme_song_url,
@@ -140,12 +119,12 @@ function toWorldPreview(card: World, targetId: string): AttachedCardPreview {
     }
 }
 
-function toItemPreview(card: Item, targetId: string): AttachedCardPreview {
+function toItemPreview(card: Item, targetId: string, t: TFunction): AttachedCardPreview {
     return {
         id: card.id || targetId,
         type: 'item',
-        title: card.name || 'Unnamed item',
-        badge: [card.type, card.rarity].filter(Boolean).join(' / ') || 'Item',
+        title: card.name || t('tasksDrawer.fallback.item'),
+        badge: [card.type, card.rarity].filter(Boolean).join(' / ') || targetTypeLabel('item', t),
         description: card.description,
         imageUrl: card.image_url,
         themeSongUrl: card.theme_song_url,
@@ -156,12 +135,12 @@ function toItemPreview(card: Item, targetId: string): AttachedCardPreview {
     }
 }
 
-function toAdventurePreview(card: Adventure, targetId: string): AttachedCardPreview {
+function toAdventurePreview(card: Adventure, targetId: string, t: TFunction): AttachedCardPreview {
     return {
         id: card.id || targetId,
         type: 'adventure_template',
-        title: card.scenario || 'Adventure',
-        badge: 'Adventure',
+        title: card.scenario || t('tasksDrawer.fallback.adventure'),
+        badge: targetTypeLabel('adventure_template', t),
         description: card.scenario,
         imageUrl: card.image_url,
         themeSongUrl: card.theme_song_url,
@@ -173,6 +152,7 @@ function toAdventurePreview(card: Adventure, targetId: string): AttachedCardPrev
 }
 
 export function TasksDrawer() {
+    const { t } = useTranslation()
     const { drawerOpen, closeDrawer, taskBuckets, refreshTasks, cancelTask } = useBackgroundTasks()
     const { characters, worlds, items, templateAdventures } = useData()
     const [activeTab, setActiveTab] = useState<TaskTab>('active')
@@ -194,18 +174,18 @@ export function TasksDrawer() {
     const findLocalCard = (task: BackgroundTaskPublic): AttachedCardPreview | null => {
         if (task.target.type === 'character') {
             const card = characters.find((item) => item.id === task.target.id)
-            return card ? toCharacterPreview(card, task.target.id) : null
+            return card ? toCharacterPreview(card, task.target.id, t) : null
         }
         if (task.target.type === 'world') {
             const card = worlds.find((item) => item.id === task.target.id)
-            return card ? toWorldPreview(card, task.target.id) : null
+            return card ? toWorldPreview(card, task.target.id, t) : null
         }
         if (task.target.type === 'item') {
             const card = items.find((item) => item.id === task.target.id)
-            return card ? toItemPreview(card, task.target.id) : null
+            return card ? toItemPreview(card, task.target.id, t) : null
         }
         const card = templateAdventures.find((item) => item.id === task.target.id)
-        return card ? toAdventurePreview(card, task.target.id) : null
+        return card ? toAdventurePreview(card, task.target.id, t) : null
     }
 
     const fetchAttachedCard = async (task: BackgroundTaskPublic): Promise<AttachedCardPreview | null> => {
@@ -213,18 +193,18 @@ export function TasksDrawer() {
         if (local) return local
         if (task.target.type === 'character') {
             const card = transformCharacters([await apiService.getCharacter(task.target.id)])[0]
-            return card ? toCharacterPreview(card, task.target.id) : null
+            return card ? toCharacterPreview(card, task.target.id, t) : null
         }
         if (task.target.type === 'world') {
             const card = transformWorlds([await apiService.getWorld(task.target.id)])[0]
-            return card ? toWorldPreview(card, task.target.id) : null
+            return card ? toWorldPreview(card, task.target.id, t) : null
         }
         if (task.target.type === 'item') {
             const card = transformItems([await apiService.getItem(task.target.id)])[0]
-            return card ? toItemPreview(card, task.target.id) : null
+            return card ? toItemPreview(card, task.target.id, t) : null
         }
         const card = transformTemplates([await apiService.getAdventureTemplate(task.target.id)])[0]
-        return card ? toAdventurePreview(card, task.target.id) : null
+        return card ? toAdventurePreview(card, task.target.id, t) : null
     }
 
     const openAttachedCard = async (task: BackgroundTaskPublic) => {
@@ -235,7 +215,7 @@ export function TasksDrawer() {
         try {
             setSelectedCard(await fetchAttachedCard(task))
         } catch {
-            setCardError('Attached card could not be loaded.')
+            setCardError(t('tasksDrawer.attached.loadFailed'))
         } finally {
             setCardLoading(false)
         }
@@ -264,8 +244,8 @@ export function TasksDrawer() {
                 onClose={closeDrawer}
                 size="md"
                 icon={<Icon icon={Music2} size={18} className="text-arcane-300" />}
-                eyebrow={<Eyebrow tone="arcane">Theme songs</Eyebrow>}
-                title="Tasks"
+                eyebrow={<Eyebrow tone="arcane">{t('tasksDrawer.eyebrow')}</Eyebrow>}
+                title={t('tasksDrawer.title')}
                 footer={
                     <Button
                         kind="secondary"
@@ -274,12 +254,12 @@ export function TasksDrawer() {
                         onClick={() => void handleRefresh()}
                         iconLeft={<Icon icon={RefreshCw} size={14} className={isRefreshing ? 'animate-spin' : undefined} />}
                     >
-                        Refresh
+                        {t('tasksDrawer.actions.refresh')}
                     </Button>
                 }
             >
                 <div className="flex flex-col gap-4">
-                    <div className="grid grid-cols-3 gap-1 rounded-lg border border-parchment-50/10 bg-ink-900/45 p-1" role="group" aria-label="Filter tasks by status">
+                    <div className="grid grid-cols-3 gap-1 rounded-lg border border-parchment-50/10 bg-ink-900/45 p-1" role="group" aria-label={t('tasksDrawer.filterAria')}>
                         {TAB_ORDER.map((tab) => (
                             <button
                                 key={tab}
@@ -293,7 +273,7 @@ export function TasksDrawer() {
                                 )}
                                 onClick={() => setActiveTab(tab)}
                             >
-                                <span>{TAB_LABEL[tab]}</span>
+                                <span>{t(`tasksDrawer.tabs.${tab}`)}</span>
                                 <Badge tone={tab === 'failed' && counts[tab] > 0 ? 'nsfw' : tab === 'active' && counts[tab] > 0 ? 'arcane' : 'neutral'}>
                                     {counts[tab]}
                                 </Badge>
@@ -301,14 +281,14 @@ export function TasksDrawer() {
                         ))}
                     </div>
                     <span role="status" className="sr-only">
-                        {counts.active} active {counts.active === 1 ? 'task' : 'tasks'}
+                        {t('tasksDrawer.activeStatus', { count: counts.active })}
                     </span>
 
                     {visibleTasks.length === 0 ? (
                         <EmptyState
-                            icon={<Icon icon={EMPTY_COPY[activeTab].icon} size={28} />}
-                            message={EMPTY_COPY[activeTab].message}
-                            secondaryText={EMPTY_COPY[activeTab].secondaryText}
+                            icon={<Icon icon={EMPTY_ICON[activeTab]} size={28} />}
+                            message={t(`tasksDrawer.empty.${activeTab}Title`)}
+                            secondaryText={t(`tasksDrawer.empty.${activeTab}Body`)}
                         />
                     ) : (
                         visibleTasks.map((task) => (
@@ -345,19 +325,20 @@ function TaskRow({
     onCancel: () => void
     onOpenCard: () => void
 }) {
+    const { t } = useTranslation()
     const IconCmp = statusIcon(task.status)
     const assetUrl = task.result?.assets?.[0]?.url
     const resolvedAudio = resolveMediaUrl(assetUrl)
     const tone: StatusTone = task.status === 'completed' ? 'live' : task.status === 'failed' || task.status === 'canceled' ? 'nsfw' : 'arcane'
     const isWorking = ACTIVE.has(task.status) && task.status !== 'pending'
-    const title = taskTitle(task)
+    const title = taskTitle(task, t)
     const createdTime = formatDateTime(task.created_at)
     const updatedTime = formatDateTime(task.updated_at)
     const createdRelative = formatRelativeTime(task.created_at)
     const updatedRelative = formatRelativeTime(task.updated_at)
     const duration = formatDuration(task.result?.assets?.[0]?.duration_ms)
     const format = task.result?.assets?.[0]?.output_format?.toUpperCase()
-    const cardLabel = attachedCardLabel(task)
+    const cardLabel = attachedCardLabel(task, t)
 
     return (
         <div className="flex flex-col gap-3 rounded-lg border border-parchment-50/10 bg-ink-800/60 p-4">
@@ -369,11 +350,11 @@ function TaskRow({
                     <div className="min-w-0">
                         <div className="truncate font-ui text-sm font-semibold text-parchment-50">{title}</div>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
-                            <Badge tone={tone}>{statusCopy(task.status)}</Badge>
+                            <Badge tone={tone}>{statusCopy(task.status, t)}</Badge>
                             <button
                                 type="button"
-                                title={`Attached card: ${cardLabel}`}
-                                aria-label={`Attached card: ${cardLabel}`}
+                                title={t('tasksDrawer.attached.aria', { label: cardLabel })}
+                                aria-label={t('tasksDrawer.attached.aria', { label: cardLabel })}
                                 className="inline-flex max-w-full items-center gap-1 rounded-sm font-ui text-[11px] text-parchment-400 underline-offset-2 hover:text-parchment-50 hover:underline"
                                 onClick={onOpenCard}
                             >
@@ -385,7 +366,7 @@ function TaskRow({
                 </div>
                 {task.status === 'pending' && task.cancel_url && (
                     <Button kind="secondary" size="sm" className="shrink-0" onClick={onCancel}>
-                        Cancel
+                        {t('tasksDrawer.actions.cancel')}
                     </Button>
                 )}
             </div>
@@ -400,11 +381,11 @@ function TaskRow({
                 {createdRelative && (
                     <span title={createdTime} className="inline-flex items-center gap-1">
                         <Icon icon={CalendarClock} size={12} />
-                        Created {createdRelative}
+                        {t('tasksDrawer.metadata.created', { time: createdRelative })}
                     </span>
                 )}
                 {updatedRelative && updatedRelative !== createdRelative && (
-                    <span title={updatedTime}>Updated {updatedRelative}</span>
+                    <span title={updatedTime}>{t('tasksDrawer.metadata.updated', { time: updatedRelative })}</span>
                 )}
                 {(duration || format) && (
                     <span className="inline-flex items-center gap-1">
@@ -417,7 +398,7 @@ function TaskRow({
             {resolvedAudio && task.status === 'completed' && (
                 <AudioWavePlayer
                     src={resolvedAudio}
-                    title={`${title} theme`}
+                    title={t('tasksDrawer.metadata.theme', { title })}
                     trackMeta={{
                         cardName: attachedCard?.title || task.target.display_name || undefined,
                         cardType: task.target.type,
@@ -450,25 +431,27 @@ function AttachedCardModal({
     error: string | null
     onClose: () => void
 }) {
+    const { t } = useTranslation()
     const isOpen = Boolean(task)
-    const fallbackTitle = task ? attachedCardLabel(task) : 'Attached card'
+    const fallbackTitle = task ? attachedCardLabel(task, t) : t('tasksDrawer.attached.title')
     return (
         <Modal
             open={isOpen}
             onClose={onClose}
             size="lg"
-            title="Attached card"
+            title={t('tasksDrawer.attached.title')}
             icon={<Icon icon={BookOpen} size={18} className="text-arcane-300" />}
+            closeLabel={t('common.close')}
         >
             {loading ? (
-                <LoadingSpinner size="small" message="Loading card…" />
+                <LoadingSpinner size="small" message={t('tasksDrawer.attached.loading')} />
             ) : card ? (
                 <div className="flex flex-col gap-4">
                     <DomainCard
                         title={card.title}
                         imageUrl={resolveMediaUrl(card.imageUrl)}
                         themeSongUrl={resolveMediaUrl(card.themeSongUrl)}
-                        subtitle={<Tag>{card.badge || targetTypeLabel(card.type)}</Tag>}
+                        subtitle={<Tag>{card.badge || targetTypeLabel(card.type, t)}</Tag>}
                     >
                         <div className="flex flex-col gap-3">
                             {card.description && (
@@ -484,11 +467,11 @@ function AttachedCardModal({
                 <div className="rounded-lg border border-parchment-50/10 bg-ink-800/60 p-4">
                     <div className="font-ui text-sm font-semibold text-parchment-100">{fallbackTitle}</div>
                     <p className="mt-2 font-ui text-xs leading-relaxed text-parchment-400">
-                        {error || 'This attached card is no longer available in the current library.'}
+                        {error || t('tasksDrawer.attached.unavailable')}
                     </p>
                     {task && (
                         <div className="mt-3 flex flex-wrap gap-2">
-                            <Tag>{targetTypeLabel(task.target.type)}</Tag>
+                            <Tag>{targetTypeLabel(task.target.type, t)}</Tag>
                             <span className="inline-flex items-center rounded-full bg-ink-600 px-2.5 py-[3px] font-mono text-[11px] text-parchment-200">
                                 {task.target.id}
                             </span>
@@ -501,6 +484,7 @@ function AttachedCardModal({
 }
 
 function CardMetadata({ card }: { card: AttachedCardPreview }) {
+    const { t } = useTranslation()
     const createdAt = formatDateTime(card.createdAt)
     const updatedAt = formatDateTime(card.updatedAt)
     const attrs = (card.categories ?? [])
@@ -513,8 +497,8 @@ function CardMetadata({ card }: { card: AttachedCardPreview }) {
         <div className="flex flex-col gap-3">
             {(createdAt || updatedAt) && (
                 <div className="flex flex-wrap gap-2">
-                    {createdAt && <Tag>Created {createdAt}</Tag>}
-                    {updatedAt && updatedAt !== createdAt && <Tag>Updated {updatedAt}</Tag>}
+                    {createdAt && <Tag>{t('tasksDrawer.metadata.created', { time: createdAt })}</Tag>}
+                    {updatedAt && updatedAt !== createdAt && <Tag>{t('tasksDrawer.metadata.updated', { time: updatedAt })}</Tag>}
                 </div>
             )}
             {attrs.length > 0 && (

@@ -108,7 +108,10 @@ describe('useCodex', () => {
 
         expect(result.current.entries.map((entry) => entry.id)).toEqual(['b', 'a'])
         expect(result.current.entries[0]).toMatchObject({ label: 'Eldoria', description: 'A kingdom', kind: 'world' })
-        expect(result.current.groups.map((group) => group.label)).toEqual(['Characters', 'Worlds'])
+        expect(result.current.groups.map((group) => group.labelKey)).toEqual([
+            'novelEditor.codexKind.characters',
+            'novelEditor.codexKind.worlds',
+        ])
         expect(result.current.existingCardKeys.has('character:card-x')).toBe(true)
     })
 

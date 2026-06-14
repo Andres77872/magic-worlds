@@ -3,7 +3,8 @@
  * feeds playback (object URL), waveform decoding, and download. Theme audio is
  * loaded through the API media helper when it points at protected backend media.
  */
-import { apiService, isProtectedMediaUrl } from '@/infrastructure/api'
+import { apiService } from '@/infrastructure/api'
+import { isProtectedMediaUrl } from '@/infrastructure/api/mediaUrl'
 
 /** Bars in a waveform strip — fits a card-width row at gap-px without math. */
 export const PEAK_BUCKETS = 48

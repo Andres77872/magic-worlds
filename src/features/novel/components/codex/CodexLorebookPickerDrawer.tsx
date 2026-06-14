@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ArrowLeft, BookMarked, Check, Loader2, Search } from 'lucide-react'
 import type { Lorebook } from '@/shared'
 import { apiService } from '@/infrastructure/api'
@@ -25,6 +26,7 @@ interface CodexLorebookPickerDrawerProps {
 }
 
 export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClose, onClone }: CodexLorebookPickerDrawerProps) {
+    const { t } = useTranslation()
     const [query, setQuery] = useState('')
     const [lorebooks, setLorebooks] = useState<Lorebook[]>([])
     const [loading, setLoading] = useState(false)
@@ -90,8 +92,8 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
         <Drawer
             open={open}
             onClose={close}
-            eyebrow="Codex"
-            title={picked ? picked.name : 'Add a lorebook'}
+            eyebrow={t('novelEditor.codex.title')}
+            title={picked ? picked.name : t('novelEditor.lorebookPicker.title')}
             icon={<Icon icon={BookMarked} size={18} />}
             size="xl"
             footer={
@@ -103,11 +105,11 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                             onClick={() => setSelectedIds(allSelected ? new Set() : new Set(selectableIds))}
                             disabled={busy || selectableIds.length === 0}
                         >
-                            {allSelected ? 'Select none' : 'Select all'}
+                            {allSelected ? t('novelEditor.lorebookPicker.selectNone') : t('novelEditor.lorebookPicker.selectAll')}
                         </Button>
                         <div className="flex items-center gap-2">
                             <Button kind="ghost" onClick={close} disabled={busy}>
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
                             <Button
                                 kind="primary"
@@ -115,7 +117,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                                 disabled={busy || selectedIds.size === 0}
                                 data-testid="codex-clone-entries-submit"
                             >
-                                {busy ? 'Cloning…' : `Clone ${selectedIds.size} ${selectedIds.size === 1 ? 'entry' : 'entries'}`}
+                                {busy ? t('novelEditor.lorebookPicker.cloning') : t('novelEditor.lorebookPicker.clone', { count: selectedIds.size })}
                             </Button>
                         </div>
                     </div>
@@ -125,7 +127,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
             {!picked ? (
                 <div className="flex flex-col gap-3">
                     <p className="m-0 font-ui text-xs text-parchment-400">
-                        Entries are copied into this novel — later lorebook edits won't affect it.
+                        {t('novelEditor.lorebookPicker.hint')}
                     </p>
                     <div className="relative flex items-center">
                         <span className="pointer-events-none absolute left-3 text-parchment-400">
@@ -135,9 +137,9 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                             type="search"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Search your lorebooks…"
-                            aria-label="Search your lorebooks"
-                            className="w-full rounded-md border border-parchment-50/10 bg-ink-800 py-2 pl-9 pr-9 font-ui text-sm text-parchment-50 placeholder:text-parchment-500 focus:outline-none"
+                            placeholder={t('novelEditor.lorebookPicker.searchPlaceholder')}
+                            aria-label={t('novelEditor.lorebookPicker.searchPlaceholder')}
+                            className="w-full rounded-md border border-parchment-50/10 bg-ink-800 py-2 pl-9 pr-9 font-ui text-sm text-parchment-50 placeholder:text-parchment-500 focus:outline-none focus:border-ember-500"
                             data-testid="codex-lorebook-search"
                         />
                         {loading && <Loader2 size={15} className="absolute right-3 animate-spin text-ember-500" aria-hidden="true" />}
@@ -157,7 +159,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                                     <span className="min-w-0 flex-1">
                                         <span className="flex items-center gap-2">
                                             <span className="truncate font-ui text-sm font-semibold text-parchment-100">{lorebook.name}</span>
-                                            <Badge tone="arcane">{lorebook.entries.length} entries</Badge>
+                                            <Badge tone="arcane">{t('novelEditor.lorebookPicker.entryCount', { count: lorebook.entries.length })}</Badge>
                                         </span>
                                         {lorebook.description && (
                                             <span className="mt-0.5 block truncate font-ui text-xs text-parchment-400">{lorebook.description}</span>
@@ -167,18 +169,18 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                             </li>
                         ))}
                         {lorebooks.length === 0 && !loading && (
-                            <li className="px-2 py-4 text-center font-ui text-xs text-parchment-500">No lorebooks match.</li>
+                            <li className="px-2 py-4 text-center font-ui text-xs text-parchment-500">{t('novelEditor.lorebookPicker.noMatches')}</li>
                         )}
                     </ul>
                 </div>
             ) : (
                 <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-2">
-                        <IconButton label="Back to lorebooks" size="sm" onClick={() => setPicked(null)}>
+                        <IconButton label={t('novelEditor.lorebookPicker.back')} size="sm" onClick={() => setPicked(null)}>
                             <Icon icon={ArrowLeft} size={15} />
                         </IconButton>
                         <p className="m-0 font-ui text-xs text-parchment-400">
-                            Pick the entries to clone into the codex. Already-cloned entries are marked.
+                            {t('novelEditor.lorebookPicker.pickHint')}
                         </p>
                     </div>
                     <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
@@ -216,10 +218,10 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                                         <span className="min-w-0 flex-1">
                                             <span className="flex items-center gap-2">
                                                 <span className="truncate font-ui text-sm font-semibold text-parchment-100">
-                                                    {entry.title || 'Untitled entry'}
+                                                    {entry.title || t('novelEditor.lorebookPicker.untitledEntry')}
                                                 </span>
                                                 <Tag className="shrink-0">{entry.entryType}</Tag>
-                                                {inCodex && <Tag className="shrink-0">In codex</Tag>}
+                                                {inCodex && <Tag className="shrink-0">{t('novelEditor.codex.inCodex')}</Tag>}
                                             </span>
                                             {entry.content && (
                                                 <span className="mt-0.5 block truncate font-ui text-xs text-parchment-400">
@@ -232,7 +234,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                             )
                         })}
                         {picked.entries.length === 0 && (
-                            <li className="px-2 py-4 text-center font-ui text-xs text-parchment-500">This lorebook has no entries.</li>
+                            <li className="px-2 py-4 text-center font-ui text-xs text-parchment-500">{t('novelEditor.lorebookPicker.noEntries')}</li>
                         )}
                     </ul>
                 </div>

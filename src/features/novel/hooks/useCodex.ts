@@ -29,7 +29,7 @@ export interface CodexMentionEntry {
 
 export interface CodexApi {
     entries: CodexEntry[]
-    groups: Array<{ kind: StoryCardKind; label: string; entries: CodexEntry[] }>
+    groups: Array<{ kind: StoryCardKind; labelKey: string; entries: CodexEntry[] }>
     /** `${kind}:${cardId}` keys already in the codex (picker "In codex" badges). */
     existingCardKeys: Set<string>
     /** Lorebook entry ids already cloned (picker "In codex" badges). */
@@ -83,7 +83,7 @@ export function useCodex({ story }: { story: Story | null }): CodexApi {
         () =>
             KIND_META.map((meta) => ({
                 kind: meta.kind,
-                label: meta.plural,
+                labelKey: meta.pluralKey,
                 entries: entries.filter((entry) => entry.kind === meta.kind),
             })).filter((group) => group.entries.length > 0),
         [entries],

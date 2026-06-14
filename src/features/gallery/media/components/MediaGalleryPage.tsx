@@ -6,6 +6,7 @@
  */
 
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth, useData } from '@/app/hooks'
 import { apiService, resolveMediaUrl } from '@/infrastructure/api'
 import { Button, PageHeader } from '@/ui/primitives'
@@ -19,6 +20,7 @@ import { MediaImageTile } from './MediaImageTile'
 import { MediaThemeCard } from './MediaThemeCard'
 
 export function MediaGalleryPage() {
+    const { t } = useTranslation()
     const gallery = useMediaGallery()
     const { isAuthenticated, openLoginModal } = useAuth()
     const { characters, worlds, items, templateAdventures } = useData()
@@ -47,7 +49,7 @@ export function MediaGalleryPage() {
             else await apiService.deleteThemeSongAsset(target.id)
             gallery.removeItem(target.id)
         } catch {
-            setActionError(`Could not delete that ${target.kind === 'image' ? 'image' : 'theme'}. Try again.`)
+            setActionError(t(target.kind === 'image' ? 'mediaGallery.deleteDialog.imageFailed' : 'mediaGallery.deleteDialog.themeFailed'))
         } finally {
             setDeletingId(null)
         }
@@ -55,7 +57,7 @@ export function MediaGalleryPage() {
 
     const filtered =
         gallery.filters.mediaType !== 'all' || gallery.filters.cardType !== 'all' || Boolean(gallery.filters.card)
-    const empty = emptyCopy(gallery.filters)
+    const empty = emptyCopy(gallery.filters, t)
     const error = gallery.error ?? actionError
     const artworkByCard = useMemo(() => {
         const entries: Array<[string, string | undefined]> = [
@@ -83,9 +85,9 @@ export function MediaGalleryPage() {
     return (
         <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-6 px-5 py-8 sm:px-8 sm:py-10">
             <PageHeader
-                eyebrow="Your library"
-                title="Media"
-                subtitle="Every image and theme you've conjured, across all your cards."
+                eyebrow={t('mediaGallery.header.eyebrow')}
+                title={t('mediaGallery.header.title')}
+                subtitle={t('mediaGallery.header.subtitle')}
                 size="lg"
             />
 
@@ -110,7 +112,7 @@ export function MediaGalleryPage() {
                             if (gallery.error) gallery.refresh()
                         }}
                     >
-                        {gallery.error ? 'Retry' : 'Dismiss'}
+                        {gallery.error ? t('mediaGallery.actions.retry') : t('mediaGallery.actions.dismiss')}
                     </Button>
                 </div>
             )}
@@ -129,7 +131,7 @@ export function MediaGalleryPage() {
                 emptyStateAction={
                     filtered ? (
                         <Button kind="secondary" size="sm" onClick={gallery.clearFilters}>
-                            Clear filters
+                            {t('mediaGallery.actions.clearFilters')}
                         </Button>
                     ) : undefined
                 }
@@ -158,19 +160,19 @@ export function MediaGalleryPage() {
             <ImageLightbox
                 open={Boolean(lightboxUrl)}
                 src={lightboxUrl}
-                alt="Generated image"
+                alt={t('mediaGallery.tile.generatedImage')}
                 onClose={() => setLightboxUrl(undefined)}
             />
 
             <ConfirmDialog
                 visible={pendingDelete !== null}
-                title={pendingDelete?.kind === 'theme' ? 'Delete theme' : 'Delete image'}
+                title={t(pendingDelete?.kind === 'theme' ? 'mediaGallery.deleteDialog.themeTitle' : 'mediaGallery.deleteDialog.imageTitle')}
                 message={
                     pendingDelete
-                        ? `Delete this ${pendingDelete.kind === 'theme' ? 'theme' : 'image'}? This cannot be undone.`
+                        ? t(pendingDelete.kind === 'theme' ? 'mediaGallery.deleteDialog.themeMessage' : 'mediaGallery.deleteDialog.imageMessage')
                         : ''
                 }
-                confirmLabel="Delete"
+                confirmLabel={t('mediaGallery.actions.delete')}
                 variant="danger"
                 onConfirm={() => void confirmDelete()}
                 onCancel={() => setPendingDelete(null)}

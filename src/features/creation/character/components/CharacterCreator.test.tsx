@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
     setPage: vi.fn(),
+    goBack: vi.fn(),
     loadData: vi.fn(),
     openLoginModal: vi.fn(),
     registerThemeSongJob: vi.fn(),
@@ -20,7 +21,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useNavigation: () => ({ setPage: mocks.setPage }),
+    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack }),
     useData: () => ({ editingCharacter: mocks.editingCharacter, setEditingCharacter: mocks.setEditingCharacter, loadData: mocks.loadData }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
     useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
@@ -29,6 +30,7 @@ vi.mock('@/app/hooks', () => ({
 vi.mock('@/infrastructure/api', () => ({
     ApiError: class ApiError extends Error { status = 500; isTransient = true },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
+    isProtectedMediaUrl: () => false,
     apiService: {
         createCardAssistantConversation: mocks.createCardAssistantConversation,
         listCardAssistantConversations: mocks.listCardAssistantConversations,
@@ -215,6 +217,57 @@ describe('CharacterCreator role payload', () => {
         await waitFor(() => expect(mocks.createCharacter).toHaveBeenCalledTimes(1))
         const payload = mocks.createCharacter.mock.calls[0][0]
         expect(payload.category.find((c: { name: string }) => c.name === 'Personality')).toBeUndefined()
+    })
+})
+
+describe('CharacterCreator navigation', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingCharacter = null
+        mocks.createCharacter.mockResolvedValue({ id: 'c4', name: 'Bren', race: 'Dwarf' })
+        mocks.loadData.mockResolvedValue(undefined)
+        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+    })
+
+    it('returns to the origin after saving a new character', async () => {
+        render(<CharacterCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
+        fireEvent.change(screen.getByPlaceholderText(/lyra emberwind/i), { target: { value: 'Bren' } })
+        fireEvent.change(screen.getByPlaceholderText(/elf, human, construct/i), { target: { value: 'Dwarf' } })
+        fireEvent.click(screen.getByRole('button', { name: /^Create Character$/i }))
+
+        await waitFor(() => expect(mocks.createCharacter).toHaveBeenCalledTimes(1))
+        await waitFor(() => expect(mocks.goBack).toHaveBeenCalledWith('landing'))
+        expect(mocks.setPage).not.toHaveBeenCalledWith('landing')
+    })
+
+    it('returns to the origin from edit back and cancel actions', () => {
+        mocks.editingCharacter = { id: 'char-1', name: 'Nyra', race: 'moon elf', description: '', triggers: [] }
+        const { rerender } = render(<CharacterCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /^Back$/i }))
+        expect(mocks.setEditingCharacter).toHaveBeenCalledWith(null)
+        expect(mocks.goBack).toHaveBeenCalledWith('landing')
+
+        vi.clearAllMocks()
+        mocks.editingCharacter = { id: 'char-1', name: 'Nyra', race: 'moon elf', description: '', triggers: [] }
+        rerender(<CharacterCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /^Cancel$/i }))
+        expect(mocks.setEditingCharacter).toHaveBeenCalledWith(null)
+        expect(mocks.goBack).toHaveBeenCalledWith('landing')
+    })
+
+    it('returns to the template picker before leaving an unsaved create form', () => {
+        render(<CharacterCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
+        fireEvent.click(screen.getByRole('button', { name: /^Back$/i }))
+
+        expect(mocks.goBack).not.toHaveBeenCalled()
+        expect(screen.getByRole('button', { name: /skip — start with the standard fields/i })).toBeInTheDocument()
     })
 })
 

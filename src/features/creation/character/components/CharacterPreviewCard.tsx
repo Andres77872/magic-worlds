@@ -3,6 +3,7 @@
  * Thin wrapper over the shared EntityPreviewCard.
  */
 
+import { useTranslation } from 'react-i18next'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
 import { EntityPreviewCard } from '../../common/components'
 import type { AttrMap } from '../../common/hooks'
@@ -18,12 +19,13 @@ export interface CharacterPreviewCardProps {
 }
 
 export function CharacterPreviewCard({ name, race, description, triggers, attributes, categories, imageUrl }: CharacterPreviewCardProps) {
+    const { t } = useTranslation()
     return (
         <EntityPreviewCard
             name={name}
-            unnamedLabel="Unnamed Character"
+            unnamedLabel={t('creation.character.preview.unnamed')}
             badge={race}
-            badgePlaceholder="Add a race…"
+            badgePlaceholder={t('creation.character.preview.badgePlaceholder')}
             description={description}
             triggers={triggers}
             attributes={attributes}

@@ -191,12 +191,29 @@ export class ChatSocket {
             clearTimeout(this.reconnectTimer)
             this.reconnectTimer = null
         }
-        if (this.ws) {
-            this.detach(this.ws)
-            try {
-                this.ws.close(1000)
-            } catch {
-                // ignore
+        const ws = this.ws
+        if (ws) {
+            if (ws.readyState === WebSocket.CONNECTING) {
+                // Closing a CONNECTING socket triggers the browser's noisy
+                // "WebSocket is closed before the connection is established" warning
+                // (e.g. the text→voice mode toggle remount). Make every handler inert,
+                // then close cleanly once it actually opens — no warning.
+                this.detach(ws)
+                ws.onopen = () => {
+                    try {
+                        ws.close(1000)
+                    } catch {
+                        // ignore
+                    }
+                }
+                console.info('[chat-socket][CLOSED_WHILE_CONNECTING] deferring close until open', { sessionId: this.sessionId })
+            } else {
+                this.detach(ws)
+                try {
+                    ws.close(1000)
+                } catch {
+                    // ignore
+                }
             }
             this.ws = null
         }

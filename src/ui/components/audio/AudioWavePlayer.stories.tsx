@@ -7,7 +7,7 @@ const SILENT_WAV =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
 
 const meta = {
-  title: 'Components/AudioWavePlayer',
+  title: 'Components/Audio/AudioWavePlayer',
   component: AudioWavePlayer,
   tags: ['autodocs'],
   parameters: {

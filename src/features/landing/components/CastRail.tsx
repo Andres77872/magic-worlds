@@ -7,6 +7,7 @@
 
 import { useState } from 'react'
 import { ArrowRight, MessageCircle, Pencil, Trash2, Users } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { Character } from '@/shared'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { CardGrid, GalleryCard, type CardOption } from '@/ui/components/lists/Card'
@@ -25,6 +26,7 @@ export interface CastRailProps {
 }
 
 export function CastRail({ cast, onChat, onEdit, onDelete, onViewAll }: CastRailProps) {
+    const { t } = useTranslation()
     const [pending, setPending] = useState<Character | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -43,7 +45,7 @@ export function CastRail({ cast, onChat, onEdit, onDelete, onViewAll }: CastRail
     return (
         <section className="flex flex-col gap-1" data-testid="cast-rail">
             <SectionHeader
-                title="Your cast"
+                title={t('landing.cast.title')}
                 icon={Users}
                 right={
                     <Button
@@ -51,9 +53,9 @@ export function CastRail({ cast, onChat, onEdit, onDelete, onViewAll }: CastRail
                         size="sm"
                         iconRight={<Icon icon={ArrowRight} size={14} />}
                         onClick={onViewAll}
-                        aria-label="View all characters"
+                        aria-label={t('landing.cast.viewAllAria')}
                     >
-                        View all ({cast.length})
+                        {t('landing.cast.viewAll', { count: cast.length })}
                     </Button>
                 }
             />
@@ -69,13 +71,13 @@ export function CastRail({ cast, onChat, onEdit, onDelete, onViewAll }: CastRail
                         {
                             type: 'custom',
                             icon: <Icon icon={Pencil} size={15} />,
-                            label: 'Edit',
+                            label: t('gallery.edit'),
                             onClick: () => onEdit(character),
                         },
                         {
                             type: 'custom',
                             icon: <Icon icon={Trash2} size={15} />,
-                            label: 'Delete',
+                            label: t('gallery.delete'),
                             onClick: () => setPending(character),
                             danger: true,
                         },
@@ -88,7 +90,7 @@ export function CastRail({ cast, onChat, onEdit, onDelete, onViewAll }: CastRail
                             cardId={character.id}
                             options={options}
                             onClick={() => onEdit(character)}
-                            actionLabel={`Edit ${character.name}`}
+                            actionLabel={t('landing.rail.editAria', { name: character.name })}
                             deleting={deletingId === character.id}
                             footer={
                                 <Button
@@ -98,7 +100,7 @@ export function CastRail({ cast, onChat, onEdit, onDelete, onViewAll }: CastRail
                                     iconLeft={<Icon icon={MessageCircle} size={15} />}
                                     onClick={() => onChat(character)}
                                 >
-                                    Chat
+                                    {t('landing.cast.chat')}
                                 </Button>
                             }
                         />
@@ -108,9 +110,9 @@ export function CastRail({ cast, onChat, onEdit, onDelete, onViewAll }: CastRail
 
             <ConfirmDialog
                 visible={pending !== null}
-                title="Delete character"
-                message={pending ? `Delete "${pending.name}"? This cannot be undone.` : ''}
-                confirmLabel="Delete"
+                title={t('landing.cast.deleteTitle')}
+                message={pending ? t('landing.cast.deleteMessage', { name: pending.name }) : ''}
+                confirmLabel={t('gallery.delete')}
                 variant="danger"
                 onConfirm={confirmDelete}
                 onCancel={() => setPending(null)}

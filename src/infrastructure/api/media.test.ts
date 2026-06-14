@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { apiService, isProtectedMediaUrl, resolveMediaUrl } from './index'
+import { apiService, isProtectedMediaUrl, isPublicMediaUrl, resolveMediaUrl } from './index'
 
 describe('resolveMediaUrl', () => {
     it('returns undefined for empty input', () => {
@@ -49,6 +49,34 @@ describe('isProtectedMediaUrl', () => {
         expect(isProtectedMediaUrl('https://cdn.example/image.png')).toBe(false)
         expect(isProtectedMediaUrl('data:image/png;base64,AAA')).toBe(false)
         expect(isProtectedMediaUrl('blob:abc-123')).toBe(false)
+    })
+
+    it('treats public/shared card media routes as NON-protected so they load without a token', () => {
+        expect(isProtectedMediaUrl('/images/public/asset-1')).toBe(false)
+        expect(isProtectedMediaUrl('/theme-songs/public/song-1.mp3')).toBe(false)
+        expect(isProtectedMediaUrl('http://127.0.0.1:8010/images/public/asset-1')).toBe(false)
+    })
+})
+
+describe('isPublicMediaUrl', () => {
+    it('recognizes the public/shared card media routes', () => {
+        expect(isPublicMediaUrl('/images/public/asset-1')).toBe(true)
+        expect(isPublicMediaUrl('/theme-songs/public/song-1.mp3')).toBe(true)
+        expect(isPublicMediaUrl('http://127.0.0.1:8010/images/public/asset-1')).toBe(true)
+    })
+
+    it('does not treat owner-only or external URLs as public', () => {
+        expect(isPublicMediaUrl('/images/assets/asset-1')).toBe(false)
+        expect(isPublicMediaUrl('/theme-songs/assets/song-1.mp3')).toBe(false)
+        expect(isPublicMediaUrl('https://cdn.example/image.png')).toBe(false)
+        expect(isPublicMediaUrl('data:image/png;base64,AAA')).toBe(false)
+    })
+
+    it('resolves a public URL to an absolute, token-free src', () => {
+        const out = resolveMediaUrl('/images/public/asset-1')
+        expect(out).toBeDefined()
+        expect(out!.startsWith('http')).toBe(true)
+        expect(out!.endsWith('/images/public/asset-1')).toBe(true)
     })
 })
 

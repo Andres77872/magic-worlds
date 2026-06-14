@@ -8,9 +8,11 @@
 
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
-import { Bot, Plus, UserCircle } from 'lucide-react'
-import type { Character } from '@/shared'
+import { Trans, useTranslation } from 'react-i18next'
+import { AudioLines, Bot, Drama, Plus, UserCircle } from 'lucide-react'
+import type { Character, CharacterVoice } from '@/shared'
 import type { CharacterRole } from '@/shared/types/character.types'
+import { VoicePickerDialog } from '@/features/voices'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService, ApiError } from '@/infrastructure/api'
 import type { CharacterCardResponse } from '@/shared/types/aiCard.types'
@@ -38,27 +40,14 @@ import {
 } from '../../common/components'
 import { GuidedSection, UseExampleLink, useGuidedCard, type CardTemplate } from '../../common/engine'
 import { CreatorIntro, TemplateGallery } from '../../common/templates'
-import { getCharacterFields, getCharacterSections, RACE_OPTIONS } from '../fields'
-import { CHARACTER_GALLERY_HEADING, CHARACTER_GALLERY_SUBHEADING, CHARACTER_TEMPLATES } from '../templates'
+import { getCharacterFields, getCharacterSections, getRaceOptions } from '../fields'
+import { CHARACTER_TEMPLATES } from '../templates'
 import { CharacterPreviewCard } from './CharacterPreviewCard'
-
-// One minimal default category; users add attributes here or create more groups.
-const DEFAULT_CATEGORIES: AttributeCategory[] = [
-    { id: 'stats', name: 'Stats', type: 'stat', description: 'Core attributes like Strength or Agility — add only what you need.' },
-]
-
-// One-click presets for the default "Stats" category.
-const STAT_PRESETS: AttributePreset[] = [
-    { key: 'Strength' },
-    { key: 'Agility' },
-    { key: 'Intelligence' },
-    { key: 'Charisma' },
-    { key: 'Constitution' },
-    { key: 'Wisdom' },
-]
 
 const FORM_ID = 'character-form'
 
+// Ghost example text seeds the user's own content (description/greeting/direction)
+// and is model-facing flavor — left untranslated by design.
 const DESCRIPTION_GHOST: Record<CharacterRole, string> = {
     character:
         'A scarred firesmith with ash-gray braids who talks to her forge like an old friend. Generous with strangers, ruthless with cheats, incapable of leaving a broken thing unmended.',
@@ -73,6 +62,16 @@ const DIRECTION_GHOST: Record<CharacterRole, string> = {
         "Speak in short, warm sentences. Never reveal the vault's location. Call the player 'stranger' until they earn a name.",
     persona: 'Address me directly. Never summarize my feelings back to me — show me the scene and wait.',
 }
+
+// Stat preset keys are saved-card data (round-trip with the attribute payload), not UI copy.
+const STAT_PRESETS: AttributePreset[] = [
+    { key: 'Strength' },
+    { key: 'Agility' },
+    { key: 'Intelligence' },
+    { key: 'Charisma' },
+    { key: 'Constitution' },
+    { key: 'Wisdom' },
+]
 
 /** Map the AI/persisted card response into the local Character edit shape. */
 function toCharacter(card: CharacterCardResponse): Character {
@@ -94,9 +93,17 @@ function toCharacter(card: CharacterCardResponse): Character {
 }
 
 export function CharacterCreator() {
-    const { setPage } = useNavigation()
+    const { t } = useTranslation()
+    const { goBack } = useNavigation()
     const { editingCharacter, setEditingCharacter, loadData } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
+
+    // One minimal default category; users add attributes here or create more groups.
+    // `id`/`name` are saved-card data; the description is display copy.
+    const defaultCategories = useMemo<AttributeCategory[]>(
+        () => [{ id: 'stats', name: 'Stats', type: 'stat', description: t('creation.character.statsCategory.description') }],
+        [t],
+    )
 
     const [name, setName] = useState(editingCharacter?.name ?? '')
     const [role, setRole] = useState<CharacterRole>(editingCharacter?.role === 'persona' ? 'persona' : 'character')
@@ -108,6 +115,8 @@ export function CharacterCreator() {
     const [triggers, setTriggers] = useState<string[]>(editingCharacter?.triggers ?? [])
     const [imageUrl, setImageUrl] = useState<string | undefined>(editingCharacter?.image_url)
     const [themeSongUrl, setThemeSongUrl] = useState<string | undefined>(editingCharacter?.theme_song_url)
+    const [voice, setVoice] = useState<CharacterVoice | null>(editingCharacter?.voice ?? null)
+    const [voicePickerOpen, setVoicePickerOpen] = useState(false)
     // Card id resolved at save time, so theme persistence never races `editingCharacter` state.
     const savedIdRef = useRef<string | null>(editingCharacter?.id ?? null)
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -119,18 +128,19 @@ export function CharacterCreator() {
     // Personas rarely need a greeting — it starts dormant for them until added.
     const [greetingRevealed, setGreetingRevealed] = useState(false)
 
-    const characterFields = useMemo(() => getCharacterFields(role), [role])
-    const sections = useMemo(() => getCharacterSections(role), [role])
+    const characterFields = useMemo(() => getCharacterFields(role, t), [role, t])
+    const sections = useMemo(() => getCharacterSections(role, t), [role, t])
+    const raceOptions = useMemo(() => getRaceOptions(t), [t])
 
     const guided = useGuidedCard({
         fields: characterFields,
-        defaults: DEFAULT_CATEGORIES,
+        defaults: defaultCategories,
         entity: editingCharacter,
         role,
     })
 
-    const nameError = touched && !name.trim() ? 'Name is required.' : undefined
-    const raceError = touched && !race.trim() ? 'Race / species is required.' : undefined
+    const nameError = touched && !name.trim() ? t('creation.character.validation.nameRequired') : undefined
+    const raceError = touched && !race.trim() ? t('creation.character.validation.raceRequired') : undefined
 
     const statKeys = useMemo(
         () => (guided.attributes['stats'] || []).map((row) => row.key.toLowerCase()),
@@ -158,6 +168,7 @@ export function CharacterCreator() {
         category: guided.toCategoryPayload(),
         image_url: imageUrl ?? null,
         theme_song_url: themeSongUrl,
+        voice: voice ?? null,
     })
 
     /**
@@ -168,11 +179,11 @@ export function CharacterCreator() {
     const ensureSaved = async (): Promise<string> => {
         if (!isAuthenticated) {
             openLoginModal()
-            throw new Error('Please log in to continue.')
+            throw new Error(t('creation.character.validation.loginToContinue'))
         }
         if (!name.trim() || !race.trim()) {
             setTouched(true)
-            throw new Error('Add a name and race before generating a theme.')
+            throw new Error(t('creation.character.validation.nameAndRaceForTheme'))
         }
         if (editingCharacter) {
             await apiService.updateCharacter(editingCharacter.id, buildPayload())
@@ -266,7 +277,7 @@ export function CharacterCreator() {
             }
             setEditingCharacter(null)
             await loadData()
-            setPage('landing')
+            goBack('landing')
         } catch (error) {
             console.error(`Failed to ${editingCharacter ? 'update' : 'create'} character:`, error)
             // Gentle, non-blocking inline message — the form stays put so the
@@ -274,8 +285,10 @@ export function CharacterCreator() {
             const transient = error instanceof ApiError && error.isTransient
             setSaveError(
                 transient
-                    ? 'The service is briefly unavailable — please try again in a moment.'
-                    : `Couldn't ${editingCharacter ? 'update' : 'create'} your character. Please try again.`
+                    ? t('creation.character.save.transient')
+                    : editingCharacter
+                      ? t('creation.character.save.updateFailed')
+                      : t('creation.character.save.createFailed')
             )
         } finally {
             setIsSubmitting(false)
@@ -299,12 +312,12 @@ export function CharacterCreator() {
         setAssistantApplied(true)
         // AI generation skips the gallery; a picked template's scaffolding survives.
         setTemplate((current) => (current === undefined ? null : current))
-        void loadData()
+        void loadData({ silent: true })
     }
 
     const handleBack = () => {
         setEditingCharacter(null)
-        setPage('landing')
+        goBack('landing')
     }
 
     /** Back from the form: to the gallery while creating, to the library otherwise. */
@@ -344,7 +357,7 @@ export function CharacterCreator() {
         <CardAssistantChatbot<CharacterCardResponse>
             cardType="character"
             cardId={editingCharacter?.id ?? null}
-            title={name.trim() || 'Untitled Character'}
+            title={name.trim() || t('creation.character.untitled')}
             currentCard={buildPayload()}
             onCard={applyAssistantCard}
             isAuthenticated={isAuthenticated}
@@ -357,13 +370,13 @@ export function CharacterCreator() {
     if (template === undefined) {
         return (
             <>
-                <CreatorIntro title="Create Character" icon="🎭" onBack={handleBack}>
+                <CreatorIntro title={t('creation.character.createTitle')} icon={<Icon icon={Drama} size={28} />} onBack={handleBack}>
                     <TemplateGallery
                         templates={CHARACTER_TEMPLATES}
                         fields={characterFields}
                         noun="character"
-                        heading={CHARACTER_GALLERY_HEADING}
-                        subheading={CHARACTER_GALLERY_SUBHEADING}
+                        heading={t('creation.character.galleryHeading')}
+                        subheading={t('creation.character.gallerySubheading')}
                         onPick={pickTemplate}
                         onSkip={() => setTemplate(null)}
                     />
@@ -376,14 +389,14 @@ export function CharacterCreator() {
     return (
         <>
         <CreatorStudio
-            title={editingCharacter ? 'Edit Character' : 'Create Character'}
-            icon="🎭"
+            title={editingCharacter ? t('creation.character.editTitle') : t('creation.character.createTitle')}
+            icon={<Icon icon={Drama} size={28} />}
             onBack={handleStudioBack}
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
                 <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
-                    {isSubmitting ? 'Saving…' : editingCharacter ? 'Update' : 'Create'}
+                    {isSubmitting ? t('common.saving') : editingCharacter ? t('creation.common.studio.update') : t('creation.character.create')}
                 </Button>
             }
             preview={
@@ -410,7 +423,7 @@ export function CharacterCreator() {
                     title={sections.identity.title}
                     description={sections.identity.description}
                 >
-                    <CreatorField label="Card role">
+                    <CreatorField label={t('creation.character.role.label')}>
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             <button
                                 type="button"
@@ -424,8 +437,8 @@ export function CharacterCreator() {
                             >
                                 <Bot size={18} className="shrink-0 text-arcane-300" />
                                 <span>
-                                    <span className="block font-ui text-sm font-semibold text-parchment-50">AI character</span>
-                                    <span className="block font-narrative text-xs text-parchment-400">Cast and chat target</span>
+                                    <span className="block font-ui text-sm font-semibold text-parchment-50">{t('creation.character.role.characterTitle')}</span>
+                                    <span className="block font-narrative text-xs text-parchment-400">{t('creation.character.role.characterSubtitle')}</span>
                                 </span>
                             </button>
                             <button
@@ -440,8 +453,8 @@ export function CharacterCreator() {
                             >
                                 <UserCircle size={18} className="shrink-0 text-ember-300" />
                                 <span>
-                                    <span className="block font-ui text-sm font-semibold text-parchment-50">User persona</span>
-                                    <span className="block font-narrative text-xs text-parchment-400">Player identity</span>
+                                    <span className="block font-ui text-sm font-semibold text-parchment-50">{t('creation.character.role.personaTitle')}</span>
+                                    <span className="block font-narrative text-xs text-parchment-400">{t('creation.character.role.personaSubtitle')}</span>
                                 </span>
                             </button>
                         </div>
@@ -449,18 +462,18 @@ export function CharacterCreator() {
 
                     {isPersona && (
                         <SwitchRow
-                            label="Use as default persona"
+                            label={t('creation.character.role.useAsDefaultPersona')}
                             checked={isDefaultPersona}
                             onChange={setIsDefaultPersona}
                         />
                     )}
 
                     <CreatorField
-                        label="Name"
+                        label={t('creation.character.fieldsForm.nameLabel')}
                         htmlFor="character-name"
                         required
                         error={nameError}
-                        tooltip="The name the AI and every other card uses to recognize them."
+                        tooltip={t('creation.character.fieldsForm.nameTooltip')}
                     >
                         <CreatorInput
                             id="character-name"
@@ -468,23 +481,23 @@ export function CharacterCreator() {
                             onChange={setName}
                             autoFocus
                             className="text-xl font-medium font-display"
-                            placeholder={firstClass.name ?? 'e.g. Lyra Emberwind'}
+                            placeholder={firstClass.name ?? t('creation.character.fieldsForm.namePlaceholder')}
                         />
                     </CreatorField>
 
                     <CreatorField
-                        label="Race / Species"
+                        label={t('creation.character.fieldsForm.raceLabel')}
                         htmlFor="character-race"
                         required
                         error={raceError}
-                        tooltip="Shapes how the AI imagines their body, lifespan, and instincts — pick one or invent your own."
+                        tooltip={t('creation.character.fieldsForm.raceTooltip')}
                     >
                         <SuggestInput
                             id="character-race"
                             value={race}
                             onChange={setRace}
-                            options={RACE_OPTIONS}
-                            placeholder={firstClass.race ?? 'e.g. Elf, Human, Construct'}
+                            options={raceOptions}
+                            placeholder={firstClass.race ?? t('creation.character.fieldsForm.racePlaceholder')}
                         />
                     </CreatorField>
                 </StudioSection>
@@ -496,9 +509,9 @@ export function CharacterCreator() {
                     description={sections.portrayal.description}
                 >
                     <CreatorField
-                        label="Description"
+                        label={t('creation.character.fieldsForm.descriptionLabel')}
                         htmlFor="character-description"
-                        tooltip="The AI reads this every turn — blend appearance with how they act and what they want, not looks alone."
+                        tooltip={t('creation.character.fieldsForm.descriptionTooltip')}
                     >
                         <CreatorTextarea
                             id="character-description"
@@ -518,21 +531,22 @@ export function CharacterCreator() {
                             !guided.values['personality.fear']?.trim() &&
                             !guided.values['personality.secret']?.trim() && (
                                 <QualityHint>
-                                    This reads like a portrait. Add a drive in{' '}
-                                    <a href="#drives" className="underline underline-offset-2">Heart &amp; Drives</a> so the
-                                    AI can act as them — not just describe them.
+                                    <Trans
+                                        i18nKey="creation.character.qualityHint.portrait"
+                                        components={[<a href="#drives" className="underline underline-offset-2" />]}
+                                    />
                                 </QualityHint>
                             )}
                     </CreatorField>
 
                     {greetingVisible ? (
                         <CreatorField
-                            label="Greeting"
+                            label={t('creation.character.fieldsForm.greetingLabel')}
                             htmlFor="character-greeting"
                             tooltip={
                                 isPersona
-                                    ? 'Rarely needed for personas — only used if this persona opens a chat.'
-                                    : 'Their first line when a one-on-one chat opens — it sets voice, pacing, and how bold replies will be.'
+                                    ? t('creation.character.fieldsForm.greetingTooltipPersona')
+                                    : t('creation.character.fieldsForm.greetingTooltip')
                             }
                         >
                             <CreatorTextarea
@@ -549,20 +563,20 @@ export function CharacterCreator() {
                             <Chip
                                 onClick={() => setGreetingRevealed(true)}
                                 icon={<Icon icon={Plus} size={13} />}
-                                title="Rarely needed for personas — only used if this persona opens a chat."
+                                title={t('creation.character.fieldsForm.greetingTooltipPersona')}
                             >
-                                Greeting
+                                {t('creation.character.fieldsForm.greetingLabel')}
                             </Chip>
                         </div>
                     )}
 
                     <CreatorField
-                        label={isPersona ? 'How the AI should treat you' : 'Roleplay direction'}
+                        label={isPersona ? t('creation.character.fieldsForm.directionLabelPersona') : t('creation.character.fieldsForm.directionLabel')}
                         htmlFor="character-system-instructions"
                         tooltip={
                             isPersona
-                                ? 'Standing instructions for how the story handles your character.'
-                                : 'Hard rules the AI must follow when playing them — the strictest lever you have over behavior.'
+                                ? t('creation.character.fieldsForm.directionTooltipPersona')
+                                : t('creation.character.fieldsForm.directionTooltip')
                         }
                     >
                         <CreatorTextarea
@@ -578,7 +592,41 @@ export function CharacterCreator() {
                             onUse={setSystemInstructions}
                         />
                     </CreatorField>
+
+                    <CreatorField
+                        label={t('creation.character.fieldsForm.voiceLabel')}
+                        htmlFor="character-voice"
+                        tooltip={t('creation.character.fieldsForm.voiceTooltip')}
+                    >
+                        <div className="flex items-center justify-between gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3">
+                            <div className="min-w-0">
+                                {voice?.voice_id ? (
+                                    <>
+                                        <p className="font-ui text-sm font-semibold text-parchment-50">{voice.preset_name || voice.voice_id}</p>
+                                        <code className="font-mono text-xs text-parchment-400">{voice.voice_id}</code>
+                                    </>
+                                ) : (
+                                    <p className="font-ui text-sm text-parchment-300">{t('creation.character.fieldsForm.voiceDefault')}</p>
+                                )}
+                            </div>
+                            <Button
+                                kind="secondary"
+                                size="sm"
+                                iconLeft={<Icon icon={AudioLines} size={14} />}
+                                onClick={() => setVoicePickerOpen(true)}
+                            >
+                                {voice?.voice_id ? t('creation.character.fieldsForm.voiceChange') : t('creation.character.fieldsForm.voiceChoose')}
+                            </Button>
+                        </div>
+                    </CreatorField>
                 </StudioSection>
+
+                <VoicePickerDialog
+                    open={voicePickerOpen}
+                    currentVoice={voice}
+                    onSelect={setVoice}
+                    onClose={() => setVoicePickerOpen(false)}
+                />
 
                 <GuidedSection section={sections.drives} guided={guided} />
                 {isPersona && <GuidedSection section={sections.boundaries} guided={guided} />}
@@ -602,7 +650,7 @@ export function CharacterCreator() {
                 >
                     <div className="flex flex-col gap-2.5">
                         <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
-                            Quick add stats
+                            {t('creation.character.quickAddStats')}
                         </span>
                         <SuggestedAttributes
                             presets={STAT_PRESETS}
@@ -612,8 +660,8 @@ export function CharacterCreator() {
                     </div>
 
                     <AttributeManager
-                        title="Attribute groups"
-                        icon="⚔️"
+                        title={t('creation.character.attributeGroups')}
+                        icon="*"
                         categories={guided.categories}
                         attributes={guided.attributes}
                         onAddCategory={guided.addCategory}
@@ -633,16 +681,16 @@ export function CharacterCreator() {
                     <TriggersField
                         values={triggers}
                         onChange={setTriggers}
-                        label="Triggers"
-                        helper="When any of these words appear in chat, this card is pulled into the scene — add their name, nicknames, and titles."
-                        placeholder="e.g. Lyra, firesmith, the Emberwind"
+                        label={t('creation.character.fieldsForm.triggersLabel')}
+                        helper={t('creation.character.fieldsForm.triggersHelper')}
+                        placeholder={t('creation.character.fieldsForm.triggersPlaceholder')}
                     />
                     <TriggerHints triggers={triggers} hasContent={Boolean(description.trim())} />
                 </StudioSection>
 
                 <FormActions
                     onCancel={handleStudioBack}
-                    submitLabel={editingCharacter ? 'Update Character' : 'Create Character'}
+                    submitLabel={editingCharacter ? t('creation.character.actions.updateCharacter') : t('creation.character.actions.createCharacter')}
                     isSubmitting={isSubmitting}
                     error={saveError}
                 />

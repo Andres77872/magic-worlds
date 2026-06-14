@@ -1,15 +1,18 @@
 import { ArrowLeft, Mail } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useNavigation } from '@/app/hooks'
 import { Badge, Button, Card, Icon, IconTile, PageHeader, cx } from '@/ui/primitives'
-import { CONTACT_EMAIL, LEGAL_PAGE_LINKS, LEGAL_PAGES, type LegalPageId, type LegalSection } from './legalContent'
+import { CONTACT_EMAIL, getLegalPageLinks, getLegalPages, type LegalPageId, type LegalSection } from './legalContent'
 
 interface LegalPageProps {
     page: LegalPageId
 }
 
 export function LegalPage({ page }: LegalPageProps) {
+    const { t } = useTranslation()
     const { setPage } = useNavigation()
-    const content = LEGAL_PAGES[page]
+    const links = getLegalPageLinks(t)
+    const content = getLegalPages(t)[page]
 
     return (
         <div className="relative w-full">
@@ -27,14 +30,14 @@ export function LegalPage({ page }: LegalPageProps) {
                             iconLeft={<Icon icon={ArrowLeft} size={15} />}
                             onClick={() => setPage('landing')}
                         >
-                            Explore
+                            {t('legal.actions.explore')}
                         </Button>
                     }
                 />
 
                 <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
                     <main className="flex min-w-0 flex-col gap-6">
-                        <section className="grid gap-4 md:grid-cols-3" aria-label={`${content.title} highlights`}>
+                        <section className="grid gap-4 md:grid-cols-3" aria-label={t('legal.highlightsAria', { title: content.title })}>
                             {content.highlights.map((highlight) => (
                                 <Card key={highlight.title} className="p-5">
                                     <IconTile
@@ -64,12 +67,12 @@ export function LegalPage({ page }: LegalPageProps) {
                         <Card className="p-4">
                             <div className="mb-3 flex items-center justify-between gap-3">
                                 <h2 className="m-0 font-ui text-[13px] font-semibold uppercase tracking-[0.16em] text-parchment-400">
-                                    Pages
+                                    {t('legal.side.pages')}
                                 </h2>
-                                <Badge tone="neutral">Public</Badge>
+                                <Badge tone="neutral">{t('legal.side.public')}</Badge>
                             </div>
-                            <nav aria-label="Legal pages" className="flex flex-col gap-1.5">
-                                {LEGAL_PAGE_LINKS.map((link) => {
+                            <nav aria-label={t('legal.navAria')} className="flex flex-col gap-1.5">
+                                {links.map((link) => {
                                     const active = link.page === page
                                     return (
                                         <button
@@ -94,7 +97,7 @@ export function LegalPage({ page }: LegalPageProps) {
                         <Card className="p-4">
                             <div className="mb-3 flex items-center gap-2">
                                 <Icon icon={Mail} size={16} className="text-ember-400" />
-                                <h2 className="m-0 font-ui text-sm font-semibold text-parchment-50">Contact</h2>
+                                <h2 className="m-0 font-ui text-sm font-semibold text-parchment-50">{t('legal.side.contact')}</h2>
                             </div>
                             <a
                                 href={`mailto:${CONTACT_EMAIL}`}
@@ -103,20 +106,20 @@ export function LegalPage({ page }: LegalPageProps) {
                                 {CONTACT_EMAIL}
                             </a>
                             <p className="mt-3 font-ui text-[12px] leading-relaxed text-parchment-400">
-                                Use email for account, privacy, content, and service questions.
+                                {t('legal.side.contactBody')}
                             </p>
                         </Card>
 
                         <Card className="p-4">
                             <div className="mb-3 flex flex-wrap gap-2">
-                                <Badge tone="ember">Free preview</Badge>
-                                <Badge tone="nsfw">No NSFW</Badge>
+                                <Badge tone="ember">{t('legal.side.freePreview')}</Badge>
+                                <Badge tone="nsfw">{t('legal.side.noNsfw')}</Badge>
                             </div>
                             <p className="m-0 font-ui text-[12px] leading-relaxed text-parchment-400">
-                                Content is saved on the backend so the service can run. Illegal content is not allowed.
+                                {t('legal.side.serviceNote')}
                             </p>
                             <p className="mt-3 font-ui text-[12px] text-parchment-500">
-                                Last updated {content.updated}
+                                {t('legal.side.lastUpdated', { date: content.updated })}
                             </p>
                         </Card>
                     </aside>

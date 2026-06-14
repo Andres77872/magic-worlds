@@ -3,6 +3,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { MessageCircle, Search, Users, X } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import type { CharacterChatSession } from '@/shared'
@@ -10,6 +12,8 @@ import { EmptyState, ConfirmDialog } from '@/ui/components'
 import { Button, Icon, IconButton, IconTile, PageHeader, Toast, controlClass } from '@/ui/primitives'
 import { ResumeCard } from '@/features/landing/components/ResumeCard'
 import { toResumeSessions, type ResumeSession } from '@/features/landing/components/resumeModel'
+import { buildGalleryModeHash } from '@/features/gallery/galleryLinks'
+import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 
 interface ActionNotice {
     tone: 'success' | 'error'
@@ -27,11 +31,12 @@ function searchableText(session: ResumeSession): string {
     ].filter(Boolean).join(' ').toLowerCase()
 }
 
-function chatTitle(chat: CharacterChatSession | null): string {
-    return chat?.character?.name?.trim() || 'this chat'
+function chatTitle(chat: CharacterChatSession | null, t: TFunction): string {
+    return chat?.character?.name?.trim() || t('characterChat.room.thisChat')
 }
 
 export function ChatroomPage() {
+    const { t } = useTranslation()
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const {
@@ -44,6 +49,7 @@ export function ChatroomPage() {
     const [pendingDelete, setPendingDelete] = useState<CharacterChatSession | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null)
+    const voiceModeEnabled = isFrontendVoiceModeEnabled()
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -72,6 +78,15 @@ export function ChatroomPage() {
         setPage('character-chat')
     }
 
+    const openVoiceChat = (session: ResumeSession) => {
+        resumeCharacterChat(session.source as CharacterChatSession, { mode: 'voice' })
+        setPage('character-chat')
+    }
+
+    const startGroupChat = () => {
+        setPage('gallery-characters', { hash: buildGalleryModeHash('character', 'group-chat') })
+    }
+
     const confirmDelete = async () => {
         const target = pendingDelete
         setPendingDelete(null)
@@ -82,15 +97,15 @@ export function ChatroomPage() {
             await deleteCharacterChat(target.id)
             setActionNotice({
                 tone: 'success',
-                title: 'Chat deleted',
-                message: chatTitle(target),
+                title: t('characterChat.room.chatDeleted'),
+                message: chatTitle(target, t),
             })
         } catch (error) {
             console.error('Failed to delete character chat:', error)
             setActionNotice({
                 tone: 'error',
-                title: 'Could not delete chat',
-                message: error instanceof Error && error.message.trim() ? error.message : 'Try again.',
+                title: t('characterChat.room.deleteFailed'),
+                message: error instanceof Error && error.message.trim() ? error.message : t('characterChat.room.tryAgain'),
             })
         } finally {
             setDeletingId(null)
@@ -100,7 +115,7 @@ export function ChatroomPage() {
     const hasQuery = query.trim().length > 0
     const emptyAction = hasQuery ? (
         <Button kind="secondary" size="sm" onClick={() => setQuery('')}>
-            Clear search
+            {t('characterChat.room.clearSearch')}
         </Button>
     ) : (
         <Button
@@ -109,45 +124,55 @@ export function ChatroomPage() {
             iconLeft={<Icon icon={Users} size={15} />}
             onClick={() => setPage('gallery-characters')}
         >
-            Find characters
+            {t('characterChat.room.findCharacters')}
         </Button>
     )
 
     return (
         <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-6 px-5 py-8 sm:px-8 sm:py-10" data-testid="chatroom-page">
             <PageHeader
-                eyebrow="Chatroom"
+                eyebrow={t('characterChat.room.eyebrow')}
                 eyebrowTone="arcane"
                 icon={<IconTile icon={MessageCircle} tone="arcane" />}
-                title="Character conversations"
-                subtitle="Resume or remove your active character chats."
+                title={t('characterChat.room.title')}
+                subtitle={t('characterChat.room.subtitle')}
                 size="lg"
                 actions={
-                    <div className="relative flex w-full items-center sm:w-[320px]">
-                        <span className="pointer-events-none absolute left-3 flex items-center text-parchment-400">
-                            <Icon icon={Search} size={16} />
-                        </span>
-                        <input
-                            type="search"
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            onKeyDown={(event) => {
-                                if (event.key === 'Escape') setQuery('')
-                            }}
-                            placeholder="Search chats..."
-                            aria-label="Search chats"
-                            className={`${controlClass} rounded-full pl-10 pr-12`}
-                        />
-                        {hasQuery && (
-                            <IconButton
-                                size="sm"
-                                label="Clear search"
-                                onClick={() => setQuery('')}
-                                className="absolute right-2"
-                            >
-                                <Icon icon={X} size={16} />
-                            </IconButton>
-                        )}
+                    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto md:justify-end">
+                        <Button
+                            kind="primary"
+                            iconLeft={<Icon icon={Users} size={16} />}
+                            onClick={startGroupChat}
+                            className="shrink-0"
+                        >
+                            {t('characterChat.room.newGroupChat')}
+                        </Button>
+                        <div className="relative flex w-full items-center sm:w-[320px]">
+                            <span className="pointer-events-none absolute left-3 flex items-center text-parchment-400">
+                                <Icon icon={Search} size={16} />
+                            </span>
+                            <input
+                                type="search"
+                                value={query}
+                                onChange={(event) => setQuery(event.target.value)}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Escape') setQuery('')
+                                }}
+                                placeholder={t('characterChat.room.searchPlaceholder')}
+                                aria-label={t('characterChat.room.searchLabel')}
+                                className={`${controlClass} rounded-full pl-10 pr-12`}
+                            />
+                            {hasQuery && (
+                                <IconButton
+                                    size="sm"
+                                    label={t('characterChat.room.clearSearch')}
+                                    onClick={() => setQuery('')}
+                                    className="absolute right-2"
+                                >
+                                    <Icon icon={X} size={16} />
+                                </IconButton>
+                            )}
+                        </div>
                     </div>
                 }
             />
@@ -168,6 +193,7 @@ export function ChatroomPage() {
                             key={session.id}
                             session={session}
                             onContinue={() => openChat(session)}
+                            onCall={voiceModeEnabled ? () => openVoiceChat(session) : undefined}
                             onDelete={() => setPendingDelete(session.source as CharacterChatSession)}
                             deleting={deletingId === session.id}
                         />
@@ -176,8 +202,8 @@ export function ChatroomPage() {
             ) : (
                 <EmptyState
                     icon={<Icon icon={MessageCircle} size={44} />}
-                    message={hasQuery ? `No chats match "${query.trim()}"` : 'No character conversations yet'}
-                    secondaryText={hasQuery ? 'Try another name, persona, or line.' : 'Start a chat from any character card.'}
+                    message={hasQuery ? t('characterChat.room.noMatch', { query: query.trim() }) : t('characterChat.room.empty')}
+                    secondaryText={hasQuery ? t('characterChat.room.emptyMatchHint') : t('characterChat.room.emptyHint')}
                 >
                     {emptyAction}
                 </EmptyState>
@@ -185,9 +211,9 @@ export function ChatroomPage() {
 
             <ConfirmDialog
                 visible={pendingDelete !== null}
-                title="Delete chat"
-                message={`Delete "${chatTitle(pendingDelete)}"? This cannot be undone.`}
-                confirmLabel="Delete"
+                title={t('characterChat.room.deleteTitle')}
+                message={t('characterChat.room.deleteConfirm', { name: chatTitle(pendingDelete, t) })}
+                confirmLabel={t('common.delete')}
                 variant="danger"
                 onConfirm={() => void confirmDelete()}
                 onCancel={() => setPendingDelete(null)}

@@ -1,4 +1,5 @@
 import type {ReactNode} from 'react';
+import {useTranslation} from 'react-i18next';
 import {Button, Eyebrow} from '@/ui/primitives';
 
 interface EmptyStateProps {
@@ -25,9 +26,11 @@ export function EmptyState({
                                icon,
                                secondaryText,
                                button,
-                               className = '',
-                               children,
-                           }: EmptyStateProps) {
+                           className = '',
+                           children,
+                       }: EmptyStateProps) {
+    const { t } = useTranslation()
+
     return (
         <div
             className={`col-[1/-1] my-4 flex w-full flex-col items-center justify-center rounded-md border border-dashed border-parchment-50/20 bg-ink-700 px-4 py-6 text-center text-parchment-400 ${className}`}
@@ -37,7 +40,7 @@ export function EmptyState({
                     {icon}
                 </div>
             )}
-            <Eyebrow tone="muted" className="mb-2">Nothing here</Eyebrow>
+            <Eyebrow tone="muted" className="mb-2">{t('emptyState.eyebrow')}</Eyebrow>
             <h3 className="m-0 font-display text-h3 font-semibold text-parchment-50">
                 {message}
             </h3>

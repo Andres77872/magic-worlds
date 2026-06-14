@@ -42,6 +42,24 @@ export interface MembershipPayg {
     balance: number
 }
 
+export interface MembershipMonthlyOperationUsage {
+    used: number
+    credits_used: number
+    included_credits_used: number
+    payg_credits_used: number
+}
+
+export interface MembershipMonthlyUsage {
+    period: 'calendar_month' | string
+    month: string
+    start_date: string
+    end_date: string
+    credits_used: number
+    included_credits_used: number
+    payg_credits_used: number
+    operations: Record<string, MembershipMonthlyOperationUsage>
+}
+
 export interface MembershipProfileCardVisual {
     tone: 'current' | 'locked' | 'payg' | string
     icon: 'sparkles' | 'rocket' | 'crown' | 'coins' | string
@@ -113,6 +131,7 @@ export interface Membership {
     payg: MembershipPayg
     total_available_credits: number
     limits: Record<string, MembershipOperationLimit>
+    monthly_usage?: MembershipMonthlyUsage
     profile_cards?: MembershipProfileCards
 }
 
@@ -131,6 +150,17 @@ export interface UserProfile {
     /** Membership + PAYG credit details. Optional for safe rollout against older API responses. */
     membership?: Membership
     card_counts: UserCardCounts
+}
+
+export type PreferredLanguage = 'en' | 'es'
+
+export interface UserPreferences {
+    preferred_language: PreferredLanguage
+    has_preference: boolean
+}
+
+export interface UserPreferencesUpdate {
+    preferred_language: PreferredLanguage
 }
 
 export interface Project {
@@ -191,4 +221,55 @@ export interface AuthState {
     projects: Project[]
     isLoading: boolean
     error: string | null
-} 
+}
+
+/**
+ * Generic accepted body returned by the BFF password/email proxy routes.
+ * Forgot-password and email-verify always return this (no account enumeration);
+ * change-password returns it on success.
+ */
+export interface GenericMessageResponse {
+    success: boolean
+    message: string
+}
+
+export type ChangePasswordResponse = GenericMessageResponse
+
+export interface PasswordForgotRequest {
+    email_or_username: string
+}
+
+export interface PasswordResetRequest {
+    token: string
+    new_password: string
+}
+
+export interface PasswordChangeRequest {
+    current_password: string
+    new_password: string
+}
+
+export interface EmailVerifyRequest {
+    token: string
+}
+
+export type EmailStatus = 'activated' | 'pending' | 'removed' | 'suppressed'
+
+/** One of a user's email addresses (owner view; provider returns masked values). */
+export interface UserEmail {
+    id: string
+    email?: string | null
+    email_masked?: string | null
+    status: EmailStatus | string
+    is_primary: boolean
+    added_at?: string | null
+    activated_at?: string | null
+    last_activation_sent_at?: string | null
+}
+
+export interface EmailListResponse {
+    success: boolean
+    message?: string
+    emails: UserEmail[]
+}
+

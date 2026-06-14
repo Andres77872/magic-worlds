@@ -3,6 +3,7 @@
  * Arcane-toned: this menu talks to the muse, not the document.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Feather, MessageSquareQuote, ScrollText, Sparkles } from 'lucide-react'
 import { Icon, cx } from '@/ui/primitives'
 import type { SlashItem } from '../extensions/slashCommand'
@@ -23,17 +24,18 @@ interface SlashCommandMenuProps {
 }
 
 export function SlashCommandMenu({ items, selectedIndex, anchor, onHover, onSelect }: SlashCommandMenuProps) {
+    const { t } = useTranslation()
     if (items.length === 0) return null
     return (
         <div
             role="listbox"
-            aria-label="AI commands"
+            aria-label={t('novelEditor.slash.label')}
             className="absolute z-30 w-[320px] overflow-hidden rounded-lg border border-arcane-500/30 bg-ink-700 shadow-xl"
             style={{ left: anchor.left, top: anchor.top }}
             data-testid="slash-command-menu"
         >
             <p className="m-0 border-b border-parchment-50/[.06] px-3 py-1.5 font-ui text-[11px] uppercase tracking-[0.14em] text-arcane-300">
-                Ask the muse
+                {t('novelEditor.slash.askMuse')}
             </p>
             <ul className="m-0 flex list-none flex-col p-1">
                 {items.map((item, index) => (

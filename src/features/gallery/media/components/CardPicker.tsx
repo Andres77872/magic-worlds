@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, Gem, Globe, Loader2, Search, Swords, Users, X } from 'lucide-react'
 import type { CardMediaTargetType } from '@/shared'
 import { useClickOutside } from '@/shared/hooks'
@@ -29,6 +30,7 @@ export interface CardPickerProps {
 }
 
 export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
+    const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const [query, setQuery] = useState('')
     const [activeIndex, setActiveIndex] = useState(0)
@@ -85,7 +87,7 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                     role="combobox"
                     aria-expanded={open}
                     aria-haspopup="listbox"
-                    aria-label="Filter by card"
+                    aria-label={t('mediaGallery.picker.filterByCard')}
                     onClick={() => setOpen((prev) => !prev)}
                     className="inline-flex cursor-pointer items-center gap-1.5 py-1.5 pl-3 font-ui text-[12.5px] font-medium"
                     data-testid="card-picker-trigger"
@@ -98,7 +100,7 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                     ) : (
                         <>
                             <Icon icon={Search} size={13} />
-                            Filter by card
+                            {t('mediaGallery.picker.filterByCard')}
                         </>
                     )}
                     {!value && <Icon icon={ChevronDown} size={13} className={cx('transition-transform', open && 'rotate-180')} />}
@@ -106,7 +108,7 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                 {value ? (
                     <button
                         type="button"
-                        aria-label="Clear card filter"
+                        aria-label={t('mediaGallery.picker.clearCardFilter')}
                         onClick={() => onChange(undefined)}
                         className="mr-1 inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-full hover:bg-ember-500/25"
                         data-testid="card-picker-clear"
@@ -136,8 +138,8 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                                 setActiveIndex(0)
                             }}
                             onKeyDown={onInputKeyDown}
-                            placeholder="Search your cards…"
-                            aria-label="Search your cards"
+                            placeholder={t('mediaGallery.picker.searchPlaceholder')}
+                            aria-label={t('mediaGallery.picker.searchLabel')}
                             className="w-full rounded-md border border-parchment-50/10 bg-ink-800 py-2 pl-8 pr-8 font-ui text-sm text-parchment-50 placeholder:text-parchment-500 focus:outline-none"
                             data-testid="card-picker-search"
                         />
@@ -145,7 +147,7 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                             <Loader2 size={14} className="absolute right-2.5 animate-spin text-ember-500" aria-hidden="true" />
                         )}
                     </div>
-                    <ul role="listbox" aria-label="Cards" className="flex max-h-72 flex-col overflow-y-auto">
+                    <ul role="listbox" aria-label={t('mediaGallery.picker.listboxLabel')} className="flex max-h-72 flex-col overflow-y-auto">
                         {options.map((option, index) => (
                             <li key={`${option.type}:${option.id}`} role="presentation">
                                 <button
@@ -174,7 +176,7 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                         ))}
                         {options.length === 0 && !loading && (
                             <li className="px-2 py-3 text-center font-ui text-xs text-parchment-500" role="presentation">
-                                No cards match.
+                                {t('mediaGallery.picker.noMatches')}
                             </li>
                         )}
                     </ul>

@@ -1,11 +1,13 @@
 import { AlertTriangle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useApiStatus } from '@/app/hooks'
 import { Icon } from '../primitives'
 
 export function ServicesDownBanner() {
-    const { status } = useApiStatus()
+    const { t } = useTranslation()
+    const { showServicesDownBanner } = useApiStatus()
 
-    if (status !== 'offline') return null
+    if (!showServicesDownBanner) return null
 
     return (
         <div
@@ -14,7 +16,7 @@ export function ServicesDownBanner() {
             className="flex shrink-0 items-center gap-3 border-b border-blood-500/25 bg-blood-500/10 px-4 py-3 text-sm font-medium text-parchment-100"
         >
             <Icon icon={AlertTriangle} size={18} className="shrink-0 text-blood-500" />
-            <span>Services are down. Some actions may fail until the API is back online.</span>
+            <span>{t('servicesDown.message')}</span>
         </div>
     )
 }

@@ -3,6 +3,7 @@
  * keeps the setting freeform. Selection is by library id.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Globe } from 'lucide-react'
 import type { World } from '@/shared'
 import { Icon } from '@/ui/primitives'
@@ -18,21 +19,22 @@ export interface WorldSelectorProps {
 }
 
 export function WorldSelector({ worlds, selectedId, onSelect, onCreateWorld, loading }: WorldSelectorProps) {
-    if (loading) return <SelectorLoading text="Loading your worlds…" />
+    const { t } = useTranslation()
+    if (loading) return <SelectorLoading text={t('creation.adventure.scene.loadingWorlds')} />
     if (worlds.length === 0) {
         return (
             <EmptyState
                 icon={<Icon icon={Globe} size={32} />}
-                message="No worlds in your library yet"
-                secondaryText="Create a world to ground this adventure in a setting — or leave it freeform."
-                button={{ label: 'Create a World', onClick: onCreateWorld }}
+                message={t('creation.adventure.scene.worldEmptyMessage')}
+                secondaryText={t('creation.adventure.scene.worldEmptySecondary')}
+                button={{ label: t('creation.adventure.scene.createWorld'), onClick: onCreateWorld }}
             />
         )
     }
 
     return (
         <div className="flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-1">
-            <NoneOption label="No world — freeform setting" selected={!selectedId} onSelect={() => onSelect(undefined)} />
+            <NoneOption label={t('creation.adventure.scene.noWorld')} selected={!selectedId} onSelect={() => onSelect(undefined)} />
             {worlds.map((w) => (
                 <CastMemberCard
                     key={w.id}

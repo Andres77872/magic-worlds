@@ -1,4 +1,5 @@
 import React, {useCallback, useMemo} from 'react'
+import {useTranslation} from 'react-i18next'
 import {type CardOption, CardOptions} from './CardOptions'
 import {Card as Surface, cx, Portrait, ThemeSongButton} from '@/ui/primitives'
 
@@ -36,9 +37,10 @@ export function Card({
                          disabled = false,
                          highlight = false,
                          imageUrl,
-                         themeSongUrl,
-                         'data-testid': testId = 'card',
-                     }: CardProps) {
+                     themeSongUrl,
+                     'data-testid': testId = 'card',
+                 }: CardProps) {
+    const { t } = useTranslation()
     const cardOptions = options
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
@@ -90,13 +92,13 @@ export function Card({
                     className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-ink-900/60"
                     role="alert"
                     aria-live="polite"
-                    aria-label="Loading card content"
+                    aria-label={t('card.loadingContent')}
                 >
                     <div
                         className="h-8 w-8 animate-spin rounded-full border-2 border-parchment-50/20 border-t-ember-500"
                         aria-hidden="true"
                     />
-                    <span className="sr-only">Loading...</span>
+                    <span className="sr-only">{t('card.loading')}</span>
                 </div>
             )}
 
@@ -114,7 +116,7 @@ export function Card({
                             <CardOptions
                                 options={cardOptions}
                                 disabled={disabled}
-                                aria-label="Card actions"
+                                aria-label={t('card.actions')}
                             />
                         )}
                     </div>
@@ -144,7 +146,7 @@ export function Card({
             </Portrait>
 
             {children && (
-                <div className="flex flex-1 flex-col p-4" role="region" aria-label="Card content">
+                <div className="flex flex-1 flex-col p-4" role="region" aria-label={t('card.content')}>
                     {children}
                 </div>
             )}

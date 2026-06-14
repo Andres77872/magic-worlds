@@ -33,6 +33,8 @@ import {
 } from '../../features/interaction/utils/adventureSnapshot'
 import { useAuth } from '../hooks/useAuth'
 
+export type CharacterChatMode = 'text' | 'voice'
+
 interface DataContextValue {
     // Characters
     characters: Character[]
@@ -111,12 +113,15 @@ interface DataContextValue {
     // 1:1 character chat
     activeCharacterChat: CharacterChatSession | null
     setActiveCharacterChat: (chat: CharacterChatSession | null) => void
+    activeCharacterChatMode: CharacterChatMode
     /** Start (or resume) a 1:1 chat with a character; caller navigates to 'character-chat'. */
     startCharacterChat: (character: Character, persona: Character) => Promise<CharacterChatSession>
+    /** Start a fresh group chat with 2-6 AI character cards; caller navigates to 'character-chat'. */
+    startCharacterGroupChat: (characters: Character[], persona: Character) => Promise<CharacterChatSession>
     /** Past 1:1 chats (the "Recent chats" shelf); loaded alongside the other lists. */
     characterChats: CharacterChatSession[]
     /** Reopen an existing chat from the list; caller navigates to 'character-chat'. */
-    resumeCharacterChat: (chat: CharacterChatSession) => void
+    resumeCharacterChat: (chat: CharacterChatSession, options?: { mode?: CharacterChatMode }) => void
     deleteCharacterChat: (id: string) => Promise<void>
 
     // UI State
@@ -188,6 +193,52 @@ function buildInProgressAdventure(session: RawAdventureSession, template: Advent
     }
 }
 
+function normalizeCharacterChat(
+    chat: any,
+    libraryCharacters: Character[],
+    fallbackCharacters: Character[] = [],
+    fallbackPersona?: Character,
+): CharacterChatSession {
+    const rawSnapshotCharacters: unknown[] = Array.isArray(chat.characters)
+        ? chat.characters
+        : chat.character
+          ? [chat.character]
+          : []
+    const snapshotCharacters = rawSnapshotCharacters.length > 0 ? transformCharacters(rawSnapshotCharacters) : []
+    const rawCharacterIds = Array.isArray(chat.character_ids)
+        ? chat.character_ids.map((id: unknown) => String(id)).filter(Boolean)
+        : []
+    const singleCharacterId = String(chat.character_id ?? chat.character_card_id ?? '')
+    const characterIds = rawCharacterIds.length > 0 ? rawCharacterIds : singleCharacterId ? [singleCharacterId] : []
+    const sessionCharacters = (characterIds.length > 0 ? characterIds : snapshotCharacters.map((character) => character.id))
+        .map((id: string, index: number) =>
+            libraryCharacters.find((character) => character.id === id)
+            ?? fallbackCharacters.find((character) => character.id === id)
+            ?? snapshotCharacters.find((character) => character.id === id)
+            ?? snapshotCharacters[index],
+        )
+        .filter((character: Character | undefined): character is Character => Boolean(character))
+    const snapshotPersona = chat.persona ? transformCharacters([chat.persona])[0] : undefined
+    const personaId = String(chat.persona_id ?? '')
+    const livePersona = personaId ? libraryCharacters.find((character) => character.id === personaId) : undefined
+    const persona = livePersona ?? fallbackPersona ?? snapshotPersona
+
+    return {
+        id: String(chat.chat_id ?? chat.id),
+        kind: chat.kind === 'character_group' ? 'character_group' : 'character',
+        character_id: characterIds[0],
+        character_ids: characterIds,
+        title: typeof chat.title === 'string' ? chat.title : undefined,
+        character: sessionCharacters[0],
+        characters: sessionCharacters.length > 0 ? sessionCharacters : undefined,
+        persona_id: personaId || undefined,
+        persona,
+        turns: parseTurnState(chat.last_turn),
+        createdAt: chat.created_at,
+        updatedAt: chat.updated_at,
+    }
+}
+
 interface DataProviderProps {
     children: ReactNode
 }
@@ -221,6 +272,7 @@ export function DataProvider({ children }: DataProviderProps) {
 
     // 1:1 character chat state
     const [activeCharacterChat, setActiveCharacterChat] = useState<CharacterChatSession | null>(null)
+    const [activeCharacterChatMode, setActiveCharacterChatMode] = useState<CharacterChatMode>('text')
     const [characterChats, setCharacterChats] = useState<CharacterChatSession[]>([])
 
     // UI state
@@ -613,18 +665,8 @@ export function DataProvider({ children }: DataProviderProps) {
         }
         try {
             const session = await apiService.createCharacterChat(character.id, persona.id)
-            const sessionPersona = session.persona ? transformCharacters([session.persona])[0] : undefined
-            const chat: CharacterChatSession = {
-                id: String(session.chat_id ?? session.id),
-                character_id: String(session.character_id ?? character.id),
-                persona_id: String(session.persona_id ?? persona.id),
-                // The live library card drives the sidebar; chat content comes from last_turn.
-                character,
-                persona: sessionPersona ?? persona,
-                turns: parseTurnState(session.last_turn),
-                createdAt: session.created_at,
-                updatedAt: session.updated_at,
-            }
+            const chat = normalizeCharacterChat(session, characters, [character], persona)
+            setActiveCharacterChatMode('text')
             setActiveCharacterChat(chat)
             // Upsert into the "Recent chats" list so a first chat shows up without a reload.
             setCharacterChats((prev) => [chat, ...prev.filter((c) => c.id !== chat.id)])
@@ -639,13 +681,43 @@ export function DataProvider({ children }: DataProviderProps) {
         }
     }
 
-    // Reopen a chat from the list. No network call needed: the chat view re-hydrates
-    // the conversation from the server when its socket opens.
-    const resumeCharacterChat = (chat: CharacterChatSession) => {
+    const startCharacterGroupChat = async (selectedCharacters: Character[], persona: Character): Promise<CharacterChatSession> => {
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to chat with characters')
         }
+        if (!persona?.id) {
+            throw new Error('Choose a persona before starting a group chat')
+        }
+        const characterIds = selectedCharacters.map((character) => character.id).filter(Boolean)
+        if (characterIds.length < 2 || characterIds.length > 6 || new Set(characterIds).size !== characterIds.length) {
+            throw new Error('Choose 2 to 6 different characters for a group chat')
+        }
+        try {
+            const session = await apiService.createCharacterGroupChat(characterIds, persona.id)
+            const chat = normalizeCharacterChat(session, characters, selectedCharacters, persona)
+            setActiveCharacterChatMode('text')
+            setActiveCharacterChat(chat)
+            setCharacterChats((prev) => [chat, ...prev.filter((existing) => existing.id !== chat.id)])
+            return chat
+        } catch (error) {
+            console.error('Failed to start character group chat:', error)
+            setLoadingState({
+                isLoading: false,
+                error: error instanceof Error ? error.message : 'Failed to start character group chat',
+            })
+            throw error
+        }
+    }
+
+    // Reopen a chat from the list. No network call needed: the chat view re-hydrates
+    // the conversation from the server when its socket opens.
+    const resumeCharacterChat = (chat: CharacterChatSession, options: { mode?: CharacterChatMode } = {}) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to chat with characters')
+        }
+        setActiveCharacterChatMode(options.mode ?? 'text')
         setActiveCharacterChat(chat)
     }
 
@@ -658,6 +730,7 @@ export function DataProvider({ children }: DataProviderProps) {
             await apiService.deleteCharacterChat(Number(id))
             setCharacterChats((prev) => prev.filter((chat) => chat.id !== id))
             setActiveCharacterChat((prev) => (prev && prev.id === id ? null : prev))
+            if (activeCharacterChat?.id === id) setActiveCharacterChatMode('text')
         } catch (error) {
             console.error('Failed to delete character chat:', error)
             throw error
@@ -769,27 +842,11 @@ export function DataProvider({ children }: DataProviderProps) {
                 return buildInProgressAdventure(session, template, snapshot)
             })
 
-            // Transform 1:1 chats. Prefer the live library card (consistent with
-            // startCharacterChat — it drives the sidebar); fall back to the chat's
-            // frozen snapshot when the source card was deleted.
-            const transformedChats: CharacterChatSession[] = asArray(loadedChats).map((chat: any) => {
-                const characterId = String(chat.character_id ?? '')
-                const personaId = String(chat.persona_id ?? '')
-                const liveCard = transformedCharacters.find((c: { id: string }) => c.id === characterId)
-                const snapshotCard = chat.character ? transformCharacters([chat.character])[0] : undefined
-                const livePersona = transformedCharacters.find((c: { id: string }) => c.id === personaId)
-                const snapshotPersona = chat.persona ? transformCharacters([chat.persona])[0] : undefined
-                return {
-                    id: String(chat.chat_id ?? chat.id),
-                    character_id: characterId,
-                    persona_id: personaId || undefined,
-                    character: liveCard ?? snapshotCard,
-                    persona: livePersona ?? snapshotPersona,
-                    turns: parseTurnState(chat.last_turn),
-                    createdAt: chat.created_at,
-                    updatedAt: chat.updated_at,
-                }
-            })
+            // Transform character chats. Prefer live library cards; fall back to
+            // frozen snapshots when a source card was deleted.
+            const transformedChats: CharacterChatSession[] = asArray(loadedChats).map((chat: any) =>
+                normalizeCharacterChat(chat, transformedCharacters),
+            )
             // Most recent first — this list renders as the "Recent chats" shelf.
             const chatStamp = (chat: CharacterChatSession) => {
                 const time = parseApiTimestamp(chat.updatedAt ?? chat.createdAt)
@@ -855,6 +912,7 @@ export function DataProvider({ children }: DataProviderProps) {
             setStories([])
             setCharacterChats([])
             setActiveCharacterChat(null)
+            setActiveCharacterChatMode('text')
             setActiveStory(null)
             setEditingCharacter(null)
             setEditingWorld(null)
@@ -951,7 +1009,9 @@ export function DataProvider({ children }: DataProviderProps) {
 
         activeCharacterChat,
         setActiveCharacterChat,
+        activeCharacterChatMode,
         startCharacterChat,
+        startCharacterGroupChat,
         characterChats,
         resumeCharacterChat,
         deleteCharacterChat,

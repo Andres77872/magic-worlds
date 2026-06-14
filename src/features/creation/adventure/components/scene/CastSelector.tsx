@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Users } from 'lucide-react'
 import type { Character } from '@/shared'
 import { Icon, Input } from '@/ui/primitives'
@@ -21,16 +22,17 @@ export interface CastSelectorProps {
 }
 
 export function CastSelector({ characters, selectedIds, onToggle, onCreateCharacter, loading }: CastSelectorProps) {
+    const { t } = useTranslation()
     const [query, setQuery] = useState('')
 
-    if (loading) return <SelectorLoading text="Loading your characters…" />
+    if (loading) return <SelectorLoading text={t('creation.adventure.scene.loadingCharacters')} />
     if (characters.length === 0) {
         return (
             <EmptyState
                 icon={<Icon icon={Users} size={32} />}
-                message="No characters in your library yet"
-                secondaryText="Create a character first, then add them to your cast."
-                button={{ label: 'Create a Character', onClick: onCreateCharacter }}
+                message={t('creation.adventure.scene.castEmptyMessage')}
+                secondaryText={t('creation.adventure.scene.castEmptySecondary')}
+                button={{ label: t('creation.adventure.scene.createCharacter'), onClick: onCreateCharacter }}
             />
         )
     }
@@ -44,7 +46,7 @@ export function CastSelector({ characters, selectedIds, onToggle, onCreateCharac
     return (
         <div className="flex flex-col gap-3">
             {showSearch && (
-                <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search characters…" />
+                <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('creation.adventure.scene.searchCharacters')} />
             )}
             <div className="flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-1">
                 {filtered.map((c) => (
@@ -60,7 +62,7 @@ export function CastSelector({ characters, selectedIds, onToggle, onCreateCharac
                 ))}
                 {filtered.length === 0 && (
                     <p className="px-1 py-3 text-center font-narrative text-sm italic text-parchment-400">
-                        No characters match “{query}”.
+                        {t('creation.adventure.scene.noCharacterMatch', { query })}
                     </p>
                 )}
             </div>

@@ -5,6 +5,7 @@
  * creation works straight from the gallery.
  */
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ArrowLeft } from 'lucide-react'
 import { Button, Icon, PageHeader } from '@/ui/primitives'
 
@@ -20,18 +21,19 @@ export interface CreatorIntroProps {
     overlay?: ReactNode
 }
 
-export function CreatorIntro({ eyebrow = 'Creation', title, icon, onBack, children, overlay }: CreatorIntroProps) {
+export function CreatorIntro({ eyebrow, title, icon, onBack, children, overlay }: CreatorIntroProps) {
+    const { t } = useTranslation()
     return (
         <div className="mx-auto my-6 w-full max-w-[1180px] px-4 text-parchment-50 sm:px-6">
             <PageHeader
                 className="mb-8"
-                eyebrow={eyebrow}
+                eyebrow={eyebrow ?? t('creation.common.creationEyebrow')}
                 title={title}
                 icon={icon ? <span className="text-[28px] leading-none max-sm:text-2xl">{icon}</span> : undefined}
                 divider
                 actions={
                     <Button kind="ghost" onClick={onBack} iconLeft={<Icon icon={ArrowLeft} size={16} />}>
-                        Back
+                        {t('creation.common.back')}
                     </Button>
                 }
             />

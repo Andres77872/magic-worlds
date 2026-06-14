@@ -1,4 +1,6 @@
 export { GalleryPage } from './components/GalleryPage'
+export { CommunityGalleryPage } from './components/CommunityGalleryPage'
+export { SharedCardPage } from './components/SharedCardPage'
 export { GALLERY_CONFIG, type GalleryItem, type GalleryType } from './galleryConfig'
 export { useCardGallery, GALLERY_PAGE_SIZE } from './hooks/useCardGallery'
 export { MediaGalleryPage } from './media/components/MediaGalleryPage'

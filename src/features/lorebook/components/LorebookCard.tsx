@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from 'react'
 import { BookOpen, EyeOff, KeyRound, Link2, ScrollText } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { Lorebook } from '@/shared'
 import { Badge, Card, Icon, Tag, cx } from '@/ui/primitives'
 import { CardOptions, type CardOption } from '@/ui/components'
@@ -13,6 +14,7 @@ interface LorebookCardProps {
 }
 
 export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting = false }: LorebookCardProps) {
+    const { t } = useTranslation()
     const enabledEntries = lorebook.entries.filter((entry) => entry.enabled).length
     const secretEntries = lorebook.entries.filter((entry) => entry.isSecret).length
     const keyCount = lorebook.entries.reduce((sum, entry) => sum + entry.keys.length, 0)
@@ -32,7 +34,7 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
             tabIndex={interactive ? 0 : undefined}
             onClick={interactive ? onClick : undefined}
             onKeyDown={interactive ? handleKeyDown : undefined}
-            aria-label={`Open lorebook ${lorebook.name}`}
+            aria-label={t('lorebookGallery.card.openAria', { name: lorebook.name })}
             aria-busy={deleting || undefined}
             className={cx('group relative flex min-h-[280px] flex-col', deleting && 'pointer-events-none opacity-60')}
             data-testid="lorebook-card"
@@ -43,14 +45,14 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
                         <Icon icon={BookOpen} size={21} />
                     </span>
                     <div className="flex items-center gap-1.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100" onClick={(event) => event.stopPropagation()}>
-                        {options && options.length > 0 && <CardOptions options={options} aria-label={`Actions for ${lorebook.name}`} />}
+                        {options && options.length > 0 && <CardOptions options={options} aria-label={t('lorebookGallery.card.actionsAria', { name: lorebook.name })} />}
                     </div>
                 </div>
                 <div>
                     <div className="flex flex-wrap gap-2">
-                        <Badge tone={lorebook.enabled ? 'live' : 'neutral'}>{lorebook.enabled ? 'enabled' : 'disabled'}</Badge>
+                        <Badge tone={lorebook.enabled ? 'live' : 'neutral'}>{lorebook.enabled ? t('lorebookGallery.card.enabled') : t('lorebookGallery.card.disabled')}</Badge>
                         {secretEntries > 0 && (
-                            <Badge tone="nsfw" icon={<Icon icon={EyeOff} size={11} />}>{secretEntries} secret</Badge>
+                            <Badge tone="nsfw" icon={<Icon icon={EyeOff} size={11} />}>{t('lorebookGallery.card.secret', { count: secretEntries })}</Badge>
                         )}
                     </div>
                 </div>
@@ -61,23 +63,23 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
                         {lorebook.name}
                     </h3>
                     <p className="mt-1 line-clamp-3 min-h-[54px] font-narrative text-sm leading-snug text-parchment-300">
-                        {lorebook.description || 'No description yet.'}
+                        {lorebook.description || t('lorebookGallery.card.noDescription')}
                     </p>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                     <div className="rounded-md bg-ink-800 px-2.5 py-2">
                         <Icon icon={ScrollText} size={13} className="text-ember-400" />
-                        <div className="mt-1 font-ui text-[11px] text-parchment-400">Entries</div>
+                        <div className="mt-1 font-ui text-[11px] text-parchment-400">{t('lorebookGallery.card.entries')}</div>
                         <div className="font-display text-lg font-semibold text-parchment-50">{enabledEntries}/{lorebook.entries.length}</div>
                     </div>
                     <div className="rounded-md bg-ink-800 px-2.5 py-2">
                         <Icon icon={KeyRound} size={13} className="text-arcane-300" />
-                        <div className="mt-1 font-ui text-[11px] text-parchment-400">Keys</div>
+                        <div className="mt-1 font-ui text-[11px] text-parchment-400">{t('lorebookGallery.card.keys')}</div>
                         <div className="font-display text-lg font-semibold text-parchment-50">{keyCount}</div>
                     </div>
                     <div className="rounded-md bg-ink-800 px-2.5 py-2">
                         <Icon icon={Link2} size={13} className="text-parchment-300" />
-                        <div className="mt-1 font-ui text-[11px] text-parchment-400">Targets</div>
+                        <div className="mt-1 font-ui text-[11px] text-parchment-400">{t('lorebookGallery.card.targets')}</div>
                         <div className="font-display text-lg font-semibold text-parchment-50">{lorebook.attachments.length}</div>
                     </div>
                 </div>
@@ -108,7 +110,7 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
             </div>
             {deleting && (
                 <div className="absolute inset-0 z-[3] flex items-center justify-center bg-ink-900/70 font-medium text-parchment-50">
-                    Deleting...
+                    {t('lorebookGallery.card.deleting')}
                 </div>
             )}
         </Card>

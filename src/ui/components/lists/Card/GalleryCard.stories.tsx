@@ -73,6 +73,22 @@ export const WithShareMenu: Story = {
   },
 }
 
+export const WithFastChatFooter: Story = {
+  args: {
+    id: 'story-card-fast-chat',
+    imageUrl: 'https://picsum.photos/seed/fast-chat-reverie/400/533',
+    tags: ['bard', 'moonlight', 'tavern'],
+    shareOptions,
+    options,
+    footer: (
+      <Button kind="arcane" size="sm" full iconLeft={<Icon icon={MessageCircle} size={15} />} onClick={() => {}}>
+        Chat
+      </Button>
+    ),
+  },
+  parameters: { docs: { description: { story: 'Character gallery cards pin an arcane Chat affordance into the default-size vignette for fast conversation start.' } } },
+}
+
 export const HighlightedSharedLink: Story = {
   args: {
     id: 'story-card-highlighted',

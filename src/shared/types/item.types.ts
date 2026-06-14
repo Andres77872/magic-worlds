@@ -2,6 +2,8 @@
  * Item/object domain types and interfaces.
  */
 
+import type { CardActor, CardVisibility } from './cardSharing.types'
+
 export interface Item {
     id: string
     name: string
@@ -22,6 +24,8 @@ export interface Item {
     image_url?: string
     /** Hosted URL of the card's generated theme song, if any. */
     theme_song_url?: string
+    visibility?: CardVisibility
+    original_creator?: CardActor
     createdAt?: string
     updatedAt?: string
 }

@@ -94,7 +94,10 @@ export interface Lorebook {
 export interface LorebookIssue {
     severity: 'info' | 'warning' | 'error'
     code: string
+    /** English fallback message; UI prefers a localized lookup keyed by `code` + `messageParams`. */
     message: string
+    /** Structured interpolation values (entry titles, keys) for localized message templates. */
+    messageParams?: Record<string, string>
     entryId?: string
     fixAction?: string
 }

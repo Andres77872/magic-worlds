@@ -8,6 +8,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { Sparkles } from 'lucide-react'
 import { AI_CARD_CLIENT_TIMEOUT_MS, AI_CARD_DESCRIPTION_MAX_CHARS, AI_CARD_DESCRIPTION_MIN_CHARS, type AiCardRequestOptions } from '@/shared'
 import { Button, Icon, SectionHeader } from '@/ui/primitives'
@@ -30,40 +32,47 @@ function createClientId(prefix: string): string {
     return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function supportSuffix(requestId?: string): string {
-    return requestId ? ` Support ID: ${requestId}` : ''
+function supportSuffix(t: TFunction, requestId?: string): string {
+    return requestId ? t('creation.common.aiGenerate.errors.supportId', { requestId }) : ''
 }
 
-function aiErrorCopy(error: unknown, noun: string): string {
+function quotaRetry(t: TFunction, retryAfterSeconds?: number): string {
+    return retryAfterSeconds
+        ? t('creation.common.aiGenerate.errors.quotaRetryHours', { count: Math.ceil(retryAfterSeconds / 3600) })
+        : t('creation.common.aiGenerate.errors.quotaRetryLater')
+}
+
+function aiErrorCopy(error: unknown, noun: string, t: TFunction): string {
     const err = error as { message?: string; category?: string; code?: string; requestId?: string; retryAfterSeconds?: number }
-    const suffix = supportSuffix(err.requestId)
+    const suffix = supportSuffix(t, err.requestId)
     switch (err.category) {
         case 'description_invalid':
-            return `${err.message || 'The description needs a little more work before AI can use it.'}${suffix}`
+            return `${err.message || t('creation.common.aiGenerate.errors.descriptionInvalid')}${suffix}`
         case 'quota_exceeded':
-            return `You've reached today's AI generation limit.${err.retryAfterSeconds ? ` Try again in about ${Math.ceil(err.retryAfterSeconds / 3600)} hour(s).` : ' Try again later.'}${suffix}`
+            return `${t('creation.common.aiGenerate.errors.quotaExceeded')}${quotaRetry(t, err.retryAfterSeconds)}${suffix}`
         case 'generation_in_flight':
-            return `Another AI generation is already running. Wait for it to finish before starting another.${suffix}`
+            return `${t('creation.common.aiGenerate.errors.inFlight')}${suffix}`
         case 'generation_in_progress':
-            return `That same generation request is already in progress. No second ${noun} was created.${suffix}`
+            return `${t('creation.common.aiGenerate.errors.inProgress', { noun })}${suffix}`
         case 'idempotency_conflict':
-            return `This retry no longer matches the original request. Start a new generation attempt.${suffix}`
+            return `${t('creation.common.aiGenerate.errors.idempotencyConflict')}${suffix}`
         case 'timeout':
-            return `Local waiting timed out. The backend may still finish and save the ${noun}; retrying this same prompt uses the same key to avoid duplicates.${suffix}`
+            return `${t('creation.common.aiGenerate.errors.timeout', { noun })}${suffix}`
         case 'upstream_unavailable':
-            return `The AI service is temporarily unavailable. Try again in a moment or use a shorter description.${suffix}`
+            return `${t('creation.common.aiGenerate.errors.upstreamUnavailable')}${suffix}`
         case 'invalid_generated_output':
-            return `The AI response could not become a valid ${noun}. Rephrase with clearer details and try again.${suffix}`
+            return `${t('creation.common.aiGenerate.errors.invalidOutput', { noun })}${suffix}`
         case 'persistence_failed':
-            return `The AI generated a ${noun}, but saving failed. Try again in a moment.${suffix}`
+            return `${t('creation.common.aiGenerate.errors.persistenceFailed', { noun })}${suffix}`
         case 'configuration_unavailable':
-            return `AI generation is temporarily unavailable. Try again later.${suffix}`
+            return `${t('creation.common.aiGenerate.errors.configurationUnavailable')}${suffix}`
         default:
-            return err.message || `Failed to generate ${noun}. Please try again.`
+            return err.message || t('creation.common.aiGenerate.errors.generic', { noun })
     }
 }
 
 export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_CARD_CLIENT_TIMEOUT_MS }: AiGeneratePanelProps) {
+    const { t } = useTranslation()
     const [description, setDescription] = useState('')
     const [isGenerating, setIsGenerating] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -77,11 +86,11 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
     const isTooShort = trimmedLength > 0 && trimmedLength < AI_CARD_DESCRIPTION_MIN_CHARS
     const isTooLong = trimmedLength > AI_CARD_DESCRIPTION_MAX_CHARS
     const validationMessage = isTooLong
-        ? `Keep it under ${AI_CARD_DESCRIPTION_MAX_CHARS} characters before generating.`
+        ? t('creation.common.aiGenerate.validation.tooLong', { max: AI_CARD_DESCRIPTION_MAX_CHARS })
         : isTooShort
-          ? `Write at least ${AI_CARD_DESCRIPTION_MIN_CHARS} characters so the AI has something useful.`
+          ? t('creation.common.aiGenerate.validation.tooShort', { min: AI_CARD_DESCRIPTION_MIN_CHARS })
           : !trimmed
-            ? `Write at least ${AI_CARD_DESCRIPTION_MIN_CHARS} characters to generate a ${noun}.`
+            ? t('creation.common.aiGenerate.validation.empty', { min: AI_CARD_DESCRIPTION_MIN_CHARS, noun })
             : null
     const canGenerate = Boolean(trimmed) && !isTooShort && !isTooLong && !isGenerating
 
@@ -130,9 +139,9 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
         } catch (err) {
             if (!mountedRef.current) return
             if (controller.signal.aborted && !(err as { category?: string })?.category) {
-                setError(`Canceled locally. The backend may still finish and save the ${noun}; retrying this same prompt uses the same key to avoid duplicates.`)
+                setError(t('creation.common.aiGenerate.canceledLocally', { noun }))
             } else {
-                setError(aiErrorCopy(err, noun))
+                setError(aiErrorCopy(err, noun, t))
             }
         } finally {
             if (mountedRef.current) {
@@ -144,15 +153,15 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
 
     return (
         <div className="flex flex-col gap-4 rounded-md border border-arcane-500/30 bg-arcane-500/[.06] p-6">
-            <SectionHeader icon={Sparkles} tone="arcane" title="Generate with AI" />
+            <SectionHeader icon={Sparkles} tone="arcane" title={t('creation.common.aiGenerate.title')} />
             <p className="font-narrative text-sm text-parchment-400">
-                Describe the {noun} you have in mind and let the AI draft it — you can refine it afterwards.
+                {t('creation.common.aiGenerate.prompt', { noun })}
             </p>
             <CreatorTextarea
                 id={`ai-generate-${noun}`}
                 value={description}
                 onChange={setDescription}
-                placeholder={placeholder ?? `Describe the ${noun}…`}
+                placeholder={placeholder ?? t('creation.common.aiGenerate.placeholder', { noun })}
                 rows={3}
                 maxLength={AI_CARD_DESCRIPTION_MAX_CHARS + 1}
             />
@@ -162,14 +171,14 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
             </div>
             {isGenerating && (
                 <p className="font-narrative text-xs italic text-parchment-400">
-                    You can cancel local waiting, but the backend may still finish and save the {noun}. Retry uses the same key to avoid duplicates.
+                    {t('creation.common.aiGenerate.busyNote', { noun })}
                 </p>
             )}
             {error && <p className="text-sm text-blood-500">{error}</p>}
             <div className="flex justify-end gap-2">
                 {isGenerating && (
                     <Button kind="secondary" onClick={handleCancel}>
-                        Cancel
+                        {t('common.cancel')}
                     </Button>
                 )}
                 <Button
@@ -178,7 +187,7 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
                     disabled={!canGenerate}
                     iconLeft={<Icon icon={Sparkles} size={16} />}
                 >
-                    {isGenerating ? 'Generating…' : `Generate ${label}`}
+                    {isGenerating ? t('creation.common.aiGenerate.generating') : t('creation.common.aiGenerate.generate', { label })}
                 </Button>
             </div>
         </div>

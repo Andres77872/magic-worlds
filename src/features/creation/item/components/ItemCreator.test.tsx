@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
     setPage: vi.fn(),
+    goBack: vi.fn(),
     loadData: vi.fn(),
     openLoginModal: vi.fn(),
     registerThemeSongJob: vi.fn(),
@@ -20,7 +21,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useNavigation: () => ({ setPage: mocks.setPage }),
+    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack }),
     useData: () => ({ editingItem: mocks.editingItem, setEditingItem: mocks.setEditingItem, loadData: mocks.loadData }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
     useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
@@ -29,6 +30,7 @@ vi.mock('@/app/hooks', () => ({
 vi.mock('@/infrastructure/api', () => ({
     ApiError: class ApiError extends Error { status = 500; isTransient = true },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
+    isProtectedMediaUrl: () => false,
     apiService: {
         createCardAssistantConversation: mocks.createCardAssistantConversation,
         listCardAssistantConversations: mocks.listCardAssistantConversations,
@@ -114,5 +116,49 @@ describe('ItemCreator guided payload', () => {
         // The Traits row stays in the quick-add category, not a duplicate group.
         expect(screen.getByDisplayValue('Material')).toBeInTheDocument()
         expect(screen.getByDisplayValue('Blackened silver')).toBeInTheDocument()
+    })
+})
+
+describe('ItemCreator navigation', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingItem = null
+        mocks.createItem.mockResolvedValue({ id: 'item-1', name: 'Moonlit Compass' })
+        mocks.loadData.mockResolvedValue(undefined)
+        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+    })
+
+    it('returns to the origin after saving a new item', async () => {
+        render(<ItemCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
+        fireEvent.change(screen.getByPlaceholderText(/moonlit compass/i), { target: { value: 'Moonlit Compass' } })
+        fireEvent.change(screen.getByLabelText(/description/i), { target: { value: 'A brass compass.' } })
+        fireEvent.click(screen.getByRole('button', { name: /^Create Item$/i }))
+
+        await waitFor(() => expect(mocks.createItem).toHaveBeenCalledTimes(1))
+        await waitFor(() => expect(mocks.goBack).toHaveBeenCalledWith('landing'))
+        expect(mocks.setPage).not.toHaveBeenCalledWith('landing')
+    })
+
+    it('returns to the origin from edit back', () => {
+        mocks.editingItem = {
+            id: 'item-2',
+            name: 'Saint Orven Bell',
+            type: 'Relic',
+            rarity: 'Cursed',
+            description: 'A blackened silver bell.',
+            effects: [],
+            requirements: [],
+            limitations: [],
+            triggers: [],
+        }
+        render(<ItemCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /^Back$/i }))
+
+        expect(mocks.setEditingItem).toHaveBeenCalledWith(null)
+        expect(mocks.goBack).toHaveBeenCalledWith('landing')
     })
 })

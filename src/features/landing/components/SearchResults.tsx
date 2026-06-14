@@ -7,6 +7,8 @@
 
 import { ArrowRight, BookOpenText, Gem, Globe, MessageCircle, Play, SearchX, Swords, UserCircle, Users, Wand2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import type { Adventure, Character, Item, Story, World } from '@/shared'
 import { MODE_META } from '@/shared/modes'
 import { EmptyState } from '@/ui/components/common/EmptyState'
@@ -56,19 +58,20 @@ export function SearchResults({
     onCreateAdventure,
     onViewGallery,
 }: SearchResultsProps) {
+    const { t } = useTranslation()
     if (results.total === 0) {
         return (
             <EmptyState
                 icon={<Icon icon={SearchX} size={40} />}
-                message={`Nothing matches "${results.query}"`}
-                secondaryText="Try a name, a world, a trigger, or a line you remember."
+                message={t('landing.search.nothingMatches', { query: results.query })}
+                secondaryText={t('landing.search.secondary')}
             >
                 <div className="flex flex-wrap items-center justify-center gap-3">
                     <Button kind="secondary" size="sm" onClick={onClear}>
-                        Clear search
+                        {t('gallery.clearSearch')}
                     </Button>
                     <Button kind="primary" size="sm" iconLeft={<Icon icon={Wand2} size={15} />} onClick={onCreateAdventure}>
-                        Forge an adventure
+                        {t('landing.search.forgeAdventure')}
                     </Button>
                 </div>
             </EmptyState>
@@ -77,11 +80,11 @@ export function SearchResults({
 
     return (
         <div className="flex flex-col gap-10" data-testid="search-results">
-            <h2 className="sr-only">Search results</h2>
+            <h2 className="sr-only">{t('landing.search.resultsHeading')}</h2>
             {results.groups.map((group) => (
                 <section key={group.key} className="flex flex-col gap-4">
                     <SectionHeader
-                        title={`${group.label} — ${group.total} ${group.total === 1 ? 'match' : 'matches'}`}
+                        title={t('landing.search.groupHeading', { label: t(group.labelKey), count: group.total })}
                         icon={GROUP_ICONS[group.key]}
                         tone={group.key === 'cast' ? 'arcane' : 'ember'}
                         right={
@@ -92,12 +95,12 @@ export function SearchResults({
                                     iconRight={<Icon icon={ArrowRight} size={14} />}
                                     onClick={() => onViewGallery(group.key)}
                                 >
-                                    View all in gallery
+                                    {t('landing.search.viewAllInGallery')}
                                 </Button>
                             ) : undefined
                         }
                     />
-                    {renderGroup(group, {
+                    {renderGroup(group, t, {
                         onOpenSession,
                         onBeginTemplate,
                         onChatCharacter,
@@ -135,7 +138,7 @@ function galleryCard(key: string, props: LibraryCardProps, onClick: () => void, 
     )
 }
 
-function renderGroup(group: DashboardSearchGroup, handlers: GroupHandlers) {
+function renderGroup(group: DashboardSearchGroup, t: TFunction, handlers: GroupHandlers) {
     switch (group.key) {
         case 'sessions':
             return (
@@ -167,7 +170,7 @@ function renderGroup(group: DashboardSearchGroup, handlers: GroupHandlers) {
                         character.id,
                         characterCardProps(character),
                         () => handlers.onEditCharacter(character),
-                        `Edit ${character.name}`,
+                        t('landing.rail.editAria', { name: character.name }),
                         <Button
                             kind="arcane"
                             size="sm"
@@ -175,7 +178,7 @@ function renderGroup(group: DashboardSearchGroup, handlers: GroupHandlers) {
                             iconLeft={<Icon icon={MessageCircle} size={15} />}
                             onClick={() => handlers.onChatCharacter(character)}
                         >
-                            Chat
+                            {t('landing.search.chat')}
                         </Button>,
                     ),
                 ),
@@ -187,20 +190,20 @@ function renderGroup(group: DashboardSearchGroup, handlers: GroupHandlers) {
                         character.id,
                         personaCardProps(character),
                         () => handlers.onEditCharacter(character),
-                        `Edit ${character.name}`,
+                        t('landing.rail.editAria', { name: character.name }),
                     ),
                 ),
             )
         case 'worlds':
             return cardGrid(
                 group.items.map((world) =>
-                    galleryCard(world.id, worldCardProps(world), () => handlers.onEditWorld(world), `Edit ${world.name}`),
+                    galleryCard(world.id, worldCardProps(world), () => handlers.onEditWorld(world), t('landing.rail.editAria', { name: world.name })),
                 ),
             )
         case 'items':
             return cardGrid(
                 group.items.map((item) =>
-                    galleryCard(item.id, itemCardProps(item), () => handlers.onEditItem(item), `Edit ${item.name}`),
+                    galleryCard(item.id, itemCardProps(item), () => handlers.onEditItem(item), t('landing.rail.editAria', { name: item.name })),
                 ),
             )
         case 'novels':

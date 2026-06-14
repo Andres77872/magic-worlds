@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FolderPlus } from 'lucide-react';
 import { Button, SectionHeader } from '@/ui/primitives';
 import { CreatorField, CreatorInput, CreatorTextarea } from './CreatorField';
@@ -19,6 +20,7 @@ export interface CategoryFormProps {
 }
 
 export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWrapper = true }: CategoryFormProps) {
+    const { t } = useTranslation();
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
 
@@ -30,27 +32,10 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
         }
     };
 
-    const getPlaceholderByTheme = () => {
-        switch (theme) {
-            case 'fire':
-                return {
-                    name: 'e.g., Magic Abilities, Backgrounds',
-                    description: 'What kind of attributes belong in this category?'
-                };
-            case 'nature':
-                return {
-                    name: 'e.g., Encounters, Treasures, Events',
-                    description: 'What kind of information belongs in this category?'
-                };
-            default:
-                return {
-                    name: 'e.g., Magic Systems, Factions',
-                    description: 'What kind of attributes belong in this category?'
-                };
-        }
+    const placeholders = {
+        name: t(`creation.common.categoryForm.placeholders.${theme}.name`),
+        description: t(`creation.common.categoryForm.placeholders.${theme}.description`),
     };
-
-    const placeholders = getPlaceholderByTheme();
 
     // Use FormWrapper component to conditionally render as form or div
     const FormWrapper = useFormWrapper ? 'form' : 'div';
@@ -62,13 +47,15 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
 
             <SectionHeader
                 icon={FolderPlus}
-                title={`New ${theme === 'nature' ? 'Adventure Component' : 'Attribute Category'}`}
+                title={theme === 'nature'
+                    ? t('creation.common.categoryForm.adventureComponentTitle')
+                    : t('creation.common.categoryForm.attributeCategoryTitle')}
                 className="mb-6"
             />
 
             <div className="flex flex-col gap-6">
-                <CreatorField 
-                    label="Category Name:" 
+                <CreatorField
+                    label={t('creation.common.categoryForm.nameLabel')}
                     htmlFor="category-name"
                     required
                 >
@@ -82,8 +69,8 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
                     />
                 </CreatorField>
 
-                <CreatorField 
-                    label="Description (optional):" 
+                <CreatorField
+                    label={t('creation.common.categoryForm.descriptionLabel')}
                     htmlFor="category-description"
                 >
                     <CreatorTextarea
@@ -103,7 +90,7 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
                     onClick={onCancel}
                     className="max-sm:w-full"
                 >
-                    Cancel
+                    {t('common.cancel')}
                 </Button>
                 <Button
                     kind="primary"
@@ -117,7 +104,7 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
                     }}
                     className="max-sm:w-full"
                 >
-                    Create Category
+                    {t('creation.common.categoryForm.create')}
                 </Button>
             </div>
         </FormWrapper>

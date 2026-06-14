@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { Button, Icon, SectionHeader } from '@/ui/primitives';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
@@ -43,6 +44,7 @@ export function AttributeManager({
     onRemoveAttribute,
     categoryConfig = {}
 }: AttributeManagerProps) {
+    const { t } = useTranslation();
     const [showAddCategory, setShowAddCategory] = useState(false);
 
     const handleAddCategory = (name: string, description: string) => {
@@ -69,7 +71,7 @@ export function AttributeManager({
                             iconLeft={<Icon icon={Plus} size={16} />}
                             className="max-sm:w-full"
                         >
-                            Add Category
+                            {t('creation.common.attributeManager.addCategory')}
                         </Button>
                     }
                 />

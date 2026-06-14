@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { I18nextProvider } from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { i18n } from '@/app/i18n'
 import { LoginModal } from './LoginModal'
 
 const login = vi.fn()
@@ -18,13 +20,18 @@ vi.mock('@/app/hooks', () => ({
 }))
 
 function renderModal(onClose = vi.fn()) {
-    render(<LoginModal isOpen onClose={onClose} />)
+    const localI18n = i18n.cloneInstance({ lng: 'en' })
+    render(
+        <I18nextProvider i18n={localI18n}>
+            <LoginModal isOpen onClose={onClose} />
+        </I18nextProvider>,
+    )
     return { onClose }
 }
 
 function fillCredentials(username = 'aria', password = 'hunter22') {
-    fireEvent.change(screen.getByPlaceholderText(/enter your username/i), { target: { value: username } })
-    fireEvent.change(screen.getByPlaceholderText(/^(enter your|choose a) password$/i), { target: { value: password } })
+    fireEvent.change(screen.getByLabelText(/^username$/i), { target: { value: username } })
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: password } })
 }
 
 describe('LoginModal', () => {

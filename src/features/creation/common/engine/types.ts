@@ -61,8 +61,12 @@ export interface GuidedSectionDefinition {
 export interface CardTemplate {
     id: string
     name: string
+    /** Optional i18n key for `name`; resolved with t() at the template card. */
+    nameKey?: string
     /** One evocative line shown on the template card. */
     tagline: string
+    /** Optional i18n key for `tagline`; resolved with t() at the template card. */
+    taglineKey?: string
     icon?: LucideIcon
     /** Guided field ids active on pick; everything else starts in the palette. */
     fieldIds: string[]

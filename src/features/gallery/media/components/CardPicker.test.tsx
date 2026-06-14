@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { i18n } from '@/app/i18n'
+import { I18nextProvider } from 'react-i18next'
+import type { ReactElement } from 'react'
 
 vi.mock('@/infrastructure/api', () => ({
     apiService: {
@@ -20,8 +23,14 @@ const CHARACTERS = [
     { id: 'c2', name: 'Dorn' },
 ]
 
+function renderSpanish(ui: ReactElement) {
+    const localI18n = i18n.cloneInstance({ lng: 'es' })
+    return render(<I18nextProvider i18n={localI18n}>{ui}</I18nextProvider>)
+}
+
 describe('CardPicker', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+        await i18n.changeLanguage('en')
         vi.clearAllMocks()
         vi.mocked(apiService.getCharacters).mockResolvedValue(CHARACTERS)
         vi.mocked(apiService.getWorlds).mockResolvedValue([{ id: 'w1', name: 'Rivendell' }])
@@ -98,6 +107,15 @@ describe('CardPicker', () => {
         expect(screen.getByTestId('card-picker-trigger')).toHaveTextContent('Lyra')
 
         fireEvent.click(screen.getByTestId('card-picker-clear'))
+        expect(onChange).toHaveBeenCalledWith(undefined)
+    })
+
+    it('renders picker chrome in Spanish', async () => {
+        const onChange = vi.fn()
+        renderSpanish(<CardPicker cardType="character" value={{ type: 'character', id: 'c1', name: 'Lyra' }} onChange={onChange} />)
+
+        expect(screen.getByRole('combobox', { name: 'Filtrar por carta' })).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Limpiar filtro de carta' }))
         expect(onChange).toHaveBeenCalledWith(undefined)
     })
 

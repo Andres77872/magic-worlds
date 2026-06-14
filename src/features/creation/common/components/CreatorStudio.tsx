@@ -13,6 +13,7 @@
  */
 
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ArrowLeft } from 'lucide-react'
 import { Button, Icon, PageHeader, cx } from '@/ui/primitives'
 
@@ -34,7 +35,7 @@ export interface CreatorStudioProps {
 }
 
 export function CreatorStudio({
-    eyebrow = 'Creation',
+    eyebrow,
     title,
     icon,
     onBack,
@@ -44,6 +45,7 @@ export function CreatorStudio({
     preview,
     children,
 }: CreatorStudioProps) {
+    const { t } = useTranslation()
     return (
         <div
             className={cx(
@@ -53,14 +55,14 @@ export function CreatorStudio({
         >
             <PageHeader
                 className="mb-6"
-                eyebrow={eyebrow}
+                eyebrow={eyebrow ?? t('creation.common.creationEyebrow')}
                 title={title}
                 icon={icon ? <span className="text-[28px] leading-none max-sm:text-2xl">{icon}</span> : undefined}
                 divider
                 actions={
                     <>
                         <Button kind="ghost" onClick={onBack} iconLeft={<Icon icon={ArrowLeft} size={16} />}>
-                            Back
+                            {t('creation.common.back')}
                         </Button>
                         {headerActions}
                     </>

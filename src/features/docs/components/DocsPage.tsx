@@ -5,13 +5,16 @@
  * App-map panels navigate to their workspace through the same gated handler as
  * the header create buttons, so guests get the login modal instead of a dead end.
  */
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
 import {
+    AudioLines,
     BookOpenText,
     Compass,
     Images,
     Info,
+    Mic,
     Search,
     Server,
     ShieldCheck,
@@ -32,17 +35,8 @@ import {
     cx,
 } from '@/ui/primitives'
 import {
-    BEST_PRACTICES,
-    CARD_GUIDE,
-    LIBRARY_GUIDE,
-    MAP_ITEMS,
-    MEDIA_GUIDE,
-    PLAY_GUIDE,
-    PRIMARY_ACTIONS,
-    QUICK_START,
-    SECTIONS,
-    UTILITY_ITEMS,
-    WRITING_GUIDE,
+    DOC_SECTION_IDS,
+    getDocsContent,
     type GuideItem,
 } from './docsContent'
 
@@ -55,11 +49,55 @@ function activateOnKey(handler: () => void) {
     }
 }
 
+function prefersReducedMotion() {
+    return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+}
+
+function scrollDocsSectionIntoView(id: string) {
+    const target = document.getElementById(id)
+    if (!target) return
+
+    const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth'
+    const scroller = document.querySelector<HTMLElement>('[data-app-main]')
+    if (!scroller) {
+        target.scrollIntoView({ behavior, block: 'start' })
+        return
+    }
+
+    const scrollerRect = scroller.getBoundingClientRect()
+    const targetRect = target.getBoundingClientRect()
+    const scrollMarginTop = Number.parseFloat(window.getComputedStyle(target).scrollMarginTop) || 0
+    const top = scroller.scrollTop + targetRect.top - scrollerRect.top - scrollMarginTop
+
+    scroller.scrollTo({ top: Math.max(0, top), left: 0, behavior })
+}
+
+function scrollNavButtonInlineIntoView(nav: HTMLElement | null, button: HTMLButtonElement | null) {
+    if (!nav || !button || nav.scrollWidth <= nav.clientWidth) return
+
+    const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth'
+    const navRect = nav.getBoundingClientRect()
+    const buttonRect = button.getBoundingClientRect()
+    const overflowLeft = buttonRect.left - navRect.left
+    const overflowRight = buttonRect.right - navRect.right
+
+    if (overflowLeft < 0) {
+        nav.scrollTo({ left: nav.scrollLeft + overflowLeft, behavior })
+    } else if (overflowRight > 0) {
+        nav.scrollTo({ left: nav.scrollLeft + overflowRight, behavior })
+    }
+}
+
 export function DocsPage() {
+    const { t } = useTranslation()
+    const docs = useMemo(() => getDocsContent(t), [t])
+    const sectionById = useMemo(() => new Map(docs.sections.map((section) => [section.id, section])), [docs.sections])
+    const getSection = (id: string) => sectionById.get(id) ?? docs.sections[0]
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
-    const [activeSection, setActiveSection] = useState(SECTIONS[0].id)
+    const [activeSection, setActiveSection] = useState(DOC_SECTION_IDS[0])
     const visibleSections = useRef<Set<string>>(new Set())
+    const navRef = useRef<HTMLElement | null>(null)
     const navButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
     useEffect(() => {
@@ -73,14 +111,14 @@ export function DocsPage() {
                     else visibleSections.current.delete(entry.target.id)
                 }
 
-                const topmostVisible = SECTIONS.find((section) => visibleSections.current.has(section.id))
-                if (topmostVisible) setActiveSection(topmostVisible.id)
+                const topmostVisible = DOC_SECTION_IDS.find((id) => visibleSections.current.has(id))
+                if (topmostVisible) setActiveSection(topmostVisible)
             },
             { rootMargin: '-96px 0px -58% 0px', threshold: 0 },
         )
 
-        for (const section of SECTIONS) {
-            const element = document.getElementById(section.id)
+        for (const id of DOC_SECTION_IDS) {
+            const element = document.getElementById(id)
             if (element) observer.observe(element)
         }
 
@@ -88,12 +126,12 @@ export function DocsPage() {
     }, [])
 
     useEffect(() => {
-        navButtonRefs.current[activeSection]?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+        scrollNavButtonInlineIntoView(navRef.current, navButtonRefs.current[activeSection])
     }, [activeSection])
 
     const goToSection = (id: string) => {
         setActiveSection(id)
-        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        scrollDocsSectionIntoView(id)
     }
 
     const goToPage = (page: PageType, gated?: boolean) => {
@@ -108,14 +146,14 @@ export function DocsPage() {
         <div className="relative w-full">
             <div className="relative mx-auto flex w-full max-w-[1280px] flex-col gap-8 px-5 py-8 sm:px-8 sm:py-10">
                 <PageHeader
-                    eyebrow="Product guide"
-                    title="Magic Worlds Docs"
-                    subtitle="Learn the app from the inside: where to start, what each workspace is for, and how to turn cards into adventures, chats, stories, lore, media, and reusable worlds."
+                    eyebrow={docs.page.eyebrow}
+                    title={docs.page.title}
+                    subtitle={docs.page.subtitle}
                     size="lg"
                     icon={<IconTile icon={Info} tone="arcane" size="md" />}
                     actions={
                         <div className="flex flex-wrap gap-2">
-                            {PRIMARY_ACTIONS.map((action) => (
+                            {docs.primaryActions.map((action) => (
                                 <Button
                                     key={action.page}
                                     kind={action.page === 'adventure' ? 'primary' : 'secondary'}
@@ -133,10 +171,11 @@ export function DocsPage() {
                 <div className="grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
                     <aside className="lg:sticky lg:top-6 lg:self-start">
                         <nav
-                            aria-label="Docs sections"
+                            ref={navRef}
+                            aria-label={docs.navAriaLabel}
                             className="flex gap-2 overflow-x-auto rounded-xl border border-parchment-50/10 bg-ink-900/55 p-2 lg:flex-col lg:overflow-visible"
                         >
-                            {SECTIONS.map((section) => {
+                            {docs.sections.map((section) => {
                                 const active = activeSection === section.id
                                 return (
                                     <button
@@ -166,12 +205,12 @@ export function DocsPage() {
                         <GuideSection
                             id="start"
                             icon={Compass}
-                            eyebrow="Where to start"
-                            title="A practical first path"
-                            intro="Magic Worlds works best when you build a small, useful foundation and then expand from actual play."
+                            eyebrow={getSection('start').eyebrow}
+                            title={getSection('start').title}
+                            intro={getSection('start').intro}
                         >
                             <div className="grid gap-4 md:grid-cols-2">
-                                {QUICK_START.map((item, index) => (
+                                {docs.quickStart.map((item, index) => (
                                     <FeatureCard key={item.title} icon={item.icon} title={`${index + 1}. ${item.title}`}>
                                         {item.body}
                                     </FeatureCard>
@@ -182,13 +221,13 @@ export function DocsPage() {
                         <GuideSection
                             id="map"
                             icon={Info}
-                            eyebrow="Navigation"
-                            title="What every rail item is for"
-                            intro="The left rail separates libraries from utilities, and it collapses when you want more room. Library items open searchable galleries — creators open from each gallery's New button or the dashboard. The lower cluster is for status, docs, tasks, source, and account."
+                            eyebrow={getSection('map').eyebrow}
+                            title={getSection('map').title}
+                            intro={getSection('map').intro}
                         >
-                            <SectionHeader icon={Compass} title="Primary workspaces" />
+                            <SectionHeader icon={Compass} title={docs.mapHeadings.primaryWorkspaces} />
                             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                {MAP_ITEMS.map((item) => (
+                                {docs.mapItems.map((item) => (
                                     <MapPanel
                                         key={item.title}
                                         icon={item.icon}
@@ -202,9 +241,9 @@ export function DocsPage() {
                                 ))}
                             </div>
 
-                            <SectionHeader icon={Server} title="Utility rail" />
+                            <SectionHeader icon={Server} title={docs.mapHeadings.utilityRail} />
                             <div className="grid gap-3 sm:grid-cols-2">
-                                {UTILITY_ITEMS.map((item) => (
+                                {docs.utilityItems.map((item) => (
                                     <UtilityRow key={item.title} icon={item.icon} title={item.title} tone={item.tone} tag={item.tag}>
                                         {item.body}
                                     </UtilityRow>
@@ -215,12 +254,12 @@ export function DocsPage() {
                         <GuideSection
                             id="library"
                             icon={Search}
-                            eyebrow="Libraries"
-                            title="Find your work"
-                            intro="Everything you make lands in a gallery. Search, deep links, and the dashboard sweep keep even a large library one step away."
+                            eyebrow={getSection('library').eyebrow}
+                            title={getSection('library').title}
+                            intro={getSection('library').intro}
                         >
                             <div className="grid gap-4 md:grid-cols-2">
-                                {LIBRARY_GUIDE.map((item) => (
+                                {docs.libraryGuide.map((item) => (
                                     <FeatureCard key={item.title} icon={item.icon} title={item.title}>
                                         {item.body}
                                     </FeatureCard>
@@ -231,12 +270,12 @@ export function DocsPage() {
                         <GuideSection
                             id="cards"
                             icon={Users}
-                            eyebrow="Card creation"
-                            title="Build cards that the rest of the app can reuse"
-                            intro="Characters, worlds, items, and adventures share the same creation rhythm: edit on the left, review a live preview on the right, ask the assistant for help, add media, then save."
+                            eyebrow={getSection('cards').eyebrow}
+                            title={getSection('cards').title}
+                            intro={getSection('cards').intro}
                         >
                             <div className="grid gap-4 md:grid-cols-2">
-                                {CARD_GUIDE.map((item) => (
+                                {docs.cardGuide.map((item) => (
                                     <FeatureCard
                                         key={item.title}
                                         icon={item.icon}
@@ -253,12 +292,56 @@ export function DocsPage() {
                         <GuideSection
                             id="play"
                             icon={Swords}
-                            eyebrow="Adventures and chat"
-                            title="Use the right mode for the scene"
-                            intro="Adventure mode is for Game Master-led sessions. Character chat is for direct one-on-one conversations. Both use the same conversation surface, but they carry different context."
+                            eyebrow={getSection('play').eyebrow}
+                            title={getSection('play').title}
+                            intro={getSection('play').intro}
                         >
                             <div className="grid gap-4 lg:grid-cols-2">
-                                {PLAY_GUIDE.map((item) => (
+                                {docs.playGuide.map((item) => (
+                                    <FeatureCard
+                                        key={item.title}
+                                        icon={item.icon}
+                                        title={item.title}
+                                        badge={item.badge}
+                                        tone={item.tone}
+                                    >
+                                        {item.body}
+                                    </FeatureCard>
+                                ))}
+                            </div>
+                        </GuideSection>
+
+                        <GuideSection
+                            id="voice-presets"
+                            icon={AudioLines}
+                            eyebrow={getSection('voice-presets').eyebrow}
+                            title={getSection('voice-presets').title}
+                            intro={getSection('voice-presets').intro}
+                        >
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {docs.voicePresetGuide.map((item) => (
+                                    <FeatureCard
+                                        key={item.title}
+                                        icon={item.icon}
+                                        title={item.title}
+                                        badge={item.badge}
+                                        tone={item.tone}
+                                    >
+                                        {item.body}
+                                    </FeatureCard>
+                                ))}
+                            </div>
+                        </GuideSection>
+
+                        <GuideSection
+                            id="voice"
+                            icon={Mic}
+                            eyebrow={getSection('voice').eyebrow}
+                            title={getSection('voice').title}
+                            intro={getSection('voice').intro}
+                        >
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {docs.voiceGuide.map((item) => (
                                     <FeatureCard
                                         key={item.title}
                                         icon={item.icon}
@@ -275,13 +358,13 @@ export function DocsPage() {
                         <GuideSection
                             id="writing"
                             icon={BookOpenText}
-                            eyebrow="Lore and prose"
+                            eyebrow={getSection('writing').eyebrow}
                             tone="arcane"
-                            title="Move from interactive play to reusable writing"
-                            intro="Lorebooks help the assistant retrieve durable facts. Novels turn cards into authored prose with chapters, context controls, and candidate-based generation."
+                            title={getSection('writing').title}
+                            intro={getSection('writing').intro}
                         >
                             <div className="grid gap-4 md:grid-cols-2">
-                                {WRITING_GUIDE.map((item) => (
+                                {docs.writingGuide.map((item) => (
                                     <FeatureCard key={item.title} icon={item.icon} title={item.title} tone="arcane">
                                         {item.body}
                                     </FeatureCard>
@@ -292,13 +375,13 @@ export function DocsPage() {
                         <GuideSection
                             id="media"
                             icon={Images}
-                            eyebrow="Assets"
+                            eyebrow={getSection('media').eyebrow}
                             tone="arcane"
-                            title="Generate, track, and reuse media"
-                            intro="Portraits, covers, and theme songs are attached to cards and collected in the media library. Longer audio jobs continue in the background, and the music dock plays the results anywhere in the app."
+                            title={getSection('media').title}
+                            intro={getSection('media').intro}
                         >
                             <div className="grid gap-4 md:grid-cols-2">
-                                {MEDIA_GUIDE.map((item) => (
+                                {docs.mediaGuide.map((item) => (
                                     <FeatureCard
                                         key={item.title}
                                         icon={item.icon}
@@ -315,13 +398,13 @@ export function DocsPage() {
                         <GuideSection
                             id="best-practices"
                             icon={ShieldCheck}
-                            eyebrow="Recommendations"
-                            title="Best practices"
-                            intro="These habits keep the library searchable, sessions coherent, and generated work easier to reuse."
+                            eyebrow={getSection('best-practices').eyebrow}
+                            title={getSection('best-practices').title}
+                            intro={getSection('best-practices').intro}
                         >
                             <Card className="p-5">
                                 <ul className="m-0 grid list-none gap-3 p-0">
-                                    {BEST_PRACTICES.map((practice) => (
+                                    {docs.bestPractices.map((practice) => (
                                         <li key={practice} className="flex gap-3">
                                             <span className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ember-500/15 text-ember-300">
                                                 <Icon icon={ShieldCheck} size={12} />

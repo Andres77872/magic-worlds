@@ -4,7 +4,7 @@ import { ServicesDownBanner } from './ServicesDownBanner'
 
 const withOfflineApi: Decorator = function Provided(Story) {
   return (
-    <ApiStatusContext.Provider value={{ status: 'offline' }}>
+    <ApiStatusContext.Provider value={{ status: 'offline', showServicesDownBanner: true }}>
       <Story />
     </ApiStatusContext.Provider>
   )
@@ -19,7 +19,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'App-wide alert strip shown above the content while the API health check reports offline. Reads `useApiStatus()` — it renders nothing for `online`/`checking`, so this story provides an offline `ApiStatusContext`.',
+          'App-wide alert strip shown above the content after persistent API health check failures. Reads `useApiStatus()` and stays hidden while failures are still transient.',
       },
     },
   },

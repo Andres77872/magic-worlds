@@ -21,6 +21,8 @@ const baseAuth: AuthValue = {
     isLoginModalOpen: false,
     login: async () => false,
     register: async () => false,
+    loginWithGoogle: async () => undefined,
+    completeGoogleLogin: async () => false,
     logout: () => undefined,
     clearError: () => undefined,
     openLoginModal: () => undefined,
@@ -102,6 +104,7 @@ describe('Sidebar API status', () => {
     beforeEach(() => {
         vi.clearAllMocks()
         window.localStorage.removeItem('magic-worlds-sidebar-collapsed')
+        window.localStorage.removeItem('magic-worlds-sidebar-groups')
     })
 
     afterEach(() => {
@@ -134,10 +137,25 @@ describe('Sidebar API status', () => {
 
         expect(await screen.findByRole('status', { name: 'API online' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Chatroom' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Active adventures' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Items' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Docs' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Tasks' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Your profile' })).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Voice admin' })).not.toBeInTheDocument()
+    })
+
+    it('shows the voice admin utility for root users only', async () => {
+        renderSidebar({
+            ...baseAuth,
+            isAuthenticated: true,
+            user: { ...mockUser, user_type: 'root' },
+        })
+
+        const voiceAdmin = await screen.findByRole('button', { name: 'Voice admin' })
+        fireEvent.click(voiceAdmin)
+
+        expect(voiceAdmin).toHaveAttribute('aria-current', 'page')
     })
 
     it('opens the item gallery from the library rail', async () => {
@@ -147,6 +165,36 @@ describe('Sidebar API status', () => {
         fireEvent.click(items)
 
         expect(items).toHaveAttribute('aria-current', 'page')
+    })
+
+    it('renders the grouped navigation section headers', async () => {
+        renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
+
+        expect(await screen.findByRole('button', { name: 'Activity' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Assets' })).toBeInTheDocument()
+    })
+
+    it('toggles a navigation group from its header', async () => {
+        renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
+
+        const libraryHeader = await screen.findByRole('button', { name: 'Library' })
+        expect(libraryHeader).toHaveAttribute('aria-expanded', 'true')
+
+        fireEvent.click(libraryHeader)
+        expect(libraryHeader).toHaveAttribute('aria-expanded', 'false')
+
+        fireEvent.click(libraryHeader)
+        expect(libraryHeader).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('opens active adventures from the primary rail', async () => {
+        renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
+
+        const activeAdventures = screen.getByRole('button', { name: 'Active adventures' })
+        fireEvent.click(activeAdventures)
+
+        expect(activeAdventures).toHaveAttribute('aria-current', 'page')
     })
 
     it('marks docs as the current utility view after clicking it', async () => {

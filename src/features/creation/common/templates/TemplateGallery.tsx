@@ -3,6 +3,7 @@
  * starting shapes plus the dashed "Empty card" tile, with a quiet skip link
  * that continues with the standard field set.
  */
+import { useTranslation } from 'react-i18next'
 import type { CardFieldDefinition, CardTemplate } from '../engine'
 import { TemplateCard, EmptyCardTile } from './TemplateCard'
 
@@ -20,6 +21,7 @@ export interface TemplateGalleryProps {
 }
 
 export function TemplateGallery({ templates, fields, noun, heading, subheading, onPick, onSkip }: TemplateGalleryProps) {
+    const { t } = useTranslation()
     return (
         <div className="flex flex-col gap-6">
             <div className="text-center">
@@ -45,7 +47,7 @@ export function TemplateGallery({ templates, fields, noun, heading, subheading, 
                     onClick={onSkip}
                     className="font-ui text-[13px] font-medium text-parchment-300 underline-offset-4 transition-colors hover:text-parchment-50 hover:underline"
                 >
-                    Skip — start with the standard fields
+                    {t('creation.common.templateGallery.skip')}
                 </button>
             </div>
         </div>

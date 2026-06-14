@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Download, ListMusic, Loader2, Pause, Play, Share2 } from 'lucide-react'
 import { usePlaylist } from '@/app/hooks/usePlaylist'
 import { themeTrack, type PlaylistTrack } from '@/app/providers/audioPlaylistContext'
@@ -71,6 +72,7 @@ export function GalleryCard({
     footer,
     'data-testid': testId = 'gallery-card',
 }: GalleryCardProps) {
+    const { t } = useTranslation()
     const interactive = Boolean(onClick) && !deleting
     const cardRef = useRef<HTMLDivElement>(null!)
     const longPressTimerRef = useRef<number | null>(null)
@@ -113,14 +115,14 @@ export function GalleryCard({
                   {
                       type: 'custom',
                       icon: <Icon icon={isThemePlaying ? Pause : Play} size={15} />,
-                      label: isThemePlaying ? 'Pause music' : 'Play music',
+                      label: isThemePlaying ? t('playlist.pauseMusic') : t('playlist.playMusic'),
                       onClick: () =>
                           playlist.playNow(themeTrack({ url: themeSongUrl, cardName: title, cardType, cardId, artworkUrl: imageUrl })),
                   },
                   {
                       type: 'custom',
                       icon: <Icon icon={ListMusic} size={15} />,
-                      label: playlist.isQueued(themeSongUrl) ? 'In playlist' : 'Add to playlist',
+                      label: playlist.isQueued(themeSongUrl) ? t('playlist.inPlaylist') : t('playlist.addToPlaylist'),
                       disabled: playlist.isQueued(themeSongUrl),
                       onClick: () =>
                           playlist.enqueue(themeTrack({ url: themeSongUrl, cardName: title, cardType, cardId, artworkUrl: imageUrl })),
@@ -133,10 +135,10 @@ export function GalleryCard({
                           <Icon icon={Download} size={15} />
                       ),
                       label: themeDownloadError
-                          ? 'Retry theme download'
+                          ? t('playlist.retryThemeDownload')
                           : downloadingTheme
-                            ? 'Downloading theme...'
-                            : 'Download theme',
+                            ? t('playlist.downloadingTheme')
+                            : t('playlist.downloadTheme'),
                       disabled: downloadingTheme,
                       onClick: handleDownloadTheme,
                   },
@@ -156,6 +158,7 @@ export function GalleryCard({
         downloadingTheme,
         themeDownloadError,
         handleDownloadTheme,
+        t,
     ])
 
     const closeContextMenu = () => {
@@ -247,9 +250,10 @@ export function GalleryCard({
                 name={title}
                 src={imageUrl}
                 height="auto"
-                className="aspect-[3/4] w-full [&>img]:transition-transform [&>img]:duration-500 group-hover:[&>img]:scale-[1.035]"
+                lazy
+                className="aspect-[3/4] w-full group-hover:[&>img]:scale-[1.035]"
             >
-                <div className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-24 bg-[linear-gradient(180deg,rgba(14,12,20,.72),rgba(14,12,20,0))]" />
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-24 bg-gradient-to-b from-ink-900/72 to-transparent" />
                 <div className="pointer-events-none absolute inset-0 z-[1] ring-1 ring-inset ring-parchment-50/[.08]" />
                 <div
                     className="absolute right-2 top-2 z-[4] flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full border border-parchment-50/10 bg-ink-900/55 p-1 opacity-100 shadow-md backdrop-blur-md transition-opacity sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100"
@@ -259,7 +263,7 @@ export function GalleryCard({
                     {shareOptions && shareOptions.length > 0 && (
                         <CardOptions
                             options={shareOptions}
-                            aria-label={shareLabel || `Share ${title}`}
+                            aria-label={shareLabel || t('galleryCard.share', { title })}
                             triggerIcon={<Icon icon={Share2} size={16} />}
                             triggerTestId="card-share-button"
                             menuTestId="card-share-menu"
@@ -269,7 +273,7 @@ export function GalleryCard({
                         />
                     )}
                     {options && options.length > 0 && (
-                        <CardOptions options={options} aria-label={`Actions for ${title}`} onOpenChange={setMenuOpen} />
+                        <CardOptions options={options} aria-label={t('galleryCard.actions', { title })} onOpenChange={setMenuOpen} />
                     )}
                 </div>
 
@@ -301,7 +305,7 @@ export function GalleryCard({
                                             e.stopPropagation()
                                             onTagClick(tag)
                                         }}
-                                        aria-label={`Search for ${tag}`}
+                                        aria-label={t('galleryCard.searchFor', { tag })}
                                         className="max-w-full cursor-pointer truncate rounded-full bg-ink-900/65 px-2 py-[2px] font-ui text-[10px] font-semibold text-parchment-200 backdrop-blur transition-colors hover:bg-ember-500/25 hover:text-ember-300"
                                     >
                                         {tag}
@@ -339,7 +343,7 @@ export function GalleryCard({
 
             {deleting && (
                 <div className="absolute inset-0 z-[3] flex items-center justify-center bg-ink-900/70 font-medium text-parchment-50">
-                    Deleting…
+                    {t('galleryCard.deleting')}
                 </div>
             )}
         </Card>

@@ -4,6 +4,7 @@
  * "Use example" ghost action when the field is empty but has a hint.
  */
 import { useId } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Feather, X } from 'lucide-react'
 import { Icon, IconButton, Input, Select, SuggestInput, Textarea } from '@/ui/primitives'
 import type { CardFieldDefinition } from './types'
@@ -22,6 +23,7 @@ export interface GuidedFieldRowProps {
 }
 
 export function GuidedFieldRow({ field, value, hint, offRole, onChange, onRemove, onUseExample }: GuidedFieldRowProps) {
+    const { t } = useTranslation()
     const reactId = useId()
     const inputId = `guided-${field.id.replace(/\./g, '-')}-${reactId}`
     const placeholder = hint ?? field.placeholder
@@ -56,7 +58,7 @@ export function GuidedFieldRow({ field, value, hint, offRole, onChange, onRemove
                         value={value || undefined}
                         onChange={onChange}
                         options={field.options ?? []}
-                        placeholder={placeholder ?? 'Select…'}
+                        placeholder={placeholder ?? t('creation.common.fieldRow.selectPlaceholder')}
                     />
                 )
             // 'chips' values are stored as one comma-separated string; a plain
@@ -81,12 +83,12 @@ export function GuidedFieldRow({ field, value, hint, offRole, onChange, onRemove
                 <label htmlFor={inputId} className="block font-ui text-[13px] font-semibold text-parchment-50">
                     {field.label}
                     {offRole && (
-                        <span className="ml-2 font-normal italic text-parchment-400">(uncommon for this role)</span>
+                        <span className="ml-2 font-normal italic text-parchment-400">{t('creation.common.fieldRow.offRole')}</span>
                     )}
                 </label>
                 {onRemove && (
                     <IconButton
-                        label={`Remove ${field.label}`}
+                        label={t('creation.common.fieldRow.remove', { label: field.label })}
                         size="sm"
                         onClick={onRemove}
                     >
@@ -102,10 +104,10 @@ export function GuidedFieldRow({ field, value, hint, offRole, onChange, onRemove
                         type="button"
                         onClick={onUseExample}
                         className="inline-flex shrink-0 items-center gap-1 font-narrative text-[12px] italic text-arcane-300 transition-colors hover:text-arcane-400"
-                        title="Copy the example into the field to edit"
+                        title={t('creation.common.fieldRow.useExampleTitle')}
                     >
                         <Icon icon={Feather} size={12} />
-                        Use example
+                        {t('creation.common.fieldRow.useExample')}
                     </button>
                 )}
             </div>

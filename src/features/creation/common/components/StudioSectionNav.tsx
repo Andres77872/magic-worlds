@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
 import { Chip, Icon } from '@/ui/primitives'
 
@@ -21,6 +22,7 @@ export interface StudioSectionNavProps {
 }
 
 export function StudioSectionNav({ items }: StudioSectionNavProps) {
+    const { t } = useTranslation()
     const [active, setActive] = useState<string | undefined>(items[0]?.id)
     const visible = useRef<Set<string>>(new Set())
 
@@ -48,7 +50,7 @@ export function StudioSectionNav({ items }: StudioSectionNavProps) {
     const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
     return (
-        <nav aria-label="Sections" className="flex flex-wrap gap-2">
+        <nav aria-label={t('creation.common.studio.sectionsNav')} className="flex flex-wrap gap-2">
             {items.map((it) => (
                 <Chip
                     key={it.id}

@@ -4,9 +4,14 @@
 
 
 export { AdventureInteraction } from './AdventureInteraction'
+export { ActiveAdventuresPage } from './ActiveAdventuresPage'
 export { InteractionLeftPanel } from './InteractionLeftPanel'
 export { InteractionCenterPanel } from './InteractionCenterPanel'
 export { InteractionRightPanel } from './InteractionRightPanel'
+export { InteractionTopBar } from './InteractionTopBar'
+export { SidePanelDrawer } from './SidePanelDrawer'
+export { ChatComposer } from './ChatComposer'
+export { VoiceConsentModal } from './VoiceConsentModal'
 
 // Chat Turn Components
 export { ChatTurn } from './ChatTurn'
