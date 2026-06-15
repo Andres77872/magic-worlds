@@ -9,6 +9,20 @@ import { Button, Card, Icon } from '@/ui/primitives'
 type CallbackStatus = 'pending' | 'error'
 
 /**
+ * Maps the BFF's `?error=<reason>` slug (see magic-worlds-api google callback) to
+ * the i18n key segment under `auth.google.errors.*`. Unknown/legacy reasons fall
+ * back to the generic `failedTitle`/`failedBody`. The reasons are coarse,
+ * non-sensitive categories — the BFF never forwards which auth check failed.
+ */
+const GOOGLE_ERROR_MESSAGE_KEY: Record<string, string> = {
+    google_denied: 'denied',
+    google_invalid_callback: 'invalidCallback',
+    google_account_denied: 'accountDenied',
+    google_unavailable: 'unavailable',
+    google_start_failed: 'unavailable',
+}
+
+/**
  * Module-scoped holder for the Google return. React StrictMode mounts this page
  * twice in dev (mount → unmount → remount); a per-instance ref/state does NOT
  * survive that, so the first mount would clear the single-use code stash and the
@@ -48,6 +62,16 @@ export function GoogleCallbackPage() {
     // Derive the initial status from the captured values so the effect never has to
     // setState synchronously — it only setStates inside the async exchange callbacks.
     const [status, setStatus] = useState<CallbackStatus>(deepLinkError || !code ? 'error' : 'pending')
+
+    // Resolve a specific message for the BFF-forwarded error reason (falls back to
+    // the generic copy for unknown/legacy reasons or a missing-code edge case).
+    const messageKey = deepLinkError ? GOOGLE_ERROR_MESSAGE_KEY[deepLinkError] : undefined
+    const errorTitle = messageKey
+        ? t(`auth.google.errors.${messageKey}.title`, { defaultValue: 'Google sign-in failed' })
+        : t('auth.google.failedTitle', { defaultValue: 'Google sign-in failed' })
+    const errorBody = messageKey
+        ? t(`auth.google.errors.${messageKey}.body`, { defaultValue: 'We could not complete your Google sign-in. Please try again.' })
+        : t('auth.google.failedBody', { defaultValue: 'We could not complete your Google sign-in. Please try again.' })
 
     useEffect(() => {
         if (status !== 'pending' || !code || !googleReturn) return
@@ -98,10 +122,10 @@ export function GoogleCallbackPage() {
                 <Card className="flex flex-col items-center gap-4 px-6 py-10 text-center">
                     <Icon icon={AlertTriangle} size={40} className="text-blood-500" />
                     <h1 className="font-display text-h2 font-semibold text-parchment-50">
-                        {t('auth.google.failedTitle', { defaultValue: 'Google sign-in failed' })}
+                        {errorTitle}
                     </h1>
                     <p className="font-ui text-[14px] text-parchment-300">
-                        {t('auth.google.failedBody', { defaultValue: 'We could not complete your Google sign-in. Please try again.' })}
+                        {errorBody}
                     </p>
                     <Button iconLeft={<Icon icon={LogIn} size={16} />} onClick={goToSignIn}>
                         {t('auth.google.backToSignIn', { defaultValue: 'Back to sign in' })}

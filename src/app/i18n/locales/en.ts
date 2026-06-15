@@ -432,6 +432,24 @@ export const en = {
                     failedTitle: 'Google sign-in failed',
                     failedBody: 'We could not complete your Google sign-in. Please try again.',
                     backToSignIn: 'Back to sign in',
+                    errors: {
+                        denied: {
+                            title: 'Sign-in cancelled',
+                            body: "You cancelled Google sign-in or didn't grant access. You can try again whenever you're ready.",
+                        },
+                        invalidCallback: {
+                            title: 'Sign-in link expired',
+                            body: 'This Google sign-in link is invalid or has expired. Please start the sign-in again.',
+                        },
+                        accountDenied: {
+                            title: "This account can't sign in",
+                            body: "We couldn't sign you in with this Google account. It may not be permitted for this app, or it hasn't been set up yet — try a different account or contact support.",
+                        },
+                        unavailable: {
+                            title: 'Sign-in temporarily unavailable',
+                            body: 'Google sign-in is temporarily unavailable. Please try again in a moment.',
+                        },
+                    },
                 },
                 forgot: {
                     title: 'Reset your password',

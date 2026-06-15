@@ -442,6 +442,24 @@ export const es = {
                     failedTitle: 'Error al iniciar sesión con Google',
                     failedBody: 'No pudimos completar tu inicio de sesión con Google. Inténtalo de nuevo.',
                     backToSignIn: 'Volver a iniciar sesión',
+                    errors: {
+                        denied: {
+                            title: 'Inicio de sesión cancelado',
+                            body: 'Cancelaste el inicio de sesión con Google o no diste acceso. Puedes intentarlo de nuevo cuando quieras.',
+                        },
+                        invalidCallback: {
+                            title: 'El enlace de inicio de sesión expiró',
+                            body: 'Este enlace de inicio de sesión con Google no es válido o ha expirado. Vuelve a iniciar el proceso.',
+                        },
+                        accountDenied: {
+                            title: 'Esta cuenta no puede iniciar sesión',
+                            body: 'No pudimos iniciar tu sesión con esta cuenta de Google. Puede que no esté permitida para esta app o que aún no esté configurada; prueba con otra cuenta o contacta a soporte.',
+                        },
+                        unavailable: {
+                            title: 'Inicio de sesión no disponible temporalmente',
+                            body: 'El inicio de sesión con Google no está disponible por el momento. Inténtalo de nuevo en un momento.',
+                        },
+                    },
                 },
                 forgot: {
                     title: 'Restablece tu contraseña',
