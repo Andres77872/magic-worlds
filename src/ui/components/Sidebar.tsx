@@ -3,9 +3,8 @@
  * header): brand at the top, primary nav in the middle, source + account at
  * the bottom. Each control is an icon button with a tooltip/aria-label.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TFunction } from 'i18next'
 import {
     AudioLines,
     BookOpen,
@@ -28,7 +27,6 @@ import {
     LogOut,
     MessageCircle,
     Phone,
-    Server,
     Sparkles,
     Swords,
     Users,
@@ -36,12 +34,10 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
 import { isFrontendVoiceModeEnabled } from '../../shared/voiceFeatureFlag'
-import { useNavigation, useAuth, useBackgroundTasks, useApiStatus, useLanguage } from '../../app/hooks'
-import type { ApiStatus } from '../../app/hooks'
-import type { ApiDependencyService } from '@/infrastructure/api'
-import { formatApiTime } from '@/utils/time'
-import { Avatar, Badge, Eyebrow, Icon, cx } from '../primitives'
-import { LanguageSelectorDialog } from './LanguageSelectorDialog'
+import { useNavigation, useAuth, useBackgroundTasks, useApiStatus } from '../../app/hooks'
+import { Avatar, Eyebrow, Icon, cx } from '../primitives'
+import { ApiStatusMonitor } from './ApiStatusMonitor'
+import { LanguageMenu } from './LanguageMenu'
 import { LogoutConfirmDialog } from './LogoutConfirmDialog'
 
 interface RailItem {
@@ -107,45 +103,6 @@ function isItemVisible(item: RailItem): boolean {
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'magic-worlds-sidebar-collapsed'
 const SIDEBAR_GROUPS_STORAGE_KEY = 'magic-worlds-sidebar-groups'
-
-const API_STATUS_VIEW: Record<ApiStatus, { labelKey: string; className: string; dotClassName: string }> = {
-    checking: {
-        labelKey: 'sidebar.api.checking',
-        className: 'text-parchment-300 bg-parchment-50/[.04]',
-        dotClassName: 'bg-parchment-300 animate-pulse',
-    },
-    online: {
-        labelKey: 'sidebar.api.online',
-        className: 'text-verdant-500 bg-verdant-500/10',
-        dotClassName: 'bg-verdant-500',
-    },
-    offline: {
-        labelKey: 'sidebar.api.offline',
-        className: 'text-blood-500 bg-blood-500/10',
-        dotClassName: 'bg-blood-500',
-    },
-}
-
-function serviceStatusLabel(status: string, t: TFunction) {
-    return status === 'ok' ? t('sidebar.service.online') : t('sidebar.service.offline')
-}
-
-function serviceStatusTone(status: string) {
-    return status === 'ok' ? 'live' : 'nsfw'
-}
-
-function formatCheckedAt(checkedAt: string | undefined, t: TFunction, locale: string) {
-    if (!checkedAt) return t('sidebar.api.dependencyDetails')
-    const time = formatApiTime(checkedAt, { hour: '2-digit', minute: '2-digit', second: '2-digit' }, locale)
-    return time ? t('sidebar.api.lastChecked', { time }) : t('sidebar.api.dependencyDetails')
-}
-
-function countOfflineServices(services: ApiDependencyService[]): number {
-    return services.reduce((total, service) => {
-        const children = service.components ?? []
-        return total + (service.status === 'ok' ? 0 : 1) + countOfflineServices(children)
-    }, 0)
-}
 
 function scrollMainToTop() {
     document.querySelector<HTMLElement>('[data-app-main]')?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
@@ -245,172 +202,13 @@ function NavItemButton({
     )
 }
 
-function HealthDependencyRow({
-    service,
-    depth = 0,
-    t,
-}: {
-    service: ApiDependencyService
-    depth?: number
-    t: TFunction
-}) {
-    const children = service.components ?? []
-    const latency = typeof service.latency_ms === 'number' ? `${service.latency_ms}ms` : null
-    return (
-        <div className={cx(depth > 0 && 'pl-3')}>
-            <div className="rounded-md border border-parchment-50/[.08] bg-ink-800/80 px-2.5 py-2">
-                <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                        <p className="truncate font-ui text-xs font-semibold text-parchment-100">{service.label}</p>
-                        {service.message && (
-                            <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-parchment-300">
-                                {service.message}
-                            </p>
-                        )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                        {latency && <span className="font-ui text-[10px] text-parchment-400">{latency}</span>}
-                        <Badge tone={serviceStatusTone(service.status)} className="px-2 py-0.5 text-[10px]">
-                            {serviceStatusLabel(service.status, t)}
-                        </Badge>
-                    </div>
-                </div>
-            </div>
-            {children.length > 0 && (
-                <div className="mt-1.5 space-y-1.5">
-                    {children.map((child) => (
-                        <HealthDependencyRow key={child.id} service={child} depth={depth + 1} t={t} />
-                    ))}
-                </div>
-            )}
-        </div>
-    )
-}
-
-function ApiStatusIndicator({
-    status,
-    services = [],
-    checkedAt,
-    collapsed = false,
-}: {
-    status: ApiStatus
-    services?: ApiDependencyService[]
-    checkedAt?: string
-    collapsed?: boolean
-}) {
-    const { t } = useTranslation()
-    const { intlLocale } = useLanguage()
-    const view = API_STATUS_VIEW[status]
-    const viewLabel = t(view.labelKey)
-    const [open, setOpen] = useState(false)
-    const containerRef = useRef<HTMLDivElement>(null)
-    const offlineCount = countOfflineServices(services)
-    const dependencySummary = services.length === 0
-        ? t('sidebar.api.unavailable')
-        : offlineCount > 0
-            ? t('sidebar.api.offlineSummary', { count: offlineCount })
-            : t('sidebar.api.allOnline')
-
-    useEffect(() => {
-        if (!open) return
-
-        const handlePointerDown = (event: PointerEvent) => {
-            if (!containerRef.current?.contains(event.target as Node)) {
-                setOpen(false)
-            }
-        }
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setOpen(false)
-        }
-
-        window.addEventListener('pointerdown', handlePointerDown)
-        window.addEventListener('keydown', handleKeyDown)
-        return () => {
-            window.removeEventListener('pointerdown', handlePointerDown)
-            window.removeEventListener('keydown', handleKeyDown)
-        }
-    }, [open])
-
-    return (
-        <div ref={containerRef} className="group relative w-full">
-            <button
-                type="button"
-                aria-label={viewLabel}
-                aria-expanded={open}
-                aria-controls="api-health-dependencies"
-                title={viewLabel}
-                className={cx(
-                    'relative inline-flex h-10 w-10 shrink-0 items-center justify-center gap-3 rounded-md px-0 font-ui text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500 lg:w-full lg:justify-start lg:px-3',
-                    collapsed && 'lg:w-10 lg:justify-center lg:px-0',
-                    view.className,
-                )}
-                onClick={() => setOpen((current) => !current)}
-            >
-                <span role="status" aria-label={viewLabel} className="sr-only">
-                    {viewLabel}
-                </span>
-                <Icon icon={Server} size={18} />
-                <span className={cx('hidden min-w-0 truncate', !collapsed && 'lg:inline')}>{viewLabel}</span>
-                <span
-                    aria-hidden="true"
-                    className={cx(
-                        'absolute right-1.5 top-1.5 h-2 w-2 rounded-full ring-2 ring-ink-900',
-                        view.dotClassName,
-                    )}
-                />
-            </button>
-            <div
-                role="tooltip"
-                className={cx(
-                    'pointer-events-none absolute bottom-1 left-full z-50 ml-2 whitespace-nowrap rounded-md border border-parchment-50/[.08] bg-ink-900 px-2.5 py-1.5 font-ui text-xs text-parchment-100 opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
-                    collapsed ? 'lg:block' : 'lg:hidden',
-                )}
-            >
-                {viewLabel}
-            </div>
-            {open && (
-                <div
-                    id="api-health-dependencies"
-                    role="dialog"
-                    aria-label={t('sidebar.api.dependenciesTitle')}
-                    className="absolute bottom-0 left-full z-50 ml-3 w-[min(20rem,calc(100vw-5rem))] max-h-[min(32rem,calc(100vh-2rem))] overflow-y-auto rounded-lg border border-parchment-50/[.1] bg-ink-900 p-3 text-left shadow-2xl"
-                >
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                            <p className="font-ui text-sm font-semibold text-parchment-50">{t('sidebar.api.dependenciesTitle')}</p>
-                            <p className="mt-0.5 font-ui text-[11px] text-parchment-400">{formatCheckedAt(checkedAt, t, intlLocale)}</p>
-                        </div>
-                        <Badge tone={status === 'online' ? 'live' : status === 'offline' ? 'nsfw' : 'neutral'} className="shrink-0">
-                            {status === 'checking' ? t('sidebar.api.checkingShort') : serviceStatusLabel(status === 'online' ? 'ok' : 'offline', t)}
-                        </Badge>
-                    </div>
-                    <p className="mb-2 font-ui text-xs text-parchment-300">{dependencySummary}</p>
-                    {services.length > 0 ? (
-                        <div className="space-y-1.5">
-                            {services.map((service) => (
-                                <HealthDependencyRow key={service.id} service={service} t={t} />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="rounded-md border border-parchment-50/[.08] bg-ink-800/80 px-3 py-2 font-ui text-xs text-parchment-300">
-                            {t('sidebar.api.detailsUnavailable')}
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    )
-}
-
 export function Sidebar() {
     const { t } = useTranslation()
     const { currentPage, setPage } = useNavigation()
     const { isAuthenticated, user, logout, openLoginModal } = useAuth()
     const { activeCount, openDrawer } = useBackgroundTasks()
     const { status: apiStatus, services, checkedAt } = useApiStatus()
-    const { option: languageOption } = useLanguage()
     const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false)
-    const [languageDialogOpen, setLanguageDialogOpen] = useState(false)
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
         if (typeof window === 'undefined') return false
         return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
@@ -460,7 +258,7 @@ export function Sidebar() {
     return (
         <aside
             className={cx(
-                'sticky top-0 z-40 flex h-screen w-16 shrink-0 flex-col items-center gap-2 overflow-y-auto border-r border-parchment-50/[.08] bg-ink-900/80 px-3 py-4 backdrop-blur-md transition-[width]',
+                'sticky top-0 z-40 flex h-screen w-16 shrink-0 flex-col items-center gap-2 border-r border-parchment-50/[.08] bg-ink-900/80 px-3 py-4 backdrop-blur-md transition-[width]',
                 sidebarCollapsed ? 'lg:w-16 lg:items-center' : 'lg:w-56 lg:items-stretch',
             )}
             data-sidebar-collapsed={sidebarCollapsed}
@@ -597,22 +395,14 @@ export function Sidebar() {
                 'mt-auto flex flex-col items-center gap-2',
                 sidebarCollapsed ? 'lg:items-center' : 'lg:items-stretch',
             )}>
-                <ApiStatusIndicator
+                <ApiStatusMonitor
                     status={apiStatus}
                     services={services}
                     checkedAt={checkedAt}
                     collapsed={sidebarCollapsed}
                 />
 
-                <RailTooltip label={t('language.button', { language: languageOption.nativeLabel })} showOnDesktop={sidebarTooltipOnDesktop}>
-                    <RailButton
-                        label={t('language.button', { language: languageOption.nativeLabel })}
-                        collapsed={sidebarCollapsed}
-                        onClick={() => setLanguageDialogOpen(true)}
-                    >
-                        <Icon icon={Globe} size={18} />
-                    </RailButton>
-                </RailTooltip>
+                <LanguageMenu collapsed={sidebarCollapsed} />
 
                 <RailTooltip label={t('sidebar.docs')} showOnDesktop={sidebarTooltipOnDesktop}>
                     <RailButton
@@ -734,11 +524,6 @@ export function Sidebar() {
                     </RailTooltip>
                 )}
             </div>
-
-            <LanguageSelectorDialog
-                open={languageDialogOpen}
-                onClose={() => setLanguageDialogOpen(false)}
-            />
 
             <LogoutConfirmDialog
                 open={confirmLogoutOpen}

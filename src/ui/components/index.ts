@@ -3,9 +3,10 @@
  */
 
 export { Sidebar } from './Sidebar'
+export { ApiStatusMonitor } from './ApiStatusMonitor'
 export { LoadingSpinner } from './LoadingSpinner'
 export { LoginModal } from './LoginModal'
-export { LanguageSelectorDialog } from './LanguageSelectorDialog'
+export { LanguageMenu } from './LanguageMenu'
 export { LogoutConfirmDialog } from './LogoutConfirmDialog'
 export { ConfirmDialog } from './ConfirmDialog'
 export { PersonaPickerDialog } from './PersonaPickerDialog'
