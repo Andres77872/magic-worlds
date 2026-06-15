@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config'
+import { fileURLToPath, URL } from 'node:url'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
@@ -9,7 +10,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': '/home/andres/WebstormProjects/magic-worlds/src',
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
 })

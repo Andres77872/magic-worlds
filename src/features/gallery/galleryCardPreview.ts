@@ -16,7 +16,7 @@ const PREVIEW_TYPE: Record<GalleryType, CardPreviewTargetType> = {
 }
 
 export function galleryItemToCardPreview(item: GalleryItem): CardPreview {
-    const source = (item.source ?? {}) as Record<string, unknown>
+    const source = (item.source ?? {}) as unknown as Record<string, unknown>
     const description =
         (typeof source.description === 'string' && source.description) ||
         (typeof source.scenario === 'string' && source.scenario) ||

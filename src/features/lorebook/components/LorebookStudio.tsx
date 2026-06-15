@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ArrowLeft, BookOpen, Library, Save, Search, Settings2, Tags } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
+import { makeRequestId } from '@/utils/uuid'
 import type { Lorebook, LorebookEntry } from '@/shared'
 import { ConfirmDialog } from '@/ui/components'
 import { Badge, Button, Card, Field, Icon, Input, PageHeader, SwitchRow, Textarea, Toast } from '@/ui/primitives'
@@ -23,8 +24,7 @@ import { LoreEntryTable } from './LoreEntryTable'
 import { LorebookIssueList } from './LorebookIssueList'
 
 function makeId(prefix: string): string {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return `${prefix}-${crypto.randomUUID()}`
-    return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    return makeRequestId(prefix)
 }
 
 function newLorebook(): Lorebook {

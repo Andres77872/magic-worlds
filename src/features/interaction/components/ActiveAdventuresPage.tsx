@@ -37,6 +37,7 @@ export function ActiveAdventuresPage() {
         editInProgress,
         deleteInProgress,
         loadData,
+        loadingState,
     } = useData()
     const [query, setQuery] = useState('')
     const [pendingDelete, setPendingDelete] = useState<ResumeSession | null>(null)
@@ -182,6 +183,14 @@ export function ActiveAdventuresPage() {
                         />
                     ))}
                 </div>
+            ) : loadingState.error && !hasQuery ? (
+                // An empty list during a load failure is a misleading "false empty" —
+                // show an error with a retry instead of "no adventures yet".
+                <EmptyState
+                    icon={<Icon icon={CirclePlay} size={44} />}
+                    message={t('common.loadError')}
+                    button={{ label: t('common.tryAgain'), onClick: () => void loadData() }}
+                />
             ) : (
                 <EmptyState
                     icon={<Icon icon={CirclePlay} size={44} />}

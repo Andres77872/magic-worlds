@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiService, ApiError } from '@/infrastructure/api'
+import { makeRequestId } from '@/utils/uuid'
 import type {
     Lorebook,
     LorebookAssistantConversation,
@@ -58,10 +59,7 @@ export interface UseLorebookAssistantResult {
 }
 
 function createRequestId(): string {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return `mw-lorebook-assistant-${crypto.randomUUID()}`
-    }
-    return `mw-lorebook-assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    return makeRequestId('mw-lorebook-assistant')
 }
 
 function assistantErrorMessage(error: unknown): string {

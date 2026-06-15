@@ -460,7 +460,7 @@ export function Sidebar() {
     return (
         <aside
             className={cx(
-                'sticky top-0 z-40 flex h-screen w-16 shrink-0 flex-col items-center gap-2 border-r border-parchment-50/[.08] bg-ink-900/80 px-3 py-4 backdrop-blur-md transition-[width]',
+                'sticky top-0 z-40 flex h-screen w-16 shrink-0 flex-col items-center gap-2 overflow-y-auto border-r border-parchment-50/[.08] bg-ink-900/80 px-3 py-4 backdrop-blur-md transition-[width]',
                 sidebarCollapsed ? 'lg:w-16 lg:items-center' : 'lg:w-56 lg:items-stretch',
             )}
             data-sidebar-collapsed={sidebarCollapsed}

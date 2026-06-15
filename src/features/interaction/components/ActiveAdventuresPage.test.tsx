@@ -46,6 +46,7 @@ vi.mock('@/app/hooks', () => ({
         editInProgress,
         deleteInProgress,
         loadData,
+        loadingState: { isLoading: false },
     }),
 }))
 

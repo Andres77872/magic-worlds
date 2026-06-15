@@ -17,4 +17,17 @@ export function generateUUID(): string {
         const v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
     });
-} 
+}
+
+/**
+ * Prefixed client-side correlation id — `${prefix}-<uuid>`, or
+ * `${prefix}-${ts}-${rand}` where crypto.randomUUID is unavailable. Used for
+ * idempotency keys and request/response correlation, not as a bare UUID.
+ * (Consolidates the previously-duplicated inline generators.)
+ */
+export function makeRequestId(prefix: string): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return `${prefix}-${crypto.randomUUID()}`
+    }
+    return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}

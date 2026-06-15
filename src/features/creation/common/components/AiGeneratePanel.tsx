@@ -13,6 +13,7 @@ import type { TFunction } from 'i18next'
 import { Sparkles } from 'lucide-react'
 import { AI_CARD_CLIENT_TIMEOUT_MS, AI_CARD_DESCRIPTION_MAX_CHARS, AI_CARD_DESCRIPTION_MIN_CHARS, type AiCardRequestOptions } from '@/shared'
 import { Button, Icon, SectionHeader } from '@/ui/primitives'
+import { makeRequestId } from '@/utils/uuid'
 import { CreatorTextarea } from './CreatorField'
 
 export type AiGenerateOptions = AiCardRequestOptions
@@ -26,10 +27,7 @@ export interface AiGeneratePanelProps {
 }
 
 function createClientId(prefix: string): string {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return `${prefix}-${crypto.randomUUID()}`
-    }
-    return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    return makeRequestId(prefix)
 }
 
 function supportSuffix(t: TFunction, requestId?: string): string {

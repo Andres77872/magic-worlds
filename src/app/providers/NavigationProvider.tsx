@@ -2,7 +2,7 @@
  * Navigation state management provider
  */
 
-import { createContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PageType, NavigationState } from '../../shared'
 import { pageFromHash, pageHash } from '../../features/gallery/galleryLinks'
 
@@ -22,6 +22,29 @@ interface NavigationEntry {
     hash: string
 }
 
+// Pure helpers (no component state) — module-scoped so setPage/goBack can be
+// stable useCallback([]) refs without re-creating these each render.
+const hashForPage = (page: PageType, hash?: string): string => {
+    if (hash) return hash
+    if (typeof window === 'undefined') return pageHash(page)
+    const currentHash = window.location.hash
+    return currentHash && pageFromHash(currentHash) === page ? currentHash : pageHash(page)
+}
+
+const writeHash = (page: PageType, replace = false, hash?: string) => {
+    if (typeof window === 'undefined') return
+    const nextHash = hash ?? pageHash(page)
+    if (window.location.hash === nextHash) return
+    try {
+        if (replace) window.history.replaceState(null, '', nextHash)
+        else window.history.pushState(null, '', nextHash)
+    } catch {
+        window.location.hash = nextHash
+    }
+}
+
+const sameEntry = (a: NavigationEntry, b: NavigationEntry) => a.page === b.page && a.hash === b.hash
+
 export function NavigationProvider({ children }: NavigationProviderProps) {
     const [currentPage, setCurrentPage] = useState<PageType>(() => pageFromHash() ?? 'landing')
     const [backStack, setBackStack] = useState<NavigationEntry[]>([])
@@ -36,28 +59,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         backStackRef.current = backStack
     }, [backStack])
 
-    const hashForPage = (page: PageType, hash?: string): string => {
-        if (hash) return hash
-        if (typeof window === 'undefined') return pageHash(page)
-        const currentHash = window.location.hash
-        return currentHash && pageFromHash(currentHash) === page ? currentHash : pageHash(page)
-    }
-
-    const writeHash = (page: PageType, replace = false, hash?: string) => {
-        if (typeof window === 'undefined') return
-        const nextHash = hash ?? pageHash(page)
-        if (window.location.hash === nextHash) return
-        try {
-            if (replace) window.history.replaceState(null, '', nextHash)
-            else window.history.pushState(null, '', nextHash)
-        } catch {
-            window.location.hash = nextHash
-        }
-    }
-
-    const sameEntry = (a: NavigationEntry, b: NavigationEntry) => a.page === b.page && a.hash === b.hash
-
-    const setPage = (page: PageType, opts?: { hash?: string }) => {
+    const setPage = useCallback((page: PageType, opts?: { hash?: string }) => {
         const currentEntry = { page: currentPageRef.current, hash: hashForPage(currentPageRef.current) }
         const nextEntry = { page, hash: hashForPage(page, opts?.hash) }
         if (!sameEntry(currentEntry, nextEntry)) {
@@ -65,14 +67,14 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         }
         setCurrentPage(page)
         writeHash(page, false, opts?.hash)
-    }
+    }, [])
 
-    const goBack = (fallback: PageType = 'landing') => {
+    const goBack = useCallback((fallback: PageType = 'landing') => {
         const target = backStackRef.current[backStackRef.current.length - 1] ?? { page: fallback, hash: pageHash(fallback) }
         setBackStack((stack) => stack.slice(0, -1))
         setCurrentPage(target.page)
         writeHash(target.page, true, target.hash)
-    }
+    }, [])
 
     useEffect(() => {
         if (!pageFromHash()) writeHash(currentPage, true)
@@ -100,12 +102,12 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    const value: NavigationContextValue = {
+    const value: NavigationContextValue = useMemo(() => ({
         currentPage,
         previousPage: backStack[backStack.length - 1]?.page,
         setPage,
-        goBack
-    }
+        goBack,
+    }), [currentPage, backStack, setPage, goBack])
 
     return (
         <NavigationContext.Provider value={value}>

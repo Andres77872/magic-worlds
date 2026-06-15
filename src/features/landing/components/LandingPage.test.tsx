@@ -104,6 +104,7 @@ vi.mock('@/app/hooks', () => ({
         setEditingLorebook: vi.fn(),
         deleteLorebook: vi.fn().mockResolvedValue(undefined),
         loadData: vi.fn().mockResolvedValue(undefined),
+        loadingState: { isLoading: false },
     }),
 }))
 

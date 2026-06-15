@@ -2,7 +2,7 @@
  * Authentication provider for managing user state and auth operations
  */
 
-import { createContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useEffect, useMemo, useState, useCallback, type ReactNode } from 'react'
 import type { AuthState, BrowserAuthResponse, LoginCredentials, RegisterData, User, Project } from '../../shared'
 import { apiService } from '../../infrastructure'
 import { i18n } from '@/app/i18n'
@@ -112,7 +112,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return () => window.removeEventListener('auth:refreshed', handleAuthRefreshed)
     }, [])
 
-    const login = async (credentials: LoginCredentials): Promise<boolean> => {
+    const login = useCallback(async (credentials: LoginCredentials): Promise<boolean> => {
         setIsLoading(true)
         setError(null)
 
@@ -147,9 +147,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [])
 
-    const register = async (data: RegisterData): Promise<boolean> => {
+    const register = useCallback(async (data: RegisterData): Promise<boolean> => {
         setIsLoading(true)
         setError(null)
 
@@ -192,7 +192,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [login])
 
     // Step 1 of "Continue with Google": mint a provider-init token, then navigate
     // the browser top-level to the BFF start-shim (→ Google). This call ends by
@@ -252,7 +252,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
     }, [])
 
-    const logout = () => {
+    const logout = useCallback(() => {
         // Fire-and-forget: call API logout, then clear local state
         apiService.logout().catch(err => {
             // Logout API call is fire-and-forget — ignore failures
@@ -265,22 +265,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Clear localStorage
         localStorage.removeItem(TOKEN_STORAGE_KEY)
         localStorage.removeItem(USER_STORAGE_KEY)
-    }
+    }, [clearAuthState])
 
-    const clearError = () => {
+    const clearError = useCallback(() => {
         setError(null)
-    }
+    }, [])
 
     const openLoginModal = useCallback(() => {
         setIsLoginModalOpen(true)
     }, [])
 
-    const closeLoginModal = () => {
+    const closeLoginModal = useCallback(() => {
         setIsLoginModalOpen(false)
         setError(null)
-    }
+    }, [])
 
-    const value: AuthContextValue = {
+    // Memoized so the many `useAuth` consumers don't re-render when AuthProvider
+    // re-renders without an auth-state change (e.g. an ancestor provider updates).
+    const value: AuthContextValue = useMemo(() => ({
         isAuthenticated,
         user,
         token,
@@ -296,7 +298,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
         clearError,
         openLoginModal,
         closeLoginModal,
-    }
+    }), [
+        isAuthenticated,
+        user,
+        token,
+        projects,
+        isLoading,
+        error,
+        isLoginModalOpen,
+        login,
+        register,
+        loginWithGoogle,
+        completeGoogleLogin,
+        logout,
+        clearError,
+        openLoginModal,
+        closeLoginModal,
+    ])
 
     return (
         <AuthContext.Provider value={value}>

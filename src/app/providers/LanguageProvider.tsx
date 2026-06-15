@@ -56,11 +56,23 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
         [applyLanguage, isAuthenticated, token],
     )
 
+    // Mirror i18next's active language into local state. Driven by the
+    // 'languageChanged' event (not the local `language` dep) so it stays correct
+    // when a lazily-loaded locale chunk resolves *after* changeLanguage was
+    // called — reading i18n.language synchronously would still see the old value
+    // mid-load and wrongly revert the selection.
     useEffect(() => {
-        const normalized = normalizeLanguage(i18n.language) ?? DEFAULT_LANGUAGE
-        if (normalized !== language) setLanguageState(normalized)
-        syncDocumentLanguage(normalized)
-    }, [language])
+        const sync = () => {
+            const normalized = normalizeLanguage(i18n.language) ?? DEFAULT_LANGUAGE
+            setLanguageState(normalized)
+            syncDocumentLanguage(normalized)
+        }
+        sync()
+        i18n.on('languageChanged', sync)
+        return () => {
+            i18n.off('languageChanged', sync)
+        }
+    }, [])
 
     useEffect(() => {
         if (!isAuthenticated || !token || !user?.user_hash) {

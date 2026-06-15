@@ -3,12 +3,13 @@
  * Modal's candlelit surface and header/footer bands, but slides in from the edge and
  * fills the viewport height. Closes on scrim click or Escape.
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { cx } from './cx'
 import { IconButton } from './IconButton'
+import { useDismissableLayer } from './useDismissableLayer'
 
 export type DrawerSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 
@@ -51,6 +52,7 @@ export function Drawer({
     // Keep the panel mounted through the exit animation, then unmount.
     const [mounted, setMounted] = useState(open)
     const [entered, setEntered] = useState(false)
+    const panelRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         if (open) {
@@ -63,19 +65,8 @@ export function Drawer({
         return () => window.clearTimeout(t)
     }, [open])
 
-    useEffect(() => {
-        if (!open) return
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose()
-        }
-        document.addEventListener('keydown', onKey)
-        const prevOverflow = document.body.style.overflow
-        document.body.style.overflow = 'hidden'
-        return () => {
-            document.removeEventListener('keydown', onKey)
-            document.body.style.overflow = prevOverflow
-        }
-    }, [open, onClose])
+    // Escape-to-close, body scroll-lock, focus-trap and focus restoration.
+    useDismissableLayer({ open, onClose, panelRef })
 
     if (!mounted) return null
 
@@ -92,10 +83,12 @@ export function Drawer({
                 onClick={onClose}
             />
             <div
+                ref={panelRef}
                 role="dialog"
                 aria-modal="true"
+                tabIndex={-1}
                 className={cx(
-                    'relative flex h-full w-full flex-col border-l border-parchment-50/10 bg-ink-700 shadow-xl transition-transform duration-200 ease-out',
+                    'relative flex h-full w-full flex-col border-l border-parchment-50/10 bg-ink-700 shadow-xl outline-none transition-transform duration-200 ease-out',
                     WIDTH[size],
                     entered ? 'translate-x-0' : 'translate-x-full',
                     className,

@@ -47,6 +47,7 @@ import type {
 } from '../../shared/types/auth.types'
 import { API_BASE_URL } from './baseUrl'
 import { getProtectedMediaPath } from './mediaUrl'
+import { makeRequestId } from '../../utils/uuid'
 import { configureChatSocketAuthRefresh } from './chatSocket'
 import { configureVoiceSocketAuthRefresh } from './voiceSocket'
 import type { ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from '../../shared/types/interaction.types'
@@ -805,10 +806,7 @@ class ApiService {
     }
 
     private createClientId(prefix: string): string {
-        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-            return `${prefix}-${crypto.randomUUID()}`
-        }
-        return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+        return makeRequestId(prefix)
     }
 
     private aiHeaders(options: AiCardRequestOptions): Record<string, string> {
@@ -868,7 +866,9 @@ class ApiService {
         }
     }
 
-    private parseCardAssistantStreamFrame(frame: string): CardAssistantStreamEvent | null {
+    // Shared SSE-frame parser for the card- and lorebook-assistant streams
+    // (identical wire format; the caller picks the event union via <T>).
+    private parseAssistantStreamFrame<T>(frame: string): T | null {
         let eventType = 'message'
         const dataLines: string[] = []
         for (const rawLine of frame.split('\n')) {
@@ -885,7 +885,7 @@ class ApiService {
         if (!dataLines.length) return null
         const data = JSON.parse(dataLines.join('\n')) as Record<string, unknown>
         if (!data || typeof data !== 'object') return null
-        return { ...data, type: eventType } as CardAssistantStreamEvent
+        return { ...data, type: eventType } as T
     }
 
     private async readCardAssistantStream(
@@ -905,7 +905,7 @@ class ApiService {
         const decoder = new TextDecoder()
         let buffer = ''
         const flushFrame = (frame: string) => {
-            const event = this.parseCardAssistantStreamFrame(frame)
+            const event = this.parseAssistantStreamFrame<CardAssistantStreamEvent>(frame)
             if (event) onEvent(event)
         }
 
@@ -929,26 +929,6 @@ class ApiService {
         }
     }
 
-    private parseLorebookAssistantStreamFrame(frame: string): LorebookAssistantStreamEvent | null {
-        let eventType = 'message'
-        const dataLines: string[] = []
-        for (const rawLine of frame.split('\n')) {
-            const line = rawLine.trimEnd()
-            if (!line || line.startsWith(':')) continue
-            if (line.startsWith('event:')) {
-                eventType = line.slice(6).trim()
-                continue
-            }
-            if (line.startsWith('data:')) {
-                dataLines.push(line.slice(5).trimStart())
-            }
-        }
-        if (!dataLines.length) return null
-        const data = JSON.parse(dataLines.join('\n')) as Record<string, unknown>
-        if (!data || typeof data !== 'object') return null
-        return { ...data, type: eventType } as LorebookAssistantStreamEvent
-    }
-
     private async readLorebookAssistantStream(
         response: Response,
         onEvent: (event: LorebookAssistantStreamEvent) => void,
@@ -966,7 +946,7 @@ class ApiService {
         const decoder = new TextDecoder()
         let buffer = ''
         const flushFrame = (frame: string) => {
-            const event = this.parseLorebookAssistantStreamFrame(frame)
+            const event = this.parseAssistantStreamFrame<LorebookAssistantStreamEvent>(frame)
             if (event) onEvent(event)
         }
 
@@ -2374,15 +2354,25 @@ class ApiService {
             : /^https?:/i.test(url)
               ? url
               : `${this.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
+        // Only attach the bearer token when the request targets our own API origin.
+        // An absolute, foreign URL (e.g. a community card or a future external CDN)
+        // must never receive the access token.
+        const isSameOrigin = (() => {
+            try {
+                return new URL(requestUrl, window.location.href).origin === new URL(this.baseUrl, window.location.href).origin
+            } catch {
+                return false
+            }
+        })()
         const fetchOnce = (token: string) => fetch(requestUrl, {
             method: 'GET',
             headers: {
                 Accept: accept,
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                ...(token && isSameOrigin ? { 'Authorization': `Bearer ${token}` } : {}),
             },
         })
         let response = await fetchOnce(this.getStoredToken())
-        if (response.status === 401) {
+        if (isSameOrigin && response.status === 401) {
             const nextToken = await this.refreshAccessToken(this.getStoredToken())
             response = await fetchOnce(nextToken)
         }
@@ -2400,16 +2390,12 @@ class ApiService {
         jobId: string,
         opts: { signal?: AbortSignal; onUpdate?: (job: TtsJobPublicResponse) => void; intervalMs?: number; maxWaitMs?: number } = {},
     ): Promise<TtsJobPublicResponse> {
-        const nonTerminal = new Set(['pending', 'in_progress', 'synthesizing', 'mirroring'])
-        const interval = opts.intervalMs ?? 2_000
-        const deadline = Date.now() + (opts.maxWaitMs ?? 120_000)
-        for (;;) {
-            const job = await this.getTtsJob(jobId)
-            opts.onUpdate?.(job)
-            if (!nonTerminal.has(job.status)) return job
-            if (Date.now() >= deadline) return job
-            await this.delay(interval, opts.signal)
-        }
+        return this.pollUntilTerminal(
+            () => this.getTtsJob(jobId),
+            ['pending', 'in_progress', 'synthesizing', 'mirroring'],
+            opts,
+            { intervalMs: 2_000, maxWaitMs: 120_000 },
+        )
     }
 
     /* ---------------------------- card media ---------------------------- */
@@ -2435,6 +2421,29 @@ class ApiService {
             }
             signal?.addEventListener('abort', onAbort, { once: true })
         })
+    }
+
+    /**
+     * Poll `fetchJob` until its `status` leaves `nonTerminalStatuses` or the
+     * deadline passes, returning the last job either way. Shared by the TTS,
+     * image, and theme-song waiters (each supplies its own statuses + cadence).
+     */
+    private async pollUntilTerminal<T extends { status: string }>(
+        fetchJob: () => Promise<T>,
+        nonTerminalStatuses: Iterable<string>,
+        opts: { signal?: AbortSignal; onUpdate?: (job: T) => void; intervalMs?: number; maxWaitMs?: number },
+        defaults: { intervalMs: number; maxWaitMs: number },
+    ): Promise<T> {
+        const nonTerminal = new Set<string>(nonTerminalStatuses)
+        const interval = opts.intervalMs ?? defaults.intervalMs
+        const deadline = Date.now() + (opts.maxWaitMs ?? defaults.maxWaitMs)
+        for (;;) {
+            const job = await fetchJob()
+            opts.onUpdate?.(job)
+            if (!nonTerminal.has(job.status)) return job
+            if (Date.now() >= deadline) return job
+            await this.delay(interval, opts.signal)
+        }
     }
 
     /**
@@ -2475,16 +2484,12 @@ class ApiService {
         jobId: string,
         opts: { signal?: AbortSignal; onUpdate?: (job: ImageJobPublicResponse) => void; intervalMs?: number; maxWaitMs?: number } = {},
     ): Promise<ImageJobPublicResponse> {
-        const nonTerminal = new Set(['pending', 'in_progress', 'mirroring'])
-        const interval = opts.intervalMs ?? 2_500
-        const deadline = Date.now() + (opts.maxWaitMs ?? 180_000)
-        for (;;) {
-            const job = await this.getImageJob(jobId)
-            opts.onUpdate?.(job)
-            if (!nonTerminal.has(job.status)) return job
-            if (Date.now() >= deadline) return job
-            await this.delay(interval, opts.signal)
-        }
+        return this.pollUntilTerminal(
+            () => this.getImageJob(jobId),
+            ['pending', 'in_progress', 'mirroring'],
+            opts,
+            { intervalMs: 2_500, maxWaitMs: 180_000 },
+        )
     }
 
     /**
@@ -2593,16 +2598,12 @@ class ApiService {
         jobId: string,
         opts: { signal?: AbortSignal; onUpdate?: (job: ThemeSongJobPublic) => void; intervalMs?: number; maxWaitMs?: number } = {},
     ): Promise<ThemeSongJobPublic> {
-        const nonTerminal = new Set<string>(THEME_SONG_NON_TERMINAL_STATUSES)
-        const interval = opts.intervalMs ?? 3_000
-        const deadline = Date.now() + (opts.maxWaitMs ?? 240_000)
-        for (;;) {
-            const job = await this.getThemeSongJob(jobId)
-            opts.onUpdate?.(job)
-            if (!nonTerminal.has(job.status)) return job
-            if (Date.now() >= deadline) return job
-            await this.delay(interval, opts.signal)
-        }
+        return this.pollUntilTerminal(
+            () => this.getThemeSongJob(jobId),
+            THEME_SONG_NON_TERMINAL_STATUSES,
+            opts,
+            { intervalMs: 3_000, maxWaitMs: 240_000 },
+        )
     }
 
     async listTasks(

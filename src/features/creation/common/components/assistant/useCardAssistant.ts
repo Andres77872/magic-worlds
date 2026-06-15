@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { apiService, ApiError } from '@/infrastructure/api'
+import { makeRequestId } from '@/utils/uuid'
 import type {
     CardAssistantCardResponse,
     CardAssistantCardType,
@@ -66,10 +67,7 @@ export interface UseCardAssistantResult<TCard extends CardAssistantCardResponse>
 }
 
 function createRequestId(): string {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return `mw-card-assistant-${crypto.randomUUID()}`
-    }
-    return `mw-card-assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    return makeRequestId('mw-card-assistant')
 }
 
 export function conversationKey(conversation: { conversation_id?: number; id?: number } | null | undefined): number | null {

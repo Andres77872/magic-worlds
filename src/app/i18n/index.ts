@@ -9,14 +9,18 @@ import {
     syncDocumentLanguage,
 } from './languages'
 import { resources } from './resources'
+import { lazyLocaleBackend } from './backend'
 
 const initialLanguage = readStoredLanguage() ?? detectBrowserLanguage() ?? DEFAULT_LANGUAGE
 
 if (!i18next.isInitialized) {
     void i18next
+        .use(lazyLocaleBackend)
         .use(initReactI18next)
         .init({
+            // Only the default locale (en) is bundled; others load via the backend.
             resources,
+            partialBundledLanguages: true,
             lng: initialLanguage,
             fallbackLng: DEFAULT_LANGUAGE,
             supportedLngs: SUPPORTED_LANGUAGE_OPTIONS.map((option) => option.code),

@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import type {Adventure, AdventureSnapshot, TurnEntry} from '../../../shared'
 import { useNavigation, useData, useAuth } from '../../../app/hooks'
 import { LoadingSpinner } from '../../../ui/components'
+import { Button } from '@/ui/primitives'
 import { apiService } from '../../../infrastructure/api'
 import { parseTurnState } from '../../../utils/turnState'
 import { adventureChatConfig } from '../chatSessionConfig'
@@ -20,6 +21,8 @@ export function AdventureInteraction() {
     const [currentAdventure, setCurrentAdventure] = useState<Adventure | null>(null)
     const [turns, setTurns] = useState<TurnEntry[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [loadError, setLoadError] = useState<string | null>(null)
+    const [reloadNonce, setReloadNonce] = useState(0)
     // One source of truth so the two mobile drawers are mutually exclusive —
     // opening one closes the other (no stacked scrims).
     const [openPanelId, setOpenPanelId] = useState<'left' | 'right' | null>(null)
@@ -54,6 +57,7 @@ export function AdventureInteraction() {
 
         let isMounted = true
         setIsLoading(true)
+        setLoadError(null)
 
         const loadTurns = async () => {
             try {
@@ -78,9 +82,10 @@ export function AdventureInteraction() {
                             }
                         }
                     } catch (error) {
-                        console.error('Failed to load turns from API, creating empty turns array:', error);
+                        console.error('Failed to load turns from API:', error);
                         if (isMounted) {
                             setTurns([]);
+                            setLoadError(t('common.loadError'));
                         }
                     } finally {
                         if (isMounted) {
@@ -92,6 +97,7 @@ export function AdventureInteraction() {
                 console.error('Error processing adventure turns:', error);
                 if (isMounted) {
                     setTurns([]);
+                    setLoadError(t('common.loadError'));
                     setIsLoading(false);
                 }
             }
@@ -105,11 +111,13 @@ export function AdventureInteraction() {
         // Keyed on the adventure id: editing the cloned cards swaps currentAdventure
         // for a new object with the same id, and must NOT reload the chat turns.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentAdventure?.id, isAuthenticated])
+    }, [currentAdventure?.id, isAuthenticated, reloadNonce])
 
     const handleBack = () => {
         goBack('landing')
     }
+
+    const handleRetryLoad = () => setReloadNonce((n) => n + 1)
 
     // Persist an edit to this adventure's cloned-card snapshot. saveInProgressSnapshot
     // updates editingInProgress, which cascades back into currentAdventure below.
@@ -126,14 +134,23 @@ export function AdventureInteraction() {
     }
 
     if (!currentAdventure) {
-        return <LoadingSpinner message="Loading adventure..." />
+        return <LoadingSpinner message={t('interaction.loadingAdventure')} />
     }
 
     if (isLoading) {
-        return <LoadingSpinner message="Loading adventure turns..." />
+        return <LoadingSpinner message={t('interaction.loadingTurns')} />
     }
 
-    const title = currentAdventure.snapshot?.template?.name?.trim() || 'Adventure'
+    if (loadError) {
+        return (
+            <div className="flex h-full flex-col items-center justify-center gap-4 bg-ink-800 p-8 text-center">
+                <p className="max-w-md font-narrative text-[16px] leading-relaxed text-parchment-300">{loadError}</p>
+                <Button kind="primary" onClick={handleRetryLoad}>{t('common.tryAgain')}</Button>
+            </div>
+        )
+    }
+
+    const title = currentAdventure.snapshot?.template?.name?.trim() || t('interaction.adventureFallbackTitle')
 
     return (
         <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-ink-800 lg:flex-row">

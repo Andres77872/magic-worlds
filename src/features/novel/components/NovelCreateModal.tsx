@@ -45,7 +45,7 @@ export function NovelCreateModal({ open, creating, onClose, onCreate }: NovelCre
     const submit = () => {
         if (creating || (sourceMode === 'card' && !sourceCard)) return
         onCreate({
-            title: title.trim() || 'Untitled Novel',
+            title: title.trim() || t('novelGallery.create.untitledFallback'),
             description: description.trim() || undefined,
             source:
                 sourceMode === 'card' && sourceCard

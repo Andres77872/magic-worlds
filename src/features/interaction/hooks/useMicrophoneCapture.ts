@@ -242,7 +242,7 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
             context = new AudioContextCtor()
         }
         audioContextRef.current = context
-        console.info('[voice-call][CTX] created state=', context.state, 'rate=', context.sampleRate) // TEMP: remove after live mic verification
+        if (import.meta.env.DEV) console.info('[voice-call][CTX] created state=', context.state, 'rate=', context.sampleRate)
         // The context is created after the awaited getUserMedia — past the synchronous
         // user-gesture window — so browsers can leave it 'suspended'. A suspended context
         // never pulls the worklet's process(), so no level/VAD/segment is ever produced and
@@ -252,7 +252,7 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
         if (context.state !== 'running') {
             await context.resume().catch(() => undefined)
         }
-        console.info('[voice-call][CTX] after resume state=', context.state) // TEMP: remove after live mic verification
+        if (import.meta.env.DEV) console.info('[voice-call][CTX] after resume state=', context.state)
         if (context.state !== 'running') {
             void context.close().catch(() => undefined)
             audioContextRef.current = null
@@ -260,7 +260,7 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
         }
         // Plain-JS worklet so addModule works in dev AND prod (a .ts URL ships raw TS).
         await context.audioWorklet.addModule(new URL('../audio/voiceVadProcessor.worklet.js', import.meta.url))
-        console.info('[voice-call][WORKLET] addModule ok') // TEMP: remove after live mic verification
+        if (import.meta.env.DEV) console.info('[voice-call][WORKLET] addModule ok')
         const sourceNode = context.createMediaStreamSource(stream)
         const tuning = optionsRef.current.vad ?? {}
         const workletNode = new AudioWorkletNode(context, 'voice-vad-processor', {
@@ -291,7 +291,7 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
                 const level = Math.max(0, Math.min(1, data.rms ?? 0))
                 maxObservedLevelRef.current = Math.max(maxObservedLevelRef.current, level)
                 const now = performance.now()
-                if (now - lastLevelLogRef.current > 1_000) { // TEMP: remove after live mic verification
+                if (import.meta.env.DEV && now - lastLevelLogRef.current > 1_000) {
                     lastLevelLogRef.current = now
                     console.info('[voice-call][MIC] rms=', level.toFixed(4), 'maxSoFar=', maxObservedLevelRef.current.toFixed(4), 'ctx=', audioContextRef.current?.state)
                 }
@@ -299,7 +299,7 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
                 return
             }
             if (data?.type === 'vad' && typeof data.state === 'string') {
-                console.info('[voice-call][VAD]', data.state, 'rms=', data.rms) // TEMP: remove after live mic verification
+                if (import.meta.env.DEV) console.info('[voice-call][VAD]', data.state, 'rms=', data.rms)
                 optionsRef.current.onVadState?.(data.state as 'speech_start' | 'speech_end' | 'silence', {
                     seq: data.seq,
                     at_ms: Math.max(0, Math.round(performance.now() - captureStartedAtRef.current)),
@@ -315,7 +315,7 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
 
         sourceNodeRef.current = sourceNode
         workletNodeRef.current = workletNode
-        console.info('[voice-call][WORKLET] node connected, ctx=', context.state) // TEMP: remove after live mic verification
+        if (import.meta.env.DEV) console.info('[voice-call][WORKLET] node connected, ctx=', context.state)
         setSource('audio_worklet')
         safeSetStatus('capturing')
         return true
@@ -365,13 +365,15 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
         }
 
         const firstTrack = stream.getAudioTracks()[0]
-        console.info('[voice-call][MIC] track acquired', { // TEMP: remove after live mic verification
-            label: firstTrack?.label,
-            muted: firstTrack?.muted,
-            readyState: firstTrack?.readyState,
-            settings: firstTrack?.getSettings?.(),
-            constraints,
-        })
+        if (import.meta.env.DEV) {
+            console.info('[voice-call][MIC] track acquired', {
+                label: firstTrack?.label,
+                muted: firstTrack?.muted,
+                readyState: firstTrack?.readyState,
+                settings: firstTrack?.getSettings?.(),
+                constraints,
+            })
+        }
 
         streamRef.current = stream
         captureStartedAtRef.current = performance.now()

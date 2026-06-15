@@ -37,7 +37,7 @@ export function AssistantBanner({ notice, onRetry, onReload, onDismiss }: Assist
                         {t('creation.common.assistant.checkConversation')}
                     </Button>
                 )}
-                <IconButton label={t('creation.common.assistant.dismissNotice')} size="sm" className="h-6 w-6" onClick={onDismiss}>
+                <IconButton label={t('creation.common.assistant.dismissNotice')} size="sm" onClick={onDismiss}>
                     <X size={13} />
                 </IconButton>
             </div>

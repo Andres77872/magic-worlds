@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { memo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import ReactMarkdown from 'react-markdown'
@@ -174,7 +174,11 @@ function StreamingStatus({ label }: { label: string }) {
     )
 }
 
-export function ChatMessage({ content, isUser, isStreaming, segments, narratorIdentity, aiLabel }: ChatMessageProps) {
+// Memoized: the turn list re-renders on every composer keystroke, but a turn's
+// markdown/segments only change when the turn itself does. Props all derive from
+// the stable `turn` object, so shallow compare skips the expensive react-markdown
+// re-parse for every message on each keystroke.
+export const ChatMessage = memo(function ChatMessage({ content, isUser, isStreaming, segments, narratorIdentity, aiLabel }: ChatMessageProps) {
     const { t } = useTranslation()
     if (isUser) {
         // Player turn — ember candlelit bubble
@@ -201,4 +205,4 @@ export function ChatMessage({ content, isUser, isStreaming, segments, narratorId
                 ))}
         </div>
     )
-}
+})

@@ -245,7 +245,7 @@ export function AdventureCreator() {
     const previewWorld = generatedScene ? generatedScene.world : worldMeta
 
     const objectivesCount = (guided.attributes['objectives'] ?? []).filter((r) => r.key.trim() || r.value.trim()).length
-    const derivedTitle = scenario.trim().split('\n')[0].slice(0, 80) || 'Untitled Adventure'
+    const derivedTitle = scenario.trim().split('\n')[0].slice(0, 80) || t('creation.adventure.untitledFallback')
 
     const scenarioError = showErrors && !scenario.trim() ? t('creation.adventure.validation.scenarioRequired') : undefined
     const noCast = !dataLoading && previewCast.length === 0 && !previewPersona
@@ -286,7 +286,7 @@ export function AdventureCreator() {
         const selectedWorldObj = selectedWorld ? worlds.find((w) => w.id === selectedWorld) : undefined
         const personaObj = selectedPersona ? characters.find((c) => c.id === selectedPersona) : undefined
         return {
-            name: scenario.trim().slice(0, 80) || 'Untitled Adventure',
+            name: scenario.trim().slice(0, 80) || t('creation.adventure.untitledFallback'),
             description: scenario,
             triggers,
             persona: personaObj ? toCharacterCard(personaObj) : null,

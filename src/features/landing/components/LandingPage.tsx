@@ -18,6 +18,7 @@ import type { Adventure, Character, CharacterChatSession, Item, Lorebook, PageTy
 import { MODE_META } from '@/shared/modes'
 import { NovelCreateModal } from '@/features/novel/components/NovelCreateModal'
 import { PersonaPickerDialog } from '@/ui/components'
+import { Button } from '@/ui/primitives'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { LandingLoading } from './LandingLoading'
 import { GreetingHeader } from './GreetingHeader'
@@ -98,6 +99,7 @@ export function LandingPage() {
         setEditingLorebook,
         deleteLorebook,
         loadData,
+        loadingState,
     } = useData()
 
     const {
@@ -397,6 +399,14 @@ export function LandingPage() {
 
     return (
         <div className="flex w-full flex-col">
+            {/* Non-blocking notice when the initial load partially failed: the page
+                still renders whatever loaded, with a retry. */}
+            {loadingState.error && (
+                <div className="mx-auto mt-4 flex w-full max-w-[1240px] items-center justify-between gap-3 rounded-md border border-blood-500/30 bg-blood-500/10 px-4 py-3 text-[14px] text-blood-500 sm:px-8">
+                    <span>{t('common.loadError')}</span>
+                    <Button kind="secondary" size="sm" onClick={() => void loadData()}>{t('common.tryAgain')}</Button>
+                </div>
+            )}
             {/* ZONE 1 — hero: greeting + global search + the cinematic opener.
                 Ambient candlelight comes from the app shell (AppRouter), not a
                 section-scoped glow, so it never crops at this boundary. */}

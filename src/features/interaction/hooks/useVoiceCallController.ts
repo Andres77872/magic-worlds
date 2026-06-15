@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiService } from '@/infrastructure/api'
+import { makeRequestId } from '@/utils/uuid'
 import { voiceErrorCode } from '@/infrastructure/api/voiceSocket'
 import type {
     VoiceCallLimits,
@@ -584,8 +585,7 @@ function canUseAudioWorklet(): boolean {
 }
 
 function createClientCallId(): string {
-    if (globalThis.crypto?.randomUUID) return `voice-${globalThis.crypto.randomUUID()}`
-    return `voice-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    return makeRequestId('voice')
 }
 
 function isVoiceErrorCategory(value: unknown): value is VoiceErrorCategory {

@@ -40,7 +40,6 @@ export interface Character {
     visibility?: CardVisibility
     original_creator?: CardActor
 
-    [key: string]: any // Allow dynamic attribute categories
     createdAt?: string
     updatedAt?: string
 }

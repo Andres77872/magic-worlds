@@ -113,6 +113,10 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
     const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
     const [isClearingTurns, setIsClearingTurns] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
+    // Screen-reader announcement of the just-finished AI turn. Streaming mutates a
+    // turn in place token-by-token, so the visual log can't be `aria-live` (it would
+    // read every partial token); instead we announce the completed text once, here.
+    const [liveAnnouncement, setLiveAnnouncement] = useState('')
 
     // Per-session "auto-narrate" toggle: when on, each finished AI turn auto-requests
     // TTS narration. Persisted so it survives remounts/reloads. Key prefix is namespaced
@@ -354,6 +358,17 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                     return t
                 })
                 setTurnState(next)
+                // Announce the finished AI turn to assistive tech (once, on done).
+                // The streaming turn's id is reassigned to the assistant message id
+                // in `next`, so look it up by that — not the old streaming id.
+                const finishedId = assistantMessageId ? String(assistantMessageId) : id
+                const finished = next.find((turn) => turn.id === finishedId) as ExtendedTurnEntry | undefined
+                const announceText = finished
+                    ? finished.segments?.length
+                        ? segmentsToPlainText(finished.segments)
+                        : finished.content ?? ''
+                    : ''
+                if (announceText.trim()) setLiveAnnouncement(announceText.trim())
                 streamingIdRef.current = null
                 rawResponseRef.current = ''
                 restoreRef.current = null
@@ -780,13 +795,17 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
 
     return (
         <div className="flex h-full flex-col bg-ink-800">
+            {/* Polite live region: announces each completed AI turn once to screen readers. */}
+            <div className="sr-only" aria-live="polite" aria-atomic="true">
+                {liveAnnouncement}
+            </div>
             {error && (
                 <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-md border border-blood-500/30 bg-blood-500/10 px-4 py-2 text-[14px] text-blood-500">
                     <span>{error}</span>
                     <button
                         onClick={() => setError(null)}
                         className="text-lg leading-none text-blood-500/80 hover:text-blood-500"
-                        aria-label="Close error message"
+                        aria-label={t('interaction.center.closeError')}
                     >
                         ×
                     </button>
@@ -848,7 +867,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                                         disabled={isLoading}
                                         iconLeft={isLoading ? <Loader2 size={16} className="animate-spin" /> : undefined}
                                     >
-                                        {isLoading ? 'Generating…' : 'Generate Response'}
+                                        {isLoading ? t('interaction.center.generating') : t('interaction.center.generateResponse')}
                                     </Button>
                                 </div>
                             )}
@@ -882,19 +901,19 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
 
             <ConfirmDialog
                 visible={resetConfirmOpen}
-                title="Clear messages"
+                title={t('interaction.center.resetTitle')}
                 icon={<Icon icon={RotateCcw} size={21} className="text-blood-500" />}
                 message={
                     <div className="flex flex-col gap-3">
                         <p>{config.copy.resetConfirm}</p>
-                        <p className="text-parchment-400">This removes the visible message history for this conversation.</p>
+                        <p className="text-parchment-400">{t('interaction.center.resetBody')}</p>
                     </div>
                 }
-                confirmLabel="Clear messages"
-                cancelLabel="Keep messages"
+                confirmLabel={t('interaction.center.resetTitle')}
+                cancelLabel={t('interaction.center.resetCancel')}
                 variant="danger"
                 isProcessing={isClearingTurns}
-                processingLabel="Clearing…"
+                processingLabel={t('interaction.center.clearing')}
                 onConfirm={() => void confirmReset()}
                 onCancel={() => setResetConfirmOpen(false)}
             />

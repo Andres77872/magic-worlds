@@ -293,7 +293,7 @@ export function DataProvider({ children }: DataProviderProps) {
         }
         try {
             await apiService.deleteCharacter(id)
-            setCharacters(characters.filter(character => character.id !== id))
+            setCharacters(prev => prev.filter(character => character.id !== id))
         } catch (error) {
             console.error('Failed to delete character:', error)
             throw error
@@ -312,7 +312,7 @@ export function DataProvider({ children }: DataProviderProps) {
         }
         try {
             await apiService.deleteWorld(id)
-            setWorlds(worlds.filter(world => world.id !== id))
+            setWorlds(prev => prev.filter(world => world.id !== id))
         } catch (error) {
             console.error('Failed to delete world:', error)
             throw error
@@ -331,7 +331,7 @@ export function DataProvider({ children }: DataProviderProps) {
         }
         try {
             await apiService.deleteItem(id)
-            setItems(items.filter(item => item.id !== id))
+            setItems(prev => prev.filter(item => item.id !== id))
         } catch (error) {
             console.error('Failed to delete item:', error)
             throw error
@@ -365,9 +365,8 @@ export function DataProvider({ children }: DataProviderProps) {
             }
             
             // Update state
-            const updatedInProgress = [...inProgressAdventures, newInProgressAdventure]
-            setInProgressAdventures(updatedInProgress)
-            
+            setInProgressAdventures(prev => [...prev, newInProgressAdventure])
+
             // Set as the current editing adventure
             setEditingInProgress(newInProgressAdventure)
             return newInProgressAdventure
@@ -391,9 +390,7 @@ export function DataProvider({ children }: DataProviderProps) {
             if (templateToDelete?.id) {
                 await apiService.deleteAdventureTemplate(templateToDelete.id)
             }
-            const newTemplates = [...templateAdventures]
-            newTemplates.splice(index, 1)
-            setTemplateAdventures(newTemplates)
+            setTemplateAdventures(prev => prev.filter((_, i) => i !== index))
         } catch (error) {
             console.error('Failed to delete template:', error)
             throw error
@@ -747,9 +744,7 @@ export function DataProvider({ children }: DataProviderProps) {
             if (adventureToDelete?.id) {
                 await apiService.deleteAdventureSession(Number(adventureToDelete.id))
             }
-            const newInProgress = [...inProgressAdventures]
-            newInProgress.splice(index, 1)
-            setInProgressAdventures(newInProgress)
+            setInProgressAdventures(prev => prev.filter((_, i) => i !== index))
         } catch (error) {
             console.error('Failed to delete in-progress adventure:', error)
             throw error
@@ -765,7 +760,7 @@ export function DataProvider({ children }: DataProviderProps) {
         try {
             // If not authenticated, skip API calls entirely — render empty state gracefully
             if (!isAuthenticated) {
-                console.log('[DataProvider] User not authenticated — skipping data load, rendering empty state')
+                if (import.meta.env.DEV) console.log('[DataProvider] User not authenticated — skipping data load, rendering empty state')
                 setCharacters([])
                 setWorlds([])
                 setItems([])
@@ -780,7 +775,7 @@ export function DataProvider({ children }: DataProviderProps) {
             }
 
             if (!silent) setLoadingState({ isLoading: true })
-            console.log('[DataProvider] Starting to load data from API...')
+            if (import.meta.env.DEV) console.log('[DataProvider] Starting to load data from API...')
             
             // Load each resource independently: a single failing endpoint (a
             // transient 5xx, or one route briefly down) must NOT wipe out or stale
@@ -815,15 +810,17 @@ export function DataProvider({ children }: DataProviderProps) {
                 ;(isTransient ? console.warn : console.error)('[DataProvider] Resource load failed:', f.reason)
             }
 
-            console.log('[DataProvider] Data loaded from API:', {
-                characters: loadedCharacters,
-                worlds: loadedWorlds,
-                items: loadedItems,
-                templateAdventures: loadedTemplateAdventures,
-                sessions: loadedSessions,
-                lorebooks: loadedLorebooks,
-                stories: loadedStories,
-            })
+            if (import.meta.env.DEV) {
+                console.log('[DataProvider] Data loaded from API:', {
+                    characters: loadedCharacters,
+                    worlds: loadedWorlds,
+                    items: loadedItems,
+                    templateAdventures: loadedTemplateAdventures,
+                    sessions: loadedSessions,
+                    lorebooks: loadedLorebooks,
+                    stories: loadedStories,
+                })
+            }
 
             // Transform API response to match local types (shared with the
             // gallery pages via utils/cardTransforms).
@@ -865,7 +862,7 @@ export function DataProvider({ children }: DataProviderProps) {
             if (lorebooksRes.status === 'fulfilled') setLorebooks(transformedLorebooks)
             if (storiesRes.status === 'fulfilled') setStories(asArray(loadedStories) as Story[])
 
-            console.log('[DataProvider] State updated successfully')
+            if (import.meta.env.DEV) console.log('[DataProvider] State updated successfully')
             // Silent refresh never touches isLoading (would unmount the page); the
             // lists were already updated in place above.
             if (!silent) {

@@ -2,36 +2,49 @@
  * Application routing logic
  */
 
-import { useEffect, useRef } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { useNavigation, useData, useAuth } from '../hooks'
 import { Sidebar } from '../../ui/components/Sidebar'
 import { LoginModal } from '../../ui/components/LoginModal'
 import { AppWarningModal } from '../../ui/components/AppWarningModal'
 import { ServicesDownBanner } from '../../ui/components/ServicesDownBanner'
-import { LandingPage } from '../../features/landing/components/LandingPage'
-import { CharacterCreator } from '../../features/creation/character/components/CharacterCreator'
-import { WorldCreator } from '../../features/creation/world/components/WorldCreator'
-import { ItemCreator } from '../../features/creation/item/components/ItemCreator'
-import { AdventureCreator } from '../../features/creation/adventure/components/AdventureCreator'
-import { AdventureInteraction } from '../../features/interaction/components/AdventureInteraction'
-import { ActiveAdventuresPage } from '../../features/interaction/components/ActiveAdventuresPage'
-import { CharacterChat, ChatroomPage } from '../../features/characterChat/components'
-import { CallsPage } from '../../features/call'
-import { CommunityGalleryPage, GalleryPage, MediaGalleryPage, SharedCardPage } from '../../features/gallery'
-import { LorebookGalleryPage, LorebookStudio } from '../../features/lorebook'
-import { NovelGalleryPage, NovelStudio } from '../../features/novel'
-import { ProfilePage } from '../../features/profile'
-import { PasswordResetPage, EmailVerifyPage, GoogleCallbackPage } from '../../features/auth'
 import { TasksDrawer } from '../../features/tasks'
-import { DocsPage } from '../../features/docs'
-import { LegalPage } from '../../features/legal'
-import { AdminVoicesPage } from '../../features/admin/voices'
-import { VoiceStudioPage } from '../../features/voices'
-import { AdminAgentsPage } from '../../features/admin/agents'
 import { CardPreviewModal, useCardPreviewModal } from '../../features/cards'
 import { LoadingSpinner } from '../../ui/components/LoadingSpinner'
 import { PlaylistDock } from '../../ui/components/audio/PlaylistDock'
 import { GlowBackdrop } from '../../ui/primitives'
+import { ErrorBoundary } from '../ErrorBoundary'
+
+// Routes are code-split: each is its own chunk, loaded on demand. Import the LEAF
+// module (not the feature barrel) so a heavy sibling (e.g. NovelStudio's TipTap)
+// is never co-bundled with a light one (NovelGalleryPage). Named exports → default.
+const LandingPage = lazy(() => import('../../features/landing/components/LandingPage').then(m => ({ default: m.LandingPage })))
+const CharacterCreator = lazy(() => import('../../features/creation/character/components/CharacterCreator').then(m => ({ default: m.CharacterCreator })))
+const WorldCreator = lazy(() => import('../../features/creation/world/components/WorldCreator').then(m => ({ default: m.WorldCreator })))
+const ItemCreator = lazy(() => import('../../features/creation/item/components/ItemCreator').then(m => ({ default: m.ItemCreator })))
+const AdventureCreator = lazy(() => import('../../features/creation/adventure/components/AdventureCreator').then(m => ({ default: m.AdventureCreator })))
+const AdventureInteraction = lazy(() => import('../../features/interaction/components/AdventureInteraction').then(m => ({ default: m.AdventureInteraction })))
+const ActiveAdventuresPage = lazy(() => import('../../features/interaction/components/ActiveAdventuresPage').then(m => ({ default: m.ActiveAdventuresPage })))
+const CharacterChat = lazy(() => import('../../features/characterChat/components/CharacterChat').then(m => ({ default: m.CharacterChat })))
+const ChatroomPage = lazy(() => import('../../features/characterChat/components/ChatroomPage').then(m => ({ default: m.ChatroomPage })))
+const CallsPage = lazy(() => import('../../features/call/components/CallsPage').then(m => ({ default: m.CallsPage })))
+const GalleryPage = lazy(() => import('../../features/gallery/components/GalleryPage').then(m => ({ default: m.GalleryPage })))
+const CommunityGalleryPage = lazy(() => import('../../features/gallery/components/CommunityGalleryPage').then(m => ({ default: m.CommunityGalleryPage })))
+const SharedCardPage = lazy(() => import('../../features/gallery/components/SharedCardPage').then(m => ({ default: m.SharedCardPage })))
+const MediaGalleryPage = lazy(() => import('../../features/gallery/media/components/MediaGalleryPage').then(m => ({ default: m.MediaGalleryPage })))
+const LorebookGalleryPage = lazy(() => import('../../features/lorebook/components/LorebookGalleryPage').then(m => ({ default: m.LorebookGalleryPage })))
+const LorebookStudio = lazy(() => import('../../features/lorebook/components/LorebookStudio').then(m => ({ default: m.LorebookStudio })))
+const NovelGalleryPage = lazy(() => import('../../features/novel/components/NovelGalleryPage').then(m => ({ default: m.NovelGalleryPage })))
+const NovelStudio = lazy(() => import('../../features/novel/components/NovelStudio').then(m => ({ default: m.NovelStudio })))
+const ProfilePage = lazy(() => import('../../features/profile/components/ProfilePage').then(m => ({ default: m.ProfilePage })))
+const PasswordResetPage = lazy(() => import('../../features/auth/PasswordResetPage').then(m => ({ default: m.PasswordResetPage })))
+const EmailVerifyPage = lazy(() => import('../../features/auth/EmailVerifyPage').then(m => ({ default: m.EmailVerifyPage })))
+const GoogleCallbackPage = lazy(() => import('../../features/auth/GoogleCallbackPage').then(m => ({ default: m.GoogleCallbackPage })))
+const DocsPage = lazy(() => import('../../features/docs/components/DocsPage').then(m => ({ default: m.DocsPage })))
+const LegalPage = lazy(() => import('../../features/legal/components/LegalPage').then(m => ({ default: m.LegalPage })))
+const AdminVoicesPage = lazy(() => import('../../features/admin/voices/components/AdminVoicesPage').then(m => ({ default: m.AdminVoicesPage })))
+const VoiceStudioPage = lazy(() => import('../../features/voices/components/VoiceStudioPage').then(m => ({ default: m.VoiceStudioPage })))
+const AdminAgentsPage = lazy(() => import('../../features/admin/agents/components/AdminAgentsPage').then(m => ({ default: m.AdminAgentsPage })))
 
 export function AppRouter() {
     const { currentPage } = useNavigation()
@@ -71,7 +84,10 @@ export function AppRouter() {
                         <LoadingSpinner />
                     </div>
                 ) : (
-                    <>
+                    // Keyed on the page so a crash resets when the user navigates
+                    // away; scoped to <main> so the sidebar/nav/modals survive it.
+                    <ErrorBoundary scope="page" inline key={currentPage}>
+                      <Suspense fallback={<div className="flex min-h-full flex-1 items-center justify-center"><LoadingSpinner /></div>}>
                         {currentPage === 'landing' && <LandingPage />}
                         {currentPage === 'gallery-characters' && <GalleryPage type="character" />}
                         {currentPage === 'gallery-personas' && <GalleryPage type="persona" />}
@@ -106,7 +122,8 @@ export function AppRouter() {
                         {currentPage === 'contact' && <LegalPage page="contact" />}
                         {currentPage === 'privacy' && <LegalPage page="privacy" />}
                         {currentPage === 'disclaimer' && <LegalPage page="disclaimer" />}
-                    </>
+                      </Suspense>
+                    </ErrorBoundary>
                 )}
             </main>
 

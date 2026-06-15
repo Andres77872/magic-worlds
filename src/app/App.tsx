@@ -4,11 +4,14 @@
 
 import { AppProvider } from './providers'
 import { AppRouter } from './router/AppRouter'
+import { ErrorBoundary } from './ErrorBoundary'
 
 export default function App() {
     return (
-        <AppProvider>
-            <AppRouter />
-        </AppProvider>
+        <ErrorBoundary scope="root">
+            <AppProvider>
+                <AppRouter />
+            </AppProvider>
+        </ErrorBoundary>
     )
 }

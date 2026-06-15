@@ -1,4 +1,4 @@
-import React, {useCallback, useMemo} from 'react'
+import React, {useCallback, useId} from 'react'
 import {useTranslation} from 'react-i18next'
 import {type CardOption, CardOptions} from './CardOptions'
 import {Card as Surface, cx, Portrait, ThemeSongButton} from '@/ui/primitives'
@@ -59,11 +59,9 @@ export function Card({
 
     const isInteractive = Boolean(onClick) && !disabled
 
-    const titleId = useMemo(() => `card-title-${Math.random().toString(36).substr(2, 9)}`, [])
-    const descriptionId = useMemo(() =>
-            subtitle ? `card-description-${Math.random().toString(36).substr(2, 9)}` : undefined,
-        [subtitle]
-    )
+    const titleId = useId()
+    const generatedDescriptionId = useId()
+    const descriptionId = subtitle ? generatedDescriptionId : undefined
 
     // Seed the portrait gradient/initial from the title text when available.
     const portraitName = typeof title === 'string' ? title : ''

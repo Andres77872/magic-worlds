@@ -67,7 +67,7 @@ export function Toast({ open, tone, title, message, onClose, autoCloseMs }: Toas
                         </p>
                     )}
                 </div>
-                <IconButton label={t('ui.toast.dismiss')} size="sm" className="h-7 w-7" onClick={onClose}>
+                <IconButton label={t('ui.toast.dismiss')} size="sm" onClick={onClose}>
                     <X size={14} />
                 </IconButton>
             </div>
