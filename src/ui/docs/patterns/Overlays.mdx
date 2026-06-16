@@ -1,0 +1,64 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+
+<Meta title="Design System/Patterns/Overlays" />
+
+# Overlays
+
+Three surfaces float above the page, each for a different weight of moment. All
+share the candlelit treatment — a dim+blur scrim, an `ink-700` panel, hairline
+borders — and differ in **where they sit and how much they ask of you**.
+
+## When to use which
+
+- **Modal** — a focused decision or short form that must be resolved before continuing: confirm a deletion, name a new scene, sign in. Centered, scrim-dimmed, holds focus. Use sparingly; a modal interrupts.
+- **Drawer** — a side surface for editing or browsing *alongside* the scene: character details, settings, a side panel. Right-anchored, slides in, fills viewport height, and can hold a lot without feeling like a hard stop.
+- **Toast** — fire-and-forget feedback after an action: "Saved", "Couldn't reach the server". Never holds focus, never blocks, auto-dismisses. Use it instead of a modal for anything the user doesn't need to acknowledge.
+
+> Rule of thumb: if the user must *act*, use a Modal or Drawer. If you're merely
+> *telling* them something happened, use a Toast.
+
+## The z-index ladder
+
+Overlays stack in a deliberate order so a popover opened inside a Drawer lands
+above it, and a Toast is never buried. From the page up:
+
+| Rung | Layer |
+|---|---|
+| `z-0` / `z-2` / `z-10` | page content (base, sticky, raised) |
+| `z-[45]` | PlaylistDock (the floating audio dock, bottom-right only) |
+| `z-50` | **Modal** and **Drawer** (and the mobile nav drawer) |
+| `z-[60]` | ImageLightbox (full-bleed media, above a Modal that launched it) |
+| `z-[100]` | popovers — `Select` / `SuggestInput` listboxes, card action menus |
+| `z-[110]` | **Toast** — always on top |
+
+The two key ideas: **popovers sit above dialogs** (so a `Select` inside a Drawer
+opens over it, not behind it), and **Toast sits above everything** so feedback is
+never occluded. Popovers and toasts all portal to `<body>` to escape any ancestor
+`overflow`, `transform`, or `backdrop-filter` that would otherwise clip or re-anchor
+them.
+
+## Focus trap & scroll-lock
+
+`Modal` and `Drawer` both run **`useDismissableLayer`**, which owns the shared
+dialog behavior so the two surfaces can't drift apart:
+
+- **scroll-lock** — `document.body.style.overflow` is set to `hidden` while open, then restored on close;
+- **initial focus** — focus moves into the panel's first focusable element (or the panel itself, which is why each panel carries `tabIndex={-1}`);
+- **focus trap** — `Tab` / `Shift+Tab` cycle within the panel and never escape to the page behind it;
+- **focus restoration** — the element that opened the layer is captured and re-focused when it closes.
+
+Each panel is a `role="dialog"` with `aria-modal="true"`, labelled by its title
+when one is present. A Toast is **not** a dialog — it's a `role="status"`
+(`aria-live="polite"`) for success, or `role="alert"` (`aria-live="assertive"`)
+for errors — so it announces without stealing focus.
+
+## Dismiss triggers
+
+- **Modal & Drawer** close on **scrim click** and **Escape** (the Esc handler lives in `useDismissableLayer`). A nested `Select` swallows its own Esc so closing the popup doesn't also close the dialog around it. Both also offer an explicit close button in the header (`showClose`, on by default).
+- **Toast** closes on its dismiss button, or automatically after `autoCloseMs` (set it to `false` to require manual dismissal — reserve that for errors worth reading).
+
+## Sizes
+
+- **Modal** — `sm` / `md` / `lg` (`max-w-sm` → `max-w-lg`); `md` is the default. Header (serif title + optional icon + close) and footer (right-aligned actions) bands are optional.
+- **Drawer** — `sm` / `md` / `lg` / `xl` / `2xl` (`max-w-sm` → `max-w-3xl`); fills viewport height, body scrolls, optional eyebrow above the title. Slides over a ~220ms transition and stays mounted through its exit.
+- **Toast** — one size; clamps to `min(100vw − 2rem, 24rem)`, bottom-center on mobile and bottom-right on larger screens.

@@ -1,0 +1,107 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import { Card } from '../../primitives/Card'
+import { Avatar } from '../../primitives/Avatar'
+import { Button } from '../../primitives/Button'
+import { Stage } from '../Swatch'
+
+<Meta title="Design System/Patterns/Cards" />
+
+# Cards
+
+A card is Reverie's base **raised surface** — a character, a world, a saved scene
+lifted just off the dark canvas. Depth comes from *lightening* (an `ink-700`
+surface) plus a hairline border and a soft ambient shadow, never from heavy
+material elevation.
+
+## The Card primitive
+
+`Card` is a single `div` with the surface look baked in: `bg-surface-raised`, a
+`border-line-faint` hairline, `shadow-md`, rounded corners, and clipped overflow.
+It forwards a ref and spreads the rest of its props, so it stays a plain box you
+compose into.
+
+The only knob is **`interactive`**.
+
+## Interactive vs. static
+
+<Stage>
+  <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+    <Card className="w-64">
+      <div className="p-5">
+        <h4 className="font-display text-[20px] font-semibold text-parchment-50">The Sunken Library</h4>
+        <p className="mt-1.5 font-narrative text-[15px] leading-relaxed text-parchment-200">
+          A drowned archive where every book remembers being read.
+        </p>
+      </div>
+    </Card>
+    <Card interactive className="w-64">
+      <div className="p-5">
+        <h4 className="font-display text-[20px] font-semibold text-parchment-50">The Sunken Library</h4>
+        <p className="mt-1.5 font-narrative text-[15px] leading-relaxed text-parchment-200">
+          Hover me — I rise, warm, and glow.
+        </p>
+      </div>
+    </Card>
+  </div>
+</Stage>
+
+- **Static** (default) — a container for information. Just a `transition-all`, no hover affordance.
+- **Interactive** — a clickable surface (a world you can open, a character you can pick). Adds `cursor-pointer` and the shared **`.lift`** utility.
+
+Set `interactive` only when the whole card is a single click target. If a card
+merely *contains* buttons, leave it static and let those controls own the
+interaction.
+
+## The `.lift` hover
+
+Interactive cards don't define their own hover — they borrow **`.lift`** from
+`theme.css`, the one candlelit hover shared by every tappable surface (cards,
+tiles, list rows). On hover it does three things together:
+
+- a small **rise** (`translateY(-3px)`);
+- a warm **hairline** (the border mixes toward `ember-500`);
+- a **glow** (`shadow-card-hover` — ambient lift + ember candlelight in one box-shadow).
+
+Pressing shrinks via `--scale-press`, and reduced-motion (handled globally)
+collapses the whole transition. For AI-side surfaces, add **`.lift-arcane`**
+alongside `.lift` to swap the accent from ember gold to arcane violet.
+
+## Composing a card
+
+A typical content card layers an `Avatar`, a block of metadata, and a row of
+actions inside the surface. The card is the frame; primitives do the work.
+
+<Stage>
+  <Card interactive className="w-80">
+    <div className="p-4">
+      <div className="flex items-center gap-3">
+        <Avatar name="Lyra Dawnwhisper" ring="arcane" status="live" size={48} />
+        <div className="min-w-0">
+          <h4 className="truncate font-display text-[18px] font-semibold text-parchment-50">
+            Lyra Dawnwhisper
+          </h4>
+          <p className="font-mono text-[11px] uppercase tracking-wide text-parchment-400">
+            Oracle · 1.2k scenes
+          </p>
+        </div>
+      </div>
+      <p className="mt-3 font-narrative text-[14px] leading-relaxed text-parchment-200">
+        She reads the ink that still moves, and remembers every reader who came before.
+      </p>
+      <div className="mt-4 flex gap-2">
+        <Button size="sm">Continue</Button>
+        <Button size="sm" variant="ghost">Details</Button>
+      </div>
+    </div>
+  </Card>
+</Stage>
+
+The recipe:
+
+- **`Avatar`** anchors the identity — the **arcane ring** marks the AI side, and the `live` status dot signals an active scene. (Use the **ember ring** for the player.)
+- **Metadata** pairs a serif `font-display` name with `font-mono` meta (counts, roles, timestamps) — the "serif for story, mono for meta" split.
+- **Actions** sit in a footer row. Lead with one emphasized `Button`; keep secondary actions `ghost`. Remember the convention: **`variant`** sets action emphasis, **`tone`** sets accent-colour decor.
+
+> If the whole card is the primary click target, mark it `interactive` and let the
+> lead button be visual reassurance. If several actions compete, keep the card
+> static so each control reads as its own target.

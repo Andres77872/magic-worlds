@@ -1,0 +1,103 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+
+<Meta title="Design System/Patterns/Storybook Guidelines" />
+
+# Storybook Guidelines
+
+How to write a Reverie story so it reads like the rest of the design system.
+Every primitive and component is co-located with a `*.stories.tsx` in CSF3, and
+the canvas, fonts and candlelit theme are applied globally by
+`.storybook/preview.tsx` — so a story only has to describe *the component*, never
+the world around it. Use **`Button.stories.tsx`** and **`Sidebar.stories.tsx`**
+as your two exemplars.
+
+## CSF3 + the `meta`
+
+Import the types from the framework package and type `meta` with `satisfies`:
+
+```tsx
+import type { Meta, StoryObj } from '@storybook/react-vite'
+import { Button } from './Button'
+
+const meta = {
+  title: 'Primitives/Button',
+  component: Button,
+  tags: ['autodocs'],
+  parameters: {
+    docs: {
+      description: {
+        component: 'The primary action control. `primary` is the ember hero action…',
+      },
+    },
+  },
+  argTypes: { /* … */ },
+  args: { variant: 'primary', children: 'Step into the story' },
+} satisfies Meta<typeof Button>
+
+export default meta
+type Story = StoryObj<typeof meta>
+```
+
+- **`title`** places the story in the sidebar tree: `Primitives/…`, `Components/…`. (The pure `Meta` for these docs pages comes from `@storybook/addon-docs/blocks` instead.)
+- **`tags: ['autodocs']`** — always. It generates the Docs page from your `argTypes` and component description.
+- **`satisfies Meta<…>`** + `type Story = StoryObj<typeof meta>` give every story full prop inference.
+
+## argTypes — control + description
+
+Each meaningful prop gets a `control` and a one-line `description`; the
+description is the autodocs copy, so write it like documentation, not a comment.
+Disable controls for props that aren't worth a knob (`control: false`) and wire
+callbacks to `action`:
+
+```tsx
+argTypes: {
+  variant: {
+    control: 'inline-radio',
+    options: ['primary', 'secondary', 'ghost', 'arcane', 'danger'],
+    description: 'Action emphasis. `primary` = ember hero · `arcane` = AI/magic · `danger` = destructive.',
+  },
+  iconLeft: { control: false },
+  onClick: { action: 'clicked' },
+}
+```
+
+## Stories: a playground + named variants + galleries
+
+- The **default** story is the controls-driven playground (`export const Primary: Story = {}`).
+- Add a **named story per meaningful variant** (`Secondary`, `Arcane`, `Danger`, …) with just the differing `args`. A leading JSDoc comment becomes the story's description.
+- Add **variant-gallery** stories with a custom `render` to show the set side by side, and disable controls there (`parameters: { controls: { disable: true } }`) — see `AllKinds` and `Sizes` in `Button.stories.tsx`.
+
+## Decorators for context
+
+When a component needs providers or surrounding layout, supply them with a
+**decorator** rather than baking them into each story — exactly how
+`Sidebar.stories.tsx` wraps the rail in real Navigation context plus a *mocked*
+Auth context and a sized flex frame. Apply globally on `meta.decorators`, or
+per-story on `Story.decorators` when different stories need different mocked state
+(signed-in vs signed-out). Keep mocks minimal and typed against the real context
+value.
+
+## Interaction tests — `.play()`
+
+For behaviour (clicks, focus, the login modal opening when a gated item is
+tapped), add a `play` function. Import the testing helpers from **`storybook/test`**:
+
+```tsx
+import { expect, userEvent, within } from 'storybook/test'
+
+export const OpensLoginWhenGated: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /create/i }))
+    await expect(canvas.getByRole('dialog')).toBeInTheDocument()
+  },
+}
+```
+
+`play` runs in the Interactions panel and as a CI test, so query by accessible
+role/name (it doubles as an a11y check) and assert with the bundled `expect`.
+
+> A good Reverie story sets the scene with `meta` + `argTypes`, shows the
+> variants as small named stories and galleries, supplies context through
+> decorators, and proves behaviour with a `play` test — leaving the canvas,
+> fonts and theme to the global preview.
