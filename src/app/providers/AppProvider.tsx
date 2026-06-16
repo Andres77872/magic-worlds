@@ -7,6 +7,7 @@ import { ApiStatusProvider } from './ApiStatusProvider'
 import { AudioPlaylistProvider } from './AudioPlaylistProvider'
 import { AuthProvider } from './AuthProvider'
 import { BackgroundTasksProvider } from './BackgroundTasksProvider'
+import { CookieConsentProvider } from './CookieConsentProvider'
 import { DataProvider } from './DataProvider'
 import { LanguageProvider } from './LanguageProvider'
 import { NavigationProvider } from './NavigationProvider'
@@ -21,13 +22,15 @@ export function AppProvider({ children }: AppProviderProps) {
             <AuthProvider>
                 <LanguageProvider>
                     <NavigationProvider>
-                        <DataProvider>
-                            <BackgroundTasksProvider>
-                                <AudioPlaylistProvider>
-                                    {children}
-                                </AudioPlaylistProvider>
-                            </BackgroundTasksProvider>
-                        </DataProvider>
+                        <CookieConsentProvider>
+                            <DataProvider>
+                                <BackgroundTasksProvider>
+                                    <AudioPlaylistProvider>
+                                        {children}
+                                    </AudioPlaylistProvider>
+                                </BackgroundTasksProvider>
+                            </DataProvider>
+                        </CookieConsentProvider>
                     </NavigationProvider>
                 </LanguageProvider>
             </AuthProvider>

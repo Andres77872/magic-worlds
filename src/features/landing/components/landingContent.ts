@@ -10,6 +10,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import { BookOpenText, Feather, Gem, Globe, Infinity as InfinityIcon, ScrollText, Swords, Users, UsersRound } from 'lucide-react'
+import type { FeatureArtKey } from '@/assets/marketing'
 
 export const GITHUB_URL = 'https://github.com/Andres77872/magic-worlds'
 
@@ -99,6 +100,29 @@ export const CREATE_ACTIONS: CreateAction[] = [
         descKey: 'landing.create.lorebook.desc',
         shortDescKey: 'landing.create.lorebook.shortDesc',
     },
+]
+
+/**
+ * Illustrated "what you can build" gallery (guest front-door) — pairs each
+ * generated feature illustration with the existing create copy. `key` indexes
+ * `featureArt`; `themeSong`/`voice` reuse the new `landing.create.*` keys. This
+ * is presentational only (no create wiring), so it carries no auth gating.
+ */
+export interface FeatureGalleryItem {
+    key: FeatureArtKey
+    titleKey: string
+    descKey: string
+}
+
+export const FEATURE_GALLERY: FeatureGalleryItem[] = [
+    { key: 'character', titleKey: 'landing.create.character.title', descKey: 'landing.create.character.desc' },
+    { key: 'world', titleKey: 'landing.create.world.title', descKey: 'landing.create.world.desc' },
+    { key: 'item', titleKey: 'landing.create.item.title', descKey: 'landing.create.item.desc' },
+    { key: 'adventure', titleKey: 'landing.create.adventure.title', descKey: 'landing.create.adventure.desc' },
+    { key: 'novel', titleKey: 'landing.create.novel.title', descKey: 'landing.create.novel.desc' },
+    { key: 'lorebook', titleKey: 'landing.create.lorebook.title', descKey: 'landing.create.lorebook.desc' },
+    { key: 'themeSong', titleKey: 'landing.create.themeSong.title', descKey: 'landing.create.themeSong.desc' },
+    { key: 'voice', titleKey: 'landing.create.voice.title', descKey: 'landing.create.voice.desc' },
 ]
 
 /**

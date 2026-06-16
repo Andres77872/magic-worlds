@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src/assets/marketing/readme-banner-1600.webp" alt="Reverie — Worlds that talk back." width="100%" />
+</p>
+
 # Magic Worlds (Reverie)
 
 A React frontend for an AI-powered roleplay and storytelling platform. Create characters, worlds, items, adventures, and lorebooks as rich "cards", then bring them to life through AI-driven adventure sessions, 1:1 character chats, and a long-form story studio — with generated portraits, theme songs, and voice narration.

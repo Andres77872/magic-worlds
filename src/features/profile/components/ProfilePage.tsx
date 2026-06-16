@@ -14,10 +14,17 @@ import { ProfileView } from './ProfileView'
 
 export function ProfilePage() {
     const { t } = useTranslation()
-    const { isAuthenticated, logout, openLoginModal } = useAuth()
+    const { isAuthenticated, logout, openLoginModal, updateUser } = useAuth()
     const { clearAllData } = useData()
     const { profile, isLoading, error, isTransientError, refresh } = useUserProfile()
     const sharing = useProfileSharedCards()
+
+    // Patch the auth context (updates the sidebar label + localStorage instantly),
+    // then re-fetch /user/me so the hero reflects server truth.
+    const handleDisplayNameUpdated = (displayName: string | null) => {
+        updateUser({ display_name: displayName })
+        refresh()
+    }
 
     // Wipe all content server-side (and reset DataProvider caches), then re-fetch
     // /user/me so the profile's stat counts drop to zero. Rejection propagates so
@@ -79,5 +86,13 @@ export function ProfilePage() {
         return null
     }
 
-    return <ProfileView profile={profile} sharing={sharing} onLogout={logout} onDeleteAllData={handleDeleteAllData} />
+    return (
+        <ProfileView
+            profile={profile}
+            sharing={sharing}
+            onLogout={logout}
+            onDeleteAllData={handleDeleteAllData}
+            onDisplayNameUpdated={handleDisplayNameUpdated}
+        />
+    )
 }

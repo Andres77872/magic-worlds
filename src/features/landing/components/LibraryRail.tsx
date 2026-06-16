@@ -87,7 +87,6 @@ export function LibraryRail<T extends { id: string; name: string }>({
             <CardGrid
                 items={items}
                 layout="rail"
-                railWidth="compact"
                 fadeEdges
                 getItemKey={(item) => item.id}
                 showEmptyState={false}
@@ -105,7 +104,6 @@ export function LibraryRail<T extends { id: string; name: string }>({
                     return (
                         <GalleryCard
                             {...toCard(item)}
-                            size="compact"
                             cardType={cardType}
                             cardId={item.id}
                             options={options}

@@ -11,7 +11,7 @@ import { startTransition, useEffect, useRef, useState, type FormEvent, type Reac
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { Pencil, Trash2 } from 'lucide-react'
-import type { SnapshotCard } from '../../../shared'
+import type { CardUsage, SnapshotCard, VersionableCardType } from '../../../shared'
 import {
     CUSTOM_WORLD_PLACE_TYPE,
     DEFAULT_WORLD_PLACE_TYPE,
@@ -21,8 +21,8 @@ import {
     worldPlaceTypeOptionValue,
 } from '../../../shared'
 import { useAuth } from '@/app/hooks'
-import { Button, Chip, Drawer, Eyebrow, Icon, Portrait, Select, Tag } from '../../../ui/primitives'
-import { ApiError, resolveMediaUrl } from '../../../infrastructure/api'
+import { Badge, Button, Chip, Drawer, Eyebrow, Icon, Portrait, Select, Tag } from '../../../ui/primitives'
+import { apiService, ApiError, resolveMediaUrl } from '../../../infrastructure/api'
 import type { AttributeCategory } from '../../../ui/components/common/AttributeList'
 import {
     AttributeManager,
@@ -200,6 +200,28 @@ function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
     const { t } = useTranslation()
     const { card, ref } = entry
     const isWorld = ref.kind === 'world'
+
+    // Usage + "newer version available" are informative reads keyed off the library card
+    // this snapshot was cloned from. Only character/world live in adventure snapshots.
+    const sourceCardId = typeof card.source_card_id === 'string' ? card.source_card_id : undefined
+    const usageType: VersionableCardType | null = isWorld ? 'world' : ref.kind === 'character' || ref.kind === 'persona' ? 'character' : null
+    const [usage, setUsage] = useState<CardUsage | null>(null)
+    useEffect(() => {
+        if (!sourceCardId || !usageType) {
+            setUsage(null)
+            return
+        }
+        let cancelled = false
+        void apiService
+            .getCardUsage(usageType, sourceCardId)
+            .then((result) => {
+                if (!cancelled) setUsage(result)
+            })
+            .catch(() => {})
+        return () => {
+            cancelled = true
+        }
+    }, [sourceCardId, usageType])
     const badges = isWorld
         ? [worldPlaceTypeLabel(readWorldPlaceType(card)), card.type]
             .map((item) => item?.trim())
@@ -232,6 +254,22 @@ function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
                     )}
                 </div>
             </Portrait>
+
+            {/* Informative-only: a newer library version exists than the one cloned here. */}
+            {card.newer_version_available && (
+                <div className="flex items-center gap-2 rounded-xl border border-ember-500/30 bg-ember-500/10 px-3.5 py-2.5">
+                    <Badge tone="ember">{t('cardVersions.newer.badge')}</Badge>
+                    <p className="font-narrative text-[13px] leading-snug text-parchment-200">
+                        {t('cardVersions.newer.notice')}
+                    </p>
+                </div>
+            )}
+
+            {usage && usage.sessions > 0 && (
+                <p className="font-ui text-[12px] text-parchment-400">
+                    {t('cardVersions.usage.sessions', { count: usage.sessions })}
+                </p>
+            )}
 
             <DetailSection title={isWorld ? t('interaction.cardDrawer.setting') : t('interaction.cardDrawer.about')}>
                 {description ? (

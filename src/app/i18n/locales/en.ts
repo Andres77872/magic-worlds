@@ -1,4 +1,40 @@
 export const en = {
+            cardVersions: {
+                action: 'Version history',
+                save: 'Save version',
+                drawer: {
+                    eyebrow: 'Version history',
+                    title: 'Versions & rollback',
+                    intro: 'Save a version to snapshot this card. Restore brings an earlier version back as the live card — your history is always kept.',
+                    saveButton: 'Save current as version',
+                    saving: 'Saving…',
+                    labelPlaceholder: 'Label (optional)',
+                    current: 'Current',
+                    versionLabel: 'v{{number}}',
+                    restore: 'Restore',
+                    restoring: 'Restoring…',
+                    done: 'Done',
+                    loading: 'Loading versions…',
+                    emptyTitle: 'No saved versions yet',
+                    emptyHint: 'Save a version to start a rollback history for this card.',
+                },
+                newer: {
+                    badge: 'New version',
+                    notice: 'A newer version of this card exists in your library.',
+                },
+                usage: {
+                    sessions_one: 'Used in {{count}} session',
+                    sessions_other: 'Used in {{count}} sessions',
+                    stories_one: 'Used in {{count}} story',
+                    stories_other: 'Used in {{count}} stories',
+                    none: 'Not used yet',
+                },
+                errors: {
+                    load: 'Could not load versions. Try again.',
+                    save: 'Could not save a version. Try again.',
+                    restore: 'Could not restore that version. Try again.',
+                },
+            },
             lorebookStudio: {
                 shell: {
                     header: {
@@ -350,6 +386,16 @@ export const en = {
                 login: 'Log in',
                 logout: 'Log out',
                 logoutUser: 'Log out {{username}}',
+                openNav: 'Open navigation',
+                closeNav: 'Close navigation',
+                account: {
+                    open: 'Account menu',
+                    title: 'Account',
+                    signedOut: 'Not signed in',
+                    settings: 'Settings & more',
+                    language: 'Language',
+                    admin: 'Admin',
+                },
                 nav: {
                     landing: 'Explore',
                     chatroom: 'Chatroom',
@@ -526,6 +572,29 @@ export const en = {
                 credits: 'Credits are only informational reference values for now.',
                 voice: 'Voice calls require explicit consent, microphone permission, provider STT/TTS processing, and store transcript text/metadata only by default.',
             },
+            cookieConsent: {
+                title: 'Cookies on Magic Worlds',
+                body: 'Magic Worlds uses only its own first-party cookies and browser storage to keep you signed in and remember your preferences. There are no third-party or tracking cookies.',
+                acceptAll: 'Accept all',
+                essentialOnly: 'Essential only',
+                customize: 'Customize',
+                save: 'Save choices',
+                viewPolicy: 'View cookie policy',
+                manage: 'Cookie settings',
+                preferences: {
+                    title: 'Cookie preferences',
+                    intro: 'Choose which categories of browser storage Magic Worlds may use. Essential storage is always on because the app cannot sign you in or work without it.',
+                },
+                essential: {
+                    title: 'Essential',
+                    desc: 'Sign-in token, session refresh cookie, and saved preferences such as language and layout. Always on — required for the app to work.',
+                },
+                analytics: {
+                    title: 'Analytics & marketing',
+                    desc: 'Usage analytics or marketing cookies. Off by default and entirely optional.',
+                    none: 'Magic Worlds does not currently use any analytics, advertising, or third-party tracking cookies. This switch only takes effect if such tools are ever added.',
+                },
+            },
             docs: {
                 page: {
                     eyebrow: 'Product guide',
@@ -534,6 +603,20 @@ export const en = {
                 },
                 nav: {
                     ariaLabel: 'Docs sections',
+                },
+                search: {
+                    label: 'Search the docs',
+                    placeholder: 'Search the guide…',
+                    clear: 'Clear search',
+                    shortcutHint: 'Press / to search',
+                    empty: {
+                        title: 'No matching sections',
+                        body: 'Try a different term, or clear the search to see the whole guide.',
+                    },
+                },
+                callout: {
+                    tipLabel: 'Tip',
+                    bestPracticesLabel: 'Best practices',
                 },
                 actions: {
                     createCharacter: 'Create character',
@@ -1235,6 +1318,7 @@ export const en = {
                         eyebrow: 'About Magic Worlds',
                         title: 'A free preview for living stories',
                         subtitle: 'Magic Worlds helps you create characters, worlds, items, adventures, lorebooks, stories, images, and theme songs for AI-assisted roleplay.',
+                        imageAlt: 'A warm candlelit reading nook with an open, glowing tome.',
                         updated: 'June 12, 2026',
                         highlights: {
                             preview: {
@@ -1272,6 +1356,7 @@ export const en = {
                         eyebrow: 'Contact',
                         title: 'Reach Magic Worlds',
                         subtitle: 'Use this contact point for service questions, content concerns, data requests, bug reports, and policy feedback.',
+                        imageAlt: 'A glowing wax-sealed letter beside a candle and quill.',
                         updated: 'June 12, 2026',
                         highlights: {
                             email: {
@@ -1303,6 +1388,7 @@ export const en = {
                         eyebrow: 'Privacy Policy',
                         title: 'How Magic Worlds handles data',
                         subtitle: 'This plain-language policy explains what the app saves, why it is saved, and what controls are currently available.',
+                        imageAlt: 'A glowing arcane ward shielding a locked grimoire.',
                         updated: 'June 12, 2026',
                         highlights: {
                             storage: {
@@ -1338,6 +1424,13 @@ export const en = {
                                 body1: 'The browser stores an access token and user cache in localStorage so the app can keep you signed in. The backend also uses an auth refresh flow for session continuity.',
                                 body2: 'The browser may also store small UI preferences, such as whether you accepted the preview warning or collapsed the sidebar.',
                             },
+                            cookies: {
+                                title: 'Cookies and your consent choice',
+                                body1: 'Magic Worlds uses only first-party cookies and browser storage. There are no third-party, advertising, or cross-site tracking cookies, and no analytics scripts are loaded.',
+                                body2: 'One strictly necessary cookie — an HttpOnly refresh cookie — keeps your session alive so you stay signed in. It cannot be read by scripts and is exempt from consent. Sign-in also stores an access token and a small user cache in localStorage.',
+                                body3: 'Functional preferences such as your language, sidebar layout, audio playlist, and dialog positions are saved in localStorage so the app remembers how you like it.',
+                                body4: "A cookie banner records your choice in this browser; you can change it any time with the 'Cookie settings' link in the site footer. Declining keeps every essential and preference feature working and reserves an analytics category that is currently unused.",
+                            },
                             voice: {
                                 title: 'Voice calls and transcripts',
                                 body1: 'If voice mode is enabled and you explicitly start a call, the app requests microphone access and sends short speech segments to the backend for Groq speech-to-text processing. Character replies may be synthesized with MiniMax text-to-speech.',
@@ -1360,6 +1453,7 @@ export const en = {
                         eyebrow: 'Disclaimer',
                         title: 'Preview service limits',
                         subtitle: 'Magic Worlds is free for now and actively evolving. These notes set expectations for availability, content, and AI output.',
+                        imageAlt: 'Candlelit balance scales beside a sealed notice and an hourglass.',
                         updated: 'June 12, 2026',
                         highlights: {
                             free: {
@@ -1642,8 +1736,17 @@ export const en = {
                     admin: 'Admin',
                     adventurer: 'Adventurer',
                 },
-                editProfile: 'Edit profile',
-                editComingSoon: 'Profile editing is coming soon',
+                identity: {
+                    edit: 'Edit display name',
+                    label: 'Display name',
+                    helper: 'Shown publicly on shared cards. Leave empty to use your username (@{{username}}), which never changes.',
+                    save: 'Save',
+                    saving: 'Saving…',
+                    cancel: 'Cancel',
+                    saved: 'Display name updated.',
+                    saveError: "Couldn't update your display name. Please try again.",
+                    tooLong: 'Keep it to {{max}} characters or fewer.',
+                },
                 stats: {
                     characters: 'Characters',
                     worlds: 'Worlds',
@@ -1867,6 +1970,7 @@ export const en = {
                     guestSecondary: 'Explore worlds',
                     authedPrimary: 'Create your first adventure',
                     authedSecondary: 'New character',
+                    imageAlt: 'A candlelit scene from a Magic Worlds adventure.',
                 },
                 access: {
                     guestEyebrow: 'Make it yours',
@@ -1925,6 +2029,30 @@ export const en = {
                         title: 'New lorebook',
                         desc: 'Collect reusable lore the AI weaves in whenever its keys appear.',
                         shortDesc: 'Reusable prompt lore',
+                    },
+                    themeSong: {
+                        title: 'Compose a theme song',
+                        desc: 'Score any card with an AI-generated theme — a mood in sound, with optional lyrics.',
+                        shortDesc: 'A mood in sound',
+                    },
+                    voice: {
+                        title: 'Give them a voice',
+                        desc: 'Let characters speak: narrated turns and live voice calls with their own tuned voice.',
+                        shortDesc: 'A voice of their own',
+                    },
+                },
+                gallery: {
+                    eyebrow: 'What you can build',
+                    title: 'Everything a story needs.',
+                    alt: {
+                        character: 'A glowing character conjured from an open book.',
+                        world: 'A miniature realm rising from a candlelit map.',
+                        item: 'An enchanted relic and key glowing on dark velvet.',
+                        adventure: 'A party at a torchlit crossroads of branching paths.',
+                        novel: 'A self-writing quill trailing luminous ink across a manuscript.',
+                        lorebook: 'An open grimoire of glowing, interlinked lore entries.',
+                        themeSong: 'Golden music ribbons blooming from a book and a lyre.',
+                        voice: 'A luminous character speaking in rings of golden sound.',
                     },
                 },
                 modes: {
@@ -2039,6 +2167,7 @@ export const en = {
                     viewAll: 'View all ({{count}})',
                     viewAllAria: 'View all characters',
                     chat: 'Chat',
+                    call: 'Call',
                     deleteTitle: 'Delete character',
                     deleteMessage: 'Delete "{{name}}"? This cannot be undone.',
                 },
@@ -2073,6 +2202,7 @@ export const en = {
                     groupHeading_other: '{{label}} — {{count}} matches',
                     viewAllInGallery: 'View all in gallery',
                     chat: 'Chat',
+                    call: 'Call',
                     groupSessions: 'Stories in motion',
                     groupAdventures: 'Adventures to begin',
                     groupCast: 'Your cast',

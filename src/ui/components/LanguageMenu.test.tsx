@@ -19,6 +19,7 @@ const auth: AuthValue = {
     loginWithGoogle: async () => undefined,
     completeGoogleLogin: async () => false,
     logout: () => undefined,
+    updateUser: () => undefined,
     clearError: () => undefined,
     openLoginModal: () => undefined,
     closeLoginModal: () => undefined,

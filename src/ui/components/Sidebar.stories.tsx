@@ -23,6 +23,7 @@ const baseAuth: AuthValue = {
   loginWithGoogle: async () => {},
   completeGoogleLogin: async () => false,
   logout: () => {},
+  updateUser: () => {},
   clearError: () => {},
   openLoginModal: () => {},
   closeLoginModal: () => {},
@@ -92,4 +93,15 @@ export const SignedOut: Story = { decorators: [withProviders(baseAuth)] }
 
 export const SignedIn: Story = {
   decorators: [withProviders({ ...baseAuth, isAuthenticated: true, user: mockUser })],
+}
+
+// The avatar label shows the chosen display name; logout still uses the username.
+export const SignedInWithDisplayName: Story = {
+  decorators: [
+    withProviders({
+      ...baseAuth,
+      isAuthenticated: true,
+      user: { ...mockUser, username: 'lyra_bard', display_name: 'The Loremaster' },
+    }),
+  ],
 }

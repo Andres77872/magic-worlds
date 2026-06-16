@@ -16,6 +16,8 @@ export interface CardVisibility {
 export interface CardActor {
     user_id?: number | null
     username?: string | null
+    /** Creator's chosen public name. Null/absent → fall back to {@link username}. */
+    display_name?: string | null
 }
 
 export type ShareableCardResponse =

@@ -7,11 +7,12 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookOpenText, CheckCircle2, Download, Globe2, Import, Link2, Loader2, Pencil, Phone, Play, Plus, MessageCircle, Search, Trash2, Users, X } from 'lucide-react'
+import { BookOpenText, CheckCircle2, Download, Globe2, History, Import, Link2, Loader2, Pencil, Phone, Play, Plus, MessageCircle, Search, Trash2, Users, X } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import type { PlaylistTrack } from '@/app/providers/audioPlaylistContext'
-import type { Adventure, Character, Item, World } from '@/shared'
+import type { Adventure, Character, Item, VersionableCardType, World } from '@/shared'
 import { apiService } from '@/infrastructure/api'
+import { VersionHistoryDrawer } from '@/features/creation/common/components'
 import { CardGrid, GalleryCard, GalleryCardSkeleton, PersonaPickerDialog, type CardOption } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { Button, Chip, controlClass, Icon, IconButton, PageHeader, Toast } from '@/ui/primitives'
@@ -126,6 +127,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const [groupSelectionMode, setGroupSelectionMode] = useState(() => groupModeFor(type))
     const [selectedGroupItems, setSelectedGroupItems] = useState<Record<string, GalleryItem>>({})
     const [startingChatId, setStartingChatId] = useState<string | null>(null)
+    const [versionTarget, setVersionTarget] = useState<GalleryItem | null>(null)
     const fetchedLinkedRef = useRef<string | null>(null)
     const openLoginModalRef = useRef(openLoginModal)
     const [personaPick, setPersonaPick] = useState<
@@ -246,6 +248,26 @@ export function GalleryPage({ type }: GalleryPageProps) {
             return
         }
         action()
+    }
+
+    // Versioning applies only to character/world/item (persona is a character card).
+    const versionableCardType = (): VersionableCardType | null => {
+        if (type === 'character' || type === 'persona') return 'character'
+        if (type === 'world') return 'world'
+        if (type === 'item') return 'item'
+        return null
+    }
+
+    // Re-pull a single card after a version save/restore so the gallery reflects the
+    // new latest_version_number (and any restored body changes).
+    const refreshGalleryItem = (id: string) => {
+        if (!activeConfig.fetchItem || !activeConfig.toItem) return
+        void activeConfig.fetchItem(id)
+            .then((raw) => {
+                const updated = activeConfig.toItem?.(raw)
+                if (updated) upsertItem(updated)
+            })
+            .catch(() => {})
     }
 
     const switchViewMode = (mode: 'mine' | 'public') => {
@@ -568,6 +590,14 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 onClick: edit,
             })
         }
+        if (versionableCardType()) {
+            options.push({
+                type: 'custom',
+                icon: <Icon icon={History} size={15} />,
+                label: t('cardVersions.action'),
+                onClick: () => requireAuth(() => setVersionTarget(item)),
+            })
+        }
         options.push({
             type: 'custom',
             icon: <Icon icon={Trash2} size={15} />,
@@ -792,7 +822,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
             <CardGrid
                 items={gallery.items}
                 layout="grid"
-                density="compact"
+                density="comfortable"
                 getItemKey={(item) => item.id}
                 loading={gallery.loading}
                 renderSkeleton={() => <GalleryCardSkeleton />}
@@ -813,6 +843,8 @@ export function GalleryPage({ type }: GalleryPageProps) {
                             id={item.id}
                             title={item.title}
                             badge={alreadyImported ? t('gallery.alreadyImported') : item.badge}
+                            eyebrow={item.eyebrow}
+                            description={item.description}
                             tags={item.tags}
                             imageUrl={item.imageUrl}
                             themeSongUrl={item.themeSongUrl}
@@ -865,22 +897,42 @@ export function GalleryPage({ type }: GalleryPageProps) {
                                           : t('gallery.import')}
                                 </Button>
                             ) : type === 'character' ? (
-                                <Button
-                                    kind="arcane"
-                                    size="sm"
-                                    full
-                                    iconLeft={
-                                        startingChatId === item.id ? (
-                                            <Icon icon={Loader2} size={15} className="animate-spin" />
-                                        ) : (
-                                            <Icon icon={MessageCircle} size={15} />
-                                        )
-                                    }
-                                    disabled={Boolean(startingChatId)}
-                                    onClick={() => startCharacterChatFromCard(item)}
-                                >
-                                    {startingChatId === item.id ? t('gallery.starting') : t('gallery.chat')}
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button
+                                        kind="primary"
+                                        size="sm"
+                                        className="min-w-0 flex-1"
+                                        iconLeft={
+                                            startingChatId === item.id ? (
+                                                <Icon icon={Loader2} size={15} className="animate-spin" />
+                                            ) : (
+                                                <Icon icon={MessageCircle} size={15} />
+                                            )
+                                        }
+                                        disabled={Boolean(startingChatId)}
+                                        onClick={() => startCharacterChatFromCard(item)}
+                                    >
+                                        {startingChatId === item.id ? t('gallery.starting') : t('gallery.chat')}
+                                    </Button>
+                                    {voiceModeEnabled && (
+                                        <Button
+                                            kind="secondary"
+                                            size="sm"
+                                            className="min-w-0 flex-1"
+                                            iconLeft={
+                                                callControls.startingId === item.id ? (
+                                                    <Icon icon={Loader2} size={15} className="animate-spin" />
+                                                ) : (
+                                                    <Icon icon={Phone} size={15} />
+                                                )
+                                            }
+                                            disabled={Boolean(callControls.startingId)}
+                                            onClick={() => callControls.startCall(item.source as Character)}
+                                        >
+                                            {callControls.startingId === item.id ? t('gallery.starting') : t('gallery.call')}
+                                        </Button>
+                                    )}
+                                </div>
                             ) : undefined}
                         />
                     )
@@ -929,6 +981,17 @@ export function GalleryPage({ type }: GalleryPageProps) {
                     setPersonaPickError(null)
                     setEditingCharacter(null)
                     setPage('character')
+                }}
+            />
+
+            <VersionHistoryDrawer
+                open={versionTarget !== null && versionableCardType() !== null}
+                onClose={() => setVersionTarget(null)}
+                cardType={versionableCardType() ?? 'character'}
+                cardId={versionTarget?.id}
+                cardName={versionTarget?.title ?? ''}
+                onChanged={() => {
+                    if (versionTarget) refreshGalleryItem(versionTarget.id)
                 }}
             />
 

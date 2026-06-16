@@ -26,6 +26,9 @@ export interface Item {
     theme_song_url?: string
     visibility?: CardVisibility
     original_creator?: CardActor
+    /** Newest saved version pointer (read-only; 0/absent when no version saved yet). */
+    latest_version_id?: string | null
+    latest_version_number?: number
     createdAt?: string
     updatedAt?: string
 }

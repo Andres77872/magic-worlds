@@ -18,6 +18,8 @@ import type { Adventure, Character, CharacterChatSession, Item, Lorebook, PageTy
 import { MODE_META } from '@/shared/modes'
 import { NovelCreateModal } from '@/features/novel/components/NovelCreateModal'
 import { PersonaPickerDialog } from '@/ui/components'
+import { useStartCall } from '@/features/call'
+import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { Button } from '@/ui/primitives'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { LandingLoading } from './LandingLoading'
@@ -32,8 +34,10 @@ import { CastRail } from './CastRail'
 import { LibraryRail } from './LibraryRail'
 import { LorebookRail } from './LorebookRail'
 import { SearchResults } from './SearchResults'
+import { heroArt } from '@/assets/marketing'
 import { LandingHero, type HeroCta } from './LandingHero'
 import { AccessMenu } from './AccessMenu'
+import { FeatureGallery } from './FeatureGallery'
 import { HowItWorksSection } from './HowItWorksSection'
 import { TwoWaysToPlay } from './TwoWaysToPlay'
 import { ShowcaseWorlds } from './ShowcaseWorlds'
@@ -141,6 +145,10 @@ export function LandingPage() {
     const [personaPickError, setPersonaPickError] = useState<string | null>(null)
     const [isPersonaPickConfirming, setIsPersonaPickConfirming] = useState(false)
     const showcaseRef = useRef<HTMLElement>(null)
+    // Voice-call entry from character cards (mirrors the gallery). Gated by the
+    // voice flag; the hook carries its own persona-picker for callers w/o a default.
+    const voiceEnabled = isFrontendVoiceModeEnabled()
+    const callControls = useStartCall()
 
     // Every action that mutates or starts requires auth — open the modal if not.
     const requireAuth = (action: () => void) => {
@@ -353,12 +361,14 @@ export function LandingPage() {
                     primary={heroPrimary}
                     secondary={heroSecondary}
                     stat={t('landing.hero.stat')}
+                    heroImage={{ src: heroArt, alt: t('landing.hero.imageAlt') }}
                 />
                 <AccessMenu
                     eyebrow={accessCopy.eyebrow}
                     title={accessCopy.title}
                     onAction={handleCreate}
                 />
+                <FeatureGallery />
                 <HowItWorksSection />
                 <TwoWaysToPlay />
                 <ShowcaseWorlds sectionRef={showcaseRef} onTry={createAdventure} />
@@ -434,6 +444,7 @@ export function LandingPage() {
                         onOpenSession={openSession}
                         onBeginTemplate={handleTemplateStart}
                         onChatCharacter={handleCharacterChat}
+                        onCallCharacter={voiceEnabled ? callControls.startCall : undefined}
                         onEditCharacter={handleCharacterEdit}
                         onEditWorld={handleWorldEdit}
                         onEditItem={handleItemEdit}
@@ -526,6 +537,7 @@ export function LandingPage() {
                         <CastRail
                             cast={aiCharacters}
                             onChat={handleCharacterChat}
+                            onCall={voiceEnabled ? callControls.startCall : undefined}
                             onEdit={handleCharacterEdit}
                             onDelete={(character) => deleteCharacter(character.id)}
                             onViewAll={() => setPage('gallery-characters')}
@@ -647,6 +659,18 @@ export function LandingPage() {
                     setEditingCharacter(null)
                     setPage('character')
                 }}
+            />
+
+            <PersonaPickerDialog
+                open={callControls.personaPickOpen}
+                title={t('landing.persona.chatTitle')}
+                actionLabel={t('landing.resume.startCall')}
+                description={t('landing.persona.chatDescription')}
+                error={callControls.personaPickError}
+                isConfirming={callControls.personaPickConfirming}
+                characters={characters}
+                onConfirm={callControls.confirmPersonaPick}
+                onClose={callControls.closePersonaPick}
             />
         </div>
     )

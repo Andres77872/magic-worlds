@@ -26,6 +26,8 @@ const meta = {
   argTypes: {
     title: { control: 'text' },
     badge: { control: 'text' },
+    eyebrow: { control: 'text' },
+    description: { control: 'text' },
     deleting: { control: 'boolean' },
     tags: { control: false },
     shareOptions: { control: false },
@@ -136,4 +138,29 @@ export const CompactWithFooter: Story = {
   },
   decorators: [(Story) => <div className="w-[200px]"><Story /></div>],
   parameters: { docs: { description: { story: 'The cast rail pins the arcane Chat affordance into the vignette via the footer slot.' } } },
+}
+
+export const WithDescription: Story = {
+  args: {
+    id: 'story-card-description',
+    imageUrl: 'https://picsum.photos/seed/desc-reverie/400/533',
+    eyebrow: 'The Ember Coast',
+    description: 'A card-sharp innkeeper who knows more than she lets on.',
+    tags: ['innkeeper', 'mystery'],
+    options,
+  },
+  parameters: { docs: { description: { story: 'Cards lead with a mono "where" eyebrow and a one-line narrative hook above the trigger pills.' } } },
+}
+
+export const ShowcaseStatic: Story = {
+  args: {
+    title: 'Lyra',
+    badge: 'Mystery',
+    eyebrow: 'The Ember Coast',
+    description: 'A card-sharp innkeeper who knows more than she lets on.',
+    gradient: 'radial-gradient(120% 90% at 30% 20%,#4a3a6b,#241b38 60%,#160f24)',
+    staticCard: true,
+    onClick: () => {},
+  },
+  parameters: { docs: { description: { story: 'The landing showcase renders this same component: a static, curated-gradient card with the genre as a top-left badge and no action bubble.' } } },
 }

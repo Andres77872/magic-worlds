@@ -63,4 +63,57 @@ describe('GalleryCard', () => {
         await waitFor(() => expect(click).toHaveBeenCalledTimes(1))
         expect(downloadName).toBe('Lyra-Dawnwhisper.mp3')
     })
+
+    it('renders the mono eyebrow and one-line description', () => {
+        renderWithPlaylist(
+            <GalleryCard
+                title="Lyra"
+                eyebrow="The Ember Coast"
+                description="A card-sharp innkeeper who knows more than she lets on."
+            />,
+        )
+        expect(screen.getByText('The Ember Coast')).toBeInTheDocument()
+        expect(screen.getByText('A card-sharp innkeeper who knows more than she lets on.')).toBeInTheDocument()
+    })
+
+    it.each(['compact', 'default'] as const)(
+        'prefers the description over trigger pills (%s size)',
+        (size) => {
+            renderWithPlaylist(
+                <GalleryCard
+                    title="Theron Mistwood"
+                    size={size}
+                    description="An old wizard with too many specializations."
+                    tags={['Alignment Neutral Good', 'Specialization Evocation', 'Preferred See Misty Step']}
+                />,
+            )
+            expect(screen.getByText('An old wizard with too many specializations.')).toBeInTheDocument()
+            // No trigger phrases cluttering the card when a description is present.
+            expect(screen.queryByText('Specialization Evocation')).not.toBeInTheDocument()
+        },
+    )
+
+    it('falls back to trigger pills when a card has no description', () => {
+        renderWithPlaylist(<GalleryCard title="Lyra" tags={['bard', 'moonlight']} />)
+        expect(screen.getByText('bard')).toBeInTheDocument()
+        expect(screen.getByText('moonlight')).toBeInTheDocument()
+    })
+
+    it('suppresses the action bubble on a static card even when options exist', () => {
+        const options = [
+            { type: 'edit' as const, label: 'Edit', onClick: vi.fn() },
+            { type: 'delete' as const, label: 'Delete', onClick: vi.fn() },
+        ]
+        const { rerender } = renderWithPlaylist(
+            <GalleryCard title="Lyra" onClick={vi.fn()} staticCard options={options} />,
+        )
+        expect(screen.queryByTestId('card-options-button')).not.toBeInTheDocument()
+
+        rerender(
+            <AudioPlaylistProvider>
+                <GalleryCard title="Lyra" onClick={vi.fn()} options={options} />
+            </AudioPlaylistProvider>,
+        )
+        expect(screen.getByTestId('card-options-button')).toBeInTheDocument()
+    })
 })

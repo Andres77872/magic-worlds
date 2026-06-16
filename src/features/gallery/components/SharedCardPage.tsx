@@ -160,6 +160,8 @@ export function SharedCardPage() {
                     id={item.id}
                     title={item.title}
                     badge={alreadyImported ? t('gallery.alreadyImported') : item.badge}
+                    eyebrow={item.eyebrow}
+                    description={item.description}
                     tags={item.tags}
                     imageUrl={item.imageUrl}
                     themeSongUrl={item.themeSongUrl}

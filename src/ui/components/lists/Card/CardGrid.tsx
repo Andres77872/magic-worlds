@@ -240,7 +240,7 @@ export function CardGrid<T>({
             layout === 'rail'
                 ? railWidth === 'compact'
                     ? 'w-[min(200px,62vw)] shrink-0 [scroll-snap-align:start]'
-                    : 'w-[min(280px,78vw)] shrink-0 [scroll-snap-align:start]'
+                    : 'w-[min(300px,82vw)] shrink-0 [scroll-snap-align:start]'
                 : 'contents'
         return items.map((item, index) => (
             <div
@@ -258,7 +258,7 @@ export function CardGrid<T>({
     const gridClass =
         density === 'compact'
             ? `grid w-full grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-5 ${className}`
-            : `grid w-full grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] md:gap-6 ${className}`
+            : `grid w-full grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(320px,1fr))] md:gap-6 ${className}`
 
     // Enhanced loading state
     if (loading) {

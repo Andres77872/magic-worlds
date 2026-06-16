@@ -9,6 +9,42 @@ type TranslationValueShape<T> = T extends string
 type TranslationResource = TranslationValueShape<EnShape>
 
 export const es = {
+            cardVersions: {
+                action: 'Historial de versiones',
+                save: 'Guardar versión',
+                drawer: {
+                    eyebrow: 'Historial de versiones',
+                    title: 'Versiones y reversión',
+                    intro: 'Guarda una versión para capturar esta carta. Restaurar trae de vuelta una versión anterior como la carta activa; tu historial siempre se conserva.',
+                    saveButton: 'Guardar versión actual',
+                    saving: 'Guardando…',
+                    labelPlaceholder: 'Etiqueta (opcional)',
+                    current: 'Actual',
+                    versionLabel: 'v{{number}}',
+                    restore: 'Restaurar',
+                    restoring: 'Restaurando…',
+                    done: 'Listo',
+                    loading: 'Cargando versiones…',
+                    emptyTitle: 'Aún no hay versiones guardadas',
+                    emptyHint: 'Guarda una versión para iniciar el historial de reversión de esta carta.',
+                },
+                newer: {
+                    badge: 'Nueva versión',
+                    notice: 'Existe una versión más reciente de esta carta en tu biblioteca.',
+                },
+                usage: {
+                    sessions_one: 'Usada en {{count}} sesión',
+                    sessions_other: 'Usada en {{count}} sesiones',
+                    stories_one: 'Usada en {{count}} historia',
+                    stories_other: 'Usada en {{count}} historias',
+                    none: 'Aún no se usa',
+                },
+                errors: {
+                    load: 'No se pudieron cargar las versiones. Inténtalo de nuevo.',
+                    save: 'No se pudo guardar una versión. Inténtalo de nuevo.',
+                    restore: 'No se pudo restaurar esa versión. Inténtalo de nuevo.',
+                },
+            },
             lorebookStudio: {
                 shell: {
                     header: {
@@ -360,6 +396,16 @@ export const es = {
                 login: 'Iniciar sesión',
                 logout: 'Cerrar sesión',
                 logoutUser: 'Cerrar sesión de {{username}}',
+                openNav: 'Abrir navegación',
+                closeNav: 'Cerrar navegación',
+                account: {
+                    open: 'Menú de cuenta',
+                    title: 'Cuenta',
+                    signedOut: 'Sesión no iniciada',
+                    settings: 'Ajustes y más',
+                    language: 'Idioma',
+                    admin: 'Administración',
+                },
                 nav: {
                     landing: 'Explorar',
                     chatroom: 'Chatroom',
@@ -536,6 +582,29 @@ export const es = {
                 credits: 'Los créditos solo son valores informativos de referencia por ahora.',
                 voice: 'Las llamadas de voz requieren consentimiento explícito, permiso de micrófono, procesamiento STT/TTS del proveedor y guardan por defecto solo texto/metadatos de transcripción.',
             },
+            cookieConsent: {
+                title: 'Cookies en Magic Worlds',
+                body: 'Magic Worlds usa únicamente sus propias cookies y almacenamiento del navegador para mantener tu sesión y recordar tus preferencias. No hay cookies de terceros ni de seguimiento.',
+                acceptAll: 'Aceptar todo',
+                essentialOnly: 'Solo esenciales',
+                customize: 'Personalizar',
+                save: 'Guardar opciones',
+                viewPolicy: 'Ver política de cookies',
+                manage: 'Configuración de cookies',
+                preferences: {
+                    title: 'Preferencias de cookies',
+                    intro: 'Elige qué categorías de almacenamiento del navegador puede usar Magic Worlds. El almacenamiento esencial está siempre activo porque la app no puede iniciar tu sesión ni funcionar sin él.',
+                },
+                essential: {
+                    title: 'Esenciales',
+                    desc: 'Token de inicio de sesión, cookie de refresco de sesión y preferencias guardadas como el idioma y el diseño. Siempre activas: necesarias para que la app funcione.',
+                },
+                analytics: {
+                    title: 'Analítica y marketing',
+                    desc: 'Cookies de analítica de uso o de marketing. Desactivadas por defecto y totalmente opcionales.',
+                    none: 'Magic Worlds no usa actualmente ninguna cookie de analítica, publicidad o seguimiento de terceros. Este interruptor solo tendría efecto si alguna vez se añaden esas herramientas.',
+                },
+            },
             docs: {
                 page: {
                     eyebrow: 'Guía del producto',
@@ -544,6 +613,20 @@ export const es = {
                 },
                 nav: {
                     ariaLabel: 'Secciones de documentación',
+                },
+                search: {
+                    label: 'Buscar en la guía',
+                    placeholder: 'Busca en la guía…',
+                    clear: 'Limpiar búsqueda',
+                    shortcutHint: 'Pulsa / para buscar',
+                    empty: {
+                        title: 'No hay secciones que coincidan',
+                        body: 'Prueba otro término o limpia la búsqueda para ver toda la guía.',
+                    },
+                },
+                callout: {
+                    tipLabel: 'Consejo',
+                    bestPracticesLabel: 'Buenas prácticas',
                 },
                 actions: {
                     createCharacter: 'Crear personaje',
@@ -1245,6 +1328,7 @@ export const es = {
                         eyebrow: 'Acerca de Magic Worlds',
                         title: 'Una vista previa gratis para historias vivas',
                         subtitle: 'Magic Worlds te ayuda a crear personajes, mundos, objetos, aventuras, lorebooks, historias, imágenes y temas musicales para rol asistido por IA.',
+                        imageAlt: 'Un acogedor rincón de lectura a la luz de las velas con un tomo abierto y brillante.',
                         updated: '12 de junio de 2026',
                         highlights: {
                             preview: {
@@ -1282,6 +1366,7 @@ export const es = {
                         eyebrow: 'Contacto',
                         title: 'Contacta a Magic Worlds',
                         subtitle: 'Usa este punto de contacto para preguntas del servicio, problemas de contenido, solicitudes de datos, reportes de errores y comentarios de políticas.',
+                        imageAlt: 'Una carta sellada con cera brillando junto a una vela y una pluma.',
                         updated: '12 de junio de 2026',
                         highlights: {
                             email: {
@@ -1313,6 +1398,7 @@ export const es = {
                         eyebrow: 'Política de privacidad',
                         title: 'Cómo Magic Worlds maneja los datos',
                         subtitle: 'Esta política en lenguaje claro explica qué guarda la app, por qué se guarda y qué controles existen actualmente.',
+                        imageAlt: 'Un glifo arcano brillante protegiendo un grimorio cerrado.',
                         updated: '12 de junio de 2026',
                         highlights: {
                             storage: {
@@ -1348,6 +1434,13 @@ export const es = {
                                 body1: 'El navegador guarda un token de acceso y caché de usuario en localStorage para mantener tu sesión. El backend también usa un flujo de refresh de autenticación para continuidad de sesión.',
                                 body2: 'El navegador también puede guardar pequeñas preferencias de interfaz, como si aceptaste el aviso de vista previa o contraíste la barra lateral.',
                             },
+                            cookies: {
+                                title: 'Cookies y tu elección de consentimiento',
+                                body1: 'Magic Worlds usa únicamente cookies propias y almacenamiento del navegador. No hay cookies de terceros, publicidad ni seguimiento entre sitios, y no se cargan scripts de analítica.',
+                                body2: 'Una cookie estrictamente necesaria —una cookie de refresco HttpOnly— mantiene tu sesión activa para que sigas con la sesión iniciada. No puede leerse desde scripts y está exenta de consentimiento. El inicio de sesión también guarda un token de acceso y una pequeña caché de usuario en localStorage.',
+                                body3: 'Las preferencias funcionales como tu idioma, el diseño de la barra lateral, la lista de reproducción y las posiciones de los diálogos se guardan en localStorage para que la app recuerde cómo te gusta.',
+                                body4: "Un banner de cookies registra tu elección en este navegador; puedes cambiarla cuando quieras con el enlace 'Configuración de cookies' del pie de página. Rechazar mantiene activas todas las funciones esenciales y de preferencias, y reserva una categoría de analítica que actualmente no se usa.",
+                            },
                             voice: {
                                 title: 'Llamadas de voz y transcripciones',
                                 body1: 'Si el modo de voz está habilitado e inicias explícitamente una llamada, la app solicita acceso al micrófono y envía segmentos cortos de voz al backend para procesamiento de voz a texto con Groq. Las respuestas de personajes pueden sintetizarse con texto a voz de MiniMax.',
@@ -1370,6 +1463,7 @@ export const es = {
                         eyebrow: 'Aviso legal',
                         title: 'Límites del servicio en vista previa',
                         subtitle: 'Magic Worlds es gratis por ahora y evoluciona activamente. Estas notas establecen expectativas sobre disponibilidad, contenido y salida de IA.',
+                        imageAlt: 'Una balanza a la luz de las velas junto a un aviso sellado y un reloj de arena.',
                         updated: '12 de junio de 2026',
                         highlights: {
                             free: {
@@ -1652,8 +1746,17 @@ export const es = {
                     admin: 'Admin',
                     adventurer: 'Aventurero',
                 },
-                editProfile: 'Editar perfil',
-                editComingSoon: 'La edición de perfil llegará pronto',
+                identity: {
+                    edit: 'Editar nombre para mostrar',
+                    label: 'Nombre para mostrar',
+                    helper: 'Se muestra públicamente en las cartas compartidas. Déjalo vacío para usar tu nombre de usuario (@{{username}}), que no cambia.',
+                    save: 'Guardar',
+                    saving: 'Guardando…',
+                    cancel: 'Cancelar',
+                    saved: 'Nombre actualizado.',
+                    saveError: 'No se pudo actualizar tu nombre. Inténtalo de nuevo.',
+                    tooLong: 'Usa {{max}} caracteres o menos.',
+                },
                 stats: {
                     characters: 'Personajes',
                     worlds: 'Mundos',
@@ -1877,6 +1980,7 @@ export const es = {
                     guestSecondary: 'Explorar mundos',
                     authedPrimary: 'Crea tu primera aventura',
                     authedSecondary: 'Nuevo personaje',
+                    imageAlt: 'Una escena a la luz de las velas de una aventura de Magic Worlds.',
                 },
                 access: {
                     guestEyebrow: 'Hazlo tuyo',
@@ -1935,6 +2039,30 @@ export const es = {
                         title: 'Nuevo lorebook',
                         desc: 'Reúne lore reutilizable que la IA entreteje cada vez que aparecen sus claves.',
                         shortDesc: 'Lore reutilizable para el prompt',
+                    },
+                    themeSong: {
+                        title: 'Compón una canción tema',
+                        desc: 'Pon música a cualquier carta con un tema generado por IA — una emoción en sonido, con letra opcional.',
+                        shortDesc: 'Una emoción en sonido',
+                    },
+                    voice: {
+                        title: 'Dales una voz',
+                        desc: 'Deja que los personajes hablen: turnos narrados y llamadas de voz en vivo con su propia voz afinada.',
+                        shortDesc: 'Una voz propia',
+                    },
+                },
+                gallery: {
+                    eyebrow: 'Lo que puedes crear',
+                    title: 'Todo lo que una historia necesita.',
+                    alt: {
+                        character: 'Un personaje luminoso surgido de un libro abierto.',
+                        world: 'Un reino en miniatura que se alza desde un mapa a la luz de las velas.',
+                        item: 'Una reliquia encantada y una llave brillando sobre terciopelo oscuro.',
+                        adventure: 'Un grupo en un cruce de caminos iluminado por antorchas.',
+                        novel: 'Una pluma que se escribe sola dejando tinta luminosa sobre un manuscrito.',
+                        lorebook: 'Un grimorio abierto con entradas de lore brillantes e interconectadas.',
+                        themeSong: 'Cintas doradas de música floreciendo desde un libro y una lira.',
+                        voice: 'Un personaje luminoso hablando en anillos de sonido dorado.',
                     },
                 },
                 modes: {
@@ -2049,6 +2177,7 @@ export const es = {
                     viewAll: 'Ver todos ({{count}})',
                     viewAllAria: 'Ver todos los personajes',
                     chat: 'Chatear',
+                    call: 'Llamar',
                     deleteTitle: 'Eliminar personaje',
                     deleteMessage: '¿Eliminar "{{name}}"? Esto no se puede deshacer.',
                 },
@@ -2083,6 +2212,7 @@ export const es = {
                     groupHeading_other: '{{label}} — {{count}} coincidencias',
                     viewAllInGallery: 'Ver todo en la galería',
                     chat: 'Chatear',
+                    call: 'Llamar',
                     groupSessions: 'Historias en marcha',
                     groupAdventures: 'Aventuras para comenzar',
                     groupCast: 'Tu elenco',

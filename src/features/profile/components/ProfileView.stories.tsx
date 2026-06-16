@@ -121,6 +121,8 @@ export const membership: Membership = {
 export const baseProfile: UserProfile = {
     user_hash: 'usr-4f2c9a17-8d3b-4e6a-9c21-7b5e0a1d6f84',
     username: 'Lyra',
+    // No display name set → the hero falls back to the username.
+    display_name: null,
     user_type: 'consumer',
     user_usage: 56,
     membership,
@@ -136,7 +138,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'Read-only account/profile view backed by `GET /user/me`: identity, role, content stats, membership reference cards, and account details. The "Edit profile" affordance is intentionally disabled — the API exposes no profile mutations.',
+                    'Account/profile view backed by `GET /user/me`: identity, role, content stats, membership reference cards, and account details. The hero shows the effective name (chosen display name, else the login username, with `@username` beneath) and an inline editor that PATCHes the display name. Username, role and email remain read-only here.',
             },
         },
     },
@@ -153,6 +155,12 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Adventurer: Story = {}
+
+export const WithDisplayName: Story = {
+    args: {
+        profile: { ...baseProfile, display_name: 'The Loremaster' },
+    },
+}
 
 export const Admin: Story = {
     args: {

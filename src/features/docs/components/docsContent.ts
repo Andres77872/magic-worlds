@@ -48,6 +48,7 @@ import {
     Wand2,
     Waves,
 } from 'lucide-react'
+import { docsArt } from '@/assets/marketing'
 import type { PageType } from '@/shared'
 
 export interface NavSection {
@@ -57,6 +58,8 @@ export interface NavSection {
     title: string
     intro: string
     icon: LucideIcon
+    /** Candlelit banner illustration for the section header (omitted for 'start'). */
+    art?: string
 }
 
 export interface ActionTarget {
@@ -118,6 +121,17 @@ export interface DocsContent {
     writingGuide: GuideItem[]
     mediaGuide: GuideItem[]
     bestPractices: string[]
+    search: {
+        label: string
+        placeholder: string
+        clear: string
+        shortcutHint: string
+        empty: { title: string; body: string }
+    }
+    callout: {
+        tipLabel: string
+        bestPracticesLabel: string
+    }
 }
 
 type SectionId =
@@ -182,6 +196,11 @@ const SECTION_SOURCES: readonly SectionSource[] = [
 ]
 
 export const DOC_SECTION_IDS = SECTION_SOURCES.map((section) => section.id)
+
+/** Per-section header illustration (dedicated docs art, by section id). 'start'
+ * sits under the page hero art, so it gets no banner of its own. Ring tone
+ * follows the section's own eyebrow tone in the view (writing/media are arcane). */
+const SECTION_ART: Record<string, string> = docsArt
 
 const PRIMARY_ACTION_SOURCES: readonly ActionSource[] = [
     { key: 'createCharacter', page: 'character', icon: Users, gated: true },
@@ -319,6 +338,7 @@ export function getDocsContent(t: TFunction): DocsContent {
         sections: SECTION_SOURCES.map((section) => ({
             id: section.id,
             icon: section.icon,
+            art: SECTION_ART[section.id],
             label: t(`docs.sections.${section.key}.label`),
             eyebrow: t(`docs.sections.${section.key}.eyebrow`),
             title: t(`docs.sections.${section.key}.title`),
@@ -355,5 +375,65 @@ export function getDocsContent(t: TFunction): DocsContent {
         writingGuide: guideItems(t, 'docs.guides.writing', WRITING_GUIDE_SOURCES),
         mediaGuide: guideItems(t, 'docs.guides.media', MEDIA_GUIDE_SOURCES),
         bestPractices: BEST_PRACTICE_KEYS.map((key) => t(`docs.bestPractices.${key}`)),
+        search: {
+            label: t('docs.search.label'),
+            placeholder: t('docs.search.placeholder'),
+            clear: t('docs.search.clear'),
+            shortcutHint: t('docs.search.shortcutHint'),
+            empty: { title: t('docs.search.empty.title'), body: t('docs.search.empty.body') },
+        },
+        callout: {
+            tipLabel: t('docs.callout.tipLabel'),
+            bestPracticesLabel: t('docs.callout.bestPracticesLabel'),
+        },
     }
+}
+
+/**
+ * Flatten a section's i18n copy (label + headings + every guide title/body) into
+ * one lowercased haystack for the in-page search. Derived from the existing
+ * content so search needs no extra keys; called once per section, memoized in
+ * the view.
+ */
+export function sectionSearchText(docs: DocsContent, sectionId: string): string {
+    const section = docs.sections.find((entry) => entry.id === sectionId)
+    const parts: string[] = section ? [section.label, section.eyebrow, section.title, section.intro] : []
+    const pushItems = (items: { title: string; body: string }[]) => {
+        for (const item of items) parts.push(item.title, item.body)
+    }
+    switch (sectionId) {
+        case 'start':
+            pushItems(docs.quickStart)
+            break
+        case 'map':
+            pushItems(docs.mapItems)
+            pushItems(docs.utilityItems)
+            parts.push(docs.mapHeadings.primaryWorkspaces, docs.mapHeadings.utilityRail)
+            break
+        case 'library':
+            pushItems(docs.libraryGuide)
+            break
+        case 'cards':
+            pushItems(docs.cardGuide)
+            break
+        case 'play':
+            pushItems(docs.playGuide)
+            break
+        case 'voice-presets':
+            pushItems(docs.voicePresetGuide)
+            break
+        case 'voice':
+            pushItems(docs.voiceGuide)
+            break
+        case 'writing':
+            pushItems(docs.writingGuide)
+            break
+        case 'media':
+            pushItems(docs.mediaGuide)
+            break
+        case 'best-practices':
+            parts.push(...docs.bestPractices)
+            break
+    }
+    return parts.join(' ').toLowerCase()
 }

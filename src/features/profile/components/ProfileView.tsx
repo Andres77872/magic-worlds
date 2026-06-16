@@ -18,7 +18,6 @@ import {
     Globe,
     Link2,
     Loader2,
-    Lock,
     LogOut,
     RefreshCw,
     Share2,
@@ -33,6 +32,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import type { SharedCardResource, UserProfile } from '@/shared'
 import { apiService } from '@/infrastructure/api'
+import { effectiveName } from '@/utils/displayName'
 import { Avatar, Badge, Button, Card, Chip, Icon, IconButton, SectionHeader, Toast, type BadgeTone } from '@/ui/primitives'
 import { LogoutConfirmDialog } from '@/ui/components/LogoutConfirmDialog'
 import { publicItems } from '@/features/gallery/galleryConfig'
@@ -40,6 +40,7 @@ import { buildSharedCardUrl } from '@/features/gallery/galleryLinks'
 import type { ProfileSharedCardsState } from '../hooks/useProfileSharedCards'
 import { AccountSecuritySection } from './AccountSecuritySection'
 import { DeleteDataDialog } from './DeleteDataDialog'
+import { DisplayNameEditor } from './DisplayNameEditor'
 import { EmailSection } from './EmailSection'
 import { MembershipSection } from './MembershipSection'
 import { UsageSection } from './UsageSection'
@@ -50,6 +51,8 @@ interface ProfileViewProps {
     onLogout: () => void
     /** Wipes all of the user's content (account kept). Rejects to surface an error in the dialog. */
     onDeleteAllData: () => Promise<void>
+    /** Called with the saved display name (null when cleared) after a successful edit. */
+    onDisplayNameUpdated?: (displayName: string | null) => void
 }
 
 interface RoleMeta {
@@ -78,7 +81,7 @@ function availableCredits(profile: UserProfile) {
     return profile.membership?.total_available_credits ?? profile.user_usage
 }
 
-export function ProfileView({ profile, sharing, onLogout, onDeleteAllData }: ProfileViewProps) {
+export function ProfileView({ profile, sharing, onLogout, onDeleteAllData, onDisplayNameUpdated }: ProfileViewProps) {
     const { t } = useTranslation()
     const role = roleMeta(profile.user_type, t)
     const { card_counts: counts } = profile
@@ -95,24 +98,23 @@ export function ProfileView({ profile, sharing, onLogout, onDeleteAllData }: Pro
         <div className="mx-auto flex w-full max-w-[960px] flex-col gap-8 px-5 py-8 sm:px-8 sm:py-10">
             {/* ---------- Hero / identity ---------- */}
             <section className="flex flex-col items-center gap-5 text-center sm:flex-row sm:items-center sm:gap-7 sm:text-left">
-                <Avatar name={profile.username} size={88} ring="ember" />
+                <Avatar name={effectiveName(profile)} size={88} ring="ember" />
 
-                <div className="flex flex-1 flex-col items-center gap-3 sm:items-start">
+                <div className="flex flex-1 flex-col items-center gap-2 sm:items-start">
                     <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-3">
-                        <h1 className="font-display text-h1 font-semibold text-parchment-50">{profile.username}</h1>
+                        <DisplayNameEditor
+                            username={profile.username}
+                            displayName={profile.display_name ?? null}
+                            onUpdated={onDisplayNameUpdated}
+                        />
                         <Badge tone={role.tone} icon={<Icon icon={role.icon} size={11} />}>
                             {role.label}
                         </Badge>
                     </div>
 
-                    <UserHashChip value={profile.user_hash} />
+                    <span className="font-ui text-[13px] text-parchment-400">@{profile.username}</span>
 
-                    <div className="mt-1 flex flex-col items-center gap-1.5 sm:items-start">
-                        <Button kind="secondary" size="sm" disabled iconLeft={<Icon icon={Lock} size={15} />}>
-                            {t('profile.editProfile')}
-                        </Button>
-                        <span className="font-ui text-[12px] text-parchment-400">{t('profile.editComingSoon')}</span>
-                    </div>
+                    <UserHashChip value={profile.user_hash} />
                 </div>
             </section>
 

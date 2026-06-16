@@ -230,4 +230,66 @@ describe('DocsPage', () => {
         expect(setPage).toHaveBeenCalledWith('landing')
         expect(openLoginModal).not.toHaveBeenCalled()
     })
+
+    it('renders the in-page search input', () => {
+        const content = getDocsContent(i18n.getFixedT('en'))
+        render(<DocsPage />)
+
+        const search = screen.getByRole('searchbox', { name: content.search.label })
+        expect(search).toHaveAttribute('placeholder', content.search.placeholder)
+    })
+
+    it('filters sections to those matching the query', () => {
+        const content = getDocsContent(i18n.getFixedT('en'))
+        const voice = content.sections[6] // 'voice'
+        const start = content.sections[0]
+        render(<DocsPage />)
+
+        fireEvent.change(screen.getByRole('searchbox', { name: content.search.label }), {
+            target: { value: voice.title },
+        })
+
+        // Matching section heading stays in the a11y tree; non-matching ones are
+        // hidden (role queries exclude [hidden] subtrees).
+        expect(screen.getByRole('heading', { name: voice.title })).toBeTruthy()
+        expect(screen.queryByRole('heading', { name: start.title })).toBeNull()
+    })
+
+    it('shows an empty state when nothing matches', () => {
+        const content = getDocsContent(i18n.getFixedT('en'))
+        render(<DocsPage />)
+
+        fireEvent.change(screen.getByRole('searchbox', { name: content.search.label }), {
+            target: { value: 'zzzzz-no-such-topic' },
+        })
+
+        expect(screen.getByText(content.search.empty.title)).toBeTruthy()
+        expect(screen.queryByRole('heading', { name: content.sections[0].title })).toBeNull()
+    })
+
+    it('restores every section when the query is cleared', () => {
+        const content = getDocsContent(i18n.getFixedT('en'))
+        render(<DocsPage />)
+
+        const search = screen.getByRole('searchbox', { name: content.search.label })
+        fireEvent.change(search, { target: { value: 'zzzzz-no-such-topic' } })
+        expect(screen.queryByRole('heading', { name: content.sections[0].title })).toBeNull()
+
+        fireEvent.change(search, { target: { value: '' } })
+        for (const section of content.sections) {
+            expect(screen.getByRole('heading', { name: section.title })).toBeTruthy()
+        }
+    })
+
+    it('focuses search when "/" is pressed', () => {
+        const content = getDocsContent(i18n.getFixedT('en'))
+        render(<DocsPage />)
+
+        const search = screen.getByRole('searchbox', { name: content.search.label })
+        expect(document.activeElement).not.toBe(search)
+
+        fireEvent.keyDown(document.body, { key: '/' })
+
+        expect(document.activeElement).toBe(search)
+    })
 })

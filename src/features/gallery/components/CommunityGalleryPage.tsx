@@ -135,7 +135,6 @@ function CommunityGallerySection({
             <CardGrid
                 items={gallery.items}
                 layout="rail"
-                railWidth="compact"
                 fadeEdges
                 loading={gallery.loading}
                 loadingComponent={<GalleryCardSkeleton />}
@@ -153,6 +152,8 @@ function CommunityGallerySection({
                             id={item.id}
                             title={item.title}
                             badge={alreadyImported ? t('gallery.alreadyImported') : item.badge ?? item.originalCreatorName ?? undefined}
+                            eyebrow={item.eyebrow}
+                            description={item.description}
                             tags={item.tags}
                             imageUrl={item.imageUrl}
                             themeSongUrl={item.themeSongUrl}
@@ -160,7 +161,6 @@ function CommunityGallerySection({
                             cardId={item.id}
                             onClick={() => onPreview(item)}
                             actionLabel={t('gallery.preview.previewAction', { title: item.title })}
-                            size="compact"
                             footer={
                                 <Button
                                     kind={alreadyImported ? 'secondary' : 'primary'}

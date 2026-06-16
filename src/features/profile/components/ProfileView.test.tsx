@@ -207,3 +207,28 @@ describe('ProfileView membership section', () => {
         expect(onLogout).toHaveBeenCalledTimes(1)
     })
 })
+
+describe('ProfileView identity hero', () => {
+    it('shows the display name as the heading with the username beneath', () => {
+        render(
+            <ProfileView
+                profile={{ ...profile, display_name: 'The Loremaster' }}
+                onLogout={noop}
+                onDeleteAllData={deleteAll}
+            />,
+        )
+
+        expect(screen.getByRole('heading', { level: 1, name: 'The Loremaster' })).toBeInTheDocument()
+        expect(screen.getByText('@Lyra')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Edit display name' })).toBeInTheDocument()
+        // The immutable login identity still appears on the account row.
+        expect(screen.getByText('Username')).toBeInTheDocument()
+    })
+
+    it('falls back to the username as the heading when no display name is set', () => {
+        render(<ProfileView profile={profile} onLogout={noop} onDeleteAllData={deleteAll} />)
+
+        expect(screen.getByRole('heading', { level: 1, name: 'Lyra' })).toBeInTheDocument()
+        expect(screen.getByText('@Lyra')).toBeInTheDocument()
+    })
+})

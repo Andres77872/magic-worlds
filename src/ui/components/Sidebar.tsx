@@ -1,30 +1,29 @@
 /**
- * App sidebar — Reverie. A slim, full-height icon rail (replaces the top
- * header): brand at the top, primary nav in the middle, source + account at
- * the bottom. Each control is an icon button with a tooltip/aria-label.
+ * App sidebar — Reverie. A slim, full-height rail (replaces the top header):
+ * brand at the top (fixed), primary nav + collapsible groups in the middle (the
+ * only scrolling zone), and status + account at the bottom (fixed). Each control
+ * is an icon button with a tooltip/aria-label.
+ *
+ * The inner `SidebarShell` renders the three zones and is shared by two hosts:
+ * the docked `<Sidebar/>` (responsive rail, `hidden lg:flex`) and the mobile
+ * `SidebarNavDrawer` (`variant="panel"` — always labelled/expanded).
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     AudioLines,
     BookOpen,
     BookOpenText,
-    Bot,
     CirclePlay,
-    Crown,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
-    Code2,
     Compass,
     Flame,
     Gem,
     Globe,
     Images,
-    Info,
     ListChecks,
-    LogIn,
-    LogOut,
     MessageCircle,
     Phone,
     Sparkles,
@@ -35,16 +34,15 @@ import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
 import { isFrontendVoiceModeEnabled } from '../../shared/voiceFeatureFlag'
 import { useNavigation, useAuth, useBackgroundTasks, useApiStatus } from '../../app/hooks'
-import { Avatar, Eyebrow, Icon, cx } from '../primitives'
+import { Eyebrow, Icon, cx } from '../primitives'
 import { ApiStatusMonitor } from './ApiStatusMonitor'
-import { LanguageMenu } from './LanguageMenu'
-import { LogoutConfirmDialog } from './LogoutConfirmDialog'
+import { SidebarAccountMenu } from './SidebarAccountMenu'
 
 interface RailItem {
     page: PageType
     labelKey: string
     icon: LucideIcon
-    /** create pages require auth before navigating */
+    /** create/library pages require auth before navigating */
     gated?: boolean
 }
 
@@ -108,6 +106,27 @@ function scrollMainToTop() {
     document.querySelector<HTMLElement>('[data-app-main]')?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
 }
 
+/**
+ * Layout for a rail control. `panel` (mobile drawer) is always the full labelled
+ * row; otherwise it's the responsive rail (icon-only on mobile / collapsed, full
+ * row on the desktop-expanded rail).
+ */
+function controlLayout(panel: boolean, collapsed: boolean): string {
+    return panel
+        ? 'w-full justify-start px-3'
+        : cx('w-10 justify-center px-0 lg:w-full lg:justify-start lg:px-3', collapsed && 'lg:w-10 lg:justify-center lg:px-0')
+}
+
+/** Label visibility for a rail control — always shown in `panel`, lg-gated on the rail. */
+function controlLabel(panel: boolean, collapsed: boolean): string {
+    return cx('min-w-0 truncate', panel ? 'inline' : cx('hidden', !collapsed && 'lg:inline'))
+}
+
+/** Cross-axis alignment for a zone/group — stretched in `panel`, centered/stretched on the rail. */
+function zoneAlign(panel: boolean, collapsed: boolean): string {
+    return panel ? 'items-stretch' : cx('items-center', collapsed ? 'lg:items-center' : 'lg:items-stretch')
+}
+
 function RailTooltip({
     label,
     children,
@@ -140,6 +159,7 @@ function RailButton({
     active = false,
     current = false,
     collapsed = false,
+    panel = false,
     danger = false,
     onClick,
     children,
@@ -149,6 +169,7 @@ function RailButton({
     active?: boolean
     current?: boolean
     collapsed?: boolean
+    panel?: boolean
     danger?: boolean
     onClick: () => void
     children: ReactNode
@@ -162,8 +183,8 @@ function RailButton({
             title={label}
             onClick={onClick}
             className={cx(
-                'inline-flex h-10 w-10 shrink-0 items-center justify-center gap-3 rounded-md px-0 font-ui text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500 lg:w-full lg:justify-start lg:px-3',
-                collapsed && 'lg:w-10 lg:justify-center lg:px-0',
+                'relative inline-flex h-10 shrink-0 items-center gap-3 rounded-md font-ui text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500',
+                controlLayout(panel, collapsed),
                 active
                     ? 'bg-ember-500/15 text-ember-400 hover:bg-ember-500/20'
                     : danger
@@ -173,7 +194,7 @@ function RailButton({
             )}
         >
             {children}
-            <span className={cx('hidden min-w-0 truncate', !collapsed && 'lg:inline')}>{label}</span>
+            <span className={controlLabel(panel, collapsed)}>{label}</span>
         </button>
     )
 }
@@ -182,12 +203,14 @@ function NavItemButton({
     item,
     active,
     collapsed,
+    panel,
     tooltipOnDesktop,
     onClick,
 }: {
     item: RailItem
     active: boolean
     collapsed: boolean
+    panel: boolean
     tooltipOnDesktop: boolean
     onClick: () => void
 }) {
@@ -195,24 +218,60 @@ function NavItemButton({
     const label = t(item.labelKey)
     return (
         <RailTooltip label={label} showOnDesktop={tooltipOnDesktop}>
-            <RailButton label={label} active={active} current={active} collapsed={collapsed} onClick={onClick}>
+            <RailButton
+                label={label}
+                active={active}
+                current={active}
+                collapsed={collapsed}
+                panel={panel}
+                onClick={onClick}
+            >
+                {/* Active-location indicator bar — reads in both expanded and collapsed states. */}
+                {active && (
+                    <span
+                        aria-hidden="true"
+                        className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-ember-400"
+                    />
+                )}
                 <Icon icon={item.icon} size={20} />
             </RailButton>
         </RailTooltip>
     )
 }
 
-export function Sidebar() {
+export interface SidebarShellProps {
+    /** Responsive rail (`rail`) or the always-expanded mobile drawer (`panel`). */
+    variant?: 'rail' | 'panel'
+    collapsed?: boolean
+    onToggleCollapsed?: () => void
+    /** Called after any navigation — lets an open mobile drawer close itself. */
+    onNavigate?: () => void
+}
+
+/** The three-zone shell (header / scrolling nav / footer). Shared by both hosts. */
+export function SidebarShell({
+    variant = 'rail',
+    collapsed = false,
+    onToggleCollapsed,
+    onNavigate,
+}: SidebarShellProps) {
     const { t } = useTranslation()
     const { currentPage, setPage } = useNavigation()
-    const { isAuthenticated, user, logout, openLoginModal } = useAuth()
+    const { isAuthenticated, openLoginModal } = useAuth()
     const { activeCount, openDrawer } = useBackgroundTasks()
     const { status: apiStatus, services, checkedAt } = useApiStatus()
-    const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false)
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-        if (typeof window === 'undefined') return false
-        return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
-    })
+
+    const panel = variant === 'panel'
+    // Tooltips only earn their keep on the collapsed rail (icon-only, no labels).
+    const tooltipOnDesktop = !panel && collapsed
+    const align = zoneAlign(panel, collapsed)
+    const navRef = useRef<HTMLElement>(null)
+
+    // Keep the active item in view when navigating (no-op when already visible).
+    useEffect(() => {
+        navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest' })
+    }, [currentPage])
+
     // Per-group fold state (true = collapsed); empty default = every group expanded.
     const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
         if (typeof window === 'undefined') return {}
@@ -223,16 +282,6 @@ export function Sidebar() {
             return {}
         }
     })
-    const sidebarTooltipOnDesktop = sidebarCollapsed
-    const isRoot = isAuthenticated && user?.user_type === 'root'
-    const sidebarControlClass = sidebarCollapsed
-        ? 'lg:w-10 lg:justify-center lg:px-0'
-        : 'lg:w-full lg:justify-start lg:px-3'
-    const sidebarLabelClass = cx('hidden min-w-0 truncate', !sidebarCollapsed && 'lg:inline')
-
-    useEffect(() => {
-        window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, sidebarCollapsed ? 'true' : 'false')
-    }, [sidebarCollapsed])
 
     useEffect(() => {
         window.localStorage.setItem(SIDEBAR_GROUPS_STORAGE_KEY, JSON.stringify(collapsedGroups))
@@ -244,68 +293,73 @@ export function Sidebar() {
 
     const go = (item: RailItem) => {
         if (item.gated && !isAuthenticated) {
+            // Close the mobile drawer first so the login modal isn't stacked on
+            // top of it (two focus-traps would otherwise fight).
+            onNavigate?.()
             openLoginModal()
             return
         }
         setPage(item.page)
+        onNavigate?.()
     }
 
-    const confirmLogout = () => {
-        setConfirmLogoutOpen(false)
-        logout()
+    const goHome = () => {
+        setPage('landing')
+        window.requestAnimationFrame(scrollMainToTop)
+        onNavigate?.()
     }
+
+    const tasksLabel = activeCount > 0 ? t('sidebar.activeTasks', { count: activeCount }) : t('sidebar.tasks')
 
     return (
-        <aside
-            className={cx(
-                'sticky top-0 z-40 flex h-screen w-16 shrink-0 flex-col items-center gap-2 border-r border-parchment-50/[.08] bg-ink-900/80 px-3 py-4 backdrop-blur-md transition-[width]',
-                sidebarCollapsed ? 'lg:w-16 lg:items-center' : 'lg:w-56 lg:items-stretch',
-            )}
-            data-sidebar-collapsed={sidebarCollapsed}
-        >
-            <RailTooltip label={t('sidebar.home')} showOnDesktop={sidebarTooltipOnDesktop}>
-                <button
-                    onClick={() => {
-                        setPage('landing')
-                        window.requestAnimationFrame(scrollMainToTop)
-                    }}
-                    aria-label={t('sidebar.homeButton')}
-                    title="Magic Worlds"
-                    className={cx(
-                        'inline-flex h-10 w-10 items-center justify-center gap-3 rounded-lg bg-ember-500/15 px-0 font-ui text-sm font-semibold text-ember-400 transition-colors hover:text-ember-300',
-                        sidebarControlClass,
-                    )}
-                >
-                    <Icon icon={Flame} size={20} />
-                    <span className={sidebarLabelClass}>Magic Worlds</span>
-                </button>
-            </RailTooltip>
+        <>
+            {/* HEADER zone — fixed; brand + the desktop-only collapse toggle. */}
+            <div className={cx('flex shrink-0 flex-col gap-2 px-3 pb-2 pt-4', align)}>
+                <RailTooltip label={t('sidebar.home')} showOnDesktop={tooltipOnDesktop}>
+                    <button
+                        onClick={goHome}
+                        aria-label={t('sidebar.homeButton')}
+                        title="Magic Worlds"
+                        className={cx(
+                            'inline-flex h-10 items-center gap-3 rounded-lg bg-ember-500/15 font-ui text-sm font-semibold text-ember-400 transition-colors hover:text-ember-300',
+                            controlLayout(panel, collapsed),
+                        )}
+                    >
+                        <Icon icon={Flame} size={20} />
+                        <span className={controlLabel(panel, collapsed)}>Magic Worlds</span>
+                    </button>
+                </RailTooltip>
 
-            <RailTooltip
-                label={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-                showOnDesktop={sidebarTooltipOnDesktop}
-                className="hidden lg:flex"
-            >
-                <button
-                    type="button"
-                    aria-label={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-                    aria-expanded={!sidebarCollapsed}
-                    title={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-                    onClick={() => setSidebarCollapsed((current) => !current)}
-                    className={cx(
-                        'hidden h-10 w-10 shrink-0 items-center justify-center gap-3 rounded-md px-0 font-ui text-sm font-semibold text-parchment-300 transition-colors hover:bg-parchment-50/[.05] hover:text-parchment-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500 lg:inline-flex',
-                        sidebarControlClass,
-                    )}
-                >
-                    <Icon icon={sidebarCollapsed ? ChevronRight : ChevronLeft} size={18} />
-                    <span className={sidebarLabelClass}>{t('sidebar.collapse')}</span>
-                </button>
-            </RailTooltip>
+                {!panel && onToggleCollapsed && (
+                    <RailTooltip
+                        label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+                        showOnDesktop={tooltipOnDesktop}
+                        className="hidden lg:flex"
+                    >
+                        <button
+                            type="button"
+                            aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+                            aria-expanded={!collapsed}
+                            title={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+                            onClick={onToggleCollapsed}
+                            className={cx(
+                                'hidden h-10 items-center gap-3 rounded-md font-ui text-sm font-semibold text-parchment-300 transition-colors hover:bg-parchment-50/[.05] hover:text-parchment-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500 lg:inline-flex',
+                                controlLayout(panel, collapsed),
+                            )}
+                        >
+                            <Icon icon={collapsed ? ChevronRight : ChevronLeft} size={18} />
+                            <span className={controlLabel(panel, collapsed)}>{t('sidebar.collapse')}</span>
+                        </button>
+                    </RailTooltip>
+                )}
+            </div>
 
+            {/* NAV zone — the only scroller; header + footer stay pinned. */}
             <nav
+                ref={navRef}
                 className={cx(
-                    'mt-2 flex flex-col items-center gap-1.5',
-                    sidebarCollapsed ? 'lg:items-center' : 'lg:items-stretch',
+                    'flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-1 [scrollbar-width:thin]',
+                    align,
                 )}
                 aria-label={t('sidebar.primaryNav')}
             >
@@ -314,8 +368,9 @@ export function Sidebar() {
                         key={item.page}
                         item={item}
                         active={currentPage === item.page}
-                        collapsed={sidebarCollapsed}
-                        tooltipOnDesktop={sidebarTooltipOnDesktop}
+                        collapsed={collapsed}
+                        panel={panel}
+                        tooltipOnDesktop={tooltipOnDesktop}
                         onClick={() => go(item)}
                     />
                 ))}
@@ -326,31 +381,36 @@ export function Sidebar() {
                     const groupCollapsed = Boolean(collapsedGroups[group.id])
                     const groupLabel = t(group.labelKey)
                     const regionId = `sidebar-group-${group.id}`
+                    const foldClass = panel
+                        ? groupCollapsed
+                            ? 'grid-rows-[0fr]'
+                            : 'grid-rows-[1fr]'
+                        : !collapsed && groupCollapsed
+                          ? 'grid-rows-[1fr] lg:grid-rows-[0fr]'
+                          : 'grid-rows-[1fr]'
                     return (
-                        <div
-                            key={group.id}
-                            className={cx(
-                                'flex w-full flex-col gap-1.5',
-                                sidebarCollapsed ? 'items-center' : 'items-center lg:items-stretch',
-                            )}
-                        >
-                            {/* Icon-rail / mobile separator — shown only where the header is hidden. */}
+                        <div key={group.id} className={cx('flex w-full flex-col gap-1.5', align)}>
+                            {/* Icon-rail separator — shown only where the header is hidden. */}
                             <div
                                 aria-hidden="true"
                                 className={cx(
-                                    'mx-auto my-1 h-px w-6 rounded-full bg-parchment-50/[.08]',
-                                    !sidebarCollapsed && 'lg:hidden',
+                                    panel
+                                        ? 'hidden'
+                                        : cx(
+                                              'mx-auto my-1 h-px w-6 rounded-full bg-parchment-50/[.08]',
+                                              !collapsed && 'lg:hidden',
+                                          ),
                                 )}
                             />
-                            {/* Group header — desktop-expanded only; toggles the fold. */}
+                            {/* Group header — toggles the fold (always shown in the panel). */}
                             <button
                                 type="button"
                                 onClick={() => toggleGroup(group.id)}
                                 aria-expanded={!groupCollapsed}
                                 aria-controls={regionId}
                                 className={cx(
-                                    'hidden items-center justify-between rounded-md px-3 pb-1 pt-2 text-left transition-colors hover:bg-parchment-50/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500',
-                                    !sidebarCollapsed && 'lg:flex',
+                                    'items-center justify-between rounded-md px-3 pb-1 pt-2 text-left transition-colors hover:bg-parchment-50/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500',
+                                    panel ? 'flex' : cx('hidden', !collapsed && 'lg:flex'),
                                 )}
                             >
                                 <Eyebrow tone="muted">{groupLabel}</Eyebrow>
@@ -360,27 +420,23 @@ export function Sidebar() {
                                     className="text-parchment-500"
                                 />
                             </button>
-                            {/* Animated items region — folds on the desktop-expanded rail only. */}
+                            {/* Animated items region. */}
                             <div
                                 id={regionId}
                                 className={cx(
                                     'grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out',
-                                    !sidebarCollapsed && groupCollapsed ? 'grid-rows-[1fr] lg:grid-rows-[0fr]' : 'grid-rows-[1fr]',
+                                    foldClass,
                                 )}
                             >
-                                <div
-                                    className={cx(
-                                        'flex min-h-0 flex-col gap-1.5',
-                                        sidebarCollapsed ? 'items-center' : 'items-center lg:items-stretch',
-                                    )}
-                                >
+                                <div className={cx('flex min-h-0 flex-col gap-1.5', align)}>
                                     {items.map((item) => (
                                         <NavItemButton
                                             key={item.page}
                                             item={item}
                                             active={currentPage === item.page}
-                                            collapsed={sidebarCollapsed}
-                                            tooltipOnDesktop={sidebarTooltipOnDesktop}
+                                            collapsed={collapsed}
+                                            panel={panel}
+                                            tooltipOnDesktop={tooltipOnDesktop}
                                             onClick={() => go(item)}
                                         />
                                     ))}
@@ -391,42 +447,14 @@ export function Sidebar() {
                 })}
             </nav>
 
-            <div className={cx(
-                'mt-auto flex flex-col items-center gap-2',
-                sidebarCollapsed ? 'lg:items-center' : 'lg:items-stretch',
-            )}>
-                <ApiStatusMonitor
-                    status={apiStatus}
-                    services={services}
-                    checkedAt={checkedAt}
-                    collapsed={sidebarCollapsed}
-                />
-
-                <LanguageMenu collapsed={sidebarCollapsed} />
-
-                <RailTooltip label={t('sidebar.docs')} showOnDesktop={sidebarTooltipOnDesktop}>
-                    <RailButton
-                        label={t('sidebar.docs')}
-                        active={currentPage === 'docs'}
-                        current={currentPage === 'docs'}
-                        collapsed={sidebarCollapsed}
-                        onClick={() => setPage('docs')}
-                    >
-                        <Icon icon={Info} size={18} />
-                    </RailButton>
-                </RailTooltip>
+            {/* FOOTER zone — fixed; status + tasks + account, anchored by a hairline. */}
+            <div className={cx('flex shrink-0 flex-col gap-2 border-t border-parchment-50/[.08] px-3 pb-4 pt-2', align)}>
+                <ApiStatusMonitor status={apiStatus} services={services} checkedAt={checkedAt} collapsed={collapsed} />
 
                 {isAuthenticated && (
-                    <RailTooltip
-                        label={activeCount > 0 ? t('sidebar.activeTasks', { count: activeCount }) : t('sidebar.tasks')}
-                        showOnDesktop={sidebarTooltipOnDesktop}
-                    >
+                    <RailTooltip label={tasksLabel} showOnDesktop={tooltipOnDesktop}>
                         <div className="relative w-full">
-                            <RailButton
-                                label={activeCount > 0 ? t('sidebar.activeTasks', { count: activeCount }) : t('sidebar.tasks')}
-                                collapsed={sidebarCollapsed}
-                                onClick={openDrawer}
-                            >
+                            <RailButton label={tasksLabel} collapsed={collapsed} panel={panel} onClick={openDrawer}>
                                 <Icon icon={ListChecks} size={19} />
                             </RailButton>
                             {activeCount > 0 && (
@@ -438,98 +466,37 @@ export function Sidebar() {
                     </RailTooltip>
                 )}
 
-                {isRoot && (
-                    <RailTooltip label={t('sidebar.voiceAdmin')} showOnDesktop={sidebarTooltipOnDesktop}>
-                        <RailButton
-                            label={t('sidebar.voiceAdmin')}
-                            active={currentPage === 'admin-voices'}
-                            current={currentPage === 'admin-voices'}
-                            collapsed={sidebarCollapsed}
-                            onClick={() => setPage('admin-voices')}
-                        >
-                            <Icon icon={Crown} size={18} />
-                        </RailButton>
-                    </RailTooltip>
-                )}
-
-                {isRoot && (
-                    <RailTooltip label={t('sidebar.agentAdmin')} showOnDesktop={sidebarTooltipOnDesktop}>
-                        <RailButton
-                            label={t('sidebar.agentAdmin')}
-                            active={currentPage === 'admin-agents'}
-                            current={currentPage === 'admin-agents'}
-                            collapsed={sidebarCollapsed}
-                            onClick={() => setPage('admin-agents')}
-                        >
-                            <Icon icon={Bot} size={18} />
-                        </RailButton>
-                    </RailTooltip>
-                )}
-
-                <RailTooltip label={t('sidebar.viewSource')} showOnDesktop={sidebarTooltipOnDesktop}>
-                    <a
-                        href="https://github.com/Andres77872/magic-worlds"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={t('sidebar.viewSourceAria')}
-                        title={t('sidebar.viewSourceAria')}
-                        className={cx(
-                            'inline-flex h-10 w-10 items-center justify-center gap-3 rounded-md px-0 font-ui text-sm font-semibold text-parchment-200 transition-colors hover:bg-parchment-50/[.05] hover:text-parchment-50',
-                            sidebarControlClass,
-                        )}
-                    >
-                        <Icon icon={Code2} size={18} />
-                        <span className={sidebarLabelClass}>{t('sidebar.viewSource')}</span>
-                    </a>
-                </RailTooltip>
-
-                {isAuthenticated ? (
-                    <>
-                        <RailTooltip label={user?.username ?? t('sidebar.yourProfile')} showOnDesktop={sidebarTooltipOnDesktop}>
-                            <button
-                                onClick={() => setPage('profile')}
-                                aria-label={t('sidebar.yourProfile')}
-                                aria-current={currentPage === 'profile' ? 'page' : undefined}
-                                title={user?.username ?? t('sidebar.yourProfile')}
-                                className={cx(
-                                    'mt-0.5 inline-flex h-10 w-10 items-center justify-center gap-3 rounded-full px-0 font-ui text-sm font-semibold text-parchment-200 transition-colors hover:bg-parchment-50/[.05] hover:text-parchment-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500 lg:w-full lg:justify-start lg:rounded-md lg:px-1',
-                                    sidebarCollapsed && 'lg:w-10 lg:justify-center lg:px-0',
-                                    currentPage === 'profile' &&
-                                        'ring-2 ring-ember-400 ring-offset-2 ring-offset-ink-900',
-                                )}
-                            >
-                                <Avatar name={user?.username || 'You'} size={36} ring="ember" />
-                                <span className={sidebarLabelClass}>{user?.username ?? t('sidebar.profile')}</span>
-                            </button>
-                        </RailTooltip>
-                        <RailTooltip
-                            label={user?.username ? t('sidebar.logoutUser', { username: user.username }) : t('sidebar.logout')}
-                            showOnDesktop={sidebarTooltipOnDesktop}
-                        >
-                            <RailButton
-                                label={user?.username ? t('sidebar.logoutUser', { username: user.username }) : t('sidebar.logout')}
-                                danger
-                                collapsed={sidebarCollapsed}
-                                onClick={() => setConfirmLogoutOpen(true)}
-                            >
-                                <Icon icon={LogOut} size={18} />
-                            </RailButton>
-                        </RailTooltip>
-                    </>
-                ) : (
-                    <RailTooltip label={t('sidebar.login')} showOnDesktop={sidebarTooltipOnDesktop}>
-                        <RailButton label={t('sidebar.login')} active collapsed={sidebarCollapsed} onClick={openLoginModal}>
-                            <Icon icon={LogIn} size={18} />
-                        </RailButton>
-                    </RailTooltip>
-                )}
+                {/* Account lives in the top bar on mobile, so the drawer footer omits it. */}
+                {!panel && <SidebarAccountMenu collapsed={collapsed} placement="rise" onNavigate={onNavigate} />}
             </div>
+        </>
+    )
+}
 
-            <LogoutConfirmDialog
-                open={confirmLogoutOpen}
-                username={user?.username}
-                onCancel={() => setConfirmLogoutOpen(false)}
-                onConfirm={confirmLogout}
+/** Docked, responsive rail. AppRouter passes `className="hidden lg:flex"`. */
+export function Sidebar({ className = 'flex' }: { className?: string }) {
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+        if (typeof window === 'undefined') return false
+        return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
+    })
+
+    useEffect(() => {
+        window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, sidebarCollapsed ? 'true' : 'false')
+    }, [sidebarCollapsed])
+
+    return (
+        <aside
+            className={cx(
+                'sticky top-0 z-40 h-screen w-16 shrink-0 flex-col border-r border-parchment-50/[.08] bg-ink-900/80 backdrop-blur-md transition-[width]',
+                className,
+                sidebarCollapsed ? 'lg:w-16' : 'lg:w-56',
+            )}
+            data-sidebar-collapsed={sidebarCollapsed}
+        >
+            <SidebarShell
+                variant="rail"
+                collapsed={sidebarCollapsed}
+                onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
             />
         </aside>
     )

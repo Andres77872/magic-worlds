@@ -1,7 +1,8 @@
 import { ArrowLeft, Mail } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigation } from '@/app/hooks'
-import { Badge, Button, Card, Icon, IconTile, PageHeader, cx } from '@/ui/primitives'
+import { legalArt } from '@/assets/marketing'
+import { Badge, Button, Card, GlowBackdrop, Icon, IconTile, Illustration, PageHeader, cx } from '@/ui/primitives'
 import { CONTACT_EMAIL, getLegalPageLinks, getLegalPages, type LegalPageId, type LegalSection } from './legalContent'
 
 interface LegalPageProps {
@@ -13,9 +14,11 @@ export function LegalPage({ page }: LegalPageProps) {
     const { setPage } = useNavigation()
     const links = getLegalPageLinks(t)
     const content = getLegalPages(t)[page]
+    const art = legalArt[page]
 
     return (
         <div className="relative w-full">
+            <GlowBackdrop variant="header" />
             <div className="relative mx-auto flex w-full max-w-[1180px] flex-col gap-8 px-5 py-8 sm:px-8 sm:py-10">
                 <PageHeader
                     eyebrow={content.eyebrow}
@@ -37,6 +40,15 @@ export function LegalPage({ page }: LegalPageProps) {
 
                 <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
                     <main className="flex min-w-0 flex-col gap-6">
+                        {art && (
+                            <Illustration
+                                src={art}
+                                alt={t(`legal.pages.${page}.imageAlt`)}
+                                aspect="aspect-[21/9]"
+                                ring={page === 'privacy' ? 'arcane' : 'ember'}
+                                vignette
+                            />
+                        )}
                         <section className="grid gap-4 md:grid-cols-3" aria-label={t('legal.highlightsAria', { title: content.title })}>
                             {content.highlights.map((highlight) => (
                                 <Card key={highlight.title} className="p-5">

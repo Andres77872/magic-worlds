@@ -2,11 +2,14 @@
  * Application routing logic
  */
 
-import { lazy, Suspense, useEffect, useRef } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useNavigation, useData, useAuth } from '../hooks'
 import { Sidebar } from '../../ui/components/Sidebar'
+import { MobileTopBar } from '../../ui/components/MobileTopBar'
+import { SidebarNavDrawer } from '../../ui/components/SidebarNavDrawer'
 import { LoginModal } from '../../ui/components/LoginModal'
 import { AppWarningModal } from '../../ui/components/AppWarningModal'
+import { CookieConsentBanner } from '../../ui/components/CookieConsentBanner'
 import { ServicesDownBanner } from '../../ui/components/ServicesDownBanner'
 import { TasksDrawer } from '../../features/tasks'
 import { CardPreviewModal, useCardPreviewModal } from '../../features/cards'
@@ -52,6 +55,7 @@ export function AppRouter() {
     const { isLoginModalOpen, closeLoginModal } = useAuth()
     const cardPreview = useCardPreviewModal()
     const mainRef = useRef<HTMLElement>(null)
+    const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
     useEffect(() => {
         mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
@@ -76,8 +80,9 @@ export function AppRouter() {
                 <div className="app-stone absolute inset-0" />
                 <GlowBackdrop variant="page" animated />
             </div>
-            <Sidebar />
+            <Sidebar className="hidden lg:flex" />
             <main ref={mainRef} data-app-main className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
+                <MobileTopBar onOpenNav={() => setMobileNavOpen(true)} />
                 <ServicesDownBanner />
                 {loadingState.isLoading ? (
                     <div className="flex min-h-full flex-1 items-center justify-center">
@@ -127,12 +132,15 @@ export function AppRouter() {
                 )}
             </main>
 
+            <SidebarNavDrawer open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+
             {/* Global Login Modal */}
             <LoginModal
                 isOpen={isLoginModalOpen}
                 onClose={closeLoginModal}
             />
             <AppWarningModal />
+            <CookieConsentBanner />
             <TasksDrawer />
             <PlaylistDock onOpenCard={cardPreview.openCardPreview} />
             <CardPreviewModal

@@ -13,6 +13,8 @@ interface AuthContextValue extends AuthState {
     loginWithGoogle: (rememberMe?: boolean) => Promise<void>
     completeGoogleLogin: (code: string) => Promise<boolean>
     logout: () => void
+    /** Merge a partial update into the signed-in user and persist it. No-op when signed out. */
+    updateUser: (patch: Partial<User>) => void
     clearError: () => void
     isLoginModalOpen: boolean
     openLoginModal: () => void
@@ -267,6 +269,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
         localStorage.removeItem(USER_STORAGE_KEY)
     }, [clearAuthState])
 
+    const updateUser = useCallback((patch: Partial<User>) => {
+        setUser((prev) => {
+            if (!prev) return prev
+            const next = { ...prev, ...patch }
+            localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(next))
+            return next
+        })
+    }, [])
+
     const clearError = useCallback(() => {
         setError(null)
     }, [])
@@ -295,6 +306,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         loginWithGoogle,
         completeGoogleLogin,
         logout,
+        updateUser,
         clearError,
         openLoginModal,
         closeLoginModal,
@@ -311,6 +323,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         loginWithGoogle,
         completeGoogleLogin,
         logout,
+        updateUser,
         clearError,
         openLoginModal,
         closeLoginModal,

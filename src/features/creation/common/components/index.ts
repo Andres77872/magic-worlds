@@ -47,6 +47,9 @@ export type { MediaStudioSectionProps } from './MediaStudioSection';
 export { MediaHistoryDrawer } from './MediaHistoryDrawer';
 export type { MediaHistoryDrawerProps } from './MediaHistoryDrawer';
 
+export { VersionHistoryDrawer } from './VersionHistoryDrawer';
+export type { VersionHistoryDrawerProps } from './VersionHistoryDrawer';
+
 export { GeneratedDraftNotice } from './GeneratedDraftNotice';
 export type { GeneratedDraftNoticeProps } from './GeneratedDraftNotice';
 

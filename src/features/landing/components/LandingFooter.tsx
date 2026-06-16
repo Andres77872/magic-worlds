@@ -1,8 +1,10 @@
-import { Ban, Code2, Flame, Mail, Server } from 'lucide-react'
+import { Ban, Code2, Mail, Server } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { PageType } from '@/shared'
+import { wordmarks } from '@/assets/marketing'
 import { Badge, Icon } from '@/ui/primitives'
 import { CONTACT_EMAIL, getLegalPageLinks } from '@/features/legal'
+import { useCookieConsent } from '@/app/hooks/useCookieConsent'
 import { GITHUB_URL } from './landingContent'
 
 interface LandingFooterProps {
@@ -11,17 +13,13 @@ interface LandingFooterProps {
 
 export function LandingFooter({ onNavigate }: LandingFooterProps) {
     const { t } = useTranslation()
+    const { reopen } = useCookieConsent()
     const legalPageLinks = getLegalPageLinks(t)
     return (
         <footer className="border-t border-parchment-50/[.08] bg-ink-900/40 px-5 py-10 sm:px-8">
             <div className="mx-auto grid w-full max-w-[1160px] gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
                 <div className="max-w-[560px]">
-                    <div className="flex items-center gap-2.5">
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-ember-500/15 text-ember-400">
-                            <Icon icon={Flame} size={19} />
-                        </span>
-                        <span className="font-display text-[24px] font-semibold text-parchment-50">Magic Worlds</span>
-                    </div>
+                    <img src={wordmarks.light} alt="Magic Worlds" className="h-10 w-auto" />
                     <p className="mt-3 font-narrative text-[16px] leading-relaxed text-parchment-300">
                         {t('landing.footer.tagline')}
                     </p>
@@ -51,6 +49,13 @@ export function LandingFooter({ onNavigate }: LandingFooterProps) {
                                 {link.label}
                             </button>
                         ))}
+                        <button
+                            type="button"
+                            onClick={reopen}
+                            className="w-fit rounded-md py-1 pr-2 text-left font-ui text-[14px] font-semibold text-parchment-200 transition-colors hover:text-ember-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500"
+                        >
+                            {t('cookieConsent.manage')}
+                        </button>
                     </nav>
 
                     <div className="flex flex-col gap-2">

@@ -18,6 +18,11 @@ vi.mock('@/app/hooks/usePlaylist', () => ({
     }),
 }))
 
+// LandingFooter reaches useCookieConsent through a deep import too.
+vi.mock('@/app/hooks/useCookieConsent', () => ({
+    useCookieConsent: () => ({ reopen: vi.fn() }),
+}))
+
 const CHARACTERS: Character[] = [
     { id: 'p1', name: 'Aria', race: 'Human', stats: {}, role: 'persona', is_default_persona: true },
     { id: 'c1', name: 'Lyra', race: 'Half-elf', stats: {}, role: 'character', triggers: ['innkeeper'] },

@@ -7,8 +7,14 @@
 import { Gem, Globe, Swords, UserCircle, Users, type LucideIcon } from 'lucide-react'
 import type { Adventure, CardActor, CardVisibility, Character, Item, PageType, SharedCardResource, ShareableCardType, World } from '@/shared'
 import { apiService, resolveMediaUrl } from '@/infrastructure/api'
+import { effectiveName } from '@/utils/displayName'
 import { transformCharacters, transformItems, transformTemplates, transformWorlds } from '../../utils/cardTransforms'
 import { sceneTags, sceneTitle } from '../landing/components/sceneModel'
+
+/** Creator/owner credit: prefer the chosen display name, fall back to username. */
+function actorName(actor?: CardActor | null): string | null {
+    return actor ? (effectiveName(actor) || null) : null
+}
 
 export type GalleryType = 'character' | 'persona' | 'world' | 'item' | 'adventure'
 
@@ -17,6 +23,10 @@ export interface GalleryItem {
     title: string
     /** Identity badge: race / world type / world name. */
     badge?: string
+    /** Mono "where" label above the name (adventures only). */
+    eyebrow?: string
+    /** One-line narrative hook shown under the name. */
+    description?: string
     tags: string[]
     imageUrl?: string
     themeSongUrl?: string
@@ -52,11 +62,12 @@ const characterItems = (raw: unknown): GalleryItem[] =>
         id: character.id,
         title: character.name,
         badge: character.race || undefined,
+        description: character.description || undefined,
         tags: character.triggers ?? [],
         imageUrl: resolveMediaUrl(character.image_url),
         themeSongUrl: resolveMediaUrl(character.theme_song_url),
         visibility: character.visibility,
-        originalCreatorName: character.original_creator?.username ?? null,
+        originalCreatorName: actorName(character.original_creator),
         backendType: 'character',
         galleryType: 'character',
         source: character,
@@ -67,11 +78,12 @@ const personaItems = (raw: unknown): GalleryItem[] =>
         id: character.id,
         title: character.name,
         badge: character.is_default_persona ? 'Default persona' : character.race || undefined,
+        description: character.description || undefined,
         tags: character.triggers ?? [],
         imageUrl: resolveMediaUrl(character.image_url),
         themeSongUrl: resolveMediaUrl(character.theme_song_url),
         visibility: character.visibility,
-        originalCreatorName: character.original_creator?.username ?? null,
+        originalCreatorName: actorName(character.original_creator),
         backendType: 'character',
         galleryType: 'persona',
         source: character,
@@ -82,11 +94,12 @@ const worldItems = (raw: unknown): GalleryItem[] =>
         id: world.id,
         title: world.name,
         badge: [world.place_type, world.type].filter(Boolean).join(' / ') || undefined,
+        description: world.description || undefined,
         tags: world.triggers ?? [],
         imageUrl: resolveMediaUrl(world.image_url),
         themeSongUrl: resolveMediaUrl(world.theme_song_url),
         visibility: world.visibility,
-        originalCreatorName: world.original_creator?.username ?? null,
+        originalCreatorName: actorName(world.original_creator),
         backendType: 'world',
         galleryType: 'world',
         source: world,
@@ -97,11 +110,12 @@ const itemItems = (raw: unknown): GalleryItem[] =>
         id: item.id,
         title: item.name,
         badge: [item.type, item.rarity].filter(Boolean).join(' / ') || undefined,
+        description: item.description || undefined,
         tags: item.triggers ?? [],
         imageUrl: resolveMediaUrl(item.image_url),
         themeSongUrl: resolveMediaUrl(item.theme_song_url),
         visibility: item.visibility,
-        originalCreatorName: item.original_creator?.username ?? null,
+        originalCreatorName: actorName(item.original_creator),
         backendType: 'item',
         galleryType: 'item',
         source: item,
@@ -112,12 +126,15 @@ const adventureItems = (raw: unknown): GalleryItem[] =>
         id: template.id,
         // Same title/tags derivation as the dashboard's scene cards.
         title: sceneTitle(template),
-        badge: template.world?.name?.trim() || undefined,
+        // World name reads as a mono eyebrow above the title (matches the
+        // showcase card). No description: the title is already derived from the
+        // scenario when there's no persona, so a description line would just echo it.
+        eyebrow: template.world?.name?.trim() || undefined,
         tags: sceneTags(template),
         imageUrl: resolveMediaUrl(template.image_url),
         themeSongUrl: resolveMediaUrl(template.theme_song_url),
         visibility: template.visibility,
-        originalCreatorName: template.original_creator?.username ?? null,
+        originalCreatorName: actorName(template.original_creator),
         backendType: 'adventure_template',
         galleryType: 'adventure',
         source: template,
@@ -127,7 +144,7 @@ const firstItem = (mapper: (raw: unknown) => GalleryItem[], raw: unknown): Galle
     mapper(Array.isArray(raw) ? raw : [raw])[0] ?? null
 
 function resourceActorName(actor?: CardActor | null): string | null {
-    return actor?.username?.trim() || null
+    return actorName(actor)
 }
 
 function resourceCard(resource: SharedCardResource): Record<string, unknown> {

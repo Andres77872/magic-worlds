@@ -143,6 +143,7 @@ export function CallsPage() {
                                 title={character.name}
                                 imageUrl={character.image_url ? resolveMediaUrl(character.image_url) : undefined}
                                 badge={hasVoice(character) ? t('call.page.voiceSet') : undefined}
+                                description={character.description || undefined}
                                 tags={character.triggers?.slice(0, 2)}
                                 onClick={() => call.startCall(character)}
                                 actionLabel={t('call.page.callName', { name: character.name })}

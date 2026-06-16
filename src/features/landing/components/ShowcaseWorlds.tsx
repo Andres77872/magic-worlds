@@ -2,13 +2,19 @@
  * Showcase worlds — a row of curated example characters/worlds so a first-time
  * or empty landing feels alive. These are inspiration, not the visitor's own
  * content; selecting one routes through the auth gate (sign in, then create).
+ *
+ * The cards ARE the real `GalleryCard` (genre → badge, location → mono eyebrow,
+ * hook → description) so the landing and the in-app galleries share one design
+ * and can't drift. `staticCard` drops the action bubble; `staticImageUrl` feeds
+ * the bundled marketing art straight to a plain <img> (it must NOT go through the
+ * authenticated media hook — see Portrait.staticSrc).
  */
 
-import type { KeyboardEvent, Ref } from 'react'
-import { ArrowRight } from 'lucide-react'
+import type { Ref } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CardGrid } from '@/ui/components/lists/Card'
-import { Badge, Eyebrow, Icon, cx } from '@/ui/primitives'
+import { showcaseArt } from '@/assets/marketing'
+import { CardGrid, GalleryCard } from '@/ui/components/lists/Card'
+import { Eyebrow } from '@/ui/primitives'
 import { SHOWCASE_WORLDS, type ShowcaseWorld } from './landingContent'
 
 export interface ShowcaseWorldsProps {
@@ -35,68 +41,24 @@ export function ShowcaseWorlds({ onTry, sectionRef }: ShowcaseWorldsProps) {
                     layout="grid"
                     getItemKey={(world) => world.id}
                     showEmptyState={false}
-                    renderCard={(world) => <ShowcaseCard world={world} onTry={() => onTry(world)} />}
+                    renderCard={(world) => {
+                        const genre = t(`landing.showcase.worlds.${world.id}.genre`)
+                        return (
+                            <GalleryCard
+                                title={world.name}
+                                badge={genre}
+                                eyebrow={world.world}
+                                description={t(`landing.showcase.worlds.${world.id}.hook`)}
+                                gradient={world.portrait}
+                                staticImageUrl={showcaseArt[world.id]}
+                                onClick={() => onTry(world)}
+                                actionLabel={t('landing.showcase.cardAria', { name: world.name, genre })}
+                                staticCard
+                            />
+                        )
+                    }}
                 />
             </div>
         </section>
-    )
-}
-
-interface ShowcaseCardProps {
-    world: ShowcaseWorld
-    onTry: () => void
-}
-
-function ShowcaseCard({ world, onTry }: ShowcaseCardProps) {
-    const { t } = useTranslation()
-    const genre = t(`landing.showcase.worlds.${world.id}.genre`)
-    const hook = t(`landing.showcase.worlds.${world.id}.hook`)
-    const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            onTry()
-        }
-    }
-    return (
-        <div
-            role="button"
-            tabIndex={0}
-            aria-label={t('landing.showcase.cardAria', { name: world.name, genre })}
-            onClick={onTry}
-            onKeyDown={onKeyDown}
-            className={cx(
-                'group relative min-h-[300px] cursor-pointer overflow-hidden rounded-xl border border-parchment-50/[.06] shadow-md transition-all',
-                'hover:-translate-y-1 hover:border-ember-500/45 hover:shadow-card-hover',
-            )}
-        >
-            <div className="absolute inset-0" aria-hidden style={{ background: world.portrait }} />
-            <div
-                className="absolute inset-0 bg-gradient-to-b from-transparent from-[30%] to-ink-900/90"
-                aria-hidden
-            />
-            <Badge tone="glass" className="absolute left-3.5 top-3.5">
-                {genre}
-            </Badge>
-            <span
-                className="pointer-events-none absolute bottom-[88px] right-[18px] select-none font-display font-semibold leading-none text-parchment-50/[.07]"
-                aria-hidden
-                style={{ fontSize: 110 }}
-            >
-                {world.initial}
-            </span>
-            <div className="absolute inset-x-0 bottom-0 p-5">
-                <div className="mb-1.5 font-mono text-[11px] text-ember-400">{world.world}</div>
-                <h3 className="mb-2 font-display text-[28px] font-semibold leading-none text-parchment-50">
-                    {world.name}
-                </h3>
-                <p className="mb-3 max-w-[360px] font-narrative text-[14.5px] leading-[1.45] text-parchment-200">
-                    {hook}
-                </p>
-                <span className="inline-flex items-center gap-1.5 font-ui text-[13px] font-semibold text-ember-400 opacity-0 transition-opacity group-hover:opacity-100">
-                    {t('landing.showcase.begin')}
-                    <Icon icon={ArrowRight} size={14} />
-                </span>
-            </div>
-        </div>
     )
 }

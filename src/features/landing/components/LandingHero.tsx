@@ -7,7 +7,7 @@
 
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Avatar, Button, Eyebrow, Icon } from '@/ui/primitives'
+import { Avatar, Button, Eyebrow, Icon, Illustration } from '@/ui/primitives'
 import { HeroPreviewCard } from './HeroPreviewCard'
 import { SHOWCASE_WORLDS } from './landingContent'
 
@@ -26,13 +26,27 @@ export interface LandingHeroProps {
     secondary?: HeroCta
     /** Honest caption beside the sample-world avatar stack. */
     stat?: ReactNode
+    /** Candlelit marketing art for the right column (guest front-door). */
+    heroImage?: { src: string; alt: string }
 }
 
-export function LandingHero({ eyebrow, title, subtitle, primary, secondary, stat }: LandingHeroProps) {
+export function LandingHero({ eyebrow, title, subtitle, primary, secondary, stat, heroImage }: LandingHeroProps) {
     return (
-        <section className="relative flex w-full items-center px-5 pb-16 pt-12 sm:px-8 sm:pb-20 sm:pt-16 lg:min-h-[600px]">
+        <section className="relative flex w-full items-center overflow-hidden px-5 pb-16 pt-12 sm:px-8 sm:pb-20 sm:pt-16 lg:min-h-[600px]">
             {/* Candlelight comes from the app-shell ambience (AppRouter), whose
-                ember/arcane pair already washes this top-of-page section. */}
+                ember/arcane pair already washes this top-of-page section. A dim,
+                blurred wash of the hero art deepens it without fighting the copy. */}
+            {heroImage && (
+                <div className="pointer-events-none absolute inset-0 -z-0" aria-hidden>
+                    <img
+                        src={heroImage.src}
+                        alt=""
+                        aria-hidden
+                        className="h-full w-full object-cover opacity-[.10] blur-sm"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-ink-900 via-ink-900/85 to-ink-900/55" />
+                </div>
+            )}
             <div className="relative mx-auto flex w-full max-w-[1160px] flex-wrap items-center gap-x-14 gap-y-12">
                 {/* left column */}
                 <div className="flex-[1_1_460px] [min-width:min(320px,100%)]">
@@ -90,9 +104,21 @@ export function LandingHero({ eyebrow, title, subtitle, primary, secondary, stat
                     )}
                 </div>
 
-                {/* right column — the preview card */}
+                {/* right column — candlelit hero art (guest), else the preview card */}
                 <div className="flex flex-[0_1_auto] justify-center pt-2.5">
-                    <HeroPreviewCard />
+                    {heroImage ? (
+                        <Illustration
+                            src={heroImage.src}
+                            alt={heroImage.alt}
+                            eager
+                            ring="ember"
+                            vignette
+                            aspect="aspect-[4/3]"
+                            className="w-[460px] max-w-[92vw] -rotate-[1.2deg] rounded-2xl"
+                        />
+                    ) : (
+                        <HeroPreviewCard />
+                    )}
                 </div>
             </div>
         </section>

@@ -17,6 +17,13 @@ import { gradientFor } from './gradient'
 interface PortraitProps {
     name?: string
     src?: string | null
+    /**
+     * Static, NON-authenticated image (bundled marketing art / a `/assets/…`
+     * URL). Rendered as a plain `<img>` — it bypasses `useAuthenticatedMediaUrl`
+     * entirely, because `resolveMediaUrl` would prefix a root-relative asset path
+     * with the API base and break it. Takes precedence over `src` when set.
+     */
+    staticSrc?: string
     /** Pixel height, or any CSS height (e.g. 'auto' with an aspect-ratio class). */
     height?: number | string
     gradient?: string
@@ -30,7 +37,7 @@ interface PortraitProps {
     children?: ReactNode
 }
 
-export function Portrait({ name = '', src, height = 160, gradient, lazy = false, className, children }: PortraitProps) {
+export function Portrait({ name = '', src, staticSrc, height = 160, gradient, lazy = false, className, children }: PortraitProps) {
     const initial = name.trim().charAt(0).toUpperCase() || '?'
     const containerRef = useRef<HTMLDivElement>(null)
     // Seed the SSR/no-IO fallback into initial state so the effect never has to
@@ -61,8 +68,9 @@ export function Portrait({ name = '', src, height = 160, gradient, lazy = false,
         return () => observer.disconnect()
     }, [lazy, inView])
 
-    const media = useAuthenticatedMediaUrl(inView ? src : null, 'image/*')
-    const imageSrc = media.src
+    // Static art never goes through the authed media hook (see `staticSrc` doc).
+    const media = useAuthenticatedMediaUrl(staticSrc ? null : inView ? src : null, 'image/*')
+    const imageSrc = staticSrc ?? media.src
     const showImage = Boolean(imageSrc) && !errored
     // Shimmer covers the gap between "a source exists" and "the image painted":
     // the blob fetch (media.loading) and the browser decode (imageSrc && !loaded).

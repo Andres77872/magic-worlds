@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react'
-import { ArrowRight, MessageCircle, Pencil, Trash2, Users } from 'lucide-react'
+import { ArrowRight, MessageCircle, Pencil, Phone, Trash2, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Character } from '@/shared'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
@@ -20,12 +20,14 @@ const RAIL_CAP = 12
 export interface CastRailProps {
     cast: Character[]
     onChat: (character: Character) => void
+    /** Start a voice call. Only provided when voice mode is enabled. */
+    onCall?: (character: Character) => void
     onEdit: (character: Character) => void
     onDelete: (character: Character) => Promise<void> | void
     onViewAll: () => void
 }
 
-export function CastRail({ cast, onChat, onEdit, onDelete, onViewAll }: CastRailProps) {
+export function CastRail({ cast, onChat, onCall, onEdit, onDelete, onViewAll }: CastRailProps) {
     const { t } = useTranslation()
     const [pending, setPending] = useState<Character | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -62,7 +64,6 @@ export function CastRail({ cast, onChat, onEdit, onDelete, onViewAll }: CastRail
             <CardGrid
                 items={cast.slice(0, RAIL_CAP)}
                 layout="rail"
-                railWidth="compact"
                 fadeEdges
                 getItemKey={(character) => character.id}
                 showEmptyState={false}
@@ -85,7 +86,6 @@ export function CastRail({ cast, onChat, onEdit, onDelete, onViewAll }: CastRail
                     return (
                         <GalleryCard
                             {...characterCardProps(character)}
-                            size="compact"
                             cardType="character"
                             cardId={character.id}
                             options={options}
@@ -93,15 +93,28 @@ export function CastRail({ cast, onChat, onEdit, onDelete, onViewAll }: CastRail
                             actionLabel={t('landing.rail.editAria', { name: character.name })}
                             deleting={deletingId === character.id}
                             footer={
-                                <Button
-                                    kind="arcane"
-                                    size="sm"
-                                    full
-                                    iconLeft={<Icon icon={MessageCircle} size={15} />}
-                                    onClick={() => onChat(character)}
-                                >
-                                    {t('landing.cast.chat')}
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button
+                                        kind="primary"
+                                        size="sm"
+                                        className="min-w-0 flex-1"
+                                        iconLeft={<Icon icon={MessageCircle} size={15} />}
+                                        onClick={() => onChat(character)}
+                                    >
+                                        {t('landing.cast.chat')}
+                                    </Button>
+                                    {onCall && (
+                                        <Button
+                                            kind="secondary"
+                                            size="sm"
+                                            className="min-w-0 flex-1"
+                                            iconLeft={<Icon icon={Phone} size={15} />}
+                                            onClick={() => onCall(character)}
+                                        >
+                                            {t('landing.cast.call')}
+                                        </Button>
+                                    )}
+                                </div>
                             }
                         />
                     )

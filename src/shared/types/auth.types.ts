@@ -5,6 +5,8 @@
 export interface User {
     user_hash: string
     username: string
+    /** Optional public-facing name. Null/absent → fall back to {@link username}. */
+    display_name?: string | null
     email?: string | null
     user_type: string
     created_at: string | null
@@ -144,6 +146,8 @@ export interface Membership {
 export interface UserProfile {
     user_hash: string
     username: string
+    /** Optional public-facing name. Null/absent → fall back to {@link username}. */
+    display_name?: string | null
     user_type: string
     /** Total available credits: remaining included credits plus PAYG balance. */
     user_usage: number

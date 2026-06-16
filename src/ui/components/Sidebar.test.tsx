@@ -24,6 +24,7 @@ const baseAuth: AuthValue = {
     loginWithGoogle: async () => undefined,
     completeGoogleLogin: async () => false,
     logout: () => undefined,
+    updateUser: () => undefined,
     clearError: () => undefined,
     openLoginModal: () => undefined,
     closeLoginModal: () => undefined,
@@ -111,12 +112,15 @@ describe('Sidebar API status', () => {
         vi.unstubAllGlobals()
     })
 
-    it('shows API status while signed out', async () => {
+    it('shows API status and reaches docs + log in from the account menu while signed out', async () => {
         renderSidebar(baseAuth)
 
         expect(await screen.findByRole('status', { name: 'API online' })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Docs' })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Log in' })).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Account menu' }))
+        const menu = screen.getByRole('menu', { name: 'Account' })
+        expect(within(menu).getByRole('menuitem', { name: 'Docs' })).toBeInTheDocument()
+        expect(within(menu).getByRole('menuitem', { name: 'Log in' })).toBeInTheDocument()
     })
 
     it('opens a floating dependency view from the API status control', async () => {
@@ -132,17 +136,21 @@ describe('Sidebar API status', () => {
         expect(within(dialog).getByText('All dependencies online')).toBeInTheDocument()
     })
 
-    it('shows API status while signed in next to account utilities', async () => {
+    it('shows API status + nav inline while signed in, with account utilities in the menu', async () => {
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
 
         expect(await screen.findByRole('status', { name: 'API online' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Chatroom' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Active adventures' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Items' })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Docs' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Tasks' })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Your profile' })).toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: 'Voice admin' })).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Account menu' }))
+        const menu = screen.getByRole('menu', { name: 'Account' })
+        expect(within(menu).getByRole('menuitem', { name: 'Docs' })).toBeInTheDocument()
+        expect(within(menu).getByRole('menuitem', { name: 'Your profile' })).toBeInTheDocument()
+        // A player (non-root) never sees the admin links.
+        expect(within(menu).queryByRole('menuitem', { name: 'Voice admin' })).not.toBeInTheDocument()
     })
 
     it('shows the voice admin utility for root users only', async () => {
@@ -152,10 +160,17 @@ describe('Sidebar API status', () => {
             user: { ...mockUser, user_type: 'root' },
         })
 
-        const voiceAdmin = await screen.findByRole('button', { name: 'Voice admin' })
+        fireEvent.click(await screen.findByRole('button', { name: 'Account menu' }))
+        const voiceAdmin = within(screen.getByRole('menu', { name: 'Account' })).getByRole('menuitem', {
+            name: 'Voice admin',
+        })
         fireEvent.click(voiceAdmin)
 
-        expect(voiceAdmin).toHaveAttribute('aria-current', 'page')
+        // Navigating closes the menu; reopen to confirm it is now the current page.
+        fireEvent.click(screen.getByRole('button', { name: 'Account menu' }))
+        expect(
+            within(screen.getByRole('menu', { name: 'Account' })).getByRole('menuitem', { name: 'Voice admin' }),
+        ).toHaveAttribute('aria-current', 'page')
     })
 
     it('opens the item gallery from the library rail', async () => {
@@ -197,13 +212,17 @@ describe('Sidebar API status', () => {
         expect(activeAdventures).toHaveAttribute('aria-current', 'page')
     })
 
-    it('marks docs as the current utility view after clicking it', async () => {
+    it('marks docs as the current view after selecting it from the account menu', async () => {
         renderSidebar(baseAuth)
 
-        const docs = screen.getByRole('button', { name: 'Docs' })
-        fireEvent.click(docs)
+        fireEvent.click(screen.getByRole('button', { name: 'Account menu' }))
+        fireEvent.click(within(screen.getByRole('menu', { name: 'Account' })).getByRole('menuitem', { name: 'Docs' }))
 
-        expect(docs).toHaveAttribute('aria-current', 'page')
+        // Selecting closes the menu; reopen to confirm docs is now the current page.
+        fireEvent.click(screen.getByRole('button', { name: 'Account menu' }))
+        expect(
+            within(screen.getByRole('menu', { name: 'Account' })).getByRole('menuitem', { name: 'Docs' }),
+        ).toHaveAttribute('aria-current', 'page')
     })
 
     it('collapses and expands the desktop sidebar', async () => {
@@ -223,11 +242,20 @@ describe('Sidebar API status', () => {
         expect(window.localStorage.getItem('magic-worlds-sidebar-collapsed')).toBe('false')
     })
 
-    it('confirms before logging out from the sidebar', async () => {
+    it('confirms before logging out from the account menu', async () => {
         const logout = vi.fn()
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser, logout })
 
-        fireEvent.click(screen.getByRole('button', { name: 'Log out Lyra the Bard' }))
+        const openLogout = () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Account menu' }))
+            fireEvent.click(
+                within(screen.getByRole('menu', { name: 'Account' })).getByRole('menuitem', {
+                    name: 'Log out Lyra the Bard',
+                }),
+            )
+        }
+
+        openLogout()
 
         const dialog = screen.getByRole('dialog', { name: 'Log out?' })
         expect(within(dialog).getByText(/signed in as/i)).toBeInTheDocument()
@@ -238,9 +266,25 @@ describe('Sidebar API status', () => {
         expect(screen.queryByRole('dialog', { name: 'Log out?' })).not.toBeInTheDocument()
         expect(logout).not.toHaveBeenCalled()
 
-        fireEvent.click(screen.getByRole('button', { name: 'Log out Lyra the Bard' }))
+        openLogout()
         fireEvent.click(within(screen.getByRole('dialog', { name: 'Log out?' })).getByRole('button', { name: 'Log out' }))
 
         expect(logout).toHaveBeenCalledTimes(1)
+    })
+
+    it('labels the profile entry with the display name but logout with the username', () => {
+        renderSidebar({
+            ...baseAuth,
+            isAuthenticated: true,
+            user: { ...mockUser, username: 'lyra_bard', display_name: 'The Loremaster' },
+        })
+
+        fireEvent.click(screen.getByRole('button', { name: 'Account menu' }))
+        const menu = screen.getByRole('menu', { name: 'Account' })
+        // The profile entry shows the public display name…
+        expect(within(menu).getByText('The Loremaster')).toBeInTheDocument()
+        expect(within(menu).getByRole('menuitem', { name: 'Your profile' })).toHaveAttribute('title', 'The Loremaster')
+        // …while logout intentionally references the immutable login identity.
+        expect(within(menu).getByRole('menuitem', { name: 'Log out lyra_bard' })).toBeInTheDocument()
     })
 })

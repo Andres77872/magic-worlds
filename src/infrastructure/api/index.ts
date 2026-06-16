@@ -92,6 +92,12 @@ import type {
     ShareableCardType,
 } from '../../shared/types/cardSharing.types'
 import type {
+    CardUsage,
+    CardVersion,
+    CardVersionList,
+    VersionableCardType,
+} from '../../shared/types/cardVersion.types'
+import type {
     CardMediaTargetType,
     CardPortraitRequest,
     ImageJobListResponse,
@@ -1013,6 +1019,19 @@ class ApiService {
         })
     }
 
+    /**
+     * Update the current user's public-facing display name (`PATCH /user/me`).
+     * Pass `null` (or whitespace, which the backend normalises to null) to clear
+     * it and fall back to the username. Returns the refreshed profile.
+     */
+    async updateDisplayName(displayName: string | null): Promise<UserProfile> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<UserProfile>('/user/me', token, {
+            method: 'PATCH',
+            body: { display_name: displayName } as unknown as BodyInit,
+        })
+    }
+
     async getUserPreferences(): Promise<UserPreferences> {
         const token = this.getStoredToken()
         return this.authenticatedRequest<UserPreferences>('/user/preferences', token, {
@@ -1319,6 +1338,59 @@ class ApiService {
             `/cards/${cardType}/${encodeURIComponent(cardId)}/clone${query}`,
             token,
             { method: 'POST' },
+        )
+    }
+
+    // --- Explicit card versioning + usage (character / world / item only) --------------
+
+    /** Route prefix for the versionable card type (characters/worlds/items). */
+    private versionBasePath(cardType: VersionableCardType): string {
+        if (cardType === 'world') return '/worlds'
+        if (cardType === 'item') return '/items'
+        return '/characters'
+    }
+
+    /** List a card's saved versions (newest first) plus its current latest pointer. */
+    async listCardVersions(cardType: VersionableCardType, cardId: string): Promise<CardVersionList> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardVersionList>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Snapshot the card's current content as a new immutable version ("Save version"). */
+    async saveCardVersion(cardType: VersionableCardType, cardId: string, label?: string): Promise<CardVersion> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardVersion>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions`,
+            token,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: { label: label?.trim() || null } as unknown as BodyInit,
+            },
+        )
+    }
+
+    /** Restore an earlier version into the live card (in place). Returns the updated card. */
+    async restoreCardVersion(cardType: VersionableCardType, cardId: string, versionNumber: number): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions/${versionNumber}/restore`,
+            token,
+            { method: 'POST' },
+        )
+    }
+
+    /** Derived usage for a card: distinct sessions (adventures + chats) and stories. */
+    async getCardUsage(cardType: VersionableCardType, cardId: string): Promise<CardUsage> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardUsage>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/usage`,
+            token,
+            { method: 'GET' },
         )
     }
 

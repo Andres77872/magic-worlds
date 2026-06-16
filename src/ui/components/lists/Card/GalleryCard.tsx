@@ -44,6 +44,16 @@ export interface GalleryCardProps {
      * tighter vignette, tags capped at 2 so narrow cards stay legible.
      */
     size?: 'default' | 'compact'
+    /** Mono "where" label above the name (e.g. a world/location); shown when set. */
+    eyebrow?: string
+    /** One-line narrative hook under the name — the card's substance line. */
+    description?: string
+    /** Curated fallback gradient painted behind the image (e.g. showcase worlds). */
+    gradient?: string
+    /** Static, non-authenticated image (bundled marketing art) — bypasses the media hook. */
+    staticImageUrl?: string
+    /** Marketing/static card: no action bubble, no playlist/menu side effects. */
+    staticCard?: boolean
     /** Pinned action row at the bottom of the vignette (e.g. a Chat button). */
     footer?: ReactNode
     'data-testid'?: string
@@ -69,6 +79,11 @@ export function GalleryCard({
     highlighted = false,
     deleting = false,
     size = 'default',
+    eyebrow,
+    description,
+    gradient,
+    staticImageUrl,
+    staticCard = false,
     footer,
     'data-testid': testId = 'gallery-card',
 }: GalleryCardProps) {
@@ -89,6 +104,12 @@ export function GalleryCard({
     const compact = size === 'compact'
     const visibleTags = tags.slice(0, compact ? 2 : 3)
     const extraTagCount = Math.max(0, tags.length - visibleTags.length)
+    // The description is the substance line (like the landing showcase); only fall
+    // back to trigger pills when a card has no description, so every card stays clean.
+    const showTags = tags.length > 0 && !description
+    // The hover action bubble (and its empty pill) only exists when it has content.
+    const hasBubble =
+        !staticCard && (Boolean(themeSongUrl) || (shareOptions?.length ?? 0) > 0 || (options?.length ?? 0) > 0)
     const activeThemeDownloadState =
         themeSongUrl && themeDownloadState?.url === themeSongUrl ? themeDownloadState : null
     const downloadingTheme = Boolean(activeThemeDownloadState?.downloading)
@@ -249,12 +270,23 @@ export function GalleryCard({
             <Portrait
                 name={title}
                 src={imageUrl}
+                staticSrc={staticImageUrl}
+                gradient={gradient}
                 height="auto"
                 lazy
                 className="aspect-[3/4] w-full group-hover:[&>img]:scale-[1.035]"
             >
                 <div className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-24 bg-gradient-to-b from-ink-900/72 to-transparent" />
                 <div className="pointer-events-none absolute inset-0 z-[1] ring-1 ring-inset ring-parchment-50/[.08]" />
+                {/* Candlelit bottom gradient: lifts the name/description/CTA off the art.
+                    Graceful (depth by softness), not a heavy slab. */}
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[62%] bg-gradient-to-t from-ink-900 via-ink-900/70 to-transparent" />
+                {badge && (
+                    <Badge tone="glass" className="absolute left-3 top-3 z-[3] max-w-[65%] truncate">
+                        {badge}
+                    </Badge>
+                )}
+                {hasBubble && (
                 <div
                     className="absolute right-2 top-2 z-[4] flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full border border-parchment-50/10 bg-ink-900/55 p-1 opacity-100 shadow-md backdrop-blur-md transition-opacity sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100"
                     onClick={(e: MouseEvent) => e.stopPropagation()}
@@ -276,26 +308,35 @@ export function GalleryCard({
                         <CardOptions options={options} aria-label={t('galleryCard.actions', { title })} onOpenChange={setMenuOpen} />
                     )}
                 </div>
+                )}
 
-                <div className={cx('absolute inset-x-0 bottom-0 z-[2] flex flex-col', compact ? 'gap-1.5 p-2.5' : 'gap-2 p-3')}>
-                    <div className="flex min-w-0 items-start justify-between gap-2">
-                        <h3
-                            className={cx(
-                                'm-0 line-clamp-2 min-w-0 flex-1 font-display font-semibold leading-[1.05] text-parchment-50',
-                                compact ? 'text-[15px]' : 'text-[18px]',
-                            )}
-                            title={title}
-                        >
-                            {title}
-                        </h3>
-                        {badge && (
-                            <Badge tone="glass" className={cx('shrink-0 truncate', compact ? 'max-w-[40%]' : 'max-w-[45%]')}>
-                                {badge}
-                            </Badge>
+                <div className={cx('absolute inset-x-0 bottom-0 z-[2] flex flex-col', compact ? 'gap-1 p-3' : 'gap-1.5 p-4')}>
+                    {eyebrow && (
+                        <div className={cx('truncate font-mono text-ember-400', compact ? 'text-[10px]' : 'text-[11px]')}>
+                            {eyebrow}
+                        </div>
+                    )}
+                    <h3
+                        className={cx(
+                            'm-0 line-clamp-2 font-display font-semibold leading-[1.1] text-parchment-50',
+                            compact ? 'text-[17px]' : 'text-[22px]',
                         )}
-                    </div>
-                    {tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
+                        title={title}
+                    >
+                        {title}
+                    </h3>
+                    {description && (
+                        <p
+                            className={cx(
+                                'm-0 line-clamp-2 font-narrative text-parchment-200',
+                                compact ? 'text-[13px] leading-[1.4]' : 'text-[14.5px] leading-[1.45]',
+                            )}
+                        >
+                            {description}
+                        </p>
+                    )}
+                    {showTags && (
+                        <div className="flex min-w-0 items-center gap-1 overflow-hidden">
                             {visibleTags.map((tag) =>
                                 onTagClick ? (
                                     <button
@@ -306,18 +347,18 @@ export function GalleryCard({
                                             onTagClick(tag)
                                         }}
                                         aria-label={t('galleryCard.searchFor', { tag })}
-                                        className="max-w-full cursor-pointer truncate rounded-full bg-ink-900/65 px-2 py-[2px] font-ui text-[10px] font-semibold text-parchment-200 backdrop-blur transition-colors hover:bg-ember-500/25 hover:text-ember-300"
+                                        className="min-w-0 max-w-[60%] shrink cursor-pointer truncate whitespace-nowrap rounded-full bg-ink-900/65 px-2 py-[2px] font-ui text-[10px] font-semibold text-parchment-200 backdrop-blur transition-colors hover:bg-ember-500/25 hover:text-ember-300"
                                     >
                                         {tag}
                                     </button>
                                 ) : (
-                                    <Tag key={tag} className="max-w-full truncate bg-ink-900/65 backdrop-blur">
+                                    <Tag key={tag} className="min-w-0 max-w-[60%] shrink truncate whitespace-nowrap bg-ink-900/65 backdrop-blur">
                                         {tag}
                                     </Tag>
                                 ),
                             )}
                             {extraTagCount > 0 && (
-                                <Tag className="bg-ink-900/65 text-parchment-300 backdrop-blur">
+                                <Tag className="shrink-0 bg-ink-900/65 text-parchment-300 backdrop-blur">
                                     +{extraTagCount}
                                 </Tag>
                             )}

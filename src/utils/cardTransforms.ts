@@ -42,6 +42,8 @@ interface RawCardRow {
     theme_song_url?: string
     visibility?: CardVisibility
     original_creator?: CardActor
+    latest_version_id?: string | null
+    latest_version_number?: number
     persona?: Character
     characters?: Character[]
     world?: World[]
@@ -68,6 +70,8 @@ export function transformCharacters(raw: unknown): Character[] {
         theme_song_url: char.theme_song_url,
         visibility: char.visibility,
         original_creator: char.original_creator,
+        latest_version_id: char.latest_version_id,
+        latest_version_number: char.latest_version_number,
         createdAt: char.createdAt ?? char.created_at,
         updatedAt: char.updatedAt ?? char.updated_at,
     }))
@@ -87,6 +91,8 @@ export function transformWorlds(raw: unknown): World[] {
         theme_song_url: world.theme_song_url,
         visibility: world.visibility,
         original_creator: world.original_creator,
+        latest_version_id: world.latest_version_id,
+        latest_version_number: world.latest_version_number,
         createdAt: world.createdAt ?? world.created_at,
         updatedAt: world.updatedAt ?? world.updated_at,
     }))
@@ -131,6 +137,8 @@ export function transformItems(raw: unknown): Item[] {
         theme_song_url: item.theme_song_url,
         visibility: item.visibility,
         original_creator: item.original_creator,
+        latest_version_id: item.latest_version_id,
+        latest_version_number: item.latest_version_number,
         createdAt: item.createdAt ?? item.created_at,
         updatedAt: item.updatedAt ?? item.updated_at,
     }))

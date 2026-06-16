@@ -48,6 +48,11 @@ export interface SnapshotCard {
     uuid?: string
     /** Library card id this clone came from — used to clone the live original at adventure start. */
     source_card_id?: string
+    /** The source card's version pinned at clone time (v2+ snapshots). */
+    source_card_version_id?: string | null
+    source_card_version_number?: number
+    /** Server-computed: the source card has a newer saved version than the one pinned here (informative only). */
+    newer_version_available?: boolean
     name?: string
     role?: 'character' | 'persona'
     is_default_persona?: boolean

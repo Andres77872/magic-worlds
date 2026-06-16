@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ArrowLeft, AudioLines, Check, Globe, Info, Pencil, Plus, UserCircle, Users, Volume2, X } from 'lucide-react'
 import type { Adventure, AdventureSnapshot, CharacterVoice } from '../../../shared'
 import { readWorldPlaceType, worldPlaceTypeLabel } from '../../../shared'
-import { Button, Icon, IconButton, SectionHeader, SwitchRow, Tag, Textarea } from '../../../ui/primitives'
+import { Badge, Button, Icon, IconButton, SectionHeader, SwitchRow, Tag, Textarea } from '../../../ui/primitives'
 import { VoicePickerDialog } from '../../voices/components/VoicePickerDialog'
 import { Card } from '../../../ui/components/lists/Card'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
@@ -279,10 +279,18 @@ function CompactCard({ entry, onOpen }: { entry: SnapshotCardEntry; onOpen: (ref
     const badge = isWorld
         ? [worldPlaceTypeLabel(readWorldPlaceType(card)), card.type].filter(Boolean).join(' / ')
         : card.race || ''
+    const newer = Boolean(card.newer_version_available)
+    const subtitle =
+        badge || newer ? (
+            <span className="flex flex-wrap items-center gap-1">
+                {badge && <Tag>{badge}</Tag>}
+                {newer && <Badge tone="ember">{t('cardVersions.newer.badge')}</Badge>}
+            </span>
+        ) : undefined
     return (
         <Card
             title={card.name || t('interaction.leftPanel.untitled')}
-            subtitle={badge ? <Tag>{badge}</Tag> : undefined}
+            subtitle={subtitle}
             highlight={ref.kind === 'persona'}
             onClick={() => onOpen(ref)}
             imageUrl={resolveMediaUrl(card.image_url)}

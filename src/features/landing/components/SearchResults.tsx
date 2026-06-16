@@ -5,7 +5,7 @@
  * portrait gallery cards, story tiles) so results stay recognizable.
  */
 
-import { ArrowRight, BookOpenText, Gem, Globe, MessageCircle, Play, SearchX, Swords, UserCircle, Users, Wand2 } from 'lucide-react'
+import { ArrowRight, BookOpenText, Gem, Globe, MessageCircle, Phone, Play, SearchX, Swords, UserCircle, Users, Wand2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -36,6 +36,8 @@ export interface SearchResultsProps {
     onOpenSession: (session: ResumeSession) => void
     onBeginTemplate: (template: Adventure) => void
     onChatCharacter: (character: Character) => void
+    /** Start a voice call. Only provided when voice mode is enabled. */
+    onCallCharacter?: (character: Character) => void
     onEditCharacter: (character: Character) => void
     onEditWorld: (world: World) => void
     onEditItem: (item: Item) => void
@@ -51,6 +53,7 @@ export function SearchResults({
     onOpenSession,
     onBeginTemplate,
     onChatCharacter,
+    onCallCharacter,
     onEditCharacter,
     onEditWorld,
     onEditItem,
@@ -104,6 +107,7 @@ export function SearchResults({
                         onOpenSession,
                         onBeginTemplate,
                         onChatCharacter,
+                        onCallCharacter,
                         onEditCharacter,
                         onEditWorld,
                         onEditItem,
@@ -117,7 +121,7 @@ export function SearchResults({
 
 type GroupHandlers = Pick<
     SearchResultsProps,
-    'onOpenSession' | 'onBeginTemplate' | 'onChatCharacter' | 'onEditCharacter' | 'onEditWorld' | 'onEditItem' | 'onOpenStory'
+    'onOpenSession' | 'onBeginTemplate' | 'onChatCharacter' | 'onCallCharacter' | 'onEditCharacter' | 'onEditWorld' | 'onEditItem' | 'onOpenStory'
 >
 
 function cardGrid(children: React.ReactNode) {
@@ -171,15 +175,28 @@ function renderGroup(group: DashboardSearchGroup, t: TFunction, handlers: GroupH
                         characterCardProps(character),
                         () => handlers.onEditCharacter(character),
                         t('landing.rail.editAria', { name: character.name }),
-                        <Button
-                            kind="arcane"
-                            size="sm"
-                            full
-                            iconLeft={<Icon icon={MessageCircle} size={15} />}
-                            onClick={() => handlers.onChatCharacter(character)}
-                        >
-                            {t('landing.search.chat')}
-                        </Button>,
+                        <div className="flex gap-2">
+                            <Button
+                                kind="primary"
+                                size="sm"
+                                className="min-w-0 flex-1"
+                                iconLeft={<Icon icon={MessageCircle} size={15} />}
+                                onClick={() => handlers.onChatCharacter(character)}
+                            >
+                                {t('landing.search.chat')}
+                            </Button>
+                            {handlers.onCallCharacter && (
+                                <Button
+                                    kind="secondary"
+                                    size="sm"
+                                    className="min-w-0 flex-1"
+                                    iconLeft={<Icon icon={Phone} size={15} />}
+                                    onClick={() => handlers.onCallCharacter!(character)}
+                                >
+                                    {t('landing.search.call')}
+                                </Button>
+                            )}
+                        </div>,
                     ),
                 ),
             )
