@@ -242,7 +242,7 @@ export function MediaHistoryDrawer({
             eyebrow={<Eyebrow tone="arcane">{t('creation.common.mediaHistory.eyebrow')}</Eyebrow>}
             title={t('creation.common.mediaHistory.title')}
             footer={
-                <Button kind="secondary" onClick={onClose}>
+                <Button variant="secondary" onClick={onClose}>
                     {t('creation.common.mediaHistory.done')}
                 </Button>
             }
@@ -319,7 +319,7 @@ export function MediaHistoryDrawer({
 
                     {imgLoading && <LoadingRow label={t('creation.common.mediaHistory.loadingGallery')} />}
                     {imgNext != null && !imgLoading && (
-                        <Button kind="secondary" size="sm" onClick={() => void loadImages(imgNext)}>
+                        <Button variant="secondary" size="sm" onClick={() => void loadImages(imgNext)}>
                             {t('creation.common.mediaHistory.loadMore')}
                         </Button>
                     )}
@@ -377,7 +377,7 @@ export function MediaHistoryDrawer({
                                                             </span>
                                                         ) : (
                                                             <Button
-                                                                kind="arcane"
+                                                                variant="arcane"
                                                                 size="sm"
                                                                 onClick={() => onSelectTheme(asset.url)}
                                                                 iconLeft={<Icon icon={Check} size={14} />}
@@ -429,7 +429,7 @@ export function MediaHistoryDrawer({
 
                             {themeLoading && <LoadingRow label={t('creation.common.mediaHistory.loadingThemes')} />}
                             {themeNext != null && !themeLoading && (
-                                <Button kind="secondary" size="sm" onClick={() => void loadThemes(themeNext)}>
+                                <Button variant="secondary" size="sm" onClick={() => void loadThemes(themeNext)}>
                                     {t('creation.common.mediaHistory.loadMore')}
                                 </Button>
                             )}

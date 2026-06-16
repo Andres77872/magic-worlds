@@ -22,7 +22,7 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                     <h3 className="font-display text-xl font-semibold text-parchment-50">{t('lorebookStudio.entryTable.heading')}</h3>
                     <p className="font-ui text-xs text-parchment-300">{t('lorebookStudio.entryTable.subtitle', { count: entries.length })}</p>
                 </div>
-                <Button size="sm" kind="secondary" iconLeft={<Icon icon={Plus} size={15} />} onClick={onAdd}>
+                <Button size="sm" variant="secondary" iconLeft={<Icon icon={Plus} size={15} />} onClick={onAdd}>
                     {t('lorebookStudio.entryTable.addEntry')}
                 </Button>
             </div>

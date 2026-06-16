@@ -78,13 +78,13 @@ function CookieBanner({ onAcceptAll, onAcceptEssential, onCustomize }: CookieBan
                     </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <Button kind="ghost" size="sm" onClick={onCustomize}>
+                    <Button variant="ghost" size="sm" onClick={onCustomize}>
                         {t('cookieConsent.customize')}
                     </Button>
-                    <Button kind="secondary" size="sm" onClick={onAcceptEssential}>
+                    <Button variant="secondary" size="sm" onClick={onAcceptEssential}>
                         {t('cookieConsent.essentialOnly')}
                     </Button>
-                    <Button kind="primary" size="sm" onClick={onAcceptAll} iconLeft={<Check size={15} strokeWidth={2} />}>
+                    <Button variant="primary" size="sm" onClick={onAcceptAll} iconLeft={<Check size={15} strokeWidth={2} />}>
                         {t('cookieConsent.acceptAll')}
                     </Button>
                 </div>
@@ -120,10 +120,10 @@ function CookiePreferencesModal({ open, initialAnalytics, onClose, onSave }: Coo
             size="md"
             footer={
                 <>
-                    <Button kind="ghost" onClick={handleClose}>
+                    <Button variant="ghost" onClick={handleClose}>
                         {t('common.cancel')}
                     </Button>
-                    <Button kind="primary" onClick={() => onSave({ essential: true, analytics })}>
+                    <Button variant="primary" onClick={() => onSave({ essential: true, analytics })}>
                         {t('cookieConsent.save')}
                     </Button>
                 </>

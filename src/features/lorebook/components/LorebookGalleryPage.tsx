@@ -115,7 +115,7 @@ export function LorebookGalleryPage() {
                                 </IconButton>
                             )}
                         </div>
-                        <Button kind="primary" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook}>
+                        <Button variant="primary" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook}>
                             {t('lorebookGallery.actions.new')}
                         </Button>
                     </div>
@@ -125,7 +125,7 @@ export function LorebookGalleryPage() {
             {gallery.error && (
                 <div className="flex items-center justify-between gap-4 rounded-lg border border-blood-500/30 bg-blood-500/10 px-4 py-3 font-ui text-sm text-parchment-200" role="alert">
                     <span>{gallery.error}</span>
-                    <Button kind="secondary" size="sm" onClick={gallery.refresh}>{t('lorebookGallery.actions.retry')}</Button>
+                    <Button variant="secondary" size="sm" onClick={gallery.refresh}>{t('lorebookGallery.actions.retry')}</Button>
                 </div>
             )}
 
@@ -142,9 +142,9 @@ export function LorebookGalleryPage() {
                 emptyStateDescription={hasQuery ? t('lorebookGallery.empty.noMatchDescription') : t('lorebookGallery.empty.noItemsDescription')}
                 emptyStateAction={
                     hasQuery ? (
-                        <Button kind="secondary" size="sm" onClick={() => gallery.setQuery('')}>{t('lorebookGallery.actions.clearSearch')}</Button>
+                        <Button variant="secondary" size="sm" onClick={() => gallery.setQuery('')}>{t('lorebookGallery.actions.clearSearch')}</Button>
                     ) : (
-                        <Button kind="primary" size="sm" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook}>{t('lorebookGallery.actions.new')}</Button>
+                        <Button variant="primary" size="sm" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook}>{t('lorebookGallery.actions.new')}</Button>
                     )
                 }
                 data-testid="gallery-grid-lorebook"

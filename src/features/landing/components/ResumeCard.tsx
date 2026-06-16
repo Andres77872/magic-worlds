@@ -79,13 +79,20 @@ export function ResumeCard({ session, onContinue, onCall, onDelete, deleting = f
             onClick={deleting ? undefined : onContinue}
             onKeyDown={deleting ? undefined : handleKeyDown}
             className={cx(
-                'group relative flex cursor-pointer items-center gap-4 rounded-lg border border-parchment-50/[.08]',
-                'border-l-2 bg-ink-700 p-4 transition-all hover:-translate-y-[2px]',
+                'group relative flex cursor-pointer items-center gap-4 overflow-hidden rounded-lg border border-line-faint',
+                'border-l-2 p-4 transition-all hover:-translate-y-[2px]',
                 isArcane
                     ? 'border-l-arcane-500/50 hover:border-arcane-500/45 hover:shadow-card-hover-arcane'
                     : 'border-l-ember-500/50 hover:border-ember-500/45 hover:shadow-card-hover',
                 deleting && 'pointer-events-none opacity-60',
             )}
+            // A faint candlelight wash bleeds from the avatar edge over the ink
+            // gradient — warms the row at rest so it reads lit, not flat.
+            style={{
+                backgroundImage: isArcane
+                    ? 'linear-gradient(105deg, color-mix(in srgb, var(--color-arcane-500) 11%, transparent), transparent 40%), linear-gradient(to bottom right, var(--color-ink-700), var(--color-ink-800))'
+                    : 'linear-gradient(105deg, color-mix(in srgb, var(--color-ember-500) 11%, transparent), transparent 40%), linear-gradient(to bottom right, var(--color-ink-700), var(--color-ink-800))',
+            }}
             data-testid="resume-card"
         >
             {isGroupChat && session.imageUrls?.length ? (

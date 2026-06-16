@@ -109,12 +109,12 @@ export function ActiveAdventuresPage() {
 
     const hasQuery = query.trim().length > 0
     const emptyAction = hasQuery ? (
-        <Button kind="secondary" size="sm" onClick={() => setQuery('')}>
+        <Button variant="secondary" size="sm" onClick={() => setQuery('')}>
             {t('interaction.adventures.clearSearch')}
         </Button>
     ) : (
         <Button
-            kind="primary"
+            variant="primary"
             size="sm"
             iconLeft={<Icon icon={Swords} size={15} />}
             onClick={() => setPage('gallery-adventures')}

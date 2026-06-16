@@ -69,7 +69,7 @@ export function EditorBubbleMenu({ editor, phase, onSelectionCommand }: EditorBu
             {SELECTION_COMMANDS.map(({ command, labelKey }) => (
                 <Button
                     key={command}
-                    kind="ghost"
+                    variant="ghost"
                     size="sm"
                     disabled={aiDisabled}
                     onMouseDown={preventToolbarBlur}

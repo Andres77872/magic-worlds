@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { ComponentProps } from 'react'
 import { useState } from 'react'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { Toast } from './Toast'
 import { Button } from './Button'
 
@@ -45,16 +46,38 @@ type Story = StoryObj<typeof meta>
 /** Click to raise the toast; it docks bottom-right and stays until dismissed. */
 function ToastDemo(props: Partial<ComponentProps<typeof Toast>>) {
   const [open, setOpen] = useState(false)
+  const { onClose, ...rest } = props
   return (
     <>
       <Button onClick={() => setOpen(true)}>Show notice</Button>
-      <Toast tone="success" title="Changes saved" {...props} open={open} onClose={() => setOpen(false)} />
+      <Toast
+        tone="success"
+        title="Changes saved"
+        {...rest}
+        open={open}
+        onClose={() => {
+          setOpen(false)
+          onClose?.()
+        }}
+      />
     </>
   )
 }
 
 export const Success: Story = {
+  args: { onClose: fn() },
   render: (args) => <ToastDemo {...args} />,
+  // The toast portals to document.body, so query the whole document, not just
+  // the story canvas. Raise it, dismiss it, and assert onClose fired + it left.
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: 'Show notice' }))
+    const body = within(document.body)
+    const dismiss = await body.findByRole('button', { name: /dismiss/i })
+    await userEvent.click(dismiss)
+    await expect(args.onClose).toHaveBeenCalled()
+    await waitFor(() => expect(body.queryByRole('status')).not.toBeInTheDocument())
+  },
 }
 
 export const Error: Story = {

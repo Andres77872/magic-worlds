@@ -492,7 +492,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                             </Eyebrow>
                             <div className="flex items-center">
                                 <Button
-                                    kind="ghost"
+                                    variant="ghost"
                                     size="sm"
                                     iconLeft={<Icon icon={Square} size={13} />}
                                     onClick={playlist.stop}
@@ -500,7 +500,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                     {t('playlist.stop')}
                                 </Button>
                                 <Button
-                                    kind="ghost"
+                                    variant="ghost"
                                     size="sm"
                                     iconLeft={<Icon icon={Trash2} size={13} />}
                                     onClick={playlist.clearAndClose}

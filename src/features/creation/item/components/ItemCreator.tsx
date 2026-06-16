@@ -351,7 +351,7 @@ export function ItemCreator() {
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
-                <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
+                <Button variant="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
                     {isSubmitting ? t('creation.common.formActions.saving') : editingItem ? t('creation.common.studio.update') : t('creation.item.create')}
                 </Button>
             }

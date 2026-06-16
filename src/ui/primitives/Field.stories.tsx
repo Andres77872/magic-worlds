@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, userEvent, within } from 'storybook/test'
 import { Field, Input, Textarea } from './Field'
 import { Select } from './Select'
 
@@ -37,6 +38,12 @@ export const WithInput: Story = {
       <Input placeholder="e.g. Lyra Dawnwhisper" />
     </Field>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const input = await canvas.findByRole('textbox', { name: 'Character name' })
+    await userEvent.type(input, 'Lyra Dawnwhisper')
+    await expect(input).toHaveValue('Lyra Dawnwhisper')
+  },
 }
 
 export const WithError: Story = {

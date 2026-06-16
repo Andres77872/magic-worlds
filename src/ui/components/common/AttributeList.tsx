@@ -82,7 +82,7 @@ export const AttributeList = ({
         <div className="flex w-full flex-wrap items-center justify-between gap-2 md:w-auto md:justify-end">
           <Button
             type="button"
-            kind="secondary"
+            variant="secondary"
             size="sm"
             iconLeft={<Icon icon={Plus} size={14} />}
             onClick={onAddAttribute}
@@ -93,7 +93,7 @@ export const AttributeList = ({
           {isDeletable && onDeleteCategory && (
             <Button
               type="button"
-              kind="danger"
+              variant="danger"
               size="sm"
               iconLeft={<Icon icon={Trash2} size={14} />}
               onClick={handleDeleteClick}

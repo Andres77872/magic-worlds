@@ -101,7 +101,7 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
     return (
         <div className="flex flex-col gap-6 p-5">
             <div className="flex items-center gap-2">
-                <Button kind="secondary" full iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack} className="flex-1">
+                <Button variant="secondary" full iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack} className="flex-1">
                     {t('interaction.leftPanel.backToAdventures')}
                 </Button>
                 <ModeBadge mode="adventure" />
@@ -225,7 +225,7 @@ function NarrationSection({
                     )}
                 </div>
                 <Button
-                    kind="secondary"
+                    variant="secondary"
                     size="sm"
                     iconLeft={<Icon icon={AudioLines} size={14} />}
                     onClick={() => setPickerOpen(true)}
@@ -363,7 +363,7 @@ function ScenarioSection({
                     {error && <p className="font-ui text-[12px] text-blood-500">{error}</p>}
                     <div className="flex justify-end gap-2">
                         <Button
-                            kind="ghost"
+                            variant="ghost"
                             size="sm"
                             iconLeft={<Icon icon={X} size={15} />}
                             onClick={() => setEditing(false)}
@@ -371,7 +371,7 @@ function ScenarioSection({
                         >
                             {t('common.cancel')}
                         </Button>
-                        <Button kind="primary" size="sm" iconLeft={<Icon icon={Check} size={15} />} onClick={submit} disabled={saving}>
+                        <Button variant="primary" size="sm" iconLeft={<Icon icon={Check} size={15} />} onClick={submit} disabled={saving}>
                             {saving ? t('common.saving') : t('common.save')}
                         </Button>
                     </div>

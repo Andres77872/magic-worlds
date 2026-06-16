@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, userEvent, within } from 'storybook/test'
 import { Switch, SwitchRow } from './Switch'
 
 const meta = {
@@ -29,6 +30,13 @@ function ControlledSwitch(props: Omit<Parameters<typeof Switch>[0], 'checked' | 
 export const Basic: Story = {
   args: { checked: true, onChange: () => {}, 'aria-label': 'Enabled' },
   render: () => <ControlledSwitch initial aria-label="Enabled" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const toggle = await canvas.findByRole('switch', { name: 'Enabled' })
+    await expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await userEvent.click(toggle)
+    await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  },
 }
 
 export const Sizes: Story = {

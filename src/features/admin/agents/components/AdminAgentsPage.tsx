@@ -291,7 +291,7 @@ export function AdminAgentsPage() {
                 actions={
                     <div className="flex gap-2">
                         <Button
-                            kind="secondary"
+                            variant="secondary"
                             size="sm"
                             iconLeft={<Icon icon={Plus} size={15} />}
                             onClick={startNew}
@@ -299,7 +299,7 @@ export function AdminAgentsPage() {
                             New agent
                         </Button>
                         <Button
-                            kind="secondary"
+                            variant="secondary"
                             size="sm"
                             iconLeft={<Icon icon={RefreshCw} size={15} className={loadingList ? 'animate-spin' : undefined} />}
                             onClick={() => void refreshAgents()}
@@ -318,7 +318,7 @@ export function AdminAgentsPage() {
                     role="alert"
                 >
                     <span>{error}</span>
-                    <Button kind="secondary" size="sm" onClick={() => setError(null)}>
+                    <Button variant="secondary" size="sm" onClick={() => setError(null)}>
                         Dismiss
                     </Button>
                 </div>
@@ -465,7 +465,7 @@ function AgentList({
                     tone="arcane"
                     right={<Badge tone={loading ? 'neutral' : 'glass'}>{loading ? 'Loading' : `${agents.length}`}</Badge>}
                 />
-                <Button kind="secondary" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={onNew}>
+                <Button variant="secondary" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={onNew}>
                     New custom agent
                 </Button>
                 <div className="flex flex-col gap-2">
@@ -756,7 +756,7 @@ function AgentEditor(props: EditorProps) {
                 <div className="flex gap-2">
                     {!isNew && !isBuiltin && (
                         <Button
-                            kind="danger"
+                            variant="danger"
                             size="sm"
                             type="button"
                             iconLeft={<Icon icon={Trash2} size={14} />}
@@ -768,7 +768,7 @@ function AgentEditor(props: EditorProps) {
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <Button
-                        kind="secondary"
+                        variant="secondary"
                         size="sm"
                         type="button"
                         iconLeft={<Icon icon={History} size={14} />}
@@ -779,7 +779,7 @@ function AgentEditor(props: EditorProps) {
                     </Button>
                     <Button
                         type="submit"
-                        kind="secondary"
+                        variant="secondary"
                         size="sm"
                         iconLeft={<Icon icon={saving ? Loader2 : Save} size={14} className={saving ? 'animate-spin' : undefined} />}
                         disabled={!canSave || saving || (!dirty && !isNew)}
@@ -788,7 +788,7 @@ function AgentEditor(props: EditorProps) {
                     </Button>
                     <Button
                         type="button"
-                        kind="primary"
+                        variant="primary"
                         size="sm"
                         iconLeft={<Icon icon={publishing ? Loader2 : Rocket} size={14} className={publishing ? 'animate-spin' : undefined} />}
                         onClick={onPublish}
@@ -940,7 +940,7 @@ function VersionHistoryDrawer({
                             )}
                         </div>
                         {!version.is_current && (
-                            <Button kind="secondary" size="sm" onClick={() => onRollback(version)}>
+                            <Button variant="secondary" size="sm" onClick={() => onRollback(version)}>
                                 Roll back
                             </Button>
                         )}
@@ -1004,7 +1004,7 @@ function AgentTestPanel({
                 <div className="flex justify-end">
                     <Button
                         type="button"
-                        kind="primary"
+                        variant="primary"
                         size="sm"
                         iconLeft={<Icon icon={running ? Loader2 : Play} size={14} className={running ? 'animate-spin' : undefined} />}
                         onClick={() => void run()}

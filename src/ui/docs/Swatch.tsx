@@ -7,7 +7,7 @@
  * even though the surrounding Storybook docs page is light.
  */
 import type { CSSProperties, ReactNode } from 'react'
-import { COLOR_GROUPS, FONTS, RADII, SHADOWS, TYPE_SCALE } from './tokens'
+import { COLOR_GROUPS, FONTS, RADII, SEMANTIC_COLORS, SHADOWS, TYPE_SCALE } from './tokens'
 
 /**
  * Resolve a CSS custom property's live value from theme.css. getComputedStyle
@@ -67,6 +67,26 @@ export function ColorScales() {
     <Stage>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
         {COLOR_GROUPS.map((group) => (
+          <div key={group.label}>
+            <GroupLabel label={group.label} note={group.note} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              {group.tokens.map((t) => (
+                <ColorSwatch key={t} token={t} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Stage>
+  )
+}
+
+/** The semantic / role color tokens, grouped and read live like ColorScales. */
+export function SemanticScales() {
+  return (
+    <Stage>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+        {SEMANTIC_COLORS.map((group) => (
           <div key={group.label}>
             <GroupLabel label={group.label} note={group.note} />
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>

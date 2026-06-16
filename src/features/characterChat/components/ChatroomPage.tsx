@@ -114,12 +114,12 @@ export function ChatroomPage() {
 
     const hasQuery = query.trim().length > 0
     const emptyAction = hasQuery ? (
-        <Button kind="secondary" size="sm" onClick={() => setQuery('')}>
+        <Button variant="secondary" size="sm" onClick={() => setQuery('')}>
             {t('characterChat.room.clearSearch')}
         </Button>
     ) : (
         <Button
-            kind="arcane"
+            variant="arcane"
             size="sm"
             iconLeft={<Icon icon={Users} size={15} />}
             onClick={() => setPage('gallery-characters')}
@@ -140,7 +140,7 @@ export function ChatroomPage() {
                 actions={
                     <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto md:justify-end">
                         <Button
-                            kind="primary"
+                            variant="primary"
                             iconLeft={<Icon icon={Users} size={16} />}
                             onClick={startGroupChat}
                             className="shrink-0"

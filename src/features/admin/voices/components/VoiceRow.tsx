@@ -34,12 +34,12 @@ export function VoiceRow({ voice, deleting, onTest, onDelete }: VoiceRowProps) {
                 )}
             </div>
             <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <Button kind="secondary" size="sm" iconLeft={<Icon icon={Play} size={14} />} onClick={() => onTest(voice)}>
+                <Button variant="secondary" size="sm" iconLeft={<Icon icon={Play} size={14} />} onClick={() => onTest(voice)}>
                     {t('admin.voices.row.test')}
                 </Button>
                 {voice.deletable ? (
                     <Button
-                        kind="danger"
+                        variant="danger"
                         size="sm"
                         iconLeft={<Icon icon={deleting ? Loader2 : Trash2} size={14} className={deleting ? 'animate-spin' : undefined} />}
                         disabled={deleting}

@@ -34,11 +34,11 @@ export function CallHistoryRow({ call, characters, onView, onCallAgain }: CallHi
             </div>
             <div className="flex shrink-0 items-center gap-2">
                 {onCallAgain && (
-                    <Button kind="ghost" size="sm" iconLeft={<Icon icon={Phone} size={15} />} onClick={onCallAgain}>
+                    <Button variant="ghost" size="sm" iconLeft={<Icon icon={Phone} size={15} />} onClick={onCallAgain}>
                         {t('call.history.callAgain')}
                     </Button>
                 )}
-                <Button kind="secondary" size="sm" iconLeft={<Icon icon={ScrollText} size={15} />} onClick={onView}>
+                <Button variant="secondary" size="sm" iconLeft={<Icon icon={ScrollText} size={15} />} onClick={onView}>
                     {t('call.history.transcript')}
                 </Button>
             </div>

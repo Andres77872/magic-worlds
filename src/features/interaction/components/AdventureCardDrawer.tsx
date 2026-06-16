@@ -134,7 +134,7 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
             <div className="flex w-full items-center justify-between gap-3">
                 {onRemove ? (
                     <Button
-                        kind="ghost"
+                        variant="ghost"
                         iconLeft={<Icon icon={Trash2} size={16} />}
                         onClick={handleRemove}
                         disabled={removing}
@@ -146,7 +146,7 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
                     <span />
                 )}
                 <Button
-                    kind="primary"
+                    variant="primary"
                     iconLeft={<Icon icon={Pencil} size={16} />}
                     // Defer the view→edit swap out of this click. React 19 commits a
                     // click handler's state synchronously; swapping this button for the
@@ -161,10 +161,10 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
             </div>
         ) : (
             <div className="flex w-full items-center justify-end gap-2">
-                <Button kind="ghost" onClick={() => startTransition(() => setMode('view'))} disabled={isSubmitting}>
+                <Button variant="ghost" onClick={() => startTransition(() => setMode('view'))} disabled={isSubmitting}>
                     {t('common.cancel')}
                 </Button>
-                <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
+                <Button variant="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
                     {isSubmitting ? t('common.saving') : t('interaction.cardDrawer.saveChanges')}
                 </Button>
             </div>

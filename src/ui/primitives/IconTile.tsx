@@ -28,14 +28,16 @@ const SIZE = {
     lg: { box: 'h-14 w-14 rounded-2xl', glyph: 28 },
 } as const
 
+// A lit glyph-plate: a candlelit gradient fill + inset ring + a soft resting
+// halo, so tiles read as glowing runes rather than flat tinted squares.
 const TONE = {
-    ember: 'bg-ember-500/[.12] text-ember-400',
-    arcane: 'bg-arcane-500/15 text-arcane-400',
+    ember: 'bg-gradient-to-br from-ember-500/25 to-ember-500/[.06] text-ember-300 ring-1 ring-inset ring-ember-500/25 shadow-[0_0_20px_-8px_var(--color-ember-500)]',
+    arcane: 'bg-gradient-to-br from-arcane-500/28 to-arcane-500/[.08] text-arcane-300 ring-1 ring-inset ring-arcane-500/25 shadow-[0_0_20px_-7px_var(--color-arcane-500)]',
 } as const
 
 const GLOW = {
-    ember: 'group-hover:shadow-glow-ember',
-    arcane: 'group-hover:shadow-glow-arcane',
+    ember: 'group-hover:shadow-glow-ember group-hover:ring-ember-500/45 group-hover:text-ember-200',
+    arcane: 'group-hover:shadow-glow-arcane group-hover:ring-arcane-500/45 group-hover:text-arcane-200',
 } as const
 
 export function IconTile({ icon, tone = 'ember', size = 'md', glow = false, className }: IconTileProps) {
@@ -43,7 +45,7 @@ export function IconTile({ icon, tone = 'ember', size = 'md', glow = false, clas
     return (
         <span
             className={cx(
-                'inline-flex shrink-0 items-center justify-center transition-all',
+                'inline-flex shrink-0 items-center justify-center transition-all duration-300',
                 dims.box,
                 TONE[tone],
                 glow && GLOW[tone],

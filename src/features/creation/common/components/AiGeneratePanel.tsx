@@ -175,12 +175,12 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
             {error && <p className="text-sm text-blood-500">{error}</p>}
             <div className="flex justify-end gap-2">
                 {isGenerating && (
-                    <Button kind="secondary" onClick={handleCancel}>
+                    <Button variant="secondary" onClick={handleCancel}>
                         {t('common.cancel')}
                     </Button>
                 )}
                 <Button
-                    kind="arcane"
+                    variant="arcane"
                     onClick={handleGenerate}
                     disabled={!canGenerate}
                     iconLeft={<Icon icon={Sparkles} size={16} />}

@@ -8,7 +8,7 @@
 import type { KeyboardEvent } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Card, Eyebrow, Icon, IconTile } from '@/ui/primitives'
+import { Card, Eyebrow, Icon, IconTile, cx } from '@/ui/primitives'
 import { CREATE_ACTIONS, type CreateAction } from './landingContent'
 
 export interface AccessMenuProps {
@@ -50,8 +50,15 @@ export function AccessMenu({
                             aria-label={t(action.titleKey)}
                             onClick={() => onAction(action.key)}
                             onKeyDown={activateOnKey(() => onAction(action.key))}
-                            className="group p-7"
+                            className="group relative overflow-hidden p-7"
                         >
+                            <span
+                                aria-hidden
+                                className={cx(
+                                    'pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent to-transparent',
+                                    action.tone === 'arcane' ? 'via-arcane-500/40' : 'via-ember-500/40',
+                                )}
+                            />
                             <IconTile icon={action.icon} tone={action.tone} glow className="mb-5" />
                             <h3 className="font-ui text-[19px] font-semibold tracking-[-0.01em] text-parchment-50">
                                 {t(action.titleKey)}

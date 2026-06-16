@@ -102,6 +102,82 @@
   --text-caption: 12px;
   --text-eyebrow: 12px;
   --text-eyebrow--letter-spacing: 0.18em;
+  /* micro type for badges, counts, and meta rows */
+  --text-meta: 11px;
+  --text-meta--line-height: 1.3;
+  --text-micro: 10px;
+  --text-micro--line-height: 1.2;
+  /* prose heading sizes shared by chat-prose + the story editor */
+  --text-prose-h1: 30px;
+  --text-prose-h2: 26px;
+  --text-prose-h3: 22px;
+
+  /* ---------- semantic / role tokens → bg-/text-/border- utilities ----------
+     Prefer these over raw ramps so intent reads clearly and a palette shift is a
+     token edit, not a find/replace. The raw ramps stay available underneath. */
+  --color-fg: var(--color-parchment-50); /* primary text/icon */
+  --color-fg-muted: var(--color-parchment-200); /* secondary text */
+  --color-fg-subtle: var(--color-parchment-300); /* muted text */
+  --color-fg-faint: var(--color-parchment-400); /* placeholders */
+  --color-surface: var(--color-ink-800); /* page / base surface */
+  --color-surface-raised: var(--color-ink-700); /* cards, controls */
+  --color-surface-overlay: var(--color-ink-600); /* popovers, raised wells */
+  --color-surface-sunken: var(--color-ink-900); /* code, deepest wells */
+  --color-accent: var(--color-ember-500); /* primary action / focus */
+  --color-accent-hover: var(--color-ember-400);
+  --color-accent-ai: var(--color-arcane-500); /* AI / magic side */
+  --color-line: color-mix(in srgb, var(--color-parchment-50) 12%, transparent); /* hairline border */
+  --color-line-faint: color-mix(in srgb, var(--color-parchment-50) 8%, transparent);
+  --color-line-strong: color-mix(in srgb, var(--color-parchment-50) 22%, transparent);
+
+  /* ---------- aspect ratios → aspect-* ---------- */
+  --aspect-portrait: 3 / 4;
+  --aspect-square: 1 / 1;
+  --aspect-wide: 16 / 9;
+
+  /* ---------- candlelit focus + stronger glows → shadow-* ---------- */
+  --shadow-input-focus: 0 0 0 1px var(--color-ember-500),
+    0 0 14px -2px color-mix(in srgb, var(--color-ember-500) 45%, transparent);
+  --shadow-input-focus-arcane: 0 0 0 1px var(--color-arcane-500),
+    0 0 14px -2px color-mix(in srgb, var(--color-arcane-500) 45%, transparent);
+  --shadow-glow-ember-strong: 0 0 0 1px color-mix(in srgb, var(--color-ember-500) 50%, transparent),
+    0 10px 40px -6px color-mix(in srgb, var(--color-ember-500) 45%, transparent);
+  --shadow-glow-arcane-strong: 0 0 0 1px color-mix(in srgb, var(--color-arcane-500) 50%, transparent),
+    0 10px 42px -6px color-mix(in srgb, var(--color-arcane-500) 50%, transparent);
+
+  /* ---------- non-utility design constants (consumed via var()) ---------- */
+  /* alpha ladder for tints + borders */
+  --alpha-faint: 0.06;
+  --alpha-subtle: 0.1;
+  --alpha-soft: 0.15;
+  --alpha-medium: 0.25;
+  --alpha-strong: 0.35;
+  --alpha-emphasis: 0.55;
+  /* candlelight glow fills (radial-gradient color stops) */
+  --glow-ember-hero: color-mix(in srgb, var(--color-ember-500) 16%, transparent);
+  --glow-ember-page: color-mix(in srgb, var(--color-ember-500) 13%, transparent);
+  --glow-ember-faint: color-mix(in srgb, var(--color-ember-500) 8%, transparent);
+  --glow-arcane-hero: color-mix(in srgb, var(--color-arcane-500) 18%, transparent);
+  --glow-arcane-page: color-mix(in srgb, var(--color-arcane-500) 14%, transparent);
+  --glow-arcane-faint: color-mix(in srgb, var(--color-arcane-500) 10%, transparent);
+  /* focus-ring composites (2px ink gap + 4px accent) */
+  --ring-ember: 0 0 0 2px var(--color-ink-800), 0 0 0 4px var(--color-ember-500);
+  --ring-arcane: 0 0 0 2px var(--color-ink-800), 0 0 0 4px var(--color-arcane-500);
+  --ring-danger: 0 0 0 2px var(--color-ink-800), 0 0 0 4px var(--color-blood-500);
+  /* interaction transforms */
+  --scale-press: 0.98;
+  --scale-hover: 1.02;
+  --scale-zoom: 1.035;
+  /* layout widths (Drawer / Modal / Sidebar size maps consume via var()) */
+  --width-sidebar: 264px;
+  --width-drawer-sm: 360px;
+  --width-drawer-md: 440px;
+  --width-drawer-lg: 600px;
+  --width-drawer-xl: 760px;
+  --width-drawer-2xl: 920px;
+  --width-modal-sm: 420px;
+  --width-modal-md: 540px;
+  --width-modal-lg: 720px;
 }
 
 /* AI "thinking" pulse used by the character avatar while generating */
@@ -172,14 +248,15 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* always-visible candlelit focus ring (Reverie --ring-focus) */
+  /* always-visible candlelit focus ring (Reverie --ring-focus). Per-context
+     variants (arcane/danger) are available as --ring-arcane / --ring-danger. */
   :focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px var(--color-ink-800), 0 0 0 4px var(--color-ember-500);
+    box-shadow: var(--ring-ember);
   }
 
   ::selection {
-    background: rgba(232, 162, 74, 0.28);
+    background: color-mix(in srgb, var(--color-ember-500) 28%, transparent);
     color: var(--color-parchment-50);
   }
 
@@ -236,10 +313,65 @@
   .app-stone {
     background-color: var(--color-ink-800);
     background-image:
-      linear-gradient(rgba(232, 162, 74, 0.03), rgba(143, 111, 227, 0.025)),
+      /* edge vignette: pools the candlelight toward the centre for depth */
+      radial-gradient(140% 120% at 50% 6%, transparent 52%, rgba(0, 0, 0, 0.4)),
+      /* warm ember→cool arcane cast (a touch richer than before — the glow-up) */
+      linear-gradient(
+        color-mix(in srgb, var(--color-ember-500) 4%, transparent),
+        color-mix(in srgb, var(--color-arcane-500) 3.5%, transparent)
+      ),
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch' seed='7'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.04'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    background-repeat: no-repeat, repeat;
-    background-size: cover, 200px 200px;
+    background-repeat: no-repeat, no-repeat, repeat;
+    background-size: cover, cover, 200px 200px;
+  }
+
+  /* Shared interactive lift — the candlelit hover for cards, tiles, and tappable
+     surfaces: a small rise, a warm hairline, and a glow. `.lift` is the ember
+     default; add `.lift-arcane` to swap the accent to the AI side. Press shrinks.
+     Reduced motion (handled globally) collapses the transition. */
+  .lift {
+    transition:
+      transform 220ms var(--ease-out),
+      box-shadow 220ms var(--ease-out),
+      border-color 220ms var(--ease-out);
+  }
+  .lift:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-card-hover);
+    border-color: color-mix(in srgb, var(--color-ember-500) 45%, transparent);
+  }
+  .lift-arcane:hover {
+    box-shadow: var(--shadow-card-hover-arcane);
+    border-color: color-mix(in srgb, var(--color-arcane-500) 45%, transparent);
+  }
+  .lift:active {
+    transform: scale(var(--scale-press));
+  }
+
+  /* Reusable arcane shimmer sweep — image placeholders, pending-AI widgets, and
+     audio loading states share this instead of duplicating the gradient inline. */
+  .shimmer-arcane {
+    background-image: linear-gradient(
+      100deg,
+      transparent 30%,
+      var(--glow-arcane-hero) 50%,
+      transparent 70%
+    );
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: var(--animate-shimmer);
+  }
+
+  /* Inner edge darkening — gives flat cards/modals a candlelit pooled-light feel. */
+  .candle-vignette {
+    box-shadow: inset 0 0 60px -22px rgba(0, 0, 0, 0.7);
+  }
+
+  /* Hairline accent glow along the top edge — modal/drawer headers, focused wells. */
+  .glow-edge {
+    box-shadow:
+      0 1px 0 0 color-mix(in srgb, var(--color-ember-500) 20%, transparent),
+      0 10px 26px -18px color-mix(in srgb, var(--color-ember-500) 40%, transparent);
   }
 
   /* Animated placeholder shown over a generated scene image until its bytes
@@ -250,7 +382,7 @@
     background-image: linear-gradient(
       100deg,
       transparent 30%,
-      rgba(143, 111, 227, 0.14) 50%,
+      color-mix(in srgb, var(--color-arcane-500) 14%, transparent) 50%,
       transparent 70%
     );
     background-size: 200% 100%;

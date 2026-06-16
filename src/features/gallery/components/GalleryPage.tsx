@@ -668,16 +668,16 @@ export function GalleryPage({ type }: GalleryPageProps) {
     }
 
     const emptyAction: ReactNode = hasQuery ? (
-        <Button kind="secondary" size="sm" onClick={() => gallery.setQuery('')}>
+        <Button variant="secondary" size="sm" onClick={() => gallery.setQuery('')}>
             {t('gallery.clearSearch')}
         </Button>
     ) : isPublicView ? (
-        <Button kind="secondary" size="sm" onClick={gallery.refresh}>
+        <Button variant="secondary" size="sm" onClick={gallery.refresh}>
             {t('gallery.refresh')}
         </Button>
     ) : (
         <Button
-            kind="primary"
+            variant="primary"
             size="sm"
             iconLeft={<Icon icon={Plus} size={16} />}
             onClick={openCreatePage}
@@ -749,7 +749,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                         </div>
                         {type === 'character' && !groupSelectionMode && !isPublicView && (
                             <Button
-                                kind="primary"
+                                variant="primary"
                                 iconLeft={<Icon icon={Users} size={16} />}
                                 onClick={enterGroupSelection}
                                 className="shrink-0"
@@ -759,7 +759,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                         )}
                         {!groupSelectionMode && !isPublicView && (
                             <Button
-                                kind={type === 'character' ? 'secondary' : 'primary'}
+                                variant={type === 'character' ? 'secondary' : 'primary'}
                                 iconLeft={<Icon icon={Plus} size={16} />}
                                 onClick={openCreatePage}
                                 className="shrink-0"
@@ -782,11 +782,11 @@ export function GalleryPage({ type }: GalleryPageProps) {
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <Button kind="ghost" size="sm" onClick={cancelGroupSelection}>
+                        <Button variant="ghost" size="sm" onClick={cancelGroupSelection}>
                             {t('common.cancel')}
                         </Button>
                         <Button
-                            kind="primary"
+                            variant="primary"
                             size="sm"
                             iconLeft={<Icon icon={Users} size={15} />}
                             disabled={Object.keys(selectedGroupItems).length < 2}
@@ -804,7 +804,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                     role="alert"
                 >
                     <span>{gallery.error}</span>
-                    <Button kind="secondary" size="sm" onClick={gallery.refresh}>
+                    <Button variant="secondary" size="sm" onClick={gallery.refresh}>
                         {t('gallery.retry')}
                     </Button>
                 </div>
@@ -867,7 +867,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                             highlighted={selectionMode ? selected : highlightedId === item.id}
                             footer={selectionMode ? (
                                 <Button
-                                    kind={selected ? 'primary' : 'secondary'}
+                                    variant={selected ? 'primary' : 'secondary'}
                                     size="sm"
                                     full
                                     iconLeft={selected ? <Icon icon={CheckCircle2} size={15} /> : <Icon icon={Plus} size={15} />}
@@ -877,7 +877,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                                 </Button>
                             ) : isPublicView ? (
                                 <Button
-                                    kind={alreadyImported ? 'secondary' : 'primary'}
+                                    variant={alreadyImported ? 'secondary' : 'primary'}
                                     size="sm"
                                     full
                                     iconLeft={
@@ -899,7 +899,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                             ) : type === 'character' ? (
                                 <div className="flex gap-2">
                                     <Button
-                                        kind="primary"
+                                        variant="primary"
                                         size="sm"
                                         className="min-w-0 flex-1"
                                         iconLeft={
@@ -916,7 +916,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                                     </Button>
                                     {voiceModeEnabled && (
                                         <Button
-                                            kind="secondary"
+                                            variant="secondary"
                                             size="sm"
                                             className="min-w-0 flex-1"
                                             iconLeft={

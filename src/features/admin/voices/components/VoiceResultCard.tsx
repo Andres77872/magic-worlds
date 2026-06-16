@@ -44,7 +44,7 @@ export function VoiceResultCard({
                 </div>
                 {onSendToLab && (
                     <Button
-                        kind="secondary"
+                        variant="secondary"
                         size="sm"
                         iconLeft={<Icon icon={Send} size={14} />}
                         onClick={() => onSendToLab(voiceId)}

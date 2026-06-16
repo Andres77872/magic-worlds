@@ -39,7 +39,7 @@ export function AppWarningModal() {
             size="lg"
             footer={
                 <Button
-                    kind="primary"
+                    variant="primary"
                     onClick={acceptWarning}
                     iconLeft={<CheckCircle2 size={16} strokeWidth={1.75} />}
                 >

@@ -8,6 +8,8 @@ import { createContext, useContext } from 'react'
 export interface FieldContextValue {
     id: string
     invalid: boolean
+    /** id of the active error/helper text, wired to the control's aria-describedby. */
+    describedById?: string
 }
 
 export const FieldContext = createContext<FieldContextValue | null>(null)

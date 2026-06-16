@@ -33,7 +33,7 @@ export function CharacterChatSidebar({ character, characters, title, isGroup = f
     return (
         <div className="flex h-full flex-col bg-ink-900">
             <div className="flex items-center gap-2 border-b border-parchment-50/10 px-4 py-3">
-                <Button kind="ghost" size="sm" onClick={onBack} iconLeft={<ArrowLeft size={16} />}>
+                <Button variant="ghost" size="sm" onClick={onBack} iconLeft={<ArrowLeft size={16} />}>
                     {t('common.back')}
                 </Button>
                 <span className="ml-auto">
@@ -104,7 +104,7 @@ export function CharacterChatSidebar({ character, characters, title, isGroup = f
                                             )}
                                         </div>
                                         <Button
-                                            kind="ghost"
+                                            variant="ghost"
                                             size="sm"
                                             onClick={() => onEditCharacter(member)}
                                             iconLeft={<Pencil size={14} />}
@@ -140,7 +140,7 @@ export function CharacterChatSidebar({ character, characters, title, isGroup = f
                     {voiceEnabled && onSetMode && (
                         mode === 'voice' ? (
                             <Button
-                                kind="secondary"
+                                variant="secondary"
                                 onClick={() => onSetMode('text')}
                                 iconLeft={<Icon icon={MessageCircle} size={15} />}
                                 className="w-full"
@@ -149,7 +149,7 @@ export function CharacterChatSidebar({ character, characters, title, isGroup = f
                             </Button>
                         ) : (
                             <Button
-                                kind="primary"
+                                variant="primary"
                                 onClick={() => onSetMode('voice')}
                                 iconLeft={<Icon icon={Phone} size={15} />}
                                 className="w-full"
@@ -158,7 +158,7 @@ export function CharacterChatSidebar({ character, characters, title, isGroup = f
                             </Button>
                         )
                     )}
-                    <Button kind="secondary" onClick={() => onEditCharacter(lead)} iconLeft={<Pencil size={15} />} className="w-full">
+                    <Button variant="secondary" onClick={() => onEditCharacter(lead)} iconLeft={<Pencil size={15} />} className="w-full">
                         {t('characterChat.sidebar.editCharacter')}
                     </Button>
                 </div>

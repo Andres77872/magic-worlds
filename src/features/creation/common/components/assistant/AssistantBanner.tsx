@@ -28,12 +28,12 @@ export function AssistantBanner({ notice, onRetry, onReload, onDismiss }: Assist
             <p className="min-w-0 flex-1 font-ui text-[12px] leading-relaxed text-parchment-100">{notice.message}</p>
             <div className="flex shrink-0 items-center gap-1">
                 {notice.canRetry && (
-                    <Button kind="ghost" size="sm" className="px-2 py-1 text-ember-300" onClick={onRetry}>
+                    <Button variant="ghost" size="sm" className="px-2 py-1 text-ember-300" onClick={onRetry}>
                         {t('creation.common.assistant.retry')}
                     </Button>
                 )}
                 {notice.canReload && (
-                    <Button kind="ghost" size="sm" className="px-2 py-1 text-ember-300" onClick={onReload}>
+                    <Button variant="ghost" size="sm" className="px-2 py-1 text-ember-300" onClick={onReload}>
                         {t('creation.common.assistant.checkConversation')}
                     </Button>
                 )}

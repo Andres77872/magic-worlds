@@ -73,7 +73,7 @@ export function ActivationPreviewPanel({ lorebook, saved }: ActivationPreviewPan
             </Field>
 
             <Button
-                kind="arcane"
+                variant="arcane"
                 iconLeft={loading ? <Loader2 size={16} className="animate-spin" /> : <Icon icon={Play} size={16} />}
                 onClick={runPreview}
                 disabled={loading || !sample.trim()}

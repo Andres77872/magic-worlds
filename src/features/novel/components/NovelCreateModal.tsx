@@ -83,11 +83,11 @@ export function NovelCreateModal({ open, creating, onClose, onCreate }: NovelCre
             closeLabel={t('common.close')}
             footer={
                 <div className="flex w-full items-center justify-end gap-2">
-                    <Button kind="ghost" onClick={close} disabled={creating}>
+                    <Button variant="ghost" onClick={close} disabled={creating}>
                         {t('novelGallery.create.cancel')}
                     </Button>
                     <Button
-                        kind="primary"
+                        variant="primary"
                         onClick={submit}
                         disabled={creating || (sourceMode === 'card' && !sourceCard)}
                         iconLeft={<Icon icon={Sparkles} size={15} />}

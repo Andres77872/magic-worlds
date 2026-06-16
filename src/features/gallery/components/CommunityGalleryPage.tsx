@@ -118,7 +118,7 @@ function CommunityGallerySection({
                     <div className="flex items-center gap-2">
                         {gallery.error && (
                             <Button
-                                kind="ghost"
+                                variant="ghost"
                                 size="sm"
                                 iconLeft={<Icon icon={RefreshCw} size={14} />}
                                 onClick={gallery.refresh}
@@ -126,7 +126,7 @@ function CommunityGallerySection({
                                 {t('gallery.retry')}
                             </Button>
                         )}
-                        <Button kind="secondary" size="sm" onClick={openFullGallery}>
+                        <Button variant="secondary" size="sm" onClick={openFullGallery}>
                             {t('gallery.viewAll')}
                         </Button>
                     </div>
@@ -163,7 +163,7 @@ function CommunityGallerySection({
                             actionLabel={t('gallery.preview.previewAction', { title: item.title })}
                             footer={
                                 <Button
-                                    kind={alreadyImported ? 'secondary' : 'primary'}
+                                    variant={alreadyImported ? 'secondary' : 'primary'}
                                     size="sm"
                                     full
                                     iconLeft={

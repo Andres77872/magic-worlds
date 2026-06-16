@@ -59,8 +59,8 @@ function DrawerDemo(props: Partial<ComponentProps<typeof Drawer>>) {
         onClose={() => setOpen(false)}
         footer={
           <>
-            <Button kind="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button kind="primary" onClick={() => setOpen(false)}>Save changes</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={() => setOpen(false)}>Save changes</Button>
           </>
         }
       >

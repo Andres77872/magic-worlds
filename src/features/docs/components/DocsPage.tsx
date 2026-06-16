@@ -227,7 +227,7 @@ export function DocsPage() {
                                     {docs.primaryActions.map((action) => (
                                         <Button
                                             key={action.page}
-                                            kind={action.page === 'adventure' ? 'primary' : 'secondary'}
+                                            variant={action.page === 'adventure' ? 'primary' : 'secondary'}
                                             size="sm"
                                             iconLeft={<Icon icon={action.icon} size={15} />}
                                             onClick={() => goToPage(action.page, action.gated)}

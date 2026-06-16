@@ -96,7 +96,7 @@ function TierCard({ tier, t, locale }: { tier: MembershipTierProfileCard; t: TFu
 
             <LimitRows limits={tier.limits} preview={!isCurrent} t={t} locale={locale} />
 
-            <Button kind={isCurrent ? 'secondary' : 'ghost'} size="sm" disabled full className="mt-auto">
+            <Button variant={isCurrent ? 'secondary' : 'ghost'} size="sm" disabled full className="mt-auto">
                 {tier.action.label}
             </Button>
         </Card>
@@ -200,7 +200,7 @@ function PaygCard({ card, t, locale }: { card: MembershipPaygProfileCard; t: TFu
                         </div>
                     )}
 
-                    <Button kind="secondary" size="sm" disabled className="mt-auto w-full md:w-auto md:self-end">
+                    <Button variant="secondary" size="sm" disabled className="mt-auto w-full md:w-auto md:self-end">
                         {card.action.label}
                     </Button>
                 </div>

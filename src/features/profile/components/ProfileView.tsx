@@ -145,7 +145,7 @@ export function ProfileView({ profile, sharing, onLogout, onDeleteAllData, onDis
                     </dl>
                     <div className="flex justify-end border-t border-parchment-50/[.08] px-5 py-4">
                         <Button
-                            kind="danger"
+                            variant="danger"
                             size="sm"
                             iconLeft={<Icon icon={LogOut} size={15} />}
                             onClick={() => setConfirmLogoutOpen(true)}
@@ -174,7 +174,7 @@ export function ProfileView({ profile, sharing, onLogout, onDeleteAllData, onDis
                             </span>
                         </div>
                         <Button
-                            kind="danger"
+                            variant="danger"
                             size="sm"
                             iconLeft={<Icon icon={Trash2} size={15} />}
                             onClick={() => setConfirmDeleteOpen(true)}
@@ -372,7 +372,7 @@ function ProfileSharingSection({ sharing }: { sharing: ProfileSharedCardsState }
                             {t('profile.sharing.links')}
                         </Chip>
                         <Button
-                            kind="ghost"
+                            variant="ghost"
                             size="sm"
                             iconLeft={<Icon icon={RefreshCw} size={14} />}
                             onClick={sharing.refresh}
@@ -402,7 +402,7 @@ function ProfileSharingSection({ sharing }: { sharing: ProfileSharedCardsState }
                 ) : sharing.error ? (
                     <div className="flex flex-col gap-3 px-5 py-5">
                         <p className="font-ui text-sm text-blood-500">{sharing.error}</p>
-                        <Button kind="secondary" size="sm" onClick={sharing.refresh}>
+                        <Button variant="secondary" size="sm" onClick={sharing.refresh}>
                             {t('common.tryAgain')}
                         </Button>
                     </div>
@@ -441,7 +441,7 @@ function ProfileSharingSection({ sharing }: { sharing: ProfileSharedCardsState }
                                         {tab === 'links' && resource.share_token && (
                                             <>
                                                 <Button
-                                                    kind="secondary"
+                                                    variant="secondary"
                                                     size="sm"
                                                     iconLeft={<Icon icon={linkBusy ? Loader2 : Copy} size={14} className={linkBusy ? 'animate-spin' : undefined} />}
                                                     onClick={() => void copyLink(resource)}
@@ -450,7 +450,7 @@ function ProfileSharingSection({ sharing }: { sharing: ProfileSharedCardsState }
                                                     {t('profile.sharing.copyLink')}
                                                 </Button>
                                                 <Button
-                                                    kind="danger"
+                                                    variant="danger"
                                                     size="sm"
                                                     iconLeft={<Icon icon={revokeBusy ? Loader2 : Trash2} size={14} className={revokeBusy ? 'animate-spin' : undefined} />}
                                                     onClick={() => void revokeLink(resource)}
@@ -462,7 +462,7 @@ function ProfileSharingSection({ sharing }: { sharing: ProfileSharedCardsState }
                                         )}
                                         {tab === 'public' && (
                                             <Button
-                                                kind="danger"
+                                                variant="danger"
                                                 size="sm"
                                                 iconLeft={<Icon icon={publicBusy ? Loader2 : Globe2} size={14} className={publicBusy ? 'animate-spin' : undefined} />}
                                                 onClick={() => void unpublishCard(resource)}

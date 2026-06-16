@@ -52,9 +52,9 @@ export function PersonaPickerDialog({
             size="lg"
             footer={
                 <>
-                    <Button kind="ghost" disabled={isConfirming} onClick={onClose}>{t('common.cancel')}</Button>
+                    <Button variant="ghost" disabled={isConfirming} onClick={onClose}>{t('common.cancel')}</Button>
                     <Button
-                        kind="primary"
+                        variant="primary"
                         disabled={!selected || isConfirming}
                         iconLeft={isConfirming ? <Loader2 size={15} className="animate-spin" /> : undefined}
                         onClick={() => selected && onConfirm(selected)}

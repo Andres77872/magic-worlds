@@ -113,11 +113,11 @@ function MessageDeleteConfirmPopover({
                 {t('interaction.actions.deleteMessageConfirm')}
             </div>
             <div className="flex items-center justify-end gap-2">
-                <Button kind="ghost" size="sm" onClick={close} disabled={deleting}>
+                <Button variant="ghost" size="sm" onClick={close} disabled={deleting}>
                     {t('common.cancel')}
                 </Button>
                 <Button
-                    kind="danger"
+                    variant="danger"
                     size="sm"
                     onClick={onConfirm}
                     disabled={deleting}

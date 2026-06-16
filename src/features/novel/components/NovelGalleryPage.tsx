@@ -109,12 +109,12 @@ export function NovelGalleryPage() {
     const hasQuery = gallery.query.trim().length > 0
 
     const emptyAction: ReactNode = hasQuery ? (
-        <Button kind="secondary" size="sm" onClick={() => gallery.setQuery('')}>
+        <Button variant="secondary" size="sm" onClick={() => gallery.setQuery('')}>
             {t('novelGallery.actions.clearSearch')}
         </Button>
     ) : (
         <Button
-            kind="primary"
+            variant="primary"
             size="sm"
             iconLeft={<Icon icon={Plus} size={16} />}
             onClick={() => requireAuth(() => setCreateOpen(true))}
@@ -168,7 +168,7 @@ export function NovelGalleryPage() {
                             )}
                         </div>
                         <Button
-                            kind="primary"
+                            variant="primary"
                             iconLeft={<Icon icon={Plus} size={16} />}
                             onClick={() => requireAuth(() => setCreateOpen(true))}
                             className="shrink-0"
@@ -185,7 +185,7 @@ export function NovelGalleryPage() {
                     role="alert"
                 >
                     <span>{gallery.error}</span>
-                    <Button kind="secondary" size="sm" onClick={gallery.refresh}>
+                    <Button variant="secondary" size="sm" onClick={gallery.refresh}>
                         {t('novelGallery.actions.retry')}
                     </Button>
                 </div>

@@ -88,7 +88,7 @@ export function VoicePickerDialog({ open, currentVoice, onSelect, onClose }: Voi
             icon={<Icon icon={AudioLines} size={18} className="text-ember-400" />}
             title={t('voices.picker.title')}
             footer={
-                <Button kind="ghost" onClick={() => { onSelect(null); onClose() }}>
+                <Button variant="ghost" onClick={() => { onSelect(null); onClose() }}>
                     {t('voices.picker.clearVoice')}
                 </Button>
             }
@@ -124,14 +124,14 @@ export function VoicePickerDialog({ open, currentVoice, onSelect, onClose }: Voi
                                             </div>
                                             <div className="flex shrink-0 gap-2">
                                                 <Button
-                                                    kind="secondary"
+                                                    variant="secondary"
                                                     size="sm"
                                                     iconLeft={<Icon icon={previewId === preset.preset_id && previewing ? Loader2 : Play} size={14} className={previewId === preset.preset_id && previewing ? 'animate-spin' : undefined} />}
                                                     onClick={() => previewPreset(preset)}
                                                 >
                                                     {t('voices.picker.preview')}
                                                 </Button>
-                                                <Button kind="primary" size="sm" onClick={() => choosePreset(preset)}>
+                                                <Button variant="primary" size="sm" onClick={() => choosePreset(preset)}>
                                                     {t('voices.picker.use')}
                                                 </Button>
                                             </div>

@@ -31,7 +31,7 @@ function Demo({ withAction = false, initialQuery = '' }: { withAction?: boolean;
       query={query}
       onQueryChange={setQuery}
       resultsCount={query.trim() ? 7 : undefined}
-      action={withAction ? <Button kind="secondary">Continue last scene</Button> : undefined}
+      action={withAction ? <Button variant="secondary">Continue last scene</Button> : undefined}
     />
   )
 }

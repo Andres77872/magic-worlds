@@ -55,8 +55,8 @@ function ModalDemo(props: Partial<ComponentProps<typeof Modal>>) {
         onClose={() => setOpen(false)}
         footer={
           <>
-            <Button kind="ghost" onClick={() => setOpen(false)}>Not now</Button>
-            <Button kind="primary" onClick={() => setOpen(false)}>Continue</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>Not now</Button>
+            <Button variant="primary" onClick={() => setOpen(false)}>Continue</Button>
           </>
         }
       >

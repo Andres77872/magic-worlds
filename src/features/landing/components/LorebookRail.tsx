@@ -51,7 +51,7 @@ export function LorebookRail({ lorebooks, total, onOpen, onDelete, onViewAll }: 
                 right={
                     onViewAll ? (
                         <Button
-                            kind="ghost"
+                            variant="ghost"
                             size="sm"
                             iconRight={<Icon icon={ArrowRight} size={14} />}
                             onClick={onViewAll}

@@ -45,6 +45,34 @@ export const COLOR_GROUPS: ColorGroup[] = [
   },
 ]
 
+/**
+ * The semantic / role layer: tokens named for *intent* that point at the raw
+ * ramps above. Prefer these in components so a palette shift is a single token
+ * edit and the meaning reads at the call site.
+ */
+export const SEMANTIC_COLORS: ColorGroup[] = [
+  {
+    label: 'Foreground — text & icons',
+    note: 'Maps onto the parchment ramp. fg = parchment-50 (primary) · muted = parchment-200 (secondary) · subtle = parchment-300 (muted) · faint = parchment-400 (placeholders).',
+    tokens: ['--color-fg', '--color-fg-muted', '--color-fg-subtle', '--color-fg-faint'],
+  },
+  {
+    label: 'Surfaces — backgrounds by depth',
+    note: 'Maps onto the ink ramp. surface = ink-800 (page/base) · raised = ink-700 (cards, controls) · overlay = ink-600 (popovers, raised wells) · sunken = ink-900 (deepest wells, scrims).',
+    tokens: ['--color-surface', '--color-surface-raised', '--color-surface-overlay', '--color-surface-sunken'],
+  },
+  {
+    label: 'Accents — action & AI',
+    note: 'accent = ember-500 (primary action / focus) · accent-hover = ember-400 · accent-ai = arcane-500 (the AI / magic side). Reach for accent over a raw ember step.',
+    tokens: ['--color-accent', '--color-accent-hover', '--color-accent-ai'],
+  },
+  {
+    label: 'Lines — hairline borders',
+    note: 'Parchment at low alpha. line = ~12% (default hairline) · line-faint = ~8% (quietest divider) · line-strong = ~22% (emphasised edge). An accent border signals the active state.',
+    tokens: ['--color-line', '--color-line-faint', '--color-line-strong'],
+  },
+]
+
 export const RADII: string[] = [
   '--radius-xs',
   '--radius-sm',

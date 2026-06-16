@@ -60,11 +60,11 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, o
             size="lg"
             footer={
                 <div className="flex w-full items-center justify-end gap-2">
-                    <Button kind="ghost" onClick={close} disabled={busy}>
+                    <Button variant="ghost" onClick={close} disabled={busy}>
                         {t('common.cancel')}
                     </Button>
                     <Button
-                        kind="primary"
+                        variant="primary"
                         onClick={() => void submit()}
                         disabled={busy || selected.size === 0}
                         data-testid="codex-add-cards-submit"

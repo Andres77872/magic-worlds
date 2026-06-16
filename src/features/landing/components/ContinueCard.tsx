@@ -103,7 +103,7 @@ export function ContinueCard({ session, onContinue, onDelete, deleting = false }
                 )}
                 <p className="m-0 mt-auto font-mono text-[11px] tracking-wide text-parchment-400">{session.meta}</p>
                 <Button
-                    kind={isArcane ? 'arcane' : 'primary'}
+                    variant={isArcane ? 'arcane' : 'primary'}
                     size="sm"
                     full
                     iconLeft={<Icon icon={meta.icon} size={15} />}

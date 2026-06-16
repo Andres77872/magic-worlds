@@ -104,12 +104,12 @@ export function CardPreviewModal({
             </span>
             <div className="flex items-center gap-2">
                 {alreadyImported && onOpenExisting && (
-                    <Button kind="secondary" size="sm" onClick={onOpenExisting} disabled={importing}>
+                    <Button variant="secondary" size="sm" onClick={onOpenExisting} disabled={importing}>
                         {t('gallery.preview.openExisting')}
                     </Button>
                 )}
                 <Button
-                    kind="primary"
+                    variant="primary"
                     size="sm"
                     onClick={onImport}
                     disabled={importDisabled || importing}

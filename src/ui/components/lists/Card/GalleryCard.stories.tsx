@@ -83,7 +83,7 @@ export const WithFastChatFooter: Story = {
     shareOptions,
     options,
     footer: (
-      <Button kind="arcane" size="sm" full iconLeft={<Icon icon={MessageCircle} size={15} />} onClick={() => {}}>
+      <Button variant="arcane" size="sm" full iconLeft={<Icon icon={MessageCircle} size={15} />} onClick={() => {}}>
         Chat
       </Button>
     ),
@@ -131,7 +131,7 @@ export const CompactWithFooter: Story = {
     tags: ['innkeeper'],
     options,
     footer: (
-      <Button kind="arcane" size="sm" full iconLeft={<Icon icon={MessageCircle} size={15} />} onClick={() => {}}>
+      <Button variant="arcane" size="sm" full iconLeft={<Icon icon={MessageCircle} size={15} />} onClick={() => {}}>
         Chat
       </Button>
     ),

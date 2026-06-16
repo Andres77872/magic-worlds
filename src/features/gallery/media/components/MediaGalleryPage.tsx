@@ -105,7 +105,7 @@ export function MediaGalleryPage() {
                 >
                     <span>{error}</span>
                     <Button
-                        kind="secondary"
+                        variant="secondary"
                         size="sm"
                         onClick={() => {
                             setActionError(null)
@@ -130,7 +130,7 @@ export function MediaGalleryPage() {
                 emptyStateDescription={empty.description}
                 emptyStateAction={
                     filtered ? (
-                        <Button kind="secondary" size="sm" onClick={gallery.clearFilters}>
+                        <Button variant="secondary" size="sm" onClick={gallery.clearFilters}>
                             {t('mediaGallery.actions.clearFilters')}
                         </Button>
                     ) : undefined

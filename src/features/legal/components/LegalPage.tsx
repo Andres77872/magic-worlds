@@ -28,7 +28,7 @@ export function LegalPage({ page }: LegalPageProps) {
                     icon={<IconTile icon={content.icon} tone={page === 'privacy' ? 'arcane' : 'ember'} size="md" />}
                     actions={
                         <Button
-                            kind="secondary"
+                            variant="secondary"
                             size="sm"
                             iconLeft={<Icon icon={ArrowLeft} size={15} />}
                             onClick={() => setPage('landing')}

@@ -481,16 +481,16 @@ export function MediaStudioSection({
                     {imgError && <p className="text-xs text-blood-500">{imgError}</p>}
                     {imgBusy ? (
                         <div className="flex justify-end gap-2">
-                            <Button kind="secondary" size="sm" onClick={() => imgAbortRef.current?.abort()}>
+                            <Button variant="secondary" size="sm" onClick={() => imgAbortRef.current?.abort()}>
                                 {t('common.cancel')}
                             </Button>
-                            <Button kind="arcane" size="sm" disabled iconLeft={<Icon icon={Sparkles} size={15} />}>
+                            <Button variant="arcane" size="sm" disabled iconLeft={<Icon icon={Sparkles} size={15} />}>
                                 {imgBusyLabel}
                             </Button>
                         </div>
                     ) : (
                         <>
-                            <Button kind="arcane" size="sm" full onClick={handleGenerateImage} iconLeft={<Icon icon={Sparkles} size={15} />}>
+                            <Button variant="arcane" size="sm" full onClick={handleGenerateImage} iconLeft={<Icon icon={Sparkles} size={15} />}>
                                 {resolvedImage
                                     ? t('creation.common.media.regenerateImage', { label: imageLabel.toLowerCase() })
                                     : t('creation.common.media.generateImage', { label: imageLabel.toLowerCase() })}
@@ -555,16 +555,16 @@ export function MediaStudioSection({
                     )}
                     {themeBusy ? (
                         <div className="flex justify-end gap-2">
-                            <Button kind="secondary" size="sm" onClick={() => themeAbortRef.current?.abort()}>
+                            <Button variant="secondary" size="sm" onClick={() => themeAbortRef.current?.abort()}>
                                 {t('common.cancel')}
                             </Button>
-                            <Button kind="arcane" size="sm" disabled iconLeft={<Icon icon={Sparkles} size={15} />}>
+                            <Button variant="arcane" size="sm" disabled iconLeft={<Icon icon={Sparkles} size={15} />}>
                                 {t('creation.common.media.starting')}
                             </Button>
                         </div>
                     ) : (
                         <Button
-                            kind="arcane"
+                            variant="arcane"
                             size="sm"
                             full
                             onClick={handleGenerateTheme}
@@ -618,22 +618,22 @@ export function MediaStudioSection({
                         </CreatorField>
                         {imgError && <p className="text-sm text-blood-500">{imgError}</p>}
                         <div className="flex items-center justify-between gap-2">
-                            <Button kind="ghost" onClick={() => openHistory('images')} iconLeft={<Icon icon={History} size={16} />}>
+                            <Button variant="ghost" onClick={() => openHistory('images')} iconLeft={<Icon icon={History} size={16} />}>
                                 {t('creation.common.media.gallery')}
                             </Button>
                             <div className="flex justify-end gap-2">
                                 {imgBusy && (
-                                    <Button kind="secondary" onClick={() => imgAbortRef.current?.abort()}>
+                                    <Button variant="secondary" onClick={() => imgAbortRef.current?.abort()}>
                                         {t('common.cancel')}
                                     </Button>
                                 )}
                                 {!imgBusy && !resolvedImage && (
-                                    <Button kind="secondary" onClick={openFilePicker} iconLeft={<Icon icon={ImageUp} size={16} />}>
+                                    <Button variant="secondary" onClick={openFilePicker} iconLeft={<Icon icon={ImageUp} size={16} />}>
                                         {t('creation.common.media.upload')}
                                     </Button>
                                 )}
                                 <Button
-                                    kind="arcane"
+                                    variant="arcane"
                                     onClick={handleGenerateImage}
                                     disabled={imgBusy}
                                     iconLeft={<Icon icon={Sparkles} size={16} />}
@@ -680,17 +680,17 @@ export function MediaStudioSection({
                     </>
                 )}
                 <div className="flex items-center justify-between gap-2">
-                    <Button kind="ghost" onClick={() => openHistory('themes')} iconLeft={<Icon icon={History} size={16} />}>
+                    <Button variant="ghost" onClick={() => openHistory('themes')} iconLeft={<Icon icon={History} size={16} />}>
                         {t('creation.common.media.history')}
                     </Button>
                     <div className="flex justify-end gap-2">
                         {themeBusy && (
-                            <Button kind="secondary" onClick={() => themeAbortRef.current?.abort()}>
+                            <Button variant="secondary" onClick={() => themeAbortRef.current?.abort()}>
                                 {t('common.cancel')}
                             </Button>
                         )}
                         <Button
-                            kind="arcane"
+                            variant="arcane"
                             onClick={handleGenerateTheme}
                             disabled={themeBusy || Boolean(themeDisabledReason)}
                             iconLeft={<Icon icon={Sparkles} size={16} />}

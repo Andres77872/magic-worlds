@@ -30,11 +30,11 @@ export function VoiceConsentModal({ open, staleConsent = false, isAccepting = fa
             size="lg"
             footer={
                 <>
-                    <Button kind="ghost" onClick={onDecline} disabled={isAccepting}>
+                    <Button variant="ghost" onClick={onDecline} disabled={isAccepting}>
                         {t('interaction.voiceConsent.notNow')}
                     </Button>
                     <Button
-                        kind="primary"
+                        variant="primary"
                         onClick={() => void onAccept()}
                         disabled={isAccepting}
                         iconLeft={<Icon icon={ShieldCheck} size={16} />}

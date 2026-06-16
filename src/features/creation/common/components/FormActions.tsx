@@ -39,7 +39,7 @@ export function FormActions({
             )}
             <div className="flex justify-end gap-4 max-sm:flex-col max-sm:gap-3">
                 <Button
-                    kind="secondary"
+                    variant="secondary"
                     onClick={onCancel}
                     disabled={isSubmitting}
                     className="max-sm:w-full"
@@ -47,7 +47,7 @@ export function FormActions({
                     {resolvedCancelLabel}
                 </Button>
                 <Button
-                    kind="primary"
+                    variant="primary"
                     type="submit"
                     disabled={isSubmitting}
                     className="max-sm:w-full"

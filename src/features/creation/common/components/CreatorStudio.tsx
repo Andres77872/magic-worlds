@@ -61,7 +61,7 @@ export function CreatorStudio({
                 divider
                 actions={
                     <>
-                        <Button kind="ghost" onClick={onBack} iconLeft={<Icon icon={ArrowLeft} size={16} />}>
+                        <Button variant="ghost" onClick={onBack} iconLeft={<Icon icon={ArrowLeft} size={16} />}>
                             {t('creation.common.back')}
                         </Button>
                         {headerActions}

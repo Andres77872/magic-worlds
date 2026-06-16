@@ -65,7 +65,7 @@ export function LoreEntryEditor({ entry, onChange, onDelete }: LoreEntryEditorPr
                     </h3>
                 </div>
                 {onDelete && (
-                    <Button kind="danger" size="sm" onClick={() => onDelete(entry.id)}>
+                    <Button variant="danger" size="sm" onClick={() => onDelete(entry.id)}>
                         {t('common.delete')}
                     </Button>
                 )}

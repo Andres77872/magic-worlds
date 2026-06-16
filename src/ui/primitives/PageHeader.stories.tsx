@@ -40,8 +40,8 @@ export const CreationStudio: Story = {
     divider: true,
     actions: (
       <>
-        <Button kind="ghost">Back</Button>
-        <Button kind="primary" iconLeft={<Icon icon={Plus} size={16} />}>Create</Button>
+        <Button variant="ghost">Back</Button>
+        <Button variant="primary" iconLeft={<Icon icon={Plus} size={16} />}>Create</Button>
       </>
     ),
   },
@@ -52,7 +52,7 @@ export const DashboardGreeting: Story = {
     eyebrow: 'Good evening',
     title: 'Who will you become tonight?',
     size: 'lg',
-    actions: <Button kind="primary">Continue: The Ember Coast</Button>,
+    actions: <Button variant="primary">Continue: The Ember Coast</Button>,
   },
 }
 

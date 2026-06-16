@@ -50,10 +50,10 @@ export function ConfirmDialog({
             showClose={false}
             footer={
                 <>
-                    <Button kind="secondary" onClick={requestCancel} disabled={isProcessing}>
+                    <Button variant="secondary" onClick={requestCancel} disabled={isProcessing}>
                         {resolvedCancelLabel}
                     </Button>
-                    <Button kind={confirmKind} onClick={onConfirm} disabled={isProcessing}>
+                    <Button variant={confirmKind} onClick={onConfirm} disabled={isProcessing}>
                         {isProcessing ? resolvedProcessingLabel : resolvedConfirmLabel}
                     </Button>
                 </>

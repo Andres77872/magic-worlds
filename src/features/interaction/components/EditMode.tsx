@@ -53,7 +53,7 @@ export function EditMode({ initialContent, isUser, onSave, onCancel }: EditModeP
                 <Button size="sm" onClick={handleSave} disabled={!editContent.trim()}>
                     {t('common.save')}
                 </Button>
-                <Button kind="secondary" size="sm" onClick={onCancel}>
+                <Button variant="secondary" size="sm" onClick={onCancel}>
                     {t('common.cancel')}
                 </Button>
                 <span className="text-[12px] italic text-parchment-400">

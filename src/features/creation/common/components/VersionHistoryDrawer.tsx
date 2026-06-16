@@ -114,7 +114,7 @@ export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName
             eyebrow={<Eyebrow tone="arcane">{t('cardVersions.drawer.eyebrow')}</Eyebrow>}
             title={t('cardVersions.drawer.title')}
             footer={
-                <Button kind="secondary" onClick={onClose}>
+                <Button variant="secondary" onClick={onClose}>
                     {t('cardVersions.drawer.done')}
                 </Button>
             }
@@ -138,7 +138,7 @@ export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName
                         maxLength={255}
                     />
                 </label>
-                <Button kind="primary" onClick={() => void handleSave()} disabled={!cardId || saving}>
+                <Button variant="primary" onClick={() => void handleSave()} disabled={!cardId || saving}>
                     {saving ? t('cardVersions.drawer.saving') : t('cardVersions.drawer.saveButton')}
                 </Button>
             </div>
@@ -177,7 +177,7 @@ export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName
                                     <p className="font-ui text-[11px] text-parchment-500">{formatWhen(v.created_at)}</p>
                                 </div>
                                 <Button
-                                    kind="ghost"
+                                    variant="ghost"
                                     size="sm"
                                     iconLeft={<RotateCcw size={14} strokeWidth={1.75} />}
                                     onClick={() => void handleRestore(v.version_number)}

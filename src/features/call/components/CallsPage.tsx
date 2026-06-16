@@ -149,7 +149,7 @@ export function CallsPage() {
                                 actionLabel={t('call.page.callName', { name: character.name })}
                                 footer={
                                     <Button
-                                        kind="primary"
+                                        variant="primary"
                                         size="sm"
                                         className="w-full"
                                         iconLeft={<Icon icon={Phone} size={15} />}
@@ -168,7 +168,7 @@ export function CallsPage() {
                         message={query.trim() ? t('call.page.noMatch', { query: query.trim() }) : t('call.page.noCharacters')}
                         secondaryText={query.trim() ? t('call.page.tryAnotherName') : t('call.page.createToCall')}
                     >
-                        <Button kind="primary" size="sm" iconLeft={<Icon icon={Users} size={15} />} onClick={() => setPage('gallery-characters')}>
+                        <Button variant="primary" size="sm" iconLeft={<Icon icon={Users} size={15} />} onClick={() => setPage('gallery-characters')}>
                             {t('call.page.findCharacters')}
                         </Button>
                     </EmptyState>

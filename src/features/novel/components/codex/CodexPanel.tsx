@@ -36,10 +36,10 @@ export function CodexPanel({ codex, requireAuth }: CodexPanelProps) {
 
     const addButtons = (
         <>
-            <Button kind="secondary" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={openCardPicker}>
+            <Button variant="secondary" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={openCardPicker}>
                 {t('novelEditor.codex.addCards')}
             </Button>
-            <Button kind="secondary" size="sm" iconLeft={<Icon icon={BookMarked} size={14} />} onClick={openLorebookPicker}>
+            <Button variant="secondary" size="sm" iconLeft={<Icon icon={BookMarked} size={14} />} onClick={openLorebookPicker}>
                 {t('novelEditor.codex.addLorebook')}
             </Button>
         </>

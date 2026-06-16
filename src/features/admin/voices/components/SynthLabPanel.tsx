@@ -130,7 +130,7 @@ export function SynthLabPanel({ voiceId, onVoiceIdChange, notify, setError }: Sy
                 <div className="flex justify-end">
                     <Button
                         type="submit"
-                        kind="primary"
+                        variant="primary"
                         iconLeft={<Icon icon={testing ? Loader2 : Play} size={15} className={testing ? 'animate-spin' : undefined} />}
                         disabled={!canTest}
                     >

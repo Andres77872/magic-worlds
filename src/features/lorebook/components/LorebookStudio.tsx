@@ -191,10 +191,10 @@ export function LorebookStudio() {
                 divider
                 actions={
                     <>
-                        <Button kind="ghost" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={() => setPage('gallery-lorebooks')}>
+                        <Button variant="ghost" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={() => setPage('gallery-lorebooks')}>
                             {t('common.back')}
                         </Button>
-                        <Button kind="primary" iconLeft={<Icon icon={Save} size={16} />} onClick={saveLorebook} disabled={saving}>
+                        <Button variant="primary" iconLeft={<Icon icon={Save} size={16} />} onClick={saveLorebook} disabled={saving}>
                             {saving ? t('common.saving') : t('common.save')}
                         </Button>
                     </>

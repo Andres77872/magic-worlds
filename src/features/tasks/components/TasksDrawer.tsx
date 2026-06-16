@@ -248,7 +248,7 @@ export function TasksDrawer() {
                 title={t('tasksDrawer.title')}
                 footer={
                     <Button
-                        kind="secondary"
+                        variant="secondary"
                         size="sm"
                         disabled={isRefreshing}
                         onClick={() => void handleRefresh()}
@@ -365,7 +365,7 @@ function TaskRow({
                     </div>
                 </div>
                 {task.status === 'pending' && task.cancel_url && (
-                    <Button kind="secondary" size="sm" className="shrink-0" onClick={onCancel}>
+                    <Button variant="secondary" size="sm" className="shrink-0" onClick={onCancel}>
                         {t('tasksDrawer.actions.cancel')}
                     </Button>
                 )}

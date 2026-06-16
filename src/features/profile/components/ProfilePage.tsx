@@ -74,7 +74,7 @@ export function ProfilePage() {
                     {error}
                 </div>
                 <div>
-                    <Button kind="secondary" size="sm" onClick={refresh}>
+                    <Button variant="secondary" size="sm" onClick={refresh}>
                         {t('common.tryAgain')}
                     </Button>
                 </div>

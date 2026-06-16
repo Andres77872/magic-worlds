@@ -366,7 +366,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
                 <Button
                     type="button"
-                    kind="secondary"
+                    variant="secondary"
                     full
                     disabled={isLoading}
                     onClick={() => { if (error) clearError(); void loginWithGoogle() }}

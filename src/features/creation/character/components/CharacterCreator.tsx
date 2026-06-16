@@ -395,7 +395,7 @@ export function CharacterCreator() {
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
-                <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
+                <Button variant="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
                     {isSubmitting ? t('common.saving') : editingCharacter ? t('creation.common.studio.update') : t('creation.character.create')}
                 </Button>
             }
@@ -610,7 +610,7 @@ export function CharacterCreator() {
                                 )}
                             </div>
                             <Button
-                                kind="secondary"
+                                variant="secondary"
                                 size="sm"
                                 iconLeft={<Icon icon={AudioLines} size={14} />}
                                 onClick={() => setVoicePickerOpen(true)}

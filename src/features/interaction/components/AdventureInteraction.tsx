@@ -145,7 +145,7 @@ export function AdventureInteraction() {
         return (
             <div className="flex h-full flex-col items-center justify-center gap-4 bg-ink-800 p-8 text-center">
                 <p className="max-w-md font-narrative text-[16px] leading-relaxed text-parchment-300">{loadError}</p>
-                <Button kind="primary" onClick={handleRetryLoad}>{t('common.tryAgain')}</Button>
+                <Button variant="primary" onClick={handleRetryLoad}>{t('common.tryAgain')}</Button>
             </div>
         )
     }

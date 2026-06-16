@@ -104,7 +104,7 @@ export function SystemVoicePicker({ voices, loading, selectedVoiceId, onSelect }
                                     {description && <p className="mt-1 line-clamp-2 font-ui text-xs text-parchment-300">{description}</p>}
                                 </div>
                                 <Button
-                                    kind={selected ? 'primary' : 'secondary'}
+                                    variant={selected ? 'primary' : 'secondary'}
                                     size="sm"
                                     iconLeft={selected ? <Icon icon={Check} size={14} /> : undefined}
                                     onClick={() => onSelect(voice)}

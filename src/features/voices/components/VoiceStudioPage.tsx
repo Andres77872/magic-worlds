@@ -131,7 +131,7 @@ export function VoiceStudioPage() {
                 actions={
                     <div className="flex gap-2">
                         <Button
-                            kind="secondary"
+                            variant="secondary"
                             size="sm"
                             iconLeft={<Icon icon={RefreshCw} size={15} className={loading ? 'animate-spin' : undefined} />}
                             onClick={() => void refresh()}
@@ -140,7 +140,7 @@ export function VoiceStudioPage() {
                             {t('voices.studio.refresh')}
                         </Button>
                         <Button
-                            kind="primary"
+                            variant="primary"
                             size="sm"
                             iconLeft={<Icon icon={Plus} size={15} />}
                             onClick={() => setEditor({ open: true, mode: 'create', source: null })}
@@ -155,7 +155,7 @@ export function VoiceStudioPage() {
             {error && (
                 <div className="flex items-center justify-between gap-4 rounded-lg border border-blood-500/30 bg-blood-500/10 px-4 py-3 font-ui text-sm text-parchment-200" role="alert">
                     <span>{error}</span>
-                    <Button kind="secondary" size="sm" onClick={() => setError(null)}>
+                    <Button variant="secondary" size="sm" onClick={() => setError(null)}>
                         {t('voices.studio.dismiss')}
                     </Button>
                 </div>
@@ -201,7 +201,7 @@ export function VoiceStudioPage() {
                                     </div>
                                     <div className="flex shrink-0 flex-wrap justify-end gap-2">
                                         <Button
-                                            kind="secondary"
+                                            variant="secondary"
                                             size="sm"
                                             iconLeft={
                                                 <Icon

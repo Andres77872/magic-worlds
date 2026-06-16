@@ -73,7 +73,7 @@ export function LibraryRail<T extends { id: string; name: string }>({
                 right={
                     onViewAll ? (
                         <Button
-                            kind="ghost"
+                            variant="ghost"
                             size="sm"
                             iconRight={<Icon icon={ArrowRight} size={14} />}
                             onClick={onViewAll}

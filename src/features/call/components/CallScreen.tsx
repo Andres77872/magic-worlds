@@ -173,7 +173,7 @@ export function CallScreenView({
 
             {/* Top: leave / switch to text */}
             <div className="relative z-10 flex items-center justify-between px-4 py-3">
-                <Button kind="ghost" size="sm" iconLeft={<Icon icon={MessageSquareText} size={15} />} onClick={onSwitchToText}>
+                <Button variant="ghost" size="sm" iconLeft={<Icon icon={MessageSquareText} size={15} />} onClick={onSwitchToText}>
                     {t('call.screen.switchToText')}
                 </Button>
                 {isActive && <span className="font-mono text-sm text-parchment-300">{formatElapsed(elapsedSeconds)}</span>}

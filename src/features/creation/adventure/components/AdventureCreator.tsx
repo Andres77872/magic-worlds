@@ -537,7 +537,7 @@ export function AdventureCreator() {
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
-                <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
+                <Button variant="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
                     {isSubmitting ? t('common.saving') : editingTemplate ? t('creation.common.studio.update') : t('creation.adventure.create')}
                 </Button>
             }
