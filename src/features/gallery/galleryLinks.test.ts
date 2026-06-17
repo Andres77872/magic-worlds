@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { PageType } from '@/shared'
 import {
+    buildCardEditHash,
     buildGalleryModeHash,
     buildGalleryViewHash,
     buildSharedCardHash,
     pageFromHash,
     pageHash,
+    parseCardEditHash,
     parseGalleryHash,
     parseSharedCardToken,
 } from './galleryLinks'
@@ -71,5 +73,43 @@ describe('galleryLinks gallery routes', () => {
         expect(hash).toBe('#/shared/token%2Fwith%20spaces')
         expect(parseSharedCardToken(hash)).toBe('token/with spaces')
         expect(pageFromHash(hash)).toBe('shared-card')
+    })
+})
+
+describe('galleryLinks card-editor routes', () => {
+    it('builds and parses a bare card-edit hash', () => {
+        const hash = buildCardEditHash('character', 'char-1')
+        expect(hash).toBe('#/character?card=char-1')
+        expect(parseCardEditHash(hash)).toEqual({
+            page: 'character',
+            cardType: 'character',
+            cardId: 'char-1',
+            version: undefined,
+        })
+        // The page still resolves to the bare creator page.
+        expect(pageFromHash(hash)).toBe('character')
+    })
+
+    it('round-trips the version selector (draft / latest / number)', () => {
+        for (const [version, raw] of [['draft', 'draft'], ['latest', 'latest'], [7, '7']] as const) {
+            const hash = buildCardEditHash('world', 'w-1', version)
+            expect(hash).toBe(`#/world?card=w-1&version=${raw}`)
+            expect(parseCardEditHash(hash)).toMatchObject({ cardType: 'world', cardId: 'w-1', version })
+        }
+    })
+
+    it('normalizes a bad version to undefined and ignores non-card-edit hashes', () => {
+        expect(parseCardEditHash('#/item?card=i-1&version=garbage')?.version).toBeUndefined()
+        expect(parseCardEditHash('#/item?card=i-1&version=0')?.version).toBeUndefined()
+        // No `card` param → not a card-edit route (the bare create page).
+        expect(parseCardEditHash('#/character')).toBeNull()
+        // `#/character-chat` must not be mistaken for the character editor.
+        expect(parseCardEditHash('#/character-chat?card=x')).toBeNull()
+        expect(parseCardEditHash('#/gallery/characters?card=c1')).toBeNull()
+    })
+
+    it('keeps the bare creator page resolving to "character" (create mode)', () => {
+        expect(pageFromHash('#/character')).toBe('character')
+        expect(pageFromHash('#/character?card=char-1')).toBe('character')
     })
 })

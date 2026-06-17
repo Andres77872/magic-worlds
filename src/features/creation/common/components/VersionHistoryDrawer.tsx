@@ -1,20 +1,21 @@
 /**
- * VersionHistoryDrawer — explicit card versioning + rollback for character/world/item cards.
+ * VersionHistoryDrawer — a read-only version viewer opened from the gallery action menu.
  *
- * Versions are deliberate snapshots: "Save current as version" captures the card's current
- * content as an immutable version; "Restore" brings an earlier version back as the live card
- * (in place — history is never deleted). A session/chat that cloned this card later shows a
- * "newer version available" notice when its pinned version is older than the latest here.
- *
- * Modeled on MediaHistoryDrawer (Drawer surface + apiService + per-row actions).
+ * Versioning is now managed inside the card editor (draft → publish → history). This drawer
+ * is a quick audit surface: it lists the card's published versions (newest = "Latest"), shows
+ * how widely the card is used, and flags a pending unpublished draft — then hands off to the
+ * editor ("Edit to publish changes") where Publish / Discard / Restore live. It performs no
+ * mutations itself.
  */
 
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { History, RotateCcw } from 'lucide-react'
+import { History, PencilLine } from 'lucide-react'
 import type { CardVersion, VersionableCardType } from '@/shared'
+import { useCardUsage } from '@/shared/hooks/useCardUsage'
 import { apiService } from '@/infrastructure/api'
-import { Badge, Button, cx, Drawer, Eyebrow, Input } from '@/ui/primitives'
+import { Badge, Button, cx, Drawer, Eyebrow } from '@/ui/primitives'
+import { CardUsageLine } from '@/ui/components/common/CardUsageLine'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { dateFromApiTimestamp } from '../../../../utils/time'
 
@@ -26,11 +27,8 @@ export interface VersionHistoryDrawerProps {
     cardId?: string
     /** Card display name — used in the header. */
     cardName: string
-    /**
-     * Called after a successful save or restore so the parent can refetch the card
-     * (its `latest_version_number` changes on save; its body changes on restore).
-     */
-    onChanged?: () => void
+    /** Open the editor for this card (where draft/publish/restore are managed). */
+    onEdit?: () => void
 }
 
 function formatWhen(iso?: string | null): string {
@@ -41,15 +39,15 @@ function formatWhen(iso?: string | null): string {
     return `${date} · ${time}`
 }
 
-export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName, onChanged }: VersionHistoryDrawerProps) {
+export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName, onEdit }: VersionHistoryDrawerProps) {
     const { t } = useTranslation()
     const [versions, setVersions] = useState<CardVersion[]>([])
     const [latest, setLatest] = useState(0)
+    const [hasDraft, setHasDraft] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [label, setLabel] = useState('')
-    const [saving, setSaving] = useState(false)
-    const [restoring, setRestoring] = useState<number | null>(null)
+    // How widely this card is used — shown so the impact of publishing changes is clear.
+    const usage = useCardUsage(cardType, cardId, { enabled: open && Boolean(cardId) })
 
     const load = useCallback(async () => {
         if (!cardId) return
@@ -59,6 +57,7 @@ export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName
             const res = await apiService.listCardVersions(cardType, cardId)
             setVersions(res.versions ?? [])
             setLatest(res.latest_version_number ?? 0)
+            setHasDraft(Boolean(res.has_draft))
         } catch {
             setError(t('cardVersions.errors.load'))
         } finally {
@@ -66,45 +65,9 @@ export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName
         }
     }, [cardType, cardId, t])
 
-    // Fetch on open (and whenever the target card changes while open).
     useEffect(() => {
         if (open && cardId) void load()
-        if (!open) {
-            setLabel('')
-            setError(null)
-        }
     }, [open, cardId, load])
-
-    const handleSave = async () => {
-        if (!cardId || saving) return
-        setSaving(true)
-        setError(null)
-        try {
-            await apiService.saveCardVersion(cardType, cardId, label || undefined)
-            setLabel('')
-            await load()
-            onChanged?.()
-        } catch {
-            setError(t('cardVersions.errors.save'))
-        } finally {
-            setSaving(false)
-        }
-    }
-
-    const handleRestore = async (versionNumber: number) => {
-        if (!cardId || restoring !== null) return
-        setRestoring(versionNumber)
-        setError(null)
-        try {
-            await apiService.restoreCardVersion(cardType, cardId, versionNumber)
-            await load()
-            onChanged?.()
-        } catch {
-            setError(t('cardVersions.errors.restore'))
-        } finally {
-            setRestoring(null)
-        }
-    }
 
     return (
         <Drawer
@@ -112,36 +75,37 @@ export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName
             onClose={onClose}
             size="lg"
             eyebrow={<Eyebrow tone="arcane">{t('cardVersions.drawer.eyebrow')}</Eyebrow>}
-            title={t('cardVersions.drawer.title')}
+            title={t('cardVersions.history.title')}
             footer={
-                <Button variant="secondary" onClick={onClose}>
-                    {t('cardVersions.drawer.done')}
-                </Button>
+                <>
+                    <Button variant="secondary" onClick={onClose}>
+                        {t('cardVersions.drawer.done')}
+                    </Button>
+                    {onEdit && (
+                        <Button variant="primary" iconLeft={<PencilLine size={16} strokeWidth={1.75} />} onClick={onEdit}>
+                            {t('cardVersions.gallery.editToManage')}
+                        </Button>
+                    )}
+                </>
             }
         >
             {cardName && (
                 <p className="mb-1 font-display text-base font-semibold text-parchment-100">{cardName}</p>
             )}
             <p className="mb-4 font-narrative text-xs leading-snug text-parchment-400">
-                {t('cardVersions.drawer.intro')}
+                {t('cardVersions.history.intro')}
             </p>
 
-            {/* Save current as a new version. */}
-            <div className="mb-5 flex items-end gap-2">
-                <label className="flex-1">
-                    <span className="sr-only">{t('cardVersions.drawer.labelPlaceholder')}</span>
-                    <Input
-                        value={label}
-                        onChange={(e) => setLabel(e.target.value)}
-                        placeholder={t('cardVersions.drawer.labelPlaceholder')}
-                        disabled={!cardId || saving}
-                        maxLength={255}
-                    />
-                </label>
-                <Button variant="primary" onClick={() => void handleSave()} disabled={!cardId || saving}>
-                    {saving ? t('cardVersions.drawer.saving') : t('cardVersions.drawer.saveButton')}
-                </Button>
-            </div>
+            {cardId && <CardUsageLine usage={usage} showNone className="mb-4" />}
+
+            {hasDraft && (
+                <div className="mb-4 flex items-center gap-2 rounded-xl border border-ember-500/40 bg-ember-500/10 px-3.5 py-2.5">
+                    <Badge tone="ember">{t('cardVersions.history.draftBadge')}</Badge>
+                    <p className="font-narrative text-[13px] leading-snug text-parchment-200">
+                        {t('cardVersions.history.unsavedNew')}
+                    </p>
+                </div>
+            )}
 
             {error && <p className="mb-3 text-sm text-blood-500">{error}</p>}
 
@@ -150,20 +114,19 @@ export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName
             ) : versions.length === 0 ? (
                 <EmptyState
                     icon={<History size={28} strokeWidth={1.5} />}
-                    message={t('cardVersions.drawer.emptyTitle')}
-                    secondaryText={t('cardVersions.drawer.emptyHint')}
+                    message={t('cardVersions.history.empty')}
+                    secondaryText={t('cardVersions.history.emptyHint')}
                 />
             ) : (
                 <ul className="flex flex-col gap-2">
                     {versions.map((v) => {
-                        const isCurrent = v.version_number === latest
-                        const busy = restoring === v.version_number
+                        const isLatest = v.version_number === latest
                         return (
                             <li
                                 key={v.version_id}
                                 className={cx(
                                     'flex items-center justify-between gap-3 rounded-xl border bg-ink-800 px-3 py-2.5',
-                                    isCurrent ? 'border-arcane-400/60' : 'border-parchment-50/10',
+                                    isLatest ? 'border-verdant-500/50' : 'border-parchment-50/10',
                                 )}
                             >
                                 <div className="min-w-0">
@@ -171,20 +134,11 @@ export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName
                                         <span className="font-ui text-sm font-semibold text-parchment-100">
                                             {t('cardVersions.drawer.versionLabel', { number: v.version_number })}
                                         </span>
-                                        {isCurrent && <Badge tone="arcane">{t('cardVersions.drawer.current')}</Badge>}
+                                        {isLatest && <Badge tone="live">{t('cardVersions.history.latest')}</Badge>}
                                     </div>
                                     {v.label && <p className="truncate font-narrative text-xs text-parchment-300">{v.label}</p>}
                                     <p className="font-ui text-[11px] text-parchment-500">{formatWhen(v.created_at)}</p>
                                 </div>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    iconLeft={<RotateCcw size={14} strokeWidth={1.75} />}
-                                    onClick={() => void handleRestore(v.version_number)}
-                                    disabled={restoring !== null}
-                                >
-                                    {busy ? t('cardVersions.drawer.restoring') : t('cardVersions.drawer.restore')}
-                                </Button>
                             </li>
                         )
                     })}

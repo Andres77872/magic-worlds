@@ -32,12 +32,17 @@ import {
     TriggersField,
     StringListField,
     FormActions,
+    CardDraftControls,
+    HistoricalVersionBanner,
     QualityHint,
     TriggerHints,
     type StudioNavItem,
     type AttributePreset,
 } from '../../common/components'
-import { GuidedSection, UseExampleLink, useGuidedCard, type CardTemplate } from '../../common/engine'
+import { GuidedSection, UseExampleLink, useCardDraft, useCardEditorRoute, useGuidedCard, type CardTemplate } from '../../common/engine'
+import { buildCardEditHash } from '@/features/gallery/galleryLinks'
+import { LoadingSpinner } from '@/ui/components'
+import { Toast } from '@/ui/primitives/Toast'
 import { CreatorIntro, TemplateGallery } from '../../common/templates'
 import { getItemFields, getItemRarityOptions, getItemSections, getItemTypeOptions } from '../fields'
 import { ITEM_GALLERY_HEADING_KEY, ITEM_GALLERY_SUBHEADING_KEY, ITEM_TEMPLATES } from '../templates'
@@ -83,9 +88,10 @@ function toItem(card: ItemCardResponse): Item {
 
 export function ItemCreator() {
     const { t } = useTranslation()
-    const { goBack } = useNavigation()
+    const { goBack, cardEdit, replaceHash } = useNavigation()
     const { editingItem, setEditingItem, loadData } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
+    const routeHasId = cardEdit?.cardType === 'item' && Boolean(cardEdit.cardId)
 
     // One minimal default category; `id`/`name` are saved-card data; description is display copy.
     const defaultCategories = useMemo<AttributeCategory[]>(
@@ -140,6 +146,39 @@ export function ItemCreator() {
 
     const sectionById = useMemo(() => Object.fromEntries(itemSections.map((s) => [s.id, s])), [itemSections])
 
+    /** Re-seed the form fields from a card body (published, draft, or restored version). */
+    const hydrateFromCardBody = (card: ItemCardResponse) => {
+        setName(card.name ?? '')
+        setAlias(card.alias ?? '')
+        setType(card.type ?? '')
+        setRarity(card.rarity ?? '')
+        setDescription(card.description ?? '')
+        setEffects(stringList(card.effects))
+        setRequirements(stringList(card.requirements))
+        setLimitations(stringList(card.limitations))
+        setOrigin(card.origin ?? '')
+        setValue(card.value ?? '')
+        setTriggers(card.triggers ?? [])
+        setImageUrl(card.image_url)
+        setThemeSongUrl(card.theme_song_url)
+        guided.hydrateFrom(card, { preserveActive: true })
+    }
+
+    // Deep-link / refresh: when the URL carries `?card=<id>` but no card is in memory, fetch it and
+    // hydrate the form. No-ops on normal navigation (the gallery sets the card before mount).
+    const { bootstrapping, version } = useCardEditorRoute('item', {
+        onCardLoaded: (raw) => hydrateFromCardBody(raw as ItemCardResponse),
+    })
+
+    // Draft/publish lifecycle: edits save to a private draft; Publish makes it live + a version.
+    const draft = useCardDraft({
+        cardType: 'item',
+        cardId: editingItem?.id ?? null,
+        version,
+        onDraftLoaded: (body) => hydrateFromCardBody(body as unknown as ItemCardResponse),
+    })
+    const [draftToast, setDraftToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
+
     const buildPayload = () => ({
         name,
         alias: alias.trim() || null,
@@ -167,13 +206,18 @@ export function ItemCreator() {
             throw new Error(t('creation.item.validation.nameAndDescriptionForMedia'))
         }
         if (editingItem) {
-            await apiService.updateItem(editingItem.id, buildPayload())
+            // The card already exists — media generation only needs its id. Authored edits stay
+            // in the draft (saved via "Save draft"); we must not publish the body here.
             savedIdRef.current = editingItem.id
             return editingItem.id
         }
         const created = await apiService.createItem(buildPayload())
         const saved = toItem(created as ItemCardResponse)
-        if (saved.id) setEditingItem(saved)
+        if (saved.id) {
+            setEditingItem(saved)
+            // Stamp the new id into the URL so a refresh mid-edit restores this card.
+            replaceHash(buildCardEditHash('item', saved.id))
+        }
         savedIdRef.current = saved.id
         return saved.id
     }
@@ -182,11 +226,10 @@ export function ItemCreator() {
         setImageUrl(url)
         const id = savedIdRef.current ?? editingItem?.id
         if (id && url) {
-            void apiService
-                .updateItem(id, { ...buildPayload(), image_url: url })
-                .catch(() => {
-                    /* best-effort — Save re-persists the link */
-                })
+            // Media is a published-body property persisted immediately (not part of the draft).
+            void apiService.setCardMedia('item', id, { image_url: url }).catch(() => {
+                /* best-effort — the asset still exists; it re-persists on the next media action */
+            })
         }
     }
 
@@ -194,11 +237,9 @@ export function ItemCreator() {
         setThemeSongUrl(url)
         const id = savedIdRef.current ?? editingItem?.id
         if (id && url) {
-            void apiService
-                .updateItem(id, { ...buildPayload(), theme_song_url: url })
-                .catch(() => {
-                    /* best-effort — Save re-persists the link */
-                })
+            void apiService.setCardMedia('item', id, { theme_song_url: url }).catch(() => {
+                /* best-effort — the asset still exists; it re-persists on the next media action */
+            })
         }
     }
 
@@ -227,6 +268,8 @@ export function ItemCreator() {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
+        // Read-only historical view: nothing to save until the version is restored into the draft.
+        if (draft.isHistorical) return
         if (!isAuthenticated) {
             openLoginModal()
             return
@@ -239,15 +282,27 @@ export function ItemCreator() {
         try {
             const payload = buildPayload()
             if (editingItem) {
-                await apiService.updateItem(editingItem.id, payload)
+                // Edit mode: save to the private draft and stay; Publish makes it live + a version.
+                const ok = await draft.saveDraft(payload)
+                setDraftToast(
+                    ok
+                        ? { tone: 'success', message: t('cardVersions.draft.saved') }
+                        : { tone: 'error', message: t('cardVersions.errors.draftSave') },
+                )
             } else {
-                await apiService.createItem(payload)
+                // Create mode: create the live card, then transition into edit mode (drafts onward).
+                const created = await apiService.createItem(payload)
+                const saved = toItem(created as ItemCardResponse)
+                if (saved.id) {
+                    setEditingItem(saved)
+                    savedIdRef.current = saved.id
+                    // Stamp the new id into the URL so a refresh keeps the freshly-created card.
+                    replaceHash(buildCardEditHash('item', saved.id))
+                }
+                await loadData({ silent: true })
             }
-            setEditingItem(null)
-            await loadData()
-            goBack('landing')
         } catch (error) {
-            console.error(`Failed to ${editingItem ? 'update' : 'create'} item:`, error)
+            console.error(`Failed to ${editingItem ? 'save draft for' : 'create'} item:`, error)
             const transient = error instanceof ApiError && error.isTransient
             setSaveError(
                 transient
@@ -262,26 +317,27 @@ export function ItemCreator() {
     }
 
     const applyAssistantCard = (card: ItemCardResponse) => {
-        setName(card.name ?? '')
-        setAlias(card.alias ?? '')
-        setType(card.type ?? '')
-        setRarity(card.rarity ?? '')
-        setDescription(card.description ?? '')
-        setEffects(stringList(card.effects))
-        setRequirements(stringList(card.requirements))
-        setLimitations(stringList(card.limitations))
-        setOrigin(card.origin ?? '')
-        setValue(card.value ?? '')
-        setTriggers(card.triggers ?? [])
-        setImageUrl(card.image_url)
-        setThemeSongUrl(card.theme_song_url)
-        guided.hydrateFrom(card, { preserveActive: true })
+        hydrateFromCardBody(card)
         setEditingItem(toItem(card))
-        savedIdRef.current = card.id || card.uuid || null
+        const newId = card.id || card.uuid || null
+        savedIdRef.current = newId
+        if (newId) replaceHash(buildCardEditHash('item', newId))
         setAssistantApplied(true)
         // AI generation skips the gallery; a picked template's scaffolding survives.
         setTemplate((current) => (current === undefined ? null : current))
         void loadData({ silent: true })
+    }
+
+    /** Leave the read-only historical view by staging that version into the draft for editing. */
+    const handleRestoreHistorical = async () => {
+        const number = draft.viewingVersionNumber
+        if (number == null) return
+        const body = await draft.restoreIntoDraft(number)
+        if (body) {
+            hydrateFromCardBody(body as unknown as ItemCardResponse)
+            if (editingItem?.id) replaceHash(buildCardEditHash('item', editingItem.id))
+            setDraftToast({ tone: 'success', message: t('cardVersions.history.restored', { number }) })
+        }
     }
 
     const handleBack = () => {
@@ -321,9 +377,20 @@ export function ItemCreator() {
         />
     )
 
+    // Deep-link / refresh: while the card behind `?card=<id>` loads, show a spinner instead of
+    // flashing the "create" template gallery (its useState mounted empty before the fetch lands).
+    if (bootstrapping || (routeHasId && !editingItem)) {
+        return (
+            <div className="flex min-h-full flex-1 items-center justify-center">
+                <LoadingSpinner />
+            </div>
+        )
+    }
+
     // The chatbot is rendered as a stable sibling of BOTH screens so the
     // gallery → form transition never remounts an in-flight conversation.
-    if (template === undefined) {
+    // The template gallery is the true "create" entry — only when there's no card and no route id.
+    if (template === undefined && !editingItem && !routeHasId) {
         return (
             <>
                 <CreatorIntro title={t('creation.item.createTitle')} icon={<Icon icon={Gem} size={28} />} onBack={handleBack}>
@@ -351,9 +418,26 @@ export function ItemCreator() {
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
-                <Button variant="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
-                    {isSubmitting ? t('creation.common.formActions.saving') : editingItem ? t('creation.common.studio.update') : t('creation.item.create')}
-                </Button>
+                <>
+                    <Button variant="primary" type="submit" form={FORM_ID} disabled={isSubmitting || draft.isHistorical}>
+                        {isSubmitting
+                            ? t('creation.common.formActions.saving')
+                            : editingItem
+                              ? t('cardVersions.draft.saveButton')
+                              : t('creation.item.create')}
+                    </Button>
+                    <CardDraftControls
+                        cardType="item"
+                        cardId={editingItem?.id ?? null}
+                        cardName={name.trim() || t('creation.item.untitled')}
+                        draft={draft}
+                        onHydrate={(body) => hydrateFromCardBody(body as unknown as ItemCardResponse)}
+                        onPublished={() => {
+                            void loadData({ silent: true })
+                        }}
+                        disabled={isSubmitting}
+                    />
+                </>
             }
             preview={
                 <StudioPreviewDock
@@ -374,6 +458,13 @@ export function ItemCreator() {
             }
         >
             <form id={FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-6" onKeyDown={handleKeyDown}>
+                {draft.isHistorical && draft.viewingVersionNumber != null && (
+                    <HistoricalVersionBanner
+                        versionNumber={draft.viewingVersionNumber}
+                        onRestore={() => void handleRestoreHistorical()}
+                        busy={draft.busy}
+                    />
+                )}
                 <StudioSection
                     id={sectionById['identity'].id}
                     icon={sectionById['identity'].icon}
@@ -604,13 +695,21 @@ export function ItemCreator() {
 
                 <FormActions
                     onCancel={handleStudioBack}
-                    submitLabel={editingItem ? t('creation.item.actions.updateItem') : t('creation.item.actions.createItem')}
+                    submitLabel={editingItem ? t('cardVersions.draft.saveButton') : t('creation.item.actions.createItem')}
                     isSubmitting={isSubmitting}
+                    disabled={draft.isHistorical}
                     error={saveError}
                 />
             </form>
         </CreatorStudio>
         {chatbot}
+        <Toast
+            open={draftToast !== null}
+            tone={draftToast?.tone ?? 'success'}
+            title={draftToast?.message ?? ''}
+            onClose={() => setDraftToast(null)}
+            autoCloseMs={3000}
+        />
         </>
     )
 }

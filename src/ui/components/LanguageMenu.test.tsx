@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AuthContext } from '@/app/providers/AuthProvider'
 import { LanguageMenu } from './LanguageMenu'
 
@@ -31,6 +31,20 @@ function renderMenu(props: Partial<ComponentProps<typeof LanguageMenu>> = {}) {
             <LanguageMenu {...props} />
         </AuthContext.Provider>,
     )
+}
+
+function stubRect(element: Element) {
+    vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+        x: 32,
+        y: 80,
+        top: 80,
+        left: 32,
+        right: 72,
+        bottom: 120,
+        width: 40,
+        height: 40,
+        toJSON: () => ({}),
+    } as DOMRect)
 }
 
 describe('LanguageMenu', () => {
@@ -65,5 +79,18 @@ describe('LanguageMenu', () => {
         expect(screen.getByRole('button', { name: /language/i })).toHaveAttribute('aria-expanded', 'true')
         fireEvent.keyDown(window, { key: 'Escape' })
         expect(screen.getByRole('button', { name: /language/i })).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('shows the collapsed language tooltip in a body portal', () => {
+        renderMenu({ collapsed: true })
+
+        const trigger = screen.getByRole('button', { name: /language/i })
+        const wrapper = trigger.parentElement as HTMLElement
+        stubRect(wrapper)
+        fireEvent.mouseEnter(wrapper)
+
+        const tooltip = screen.getByRole('tooltip', { name: /language/i })
+        expect(tooltip.parentElement).toBe(document.body)
+        expect(wrapper).not.toContainElement(tooltip)
     })
 })

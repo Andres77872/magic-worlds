@@ -69,6 +69,8 @@ export interface SnapshotCard {
     image_url?: string
     /** Hosted URL of this card's generated theme song, if any. */
     theme_song_url?: string
+    /** Assigned narration voice copied from a character/persona card. */
+    voice?: CharacterVoice
     [key: string]: unknown
 }
 

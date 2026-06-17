@@ -82,29 +82,37 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                         <span className="font-mono text-[11px] text-parchment-500">
                             {formatApiTime(turn.timestamp)}
                         </span>
-                        {!isUser && !isEditing && onRequestNarration && (
-                            <TurnNarration
-                                status={turn.ttsStatus}
-                                url={turn.ttsUrl ?? turn.ttsAssets?.[0]?.url}
-                                segments={turn.ttsSegments}
-                                errorDetail={turn.ttsError?.detail}
-                                canRequest={!turn.isStreaming && Boolean(turn.assistantMessageId || turn.turnId)}
-                                onRequest={() => onRequestNarration(turn.assistantMessageId, turn.turnId)}
-                            />
+                        {/* Group TTS + copy/edit/regenerate/delete into one quiet toolbar so they
+                            read as a single control cluster rather than glyphs crowding the name. */}
+                        {!isEditing && (
+                            <div className="flex items-center gap-0.5 rounded-full border border-parchment-50/[.08] bg-ink-700/60 px-1 py-0.5">
+                                {!isUser && onRequestNarration && (
+                                    <TurnNarration
+                                        status={turn.ttsStatus}
+                                        url={turn.ttsUrl ?? turn.ttsAssets?.[0]?.url}
+                                        segments={turn.ttsSegments}
+                                        errorDetail={turn.ttsError?.detail}
+                                        canRequest={!turn.isStreaming && Boolean(turn.assistantMessageId || turn.turnId)}
+                                        onRequest={() => onRequestNarration(turn.assistantMessageId, turn.turnId)}
+                                    />
+                                )}
+                                <ChatActions
+                                    turnId={turn.id}
+                                    isUser={isUser}
+                                    isEditing={isEditing}
+                                    isStreaming={turn.isStreaming}
+                                    actionsDisabled={actionsDisabled}
+                                    messageContent={turn.content}
+                                    onEditClick={onEditClick ? handleEditStart : undefined}
+                                    onRegenerateClick={onRegenerateClick}
+                                    onDeleteClick={onDeleteClick}
+                                    confirmingDelete={confirmingDelete}
+                                    deleting={deleting}
+                                    onConfirmDelete={() => onConfirmDeleteClick?.(turn.id)}
+                                    onCancelDelete={onCancelDeleteClick}
+                                />
+                            </div>
                         )}
-                        <ChatActions
-                            turnId={turn.id}
-                            isUser={isUser}
-                            isEditing={isEditing}
-                            isStreaming={turn.isStreaming || actionsDisabled}
-                            onEditClick={onEditClick ? handleEditStart : undefined}
-                            onRegenerateClick={onRegenerateClick}
-                            onDeleteClick={onDeleteClick}
-                            confirmingDelete={confirmingDelete}
-                            deleting={deleting}
-                            onConfirmDelete={() => onConfirmDeleteClick?.(turn.id)}
-                            onCancelDelete={onCancelDeleteClick}
-                        />
                     </div>
                 </div>
 

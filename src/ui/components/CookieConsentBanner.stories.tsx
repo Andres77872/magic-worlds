@@ -12,6 +12,8 @@ const navStub: NavValue = {
     previousPage: undefined,
     setPage: () => {},
     goBack: () => {},
+    cardEdit: null,
+    replaceHash: () => {},
 }
 
 // Forget any prior choice on each render so the banner is always visible in the

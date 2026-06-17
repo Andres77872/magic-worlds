@@ -140,6 +140,57 @@ export function parseGalleryHash(hash: string = typeof window === 'undefined' ? 
     return { type, page: TYPE_TO_PAGE[type], cardId, mode, view }
 }
 
+// --- Card editor deep-links (character / world / item) -----------------------------
+// The editor for a versionable card lives at `#/<type>?card=<id>[&version=<v>]`, reusing the
+// same query convention as the gallery `?card=` links. The bare `#/<type>` (no `card`) stays the
+// "create" route, so `pageFromHash` needs no change — only param extraction is new.
+
+/** Versionable card types that have a deep-linkable editor (persona edits via `character`). */
+export type CardEditType = 'character' | 'world' | 'item'
+
+/** Version selector in the URL: the private draft, the latest published, or a specific version. */
+export type CardEditVersion = 'draft' | 'latest' | number
+
+export interface CardEditHashTarget {
+    page: PageType
+    cardType: CardEditType
+    cardId: string
+    /** undefined ⇒ server default (draft if one exists, else the latest published body). */
+    version?: CardEditVersion
+}
+
+/** Normalize a raw `version` query value to `draft` | `latest` | a positive integer | undefined. */
+function normalizeCardEditVersion(raw: string | null): CardEditVersion | undefined {
+    if (!raw) return undefined
+    if (raw === 'draft' || raw === 'latest') return raw
+    const n = Number(raw)
+    return Number.isInteger(n) && n > 0 ? n : undefined
+}
+
+export function buildCardEditHash(cardType: CardEditType, cardId: string, version?: CardEditVersion): string {
+    const params = new URLSearchParams({ card: cardId })
+    if (version !== undefined) params.set('version', String(version))
+    return `#/${cardType}?${params.toString()}`
+}
+
+export function parseCardEditHash(
+    hash: string = typeof window === 'undefined' ? '' : window.location.hash,
+): CardEditHashTarget | null {
+    const withoutHash = hash.startsWith('#') ? hash.slice(1) : hash
+    const [path, query = ''] = withoutHash.split('?')
+    const match = path.match(/^\/(character|world|item)$/)
+    if (!match) return null
+    const cardType = match[1] as CardEditType
+    const cardId = new URLSearchParams(query).get('card')
+    if (!cardId) return null
+    return {
+        page: cardType,
+        cardType,
+        cardId,
+        version: normalizeCardEditVersion(new URLSearchParams(query).get('version')),
+    }
+}
+
 export function pageFromHash(hash: string = typeof window === 'undefined' ? '' : window.location.hash): PageType | null {
     if (parseSharedCardToken(hash)) return 'shared-card'
     const gallery = parseGalleryHash(hash)

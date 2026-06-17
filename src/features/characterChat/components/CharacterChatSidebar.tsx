@@ -5,12 +5,16 @@
 
 import { ArrowLeft, MessageCircle, Pencil, Phone, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { Character } from '../../../shared'
+import type { Character, CharacterChatCodexCard } from '../../../shared'
+import type { CodexLibraryCardSelection } from '@/features/codex'
+import { SessionLorebookPanel } from '@/features/lorebook'
 import { resolveMediaUrl } from '../../../infrastructure/api'
 import { Avatar, Button, Eyebrow, Icon, Portrait, Tag } from '../../../ui/primitives'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
+import { CharacterChatCodexPanel } from './CharacterChatCodexPanel'
 
 interface CharacterChatSidebarProps {
+    sessionId?: string
     character?: Character
     characters?: Character[]
     title?: string
@@ -20,11 +24,31 @@ interface CharacterChatSidebarProps {
     mode?: 'text' | 'voice'
     voiceEnabled?: boolean
     onSetMode?: (mode: 'text' | 'voice') => void
+    codexCards?: CharacterChatCodexCard[]
+    onAddCodexCards?: (cards: CodexLibraryCardSelection[]) => Promise<unknown>
+    onToggleCodexCard?: (card: CharacterChatCodexCard, enabled: boolean) => Promise<unknown>
+    onRemoveCodexCard?: (card: CharacterChatCodexCard) => Promise<unknown>
     onBack: () => void
     onEditCharacter: (character: Character) => void
 }
 
-export function CharacterChatSidebar({ character, characters, title, isGroup = false, persona, mode = 'text', voiceEnabled = false, onSetMode, onBack, onEditCharacter }: CharacterChatSidebarProps) {
+export function CharacterChatSidebar({
+    sessionId,
+    character,
+    characters,
+    title,
+    isGroup = false,
+    persona,
+    mode = 'text',
+    voiceEnabled = false,
+    onSetMode,
+    codexCards = [],
+    onAddCodexCards,
+    onToggleCodexCard,
+    onRemoveCodexCard,
+    onBack,
+    onEditCharacter,
+}: CharacterChatSidebarProps) {
     const { t } = useTranslation()
     const cast: Character[] = isGroup ? (characters ?? []) : character ? [character] : []
     const lead = cast[0]
@@ -74,6 +98,19 @@ export function CharacterChatSidebar({ character, characters, title, isGroup = f
                             <p className="font-display text-[16px] font-semibold text-parchment-50">{persona.name}</p>
                             {persona.race && <p className="mt-0.5 font-narrative text-xs text-parchment-400">{persona.race}</p>}
                         </div>
+                    )}
+
+                    {onAddCodexCards && onToggleCodexCard && onRemoveCodexCard && (
+                        <CharacterChatCodexPanel
+                            cards={codexCards}
+                            onAddCards={onAddCodexCards}
+                            onToggleCard={onToggleCodexCard}
+                            onRemoveCard={onRemoveCodexCard}
+                        />
+                    )}
+
+                    {sessionId && (
+                        <SessionLorebookPanel targetKind="character_chat" targetId={sessionId} />
                     )}
 
                     {isGroup ? (

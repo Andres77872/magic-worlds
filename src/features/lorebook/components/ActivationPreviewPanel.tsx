@@ -13,7 +13,7 @@ interface ActivationPreviewPanelProps {
 
 const DEFAULT_SAMPLE = 'I ask Mira about the Glass Market and show her the silver confession ring.'
 
-export function ActivationPreviewPanel({ lorebook, saved }: ActivationPreviewPanelProps) {
+export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPreviewPanelProps) {
     const { t } = useTranslation()
     const [sample, setSample] = useState(DEFAULT_SAMPLE)
     const [preview, setPreview] = useState<LoreActivationPreviewResponse>(() => previewLocally(lorebook, DEFAULT_SAMPLE))
@@ -28,20 +28,15 @@ export function ActivationPreviewPanel({ lorebook, saved }: ActivationPreviewPan
         setLoading(true)
         setError(null)
         try {
-            if (saved) {
-                const result = await apiService.previewLoreActivation({
-                    targetKind: 'global',
-                    mode: 'continue',
-                    messages: [{ role: 'user', content: sample }],
-                    includePromptPreview: true,
-                    overrides: { lorebookIds: [lorebook.id] },
-                })
-                setPreview(result)
-                setSource('backend')
-            } else {
-                setPreview(previewLocally(lorebook, sample))
-                setSource('local')
-            }
+            const result = await apiService.previewLoreActivation({
+                targetKind: 'global',
+                mode: 'continue',
+                messages: [{ role: 'user', content: sample }],
+                includePromptPreview: true,
+                overrides: { lorebooks: [lorebook] },
+            })
+            setPreview(result)
+            setSource('backend')
         } catch (e) {
             setPreview(previewLocally(lorebook, sample))
             setSource('local')

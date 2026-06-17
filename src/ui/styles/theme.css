@@ -491,7 +491,7 @@
     background: rgba(246, 239, 226, 0.1);
   }
   /* roleplay elements: dialogue stands out, action/thought recede */
-  .chat-prose .rp-dialogue { color: var(--color-parchment-50); font-weight: 500; }
+  .chat-prose .rp-dialogue { color: var(--color-parchment-50); font-weight: 600; }
   .chat-prose .rp-action { font-style: italic; color: var(--color-parchment-300); }
   .chat-prose .rp-thought { font-style: italic; color: var(--color-arcane-300); }
   .chat-prose .rp-thought::before { content: '('; }

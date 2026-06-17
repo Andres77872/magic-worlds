@@ -6,9 +6,11 @@
 export const OPERATION_LABELS: Record<string, string> = {
     chat_interaction: 'Chat',
     ai_card_generation: 'AI cards',
-    image_generation: 'Images',
+    image_generation: 'Chat/adventure images',
+    card_image_generation: 'Card images',
     theme_song_generation: 'Theme songs',
     tts_generation: 'TTS',
+    voice_call: 'Call mode',
 }
 
 /** Known operations first (in OPERATION_LABELS order), unknown ones after, alphabetically. */

@@ -305,7 +305,7 @@ export function LorebookStudio() {
                             </div>
                             <LorebookIssueList issues={issues} />
                         </div>
-                        <LorebookAttachPanel lorebook={draft} />
+                        <LorebookAttachPanel lorebook={draft} onChange={(attachments) => patchDraft({ attachments })} />
                     </div>
                     <ActivationPreviewPanel lorebook={draft} saved={saved} />
                 </main>

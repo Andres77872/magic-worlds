@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookOpenText, CheckCircle2, Download, Globe2, History, Import, Link2, Loader2, Pencil, Phone, Play, Plus, MessageCircle, Search, Trash2, Users, X } from 'lucide-react'
+import { BookOpenText, CheckCircle2, Copy, Download, Globe2, History, Import, Link2, Loader2, Pencil, Phone, Play, Plus, MessageCircle, Search, Trash2, Users, X } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import type { PlaylistTrack } from '@/app/providers/audioPlaylistContext'
 import type { Adventure, Character, Item, VersionableCardType, World } from '@/shared'
@@ -21,7 +21,7 @@ import { downloadBlob, safeFilename } from '@/utils/download'
 import { useStartCall } from '@/features/call'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { GALLERY_CONFIG, publicConfigFor, publicItems, type GalleryItem, type GalleryType } from '../galleryConfig'
-import { buildGalleryModeHash, buildGalleryViewHash, buildSharedCardUrl, galleryPageForType, parseGalleryHash } from '../galleryLinks'
+import { buildCardEditHash, buildGalleryModeHash, buildGalleryViewHash, buildSharedCardUrl, galleryPageForType, parseGalleryHash } from '../galleryLinks'
 import { useCardGallery } from '../hooks/useCardGallery'
 import { useCardImport, useGalleryCardPreview } from '../hooks/useCardImport'
 import { CardImportOverlays } from './CardImportOverlays'
@@ -97,18 +97,25 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const { isAuthenticated, openLoginModal } = useAuth()
     const {
         editCharacter,
+        setCharacters,
         setEditingCharacter,
         deleteCharacter,
         characters,
         startCharacterChat,
         startCharacterGroupChat,
         editWorld,
+        worlds,
+        setWorlds,
         setEditingWorld,
         deleteWorld,
         editItem,
+        items: libraryItems,
+        setItems,
         setEditingItem,
         deleteItem,
         editTemplate,
+        templateAdventures,
+        setTemplateAdventures,
         setEditingTemplate,
         startTemplate,
         deleteTemplateById,
@@ -119,6 +126,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const preview = useGalleryCardPreview()
     const [pendingDelete, setPendingDelete] = useState<GalleryItem | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
     const [exportingId, setExportingId] = useState<string | null>(null)
     const [sharingId, setSharingId] = useState<string | null>(null)
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null)
@@ -260,14 +268,18 @@ export function GalleryPage({ type }: GalleryPageProps) {
 
     // Re-pull a single card after a version save/restore so the gallery reflects the
     // new latest_version_number (and any restored body changes).
-    const refreshGalleryItem = (id: string) => {
-        if (!activeConfig.fetchItem || !activeConfig.toItem) return
-        void activeConfig.fetchItem(id)
-            .then((raw) => {
-                const updated = activeConfig.toItem?.(raw)
-                if (updated) upsertItem(updated)
-            })
-            .catch(() => {})
+    /** Open the matching card editor (where draft/publish/restore are managed). */
+    const openEditorForItem = (item: GalleryItem) => {
+        if (item.galleryType === 'character' || item.galleryType === 'persona') {
+            editCharacter(item.source as Character)
+            setPage('character', { hash: buildCardEditHash('character', item.id) })
+        } else if (item.galleryType === 'world') {
+            editWorld(item.source as World)
+            setPage('world', { hash: buildCardEditHash('world', item.id) })
+        } else if (item.galleryType === 'item') {
+            editItem(item.source as Item)
+            setPage('item', { hash: buildCardEditHash('item', item.id) })
+        }
     }
 
     const switchViewMode = (mode: 'mine' | 'public') => {
@@ -382,17 +394,17 @@ export function GalleryPage({ type }: GalleryPageProps) {
         if (type === 'character' || type === 'persona') {
             requireAuth(() => {
                 editCharacter(item.source as Character)
-                setPage('character')
+                setPage('character', { hash: buildCardEditHash('character', item.id) })
             })
         } else if (type === 'world') {
             requireAuth(() => {
                 editWorld(item.source as World)
-                setPage('world')
+                setPage('world', { hash: buildCardEditHash('world', item.id) })
             })
         } else if (type === 'item') {
             requireAuth(() => {
                 editItem(item.source as Item)
-                setPage('item')
+                setPage('item', { hash: buildCardEditHash('item', item.id) })
             })
         } else {
             requireAuth(() => {
@@ -471,6 +483,50 @@ export function GalleryPage({ type }: GalleryPageProps) {
             })
         } finally {
             setSharingId(null)
+        }
+    }
+
+    const prependDuplicateIntoData = (item: GalleryItem) => {
+        if (item.galleryType === 'character' || item.galleryType === 'persona') {
+            const duplicate = item.source as Character
+            setCharacters([duplicate, ...characters.filter((character) => character.id !== duplicate.id)])
+        } else if (item.galleryType === 'world') {
+            const duplicate = item.source as World
+            setWorlds([duplicate, ...worlds.filter((world) => world.id !== duplicate.id)])
+        } else if (item.galleryType === 'item') {
+            const duplicate = item.source as Item
+            setItems([duplicate, ...libraryItems.filter((storedItem) => storedItem.id !== duplicate.id)])
+        } else {
+            const duplicate = item.source as Adventure
+            setTemplateAdventures([duplicate, ...templateAdventures.filter((template) => template.id !== duplicate.id)])
+        }
+    }
+
+    const duplicateCard = async (item: GalleryItem) => {
+        if (duplicatingId) return
+        setActionNotice(null)
+        setDuplicatingId(item.id)
+        try {
+            const response = await apiService.duplicateCard(item.backendType, item.id)
+            const duplicated = publicItems(response, type)[0]
+            if (!duplicated) throw new Error(t('gallery.action.tryAgain'))
+            upsertItem(duplicated)
+            prependDuplicateIntoData(duplicated)
+            setHighlightedId(duplicated.id)
+            setActionNotice({
+                tone: 'success',
+                title: t('gallery.action.duplicateTitle'),
+                message: t('gallery.action.duplicateBody', { title: item.title.slice(0, 80) }),
+            })
+        } catch (error) {
+            console.error('Failed to duplicate gallery card:', error)
+            setActionNotice({
+                tone: 'error',
+                title: t('gallery.action.duplicateFailed'),
+                message: startErrorCopy(error, t('gallery.action.tryAgain')),
+            })
+        } finally {
+            setDuplicatingId(null)
         }
     }
 
@@ -598,6 +654,17 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 onClick: () => requireAuth(() => setVersionTarget(item)),
             })
         }
+        options.push({
+            type: 'custom',
+            icon: duplicatingId === item.id ? (
+                <Icon icon={Loader2} size={15} className="animate-spin" />
+            ) : (
+                <Icon icon={Copy} size={15} />
+            ),
+            label: duplicatingId === item.id ? t('gallery.duplicating') : t('gallery.duplicate'),
+            onClick: () => requireAuth(() => void duplicateCard(item)),
+            disabled: duplicatingId !== null,
+        })
         options.push({
             type: 'custom',
             icon: <Icon icon={Trash2} size={15} />,
@@ -838,6 +905,8 @@ export function GalleryPage({ type }: GalleryPageProps) {
                     const selectionMode = groupSelectionMode && type === 'character' && !isPublicView
                     const importing = importHook.importingKey === `${item.backendType}:${item.id}`
                     const alreadyImported = isPublicView && Boolean(item.resource?.already_imported)
+                    // Usage is owner-scoped, so only fetch it for the user's own libraries.
+                    const usageType = isPublicView ? null : versionableCardType()
                     return (
                         <GalleryCard
                             id={item.id}
@@ -850,6 +919,10 @@ export function GalleryPage({ type }: GalleryPageProps) {
                             themeSongUrl={item.themeSongUrl}
                             cardType={playlistCardType(item.galleryType)}
                             cardId={item.id}
+                            versionNumber={item.versionNumber}
+                            hasDraft={item.hasDraft}
+                            usageCardType={usageType ?? undefined}
+                            usageEnabled={usageType !== null}
                             shareOptions={selectionMode || isPublicView ? undefined : shareOptionsFor(item)}
                             deleting={deletingId === item.id}
                             onClick={() => primaryAction(item)}
@@ -990,8 +1063,11 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 cardType={versionableCardType() ?? 'character'}
                 cardId={versionTarget?.id}
                 cardName={versionTarget?.title ?? ''}
-                onChanged={() => {
-                    if (versionTarget) refreshGalleryItem(versionTarget.id)
+                onEdit={() => {
+                    const target = versionTarget
+                    if (!target) return
+                    setVersionTarget(null)
+                    requireAuth(() => openEditorForItem(target))
                 }}
             />
 

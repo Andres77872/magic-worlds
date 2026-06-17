@@ -10,6 +10,8 @@ import type {
     Item,
     Adventure,
     AdventureSnapshot,
+    CharacterChatCodexCard,
+    CharacterChatCodexCardKind,
     CharacterChatSession,
     LoadingState,
     Lorebook,
@@ -114,7 +116,7 @@ interface DataContextValue {
     activeCharacterChat: CharacterChatSession | null
     setActiveCharacterChat: (chat: CharacterChatSession | null) => void
     activeCharacterChatMode: CharacterChatMode
-    /** Start (or resume) a 1:1 chat with a character; caller navigates to 'character-chat'. */
+    /** Start a fresh 1:1 chat with a character; caller navigates to 'character-chat'. */
     startCharacterChat: (character: Character, persona: Character) => Promise<CharacterChatSession>
     /** Start a fresh group chat with 2-6 AI character cards; caller navigates to 'character-chat'. */
     startCharacterGroupChat: (characters: Character[], persona: Character) => Promise<CharacterChatSession>
@@ -122,6 +124,9 @@ interface DataContextValue {
     characterChats: CharacterChatSession[]
     /** Reopen an existing chat from the list; caller navigates to 'character-chat'. */
     resumeCharacterChat: (chat: CharacterChatSession, options?: { mode?: CharacterChatMode }) => void
+    addCharacterChatCodexCards: (chatId: string, cards: Array<{ kind: CharacterChatCodexCardKind; cardId: string }>) => Promise<CharacterChatSession>
+    toggleCharacterChatCodexCard: (chatId: string, codexCardId: string, enabled: boolean) => Promise<CharacterChatSession>
+    removeCharacterChatCodexCard: (chatId: string, codexCardId: string) => Promise<CharacterChatSession>
     deleteCharacterChat: (id: string) => Promise<void>
 
     // UI State
@@ -193,6 +198,36 @@ function buildInProgressAdventure(session: RawAdventureSession, template: Advent
     }
 }
 
+const CHARACTER_CHAT_CODEX_KINDS = new Set<CharacterChatCodexCardKind>(['character', 'world', 'item', 'adventure_template'])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function normalizeCharacterChatCodexCards(raw: unknown): CharacterChatCodexCard[] {
+    if (!Array.isArray(raw)) return []
+    return raw
+        .map((entry, index): CharacterChatCodexCard | null => {
+            if (!isRecord(entry)) return null
+            const kind = String(entry.kind ?? '') as CharacterChatCodexCardKind
+            const snapshot = isRecord(entry.snapshot) ? entry.snapshot : {}
+            const cardId = String(entry.card_id ?? entry.cardId ?? snapshot.source_card_id ?? '')
+            const id = String(entry.id ?? '')
+            if (!id || !cardId || !CHARACTER_CHAT_CODEX_KINDS.has(kind)) return null
+            const rawPrecedence = Number(entry.precedence ?? index)
+            return {
+                id,
+                kind,
+                cardId,
+                enabled: entry.enabled !== false,
+                precedence: Number.isFinite(rawPrecedence) ? rawPrecedence : index,
+                snapshot,
+            }
+        })
+        .filter((entry): entry is CharacterChatCodexCard => Boolean(entry))
+        .sort((a, b) => a.precedence - b.precedence)
+}
+
 function normalizeCharacterChat(
     chat: any,
     libraryCharacters: Character[],
@@ -233,6 +268,7 @@ function normalizeCharacterChat(
         characters: sessionCharacters.length > 0 ? sessionCharacters : undefined,
         persona_id: personaId || undefined,
         persona,
+        codexCards: normalizeCharacterChatCodexCards(chat.codex_cards ?? chat.codexCards),
         turns: parseTurnState(chat.last_turn),
         createdAt: chat.created_at,
         updatedAt: chat.updated_at,
@@ -649,9 +685,8 @@ export function DataProvider({ children }: DataProviderProps) {
         await apiService.discardStoryGeneration(storyId, generationId)
     }
     
-    // Start (or resume) a 1:1 character chat. The backend is idempotent per
-    // (user, character): it returns the existing chat or creates one seeded with the
-    // character's greeting. The caller navigates to the 'character-chat' page.
+    // Start a fresh 1:1 character chat seeded with the character's greeting.
+    // The caller navigates to the 'character-chat' page.
     const startCharacterChat = async (character: Character, persona: Character): Promise<CharacterChatSession> => {
         if (!isAuthenticated) {
             openLoginModal()
@@ -716,6 +751,53 @@ export function DataProvider({ children }: DataProviderProps) {
         }
         setActiveCharacterChatMode(options.mode ?? 'text')
         setActiveCharacterChat(chat)
+    }
+
+    const upsertCharacterChat = (chat: CharacterChatSession) => {
+        setCharacterChats((prev) => [chat, ...prev.filter((existing) => existing.id !== chat.id)])
+        setActiveCharacterChat((prev) => (prev && prev.id === chat.id ? chat : prev))
+        return chat
+    }
+
+    const addCharacterChatCodexCards = async (
+        chatId: string,
+        cards: Array<{ kind: CharacterChatCodexCardKind; cardId: string }>,
+    ): Promise<CharacterChatSession> => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to edit chat codex')
+        }
+        if (cards.length === 0) {
+            const current = activeCharacterChat && activeCharacterChat.id === chatId
+                ? activeCharacterChat
+                : characterChats.find((chat) => chat.id === chatId)
+            if (!current) throw new Error('Character chat not found')
+            return current
+        }
+        const updated = await apiService.addCharacterChatCodexCards(Number(chatId), cards)
+        return upsertCharacterChat(normalizeCharacterChat(updated, characters))
+    }
+
+    const toggleCharacterChatCodexCard = async (
+        chatId: string,
+        codexCardId: string,
+        enabled: boolean,
+    ): Promise<CharacterChatSession> => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to edit chat codex')
+        }
+        const updated = await apiService.updateCharacterChatCodexCard(Number(chatId), codexCardId, enabled)
+        return upsertCharacterChat(normalizeCharacterChat(updated, characters))
+    }
+
+    const removeCharacterChatCodexCard = async (chatId: string, codexCardId: string): Promise<CharacterChatSession> => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to edit chat codex')
+        }
+        const updated = await apiService.deleteCharacterChatCodexCard(Number(chatId), codexCardId)
+        return upsertCharacterChat(normalizeCharacterChat(updated, characters))
     }
 
     const deleteCharacterChat = async (id: string) => {
@@ -1011,6 +1093,9 @@ export function DataProvider({ children }: DataProviderProps) {
         startCharacterGroupChat,
         characterChats,
         resumeCharacterChat,
+        addCharacterChatCodexCards,
+        toggleCharacterChatCodexCard,
+        removeCharacterChatCodexCard,
         deleteCharacterChat,
 
         loadingState,

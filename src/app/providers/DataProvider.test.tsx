@@ -37,6 +37,9 @@ vi.mock('@/infrastructure', () => {
             updateCharacter: vi.fn().mockResolvedValue({}),
             updateWorld: vi.fn().mockResolvedValue({}),
             updateItem: vi.fn().mockResolvedValue({}),
+            addCharacterChatCodexCards: vi.fn().mockResolvedValue({}),
+            updateCharacterChatCodexCard: vi.fn().mockResolvedValue({}),
+            deleteCharacterChatCodexCard: vi.fn().mockResolvedValue({}),
             deleteAllUserData: vi.fn().mockResolvedValue({ message: 'ok', deleted: {} }),
             deleteCharacter: vi.fn().mockResolvedValue({}),
             deleteWorld: vi.fn().mockResolvedValue({}),
@@ -97,6 +100,16 @@ const CHAT_ROW = {
     persona_id: 'p1',
     character: { id: 'c1', name: 'Lyra', greeting: 'Well met.' },
     persona: { id: 'p1', name: 'Aria', role: 'persona' },
+    codex_cards: [
+        {
+            id: 'codex-1',
+            kind: 'world',
+            card_id: 'w1',
+            enabled: true,
+            precedence: 0,
+            snapshot: { name: 'Moon Gate', description: 'A city under silver weather.' },
+        },
+    ],
     last_turn: JSON.stringify({ turns: [{ id: 't1', type: 'ai', content: 'Well met.', timestamp: '' }] }),
     created_at: '2026-06-09T00:00:00',
     updated_at: '2026-06-09T00:00:00',
@@ -114,6 +127,8 @@ function ChatProbe() {
             <span data-testid="active-chat">{ctx?.activeCharacterChat?.id ?? 'none'}</span>
             <span data-testid="active-chat-mode">{ctx?.activeCharacterChatMode ?? 'none'}</span>
             <span data-testid="active-persona">{ctx?.activeCharacterChat?.persona?.name ?? 'none'}</span>
+            <span data-testid="active-codex-count">{ctx?.activeCharacterChat?.codexCards?.length ?? 0}</span>
+            <span data-testid="first-chat-codex-count">{ctx?.characterChats[0]?.codexCards?.length ?? 0}</span>
             {ctx?.characterChats.map((chat) => (
                 <span key={chat.id} data-testid={`chat-${chat.id}`}>{chat.character?.name}</span>
             ))}
@@ -123,6 +138,9 @@ function ChatProbe() {
             </button>
             <button onClick={() => ctx?.resumeCharacterChat(ctx.characterChats[0])}>resume</button>
             <button onClick={() => ctx?.resumeCharacterChat(ctx.characterChats[0], { mode: 'voice' })}>resume voice</button>
+            <button onClick={() => ctx?.addCharacterChatCodexCards('9', [{ kind: 'item', cardId: 'i1' }])}>add codex</button>
+            <button onClick={() => ctx?.toggleCharacterChatCodexCard('9', 'codex-1', false)}>toggle codex</button>
+            <button onClick={() => ctx?.removeCharacterChatCodexCard('9', 'codex-1')}>remove codex</button>
             <button onClick={() => ctx?.deleteCharacterChat('9')}>delete</button>
         </div>
     )
@@ -143,9 +161,10 @@ describe('DataProvider character chats', () => {
 
         await waitFor(() => expect(screen.getByTestId('chat-count')).toHaveTextContent('1'))
         expect(screen.getByTestId('chat-9')).toHaveTextContent('Lyra')
+        expect(screen.getByTestId('first-chat-codex-count')).toHaveTextContent('1')
     })
 
-    it('creates or resumes a character chat with the selected persona id', async () => {
+    it('starts a fresh character chat with the selected persona id', async () => {
         vi.mocked(apiService.createCharacterChat).mockResolvedValue({
             chat_id: 10,
             character_id: 'c1',
@@ -160,6 +179,7 @@ describe('DataProvider character chats', () => {
                 <ChatProbe />
             </DataProvider>,
         )
+        await waitFor(() => expect(screen.getByTestId('chat-count')).toHaveTextContent('1'))
 
         fireEvent.click(screen.getByText('start chat'))
 
@@ -167,6 +187,7 @@ describe('DataProvider character chats', () => {
         await waitFor(() => expect(screen.getByTestId('active-chat')).toHaveTextContent('10'))
         expect(screen.getByTestId('active-chat-mode')).toHaveTextContent('text')
         expect(screen.getByTestId('active-persona')).toHaveTextContent('Aria')
+        expect(screen.getByTestId('chat-count')).toHaveTextContent('2')
     })
 
     it('creates a fresh group chat with selected character ids', async () => {
@@ -227,6 +248,37 @@ describe('DataProvider character chats', () => {
         await waitFor(() => expect(screen.getByTestId('active-chat')).toHaveTextContent('9'))
         expect(screen.getByTestId('active-chat-mode')).toHaveTextContent('voice')
         expect(apiService.getCharacterChats).toHaveBeenCalledTimes(1)
+    })
+
+    it('updates active chat and list when chat codex changes', async () => {
+        vi.mocked(apiService.addCharacterChatCodexCards).mockResolvedValue({
+            ...CHAT_ROW,
+            codex_cards: [
+                ...(CHAT_ROW.codex_cards),
+                {
+                    id: 'codex-2',
+                    kind: 'item',
+                    card_id: 'i1',
+                    enabled: true,
+                    precedence: 1,
+                    snapshot: { name: 'Glass Key', description: 'Opens locked weather.' },
+                },
+            ],
+        })
+        render(
+            <DataProvider>
+                <ChatProbe />
+            </DataProvider>,
+        )
+        await waitFor(() => expect(screen.getByTestId('chat-count')).toHaveTextContent('1'))
+        fireEvent.click(screen.getByText('resume'))
+        await waitFor(() => expect(screen.getByTestId('active-codex-count')).toHaveTextContent('1'))
+
+        fireEvent.click(screen.getByText('add codex'))
+
+        await waitFor(() => expect(apiService.addCharacterChatCodexCards).toHaveBeenCalledWith(9, [{ kind: 'item', cardId: 'i1' }]))
+        await waitFor(() => expect(screen.getByTestId('active-codex-count')).toHaveTextContent('2'))
+        expect(screen.getByTestId('first-chat-codex-count')).toHaveTextContent('2')
     })
 
     it('delete removes the row and clears a matching active chat', async () => {

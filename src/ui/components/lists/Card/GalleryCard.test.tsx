@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { AudioPlaylistProvider } from '@/app/providers/AudioPlaylistProvider'
 import { PLAYLIST_STORAGE_KEY } from '@/app/providers/playlistReducer'
+import { apiService } from '@/infrastructure/api'
 import { clearAudioDataCaches } from '@/ui/components/audio'
 import { GalleryCard } from './GalleryCard'
 
@@ -97,6 +98,59 @@ describe('GalleryCard', () => {
         renderWithPlaylist(<GalleryCard title="Lyra" tags={['bard', 'moonlight']} />)
         expect(screen.getByText('bard')).toBeInTheDocument()
         expect(screen.getByText('moonlight')).toBeInTheDocument()
+    })
+
+    it('renders a version chip when versionNumber > 0 (and not at 0)', () => {
+        const { rerender } = renderWithPlaylist(<GalleryCard title="Lyra" versionNumber={3} />)
+        expect(screen.getByText('v3')).toBeInTheDocument()
+
+        rerender(
+            <AudioPlaylistProvider>
+                <GalleryCard title="Lyra" versionNumber={0} />
+            </AudioPlaylistProvider>,
+        )
+        expect(screen.queryByText('v0')).not.toBeInTheDocument()
+    })
+
+    it('renders a Draft chip when the card has unpublished edits', () => {
+        const { rerender } = renderWithPlaylist(<GalleryCard title="Lyra" hasDraft />)
+        expect(screen.getByText('Draft')).toBeInTheDocument()
+
+        rerender(
+            <AudioPlaylistProvider>
+                <GalleryCard title="Lyra" hasDraft={false} />
+            </AudioPlaylistProvider>,
+        )
+        expect(screen.queryByText('Draft')).not.toBeInTheDocument()
+    })
+
+    it('lazily fetches and shows the usage line once the card is in view', async () => {
+        vi.spyOn(apiService, 'getCardUsage').mockResolvedValue({ sessions: 5, stories: 2 })
+        // Real observers fire asynchronously; mimic that (a synchronous fire would trip
+        // observers that disconnect via closure, e.g. Portrait's lazy loader).
+        vi.stubGlobal(
+            'IntersectionObserver',
+            class {
+                cb: (entries: { isIntersecting: boolean }[], obs: { disconnect(): void }) => void
+                constructor(cb: (entries: { isIntersecting: boolean }[], obs: { disconnect(): void }) => void) {
+                    this.cb = cb
+                }
+                observe() {
+                    queueMicrotask(() => this.cb([{ isIntersecting: true }], this))
+                }
+                disconnect() {}
+            },
+        )
+        renderWithPlaylist(
+            <GalleryCard title="Lyra" usageEnabled usageCardType="character" cardId="gc-usage-1" />,
+        )
+        expect(await screen.findByText('Used in 5 sessions · 2 stories')).toBeInTheDocument()
+    })
+
+    it('does not fetch usage when usageEnabled is off', () => {
+        const spy = vi.spyOn(apiService, 'getCardUsage')
+        renderWithPlaylist(<GalleryCard title="Lyra" usageCardType="character" cardId="gc-usage-2" />)
+        expect(spy).not.toHaveBeenCalled()
     })
 
     it('suppresses the action bubble on a static card even when options exist', () => {

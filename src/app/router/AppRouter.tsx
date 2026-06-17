@@ -11,7 +11,7 @@ import { LoginModal } from '../../ui/components/LoginModal'
 import { AppWarningModal } from '../../ui/components/AppWarningModal'
 import { CookieConsentBanner } from '../../ui/components/CookieConsentBanner'
 import { ServicesDownBanner } from '../../ui/components/ServicesDownBanner'
-import { TasksDrawer } from '../../features/tasks'
+import { SidebarTasksMenu, TasksDrawer } from '../../features/tasks'
 import { CardPreviewModal, useCardPreviewModal } from '../../features/cards'
 import { LoadingSpinner } from '../../ui/components/LoadingSpinner'
 import { PlaylistDock } from '../../ui/components/audio/PlaylistDock'
@@ -80,7 +80,10 @@ export function AppRouter() {
                 <div className="app-stone absolute inset-0" />
                 <GlowBackdrop variant="page" animated />
             </div>
-            <Sidebar className="hidden lg:flex" />
+            <Sidebar
+                className="hidden lg:flex"
+                renderTasks={({ collapsed }) => <SidebarTasksMenu collapsed={collapsed} />}
+            />
             <main ref={mainRef} data-app-main className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
                 <MobileTopBar onOpenNav={() => setMobileNavOpen(true)} />
                 <ServicesDownBanner />
@@ -149,6 +152,7 @@ export function AppRouter() {
                 loading={cardPreview.loading}
                 error={cardPreview.error}
                 onClose={cardPreview.closeCardPreview}
+                showUsage
             />
         </div>
     )

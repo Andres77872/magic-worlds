@@ -126,6 +126,16 @@ describe('ChatroomPage', () => {
         expect(setPage).toHaveBeenCalledWith('character-chat')
     })
 
+    it('hides voice-call actions for group chats when the flag is enabled', async () => {
+        vi.stubEnv('VITE_VOICE_MODE_ENABLED', 'true')
+        render(<ChatroomPage />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra, Sable' }))
+
+        expect(await screen.findByRole('menuitem', { name: 'Resume chat' })).toBeInTheDocument()
+        expect(screen.queryByRole('menuitem', { name: 'Start voice call' })).not.toBeInTheDocument()
+    })
+
     it('deletes a chat after confirmation', async () => {
         render(<ChatroomPage />)
 

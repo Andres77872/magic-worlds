@@ -93,6 +93,7 @@ function DailyUsagePanel({
                                 label={operationName(operation, t)}
                                 used={limit.used_today}
                                 max={limit.daily_limit}
+                                valueLabel={dailyOperationUsageLabel(limit, t, locale)}
                                 t={t}
                                 locale={locale}
                             />
@@ -182,7 +183,7 @@ function MonthlyOperationRow({
                     {operationName(operation, t)}
                 </span>
                 <span className="block font-ui text-[11px] text-parchment-500">
-                    {t('usage.action', { count: usage.used })}
+                    {monthlyOperationUsageLabel(usage, t, locale)}
                 </span>
             </div>
             <div className="text-right font-ui text-[11px] text-parchment-300">
@@ -203,12 +204,13 @@ interface UsageMeterProps {
     used: number
     max: number
     ariaLabel?: string
+    valueLabel?: string
     prominent?: boolean
     t: TFunction
     locale: string
 }
 
-function UsageMeter({ label, used, max, ariaLabel, prominent = false, t, locale }: UsageMeterProps) {
+function UsageMeter({ label, used, max, ariaLabel, valueLabel, prominent = false, t, locale }: UsageMeterProps) {
     const percent = max > 0 ? Math.min(100, Math.max(0, Math.round((used / max) * 100))) : 0
 
     return (
@@ -220,7 +222,7 @@ function UsageMeter({ label, used, max, ariaLabel, prominent = false, t, locale 
                     <span className="truncate font-ui text-[12px] font-semibold text-parchment-100">{label}</span>
                 )}
                 <span className="shrink-0 font-ui text-[11px] text-parchment-400">
-                    {t('usage.of', { used: formatNumber(used, locale), max: formatNumber(max, locale) })}
+                    {valueLabel ?? t('usage.of', { used: formatNumber(used, locale), max: formatNumber(max, locale) })}
                 </span>
             </div>
             <div
@@ -262,6 +264,23 @@ function formatDateLabel(value: string, locale: string) {
     const [year, month, day] = value.split('-').map(Number)
     if (!year || !month || !day) return value
     return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(new Date(year, month - 1, day))
+}
+
+function dailyOperationUsageLabel(limit: MembershipOperationLimit, t: TFunction, locale: string) {
+    if (limit.billing_unit === 'audio_seconds') {
+        return t('usage.creditsAndSeconds', {
+            credits: formatNumber(limit.used_today, locale),
+            seconds: formatNumber(limit.billable_seconds_today ?? 0, locale),
+        })
+    }
+    return undefined
+}
+
+function monthlyOperationUsageLabel(usage: MembershipMonthlyOperationUsage, t: TFunction, locale: string) {
+    if (typeof usage.billable_seconds === 'number') {
+        return t('usage.audioTime', { seconds: formatNumber(usage.billable_seconds, locale) })
+    }
+    return t('usage.action', { count: usage.used })
 }
 
 function operationName(operation: string, t: TFunction) {

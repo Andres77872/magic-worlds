@@ -5,6 +5,7 @@ import type { Adventure, AdventureSnapshot, CharacterVoice } from '../../../shar
 import { readWorldPlaceType, worldPlaceTypeLabel } from '../../../shared'
 import { Badge, Button, Icon, IconButton, SectionHeader, SwitchRow, Tag, Textarea } from '../../../ui/primitives'
 import { VoicePickerDialog } from '../../voices/components/VoicePickerDialog'
+import { SessionLorebookPanel } from '@/features/lorebook'
 import { Card } from '../../../ui/components/lists/Card'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
 import { resolveMediaUrl } from '../../../infrastructure/api'
@@ -108,6 +109,8 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
             </div>
 
             <ScenarioSection scenario={scenario} editable={editable} onSave={handleSaveScenario} />
+
+            <SessionLorebookPanel targetKind="adventure_session" targetId={adventure.id} />
 
             <section className="flex flex-col gap-2.5">
                 <SectionHeader

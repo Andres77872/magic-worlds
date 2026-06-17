@@ -24,6 +24,8 @@ export interface CardPreview {
     categories?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }>
     createdAt?: string
     updatedAt?: string
+    /** Newest saved version number (versionable cards only); 0/undefined when none. */
+    versionNumber?: number
 }
 
 export interface CardPreviewLibrary {
@@ -59,6 +61,7 @@ function toCharacterPreview(card: Character, target: CardPreviewTarget): CardPre
         categories: card.category,
         createdAt: card.createdAt,
         updatedAt: card.updatedAt,
+        versionNumber: card.latest_version_number,
     }
 }
 
@@ -76,6 +79,7 @@ function toWorldPreview(card: World, target: CardPreviewTarget): CardPreview {
         categories: card.category,
         createdAt: card.createdAt,
         updatedAt: card.updatedAt,
+        versionNumber: card.latest_version_number,
     }
 }
 
@@ -93,6 +97,7 @@ function toItemPreview(card: Item, target: CardPreviewTarget): CardPreview {
         categories: card.category,
         createdAt: card.createdAt,
         updatedAt: card.updatedAt,
+        versionNumber: card.latest_version_number,
     }
 }
 

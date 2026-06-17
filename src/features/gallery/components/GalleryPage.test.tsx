@@ -2,6 +2,10 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const setPage = vi.fn()
+const setCharacters = vi.fn()
+const setWorlds = vi.fn()
+const setItems = vi.fn()
+const setTemplateAdventures = vi.fn()
 const editCharacter = vi.fn()
 const deleteCharacter = vi.fn().mockResolvedValue(undefined)
 const editItem = vi.fn()
@@ -46,6 +50,13 @@ vi.mock('@/app/hooks', () => ({
     useNavigation: () => ({ setPage }),
     useData: () => ({
         characters: mockData.characters,
+        setCharacters,
+        worlds: [],
+        setWorlds,
+        items: [],
+        setItems,
+        templateAdventures: [],
+        setTemplateAdventures,
         editCharacter,
         deleteCharacter,
         startCharacterChat,
@@ -79,6 +90,7 @@ vi.mock('@/infrastructure/api', () => ({
         listPublicCards: vi.fn().mockResolvedValue({ items: [], skip: 0, limit: 24 }),
         getPublicCard: vi.fn(),
         cloneCard: vi.fn(),
+        duplicateCard: vi.fn(),
     },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
     isProtectedMediaUrl: () => false,
@@ -178,6 +190,13 @@ describe('GalleryPage', () => {
             source_access: 'public',
             original_card_id: 'c1',
         })
+        vi.mocked(apiService.duplicateCard).mockResolvedValue({
+            card_type: 'character',
+            card: { ...CHARACTERS[0], id: 'c-copy', name: 'Lyra Copy' },
+            cloned_from: CHARACTERS[0],
+            source_access: 'owner',
+            original_card_id: 'c1',
+        })
         mockData.characters = [
             {
                 id: 'p1',
@@ -256,7 +275,8 @@ describe('GalleryPage', () => {
         fireEvent.click(card)
 
         expect(editCharacter).toHaveBeenCalledWith(expect.objectContaining({ id: 'c1' }))
-        expect(setPage).toHaveBeenCalledWith('character')
+        // The card id is stamped into the URL so a refresh restores the editor.
+        expect(setPage).toHaveBeenCalledWith('character', { hash: '#/character?card=c1' })
     })
 
     it('deletes via the hover menu through the confirm dialog and removes the card', async () => {
@@ -323,10 +343,102 @@ describe('GalleryPage', () => {
         expect(within(menu).getByRole('menuitem', { name: 'Share as public' })).toBeInTheDocument()
         expect(within(menu).getByRole('menuitem', { name: 'Download PNG' })).toBeInTheDocument()
         expect(within(menu).getByRole('menuitem', { name: 'Write' })).toBeInTheDocument()
-        expect(within(menu).getByRole('menuitem', { name: 'Chat' })).toBeInTheDocument()
+        expect(within(menu).getByRole('menuitem', { name: 'New chat' })).toBeInTheDocument()
         expect(within(menu).getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument()
+        expect(within(menu).getByRole('menuitem', { name: 'Duplicate' })).toBeInTheDocument()
         expect(within(menu).getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
         expect(editCharacter).not.toHaveBeenCalled()
+    })
+
+    it('does not offer Duplicate in the public gallery menu', async () => {
+        vi.mocked(apiService.listPublicCards).mockResolvedValue({
+            items: [
+                {
+                    card_type: 'character',
+                    card: CHARACTERS[0],
+                    visibility: { public: true },
+                    original_card_id: 'c1',
+                    original_creator: { user_id: 7, username: 'creator' },
+                },
+            ],
+            skip: 0,
+            limit: 24,
+        })
+
+        render(<GalleryPage type="character" />)
+        await screen.findByText('Lyra')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Public cards' }))
+        await waitFor(() => expect(apiService.listPublicCards).toHaveBeenCalledWith(0, 24, undefined, 'character', 'character'))
+        const card = (await screen.findAllByTestId('gallery-card'))[0]
+
+        fireEvent.contextMenu(card, { clientX: 120, clientY: 140 })
+
+        const menu = await screen.findByTestId('card-context-menu')
+        expect(within(menu).getByRole('menuitem', { name: 'Import card' })).toBeInTheDocument()
+        expect(within(menu).queryByRole('menuitem', { name: 'Duplicate' })).not.toBeInTheDocument()
+    })
+
+    it('duplicates an owned card and prepends the clone without version metadata', async () => {
+        vi.mocked(apiService.getCharacters).mockResolvedValue([
+            { ...CHARACTERS[0], latest_version_number: 3 },
+            CHARACTERS[1],
+        ])
+        vi.mocked(apiService.duplicateCard).mockResolvedValue({
+            card_type: 'character',
+            card: {
+                id: 'c-copy',
+                name: 'Lyra Copy',
+                race: 'Half-elf',
+                role: 'character',
+                triggers: ['bard'],
+                image_url: '/images/assets/copied-image',
+                theme_song_url: '/theme-songs/assets/copied-theme.mp3',
+                latest_version_id: null,
+                latest_version_number: 0,
+            },
+            cloned_from: CHARACTERS[0],
+            source_access: 'owner',
+            original_card_id: 'c1',
+        })
+
+        render(<GalleryPage type="character" />)
+        const firstCard = (await screen.findAllByTestId('gallery-card'))[0]
+
+        fireEvent.contextMenu(firstCard, { clientX: 120, clientY: 140 })
+        fireEvent.click(within(await screen.findByTestId('card-context-menu')).getByRole('menuitem', { name: 'Duplicate' }))
+
+        await waitFor(() => expect(apiService.duplicateCard).toHaveBeenCalledWith('character', 'c1'))
+        const cards = await screen.findAllByTestId('gallery-card')
+        expect(within(cards[0]).getByText('Lyra Copy')).toBeInTheDocument()
+        expect(within(cards[0]).queryByText('v3')).not.toBeInTheDocument()
+        expect(setCharacters).toHaveBeenCalledWith([
+            expect.objectContaining({
+                id: 'c-copy',
+                image_url: '/images/assets/copied-image',
+                theme_song_url: '/theme-songs/assets/copied-theme.mp3',
+                latest_version_number: 0,
+            }),
+            ...mockData.characters,
+        ])
+        expect(await screen.findByRole('status', { name: 'Card duplicated' })).toBeInTheDocument()
+    })
+
+    it('shows an error toast and leaves the list unchanged when duplicate fails', async () => {
+        vi.mocked(apiService.duplicateCard).mockRejectedValueOnce(new Error('Clone storage failed'))
+
+        render(<GalleryPage type="character" />)
+        const firstCard = (await screen.findAllByTestId('gallery-card'))[0]
+
+        fireEvent.contextMenu(firstCard, { clientX: 120, clientY: 140 })
+        fireEvent.click(within(await screen.findByTestId('card-context-menu')).getByRole('menuitem', { name: 'Duplicate' }))
+
+        await waitFor(() => expect(apiService.duplicateCard).toHaveBeenCalledWith('character', 'c1'))
+        expect(await screen.findByText('Could not duplicate card')).toBeInTheDocument()
+        expect(screen.getByText('Clone storage failed')).toBeInTheDocument()
+        expect(screen.queryByText('Lyra Copy')).not.toBeInTheDocument()
+        expect(screen.getAllByTestId('gallery-card')).toHaveLength(2)
+        expect(setCharacters).not.toHaveBeenCalled()
     })
 
     it('opens the context menu from the keyboard and restores focus on Escape', async () => {
@@ -385,7 +497,7 @@ describe('GalleryPage', () => {
         fireEvent.click(card)
 
         expect(editItem).toHaveBeenCalledWith(expect.objectContaining({ id: 'i1' }))
-        expect(setPage).toHaveBeenCalledWith('item')
+        expect(setPage).toHaveBeenCalledWith('item', { hash: '#/item?card=i1' })
     })
 
     it('exports an item card image from the share menu', async () => {
@@ -447,11 +559,11 @@ describe('GalleryPage', () => {
         expect(setPage).not.toHaveBeenCalledWith('interaction')
     })
 
-    it('fast-starts a character chat with the default persona', async () => {
+    it('starts a new character chat with the default persona', async () => {
         render(<GalleryPage type="character" />)
         await screen.findByText('Lyra')
 
-        fireEvent.click(screen.getAllByRole('button', { name: 'Chat' })[0])
+        fireEvent.click(screen.getAllByRole('button', { name: 'New chat' })[0])
 
         await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(
             expect.objectContaining({ id: 'c1' }),
@@ -476,7 +588,7 @@ describe('GalleryPage', () => {
         render(<GalleryPage type="character" />)
         await screen.findByText('Lyra')
 
-        fireEvent.click(screen.getAllByRole('button', { name: 'Chat' })[0])
+        fireEvent.click(screen.getAllByRole('button', { name: 'New chat' })[0])
         const dialog = await screen.findByRole('dialog', { name: 'Choose your persona' })
         fireEvent.click(within(dialog).getByRole('button', { name: 'Start chat' }))
 
@@ -487,12 +599,12 @@ describe('GalleryPage', () => {
         await waitFor(() => expect(setPage).toHaveBeenCalledWith('character-chat'))
     })
 
-    it('reports a fast character chat start failure without navigating', async () => {
+    it('reports a new character chat start failure without navigating', async () => {
         startCharacterChat.mockRejectedValueOnce(new Error('Chat service down'))
         render(<GalleryPage type="character" />)
         await screen.findByText('Lyra')
 
-        fireEvent.click(screen.getAllByRole('button', { name: 'Chat' })[0])
+        fireEvent.click(screen.getAllByRole('button', { name: 'New chat' })[0])
 
         expect(await screen.findByText('Could not start this chat')).toBeInTheDocument()
         expect(screen.getByText('Chat service down')).toBeInTheDocument()
@@ -505,7 +617,7 @@ describe('GalleryPage', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Group chat' }))
         expect(screen.getByText('0 selected for group chat')).toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'New chat' })).not.toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: 'Add to group chat: Lyra' }))
         fireEvent.click(screen.getByRole('button', { name: 'Add to group chat: Dorn' }))

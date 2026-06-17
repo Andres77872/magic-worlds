@@ -9,7 +9,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { CharacterChatSession, TurnEntry } from '../../../shared'
+import type { CharacterChatCodexCard, CharacterChatSession, TurnEntry } from '../../../shared'
+import type { CodexLibraryCardSelection } from '@/features/codex'
 import { useNavigation, useData, useAuth } from '../../../app/hooks'
 import { LoadingSpinner } from '../../../ui/components'
 import { characterChatConfig } from '../../interaction/chatSessionConfig'
@@ -21,7 +22,15 @@ import { CharacterChatSidebar } from './CharacterChatSidebar'
 export function CharacterChat() {
     const { t } = useTranslation()
     const { goBack, setPage } = useNavigation()
-    const { activeCharacterChat, activeCharacterChatMode, editCharacter, resumeCharacterChat } = useData()
+    const {
+        activeCharacterChat,
+        activeCharacterChatMode,
+        editCharacter,
+        resumeCharacterChat,
+        addCharacterChatCodexCards,
+        toggleCharacterChatCodexCard,
+        removeCharacterChatCodexCard,
+    } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
 
     // Gate behind auth — unauthenticated users cannot access chat.
@@ -84,6 +93,9 @@ export function CharacterChat() {
             key={`${activeCharacterChat.id}:text`}
             chat={activeCharacterChat}
             voiceEnabled={voiceEnabled}
+            onAddCodexCards={(cards) => addCharacterChatCodexCards(activeCharacterChat.id, cards)}
+            onToggleCodexCard={(card, enabled) => toggleCharacterChatCodexCard(activeCharacterChat.id, card.id, enabled)}
+            onRemoveCodexCard={(card) => removeCharacterChatCodexCard(activeCharacterChat.id, card.id)}
             onSetMode={handleSetMode}
             onBack={handleBack}
             onEditCharacter={handleEditCharacter}
@@ -94,12 +106,24 @@ export function CharacterChat() {
 interface CharacterChatViewProps {
     chat: CharacterChatSession
     voiceEnabled: boolean
+    onAddCodexCards: (cards: CodexLibraryCardSelection[]) => Promise<unknown>
+    onToggleCodexCard: (card: CharacterChatCodexCard, enabled: boolean) => Promise<unknown>
+    onRemoveCodexCard: (card: CharacterChatCodexCard) => Promise<unknown>
     onSetMode: (mode: 'text' | 'voice') => void
     onBack: () => void
     onEditCharacter: (character: CharacterChatSession['character']) => void
 }
 
-function CharacterChatView({ chat, voiceEnabled, onSetMode, onBack, onEditCharacter }: CharacterChatViewProps) {
+function CharacterChatView({
+    chat,
+    voiceEnabled,
+    onAddCodexCards,
+    onToggleCodexCard,
+    onRemoveCodexCard,
+    onSetMode,
+    onBack,
+    onEditCharacter,
+}: CharacterChatViewProps) {
     const { t } = useTranslation()
     const cast = chat.characters?.length ? chat.characters : chat.character ? [chat.character] : []
     const isGroup = chat.kind === 'character_group' || cast.length > 1
@@ -128,6 +152,7 @@ function CharacterChatView({ chat, voiceEnabled, onSetMode, onBack, onEditCharac
                 {/* Left: single-character sidebar */}
                 <SidePanelDrawer side="left" open={sidebarOpen} onClose={() => setSidebarOpen(false)} label={t('characterChat.sidebarLabel')}>
                     <CharacterChatSidebar
+                        sessionId={chat.id}
                         character={cast[0]}
                         characters={cast}
                         title={chatTitle}
@@ -135,6 +160,10 @@ function CharacterChatView({ chat, voiceEnabled, onSetMode, onBack, onEditCharac
                         persona={chat.persona}
                         mode="text"
                         voiceEnabled={voiceEnabled}
+                        codexCards={chat.codexCards ?? []}
+                        onAddCodexCards={onAddCodexCards}
+                        onToggleCodexCard={onToggleCodexCard}
+                        onRemoveCodexCard={onRemoveCodexCard}
                         onSetMode={onSetMode}
                         onBack={onBack}
                         onEditCharacter={onEditCharacter}

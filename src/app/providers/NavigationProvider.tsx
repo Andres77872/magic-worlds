@@ -4,11 +4,15 @@
 
 import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PageType, NavigationState } from '../../shared'
-import { pageFromHash, pageHash } from '../../features/gallery/galleryLinks'
+import { pageFromHash, pageHash, parseCardEditHash, type CardEditHashTarget } from '../../features/gallery/galleryLinks'
 
 interface NavigationContextValue extends NavigationState {
     setPage: (page: PageType, opts?: { hash?: string }) => void
     goBack: (fallback?: PageType) => void
+    /** Parsed card-editor deep-link params (`?card=&version=`) for the current hash, or null. */
+    cardEdit: CardEditHashTarget | null
+    /** Rewrite the current page's hash in place (no history push) — e.g. to stamp a card id. */
+    replaceHash: (hash: string) => void
 }
 
 const NavigationContext = createContext<NavigationContextValue | undefined>(undefined)
@@ -48,6 +52,9 @@ const sameEntry = (a: NavigationEntry, b: NavigationEntry) => a.page === b.page 
 export function NavigationProvider({ children }: NavigationProviderProps) {
     const [currentPage, setCurrentPage] = useState<PageType>(() => pageFromHash() ?? 'landing')
     const [backStack, setBackStack] = useState<NavigationEntry[]>([])
+    // Mirror the live hash into state so card-editor params (`?card=&version=`) stay reactive
+    // across setPage / goBack / hashchange / popstate.
+    const [currentHash, setCurrentHash] = useState(() => (typeof window === 'undefined' ? '' : window.location.hash))
     const currentPageRef = useRef(currentPage)
     const backStackRef = useRef(backStack)
 
@@ -67,6 +74,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         }
         setCurrentPage(page)
         writeHash(page, false, opts?.hash)
+        setCurrentHash(nextEntry.hash)
     }, [])
 
     const goBack = useCallback((fallback: PageType = 'landing') => {
@@ -74,10 +82,19 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         setBackStack((stack) => stack.slice(0, -1))
         setCurrentPage(target.page)
         writeHash(target.page, true, target.hash)
+        setCurrentHash(target.hash)
+    }, [])
+
+    // Rewrite the active page's hash in place (replaceState) without a history push —
+    // used to stamp the card id into the URL after a create→edit transition, etc.
+    const replaceHash = useCallback((hash: string) => {
+        writeHash(currentPageRef.current, true, hash)
+        setCurrentHash(hash)
     }, [])
 
     useEffect(() => {
         if (!pageFromHash()) writeHash(currentPage, true)
+        setCurrentHash(typeof window === 'undefined' ? '' : window.location.hash)
         const syncFromHash = () => {
             const page = pageFromHash()
             if (!page) return
@@ -91,6 +108,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
                 })
             }
             setCurrentPage(page)
+            setCurrentHash(window.location.hash)
         }
         window.addEventListener('hashchange', syncFromHash)
         window.addEventListener('popstate', syncFromHash)
@@ -102,12 +120,16 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
+    const cardEdit = useMemo(() => parseCardEditHash(currentHash), [currentHash])
+
     const value: NavigationContextValue = useMemo(() => ({
         currentPage,
         previousPage: backStack[backStack.length - 1]?.page,
         setPage,
         goBack,
-    }), [currentPage, backStack, setPage, goBack])
+        cardEdit,
+        replaceHash,
+    }), [currentPage, backStack, setPage, goBack, cardEdit, replaceHash])
 
     return (
         <NavigationContext.Provider value={value}>

@@ -13,15 +13,27 @@ const mocks = vi.hoisted(() => ({
     sendCardAssistantMessage: vi.fn(),
     streamCardAssistantMessage: vi.fn(),
     setEditingWorld: vi.fn(),
+    replaceHash: vi.fn(),
     createWorld: vi.fn(),
     updateWorld: vi.fn(),
     generateCardPortrait: vi.fn(),
+    getWorld: vi.fn(),
+    getCardDraft: vi.fn(),
+    saveCardDraft: vi.fn(),
+    discardCardDraft: vi.fn(),
+    publishCardDraft: vi.fn(),
+    restoreVersionIntoDraft: vi.fn(),
+    getCardVersion: vi.fn(),
+    getPublishedBody: vi.fn(),
+    setCardMedia: vi.fn(),
+    listCardVersions: vi.fn(),
     isAuthenticated: true,
     editingWorld: null as Record<string, unknown> | null,
+    cardEdit: null as Record<string, unknown> | null,
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack }),
+    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, cardEdit: mocks.cardEdit, replaceHash: mocks.replaceHash }),
     useData: () => ({ editingWorld: mocks.editingWorld, setEditingWorld: mocks.setEditingWorld, loadData: mocks.loadData }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
     useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
@@ -40,6 +52,16 @@ vi.mock('@/infrastructure/api', () => ({
         createWorld: mocks.createWorld,
         updateWorld: mocks.updateWorld,
         generateCardPortrait: mocks.generateCardPortrait,
+        getWorld: mocks.getWorld,
+        getCardDraft: mocks.getCardDraft,
+        saveCardDraft: mocks.saveCardDraft,
+        discardCardDraft: mocks.discardCardDraft,
+        publishCardDraft: mocks.publishCardDraft,
+        restoreVersionIntoDraft: mocks.restoreVersionIntoDraft,
+        getCardVersion: mocks.getCardVersion,
+        getPublishedBody: mocks.getPublishedBody,
+        setCardMedia: mocks.setCardMedia,
+        listCardVersions: mocks.listCardVersions,
         waitForImageJob: vi.fn(),
         listThemeSongs: vi.fn().mockResolvedValue({ items: [] }),
     },
@@ -142,7 +164,8 @@ describe('WorldCreator portrait persistence', () => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true
         mocks.editingWorld = { id: 'world-1', name: 'Glass', type: 'desert', description: '', triggers: [] }
-        mocks.updateWorld.mockResolvedValue({})
+        mocks.getCardDraft.mockResolvedValue({ id: 'world-1', is_draft: false, latest_version_number: 0 })
+        mocks.setCardMedia.mockResolvedValue({})
         mocks.generateCardPortrait.mockResolvedValue({
             job_id: 'job-1',
             status: 'completed',
@@ -150,7 +173,7 @@ describe('WorldCreator portrait persistence', () => {
         })
     })
 
-    it('persists a generated image onto the saved card immediately (no Save click)', async () => {
+    it('persists a generated image to the published body immediately (no Save click)', async () => {
         render(<WorldCreator />)
 
         fireEvent.click(screen.getByRole('button', { name: /generate setting image/i }))
@@ -167,8 +190,10 @@ describe('WorldCreator portrait persistence', () => {
             ),
         )
 
+        // Media is a published-body property — persisted via setCardMedia, not staged in the draft.
         await waitFor(() =>
-            expect(mocks.updateWorld).toHaveBeenCalledWith(
+            expect(mocks.setCardMedia).toHaveBeenCalledWith(
+                'world',
                 'world-1',
                 expect.objectContaining({ image_url: '/generated-images/w.png' }),
             ),
@@ -186,7 +211,7 @@ describe('WorldCreator navigation', () => {
         mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
     })
 
-    it('returns to the origin after saving a new world', async () => {
+    it('stays in the editor after creating a new world (draft/publish from here)', async () => {
         render(<WorldCreator />)
 
         fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
@@ -195,7 +220,9 @@ describe('WorldCreator navigation', () => {
         fireEvent.click(screen.getByRole('button', { name: /^Create World$/i }))
 
         await waitFor(() => expect(mocks.createWorld).toHaveBeenCalledTimes(1))
-        await waitFor(() => expect(mocks.goBack).toHaveBeenCalledWith('landing'))
+        // New model: creating transitions into edit mode instead of navigating away.
+        await waitFor(() => expect(mocks.setEditingWorld).toHaveBeenCalledWith(expect.objectContaining({ id: 'world-2' })))
+        expect(mocks.goBack).not.toHaveBeenCalledWith('landing')
         expect(mocks.setPage).not.toHaveBeenCalledWith('landing')
     })
 

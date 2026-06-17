@@ -128,6 +128,7 @@ export interface LoreActivationPreviewRequest {
     includePromptPreview?: boolean
     overrides?: {
         lorebookIds?: string[]
+        lorebooks?: Lorebook[]
         scanDepth?: number
         tokenBudget?: number
         includeDisabled?: boolean

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RotateCcw, Send, Square, Volume2 } from 'lucide-react'
+import { Images, ListChecks, RotateCcw, Send, Square, Volume2 } from 'lucide-react'
 import { cx, IconButton } from '@/ui/primitives'
 
 const MAX_LENGTH = 4000
@@ -20,6 +20,10 @@ interface ChatComposerProps {
     isMutating: boolean
     autoNarrate: boolean
     onToggleAutoNarrate: () => void
+    generateImage: boolean
+    onToggleGenerateImage: () => void
+    suggestActions: boolean
+    onToggleSuggestActions: () => void
     onReset: () => void
     /** Disable Reset when there is nothing to clear. */
     canReset: boolean
@@ -48,6 +52,10 @@ export function ChatComposer({
     isMutating,
     autoNarrate,
     onToggleAutoNarrate,
+    generateImage,
+    onToggleGenerateImage,
+    suggestActions,
+    onToggleSuggestActions,
     onReset,
     canReset,
     placeholder,
@@ -132,6 +140,34 @@ export function ChatComposer({
                             disabled={isMutating}
                         >
                             <Volume2 size={17} strokeWidth={1.75} />
+                        </IconButton>
+                        <IconButton
+                            label={
+                                generateImage
+                                    ? t('interaction.composer.generatedImagesOn')
+                                    : t('interaction.composer.generatedImagesOff')
+                            }
+                            size="sm"
+                            tone={generateImage ? 'active' : 'default'}
+                            aria-pressed={generateImage}
+                            onClick={onToggleGenerateImage}
+                            disabled={isMutating}
+                        >
+                            <Images size={17} strokeWidth={1.75} />
+                        </IconButton>
+                        <IconButton
+                            label={
+                                suggestActions
+                                    ? t('interaction.composer.suggestedActionsOn')
+                                    : t('interaction.composer.suggestedActionsOff')
+                            }
+                            size="sm"
+                            tone={suggestActions ? 'active' : 'default'}
+                            aria-pressed={suggestActions}
+                            onClick={onToggleSuggestActions}
+                            disabled={isMutating}
+                        >
+                            <ListChecks size={17} strokeWidth={1.75} />
                         </IconButton>
                         <IconButton
                             label={t('interaction.composer.clearMessages')}

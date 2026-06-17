@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatTurn } from './ChatTurn'
 
 vi.mock('../../../infrastructure/api/useAuthenticatedMediaUrl', () => ({
@@ -7,6 +7,7 @@ vi.mock('../../../infrastructure/api/useAuthenticatedMediaUrl', () => ({
 }))
 
 const PRIVATE_SENTINEL = 'https://fal.media.example/private.png?signature=secret'
+const originalClipboard = navigator.clipboard
 
 const baseProps = {
   onForwardOptionClick: vi.fn(),
@@ -16,6 +17,76 @@ const baseProps = {
 }
 
 describe('ChatTurn generated image rendering', () => {
+  afterEach(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: originalClipboard,
+    })
+  })
+
+  it('copies only the stored raw message content', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    const rawContent = `Lyra: **The door listens.**
+
+Choose carefully.`
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+
+    render(
+      <ChatTurn
+        {...baseProps}
+        showForwardOptions
+        turn={{
+          id: 'ai-copy',
+          type: 'ai',
+          content: rawContent,
+          timestamp: new Date().toISOString(),
+          forwardOptions: [
+            { label: 'Open the door', message: 'Open the door now.' },
+            { label: 'Step back', message: 'Step away from the door.' },
+          ],
+          imageStatus: 'completed',
+          imageAssets: [{ asset_id: 'asset-1', url: '/generated-images/img-1.png', content_type: 'image/png' }],
+        }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy message' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(rawContent))
+    expect(writeText).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Message copied' })).toBeInTheDocument()
+  })
+
+  it('keeps copy available when only mutating actions are disabled', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+
+    render(
+      <ChatTurn
+        {...baseProps}
+        actionsDisabled
+        turn={{
+          id: 'user-copy',
+          type: 'user',
+          content: 'I keep my hand on the latch.',
+          timestamp: new Date().toISOString(),
+        }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy message' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('I keep my hand on the latch.'))
+    expect(screen.queryByRole('button', { name: 'Edit message' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete message' })).not.toBeInTheDocument()
+  })
+
   it('renders structured narrator, speech, and thought segments', () => {
     render(
       <ChatTurn

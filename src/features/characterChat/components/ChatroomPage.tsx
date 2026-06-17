@@ -193,7 +193,7 @@ export function ChatroomPage() {
                             key={session.id}
                             session={session}
                             onContinue={() => openChat(session)}
-                            onCall={voiceModeEnabled ? () => openVoiceChat(session) : undefined}
+                            onCall={voiceModeEnabled && !session.isGroupChat ? () => openVoiceChat(session) : undefined}
                             onDelete={() => setPendingDelete(session.source as CharacterChatSession)}
                             deleting={deletingId === session.id}
                         />

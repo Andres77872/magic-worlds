@@ -10,6 +10,8 @@ export interface FormActionsProps {
     submitLabel: string;
     cancelLabel?: string;
     isSubmitting?: boolean;
+    /** Disable submit without the "saving…" label (e.g. read-only historical version view). */
+    disabled?: boolean;
     /**
      * Gentle inline message shown above the buttons when a save fails — keeps the
      * form intact so the user can simply retry, instead of a blocking alert().
@@ -22,6 +24,7 @@ export function FormActions({
     submitLabel,
     cancelLabel,
     isSubmitting = false,
+    disabled = false,
     error = null
 }: FormActionsProps) {
     const { t } = useTranslation();
@@ -49,7 +52,7 @@ export function FormActions({
                 <Button
                     variant="primary"
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || disabled}
                     className="max-sm:w-full"
                 >
                     {isSubmitting ? t('creation.common.formActions.saving') : submitLabel}

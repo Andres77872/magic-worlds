@@ -2,7 +2,10 @@ import { BookOpen, Import, Loader2 } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { resolveMediaUrl } from '@/infrastructure/api'
+import type { VersionableCardType } from '@/shared'
+import { useCardUsage } from '@/shared/hooks/useCardUsage'
 import { Card as DomainCard } from '@/ui/components/lists/Card'
+import { CardUsageLine } from '@/ui/components/common/CardUsageLine'
 import { Badge, Button, Icon, Modal, Tag } from '@/ui/primitives'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
 import { formatApiDateTime } from '@/utils/time'
@@ -25,6 +28,8 @@ export interface CardPreviewModalProps {
     /** Navigate to the caller's existing copy (shown when alreadyImported). */
     onOpenExisting?: () => void
     importDisabled?: boolean
+    /** Show the owner-scoped usage line (own-library previews only, not foreign imports). */
+    showUsage?: boolean
 }
 
 function formatDateTime(value?: string | null): string {
@@ -35,10 +40,14 @@ function localizedCardPreviewTypeLabel(type: CardPreview['type'] | CardPreviewTa
     return t(`cardPreview.types.${type}`)
 }
 
-function CardMetadata({ card }: { card: CardPreview }) {
+function CardMetadata({ card, showUsage = false }: { card: CardPreview; showUsage?: boolean }) {
     const { t } = useTranslation()
     const createdAt = formatDateTime(card.createdAt)
     const updatedAt = formatDateTime(card.updatedAt)
+    const showVersion = typeof card.versionNumber === 'number' && card.versionNumber > 0
+    const usageType: VersionableCardType | null =
+        card.mediaType === 'adventure_template' ? null : card.mediaType
+    const usage = useCardUsage(usageType, card.id, { enabled: showUsage && usageType !== null })
     const attrs = (card.categories ?? [])
         .flatMap((category) => category.attributes ?? [])
         .flatMap((record) => Object.entries(record))
@@ -47,12 +56,14 @@ function CardMetadata({ card }: { card: CardPreview }) {
 
     return (
         <div className="flex flex-col gap-3">
-            {(createdAt || updatedAt) && (
-                <div className="flex flex-wrap gap-2">
+            {(createdAt || updatedAt || showVersion) && (
+                <div className="flex flex-wrap items-center gap-2">
+                    {showVersion && <Tag>{t('cardVersions.drawer.versionLabel', { number: card.versionNumber })}</Tag>}
                     {createdAt && <Tag>{t('cardPreview.created', { date: createdAt })}</Tag>}
                     {updatedAt && updatedAt !== createdAt && <Tag>{t('cardPreview.updated', { date: updatedAt })}</Tag>}
                 </div>
             )}
+            {showUsage && <CardUsageLine usage={usage} />}
             {card.triggers.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                     {card.triggers.slice(0, 6).map((trigger) => (
@@ -90,6 +101,7 @@ export function CardPreviewModal({
     onImport,
     onOpenExisting,
     importDisabled = false,
+    showUsage = false,
 }: CardPreviewModalProps) {
     const { t } = useTranslation()
     const isOpen = Boolean(target)
@@ -160,7 +172,7 @@ export function CardPreviewModal({
                                     {card.description}
                                 </p>
                             )}
-                            <CardMetadata card={card} />
+                            <CardMetadata card={card} showUsage={showUsage} />
                         </div>
                     </DomainCard>
                 </div>

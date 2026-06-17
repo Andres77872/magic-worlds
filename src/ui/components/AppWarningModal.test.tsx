@@ -13,6 +13,14 @@ describe('AppWarningModal', () => {
         expect(screen.getByRole('dialog')).toBeInTheDocument()
         expect(screen.getByText('Before you continue')).toBeInTheDocument()
         expect(screen.getByText(/zero-retention mode/i)).toBeInTheDocument()
+        expect(screen.getByText(/18 or older/i)).toBeInTheDocument()
+    })
+
+    it('links to the legal pages from the warning', () => {
+        render(<AppWarningModal />)
+
+        expect(screen.getByRole('link', { name: /disclaimer/i })).toHaveAttribute('href', '#/disclaimer')
+        expect(screen.getByRole('link', { name: /privacy/i })).toHaveAttribute('href', '#/privacy')
     })
 
     it('stores acceptance and dismisses the warning', () => {

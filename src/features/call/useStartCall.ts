@@ -1,11 +1,11 @@
 /**
  * useStartCall — the single shared entry point for launching a character VOICE call.
  *
- * Used by the Calls page, character gallery cards, and the chat header so every "Call"
- * affordance behaves identically. A call reuses the 1:1 character-chats session: it
- * ensures a session exists, flips it into voice mode, and navigates to the chat page
- * (which mounts the immersive CallScreen). Final call transcripts are saved server-side
- * and surfaced in the Calls history.
+ * Used by the Calls page, character gallery cards, and the chat header. Character-card
+ * calls start a fresh 1:1 character-chat session, then flip it into voice mode and
+ * navigate to the chat page (which mounts the immersive CallScreen). Saved chat/call
+ * surfaces can resume an existing session in voice mode. Final call transcripts are
+ * saved server-side and surfaced in the Calls history.
  */
 
 import { useState } from 'react'
@@ -15,7 +15,7 @@ import type { Character, CharacterChatSession } from '@/shared'
 import { defaultPersona } from '@/utils/characterRoles'
 
 export interface UseStartCall {
-    /** Start (or resume) a voice call with a character. Opens the persona picker first
+    /** Start a fresh voice call with a character. Opens the persona picker first
      *  when the user has no default persona. */
     startCall: (character: Character) => void
     /** Resume an existing chat session directly in voice mode (no persona picker). */

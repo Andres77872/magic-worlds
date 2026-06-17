@@ -92,6 +92,9 @@ import type {
     ShareableCardType,
 } from '../../shared/types/cardSharing.types'
 import type {
+    CardDraftDocument,
+    CardHistoricalDocument,
+    CardPublishResult,
     CardUsage,
     CardVersion,
     CardVersionList,
@@ -1341,6 +1344,15 @@ class ApiService {
         )
     }
 
+    async duplicateCard(cardType: CardShareType, cardId: string): Promise<CardCloneResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardCloneResponse>(
+            `/cards/${cardType}/${encodeURIComponent(cardId)}/duplicate`,
+            token,
+            { method: 'POST' },
+        )
+    }
+
     // --- Explicit card versioning + usage (character / world / item only) --------------
 
     /** Route prefix for the versionable card type (characters/worlds/items). */
@@ -1391,6 +1403,121 @@ class ApiService {
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/usage`,
             token,
             { method: 'GET' },
+        )
+    }
+
+    // --- Draft buffer + publish (character / world / item only) -------------------------
+    // Editing writes to a PRIVATE draft; Publish promotes it to the live card + a new version.
+    // Sessions/clones/public viewers always see the published body, never the draft.
+
+    /** Fetch the editable body: the private draft if present, else the published body. */
+    async getCardDraft(cardType: VersionableCardType, cardId: string): Promise<CardDraftDocument> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardDraftDocument>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/draft`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Write the editor's payload into the private draft (does not touch the live card). */
+    async saveCardDraft(cardType: VersionableCardType, cardId: string, body: unknown): Promise<CardDraftDocument> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardDraftDocument>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/draft`,
+            token,
+            {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: body as unknown as BodyInit,
+            },
+        )
+    }
+
+    /** Discard the draft, reverting to the published version. Idempotent. */
+    async discardCardDraft(
+        cardType: VersionableCardType,
+        cardId: string,
+    ): Promise<{ card_id: string; discarded: boolean; has_draft: boolean }> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/draft`,
+            token,
+            { method: 'DELETE' },
+        )
+    }
+
+    /** Promote the draft → live and cut a new version (v{n+1}). 409 when there's nothing to publish. */
+    async publishCardDraft(cardType: VersionableCardType, cardId: string, label?: string): Promise<CardPublishResult> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardPublishResult>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/publish`,
+            token,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: { label: label?.trim() || null } as unknown as BodyInit,
+            },
+        )
+    }
+
+    /** Load an earlier version into the draft for review (the live card is unchanged until publish). */
+    async restoreVersionIntoDraft(
+        cardType: VersionableCardType,
+        cardId: string,
+        versionNumber: number,
+    ): Promise<CardDraftDocument> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardDraftDocument>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions/${versionNumber}/restore`,
+            token,
+            { method: 'POST' },
+        )
+    }
+
+    /**
+     * Read-only load of a single historical version's body for display in the editor — does NOT
+     * touch the private draft (unlike {@link restoreVersionIntoDraft}). Flagged `is_historical`.
+     */
+    async getCardVersion(
+        cardType: VersionableCardType,
+        cardId: string,
+        versionNumber: number,
+    ): Promise<CardHistoricalDocument> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardHistoricalDocument>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions/${versionNumber}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Fetch the latest PUBLISHED body for a versionable card (ignores any private draft). */
+    async getPublishedBody(cardType: VersionableCardType, cardId: string): Promise<CardDraftDocument> {
+        if (cardType === 'world') return (await this.getWorld(cardId)) as CardDraftDocument
+        if (cardType === 'item') return (await this.getItem(cardId)) as CardDraftDocument
+        return (await this.getCharacter(cardId)) as CardDraftDocument
+    }
+
+    /**
+     * Patch published-body media (image_url / theme_song_url) directly — media is a
+     * published-level property persisted immediately, so a generated portrait/theme shows
+     * without a publish and is never staged as unpublished authored content.
+     */
+    async setCardMedia(
+        cardType: VersionableCardType,
+        cardId: string,
+        media: { image_url?: string | null; theme_song_url?: string | null },
+    ): Promise<CardDraftDocument> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardDraftDocument>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/media`,
+            token,
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: media as unknown as BodyInit,
+            },
         )
     }
 
@@ -1485,6 +1612,46 @@ class ApiService {
     private listQuery(skip: number, limit: number, q?: string): string {
         const term = q?.trim()
         return `?skip=${skip}&limit=${limit}${term ? `&q=${encodeURIComponent(term)}` : ''}`
+    }
+
+    private lorebookEntryPayload(entry: Partial<LorebookEntry | LorebookEntryDraft> | Record<string, unknown>): Record<string, unknown> {
+        if ('entry_type' in entry || 'secondary_keys' in entry) return entry as Record<string, unknown>
+        const item = entry as Partial<LorebookEntry | LorebookEntryDraft>
+        const id = 'id' in item && typeof item.id === 'string' && !item.id.startsWith('draft-entry-') ? item.id : undefined
+        return {
+            ...(id ? { id } : {}),
+            title: item.title ?? '',
+            entry_type: item.entryType ?? 'other',
+            content: item.content ?? '',
+            keys: item.keys ?? [],
+            secondary_keys: item.secondaryKeys ?? [],
+            selective_logic: item.selectiveLogic ?? 'any',
+            enabled: item.enabled ?? true,
+            constant: item.constant ?? false,
+            case_sensitive: item.caseSensitive ?? false,
+            match_whole_words: item.matchWholeWords ?? true,
+            regex: item.regex ?? false,
+            is_secret: item.isSecret ?? false,
+            reveal_condition: item.revealCondition || null,
+            insertion_order: item.insertionOrder ?? 0,
+            priority: item.priority ?? 0,
+            insertion_position: item.insertionPosition ?? 'before_context',
+            token_budget: item.tokenBudget ?? null,
+            metadata: item.metadata ?? {},
+        }
+    }
+
+    private lorebookAttachmentPayload(attachment: Partial<LorebookAttachment> | Record<string, unknown>): Record<string, unknown> {
+        if ('lorebook_id' in attachment || 'target_kind' in attachment) return attachment as Record<string, unknown>
+        const item = attachment as Partial<LorebookAttachment>
+        return {
+            ...(item.id ? { id: item.id } : {}),
+            lorebook_id: item.lorebookId,
+            target_kind: item.targetKind ?? 'global',
+            target_id: item.targetId || null,
+            mode: item.mode ?? 'linked',
+            snapshot: item.snapshot ?? null,
+        }
     }
 
     private sharedCardListQuery(
@@ -1646,7 +1813,7 @@ class ApiService {
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries`, token, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: entry as unknown as BodyInit,
+            body: this.lorebookEntryPayload(entry) as unknown as BodyInit,
         })
     }
 
@@ -1655,7 +1822,7 @@ class ApiService {
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries/${encodeURIComponent(entryId)}`, token, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: entry as unknown as BodyInit,
+            body: this.lorebookEntryPayload(entry) as unknown as BodyInit,
         })
     }
 
@@ -1682,7 +1849,7 @@ class ApiService {
         return this.authenticatedRequest<LorebookAttachment>('/lorebook-attachments', token, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: attachment as unknown as BodyInit,
+            body: this.lorebookAttachmentPayload(attachment) as unknown as BodyInit,
         })
     }
 
@@ -2770,9 +2937,7 @@ class ApiService {
     }
 
     /**
-     * Start (or resume) a 1:1 character chat. The backend is idempotent per
-     * (user, character): it returns the existing chat if one exists, otherwise
-     * creates one and seeds the character's greeting as the first turn.
+     * Start a fresh 1:1 character chat and seed the character's greeting as the first turn.
      */
     async createCharacterChat(characterId: string, personaId: string): Promise<any> {
         const token = this.getStoredToken()
@@ -2809,6 +2974,13 @@ class ApiService {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/character-chats/${chatId}`, token, {
             method: 'GET'
+        })
+    }
+
+    async getCharacterChatCodexCards(chatId: number): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}/codex-cards`, token, {
+            method: 'GET',
         })
     }
 
@@ -2860,6 +3032,31 @@ class ApiService {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: { last_turn: lastTurn } as unknown as BodyInit
+        })
+    }
+
+    async addCharacterChatCodexCards(chatId: number, cards: Array<{ kind: string; cardId: string }>): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}/codex-cards`, token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { cards: cards.map((card) => ({ kind: card.kind, card_id: card.cardId })) } as unknown as BodyInit,
+        })
+    }
+
+    async updateCharacterChatCodexCard(chatId: number, codexCardId: string, enabled: boolean): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}/codex-cards/${encodeURIComponent(codexCardId)}`, token, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: { enabled } as unknown as BodyInit,
+        })
+    }
+
+    async deleteCharacterChatCodexCard(chatId: number, codexCardId: string): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}/codex-cards/${encodeURIComponent(codexCardId)}`, token, {
+            method: 'DELETE',
         })
     }
 

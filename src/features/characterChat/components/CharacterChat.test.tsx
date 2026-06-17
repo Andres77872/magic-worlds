@@ -54,7 +54,9 @@ vi.mock('../../call', () => ({
 }))
 
 vi.mock('./CharacterChatSidebar', () => ({
-    CharacterChatSidebar: () => <aside data-testid="chat-sidebar" />,
+    CharacterChatSidebar: ({ sessionId, isGroup }: { sessionId?: string; isGroup?: boolean }) => (
+        <aside data-testid="chat-sidebar" data-session-id={sessionId} data-is-group={String(Boolean(isGroup))} />
+    ),
 }))
 
 describe('CharacterChat voice mode wiring', () => {
@@ -74,6 +76,26 @@ describe('CharacterChat voice mode wiring', () => {
         expect(screen.getByTestId('center-kind')).toHaveTextContent('character')
         expect(screen.getByTestId('center-forward-options')).toHaveTextContent('true')
         expect(screen.getByTestId('center-images')).toHaveTextContent('true')
+        expect(screen.getByTestId('chat-sidebar')).toHaveAttribute('data-session-id', '7')
+    })
+
+    it('passes the group chat id to the sidebar for session lorebook attachments', () => {
+        activeCharacterChat = {
+            ...CHAT,
+            id: '12',
+            kind: 'character_group',
+            character: undefined,
+            characters: [
+                { id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', stats: {} },
+                { id: 'c2', name: 'Dorn', race: 'Dwarf', role: 'character', stats: {} },
+            ],
+            title: 'Lyra, Dorn',
+        }
+
+        render(<CharacterChat />)
+
+        expect(screen.getByTestId('chat-sidebar')).toHaveAttribute('data-session-id', '12')
+        expect(screen.getByTestId('chat-sidebar')).toHaveAttribute('data-is-group', 'true')
     })
 
     it('renders the immersive CallScreen (not the text engine) when voice mode and the flag are both on', () => {

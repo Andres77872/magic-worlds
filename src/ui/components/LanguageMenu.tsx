@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { Check, Globe, Loader2 } from 'lucide-react'
 import { useAuth, useLanguage } from '../../app/hooks'
 import { SUPPORTED_LANGUAGE_OPTIONS } from '../../app/i18n'
-import { Eyebrow, Icon, cx } from '../primitives'
+import { Eyebrow, Icon, Tooltip, cx } from '../primitives'
 
 // Matches the Drawer/ApiStatusMonitor transition so the menu shares the app idiom.
 const MENU_TRANSITION_MS = 200
@@ -78,34 +78,27 @@ export function LanguageMenu({ collapsed = false, defaultOpen = false }: Languag
     }
 
     return (
-        <div ref={containerRef} className="group relative w-full">
-            <button
-                type="button"
-                aria-label={triggerLabel}
-                aria-haspopup="menu"
-                aria-expanded={open}
-                title={triggerLabel}
-                onClick={() => setOpen((current) => !current)}
-                className={cx(
-                    'inline-flex h-10 w-10 shrink-0 items-center justify-center gap-3 rounded-md px-0 font-ui text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500 lg:w-full lg:justify-start lg:px-3',
-                    collapsed && 'lg:w-10 lg:justify-center lg:px-0',
-                    open
-                        ? 'bg-ember-500/15 text-ember-400'
-                        : 'text-parchment-200 hover:bg-parchment-50/[.05] hover:text-parchment-50',
-                )}
-            >
-                <Icon icon={Globe} size={18} />
-                <span className={cx('hidden min-w-0 truncate', !collapsed && 'lg:inline')}>{triggerLabel}</span>
-            </button>
-            <div
-                role="tooltip"
-                className={cx(
-                    'pointer-events-none absolute bottom-1 left-full z-50 ml-2 whitespace-nowrap rounded-md border border-parchment-50/[.08] bg-ink-900 px-2.5 py-1.5 font-ui text-xs text-parchment-100 opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
-                    collapsed ? 'lg:block' : 'lg:hidden',
-                )}
-            >
-                {triggerLabel}
-            </div>
+        <div ref={containerRef} className="relative w-full">
+            <Tooltip label={triggerLabel} disabled={!collapsed} wrapperClassName="w-full">
+                <button
+                    type="button"
+                    aria-label={triggerLabel}
+                    aria-haspopup="menu"
+                    aria-expanded={open}
+                    title={triggerLabel}
+                    onClick={() => setOpen((current) => !current)}
+                    className={cx(
+                        'inline-flex h-10 w-10 shrink-0 items-center justify-center gap-3 rounded-md px-0 font-ui text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500 lg:w-full lg:justify-start lg:px-3',
+                        collapsed && 'lg:w-10 lg:justify-center lg:px-0',
+                        open
+                            ? 'bg-ember-500/15 text-ember-400'
+                            : 'text-parchment-200 hover:bg-parchment-50/[.05] hover:text-parchment-50',
+                    )}
+                >
+                    <Icon icon={Globe} size={18} />
+                    <span className={cx('hidden min-w-0 truncate', !collapsed && 'lg:inline')}>{triggerLabel}</span>
+                </button>
+            </Tooltip>
             {mounted && (
                 <div
                     ref={menuRef}

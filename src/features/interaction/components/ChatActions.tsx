@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import { Check, Copy, Loader2, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import { useClickOutside } from '../../../shared/hooks/useClickOutside'
 import { Button, IconButton } from '../../../ui/primitives'
 
@@ -32,6 +32,31 @@ interface MessageDeleteConfirmPopoverProps {
 const POPOVER_WIDTH = 184
 const POPOVER_GAP = 8
 const VIEWPORT_MARGIN = 8
+const COPIED_FEEDBACK_MS = 1500
+
+async function writeClipboardText(text: string): Promise<void> {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        try {
+            await navigator.clipboard.writeText(text)
+            return
+        } catch (error) {
+            if (typeof document === 'undefined') throw error
+        }
+    }
+
+    if (typeof document === 'undefined') throw new Error('Clipboard unavailable')
+
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    const copied = document.execCommand('copy')
+    textarea.remove()
+    if (!copied) throw new Error('Clipboard copy failed')
+}
 
 function clampPopover(anchor: PopoverAnchor, popover: HTMLDivElement | null): PopoverAnchor {
     if (typeof window === 'undefined') return anchor
@@ -136,6 +161,8 @@ interface ChatActionsProps {
     isUser: boolean
     isEditing: boolean
     isStreaming?: boolean
+    actionsDisabled?: boolean
+    messageContent?: string
     onEditClick?: () => void
     onRegenerateClick?: (turnId: string) => void
     onDeleteClick?: (turnId: string) => void
@@ -150,6 +177,8 @@ export function ChatActions({
     isUser,
     isEditing,
     isStreaming,
+    actionsDisabled,
+    messageContent,
     onEditClick,
     onRegenerateClick,
     onDeleteClick,
@@ -160,8 +189,33 @@ export function ChatActions({
 }: ChatActionsProps) {
     const { t } = useTranslation()
     const deleteButtonRef = useRef<HTMLButtonElement>(null)
+    const copiedTimerRef = useRef<number | null>(null)
+    const [copied, setCopied] = useState(false)
     const popoverTitleId = useId()
     const popoverId = `${popoverTitleId}-popover`
+    const hideMutatingActions = Boolean(isEditing || isStreaming || actionsDisabled)
+    const canCopy = !isEditing && !isStreaming && messageContent !== undefined && messageContent.length > 0
+
+    useEffect(() => {
+        return () => {
+            if (copiedTimerRef.current !== null) window.clearTimeout(copiedTimerRef.current)
+        }
+    }, [])
+
+    const handleCopy = async () => {
+        if (!canCopy) return
+        try {
+            await writeClipboardText(messageContent)
+            setCopied(true)
+            if (copiedTimerRef.current !== null) window.clearTimeout(copiedTimerRef.current)
+            copiedTimerRef.current = window.setTimeout(() => {
+                setCopied(false)
+                copiedTimerRef.current = null
+            }, COPIED_FEEDBACK_MS)
+        } catch (error) {
+            console.error('Failed to copy chat message:', error)
+        }
+    }
 
     const popoverAnchor = (() => {
         if (!confirmingDelete || typeof window === 'undefined') return null
@@ -175,17 +229,22 @@ export function ChatActions({
 
     return (
         <div className="flex items-center gap-0.5">
-            {onEditClick && !isEditing && !isStreaming && (
+            {canCopy && (
+                <IconButton label={copied ? t('interaction.actions.messageCopied') : t('interaction.actions.copyMessage')} size="sm" onClick={() => void handleCopy()}>
+                    {copied ? <Check size={14} strokeWidth={1.75} className="text-verdant-500" /> : <Copy size={14} strokeWidth={1.75} />}
+                </IconButton>
+            )}
+            {onEditClick && !hideMutatingActions && (
                 <IconButton label={t('interaction.actions.editMessage')} size="sm" onClick={onEditClick}>
                     <Pencil size={14} strokeWidth={1.75} />
                 </IconButton>
             )}
-            {!isUser && onRegenerateClick && !isStreaming && !isEditing && (
+            {!isUser && onRegenerateClick && !hideMutatingActions && (
                 <IconButton label={t('interaction.actions.regenerate')} size="sm" onClick={() => onRegenerateClick(turnId)}>
                     <RotateCcw size={14} strokeWidth={1.75} />
                 </IconButton>
             )}
-            {onDeleteClick && !isStreaming && !isEditing ? (
+            {onDeleteClick && !hideMutatingActions ? (
                 <>
                     <IconButton
                         ref={deleteButtonRef}

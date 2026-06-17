@@ -10,7 +10,10 @@ import { useTranslation } from 'react-i18next'
 import { Download, ListMusic, Loader2, Pause, Play, Share2 } from 'lucide-react'
 import { usePlaylist } from '@/app/hooks/usePlaylist'
 import { themeTrack, type PlaylistTrack } from '@/app/providers/audioPlaylistContext'
+import { useCardUsage } from '@/shared/hooks/useCardUsage'
+import type { VersionableCardType } from '@/shared'
 import { downloadThemeSong } from '@/ui/components/audio/downloadThemeSong'
+import { CardUsageLine } from '@/ui/components/common/CardUsageLine'
 import { Badge, Card, cx, Icon, Portrait, Tag, ThemeSongButton } from '@/ui/primitives'
 import { CardActionMenu, CardOptions, type CardMenuAnchor, type CardOption } from './CardOptions'
 
@@ -56,6 +59,14 @@ export interface GalleryCardProps {
     staticCard?: boolean
     /** Pinned action row at the bottom of the vignette (e.g. a Chat button). */
     footer?: ReactNode
+    /** Newest saved version number — renders a "v{n}" chip when > 0. */
+    versionNumber?: number
+    /** Owner-only: renders a "Draft" chip when there are unpublished edits. */
+    hasDraft?: boolean
+    /** Card type for the usage lookup; required alongside `usageEnabled`. */
+    usageCardType?: VersionableCardType
+    /** Opt in to fetching + showing the usage line (owned-library galleries only). */
+    usageEnabled?: boolean
     'data-testid'?: string
 }
 
@@ -85,6 +96,10 @@ export function GalleryCard({
     staticImageUrl,
     staticCard = false,
     footer,
+    versionNumber,
+    hasDraft = false,
+    usageCardType,
+    usageEnabled = false,
     'data-testid': testId = 'gallery-card',
 }: GalleryCardProps) {
     const { t } = useTranslation()
@@ -104,6 +119,31 @@ export function GalleryCard({
     const compact = size === 'compact'
     const visibleTags = tags.slice(0, compact ? 2 : 3)
     const extraTagCount = Math.max(0, tags.length - visibleTags.length)
+    const showVersion = typeof versionNumber === 'number' && versionNumber > 0
+    // Usage is an extra request per card, so only fetch once a card scrolls near the
+    // viewport (jsdom / no-IO environments enable immediately). Results are cached.
+    const wantUsage = usageEnabled && Boolean(usageCardType) && Boolean(cardId)
+    const [usageInView, setUsageInView] = useState(false)
+    useEffect(() => {
+        if (!wantUsage) return
+        const node = cardRef.current
+        if (!node || typeof IntersectionObserver === 'undefined') {
+            setUsageInView(true)
+            return
+        }
+        const observer = new IntersectionObserver(
+            (entries, obs) => {
+                if (entries.some((entry) => entry.isIntersecting)) {
+                    setUsageInView(true)
+                    obs.disconnect()
+                }
+            },
+            { rootMargin: '200px' },
+        )
+        observer.observe(node)
+        return () => observer.disconnect()
+    }, [wantUsage])
+    const usage = useCardUsage(usageCardType ?? null, cardId, { enabled: wantUsage && usageInView })
     // The description is the substance line (like the landing showcase); only fall
     // back to trigger pills when a card has no description, so every card stays clean.
     const showTags = tags.length > 0 && !description
@@ -281,10 +321,16 @@ export function GalleryCard({
                 {/* Candlelit bottom gradient: lifts the name/description/CTA off the art.
                     Graceful (depth by softness), not a heavy slab. */}
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[62%] bg-gradient-to-t from-ink-900 via-ink-900/70 to-transparent" />
-                {badge && (
-                    <Badge tone="glass" className="absolute left-3 top-3 z-[3] max-w-[65%] truncate">
-                        {badge}
-                    </Badge>
+                {(badge || showVersion || hasDraft) && (
+                    <div className="absolute left-3 top-3 z-[3] flex max-w-[65%] flex-col items-start gap-1">
+                        {badge && <Badge tone="glass" className="max-w-full truncate">{badge}</Badge>}
+                        {showVersion && (
+                            <Badge tone="glass" className="font-mono">
+                                {t('cardVersions.drawer.versionLabel', { number: versionNumber })}
+                            </Badge>
+                        )}
+                        {hasDraft && <Badge tone="ember">{t('cardVersions.gallery.draftPending')}</Badge>}
+                    </div>
                 )}
                 {hasBubble && (
                 <div
@@ -364,6 +410,7 @@ export function GalleryCard({
                             )}
                         </div>
                     )}
+                    {usage && <CardUsageLine usage={usage} className="truncate text-parchment-300" />}
                     {footer && (
                         <div className="pt-1" onClick={(e: MouseEvent) => e.stopPropagation()}>
                             {footer}
