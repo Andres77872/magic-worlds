@@ -141,6 +141,7 @@ export interface ImageJobPublic {
     operation?: 'text_to_image' | 'image_edit'
     status: ImageLifecycleStatus
     model_alias?: string
+    generation_prompt?: string | null
     status_url: string
     result_url: string
     assets: ChatImageAsset[]

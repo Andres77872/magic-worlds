@@ -9,7 +9,7 @@ import { CookieConsentBanner } from './CookieConsentBanner'
 type NavValue = NonNullable<ComponentProps<typeof NavigationContext.Provider>['value']>
 
 const setPage = vi.fn()
-const navStub: NavValue = { currentPage: 'landing', previousPage: undefined, setPage, goBack: vi.fn(), cardEdit: null, replaceHash: vi.fn() }
+const navStub: NavValue = { currentPage: 'landing', previousPage: undefined, setPage, goBack: vi.fn(), cardEdit: null, resourceEdit: null, replaceHash: vi.fn() }
 
 function renderBanner(children: ReactNode = <CookieConsentBanner />) {
     return render(

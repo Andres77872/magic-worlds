@@ -7,6 +7,7 @@ const setWorlds = vi.fn()
 const setItems = vi.fn()
 const setTemplateAdventures = vi.fn()
 const editCharacter = vi.fn()
+const openLoginModal = vi.fn()
 const deleteCharacter = vi.fn().mockResolvedValue(undefined)
 const editItem = vi.fn()
 const deleteItem = vi.fn().mockResolvedValue(undefined)
@@ -18,6 +19,7 @@ const originalCreateObjectURL = URL.createObjectURL
 const originalRevokeObjectURL = URL.revokeObjectURL
 const originalClipboard = navigator.clipboard
 const originalScrollIntoView = Element.prototype.scrollIntoView
+let authed = true
 
 const mockData = vi.hoisted(() => ({
     characters: [
@@ -46,7 +48,7 @@ vi.mock('@/app/hooks/usePlaylist', () => ({
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useAuth: () => ({ isAuthenticated: true, openLoginModal: vi.fn() }),
+    useAuth: () => ({ isAuthenticated: authed, openLoginModal }),
     useNavigation: () => ({ setPage }),
     useData: () => ({
         characters: mockData.characters,
@@ -145,6 +147,7 @@ function mockDownload(expectedFilename: string) {
 
 describe('GalleryPage', () => {
     beforeEach(() => {
+        authed = true
         vi.clearAllMocks()
         if (!globalThis.IntersectionObserver) {
             vi.stubGlobal('IntersectionObserver', class IntersectionObserver {
@@ -238,6 +241,32 @@ describe('GalleryPage', () => {
         expect(await screen.findByText('Lyra')).toBeInTheDocument()
         expect(screen.getByText('Dorn')).toBeInTheDocument()
         expect(apiService.getCharacters).toHaveBeenCalledWith(0, 24, undefined, 'character')
+    })
+
+    it('lets signed-out users open the owned gallery without fetching private cards', async () => {
+        authed = false
+
+        render(<GalleryPage type="character" />)
+
+        expect(await screen.findByText('No characters yet')).toBeInTheDocument()
+        expect(apiService.getCharacters).not.toHaveBeenCalled()
+        expect(openLoginModal).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'New character' })[0])
+
+        expect(openLoginModal).toHaveBeenCalledTimes(1)
+        expect(setPage).not.toHaveBeenCalledWith('character')
+    })
+
+    it('lets signed-out users switch to public cards without opening login', async () => {
+        authed = false
+
+        render(<GalleryPage type="character" />)
+        fireEvent.click(screen.getByRole('button', { name: 'Public cards' }))
+
+        await waitFor(() => expect(apiService.listPublicCards).toHaveBeenCalledWith(0, 24, undefined, 'character', 'character'))
+        expect(apiService.getCharacters).not.toHaveBeenCalled()
+        expect(openLoginModal).not.toHaveBeenCalled()
     })
 
     it('renders persona cards fetched with the persona role filter', async () => {

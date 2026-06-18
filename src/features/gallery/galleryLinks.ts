@@ -43,6 +43,7 @@ const PAGE_TO_HASH: Partial<Record<PageType, string>> = {
     profile: '#/profile',
     'voice-studio': '#/voices',
     'admin-voices': '#/admin/voices',
+    'admin-credit-codes': '#/admin/credit-codes',
     docs: '#/docs',
     about: '#/about',
     contact: '#/contact',
@@ -54,12 +55,14 @@ const PAGE_TO_HASH: Partial<Record<PageType, string>> = {
     'gallery-items': '#/gallery/items',
     'gallery-adventures': '#/gallery/adventures',
     'gallery-lorebooks': '#/gallery/lorebooks',
+    'gallery-resources': '#/gallery/resources',
     'gallery-media': '#/gallery/media',
     'gallery-stories': '#/gallery/stories',
     story: '#/story',
     'password-reset': '#/password-reset',
     'verify-email': '#/verify-email',
     'google-callback': '#/google-callback',
+    'not-found': '#/404',
 }
 
 const HASH_TO_PAGE = Object.entries(PAGE_TO_HASH).reduce<Record<string, PageType>>((acc, [page, hash]) => {
@@ -189,6 +192,41 @@ export function parseCardEditHash(
         cardId,
         version: normalizeCardEditVersion(new URLSearchParams(query).get('version')),
     }
+}
+
+// --- Lorebook resource deep-links --------------------------------------------------
+// A single resource opens at `#/gallery/resources?resource=<id>` — a dedicated in-page
+// view (not a slide-in drawer). `?resource=new&type=md|txt` opens the create form. The
+// query is ignored by `pageFromHash` route matching (it strips the query first), so the
+// page stays `gallery-resources`; only param extraction is new — mirrors `parseCardEditHash`.
+
+export interface ResourceEditHashTarget {
+    /** Always `gallery-resources` — kept for symmetry with the other hash targets. */
+    page: PageType
+    /** A resource id, or the literal `new` for the create form. */
+    resourceId: string
+    /** File type for a fresh resource; only meaningful when `resourceId === 'new'`. */
+    createType?: 'md' | 'txt'
+}
+
+export function buildResourceHash(resourceId: string, createType?: 'md' | 'txt'): string {
+    const params = new URLSearchParams({ resource: resourceId })
+    if (resourceId === 'new' && createType) params.set('type', createType)
+    return `#/gallery/resources?${params.toString()}`
+}
+
+export function parseResourceEditHash(
+    hash: string = typeof window === 'undefined' ? '' : window.location.hash,
+): ResourceEditHashTarget | null {
+    const withoutHash = hash.startsWith('#') ? hash.slice(1) : hash
+    const [path, query = ''] = withoutHash.split('?')
+    if (path !== '/gallery/resources') return null
+    const params = new URLSearchParams(query)
+    const resourceId = params.get('resource')
+    if (!resourceId) return null
+    const rawType = params.get('type')
+    const createType = rawType === 'md' || rawType === 'txt' ? rawType : undefined
+    return { page: 'gallery-resources', resourceId, createType }
 }
 
 export function pageFromHash(hash: string = typeof window === 'undefined' ? '' : window.location.hash): PageType | null {

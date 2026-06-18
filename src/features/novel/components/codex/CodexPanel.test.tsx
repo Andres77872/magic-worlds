@@ -7,6 +7,7 @@ const deleteStoryCardRef = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('@/app/hooks', () => ({
     useData: () => ({ addStoryCardRefs, updateStoryCardRef, deleteStoryCardRef }),
+    useFloatingWindows: () => ({ openWindow: vi.fn(), closeWindow: vi.fn(), closeAll: vi.fn(), focusWindow: vi.fn(), windows: [] }),
 }))
 
 vi.mock('@/infrastructure/api', () => ({
@@ -58,7 +59,7 @@ function story(refs: StoryCardRef[]): Story {
 
 function Harness({ refs }: { refs: StoryCardRef[] }) {
     const codex = useCodex({ story: story(refs) })
-    return <CodexPanel codex={codex} requireAuth={() => true} />
+    return <CodexPanel codex={codex} requireAuth={() => true} onOpenCardPicker={() => {}} />
 }
 
 const RAW_LOREBOOK = {
@@ -120,7 +121,8 @@ describe('CodexPanel', () => {
     it('edits a snapshot through the entry drawer', async () => {
         render(<Harness refs={[ref({ id: 'a', snapshot: { name: 'Aria', race: 'elf' } })]} />)
 
-        fireEvent.click(screen.getByRole('button', { name: 'Open Aria' }))
+        // The title now opens a preview window; the pencil opens the editor drawer.
+        fireEvent.click(screen.getByRole('button', { name: 'Edit Aria' }))
         const nameInput = await screen.findByTestId('codex-entry-name')
         fireEvent.change(nameInput, { target: { value: 'Aria the Red' } })
         fireEvent.change(screen.getByTestId('codex-entry-content'), { target: { value: 'A ranger.' } })

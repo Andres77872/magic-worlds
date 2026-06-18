@@ -45,6 +45,19 @@ import type {
     UserPreferencesUpdate,
     UserProfile,
 } from '../../shared/types/auth.types'
+import type {
+    CreditRedeemResponse,
+    EmailCreditInviteClaimResponse,
+    EmailCreditInviteListResponse,
+    FreeCreditInvite,
+    FreeCreditInviteCreateRequest,
+    FreeCreditInviteListResponse,
+    FreeCreditInviteUpdateRequest,
+    FreeCreditToken,
+    FreeCreditTokenCreateRequest,
+    FreeCreditTokenListResponse,
+    FreeCreditTokenUpdateRequest,
+} from '../../shared/types/billing.types'
 import { API_BASE_URL } from './baseUrl'
 import { getProtectedMediaPath } from './mediaUrl'
 import { makeRequestId } from '../../utils/uuid'
@@ -67,6 +80,7 @@ import type {
     LorebookEntry,
     LorebookEntryDraft,
     LorebookIssue,
+    LorebookResource,
     LorebookTargetKind,
 } from '../../shared/types/lorebook.types'
 import type {
@@ -249,6 +263,12 @@ type ApiRequestOptions = RequestInit & {
 }
 
 type HeaderRecord = Record<string, string>
+
+export interface LorebookResourceMetadataSaveOptions {
+    extractMetadata?: boolean
+    requestId?: string
+    idempotencyKey?: string
+}
 
 class ApiService {
     private baseUrl: string
@@ -1087,6 +1107,111 @@ class ApiService {
         })
     }
 
+    // --- Billing / credit codes (root admin) -------------------------------
+
+    /** List free-credit tokens (redeem codes). Root only. */
+    async listFreeCreditTokens(limit = 100, offset = 0): Promise<FreeCreditTokenListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<FreeCreditTokenListResponse>(
+            `/admin/billing/free-credit-tokens?limit=${limit}&offset=${offset}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Create a one-time redeem code. The response includes the raw `token` once. Root only. */
+    async createFreeCreditToken(body: FreeCreditTokenCreateRequest): Promise<FreeCreditToken> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<FreeCreditToken>('/admin/billing/free-credit-tokens', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    /** Update a redeem code (credits / label / status / expiry / reason). Root only. */
+    async updateFreeCreditToken(tokenId: number, body: FreeCreditTokenUpdateRequest): Promise<FreeCreditToken> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<FreeCreditToken>(
+            `/admin/billing/free-credit-tokens/${encodeURIComponent(tokenId)}`,
+            token,
+            { method: 'PATCH', body: body as unknown as BodyInit },
+        )
+    }
+
+    /** Disable a redeem code (soft delete). Root only. */
+    async disableFreeCreditToken(tokenId: number): Promise<FreeCreditToken> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<FreeCreditToken>(
+            `/admin/billing/free-credit-tokens/${encodeURIComponent(tokenId)}`,
+            token,
+            { method: 'DELETE' },
+        )
+    }
+
+    /** List email-invite credit grants. Root only. */
+    async listFreeCreditInvites(limit = 100, offset = 0): Promise<FreeCreditInviteListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<FreeCreditInviteListResponse>(
+            `/admin/billing/free-credit-invites?limit=${limit}&offset=${offset}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Create (or refresh) email-invite credit grants for a batch of addresses. Root only. */
+    async createFreeCreditInvites(body: FreeCreditInviteCreateRequest): Promise<FreeCreditInvite[]> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<FreeCreditInvite[]>('/admin/billing/free-credit-invites', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    /** Update an email-invite grant. Root only. */
+    async updateFreeCreditInvite(inviteId: number, body: FreeCreditInviteUpdateRequest): Promise<FreeCreditInvite> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<FreeCreditInvite>(
+            `/admin/billing/free-credit-invites/${encodeURIComponent(inviteId)}`,
+            token,
+            { method: 'PATCH', body: body as unknown as BodyInit },
+        )
+    }
+
+    /** Disable an email-invite grant. Root only. */
+    async disableFreeCreditInvite(inviteId: number): Promise<FreeCreditInvite> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<FreeCreditInvite>(
+            `/admin/billing/free-credit-invites/${encodeURIComponent(inviteId)}`,
+            token,
+            { method: 'DELETE' },
+        )
+    }
+
+    /** Redeem a credit code for the signed-in user (the "usage" side). Any authed user. */
+    async redeemCreditCode(code: string): Promise<CreditRedeemResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CreditRedeemResponse>('/billing/credits/redeem', token, {
+            method: 'POST',
+            body: { token: code } as unknown as BodyInit,
+        })
+    }
+
+    /** List invite credits attached to the signed-in user's activated emails. */
+    async listEmailCreditInvites(): Promise<EmailCreditInviteListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<EmailCreditInviteListResponse>('/billing/credits/email-invites', token, {
+            method: 'GET',
+        })
+    }
+
+    /** Claim invite credits attached to the signed-in user's activated emails. */
+    async claimEmailCreditInvites(): Promise<EmailCreditInviteClaimResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<EmailCreditInviteClaimResponse>('/billing/credits/email-invites/claim', token, {
+            method: 'POST',
+        })
+    }
+
     // --- Voice presets (user-facing) ---------------------------------------
 
     async listVoicePresets(q?: string): Promise<VoicePreset[]> {
@@ -1654,6 +1779,43 @@ class ApiService {
         }
     }
 
+    private lorebookResourceMetadataHeaders(options: LorebookResourceMetadataSaveOptions = {}): Record<string, string> {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (options.extractMetadata || options.requestId || options.idempotencyKey) {
+            const requestId = options.requestId || this.createClientId('mw-lorebook-resource-req')
+            headers['X-Request-Id'] = requestId
+            headers['Idempotency-Key'] = options.idempotencyKey || requestId
+        }
+        return headers
+    }
+
+    private extractMetadataQuery(shouldExtract?: boolean): string {
+        return shouldExtract ? '?extractMetadata=true' : ''
+    }
+
+    private lorebookResourcePayload(resource: Partial<LorebookResource> | Record<string, unknown>): Record<string, unknown> {
+        if ('fileName' in resource || 'file_name' in resource) {
+            const item = resource as Partial<LorebookResource> & Record<string, unknown>
+            return {
+                ...(typeof item.id === 'string' ? { id: item.id } : {}),
+                title: typeof item.title === 'string' ? item.title : '',
+                description: typeof item.description === 'string' && item.description.trim() ? item.description : null,
+                triggers: Array.isArray(item.triggers) ? item.triggers : [],
+                fileName: typeof item.fileName === 'string' ? item.fileName : typeof item.file_name === 'string' ? item.file_name : 'resource.txt',
+                fileType: item.fileType === 'md' || item.fileType === 'txt' ? item.fileType : item.file_type === 'md' || item.file_type === 'txt' ? item.file_type : 'txt',
+                content: typeof item.content === 'string' ? item.content : '',
+                contentLength: typeof item.contentLength === 'number'
+                    ? item.contentLength
+                    : typeof item.content_length === 'number'
+                      ? item.content_length
+                      : typeof item.content === 'string'
+                        ? item.content.length
+                        : 0,
+            }
+        }
+        return resource as Record<string, unknown>
+    }
+
     private sharedCardListQuery(
         skip: number,
         limit: number,
@@ -1783,20 +1945,20 @@ class ApiService {
         })
     }
 
-    async createLorebook(lorebook: LorebookDraft | Record<string, unknown>): Promise<unknown> {
+    async createLorebook(lorebook: LorebookDraft | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest('/lorebooks', token, {
+        return this.authenticatedRequest(`/lorebooks${this.extractMetadataQuery(options.extractMetadata)}`, token, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: this.lorebookResourceMetadataHeaders(options),
             body: lorebook as unknown as BodyInit,
         })
     }
 
-    async updateLorebook(lorebookId: string, lorebook: Partial<LorebookDraft> | Record<string, unknown>): Promise<unknown> {
+    async updateLorebook(lorebookId: string, lorebook: Partial<LorebookDraft> | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}`, token, {
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}${this.extractMetadataQuery(options.extractMetadata)}`, token, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: this.lorebookResourceMetadataHeaders(options),
             body: lorebook as unknown as BodyInit,
         })
     }
@@ -1804,6 +1966,76 @@ class ApiService {
     async deleteLorebook(lorebookId: string): Promise<void> {
         const token = this.getStoredToken()
         await this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}`, token, {
+            method: 'DELETE',
+        })
+    }
+
+    async getLorebookResources(skip: number = 0, limit: number = 100, q?: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebook-resources${this.listQuery(skip, limit, q)}`, token, {
+            method: 'GET',
+        })
+    }
+
+    async getLorebookResource(resourceId: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}`, token, {
+            method: 'GET',
+        })
+    }
+
+    async createLorebookResource(resource: LorebookResource | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebook-resources${this.extractMetadataQuery(options.extractMetadata)}`, token, {
+            method: 'POST',
+            headers: this.lorebookResourceMetadataHeaders(options),
+            body: this.lorebookResourcePayload(resource) as unknown as BodyInit,
+        })
+    }
+
+    async updateLorebookResource(resourceId: string, resource: Partial<LorebookResource> | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}${this.extractMetadataQuery(options.extractMetadata)}`, token, {
+            method: 'PUT',
+            headers: this.lorebookResourceMetadataHeaders(options),
+            body: this.lorebookResourcePayload(resource) as unknown as BodyInit,
+        })
+    }
+
+    async syncLorebookResourceMetadata(resourceId: string, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+        const token = this.getStoredToken()
+        const requestOptions = { ...options, extractMetadata: true }
+        return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}/metadata-sync`, token, {
+            method: 'POST',
+            headers: this.lorebookResourceMetadataHeaders(requestOptions),
+            body: {} as unknown as BodyInit,
+        })
+    }
+
+    async deleteLorebookResource(resourceId: string): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}`, token, {
+            method: 'DELETE',
+        })
+    }
+
+    async getLorebookLinkedResources(lorebookId: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/resources`, token, {
+            method: 'GET',
+        })
+    }
+
+    async attachLorebookResource(lorebookId: string, resourceId: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/resources/${encodeURIComponent(resourceId)}`, token, {
+            method: 'PUT',
+        })
+    }
+
+    async detachLorebookResource(lorebookId: string, resourceId: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/resources/${encodeURIComponent(resourceId)}`, token, {
             method: 'DELETE',
         })
     }

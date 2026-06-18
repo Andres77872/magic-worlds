@@ -19,6 +19,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Compass,
+    FileText,
     Flame,
     Gem,
     Globe,
@@ -42,8 +43,6 @@ interface RailItem {
     page: PageType
     labelKey: string
     icon: LucideIcon
-    /** create/library pages require auth before navigating */
-    gated?: boolean
 }
 
 interface NavGroup {
@@ -56,7 +55,7 @@ interface NavGroup {
 // Always-visible top anchors: discovery entry points with no group header.
 const NAV_PRIMARY: RailItem[] = [
     { page: 'landing', labelKey: 'sidebar.nav.landing', icon: Compass },
-    { page: 'community', labelKey: 'sidebar.nav.community', icon: Sparkles, gated: true },
+    { page: 'community', labelKey: 'sidebar.nav.community', icon: Sparkles },
 ]
 
 // Collapsible sections. The library items open the full galleries; the creators
@@ -66,29 +65,30 @@ const NAV_GROUPS: NavGroup[] = [
         id: 'activity',
         labelKey: 'sidebar.group.activity',
         items: [
-            { page: 'chatroom', labelKey: 'sidebar.nav.chatroom', icon: MessageCircle, gated: true },
-            { page: 'active-adventures', labelKey: 'sidebar.nav.activeAdventures', icon: CirclePlay, gated: true },
-            { page: 'gallery-stories', labelKey: 'sidebar.nav.stories', icon: BookOpenText, gated: true },
-            { page: 'calls', labelKey: 'sidebar.nav.calls', icon: Phone, gated: true },
+            { page: 'chatroom', labelKey: 'sidebar.nav.chatroom', icon: MessageCircle },
+            { page: 'active-adventures', labelKey: 'sidebar.nav.activeAdventures', icon: CirclePlay },
+            { page: 'gallery-stories', labelKey: 'sidebar.nav.stories', icon: BookOpenText },
+            { page: 'calls', labelKey: 'sidebar.nav.calls', icon: Phone },
         ],
     },
     {
         id: 'library',
         labelKey: 'sidebar.group.library',
         items: [
-            { page: 'gallery-characters', labelKey: 'sidebar.nav.characters', icon: Users, gated: true },
-            { page: 'gallery-worlds', labelKey: 'sidebar.nav.worlds', icon: Globe, gated: true },
-            { page: 'gallery-items', labelKey: 'sidebar.nav.items', icon: Gem, gated: true },
-            { page: 'gallery-adventures', labelKey: 'sidebar.nav.adventures', icon: Swords, gated: true },
+            { page: 'gallery-characters', labelKey: 'sidebar.nav.characters', icon: Users },
+            { page: 'gallery-worlds', labelKey: 'sidebar.nav.worlds', icon: Globe },
+            { page: 'gallery-items', labelKey: 'sidebar.nav.items', icon: Gem },
+            { page: 'gallery-adventures', labelKey: 'sidebar.nav.adventures', icon: Swords },
         ],
     },
     {
         id: 'assets',
         labelKey: 'sidebar.group.assets',
         items: [
-            { page: 'gallery-lorebooks', labelKey: 'sidebar.nav.lorebooks', icon: BookOpen, gated: true },
-            { page: 'gallery-media', labelKey: 'sidebar.nav.media', icon: Images, gated: true },
-            { page: 'voice-studio', labelKey: 'sidebar.nav.voices', icon: AudioLines, gated: true },
+            { page: 'gallery-lorebooks', labelKey: 'sidebar.nav.lorebooks', icon: BookOpen },
+            { page: 'gallery-resources', labelKey: 'sidebar.nav.resources', icon: FileText },
+            { page: 'gallery-media', labelKey: 'sidebar.nav.media', icon: Images },
+            { page: 'voice-studio', labelKey: 'sidebar.nav.voices', icon: AudioLines },
         ],
     },
 ]
@@ -241,7 +241,7 @@ export function SidebarShell({
 }: SidebarShellProps) {
     const { t } = useTranslation()
     const { currentPage, setPage } = useNavigation()
-    const { isAuthenticated, openLoginModal } = useAuth()
+    const { isAuthenticated } = useAuth()
     const { activeCount, openDrawer } = useBackgroundTasks()
     const { status: apiStatus, services, checkedAt } = useApiStatus()
 
@@ -276,13 +276,6 @@ export function SidebarShell({
     }
 
     const go = (item: RailItem) => {
-        if (item.gated && !isAuthenticated) {
-            // Close the mobile drawer first so the login modal isn't stacked on
-            // top of it (two focus-traps would otherwise fight).
-            onNavigate?.()
-            openLoginModal()
-            return
-        }
         setPage(item.page)
         onNavigate?.()
     }

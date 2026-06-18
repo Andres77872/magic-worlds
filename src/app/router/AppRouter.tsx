@@ -11,8 +11,10 @@ import { LoginModal } from '../../ui/components/LoginModal'
 import { AppWarningModal } from '../../ui/components/AppWarningModal'
 import { CookieConsentBanner } from '../../ui/components/CookieConsentBanner'
 import { ServicesDownBanner } from '../../ui/components/ServicesDownBanner'
+import { AppUpdateBanner } from '../../ui/components/AppUpdateBanner'
 import { SidebarTasksMenu, TasksDrawer } from '../../features/tasks'
 import { CardPreviewModal, useCardPreviewModal } from '../../features/cards'
+import { FloatingWindowsLayer } from '../../features/floatingWindows'
 import { LoadingSpinner } from '../../ui/components/LoadingSpinner'
 import { PlaylistDock } from '../../ui/components/audio/PlaylistDock'
 import { GlowBackdrop } from '../../ui/primitives'
@@ -36,6 +38,7 @@ const CommunityGalleryPage = lazy(() => import('../../features/gallery/component
 const SharedCardPage = lazy(() => import('../../features/gallery/components/SharedCardPage').then(m => ({ default: m.SharedCardPage })))
 const MediaGalleryPage = lazy(() => import('../../features/gallery/media/components/MediaGalleryPage').then(m => ({ default: m.MediaGalleryPage })))
 const LorebookGalleryPage = lazy(() => import('../../features/lorebook/components/LorebookGalleryPage').then(m => ({ default: m.LorebookGalleryPage })))
+const LorebookResourcesGalleryPage = lazy(() => import('../../features/lorebook/components/LorebookResourcesGalleryPage').then(m => ({ default: m.LorebookResourcesGalleryPage })))
 const LorebookStudio = lazy(() => import('../../features/lorebook/components/LorebookStudio').then(m => ({ default: m.LorebookStudio })))
 const NovelGalleryPage = lazy(() => import('../../features/novel/components/NovelGalleryPage').then(m => ({ default: m.NovelGalleryPage })))
 const NovelStudio = lazy(() => import('../../features/novel/components/NovelStudio').then(m => ({ default: m.NovelStudio })))
@@ -48,6 +51,8 @@ const LegalPage = lazy(() => import('../../features/legal/components/LegalPage')
 const AdminVoicesPage = lazy(() => import('../../features/admin/voices/components/AdminVoicesPage').then(m => ({ default: m.AdminVoicesPage })))
 const VoiceStudioPage = lazy(() => import('../../features/voices/components/VoiceStudioPage').then(m => ({ default: m.VoiceStudioPage })))
 const AdminAgentsPage = lazy(() => import('../../features/admin/agents/components/AdminAgentsPage').then(m => ({ default: m.AdminAgentsPage })))
+const AdminCreditCodesPage = lazy(() => import('../../features/admin/creditCodes/components/AdminCreditCodesPage').then(m => ({ default: m.AdminCreditCodesPage })))
+const NotFoundPage = lazy(() => import('../../features/errorPages/components/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
 
 export function AppRouter() {
     const { currentPage } = useNavigation()
@@ -87,6 +92,7 @@ export function AppRouter() {
             <main ref={mainRef} data-app-main className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
                 <MobileTopBar onOpenNav={() => setMobileNavOpen(true)} />
                 <ServicesDownBanner />
+                <AppUpdateBanner />
                 {loadingState.isLoading ? (
                     <div className="flex min-h-full flex-1 items-center justify-center">
                         <LoadingSpinner />
@@ -103,6 +109,7 @@ export function AppRouter() {
                         {currentPage === 'gallery-items' && <GalleryPage type="item" />}
                         {currentPage === 'gallery-adventures' && <GalleryPage type="adventure" />}
                         {currentPage === 'gallery-lorebooks' && <LorebookGalleryPage />}
+                        {currentPage === 'gallery-resources' && <LorebookResourcesGalleryPage />}
                         {currentPage === 'gallery-stories' && <NovelGalleryPage />}
                         {currentPage === 'gallery-media' && <MediaGalleryPage />}
                         {currentPage === 'community' && <CommunityGalleryPage />}
@@ -125,11 +132,13 @@ export function AppRouter() {
                         {currentPage === 'voice-studio' && <VoiceStudioPage />}
                         {currentPage === 'admin-voices' && <AdminVoicesPage />}
                         {currentPage === 'admin-agents' && <AdminAgentsPage />}
+                        {currentPage === 'admin-credit-codes' && <AdminCreditCodesPage />}
                         {currentPage === 'docs' && <DocsPage />}
                         {currentPage === 'about' && <LegalPage page="about" />}
                         {currentPage === 'contact' && <LegalPage page="contact" />}
                         {currentPage === 'privacy' && <LegalPage page="privacy" />}
                         {currentPage === 'disclaimer' && <LegalPage page="disclaimer" />}
+                        {currentPage === 'not-found' && <NotFoundPage />}
                       </Suspense>
                     </ErrorBoundary>
                 )}
@@ -154,6 +163,7 @@ export function AppRouter() {
                 onClose={cardPreview.closeCardPreview}
                 showUsage
             />
+            <FloatingWindowsLayer />
         </div>
     )
 }

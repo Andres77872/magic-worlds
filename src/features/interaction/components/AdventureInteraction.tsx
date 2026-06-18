@@ -17,7 +17,7 @@ export function AdventureInteraction() {
     const { t } = useTranslation()
     const { goBack, setPage } = useNavigation()
     const { editingInProgress, saveInProgressSnapshot } = useData()
-    const { isAuthenticated, openLoginModal } = useAuth()
+    const { isAuthenticated } = useAuth()
     const [currentAdventure, setCurrentAdventure] = useState<Adventure | null>(null)
     const [turns, setTurns] = useState<TurnEntry[]>([])
     const [isLoading, setIsLoading] = useState(true)
@@ -31,13 +31,13 @@ export function AdventureInteraction() {
     // Stable per-mount config so the chat engine's callbacks/effects don't churn.
     const chatConfig = useMemo(() => adventureChatConfig(), [])
 
-    // Gate behind auth — unauthenticated users cannot access interaction
+    // Detail route fallback: page navigation is allowed, but an active adventure
+    // is required before mounting the socket-backed interaction surface.
     useEffect(() => {
         if (!isAuthenticated) {
-            openLoginModal()
-            setPage('landing')
+            setPage('active-adventures')
         }
-    }, [isAuthenticated, openLoginModal, setPage])
+    }, [isAuthenticated, setPage])
 
     // Get adventure from data context when component mounts
     useEffect(() => {
@@ -46,8 +46,8 @@ export function AdventureInteraction() {
         if (editingInProgress) {
             setCurrentAdventure(editingInProgress)
         } else {
-            // Redirect back if no adventure is selected
-            setPage('landing')
+            // Redirect back if no adventure is selected.
+            setPage('active-adventures')
         }
     }, [editingInProgress, setPage, isAuthenticated])
 

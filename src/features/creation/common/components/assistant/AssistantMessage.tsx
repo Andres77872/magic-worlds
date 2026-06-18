@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Check, Sparkles } from 'lucide-react'
+import { CopyTextButton } from '@/ui/components'
 import { Badge, Eyebrow } from '@/ui/primitives'
 import { formatApiTime } from '@/utils/time'
 import { formatAppliedChange } from './appliedActions'
@@ -20,13 +21,15 @@ export function AssistantMessage({ turn }: { turn: VisibleAssistantTurn }) {
     const { t } = useTranslation()
     const { message, appliedChanges, isStreaming, isInterrupted } = turn
     const time = turnTime(message.created_at)
+    const canCopy = !isStreaming && message.content.length > 0
 
     if (message.role === 'user') {
         return (
             <div className="flex flex-col items-end gap-1">
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-center gap-2">
                     {time && <span className="font-mono text-[11px] text-parchment-500">{time}</span>}
                     <Eyebrow tone="ember" className="text-[10px]">{t('creation.common.assistant.you')}</Eyebrow>
+                    {canCopy && <CopyTextButton text={message.content} onError={(error) => console.error('Failed to copy assistant message:', error)} />}
                 </div>
                 <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-[4px] border border-ember-500/30 bg-ember-500/[.14] px-3.5 py-2.5 font-ui text-[14px] leading-relaxed text-parchment-50">
                     {message.content}
@@ -38,7 +41,10 @@ export function AssistantMessage({ turn }: { turn: VisibleAssistantTurn }) {
     if (message.status === 'failed') {
         return (
             <div className="flex flex-col items-start gap-1">
-                <Eyebrow tone="arcane" className="text-[10px]">{t('creation.common.assistant.label')}</Eyebrow>
+                <div className="flex items-center gap-2">
+                    <Eyebrow tone="arcane" className="text-[10px]">{t('creation.common.assistant.label')}</Eyebrow>
+                    {canCopy && <CopyTextButton text={message.content} onError={(error) => console.error('Failed to copy assistant message:', error)} />}
+                </div>
                 <div className="rounded-lg border border-blood-500/40 bg-blood-500/10 px-3 py-2 font-ui text-[13px] leading-relaxed text-parchment-100">
                     {message.content}
                 </div>
@@ -48,9 +54,10 @@ export function AssistantMessage({ turn }: { turn: VisibleAssistantTurn }) {
 
     return (
         <div className="flex flex-col items-start gap-1">
-            <div className="flex items-baseline gap-2">
+            <div className="flex items-center gap-2">
                 <Eyebrow tone="arcane" className="text-[10px]">{t('creation.common.assistant.label')}</Eyebrow>
                 {time && <span className="font-mono text-[11px] text-parchment-500">{time}</span>}
+                {canCopy && <CopyTextButton text={message.content} onError={(error) => console.error('Failed to copy assistant message:', error)} />}
             </div>
             <AssistantMarkdown content={message.content} isStreaming={isStreaming} />
             {isInterrupted && <span className="font-ui text-[11px] italic text-parchment-400">{t('creation.common.assistant.stopped')}</span>}

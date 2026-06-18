@@ -1,8 +1,9 @@
 /**
  * NovelEditor — the manuscript surface. TipTap (markdown in/out, serif
- * prose) with three custom layers: the inline AI suggestion lifecycle
- * (slash command → shimmer → typewriter → keep/discard, edits imply keep),
- * codex @mentions, and a minimal selection toolbar.
+ * prose) with custom layers: the inline AI suggestion lifecycle (slash command
+ * → shimmer → typewriter → keep/discard, edits imply keep), codex @mentions,
+ * inline reference detection (lorebook triggers + codex names), a grouped
+ * selection toolbar, and a "/" block + AI command menu.
  *
  * Body emission is gated while a suggestion is alive so suggestion text can
  * never reach autosave; the studio additionally suspends its timer via
@@ -10,7 +11,7 @@
  * chapter (key={chapterId}) — initialBody is read once.
  */
 
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -21,18 +22,30 @@ import { PluginKey } from '@tiptap/pm/state'
 import type { MentionNodeAttrs } from '@tiptap/extension-mention'
 import { exitSuggestion, type SuggestionProps } from '@tiptap/suggestion'
 import type { StoryGenerationCommand } from '@/shared'
-import { Toast } from '@/ui/primitives'
+import { Toast, cx } from '@/ui/primitives'
+import { useOpenLoreEntry } from '@/features/lorebook/hooks/useOpenLoreEntry'
 import { AiSuggestion, findAiSuggestionRange } from './extensions/aiSuggestion'
 import { createCodexMention } from './extensions/codexMention'
+import { buildDetectionMatchers, createDetection, DETECTION_META, type DetectionMatchers } from './extensions/detection'
+import { SearchReplace } from './extensions/searchReplace'
 import { createSlashCommand, type SlashItem, type SlashMenuController } from './extensions/slashCommand'
 import { AiSuggestionPill } from './components/AiSuggestionPill'
 import { EditorBubbleMenu } from './components/EditorBubbleMenu'
+import { FindReplacePanel } from './components/FindReplacePanel'
 import { MentionMenu } from './components/MentionMenu'
 import { SlashCommandMenu } from './components/SlashCommandMenu'
 import { useEditorAnchor } from './hooks/useEditorAnchor'
 import { useInlineAI } from './hooks/useInlineAI'
 import { editorSelection } from './markdownSelection'
 import type { EditorCodexEntry, InlineAIPhase, NovelEditorHandle, NovelEditorProps } from './types'
+
+/** A stable signature for the detection inputs — when it changes, the decoration
+ *  plugin recomputes once (instead of rebuilding the whole editor). */
+function detectionSignature(props: NovelEditorProps): string {
+    const names = (props.detectionNames ?? []).map((n) => `${n.id}:${n.label}`).join('|')
+    const lore = (props.loreEntries ?? []).map((l) => `${l.entry.id}:${l.entry.enabled ? 1 : 0}:${l.entry.keys.join(',')}`).join('|')
+    return `${names}__${lore}`
+}
 
 const CODEX_MENTION_SUGGESTION_KEY = new PluginKey('codexMentionSuggestion')
 
@@ -76,6 +89,20 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
     const codexRef = useRef<EditorCodexEntry[]>(props.codexEntries)
     codexRef.current = props.codexEntries
 
+    // Inline detection: matchers are rebuilt only when the codex changes (the
+    // memo key), then read live by the decoration plugin through a ref.
+    const detectionSig = detectionSignature(props)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- detectionSig captures the inputs
+    const detectionMatchers = useMemo<DetectionMatchers>(() => buildDetectionMatchers(props.detectionNames ?? [], props.loreEntries ?? []), [detectionSig])
+    const detectionRef = useRef<DetectionMatchers>(detectionMatchers)
+    detectionRef.current = detectionMatchers
+
+    const openLore = useOpenLoreEntry()
+    const openLoreRef = useRef(openLore)
+    openLoreRef.current = openLore
+
+    const [armed, setArmed] = useState(false)
+    const [findOpen, setFindOpen] = useState(false)
     const [phase, setPhaseState] = useState<InlineAIPhase>('idle')
     const phaseRef = useRef<InlineAIPhase>('idle')
 
@@ -113,11 +140,11 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                 code: false,
                 link: false,
                 underline: false,
-                strike: false,
             }),
             Markdown.configure({ indentation: { style: 'space', size: 2 } }),
             Placeholder.configure({ placeholder: tRef.current('novelEditor.editor.placeholder') }),
             Typography,
+            SearchReplace,
             AiSuggestion.configure({
                 onPhaseChange: (nextPhase) => {
                     phaseRef.current = nextPhase
@@ -156,6 +183,16 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                     }),
                 },
             }),
+            createDetection({
+                getMatchers: () => detectionRef.current,
+                getPhase: () => phaseRef.current,
+                getLabels: () => ({
+                    lore: (name) => tRef.current('loreTrigger.openHint', { name }),
+                    codex: (label) => tRef.current('novelEditor.reference.codexOpenHint', { label }),
+                }),
+                onOpenLore: (match) => openLoreRef.current(match),
+                onOpenCodex: (codexId) => propsRef.current.onOpenCodexEntry?.(codexId),
+            }),
         ],
         [],
     )
@@ -181,6 +218,52 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
     const editorRef = useRef(editor)
     editorRef.current = editor
 
+    // Recompute detection decorations once when the codex changes.
+    useEffect(() => {
+        const target = editorRef.current
+        if (!target || target.isDestroyed) return
+        target.view.dispatch(target.state.tr.setMeta(DETECTION_META, true))
+    }, [detectionSig])
+
+    // "Armed" affordance: holding Ctrl/Cmd brightens detected references and
+    // turns the cursor into a pointer (mirrors the chat composer).
+    useEffect(() => {
+        const sync = (event: KeyboardEvent) => setArmed(event.ctrlKey || event.metaKey)
+        const reset = () => setArmed(false)
+        window.addEventListener('keydown', sync)
+        window.addEventListener('keyup', sync)
+        window.addEventListener('blur', reset)
+        return () => {
+            window.removeEventListener('keydown', sync)
+            window.removeEventListener('keyup', sync)
+            window.removeEventListener('blur', reset)
+        }
+    }, [])
+
+    // Typewriter mode: keep the caret line vertically centered. Never runs during
+    // the AI reveal (which owns its own scrollIntoView).
+    useEffect(() => {
+        if (!editor || !props.typewriter) return
+        const recenter = () => {
+            if (phaseRef.current !== 'idle') return
+            const container = containerRef.current
+            if (!container) return
+            try {
+                const coords = editor.view.coordsAtPos(editor.state.selection.head)
+                const rect = container.getBoundingClientRect()
+                container.scrollTop += coords.top - rect.top - rect.height * 0.45
+            } catch {
+                // coordsAtPos can throw mid-transaction; skip this tick.
+            }
+        }
+        editor.on('selectionUpdate', recenter)
+        editor.on('update', recenter)
+        return () => {
+            editor.off('selectionUpdate', recenter)
+            editor.off('update', recenter)
+        }
+    }, [editor, props.typewriter])
+
     const inlineAI = useInlineAI(editor, {
         onRequestSaveFlush: () => propsRef.current.onRequestSaveFlush(),
         onGenerate: (request) => propsRef.current.onGenerate(request),
@@ -195,7 +278,14 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         rejectKey: () => void inlineAI.reject(),
         implicitAccept: inlineAI.handleImplicitAccept,
     }
-    submitSlashRef.current = (item) => void inlineAI.submit(item.command, item.instruction)
+    submitSlashRef.current = (item) => {
+        if (item.type === 'block') {
+            const target = editorRef.current
+            if (target) item.run(target)
+            return
+        }
+        void inlineAI.submit(item.command, item.instruction)
+    }
 
     // --- slash menu controller ---
     slashControllerRef.current = {
@@ -304,6 +394,15 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         }
     }
 
+    const handleAddToCodex = () => {
+        const target = editorRef.current
+        if (!target) return
+        const { from, to } = target.state.selection
+        if (from === to) return
+        const text = target.state.doc.textBetween(from, to, ' ').trim()
+        if (text) propsRef.current.onAddToCodex?.(text)
+    }
+
     const pillAnchor = useEditorAnchor(
         editor,
         containerRef,
@@ -332,10 +431,38 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         <>
             <div
                 ref={containerRef}
-                className="story-editor-shell relative flex min-h-[480px] flex-1 flex-col overflow-auto rounded-md border border-parchment-50/10 bg-ink-900/45 transition focus-within:border-ember-500/60"
+                className={cx(
+                    'story-editor-shell relative flex min-h-[480px] flex-1 flex-col overflow-auto rounded-md border border-parchment-50/10 bg-ink-900/45 transition focus-within:border-ember-500/60',
+                    armed && 'is-armed',
+                )}
+                data-focus={props.focusMode ? 'true' : undefined}
+                data-typewriter={props.typewriter ? 'true' : undefined}
                 data-testid="novel-editor"
+                onKeyDown={(event) => {
+                    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+                        event.preventDefault()
+                        setFindOpen(true)
+                    }
+                }}
             >
-                {editor && <EditorBubbleMenu editor={editor} phase={phase} onSelectionCommand={handleSelectionCommand} />}
+                {editor && (
+                    <EditorBubbleMenu
+                        editor={editor}
+                        phase={phase}
+                        onSelectionCommand={handleSelectionCommand}
+                        onAddToCodex={props.onAddToCodex ? handleAddToCodex : undefined}
+                    />
+                )}
+                {editor && findOpen && (
+                    <FindReplacePanel
+                        editor={editor}
+                        disabled={phase !== 'idle'}
+                        onClose={() => {
+                            setFindOpen(false)
+                            editorRef.current?.commands.focus()
+                        }}
+                    />
+                )}
                 <EditorContent editor={editor} className="flex min-h-0 flex-1 flex-col" />
                 {slashMenu && (
                     <SlashCommandMenu

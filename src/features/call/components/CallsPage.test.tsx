@@ -81,11 +81,16 @@ describe('CallsPage', () => {
         await waitFor(() => expect(getVoiceCallTranscript).toHaveBeenCalledWith('vs-1'))
     })
 
-    it('gates signed-out visitors', () => {
+    it('renders signed-out visitors and gates only starting a call', () => {
         authed = false
         render(<CallsPage />)
-        expect(openLoginModal).toHaveBeenCalled()
-        expect(setPage).toHaveBeenCalledWith('landing')
-        expect(screen.queryByTestId('calls-page')).not.toBeInTheDocument()
+
+        expect(screen.getByTestId('calls-page')).toBeInTheDocument()
+        expect(openLoginModal).not.toHaveBeenCalled()
+        expect(setPage).not.toHaveBeenCalledWith('landing')
+        expect(getRecentVoiceCalls).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Call' }))
+        expect(openLoginModal).toHaveBeenCalledTimes(1)
     })
 })

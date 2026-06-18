@@ -24,25 +24,23 @@ function hasVoice(character: Character): boolean {
 
 export function CallsPage() {
     const { t } = useTranslation()
-    const { isAuthenticated, openLoginModal } = useAuth()
+    const { isAuthenticated } = useAuth()
     const { characters } = useData()
     const { setPage } = useNavigation()
     const call = useStartCall()
 
     const [query, setQuery] = useState('')
     const [recentCalls, setRecentCalls] = useState<CallSummary[]>([])
-    const [loadingCalls, setLoadingCalls] = useState(true)
+    const [loadingCalls, setLoadingCalls] = useState(isAuthenticated)
     const [selectedCall, setSelectedCall] = useState<CallSummary | null>(null)
 
     useEffect(() => {
         if (!isAuthenticated) {
-            openLoginModal()
-            setPage('landing')
+            setRecentCalls([])
+            setSelectedCall(null)
+            setLoadingCalls(false)
+            return
         }
-    }, [isAuthenticated, openLoginModal, setPage])
-
-    useEffect(() => {
-        if (!isAuthenticated) return
         let cancelled = false
         setLoadingCalls(true)
         apiService
@@ -79,8 +77,6 @@ export function CallsPage() {
                 .includes(normalizedQuery),
         )
     }, [callableCharacters, normalizedQuery])
-
-    if (!isAuthenticated) return null
 
     if (selectedCall) {
         return (

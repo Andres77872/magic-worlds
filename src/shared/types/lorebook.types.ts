@@ -66,6 +66,54 @@ export interface LorebookEntry {
     updatedAt?: string
 }
 
+export type LorebookResourceStatus = 'pending' | 'completed' | 'failed'
+
+export interface LorebookResourceSnippet {
+    id?: string
+    title: string
+    content: string
+    triggers: string[]
+    source?: string | null
+}
+
+export interface LorebookResourceExtraction {
+    keywords: string[]
+    shortSummary: string
+    longSummary: string
+    notes?: string[]
+    snippets: LorebookResourceSnippet[]
+    model?: string
+    schemaVersion?: string
+    sourceHash?: string
+    updatedAt?: string
+}
+
+export interface LorebookResource {
+    id: string
+    title: string
+    description?: string | null
+    triggers: string[]
+    fileName: string
+    fileType: 'md' | 'txt'
+    content: string
+    contentLength?: number
+    contentHash?: string
+    evaluationHash?: string
+    extractionStatus?: LorebookResourceStatus
+    extraction?: LorebookResourceExtraction | null
+    metadataOutdated?: boolean
+    linkCount?: number
+    createdAt?: string
+    updatedAt?: string
+}
+
+export interface LorebookResourceLink {
+    lorebookId: string
+    resourceId: string
+    createdAt?: string
+    updatedAt?: string
+}
+
 export interface LorebookAttachment {
     id: string
     lorebookId: string

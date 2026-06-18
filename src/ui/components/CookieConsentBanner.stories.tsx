@@ -13,6 +13,7 @@ const navStub: NavValue = {
     setPage: () => {},
     goBack: () => {},
     cardEdit: null,
+    resourceEdit: null,
     replaceHash: () => {},
 }
 

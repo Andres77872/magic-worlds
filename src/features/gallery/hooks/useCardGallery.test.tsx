@@ -35,6 +35,16 @@ describe('useCardGallery', () => {
         expect(result.current.hasMore).toBe(true)
     })
 
+    it('does not fetch while disabled and resets to an empty idle state', async () => {
+        const config = makeConfig({ '0|': [makeItem('a'), makeItem('b')] })
+        const { result } = renderHook(() => useCardGallery(config, PAGE_SIZE, { enabled: false }))
+
+        expect(result.current.loading).toBe(false)
+        expect(result.current.items).toEqual([])
+        expect(result.current.hasMore).toBe(false)
+        expect(config.fetchPage).not.toHaveBeenCalled()
+    })
+
     it('reports hasMore=false on a short page', async () => {
         const config = makeConfig({ '0|': [makeItem('a')] })
         const { result } = renderHook(() => useCardGallery(config, PAGE_SIZE))

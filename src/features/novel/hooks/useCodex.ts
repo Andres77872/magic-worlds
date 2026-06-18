@@ -7,8 +7,20 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useData } from '@/app/hooks'
+import { snapshotSourceName, snapshotToLoreEntry } from '@/features/codex'
+import type { SessionLoreEntry } from '@/features/lorebook/loreTriggers'
 import type { Lorebook, Story, StoryCardKind, StoryCardRef } from '@/shared'
 import { KIND_META, clonedEntryIds, lorebookEntrySnapshot, snapshotDescription, snapshotLabel } from '../utils/codexUtils'
+
+/** Kinds whose names are highlighted inline in the manuscript (ember). */
+const DETECTABLE_NAME_KINDS = new Set<StoryCardKind>(['character', 'world', 'item', 'adventure_template'])
+
+/** A codex entity name surfaced for inline detection. */
+export interface CodexDetectionName {
+    id: string
+    label: string
+    kind: StoryCardKind
+}
 
 export interface CodexEntry {
     /** The card-ref id (the codex row identity). */
@@ -41,6 +53,10 @@ export interface CodexApi {
     removeEntry: (entry: CodexEntry) => Promise<void>
     /** Feed for the editor's @mention autocomplete. */
     mentionEntries: CodexMentionEntry[]
+    /** Enabled entity names highlighted inline in the manuscript (ember). */
+    detectionNames: CodexDetectionName[]
+    /** Cloned lorebook entries as session lore, for inline trigger detection (arcane). */
+    loreEntries: SessionLoreEntry[]
     busy: boolean
 }
 
@@ -171,6 +187,28 @@ export function useCodex({ story }: { story: Story | null }): CodexApi {
         [entries],
     )
 
+    const detectionNames = useMemo<CodexDetectionName[]>(
+        () =>
+            entries
+                .filter((entry) => entry.enabled && DETECTABLE_NAME_KINDS.has(entry.kind) && entry.label.trim().length > 0)
+                .map((entry) => ({ id: entry.id, label: entry.label, kind: entry.kind })),
+        [entries],
+    )
+
+    // Reconstruct cloned lorebook entries into session lore. snapshotToLoreEntry
+    // forces enabled:true, so re-apply the codex ref's own enabled flag — a
+    // disabled codex row must not light up its triggers in the prose.
+    const loreEntries = useMemo<SessionLoreEntry[]>(
+        () =>
+            refs
+                .filter((ref) => ref.kind === 'lorebook_entry')
+                .map((ref) => {
+                    const entry = { ...snapshotToLoreEntry(ref.snapshot, ref.cardId), enabled: ref.enabled }
+                    return { entry, lorebookId: entry.lorebookId, lorebookName: snapshotSourceName(ref.snapshot) ?? '' }
+                }),
+        [refs],
+    )
+
     return {
         entries,
         groups,
@@ -182,6 +220,8 @@ export function useCodex({ story }: { story: Story | null }): CodexApi {
         saveSnapshot,
         removeEntry,
         mentionEntries,
+        detectionNames,
+        loreEntries,
         busy: pendingOps > 0,
     }
 }

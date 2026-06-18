@@ -1,6 +1,8 @@
-import React, {useCallback, useId} from 'react'
+import React, {useCallback, useId, useRef} from 'react'
 import {useTranslation} from 'react-i18next'
-import {type CardOption, CardOptions} from './CardOptions'
+import {CardActionMenu, type CardOption, CardOptions} from './CardOptions'
+import {useCardActionContextMenu} from './useCardActionContextMenu'
+import {SELECTED_CARD_CLASS} from './cardStyles'
 import {Card as Surface, cx, Portrait, ThemeSongButton} from '@/ui/primitives'
 
 interface CardProps {
@@ -41,23 +43,33 @@ export function Card({
                      'data-testid': testId = 'card',
                  }: CardProps) {
     const { t } = useTranslation()
-    const cardOptions = options
+    const cardRef = useRef<HTMLDivElement>(null!)
+    const cardOptions = options ?? []
+    const contextMenu = useCardActionContextMenu({
+        options: cardOptions,
+        disabled,
+        returnFocusRef: cardRef,
+    })
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
         if (disabled) return
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (contextMenu.handleContextMenuKeyDown(e)) return
+        if (onClick && (e.key === 'Enter' || e.key === ' ')) {
             e.preventDefault()
-            onClick?.()
+            onClick()
         }
-    }, [onClick, disabled])
+    }, [contextMenu, onClick, disabled])
 
-    const handleClick = useCallback(() => {
+    const handleClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
+        if (contextMenu.suppressClickAfterLongPress(event)) return
         if (!disabled && onClick) {
             onClick()
         }
-    }, [onClick, disabled])
+    }, [contextMenu, onClick, disabled])
 
     const isInteractive = Boolean(onClick) && !disabled
+    const hasContextActions = cardOptions.length > 0
+    const isFocusable = isInteractive || hasContextActions
 
     const titleId = useId()
     const generatedDescriptionId = useId()
@@ -68,18 +80,25 @@ export function Card({
 
     return (
         <Surface
+            ref={cardRef}
             interactive={isInteractive}
             className={cx(
                 'group relative flex h-full flex-col',
-                highlight && 'border-ember-500/45 ring-1 ring-ember-500/45',
+                highlight && SELECTED_CARD_CLASS,
                 disabled && 'pointer-events-none cursor-not-allowed opacity-50',
                 className,
             )}
             onClick={isInteractive ? handleClick : undefined}
-            onKeyDown={isInteractive ? handleKeyDown : undefined}
+            onKeyDown={isFocusable ? handleKeyDown : undefined}
+            onContextMenu={contextMenu.handleContextMenu}
+            onPointerDown={contextMenu.pointerHandlers.onPointerDown}
+            onPointerMove={contextMenu.pointerHandlers.onPointerMove}
+            onPointerCancel={contextMenu.pointerHandlers.onPointerCancel}
+            onPointerLeave={contextMenu.pointerHandlers.onPointerLeave}
+            onPointerUp={contextMenu.pointerHandlers.onPointerUp}
             data-testid={testId}
             role={isInteractive ? 'button' : 'article'}
-            tabIndex={isInteractive ? 0 : undefined}
+            tabIndex={isFocusable ? 0 : undefined}
             aria-disabled={disabled || undefined}
             aria-labelledby={titleId}
             aria-describedby={descriptionId}
@@ -101,7 +120,7 @@ export function Card({
             )}
 
             <Portrait name={portraitName} src={imageUrl} height={120}>
-                {(themeSongUrl || (cardOptions && cardOptions.length > 0)) && (
+                {(themeSongUrl || cardOptions.length > 0) && (
                     <div className="absolute right-2 top-2 z-[2] flex items-center gap-1.5">
                         {themeSongUrl && (
                             <ThemeSongButton
@@ -110,7 +129,7 @@ export function Card({
                                 artworkUrl={imageUrl}
                             />
                         )}
-                        {cardOptions && cardOptions.length > 0 && (
+                        {cardOptions.length > 0 && (
                             <CardOptions
                                 options={cardOptions}
                                 disabled={disabled}
@@ -148,6 +167,12 @@ export function Card({
                     {children}
                 </div>
             )}
+
+            <CardActionMenu
+                {...contextMenu.menuProps}
+                menuTestId="card-context-menu"
+                optionTestIdPrefix="card-context-option"
+            />
         </Surface>
     )
 }

@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TurnEntry } from '../../../shared'
 import type { ChatSessionConfig } from '../chatSessionConfig'
+import { apiService } from '../../../infrastructure/api'
 import { InteractionCenterPanel } from './InteractionCenterPanel'
 
 vi.mock('../../../infrastructure/api/useAuthenticatedMediaUrl', () => ({
@@ -19,6 +20,7 @@ vi.mock('../../../app/hooks', () => ({
         openLoginModal: vi.fn(),
         token: 'token',
     }),
+    useData: () => ({ lorebooks: [] }),
 }))
 
 vi.mock('../hooks/useAdventureChatSocket', () => ({
@@ -69,6 +71,8 @@ describe('InteractionCenterPanel message deletion', () => {
     beforeEach(() => {
         localStorage.clear()
         vi.restoreAllMocks()
+        // The session-lore hook lists attachments on mount; keep it empty + offline-safe.
+        vi.spyOn(apiService, 'listLorebookAttachments').mockResolvedValue([])
         hookMocks.useAdventureChatSocket.mockReturnValue({
             status: 'open',
             sendChat: vi.fn(),

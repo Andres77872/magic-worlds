@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookOpenText, Plus, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import type { CharacterChatCodexCard } from '@/shared'
-import { CodexCardPickerDrawer, KIND_ICONS, snapshotDisplayDescription, snapshotDisplayLabel, type CodexLibraryCardSelection } from '@/features/codex'
-import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
-import { Badge, Button, Eyebrow, Icon, IconButton, IconTile, Switch, cx } from '@/ui/primitives'
+import { useFloatingWindows } from '@/app/hooks'
+import { cardWindow } from '@/features/floatingWindows'
+import { CodexCardPickerDrawer, KIND_ICONS, snapshotDisplayDescription, snapshotDisplayLabel, snapshotToCardPreview, type CodexLibraryCardSelection } from '@/features/codex'
+import { ConfirmDialog, ReferenceGroup, ReferenceRow } from '@/ui/components'
+import { Icon, IconButton, IconTile, Switch } from '@/ui/primitives'
 
 interface CharacterChatCodexPanelProps {
     cards: CharacterChatCodexCard[]
@@ -15,6 +17,7 @@ interface CharacterChatCodexPanelProps {
 
 export function CharacterChatCodexPanel({ cards, onAddCards, onToggleCard, onRemoveCard }: CharacterChatCodexPanelProps) {
     const { t } = useTranslation()
+    const { openWindow } = useFloatingWindows()
     const [pickerOpen, setPickerOpen] = useState(false)
     const [pendingRemove, setPendingRemove] = useState<CharacterChatCodexCard | null>(null)
     const [pendingOps, setPendingOps] = useState(0)
@@ -31,84 +34,63 @@ export function CharacterChatCodexPanel({ cards, onAddCards, onToggleCard, onRem
     }
 
     return (
-        <section className="flex flex-col gap-3 rounded-lg border border-parchment-50/10 bg-ink-800 px-4 py-3" aria-label={t('characterChat.codex.title')}>
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                    <Eyebrow tone="arcane">{t('characterChat.codex.title')}</Eyebrow>
-                    {cards.length > 0 && <Badge tone="arcane">{cards.length}</Badge>}
-                </div>
-                <Button
-                    variant="secondary"
-                    size="sm"
-                    iconLeft={<Icon icon={Plus} size={14} />}
-                    onClick={() => setPickerOpen(true)}
-                    disabled={busy}
-                >
-                    {t('characterChat.codex.addCards')}
-                </Button>
-            </div>
-
-            {cards.length === 0 ? (
-                <div className="flex items-start gap-2 rounded-md bg-ink-900/35 px-3 py-3">
-                    <span className="mt-0.5 text-parchment-500">
-                        <Icon icon={BookOpenText} size={18} />
-                    </span>
-                    <div className="min-w-0">
-                        <p className="m-0 font-ui text-sm font-semibold text-parchment-100">{t('characterChat.codex.emptyTitle')}</p>
-                        <p className="m-0 mt-1 font-ui text-xs leading-snug text-parchment-400">{t('characterChat.codex.emptyDescription')}</p>
-                    </div>
-                </div>
-            ) : (
-                <div className="flex flex-col gap-1.5">
+        <>
+            <ReferenceGroup
+                label={t('characterChat.codex.title')}
+                tone="ember"
+                count={cards.length}
+                onAdd={() => setPickerOpen(true)}
+                addLabel={t('characterChat.codex.addCards')}
+                addDisabled={busy}
+                isEmpty={cards.length === 0}
+                emptyText={t('characterChat.codex.emptyDescription')}
+            >
+                <div className="flex flex-col gap-1">
                     {cards.map((card) => {
                         const label = snapshotDisplayLabel(card.snapshot, card.cardId)
                         const description = snapshotDisplayDescription(card.snapshot)
                         const arcane = card.kind === 'world'
                         return (
-                            <div
+                            <ReferenceRow
                                 key={card.id}
-                                className={cx(
-                                    'group flex items-center gap-2.5 rounded-md border border-parchment-50/10 bg-ink-700/60 px-2.5 py-2 transition-colors hover:border-parchment-50/20',
-                                    !card.enabled && 'opacity-50',
-                                )}
-                                data-testid="chat-codex-card"
-                            >
-                                <IconTile icon={KIND_ICONS[card.kind]} tone={arcane ? 'arcane' : 'ember'} size="sm" />
-                                <div className="min-w-0 flex-1">
-                                    <span className="block truncate font-ui text-sm font-semibold text-parchment-100">{label}</span>
-                                    {description && (
-                                        <span className="block truncate font-ui text-xs text-parchment-400">{description}</span>
-                                    )}
-                                </div>
-                                <div className="flex shrink-0 items-center gap-1">
-                                    <IconButton
-                                        label={t('characterChat.codex.removeAria', { label })}
-                                        size="sm"
-                                        tone="danger"
-                                        onClick={() => setPendingRemove(card)}
-                                        disabled={busy}
-                                    >
-                                        <Icon icon={Trash2} size={14} />
-                                    </IconButton>
-                                    <Switch
-                                        checked={card.enabled}
-                                        onChange={() => {
-                                            void track(onToggleCard(card, !card.enabled))
-                                        }}
-                                        size="sm"
-                                        disabled={busy}
-                                        aria-label={
-                                            card.enabled
-                                                ? t('characterChat.codex.disableAria', { label })
-                                                : t('characterChat.codex.enableAria', { label })
-                                        }
-                                    />
-                                </div>
-                            </div>
+                                testId="chat-codex-card"
+                                dimmed={!card.enabled}
+                                leading={<IconTile icon={KIND_ICONS[card.kind]} tone={arcane ? 'arcane' : 'ember'} size="sm" />}
+                                title={label}
+                                description={description || undefined}
+                                onTitleClick={() => openWindow(cardWindow(snapshotToCardPreview(card.snapshot, card.kind, card.cardId)))}
+                                titleAriaLabel={t('characterChat.codex.open', { label })}
+                                trailing={
+                                    <>
+                                        <IconButton
+                                            label={t('characterChat.codex.removeAria', { label })}
+                                            size="sm"
+                                            tone="danger"
+                                            onClick={() => setPendingRemove(card)}
+                                            disabled={busy}
+                                        >
+                                            <Icon icon={Trash2} size={14} />
+                                        </IconButton>
+                                        <Switch
+                                            checked={card.enabled}
+                                            onChange={() => {
+                                                void track(onToggleCard(card, !card.enabled))
+                                            }}
+                                            size="sm"
+                                            disabled={busy}
+                                            aria-label={
+                                                card.enabled
+                                                    ? t('characterChat.codex.disableAria', { label })
+                                                    : t('characterChat.codex.enableAria', { label })
+                                            }
+                                        />
+                                    </>
+                                }
+                            />
                         )
                     })}
                 </div>
-            )}
+            </ReferenceGroup>
 
             <CodexCardPickerDrawer
                 open={pickerOpen}
@@ -144,6 +126,6 @@ export function CharacterChatCodexPanel({ cards, onAddCards, onToggleCard, onRem
                 }}
                 onCancel={() => setPendingRemove(null)}
             />
-        </section>
+        </>
     )
 }

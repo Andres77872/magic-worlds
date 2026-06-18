@@ -36,16 +36,25 @@ export interface CardGallery<T extends { id: string } = GalleryItem> {
     upsertItem: (item: T) => void
 }
 
+export interface CardGalleryOptions {
+    enabled?: boolean
+}
+
 function appendDedupedById<T extends { id: string }>(prev: T[], page: T[]): T[] {
     const seen = new Set(prev.map((item) => item.id))
     return [...prev, ...page.filter((item) => !seen.has(item.id))]
 }
 
-export function useCardGallery<T extends { id: string } = GalleryItem>(config: CardGalleryConfig<T>, pageSize = GALLERY_PAGE_SIZE): CardGallery<T> {
+export function useCardGallery<T extends { id: string } = GalleryItem>(
+    config: CardGalleryConfig<T>,
+    pageSize = GALLERY_PAGE_SIZE,
+    options: CardGalleryOptions = {},
+): CardGallery<T> {
+    const enabled = options.enabled ?? true
     const [items, setItems] = useState<T[]>([])
     const [query, setQuery] = useState('')
     const [debouncedQuery, setDebouncedQuery] = useState('')
-    const [loading, setLoading] = useState(true)
+    const [loading, setLoading] = useState(enabled)
     const [loadingMore, setLoadingMore] = useState(false)
     const [hasMore, setHasMore] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -63,8 +72,21 @@ export function useCardGallery<T extends { id: string } = GalleryItem>(config: C
         return () => clearTimeout(timer)
     }, [query])
 
+    useEffect(() => {
+        if (enabled) return
+        seqRef.current += 1
+        skipRef.current = 0
+        localUpsertIdsRef.current.clear()
+        setItems([])
+        setLoading(false)
+        setLoadingMore(false)
+        setHasMore(false)
+        setError(null)
+    }, [enabled])
+
     const fetchPage = useCallback(
         async (reset: boolean) => {
+            if (!enabled) return
             const seq = ++seqRef.current
             const skip = reset ? 0 : skipRef.current
             if (reset) setLoading(true)
@@ -97,21 +119,22 @@ export function useCardGallery<T extends { id: string } = GalleryItem>(config: C
                 }
             }
         },
-        [config, pageSize, debouncedQuery],
+        [config, pageSize, debouncedQuery, enabled],
     )
 
     // Mount + every committed search → reset & refetch (fetchPage's identity
     // carries debouncedQuery). A manual fetch hook necessarily flips `loading`
     // the moment the request starts, hence the targeted suppression.
     useEffect(() => {
+        if (!enabled) return
         // eslint-disable-next-line react-hooks/set-state-in-effect
         void fetchPage(true)
-    }, [fetchPage])
+    }, [fetchPage, enabled])
 
     const loadMore = useCallback(() => {
-        if (loading || loadingMore || !hasMore) return
+        if (!enabled || loading || loadingMore || !hasMore) return
         void fetchPage(false)
-    }, [fetchPage, loading, loadingMore, hasMore])
+    }, [enabled, fetchPage, loading, loadingMore, hasMore])
 
     const removeItem = useCallback((id: string) => {
         setItems((prev) => {
@@ -134,14 +157,15 @@ export function useCardGallery<T extends { id: string } = GalleryItem>(config: C
     }, [])
 
     const refresh = useCallback(() => {
+        if (!enabled) return
         void fetchPage(true)
-    }, [fetchPage])
+    }, [enabled, fetchPage])
 
     return {
         items,
         query,
         setQuery,
-        searching: query.trim() !== debouncedQuery || (loading && debouncedQuery !== ''),
+        searching: enabled && (query.trim() !== debouncedQuery || (loading && debouncedQuery !== '')),
         loading,
         loadingMore,
         hasMore,

@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpenText, Check, Link2, Loader2, Plus, Search, Trash2 } from 'lucide-react'
+import { BookOpenText, Link2, Loader2, Search, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useData } from '@/app/hooks'
+import { useData, useFloatingWindows } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
+import { lorebookWindow } from '@/features/floatingWindows'
 import type { Lorebook, LorebookAttachment, LorebookTargetKind } from '@/shared'
-import { Badge, Button, Drawer, Eyebrow, Icon, IconButton, Input, cx } from '@/ui/primitives'
+import { ReferenceEmpty, ReferenceGroup, ReferenceRow } from '@/ui/components'
+import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card'
+import { Badge, Button, Drawer, Icon, IconButton, IconTile, Input, SelectionCheck, cx } from '@/ui/primitives'
 import { normalizeLorebookAttachment } from '../lorebookTransforms'
+import { lorebookResourceSearchText, lorebookResourceStats, lorebookResourcesFromMetadata } from '../lorebookResources'
 
 type SessionLorebookTargetKind = Extract<LorebookTargetKind, 'character_chat' | 'adventure_session'>
 
@@ -14,6 +18,12 @@ interface SessionLorebookPanelProps {
     targetId: string
     label?: string
     className?: string
+    /**
+     * Draw the bordered card shell. Defaults to true so the panel stands alone
+     * (e.g. the adventure left panel). The chat sidebar passes `false` because
+     * its consolidated shell already frames the codex + lorebook groups.
+     */
+    framed?: boolean
 }
 
 function upsertAttachment(list: LorebookAttachment[], attachment: LorebookAttachment): LorebookAttachment[] {
@@ -31,13 +41,15 @@ function lorebookMatches(lorebook: Lorebook, query: string): boolean {
         lorebook.description ?? '',
         ...lorebook.tags,
         ...lorebook.entries.flatMap((entry) => [entry.title, ...entry.keys, ...entry.secondaryKeys]),
+        lorebookResourceSearchText(lorebook),
     ].join(' ').toLowerCase()
     return haystack.includes(query)
 }
 
-export function SessionLorebookPanel({ targetKind, targetId, label, className }: SessionLorebookPanelProps) {
+export function SessionLorebookPanel({ targetKind, targetId, label, className, framed = true }: SessionLorebookPanelProps) {
     const { t } = useTranslation()
     const { lorebooks, setLorebooks } = useData()
+    const { openWindow } = useFloatingWindows()
     const [attachments, setAttachments] = useState<LorebookAttachment[]>([])
     const [loading, setLoading] = useState(false)
     const [busyId, setBusyId] = useState<string | null>(null)
@@ -156,79 +168,72 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className }:
 
     const title = label ?? t('sessionLorebooks.title')
 
-    return (
-        <section className={cx('flex flex-col gap-3 rounded-lg border border-parchment-50/10 bg-ink-800 px-4 py-3', className)} aria-label={title}>
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                    <Eyebrow tone="arcane">{title}</Eyebrow>
-                    {attachments.length > 0 && <Badge tone="arcane">{attachments.length}</Badge>}
-                </div>
-                <Button
-                    variant="secondary"
-                    size="sm"
-                    iconLeft={<Icon icon={Plus} size={14} />}
-                    onClick={() => setPickerOpen(true)}
-                    disabled={busyId !== null || !normalizedTargetId}
-                >
-                    {t('sessionLorebooks.add')}
-                </Button>
-            </div>
-
+    const group = (
+        <ReferenceGroup
+            label={title}
+            tone="arcane"
+            count={attachments.length}
+            onAdd={() => setPickerOpen(true)}
+            addLabel={t('sessionLorebooks.add')}
+            addDisabled={busyId !== null || !normalizedTargetId}
+        >
             {error && (
-                <div className="rounded-md border border-blood-500/25 bg-blood-500/10 px-3 py-2 font-ui text-xs text-parchment-200" role="alert">
+                <div className="rounded-md border border-blood-500/25 bg-blood-500/10 px-2.5 py-1.5 font-ui text-xs text-parchment-200" role="alert">
                     {error}
                 </div>
             )}
 
             {loading ? (
-                <div className="flex items-center gap-2 rounded-md bg-ink-900/35 px-3 py-3 font-ui text-xs text-parchment-400">
-                    <Loader2 size={15} className="animate-spin text-ember-500" aria-hidden="true" />
+                <div className="flex items-center gap-2 px-0.5 py-1 font-ui text-xs text-parchment-400">
+                    <Loader2 size={14} className="animate-spin text-ember-500" aria-hidden="true" />
                     {t('sessionLorebooks.loading')}
                 </div>
             ) : attachments.length === 0 ? (
-                <div className="flex items-start gap-2 rounded-md bg-ink-900/35 px-3 py-3">
-                    <span className="mt-0.5 text-parchment-500">
-                        <Icon icon={BookOpenText} size={18} />
-                    </span>
-                    <div className="min-w-0">
-                        <p className="m-0 font-ui text-sm font-semibold text-parchment-100">{t('sessionLorebooks.emptyTitle')}</p>
-                        <p className="m-0 mt-1 font-ui text-xs leading-snug text-parchment-400">{t('sessionLorebooks.emptyDescription')}</p>
-                    </div>
-                </div>
+                <ReferenceEmpty>{t('sessionLorebooks.emptyDescription')}</ReferenceEmpty>
             ) : (
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1">
                     {attachments.map((attachment) => {
                         const lorebook = lorebookById.get(attachment.lorebookId)
                         const name = lorebook?.name ?? t('sessionLorebooks.unknownLorebook')
                         return (
-                            <div
+                            <ReferenceRow
                                 key={attachment.id}
-                                className="group flex items-center gap-2.5 rounded-md border border-parchment-50/10 bg-ink-700/60 px-2.5 py-2 transition-colors hover:border-parchment-50/20"
-                                data-testid="session-lorebook-attachment"
-                            >
-                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-arcane-500/15 text-arcane-300">
-                                    <Icon icon={BookOpenText} size={15} />
-                                </span>
-                                <div className="min-w-0 flex-1">
-                                    <span className="block truncate font-ui text-sm font-semibold text-parchment-100">{name}</span>
-                                    <span className="block truncate font-ui text-xs text-parchment-400">
-                                        {lorebook?.description || t('sessionLorebooks.linkedDescription')}
-                                    </span>
-                                </div>
-                                <Badge tone="arcane" icon={<Icon icon={Link2} size={11} />}>{t('sessionLorebooks.linked')}</Badge>
-                                <IconButton
-                                    label={t('sessionLorebooks.removeAria', { name })}
-                                    size="sm"
-                                    tone="danger"
-                                    onClick={() => void deleteAttachment(attachment)}
-                                    disabled={busyId !== null}
-                                >
-                                    {busyId === attachment.id ? <Loader2 size={14} className="animate-spin" /> : <Icon icon={Trash2} size={14} />}
-                                </IconButton>
-                            </div>
+                                testId="session-lorebook-attachment"
+                                leading={<IconTile icon={BookOpenText} tone="arcane" size="sm" />}
+                                title={name}
+                                description={lorebook?.description || t('sessionLorebooks.linkedDescription')}
+                                onTitleClick={lorebook ? () => openWindow(lorebookWindow(lorebook)) : undefined}
+                                titleAriaLabel={t('sessionLorebooks.open', { name })}
+                                trailing={
+                                    <>
+                                        <Badge tone="arcane" icon={<Icon icon={Link2} size={11} />}>{t('sessionLorebooks.linked')}</Badge>
+                                        <IconButton
+                                            label={t('sessionLorebooks.removeAria', { name })}
+                                            size="sm"
+                                            tone="danger"
+                                            onClick={() => void deleteAttachment(attachment)}
+                                            disabled={busyId !== null}
+                                        >
+                                            {busyId === attachment.id ? <Loader2 size={14} className="animate-spin" /> : <Icon icon={Trash2} size={14} />}
+                                        </IconButton>
+                                    </>
+                                }
+                            />
                         )
                     })}
                 </div>
+            )}
+        </ReferenceGroup>
+    )
+
+    return (
+        <>
+            {framed ? (
+                <div className={cx('rounded-lg border border-parchment-50/10 bg-ink-800 px-4 py-3', className)}>{group}</div>
+            ) : className ? (
+                <div className={className}>{group}</div>
+            ) : (
+                group
             )}
 
             <Drawer
@@ -277,6 +282,7 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className }:
                         {filteredLorebooks.map((lorebook) => {
                             const inSession = attachedLorebookIds.has(lorebook.id)
                             const selected = selectedIds.has(lorebook.id)
+                            const resourceStats = lorebookResourceStats(lorebookResourcesFromMetadata(lorebook.metadata))
                             return (
                                 <li key={lorebook.id}>
                                     <button
@@ -289,7 +295,7 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className }:
                                             inSession
                                                 ? 'cursor-default border-parchment-50/[.06] opacity-55'
                                                 : selected
-                                                  ? 'cursor-pointer border-ember-500/45 bg-ember-500/10'
+                                                  ? `cursor-pointer ${SELECTED_CARD_CLASS}`
                                                   : 'cursor-pointer border-parchment-50/10 hover:border-parchment-50/25 hover:bg-parchment-50/[.04]',
                                         )}
                                         data-testid="session-lorebook-option"
@@ -300,23 +306,13 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className }:
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate font-ui text-sm font-semibold text-parchment-100">{lorebook.name}</span>
                                             <span className="block truncate font-ui text-xs text-parchment-400">
-                                                {t('sessionLorebooks.entryCount', { count: lorebook.entries.length })}
+                                                {t('sessionLorebooks.entryResourceCount', { entries: lorebook.entries.length, resources: resourceStats.total })}
                                             </span>
                                         </span>
                                         {inSession ? (
                                             <Badge tone="arcane">{t('sessionLorebooks.inSession')}</Badge>
                                         ) : (
-                                            <span
-                                                aria-hidden="true"
-                                                className={cx(
-                                                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors',
-                                                    selected
-                                                        ? 'border-ember-500 bg-ember-500 text-on-ember'
-                                                        : 'border-parchment-50/25 text-transparent',
-                                                )}
-                                            >
-                                                <Icon icon={Check} size={13} />
-                                            </span>
+                                            <SelectionCheck selected={selected} />
                                         )}
                                     </button>
                                 </li>
@@ -330,6 +326,6 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className }:
                     </ul>
                 </div>
             </Drawer>
-        </section>
+        </>
     )
 }

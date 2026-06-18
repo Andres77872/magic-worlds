@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Play, Sparkles } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
 import type { LoreActivationPreviewResponse, Lorebook } from '@/shared'
 import { Badge, Button, Field, Icon, Textarea } from '@/ui/primitives'
+import { lorebookResourceStats, lorebookResourcesFromMetadata } from '../lorebookResources'
 import { previewLocally } from '../lorebookTransforms'
 
 interface ActivationPreviewPanelProps {
@@ -20,9 +21,14 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
     const [loading, setLoading] = useState(false)
     const [source, setSource] = useState<'backend' | 'local'>('local')
     const [error, setError] = useState<string | null>(null)
+    const resourceStats = useMemo(() => lorebookResourceStats(lorebookResourcesFromMetadata(lorebook.metadata)), [lorebook.metadata])
 
     const activated = useMemo(() => preview.results.filter((result) => result.status === 'activated'), [preview.results])
     const skipped = preview.results.length - activated.length
+
+    useEffect(() => {
+        if (source === 'local') setPreview(previewLocally(lorebook, sample))
+    }, [lorebook, sample, source])
 
     const runPreview = async () => {
         setLoading(true)
@@ -82,17 +88,23 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
                 </div>
             )}
 
+            {resourceStats.pending > 0 && (
+                <div className="rounded-lg border border-arcane-500/25 bg-arcane-500/10 px-4 py-3 font-ui text-sm text-parchment-200">
+                    {t('lorebookStudio.activationPreview.pendingResources', { count: resourceStats.pending })}
+                </div>
+            )}
+
             <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg bg-ink-700 px-4 py-3">
-                    <div className="font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-parchment-400">{t('lorebookStudio.activationPreview.statActivated')}</div>
+                    <div className="font-ui text-meta font-semibold uppercase tracking-[0.14em] text-parchment-400">{t('lorebookStudio.activationPreview.statActivated')}</div>
                     <div className="mt-1 font-display text-2xl font-semibold text-parchment-50">{activated.length}</div>
                 </div>
                 <div className="rounded-lg bg-ink-700 px-4 py-3">
-                    <div className="font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-parchment-400">{t('lorebookStudio.activationPreview.statSkipped')}</div>
+                    <div className="font-ui text-meta font-semibold uppercase tracking-[0.14em] text-parchment-400">{t('lorebookStudio.activationPreview.statSkipped')}</div>
                     <div className="mt-1 font-display text-2xl font-semibold text-parchment-50">{skipped}</div>
                 </div>
                 <div className="rounded-lg bg-ink-700 px-4 py-3">
-                    <div className="font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-parchment-400">{t('lorebookStudio.activationPreview.statTokens')}</div>
+                    <div className="font-ui text-meta font-semibold uppercase tracking-[0.14em] text-parchment-400">{t('lorebookStudio.activationPreview.statTokens')}</div>
                     <div className="mt-1 font-display text-2xl font-semibold text-parchment-50">
                         {preview.totalEstimatedTokens}<span className="text-sm text-parchment-400">/{preview.tokenBudget}</span>
                     </div>
@@ -120,7 +132,7 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
                                 {result.matchedKeys.length > 0 ? (
                                     <div className="mt-1 flex flex-wrap gap-1.5">
                                         {result.matchedKeys.map((key) => (
-                                            <span key={key} className="rounded-full bg-arcane-500/15 px-2 py-0.5 font-ui text-[11px] text-arcane-300">{key}</span>
+                                            <span key={key} className="rounded-full bg-arcane-500/15 px-2 py-0.5 font-ui text-meta text-arcane-300">{key}</span>
                                         ))}
                                     </div>
                                 ) : (

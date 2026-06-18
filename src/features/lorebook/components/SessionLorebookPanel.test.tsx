@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Lorebook } from '@/shared'
 import { apiService } from '@/infrastructure/api'
@@ -17,6 +17,7 @@ let lorebooks: Lorebook[] = []
 
 vi.mock('@/app/hooks', () => ({
     useData: () => ({ lorebooks, setLorebooks }),
+    useFloatingWindows: () => ({ openWindow: vi.fn(), closeWindow: vi.fn(), closeAll: vi.fn(), focusWindow: vi.fn(), windows: [] }),
 }))
 
 const GLASS_BOOK: Lorebook = {
@@ -60,6 +61,34 @@ const MOON_BOOK: Lorebook = {
     tags: ['moon'],
     entries: [],
     attachments: [],
+    metadata: {
+        resources: [
+            {
+                id: 'resource-1',
+                title: 'Reliquary notes',
+                triggers: ['silver reliquary'],
+                fileName: 'reliquary.txt',
+                fileType: 'txt',
+                content: 'The reliquary opens at moonrise.',
+                extractionStatus: 'completed',
+                extraction: {
+                    keywords: ['moonrise key'],
+                    shortSummary: 'Notes about the silver reliquary.',
+                    longSummary: 'The silver reliquary opens at moonrise.',
+                    notes: [],
+                    snippets: [
+                        {
+                            id: 'snippet-1',
+                            title: 'Reliquary opening',
+                            content: 'The reliquary opens at moonrise.',
+                            triggers: ['moonrise lock'],
+                            source: 'reliquary.txt',
+                        },
+                    ],
+                },
+            },
+        ],
+    },
 }
 
 describe('SessionLorebookPanel', () => {
@@ -113,6 +142,20 @@ describe('SessionLorebookPanel', () => {
                 attachments: [expect.objectContaining({ id: 'att-2', targetKind: 'character_chat', targetId: '9' })],
             }),
         ]))
+    })
+
+    it('searches attachable lorebooks by resource metadata', async () => {
+        render(<SessionLorebookPanel targetKind="character_chat" targetId="9" />)
+
+        expect(await screen.findByText('Glass Courts')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Add lorebook' }))
+        fireEvent.change(screen.getByTestId('session-lorebook-search'), { target: { value: 'silver reliquary' } })
+
+        const drawer = screen.getByRole('dialog')
+        expect(within(drawer).getByRole('heading', { name: 'Add lorebooks' })).toBeInTheDocument()
+        expect(within(drawer).getByRole('button', { name: /Moon Codex/i })).toBeInTheDocument()
+        expect(within(drawer).getByText('0 entries · 1 resources')).toBeInTheDocument()
+        expect(within(drawer).queryByRole('button', { name: /Glass Courts/i })).not.toBeInTheDocument()
     })
 
     it('removes an attachment and updates lorebook state', async () => {

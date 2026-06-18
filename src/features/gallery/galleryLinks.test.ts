@@ -4,11 +4,13 @@ import {
     buildCardEditHash,
     buildGalleryModeHash,
     buildGalleryViewHash,
+    buildResourceHash,
     buildSharedCardHash,
     pageFromHash,
     pageHash,
     parseCardEditHash,
     parseGalleryHash,
+    parseResourceEditHash,
     parseSharedCardToken,
 } from './galleryLinks'
 
@@ -74,6 +76,11 @@ describe('galleryLinks gallery routes', () => {
         expect(parseSharedCardToken(hash)).toBe('token/with spaces')
         expect(pageFromHash(hash)).toBe('shared-card')
     })
+
+    it('does not resolve the removed assets hub route', () => {
+        expect(parseGalleryHash('#/gallery/assets')).toBeNull()
+        expect(pageFromHash('#/gallery/assets')).toBeNull()
+    })
 })
 
 describe('galleryLinks card-editor routes', () => {
@@ -111,5 +118,40 @@ describe('galleryLinks card-editor routes', () => {
     it('keeps the bare creator page resolving to "character" (create mode)', () => {
         expect(pageFromHash('#/character')).toBe('character')
         expect(pageFromHash('#/character?card=char-1')).toBe('character')
+    })
+})
+
+describe('galleryLinks resource deep-links', () => {
+    it('builds and parses an existing-resource hash', () => {
+        const hash = buildResourceHash('res-1')
+        expect(hash).toBe('#/gallery/resources?resource=res-1')
+        expect(parseResourceEditHash(hash)).toEqual({
+            page: 'gallery-resources',
+            resourceId: 'res-1',
+            createType: undefined,
+        })
+        // The page still resolves to the bare resources gallery.
+        expect(pageFromHash(hash)).toBe('gallery-resources')
+    })
+
+    it('carries the create file type only for the "new" form', () => {
+        expect(buildResourceHash('new', 'md')).toBe('#/gallery/resources?resource=new&type=md')
+        expect(parseResourceEditHash('#/gallery/resources?resource=new&type=md')).toEqual({
+            page: 'gallery-resources',
+            resourceId: 'new',
+            createType: 'md',
+        })
+        // `type` is meaningless without `resource=new` and is not appended.
+        expect(buildResourceHash('res-1', 'md')).toBe('#/gallery/resources?resource=res-1')
+        // A bad `type` value normalizes away.
+        expect(parseResourceEditHash('#/gallery/resources?resource=new&type=pdf')?.createType).toBeUndefined()
+    })
+
+    it('ignores non-resource hashes and the bare gallery (no resource param)', () => {
+        expect(parseResourceEditHash('#/gallery/resources')).toBeNull()
+        expect(parseResourceEditHash('#/gallery/characters?resource=res-1')).toBeNull()
+        expect(parseResourceEditHash('#/gallery/lorebooks?resource=res-1')).toBeNull()
+        // The bare resources gallery still resolves to its page.
+        expect(pageFromHash('#/gallery/resources')).toBe('gallery-resources')
     })
 })

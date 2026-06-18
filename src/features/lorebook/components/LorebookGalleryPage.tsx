@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookOpen, Pencil, Plus, Search, Trash2, X, Loader2 } from 'lucide-react'
+import { BookOpen, Library, Pencil, Plus, Search, Trash2, X, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { CardGrid, ConfirmDialog, type CardOption } from '@/ui/components'
@@ -7,14 +7,22 @@ import { Button, controlClass, Icon, IconButton, PageHeader } from '@/ui/primiti
 import type { Lorebook } from '@/shared'
 import { useLorebookGallery } from '../hooks/useLorebookGallery'
 import { LorebookCard } from './LorebookCard'
+import { LorebookResourcePickerDrawer } from './LorebookResourcePickerDrawer'
+
+function upsertLorebook(list: Lorebook[], next: Lorebook): Lorebook[] {
+    const index = list.findIndex((item) => item.id === next.id)
+    if (index < 0) return [next, ...list]
+    return list.map((item) => (item.id === next.id ? next : item))
+}
 
 export function LorebookGalleryPage() {
     const { t } = useTranslation()
-    const gallery = useLorebookGallery()
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
-    const { editLorebook, setEditingLorebook, deleteLorebook } = useData()
+    const gallery = useLorebookGallery(undefined, { enabled: isAuthenticated })
+    const { editLorebook, setEditingLorebook, deleteLorebook, lorebooks, setLorebooks } = useData()
     const [pendingDelete, setPendingDelete] = useState<Lorebook | null>(null)
+    const [resourceTarget, setResourceTarget] = useState<Lorebook | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
 
     const requireAuth = (action: () => void) => {
@@ -48,6 +56,12 @@ export function LorebookGalleryPage() {
         },
         {
             type: 'custom',
+            label: t('lorebookGallery.actions.addResources'),
+            icon: <Icon icon={Library} size={15} />,
+            onClick: () => requireAuth(() => setResourceTarget(lorebook)),
+        },
+        {
+            type: 'custom',
             label: t('lorebookGallery.actions.delete'),
             icon: <Icon icon={Trash2} size={15} />,
             onClick: () => requireAuth(() => setPendingDelete(lorebook)),
@@ -77,7 +91,7 @@ export function LorebookGalleryPage() {
             <PageHeader
                 eyebrow={t('lorebookGallery.header.eyebrow')}
                 title={t('lorebookGallery.header.title')}
-                icon={<span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-ember-500/15 text-ember-400"><Icon icon={BookOpen} size={22} /></span>}
+                icon={<span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-arcane-500/15 text-arcane-300"><Icon icon={BookOpen} size={22} /></span>}
                 size="lg"
                 subtitle={t('lorebookGallery.header.subtitle')}
                 actions={
@@ -168,6 +182,16 @@ export function LorebookGalleryPage() {
                 variant="danger"
                 onConfirm={confirmDelete}
                 onCancel={() => setPendingDelete(null)}
+            />
+            <LorebookResourcePickerDrawer
+                open={resourceTarget !== null}
+                lorebook={resourceTarget}
+                onClose={() => setResourceTarget(null)}
+                onAttached={(updated) => {
+                    gallery.upsertItem(updated)
+                    setLorebooks(upsertLorebook(lorebooks, updated))
+                    setResourceTarget(updated)
+                }}
             />
         </div>
     )

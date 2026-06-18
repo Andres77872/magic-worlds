@@ -197,12 +197,38 @@ describe('Sidebar API status', () => {
         expect(items).toHaveAttribute('aria-current', 'page')
     })
 
+    it('opens library routes while signed out without prompting login', async () => {
+        const openLoginModal = vi.fn()
+        renderSidebar({ ...baseAuth, openLoginModal })
+
+        const items = screen.getByRole('button', { name: 'Items' })
+        fireEvent.click(items)
+
+        expect(items).toHaveAttribute('aria-current', 'page')
+        expect(openLoginModal).not.toHaveBeenCalled()
+    })
+
     it('renders the grouped navigation section headers', async () => {
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
 
         expect(await screen.findByRole('button', { name: 'Activity' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Assets' })).toBeInTheDocument()
+    })
+
+    it('keeps direct asset destinations without the removed assets hub item', async () => {
+        renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
+
+        await screen.findByRole('button', { name: 'Assets' })
+        const assetsGroup = document.querySelector('#sidebar-group-assets')
+        expect(assetsGroup).toBeInTheDocument()
+
+        const group = within(assetsGroup as HTMLElement)
+        expect(group.queryByRole('button', { name: 'Assets' })).not.toBeInTheDocument()
+        expect(group.getByRole('button', { name: 'Lorebooks' })).toBeInTheDocument()
+        expect(group.getByRole('button', { name: 'Resources' })).toBeInTheDocument()
+        expect(group.getByRole('button', { name: 'Media' })).toBeInTheDocument()
+        expect(group.getByRole('button', { name: 'Voices' })).toBeInTheDocument()
     })
 
     it('toggles a navigation group from its header', async () => {

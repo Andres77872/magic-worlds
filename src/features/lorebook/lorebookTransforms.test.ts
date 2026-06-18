@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Lorebook } from '@/shared'
-import { entryToApiPayload, previewLocally, validateLorebookLocally } from './lorebookTransforms'
+import type { Lorebook, LorebookResource } from '@/shared'
+import { entryToApiPayload, lorebookToApiPayload, previewLocally, validateLorebookLocally } from './lorebookTransforms'
 
 function book(overrides: Partial<Lorebook> = {}): Lorebook {
     return {
@@ -19,6 +19,36 @@ function book(overrides: Partial<Lorebook> = {}): Lorebook {
         attachments: [],
         metadata: {},
         entries: [],
+        ...overrides,
+    }
+}
+
+function completedResource(overrides: Partial<LorebookResource> = {}): LorebookResource {
+    return {
+        id: 'resource-1',
+        title: 'Glass archive',
+        description: 'Source notes for the glass court.',
+        triggers: ['glass archive'],
+        fileName: 'glass-archive.md',
+        fileType: 'md',
+        content: 'The mirror oath binds court names.',
+        contentLength: 36,
+        extractionStatus: 'completed',
+        extraction: {
+            keywords: ['mirror court'],
+            shortSummary: 'The glass archive describes court oaths.',
+            longSummary: 'The mirror oath binds names spoken under the glass court.',
+            notes: ['Names are binding.'],
+            snippets: [
+                {
+                    id: 'snippet-1',
+                    title: 'Mirror oath',
+                    content: 'Names spoken under the mirror oath bind the speaker.',
+                    triggers: ['mirror oath'],
+                    source: 'glass-archive.md#oaths',
+                },
+            ],
+        },
         ...overrides,
     }
 }
@@ -148,5 +178,80 @@ describe('lorebook transforms', () => {
             ],
         }))
         expect(issues.some((issue) => issue.code === 'entry_regex_invalid')).toBe(true)
+    })
+
+    it('does not warn that a resource-only lorebook is empty', () => {
+        const issues = validateLorebookLocally(book({
+            entries: [],
+            metadata: { resources: [completedResource()] },
+        }))
+
+        expect(issues.some((issue) => issue.code === 'empty_book')).toBe(false)
+    })
+
+    it('counts shared resources as lorebook content without embedding them in save payloads', () => {
+        const lorebook = book({
+            entries: [],
+            metadata: {
+                resources: [completedResource({ id: 'embedded-resource' })],
+                sharedResources: [completedResource({ id: 'shared-resource', title: 'Shared atlas' })],
+                resourceIds: ['shared-resource'],
+                ownerNote: 'keep me',
+            },
+        })
+
+        const issues = validateLorebookLocally(lorebook)
+        const payload = lorebookToApiPayload(lorebook)
+
+        expect(issues.some((issue) => issue.code === 'empty_book')).toBe(false)
+        expect(payload.metadata).toEqual({
+            resources: [completedResource({ id: 'embedded-resource' })],
+            ownerNote: 'keep me',
+        })
+    })
+
+    it('includes completed resource snippets in local activation preview', () => {
+        const preview = previewLocally(book({
+            entries: [],
+            metadata: { resources: [completedResource()] },
+        }), 'I ask about the mirror oath.')
+
+        const snippet = preview.results.find((result) => result.entryId.includes(':snippet:'))
+        expect(snippet).toMatchObject({
+            title: 'Mirror oath',
+            status: 'activated',
+            matchedKeys: ['mirror oath'],
+        })
+        expect(preview.promptPreview).toContain('Names spoken under the mirror oath')
+    })
+
+    it('includes completed shared resource snippets in local activation preview', () => {
+        const preview = previewLocally(book({
+            entries: [],
+            metadata: { sharedResources: [completedResource({ id: 'shared-resource' })] },
+        }), 'I ask about the mirror oath.')
+
+        const snippet = preview.results.find((result) => result.entryId.includes(':snippet:'))
+        expect(snippet).toMatchObject({
+            title: 'Mirror oath',
+            status: 'activated',
+            matchedKeys: ['mirror oath'],
+        })
+    })
+
+    it('keeps pending resources out of local activation preview until extraction completes', () => {
+        const preview = previewLocally(book({
+            entries: [],
+            metadata: {
+                resources: [
+                    completedResource({
+                        extractionStatus: 'pending',
+                        extraction: null,
+                    }),
+                ],
+            },
+        }), 'I ask about the mirror oath.')
+
+        expect(preview.results).toEqual([])
     })
 })

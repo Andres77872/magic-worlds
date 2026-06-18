@@ -141,7 +141,7 @@ export function LorebookAttachPanel({ lorebook, onChange }: LorebookAttachPanelP
 
             {lorebook.attachments.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-parchment-50/15 bg-ink-700/30 px-4 py-6 text-center">
-                    <Icon icon={Pin} size={28} className="mx-auto text-ember-400" />
+                    <Icon icon={Pin} size={28} className="mx-auto text-arcane-300" />
                     <p className="mt-2 font-ui text-sm text-parchment-200">{t('lorebookStudio.attachPanel.emptyTitle')}</p>
                     <p className="mt-1 font-narrative text-sm text-parchment-400">
                         {t('lorebookStudio.attachPanel.emptyDescription')}

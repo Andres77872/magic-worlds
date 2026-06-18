@@ -41,7 +41,7 @@ export function LoreEntryEditor({ entry, onChange, onDelete }: LoreEntryEditorPr
     if (!entry) {
         return (
             <div className="flex min-h-[420px] flex-col items-center justify-center rounded-xl border border-dashed border-parchment-50/15 bg-ink-700/30 px-6 text-center">
-                <Icon icon={ScrollText} size={34} className="text-ember-400" />
+                <Icon icon={ScrollText} size={34} className="text-arcane-300" />
                 <p className="mt-3 font-display text-xl font-semibold text-parchment-50">{t('lorebookStudio.entryEditor.empty.title')}</p>
                 <p className="mt-1 max-w-[34ch] font-narrative text-sm text-parchment-300">
                     {t('lorebookStudio.entryEditor.empty.description')}
@@ -95,7 +95,7 @@ export function LoreEntryEditor({ entry, onChange, onDelete }: LoreEntryEditorPr
 
             <div className="rounded-xl border border-parchment-50/[.08] bg-ink-700/40 p-4">
                 <div className="mb-4 flex items-center gap-2 font-ui text-sm font-semibold text-parchment-50">
-                    <Icon icon={KeyRound} size={16} className="text-ember-400" />
+                    <Icon icon={KeyRound} size={16} className="text-arcane-300" />
                     {t('lorebookStudio.entryEditor.activation.heading')}
                 </div>
                 <div className="grid gap-4">

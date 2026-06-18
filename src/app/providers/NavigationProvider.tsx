@@ -4,13 +4,15 @@
 
 import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PageType, NavigationState } from '../../shared'
-import { pageFromHash, pageHash, parseCardEditHash, type CardEditHashTarget } from '../../features/gallery/galleryLinks'
+import { pageFromHash, pageHash, parseCardEditHash, parseResourceEditHash, type CardEditHashTarget, type ResourceEditHashTarget } from '../../features/gallery/galleryLinks'
 
 interface NavigationContextValue extends NavigationState {
     setPage: (page: PageType, opts?: { hash?: string }) => void
     goBack: (fallback?: PageType) => void
     /** Parsed card-editor deep-link params (`?card=&version=`) for the current hash, or null. */
     cardEdit: CardEditHashTarget | null
+    /** Parsed resource deep-link params (`?resource=&type=`) for the current hash, or null. */
+    resourceEdit: ResourceEditHashTarget | null
     /** Rewrite the current page's hash in place (no history push) — e.g. to stamp a card id. */
     replaceHash: (hash: string) => void
 }
@@ -50,7 +52,9 @@ const writeHash = (page: PageType, replace = false, hash?: string) => {
 const sameEntry = (a: NavigationEntry, b: NavigationEntry) => a.page === b.page && a.hash === b.hash
 
 export function NavigationProvider({ children }: NavigationProviderProps) {
-    const [currentPage, setCurrentPage] = useState<PageType>(() => pageFromHash() ?? 'landing')
+    // Unknown/broken hashes resolve to the 404 page (pageFromHash returns null only
+    // for genuinely-unknown routes; empty/`#/` normalizes to landing inside it).
+    const [currentPage, setCurrentPage] = useState<PageType>(() => pageFromHash() ?? 'not-found')
     const [backStack, setBackStack] = useState<NavigationEntry[]>([])
     // Mirror the live hash into state so card-editor params (`?card=&version=`) stay reactive
     // across setPage / goBack / hashchange / popstate.
@@ -96,8 +100,9 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         if (!pageFromHash()) writeHash(currentPage, true)
         setCurrentHash(typeof window === 'undefined' ? '' : window.location.hash)
         const syncFromHash = () => {
-            const page = pageFromHash()
-            if (!page) return
+            // A runtime hashchange to an unknown/broken link surfaces the 404 page
+            // instead of silently ignoring the navigation.
+            const page = pageFromHash() ?? 'not-found'
             const nextEntry = { page, hash: hashForPage(page) }
             const currentEntry = { page: currentPageRef.current, hash: hashForPage(currentPageRef.current) }
             if (!sameEntry(nextEntry, currentEntry)) {
@@ -121,6 +126,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
     }, [])
 
     const cardEdit = useMemo(() => parseCardEditHash(currentHash), [currentHash])
+    const resourceEdit = useMemo(() => parseResourceEditHash(currentHash), [currentHash])
 
     const value: NavigationContextValue = useMemo(() => ({
         currentPage,
@@ -128,8 +134,9 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         setPage,
         goBack,
         cardEdit,
+        resourceEdit,
         replaceHash,
-    }), [currentPage, backStack, setPage, goBack, cardEdit, replaceHash])
+    }), [currentPage, backStack, setPage, goBack, cardEdit, resourceEdit, replaceHash])
 
     return (
         <NavigationContext.Provider value={value}>

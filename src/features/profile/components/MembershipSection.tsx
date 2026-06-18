@@ -13,9 +13,15 @@ import type {
 import { Badge, Button, Card, Eyebrow, Icon, IconTile, SectionHeader, Tag } from '@/ui/primitives'
 import { cx } from '@/ui/primitives/cx'
 import { formatNumber, operationLabel, orderedLimitEntries } from './membership.helpers'
+import { EmailInviteClaimCard } from './EmailInviteClaimCard'
+import { RedeemCodeCard } from './RedeemCodeCard'
 
 interface MembershipSectionProps {
     profile: UserProfile
+    /** Re-fetch /user/me after a code is redeemed so the wallet balance updates. */
+    onRedeemed?: () => void
+    /** Automatically claim email-attached invite credits after an invite email opens Profile. */
+    autoClaimEmailInvites?: boolean
 }
 
 const VISUAL_ICONS: Record<string, LucideIcon> = {
@@ -25,32 +31,36 @@ const VISUAL_ICONS: Record<string, LucideIcon> = {
     coins: Coins,
 }
 
-export function MembershipSection({ profile }: MembershipSectionProps) {
+export function MembershipSection({ profile, onRedeemed, autoClaimEmailInvites = false }: MembershipSectionProps) {
     const { t } = useTranslation()
     const { intlLocale } = useLanguage()
     const membership = profile.membership
-
-    if (!membership?.profile_cards) {
-        return <LegacyCreditsCard credits={profile.user_usage} t={t} locale={intlLocale} />
-    }
-
-    const { profile_cards: cards } = membership
+    const cards = membership?.profile_cards
 
     return (
-        <section className="flex flex-col gap-4" aria-labelledby="membership-heading">
-            <SectionHeader
-                icon={WalletCards}
-                title={<span id="membership-heading">{t('membership.title')}</span>}
-                right={<Badge tone="neutral">{t('membership.available', { value: formatNumber(membership.total_available_credits, intlLocale) })}</Badge>}
-            />
+        <div className="flex flex-col gap-4">
+            {!cards ? (
+                <LegacyCreditsCard credits={profile.user_usage} t={t} locale={intlLocale} />
+            ) : (
+                <section className="flex flex-col gap-4" aria-labelledby="membership-heading">
+                    <SectionHeader
+                        icon={WalletCards}
+                        title={<span id="membership-heading">{t('membership.title')}</span>}
+                        right={<Badge tone="neutral">{t('membership.available', { value: formatNumber(membership.total_available_credits, intlLocale) })}</Badge>}
+                    />
 
-            <div className="grid gap-4 md:grid-cols-3">
-                {cards.tiers.map((tier) => (
-                    <TierCard key={tier.plan_code} tier={tier} t={t} locale={intlLocale} />
-                ))}
-            </div>
-            <PaygCard card={cards.payg} t={t} locale={intlLocale} />
-        </section>
+                    <div className="grid gap-4 md:grid-cols-3">
+                        {cards.tiers.map((tier) => (
+                            <TierCard key={tier.plan_code} tier={tier} t={t} locale={intlLocale} />
+                        ))}
+                    </div>
+                    <PaygCard card={cards.payg} t={t} locale={intlLocale} />
+                </section>
+            )}
+
+            <EmailInviteClaimCard autoClaim={autoClaimEmailInvites} onClaimed={onRedeemed} />
+            <RedeemCodeCard onRedeemed={onRedeemed} />
+        </div>
     )
 }
 

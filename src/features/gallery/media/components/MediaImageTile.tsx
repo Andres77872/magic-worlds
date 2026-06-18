@@ -40,7 +40,7 @@ export function MediaImageTile({ item, deleting = false, onView, onDelete, onFil
             className={cx(
                 'group relative aspect-square overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-800 transition-all',
                 'hover:border-parchment-50/25 hover:shadow-card-hover',
-                deleting && 'pointer-events-none opacity-40',
+                deleting && 'pointer-events-none opacity-60',
             )}
             aria-busy={deleting}
             data-testid="media-image-tile"

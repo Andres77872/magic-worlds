@@ -22,6 +22,19 @@ import { LorebookAssistantChatbot } from './LorebookAssistantChatbot'
 import { LoreEntryEditor } from './LoreEntryEditor'
 import { LoreEntryTable } from './LoreEntryTable'
 import { LorebookIssueList } from './LorebookIssueList'
+import { LorebookResourcePanel } from './LorebookResourcePanel'
+import { LorebookResourcePickerDrawer } from './LorebookResourcePickerDrawer'
+import {
+    LOREBOOK_RESOURCE_MAX_CHARS,
+    LOREBOOK_RESOURCE_MAX_RESOURCES,
+    LOREBOOK_RESOURCE_MAX_TRIGGERS,
+    embeddedLorebookResourcesFromMetadata,
+    findInvalidLorebookResource,
+    lorebookResourceStats,
+    lorebookResourcesFromMetadata,
+    sharedLorebookResourcesFromMetadata,
+    withLorebookResources,
+} from '../lorebookResources'
 
 function makeId(prefix: string): string {
     return makeRequestId(prefix)
@@ -68,10 +81,17 @@ export function LorebookStudio() {
     const [saveError, setSaveError] = useState<string | null>(null)
     const [notice, setNotice] = useState<string | null>(null)
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+    const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
+    const [extractResourceMetadata, setExtractResourceMetadata] = useState(false)
     const editorRef = useRef<HTMLElement>(null)
 
     const selectedEntry = draft.entries.find((entry) => entry.id === selectedId)
     const pendingDeleteEntry = draft.entries.find((entry) => entry.id === pendingDeleteId)
+    const embeddedResources = useMemo(() => embeddedLorebookResourcesFromMetadata(draft.metadata), [draft.metadata])
+    const linkedResources = useMemo(() => sharedLorebookResourcesFromMetadata(draft.metadata), [draft.metadata])
+    const resources = useMemo(() => lorebookResourcesFromMetadata(draft.metadata), [draft.metadata])
+    const resourceStats = useMemo(() => lorebookResourceStats(resources), [resources])
+    const pendingExtractionCount = embeddedResources.filter((resource) => resource.extractionStatus !== 'completed' || resource.metadataOutdated).length
     const issues = useMemo(() => validateLorebookLocally(draft), [draft])
     const errorCount = issues.filter((issue) => issue.severity === 'error').length
     const saved = Boolean(draft.id)
@@ -82,6 +102,13 @@ export function LorebookStudio() {
 
     const patchSettings = (changes: Partial<Lorebook['settings']>) => {
         setDraft((current) => ({ ...current, settings: { ...current.settings, ...changes } }))
+    }
+
+    const updateResources = (nextResources: ReturnType<typeof lorebookResourcesFromMetadata>) => {
+        setDraft((current) => ({
+            ...current,
+            metadata: withLorebookResources(current.metadata, nextResources),
+        }))
     }
 
     // Below the xl breakpoint the editor pane stacks far beneath the entry
@@ -149,6 +176,19 @@ export function LorebookStudio() {
             setSaveError(t('lorebookStudio.shell.errors.resolveValidation'))
             return
         }
+        const invalidResource = findInvalidLorebookResource(resources)
+        if (invalidResource) {
+            const count = invalidResource.type === 'count'
+                ? LOREBOOK_RESOURCE_MAX_RESOURCES
+                : invalidResource.type === 'triggers'
+                  ? LOREBOOK_RESOURCE_MAX_TRIGGERS
+                  : LOREBOOK_RESOURCE_MAX_CHARS
+            setSaveError(t(`lorebookStudio.resources.errors.${invalidResource.type}`, {
+                name: invalidResource.type === 'count' ? '' : invalidResource.resource.fileName,
+                count,
+            }))
+            return
+        }
         setSaving(true)
         try {
             const payload = {
@@ -156,13 +196,14 @@ export function LorebookStudio() {
                 entries: draft.entries.map(entryToApiPayload),
             }
             const raw = draft.id
-                ? await apiService.updateLorebook(draft.id, payload)
-                : await apiService.createLorebook(payload)
+                ? await apiService.updateLorebook(draft.id, payload, { extractMetadata: extractResourceMetadata })
+                : await apiService.createLorebook(payload, { extractMetadata: extractResourceMetadata })
             const savedLorebook = normalizeLorebook(raw)
             setDraft(savedLorebook)
             setEditingLorebook(savedLorebook)
             setLorebooks(upsertLorebook(lorebooks, savedLorebook))
             setSelectedId((current) => current && savedLorebook.entries.some((entry) => entry.id === current) ? current : savedLorebook.entries[0]?.id)
+            setExtractResourceMetadata(false)
             setNotice(draft.id ? t('lorebookStudio.shell.notices.updated') : t('lorebookStudio.shell.notices.created'))
         } catch (error) {
             setSaveError(error instanceof Error ? error.message : t('lorebookStudio.shell.errors.saveFailed'))
@@ -181,13 +222,36 @@ export function LorebookStudio() {
         setNotice(next.id === draft.id ? t('lorebookStudio.shell.notices.updatedByAssistant') : t('lorebookStudio.shell.notices.createdByAssistant'))
     }
 
+    const applyResourceLorebook = (lorebook: Lorebook) => {
+        const next = normalizeLorebook(lorebook)
+        setDraft(next)
+        setEditingLorebook(next)
+        setLorebooks(upsertLorebook(lorebooks, next))
+        setSaveError(null)
+    }
+
+    const detachSharedResource = async (resourceId: string) => {
+        if (!draft.id) return
+        setSaving(true)
+        setSaveError(null)
+        try {
+            const updated = normalizeLorebook(await apiService.detachLorebookResource(draft.id, resourceId))
+            applyResourceLorebook(updated)
+            setNotice(t('lorebookStudio.resources.detachedNotice'))
+        } catch (error) {
+            setSaveError(error instanceof Error ? error.message : t('lorebookStudio.resources.errors.detachFailed'))
+        } finally {
+            setSaving(false)
+        }
+    }
+
     return (
         <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-5 py-8 sm:px-8 sm:py-10">
             <PageHeader
                 eyebrow={t('lorebookStudio.shell.header.eyebrow')}
                 title={draft.name.trim() || t('lorebookStudio.shell.header.untitled')}
                 subtitle={t('lorebookStudio.shell.header.subtitle')}
-                icon={<span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-ember-500/15 text-ember-400"><Icon icon={BookOpen} size={22} /></span>}
+                icon={<span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-arcane-500/15 text-arcane-300"><Icon icon={BookOpen} size={22} /></span>}
                 divider
                 actions={
                     <>
@@ -195,7 +259,11 @@ export function LorebookStudio() {
                             {t('common.back')}
                         </Button>
                         <Button variant="primary" iconLeft={<Icon icon={Save} size={16} />} onClick={saveLorebook} disabled={saving}>
-                            {saving ? t('common.saving') : t('common.save')}
+                            {saving
+                                ? extractResourceMetadata && pendingExtractionCount > 0
+                                    ? t('lorebookStudio.resources.savingButton', { count: pendingExtractionCount })
+                                    : t('common.saving')
+                                : t('common.save')}
                         </Button>
                     </>
                 }
@@ -211,7 +279,7 @@ export function LorebookStudio() {
                 <aside className="flex flex-col gap-4 xl:sticky xl:top-4 xl:self-start">
                     <Card className="p-4">
                         <div className="mb-4 flex items-center gap-2 font-ui text-sm font-semibold text-parchment-50">
-                            <Icon icon={Library} size={16} className="text-ember-400" />
+                            <Icon icon={Library} size={16} className="text-arcane-300" />
                             {t('lorebookStudio.shell.sections.profile')}
                         </div>
                         <div className="flex flex-col gap-4">
@@ -277,12 +345,13 @@ export function LorebookStudio() {
 
                     <Card className="p-4">
                         <div className="mb-3 flex items-center gap-2 font-ui text-sm font-semibold text-parchment-50">
-                            <Icon icon={Tags} size={16} className="text-ember-400" />
+                            <Icon icon={Tags} size={16} className="text-arcane-300" />
                             {t('lorebookStudio.shell.sections.summary')}
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                            <Badge tone="ember">{t('lorebookStudio.shell.summary.entries', { count: draft.entries.length })}</Badge>
+                            <Badge tone="arcane">{t('lorebookStudio.shell.summary.entries', { count: draft.entries.length })}</Badge>
                             <Badge tone="arcane">{t('lorebookStudio.shell.summary.keys', { count: draft.entries.reduce((sum, entry) => sum + entry.keys.length, 0) })}</Badge>
+                            <Badge tone="arcane">{t('lorebookStudio.shell.summary.resources', { count: resourceStats.total })}</Badge>
                             <Badge tone={errorCount > 0 ? 'danger' : 'live'}>{t('lorebookStudio.shell.summary.issues', { count: issues.length })}</Badge>
                             <Badge tone={saved ? 'live' : 'neutral'}>{saved ? t('lorebookStudio.shell.summary.saved') : t('lorebookStudio.shell.summary.draft')}</Badge>
                         </div>
@@ -290,6 +359,17 @@ export function LorebookStudio() {
                 </aside>
 
                 <main className="flex min-w-0 flex-col gap-6">
+                    <LorebookResourcePanel
+                        resources={embeddedResources}
+                        onChange={updateResources}
+                        linkedResources={linkedResources}
+                        onAddFromLibrary={saved ? () => setResourcePickerOpen(true) : undefined}
+                        onDetachResource={(resource) => void detachSharedResource(resource.id)}
+                        saving={saving}
+                        pendingExtractionCount={pendingExtractionCount}
+                        extractMetadataOnSave={extractResourceMetadata}
+                        onExtractMetadataOnSaveChange={setExtractResourceMetadata}
+                    />
                     <LoreEntryTable
                         entries={draft.entries}
                         selectedId={selectedId}
@@ -300,7 +380,7 @@ export function LorebookStudio() {
                     <div className="grid gap-6 lg:grid-cols-2">
                         <div className="flex flex-col gap-4 rounded-xl border border-parchment-50/10 bg-ink-800 p-5">
                             <div className="flex items-center gap-2">
-                                <Icon icon={Search} size={16} className="text-ember-400" />
+                                <Icon icon={Search} size={16} className="text-arcane-300" />
                                 <h3 className="font-display text-xl font-semibold text-parchment-50">{t('lorebookStudio.shell.sections.validation')}</h3>
                             </div>
                             <LorebookIssueList issues={issues} />
@@ -349,6 +429,12 @@ export function LorebookStudio() {
                 onLorebook={applyAssistantLorebook}
                 isAuthenticated={isAuthenticated}
                 onAuthRequired={openLoginModal}
+            />
+            <LorebookResourcePickerDrawer
+                open={resourcePickerOpen}
+                lorebook={saved ? draft : null}
+                onClose={() => setResourcePickerOpen(false)}
+                onAttached={applyResourceLorebook}
             />
         </div>
     )

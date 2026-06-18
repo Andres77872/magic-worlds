@@ -8,6 +8,7 @@ import {Button, Icon} from '../../../ui/primitives'
 import {ConfirmDialog} from '@/ui/components'
 import {ChatComposer} from './ChatComposer'
 import {ChatTurn} from './ChatTurn'
+import {useSessionLorebookEntries} from '@/features/lorebook'
 import {generateUUID} from '../../../utils/uuid'
 import type {ChatSessionConfig} from '../chatSessionConfig'
 import {useAdventureChatSocket} from '../hooks/useAdventureChatSocket'
@@ -120,6 +121,13 @@ function readChatGenerationOptions(key: string): ChatGenerationOptions {
 
 export function InteractionCenterPanel({sessionId, turns, setTurns, config}: InteractionCenterPanelProps) {
     const { t } = useTranslation()
+    // Session-attached lorebook triggers: underline matching words in the composer and
+    // transcript, Ctrl/Cmd-click to open the entry's floating card.
+    const loreTargetKind = config.kind === 'adventure' ? 'adventure_session' : 'character_chat'
+    const { matcher: loreMatcher } = useSessionLorebookEntries(
+        loreTargetKind,
+        Number.isNaN(sessionId) ? '' : String(sessionId),
+    )
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const { isAuthenticated, openLoginModal, token } = useAuth()
@@ -901,6 +909,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                                         confirmingDelete={isDeleteTarget}
                                         deleting={isDeleteTarget && isDeletingTurn}
                                         actionsDisabled={isLoading || isClearingTurns || (isDeletingTurn && !isDeleteTarget)}
+                                        loreMatcher={loreMatcher}
                                     />
                                 )
                             })}
@@ -957,6 +966,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                     onReset={handleReset}
                     canReset={turns.length > 0}
                     placeholder={config.copy.placeholder}
+                    loreMatcher={loreMatcher}
                 />
                 {isLoading && (
                     <div className="mx-auto flex w-full max-w-[760px] items-center gap-2 px-4 pb-3 text-[13px] text-arcane-300 md:px-6">

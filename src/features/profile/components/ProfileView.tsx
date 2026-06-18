@@ -53,6 +53,10 @@ interface ProfileViewProps {
     onDeleteAllData: () => Promise<void>
     /** Called with the saved display name (null when cleared) after a successful edit. */
     onDisplayNameUpdated?: (displayName: string | null) => void
+    /** Re-fetch /user/me after a credit code is redeemed so the wallet balance updates. */
+    onRedeemed?: () => void
+    /** Claim pending email invite credits once after an invite email opens Profile. */
+    autoClaimEmailInvites?: boolean
 }
 
 interface RoleMeta {
@@ -81,7 +85,15 @@ function availableCredits(profile: UserProfile) {
     return profile.membership?.total_available_credits ?? profile.user_usage
 }
 
-export function ProfileView({ profile, sharing, onLogout, onDeleteAllData, onDisplayNameUpdated }: ProfileViewProps) {
+export function ProfileView({
+    profile,
+    sharing,
+    onLogout,
+    onDeleteAllData,
+    onDisplayNameUpdated,
+    onRedeemed,
+    autoClaimEmailInvites,
+}: ProfileViewProps) {
     const { t } = useTranslation()
     const role = roleMeta(profile.user_type, t)
     const { card_counts: counts } = profile
@@ -127,7 +139,7 @@ export function ProfileView({ profile, sharing, onLogout, onDeleteAllData, onDis
                 <StatCard icon={Zap} label={t('profile.stats.credits')} value={credits} />
             </section>
 
-            <MembershipSection profile={profile} />
+            <MembershipSection profile={profile} onRedeemed={onRedeemed} autoClaimEmailInvites={autoClaimEmailInvites} />
 
             <UsageSection profile={profile} />
 

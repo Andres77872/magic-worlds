@@ -2,6 +2,7 @@
  * Profile route container. Wires the `/user/me` data hook and auth, and renders
  * the appropriate shell (loading / error / signed-out) around {@link ProfileView}.
  */
+import { useEffect } from 'react'
 import { UserCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData } from '@/app/hooks'
@@ -12,12 +13,25 @@ import { useUserProfile } from '../hooks/useUserProfile'
 import { useProfileSharedCards } from '../hooks/useProfileSharedCards'
 import { ProfileView } from './ProfileView'
 
+function hasEmailInviteClaimIntent(): boolean {
+    if (typeof window === 'undefined') return false
+    const [, query = ''] = window.location.hash.split('?')
+    return new URLSearchParams(query).get('claimCredits') === '1'
+}
+
 export function ProfilePage() {
     const { t } = useTranslation()
     const { isAuthenticated, logout, openLoginModal, updateUser } = useAuth()
     const { clearAllData } = useData()
     const { profile, isLoading, error, isTransientError, refresh } = useUserProfile()
     const sharing = useProfileSharedCards()
+    const autoClaimEmailInvites = hasEmailInviteClaimIntent()
+
+    useEffect(() => {
+        if (!isAuthenticated && autoClaimEmailInvites) {
+            openLoginModal()
+        }
+    }, [autoClaimEmailInvites, isAuthenticated, openLoginModal])
 
     // Patch the auth context (updates the sidebar label + localStorage instantly),
     // then re-fetch /user/me so the hero reflects server truth.
@@ -93,6 +107,8 @@ export function ProfilePage() {
             onLogout={logout}
             onDeleteAllData={handleDeleteAllData}
             onDisplayNameUpdated={handleDisplayNameUpdated}
+            onRedeemed={refresh}
+            autoClaimEmailInvites={autoClaimEmailInvites}
         />
     )
 }

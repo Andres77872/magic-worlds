@@ -5,6 +5,7 @@ import { InteractionLeftPanel } from './InteractionLeftPanel'
 
 vi.mock('../../../app/hooks', () => ({
     useData: () => ({ characters: [], worlds: [] }),
+    useFloatingWindows: () => ({ openWindow: vi.fn(), closeWindow: vi.fn(), closeAll: vi.fn(), focusWindow: vi.fn(), windows: [] }),
 }))
 
 vi.mock('@/features/lorebook', () => ({

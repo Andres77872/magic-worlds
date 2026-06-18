@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ChatImageAsset, ChatNarratorIdentity, ChatResponseSegment, ForwardOption, ImageLifecycleStatus, TurnEntry } from '../../../shared'
 import { cx, Eyebrow } from '../../../ui/primitives'
+import type { TriggerMatcher } from '@/features/lorebook'
 import { formatApiTime } from '@/utils/time'
 import { isSafeAssetUrl } from '../utils/chatImageTurnState'
 import { ChatAvatar } from './ChatAvatar'
@@ -43,9 +44,11 @@ interface ChatTurnProps {
     actionsDisabled?: boolean
     confirmingDelete?: boolean
     deleting?: boolean
+    /** Session-lore matcher passed to ChatMessage for inline trigger marking. */
+    loreMatcher?: TriggerMatcher | null
 }
 
-export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onConfirmDeleteClick, onCancelDeleteClick, onEditClick, onRequestNarration, aiLabel, showForwardOptions = true, showImage = true, actionsDisabled = false, confirmingDelete = false, deleting = false }: ChatTurnProps) {
+export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onConfirmDeleteClick, onCancelDeleteClick, onEditClick, onRequestNarration, aiLabel, showForwardOptions = true, showImage = true, actionsDisabled = false, confirmingDelete = false, deleting = false, loreMatcher }: ChatTurnProps) {
     const { t } = useTranslation()
     const resolvedAiLabel = aiLabel ?? t('interaction.chat.gameMaster')
     const isUser = turn.type === 'user'
@@ -127,7 +130,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                     onCancel={handleEditCancel}
                                 />
                             ) : (
-                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} />
+                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} loreMatcher={loreMatcher} />
                             )}
                         </div>
                     ) : (
@@ -140,7 +143,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                     onCancel={handleEditCancel}
                                 />
                             ) : (
-                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} narratorIdentity={turn.narratorIdentity} aiLabel={resolvedAiLabel} />
+                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} narratorIdentity={turn.narratorIdentity} aiLabel={resolvedAiLabel} loreMatcher={loreMatcher} />
                             )}
                             {!isUser && !isEditing && showImage && (
                                 <GeneratedImage

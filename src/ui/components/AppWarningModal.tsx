@@ -54,6 +54,7 @@ export function AppWarningModal() {
                     variant="primary"
                     onClick={acceptWarning}
                     iconLeft={<CheckCircle2 size={16} strokeWidth={1.75} />}
+                    className="w-full sm:w-auto"
                 >
                     {t('warning.accept')}
                 </Button>

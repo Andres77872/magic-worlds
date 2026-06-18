@@ -91,10 +91,10 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const publicConfig = useMemo(() => publicConfigFor(type), [type])
     const activeConfig = viewMode === 'public' ? publicConfig : config
     const isPublicView = viewMode === 'public'
-    const gallery = useCardGallery(activeConfig)
-    const { upsertItem } = gallery
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
+    const gallery = useCardGallery(activeConfig, undefined, { enabled: isPublicView || isAuthenticated })
+    const { upsertItem } = gallery
     const {
         editCharacter,
         setCharacters,
@@ -137,7 +137,6 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const [startingChatId, setStartingChatId] = useState<string | null>(null)
     const [versionTarget, setVersionTarget] = useState<GalleryItem | null>(null)
     const fetchedLinkedRef = useRef<string | null>(null)
-    const openLoginModalRef = useRef(openLoginModal)
     const [personaPick, setPersonaPick] = useState<
         | { kind: 'adventure'; item: GalleryItem }
         | { kind: 'chat'; item: GalleryItem }
@@ -172,14 +171,6 @@ export function GalleryPage({ type }: GalleryPageProps) {
     }
 
     useEffect(() => {
-        openLoginModalRef.current = openLoginModal
-    }, [openLoginModal])
-
-    useEffect(() => {
-        if (isPublicView && !isAuthenticated) openLoginModal()
-    }, [isAuthenticated, isPublicView, openLoginModal])
-
-    useEffect(() => {
         const syncLinkedCard = () => {
             const next = linkedCardIdFor(type)
             const nextView = galleryViewFor(type)
@@ -204,10 +195,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     useEffect(() => {
         if (!linkedCardId || !activeConfig.fetchItem || !activeConfig.toItem) return
         if (gallery.loading) return
-        if (!isAuthenticated) {
-            openLoginModalRef.current()
-            return
-        }
+        if (!isAuthenticated && !isPublicView) return
         const key = `${viewMode}:${type}:${linkedCardId}`
         if (fetchedLinkedRef.current === key) return
         fetchedLinkedRef.current = key
@@ -234,7 +222,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
         return () => {
             cancelled = true
         }
-    }, [activeConfig, gallery.loading, isAuthenticated, linkedCardId, type, upsertItem, viewMode])
+    }, [activeConfig, gallery.loading, isAuthenticated, isPublicView, linkedCardId, type, upsertItem, viewMode])
 
     useEffect(() => {
         if (!linkedCardId || !gallery.items.some((item) => item.id === linkedCardId)) return

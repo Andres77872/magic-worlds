@@ -26,9 +26,9 @@ interface ActionNotice {
 export function NovelGalleryPage() {
     const { t } = useTranslation()
     const galleryConfig = useMemo(() => getNovelGalleryConfig(t), [t])
-    const gallery = useCardGallery<NovelGalleryItem>(galleryConfig)
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
+    const gallery = useCardGallery<NovelGalleryItem>(galleryConfig, undefined, { enabled: isAuthenticated })
     const { createStory, openStory, deleteStory } = useData()
 
     const [createOpen, setCreateOpen] = useState(false)

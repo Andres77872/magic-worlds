@@ -53,6 +53,7 @@ export function CharacterChatSidebar({
     const cast: Character[] = isGroup ? (characters ?? []) : character ? [character] : []
     const lead = cast[0]
     const heading = title || cast.map((entry) => entry.name).filter(Boolean).join(', ') || t('characterChat.fallbackTitle')
+    const hasCodexControls = Boolean(onAddCodexCards && onToggleCodexCard && onRemoveCodexCard)
 
     return (
         <div className="flex h-full flex-col bg-ink-900">
@@ -100,17 +101,21 @@ export function CharacterChatSidebar({
                         </div>
                     )}
 
-                    {onAddCodexCards && onToggleCodexCard && onRemoveCodexCard && (
-                        <CharacterChatCodexPanel
-                            cards={codexCards}
-                            onAddCards={onAddCodexCards}
-                            onToggleCard={onToggleCodexCard}
-                            onRemoveCard={onRemoveCodexCard}
-                        />
-                    )}
+                    {(hasCodexControls || sessionId) && (
+                        <div className="flex flex-col divide-y divide-parchment-50/[.08] rounded-lg border border-parchment-50/10 bg-ink-800 px-4 py-3">
+                            {onAddCodexCards && onToggleCodexCard && onRemoveCodexCard && (
+                                <CharacterChatCodexPanel
+                                    cards={codexCards}
+                                    onAddCards={onAddCodexCards}
+                                    onToggleCard={onToggleCodexCard}
+                                    onRemoveCard={onRemoveCodexCard}
+                                />
+                            )}
 
-                    {sessionId && (
-                        <SessionLorebookPanel targetKind="character_chat" targetId={sessionId} />
+                            {sessionId && (
+                                <SessionLorebookPanel targetKind="character_chat" targetId={sessionId} framed={false} />
+                            )}
+                        </div>
                     )}
 
                     {isGroup ? (

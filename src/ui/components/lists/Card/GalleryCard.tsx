@@ -5,7 +5,7 @@
  * in a hover-revealed menu so a wall of cards stays calm until pointed at.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, ListMusic, Loader2, Pause, Play, Share2 } from 'lucide-react'
 import { usePlaylist } from '@/app/hooks/usePlaylist'
@@ -14,8 +14,10 @@ import { useCardUsage } from '@/shared/hooks/useCardUsage'
 import type { VersionableCardType } from '@/shared'
 import { downloadThemeSong } from '@/ui/components/audio/downloadThemeSong'
 import { CardUsageLine } from '@/ui/components/common/CardUsageLine'
-import { Badge, Card, cx, Icon, Portrait, Tag, ThemeSongButton } from '@/ui/primitives'
-import { CardActionMenu, CardOptions, type CardMenuAnchor, type CardOption } from './CardOptions'
+import { Badge, Card, CardDeletingOverlay, cx, Icon, Portrait, Tag, ThemeSongButton } from '@/ui/primitives'
+import { CardActionMenu, CardOptions, type CardOption } from './CardOptions'
+import { SELECTED_CARD_CLASS } from './cardStyles'
+import { useCardActionContextMenu } from './useCardActionContextMenu'
 
 export interface GalleryCardProps {
     id?: string
@@ -70,8 +72,6 @@ export interface GalleryCardProps {
     'data-testid'?: string
 }
 
-const LONG_PRESS_MS = 520
-
 export function GalleryCard({
     id,
     title,
@@ -105,9 +105,6 @@ export function GalleryCard({
     const { t } = useTranslation()
     const interactive = Boolean(onClick) && !deleting
     const cardRef = useRef<HTMLDivElement>(null!)
-    const longPressTimerRef = useRef<number | null>(null)
-    const didLongPressRef = useRef(false)
-    const [contextAnchor, setContextAnchor] = useState<CardMenuAnchor | null>(null)
     const [menuOpen, setMenuOpen] = useState(false)
     const [themeDownloadState, setThemeDownloadState] = useState<{
         url: string
@@ -221,25 +218,15 @@ export function GalleryCard({
         handleDownloadTheme,
         t,
     ])
-
-    const closeContextMenu = () => {
-        setContextAnchor(null)
-        setMenuOpen(false)
-    }
-
-    const openContextMenu = (anchor: CardMenuAnchor) => {
-        if (deleting || contextOptions.length === 0) return
-        setContextAnchor(anchor)
-        setMenuOpen(true)
-    }
+    const contextMenu = useCardActionContextMenu({
+        options: staticCard ? [] : contextOptions,
+        disabled: deleting,
+        returnFocusRef: cardRef,
+        onOpenChange: setMenuOpen,
+    })
 
     const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-        if ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu') {
-            e.preventDefault()
-            const rect = cardRef.current.getBoundingClientRect()
-            openContextMenu({ top: rect.top + 16, left: rect.left + 16 })
-            return
-        }
+        if (contextMenu.handleContextMenuKeyDown(e)) return
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
             onClick?.()
@@ -247,35 +234,8 @@ export function GalleryCard({
     }
 
     const handleClick = (e: MouseEvent<HTMLDivElement>) => {
-        if (didLongPressRef.current) {
-            e.preventDefault()
-            didLongPressRef.current = false
-            return
-        }
+        if (contextMenu.suppressClickAfterLongPress(e)) return
         onClick?.()
-    }
-
-    const clearLongPress = () => {
-        if (longPressTimerRef.current !== null) {
-            window.clearTimeout(longPressTimerRef.current)
-            longPressTimerRef.current = null
-        }
-    }
-
-    useEffect(() => {
-        return () => {
-            if (longPressTimerRef.current !== null) window.clearTimeout(longPressTimerRef.current)
-        }
-    }, [])
-
-    const handlePointerDown = (e: PointerEvent<HTMLDivElement>) => {
-        if (e.pointerType === 'mouse' || contextOptions.length === 0 || deleting) return
-        const anchor = { top: e.clientY, left: e.clientX }
-        clearLongPress()
-        longPressTimerRef.current = window.setTimeout(() => {
-            didLongPressRef.current = true
-            openContextMenu(anchor)
-        }, LONG_PRESS_MS)
     }
 
     return (
@@ -288,20 +248,15 @@ export function GalleryCard({
             aria-busy={deleting || undefined}
             onClick={interactive ? handleClick : undefined}
             onKeyDown={interactive ? handleKeyDown : undefined}
-            onContextMenu={(e) => {
-                if (contextOptions.length === 0 || deleting) return
-                e.preventDefault()
-                e.stopPropagation()
-                openContextMenu({ top: e.clientY, left: e.clientX })
-            }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={clearLongPress}
-            onPointerCancel={clearLongPress}
-            onPointerLeave={clearLongPress}
-            onPointerUp={clearLongPress}
+            onContextMenu={contextMenu.handleContextMenu}
+            onPointerDown={contextMenu.pointerHandlers.onPointerDown}
+            onPointerMove={contextMenu.pointerHandlers.onPointerMove}
+            onPointerCancel={contextMenu.pointerHandlers.onPointerCancel}
+            onPointerLeave={contextMenu.pointerHandlers.onPointerLeave}
+            onPointerUp={contextMenu.pointerHandlers.onPointerUp}
             className={cx(
                 'group relative flex h-full flex-col',
-                (highlighted || menuOpen) && 'border-ember-500/55 shadow-card-hover ring-1 ring-ember-500/40',
+                (highlighted || menuOpen) && cx(SELECTED_CARD_CLASS, 'shadow-card-hover'),
                 deleting && 'pointer-events-none opacity-60',
             )}
             data-gallery-card-id={id}
@@ -420,20 +375,12 @@ export function GalleryCard({
             </Portrait>
 
             <CardActionMenu
-                options={contextOptions}
-                open={contextAnchor !== null}
-                anchor={contextAnchor}
+                {...contextMenu.menuProps}
                 menuTestId="card-context-menu"
                 optionTestIdPrefix="card-context-option"
-                returnFocusRef={cardRef}
-                onClose={closeContextMenu}
             />
 
-            {deleting && (
-                <div className="absolute inset-0 z-[3] flex items-center justify-center bg-ink-900/70 font-medium text-parchment-50">
-                    {t('galleryCard.deleting')}
-                </div>
-            )}
+            {deleting && <CardDeletingOverlay label={t('galleryCard.deleting')} />}
         </Card>
     )
 }

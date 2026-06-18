@@ -51,7 +51,7 @@ export function LorebookIssueList({ issues }: { issues: LorebookIssue[] }) {
                             <div className="flex flex-wrap items-center gap-2">
                                 <Badge tone={view.badge}>{issue.code.replace(/_/g, ' ')}</Badge>
                                 {issue.entryId && (
-                                    <span className="font-mono text-[11px] text-parchment-400">{issue.entryId.slice(0, 8)}</span>
+                                    <span className="font-mono text-meta text-parchment-400">{issue.entryId.slice(0, 8)}</span>
                                 )}
                             </div>
                             <p className="mt-1 font-ui text-sm leading-snug text-parchment-200">{message}</p>

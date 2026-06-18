@@ -4,15 +4,22 @@ import { NavigationProvider } from './NavigationProvider'
 import { useNavigation } from '../hooks/useNavigation'
 
 function Probe() {
-    const { currentPage, previousPage, setPage, goBack, cardEdit, replaceHash } = useNavigation()
+    const { currentPage, previousPage, setPage, goBack, cardEdit, resourceEdit, replaceHash } = useNavigation()
 
     return (
         <div>
             <span data-testid="page">{currentPage}</span>
             <span data-testid="previous">{previousPage ?? 'none'}</span>
             <span data-testid="card-edit">{cardEdit ? `${cardEdit.cardType}:${cardEdit.cardId}:${cardEdit.version ?? 'default'}` : 'none'}</span>
+            <span data-testid="resource-edit">{resourceEdit ? `${resourceEdit.resourceId}:${resourceEdit.createType ?? 'none'}` : 'none'}</span>
             <button type="button" onClick={() => setPage('gallery-characters')}>
                 Open gallery
+            </button>
+            <button
+                type="button"
+                onClick={() => setPage('gallery-resources', { hash: '#/gallery/resources?resource=res-1' })}
+            >
+                Open resource
             </button>
             <button
                 type="button"
@@ -102,6 +109,30 @@ describe('NavigationProvider origin stack', () => {
         renderNavigation()
         expect(screen.getByTestId('page')).toHaveTextContent('world')
         expect(screen.getByTestId('card-edit')).toHaveTextContent('world:w-9:latest')
+    })
+
+    it('derives resourceEdit params from the resources hash', () => {
+        renderNavigation()
+        expect(screen.getByTestId('resource-edit')).toHaveTextContent('none')
+
+        fireEvent.click(screen.getByRole('button', { name: /open resource/i }))
+        expect(screen.getByTestId('page')).toHaveTextContent('gallery-resources')
+        expect(window.location.hash).toBe('#/gallery/resources?resource=res-1')
+        expect(screen.getByTestId('resource-edit')).toHaveTextContent('res-1:none')
+    })
+
+    it('re-derives resourceEdit (create form) from a deep-linked hash on mount', () => {
+        window.history.replaceState(null, '', '#/gallery/resources?resource=new&type=md')
+        renderNavigation()
+        expect(screen.getByTestId('page')).toHaveTextContent('gallery-resources')
+        expect(screen.getByTestId('resource-edit')).toHaveTextContent('new:md')
+    })
+
+    it('resolves the removed assets hub hash to not found', () => {
+        window.history.replaceState(null, '', '#/gallery/assets')
+        renderNavigation()
+
+        expect(screen.getByTestId('page')).toHaveTextContent('not-found')
     })
 
     it('keeps nested origins in order', () => {

@@ -1,7 +1,20 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Membership, UserProfile } from '@/shared'
 import { ProfileView } from './ProfileView'
+
+const apiMocks = vi.hoisted(() => ({
+    listEmailCreditInvites: vi.fn(),
+    listEmails: vi.fn(),
+}))
+
+vi.mock('@/infrastructure/api', () => ({
+    apiService: {
+        listEmailCreditInvites: (...args: unknown[]) => apiMocks.listEmailCreditInvites(...args),
+        listEmails: (...args: unknown[]) => apiMocks.listEmails(...args),
+    },
+    ApiError: class ApiError extends Error {},
+}))
 
 const membership: Membership = {
     plan_code: 'free',
@@ -118,6 +131,11 @@ const profile: UserProfile = {
 
 const noop = vi.fn()
 const deleteAll = vi.fn().mockResolvedValue(undefined)
+
+beforeEach(() => {
+    apiMocks.listEmailCreditInvites.mockResolvedValue({ items: [], total_credits: 0 })
+    apiMocks.listEmails.mockResolvedValue({ emails: [] })
+})
 
 describe('ProfileView membership section', () => {
     it('renders current membership, locked previews, limits, and PAYG balance', () => {

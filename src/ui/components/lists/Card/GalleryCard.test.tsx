@@ -162,6 +162,8 @@ describe('GalleryCard', () => {
             <GalleryCard title="Lyra" onClick={vi.fn()} staticCard options={options} />,
         )
         expect(screen.queryByTestId('card-options-button')).not.toBeInTheDocument()
+        fireEvent.contextMenu(screen.getByTestId('gallery-card'), { clientX: 24, clientY: 24 })
+        expect(screen.queryByTestId('card-context-menu')).not.toBeInTheDocument()
 
         rerender(
             <AudioPlaylistProvider>

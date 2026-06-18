@@ -23,6 +23,7 @@ import {
     Loader2,
     LogIn,
     LogOut,
+    Ticket,
     UserRound,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -329,6 +330,12 @@ export function SidebarAccountMenu({
                                     label={t('sidebar.agentAdmin')}
                                     current={currentPage === 'admin-agents'}
                                     onClick={() => navigate('admin-agents')}
+                                />
+                                <AccountMenuRow
+                                    icon={Ticket}
+                                    label={t('sidebar.creditCodesAdmin')}
+                                    current={currentPage === 'admin-credit-codes'}
+                                    onClick={() => navigate('admin-credit-codes')}
                                 />
                             </div>
                         </div>

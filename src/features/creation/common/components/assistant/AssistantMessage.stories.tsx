@@ -11,7 +11,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'One visible card-assistant turn. The **user** speaks in an ember candlelit bubble; the **assistant** answers in literary `.chat-prose` markdown (plain emphasis — no roleplay semantics) with applied-change badges underneath whenever a tool call mutated the card: arcane *Card saved* for `mw_replace_card`, verdant *Updated: …* for `mw_patch_card`.',
+          'One visible card-assistant turn. The **user** speaks in an ember candlelit bubble; the **assistant** answers in literary `.chat-prose` markdown with a copy affordance for settled raw message content and applied-change badges whenever a tool call mutated the card.',
       },
     },
   },

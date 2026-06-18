@@ -123,6 +123,30 @@ describe('DocsPage', () => {
         }
     })
 
+    it('documents reusable Markdown and text resources', () => {
+        const content = getDocsContent(i18n.getFixedT('en'))
+        const resources = content.sections.find((section) => section.id === 'resources')
+        render(<DocsPage />)
+
+        expect(resources).toBeTruthy()
+        expect(screen.getByRole('heading', { name: resources!.title })).toBeTruthy()
+        const pageText = document.body.textContent ?? ''
+
+        for (const text of [
+            'Use Markdown or plain text',
+            '.md / .txt',
+            'New text',
+            'New Markdown',
+            'Upload',
+            'From URL',
+            'markdown.new',
+            'Attach shared sources to lorebooks',
+            'metadata sync',
+        ]) {
+            expect(pageText).toContain(text)
+        }
+    })
+
     it('updates the active nav item as sections enter the viewport', () => {
         let observerCallback: IntersectionObserverCallback | undefined
         const observe = vi.fn()
@@ -212,6 +236,17 @@ describe('DocsPage', () => {
 
     it('navigates from an App map panel to its gallery when signed in', () => {
         const content = getDocsContent(i18n.getFixedT('en'))
+        render(<DocsPage />)
+
+        fireEvent.click(screen.getByRole('button', { name: content.mapItems[1].title }))
+
+        expect(setPage).toHaveBeenCalledWith('gallery-characters')
+        expect(openLoginModal).not.toHaveBeenCalled()
+    })
+
+    it('lets guests open App map gallery panels', () => {
+        const content = getDocsContent(i18n.getFixedT('en'))
+        authed = false
         render(<DocsPage />)
 
         fireEvent.click(screen.getByRole('button', { name: content.mapItems[1].title }))

@@ -52,17 +52,18 @@ export function ChatroomPage() {
     const voiceModeEnabled = isFrontendVoiceModeEnabled()
 
     useEffect(() => {
-        if (!isAuthenticated) {
-            openLoginModal()
-            setPage('landing')
-        }
-    }, [isAuthenticated, openLoginModal, setPage])
-
-    useEffect(() => {
         if (isAuthenticated) void loadData({ silent: true })
         // Refresh the gallery on entry without swapping the whole app to loading.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated])
+
+    const requireAuth = (action: () => void) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            return
+        }
+        action()
+    }
 
     const sessions = useMemo(() => toResumeSessions([], characterChats), [characterChats])
     const normalizedQuery = query.trim().toLowerCase()
@@ -71,20 +72,22 @@ export function ChatroomPage() {
         return sessions.filter((session) => searchableText(session).includes(normalizedQuery))
     }, [normalizedQuery, sessions])
 
-    if (!isAuthenticated) return null
-
     const openChat = (session: ResumeSession) => {
-        resumeCharacterChat(session.source as CharacterChatSession)
-        setPage('character-chat')
+        requireAuth(() => {
+            resumeCharacterChat(session.source as CharacterChatSession)
+            setPage('character-chat')
+        })
     }
 
     const openVoiceChat = (session: ResumeSession) => {
-        resumeCharacterChat(session.source as CharacterChatSession, { mode: 'voice' })
-        setPage('character-chat')
+        requireAuth(() => {
+            resumeCharacterChat(session.source as CharacterChatSession, { mode: 'voice' })
+            setPage('character-chat')
+        })
     }
 
     const startGroupChat = () => {
-        setPage('gallery-characters', { hash: buildGalleryModeHash('character', 'group-chat') })
+        requireAuth(() => setPage('gallery-characters', { hash: buildGalleryModeHash('character', 'group-chat') }))
     }
 
     const confirmDelete = async () => {
@@ -194,7 +197,7 @@ export function ChatroomPage() {
                             session={session}
                             onContinue={() => openChat(session)}
                             onCall={voiceModeEnabled && !session.isGroupChat ? () => openVoiceChat(session) : undefined}
-                            onDelete={() => setPendingDelete(session.source as CharacterChatSession)}
+                            onDelete={() => requireAuth(() => setPendingDelete(session.source as CharacterChatSession))}
                             deleting={deletingId === session.id}
                         />
                     ))}

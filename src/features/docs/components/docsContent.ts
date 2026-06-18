@@ -14,6 +14,8 @@ import {
     Code2,
     Compass,
     Copy,
+    FilePlus2,
+    FileText,
     Gauge,
     Gem,
     Globe,
@@ -119,6 +121,7 @@ export interface DocsContent {
     voicePresetGuide: GuideItem[]
     voiceGuide: GuideItem[]
     writingGuide: GuideItem[]
+    resourcesGuide: GuideItem[]
     mediaGuide: GuideItem[]
     bestPractices: string[]
     search: {
@@ -143,6 +146,7 @@ type SectionId =
     | 'voicePresets'
     | 'voice'
     | 'writing'
+    | 'resources'
     | 'media'
     | 'bestPractices'
 
@@ -191,6 +195,7 @@ const SECTION_SOURCES: readonly SectionSource[] = [
     { id: 'voice-presets', key: 'voicePresets', icon: AudioLines },
     { id: 'voice', key: 'voice', icon: Mic },
     { id: 'writing', key: 'writing', icon: BookOpenText },
+    { id: 'resources', key: 'resources', icon: FileText },
     { id: 'media', key: 'media', icon: Images },
     { id: 'best-practices', key: 'bestPractices', icon: ShieldCheck },
 ]
@@ -218,15 +223,16 @@ const QUICK_START_SOURCES: readonly GuideItemSource[] = [
 
 const MAP_ITEM_SOURCES: readonly MapItemSource[] = [
     { key: 'explore', icon: Compass, tone: 'ember', page: 'landing' },
-    { key: 'characters', icon: Users, page: 'gallery-characters', gated: true },
-    { key: 'worlds', icon: Globe, page: 'gallery-worlds', gated: true },
-    { key: 'items', icon: Gem, page: 'gallery-items', gated: true },
-    { key: 'adventures', icon: Swords, tone: 'ember', page: 'gallery-adventures', gated: true },
-    { key: 'lorebooks', icon: BookOpen, page: 'gallery-lorebooks', gated: true },
-    { key: 'novels', icon: BookOpenText, page: 'gallery-stories', gated: true },
-    { key: 'media', icon: Images, page: 'gallery-media', gated: true },
-    { key: 'voiceStudio', icon: AudioLines, page: 'voice-studio', gated: true },
-    { key: 'personas', icon: UserCircle, tone: 'arcane', page: 'gallery-personas', gated: true, tag: true },
+    { key: 'characters', icon: Users, page: 'gallery-characters' },
+    { key: 'worlds', icon: Globe, page: 'gallery-worlds' },
+    { key: 'items', icon: Gem, page: 'gallery-items' },
+    { key: 'adventures', icon: Swords, tone: 'ember', page: 'gallery-adventures' },
+    { key: 'lorebooks', icon: BookOpen, page: 'gallery-lorebooks' },
+    { key: 'resources', icon: FileText, tone: 'arcane', page: 'gallery-resources' },
+    { key: 'novels', icon: BookOpenText, page: 'gallery-stories' },
+    { key: 'media', icon: Images, page: 'gallery-media' },
+    { key: 'voiceStudio', icon: AudioLines, page: 'voice-studio' },
+    { key: 'personas', icon: UserCircle, tone: 'arcane', page: 'gallery-personas', tag: true },
 ]
 
 const UTILITY_ITEM_SOURCES: readonly UtilityItemSource[] = [
@@ -290,6 +296,15 @@ const WRITING_GUIDE_SOURCES: readonly GuideItemSource[] = [
     { key: 'novels', icon: BookOpenText },
     { key: 'codex', icon: Search },
     { key: 'generation', icon: Sparkles },
+]
+
+const RESOURCES_GUIDE_SOURCES: readonly GuideItemSource[] = [
+    { key: 'formats', icon: FileText, badge: true },
+    { key: 'createUpload', icon: FilePlus2 },
+    { key: 'urlImport', icon: Link2, tone: 'arcane', badge: true },
+    { key: 'previewSearch', icon: Search },
+    { key: 'attach', icon: BookOpen, tone: 'arcane' },
+    { key: 'metadata', icon: Sparkles },
 ]
 
 const MEDIA_GUIDE_SOURCES: readonly GuideItemSource[] = [
@@ -373,6 +388,7 @@ export function getDocsContent(t: TFunction): DocsContent {
         voicePresetGuide: guideItems(t, 'docs.guides.voicePresets', VOICE_PRESET_GUIDE_SOURCES),
         voiceGuide: guideItems(t, 'docs.guides.voice', VOICE_GUIDE_SOURCES),
         writingGuide: guideItems(t, 'docs.guides.writing', WRITING_GUIDE_SOURCES),
+        resourcesGuide: guideItems(t, 'docs.guides.resources', RESOURCES_GUIDE_SOURCES),
         mediaGuide: guideItems(t, 'docs.guides.media', MEDIA_GUIDE_SOURCES),
         bestPractices: BEST_PRACTICE_KEYS.map((key) => t(`docs.bestPractices.${key}`)),
         search: {
@@ -427,6 +443,9 @@ export function sectionSearchText(docs: DocsContent, sectionId: string): string 
             break
         case 'writing':
             pushItems(docs.writingGuide)
+            break
+        case 'resources':
+            pushItems(docs.resourcesGuide)
             break
         case 'media':
             pushItems(docs.mediaGuide)

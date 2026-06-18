@@ -17,6 +17,7 @@ import {
     AudioLines,
     BookOpenText,
     Compass,
+    FileText,
     Images,
     Info,
     Mic,
@@ -497,6 +498,31 @@ export function DocsPage() {
                             <div className="grid gap-4 md:grid-cols-2">
                                 {docs.writingGuide.map((item) => (
                                     <FeatureCard key={item.title} icon={item.icon} title={item.title} tone="arcane">
+                                        {item.body}
+                                    </FeatureCard>
+                                ))}
+                            </div>
+                        </GuideSection>
+
+                        <GuideSection
+                            id="resources"
+                            icon={FileText}
+                            eyebrow={getSection('resources').eyebrow}
+                            tone="arcane"
+                            title={getSection('resources').title}
+                            intro={getSection('resources').intro}
+                            art={getSection('resources').art}
+                            hidden={isHidden('resources')}
+                        >
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {docs.resourcesGuide.map((item) => (
+                                    <FeatureCard
+                                        key={item.title}
+                                        icon={item.icon}
+                                        title={item.title}
+                                        badge={item.badge}
+                                        tone={item.tone ?? 'arcane'}
+                                    >
                                         {item.body}
                                     </FeatureCard>
                                 ))}

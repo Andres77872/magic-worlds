@@ -41,7 +41,6 @@ export function PersonaSelector({ characters, selectedId, onSelect, onCreateChar
                     name={c.name}
                     race={c.race}
                     description={c.description}
-                    mode="radio"
                     selected={selectedId === c.id}
                     onToggle={() => onSelect(c.id)}
                     badge={selectedId === c.id ? <Badge tone="ember">{t('creation.adventure.scene.you')}</Badge> : undefined}

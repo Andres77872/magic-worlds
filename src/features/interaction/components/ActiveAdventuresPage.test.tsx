@@ -113,13 +113,18 @@ describe('ActiveAdventuresPage', () => {
         expect(setPage).toHaveBeenCalledWith('gallery-adventures')
     })
 
-    it('gates signed-out visitors', () => {
+    it('renders signed-out visitors and keeps browse navigation open', () => {
         authed = false
+        inProgressAdventures = []
 
         render(<ActiveAdventuresPage />)
 
-        expect(openLoginModal).toHaveBeenCalled()
-        expect(setPage).toHaveBeenCalledWith('landing')
-        expect(screen.queryByTestId('active-adventures-page')).not.toBeInTheDocument()
+        expect(screen.getByTestId('active-adventures-page')).toBeInTheDocument()
+        expect(openLoginModal).not.toHaveBeenCalled()
+        expect(setPage).not.toHaveBeenCalledWith('landing')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Browse adventures' }))
+        expect(setPage).toHaveBeenCalledWith('gallery-adventures')
+        expect(openLoginModal).not.toHaveBeenCalled()
     })
 })

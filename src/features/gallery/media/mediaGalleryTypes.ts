@@ -41,6 +41,10 @@ export interface MediaImageItem extends MediaItemBase {
     kind: 'image'
     /** Resolved (absolute) image URL. */
     url: string
+    /** Exact prompt recorded by the backend for this generated image, when available. */
+    prompt?: string
+    /** Saved generation model alias; intentionally not rendered in the media gallery. */
+    modelAlias?: string
 }
 
 export interface MediaThemeItem extends MediaItemBase {
@@ -82,7 +86,17 @@ export function imageJobToItems(job: ImageJobPublic): MediaImageItem[] {
     for (const asset of job.assets ?? []) {
         const url = resolveMediaUrl(asset?.url)
         if (!asset?.asset_id || !url) continue
-        out.push({ kind: 'image', id: asset.asset_id, jobId: job.job_id, createdAt: job.created_at, card, url })
+        const prompt = job.generation_prompt?.trim() || undefined
+        out.push({
+            kind: 'image',
+            id: asset.asset_id,
+            jobId: job.job_id,
+            createdAt: job.created_at,
+            card,
+            url,
+            prompt,
+            modelAlias: job.model_alias?.trim() || undefined,
+        })
     }
     return out
 }

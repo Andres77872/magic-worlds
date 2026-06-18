@@ -21,6 +21,7 @@ function imageJob(id: string, createdAt: string, assetCount = 1): ImageJobPublic
     return {
         job_id: `job-${id}`,
         status: 'completed',
+        model_alias: 'text_to_image_qwen',
         status_url: '',
         result_url: '',
         assets: Array.from({ length: assetCount }, (_, i) => ({
@@ -117,6 +118,30 @@ describe('useMediaGallery', () => {
         await waitFor(() => expect(result.current.loading).toBe(false))
 
         expect(result.current.items.map((i) => i.id)).toEqual(['img-i1-0', 'img-i1-1'])
+    })
+
+    it('carries image prompt metadata from the image job to each tile item', async () => {
+        listImageJobs.mockResolvedValueOnce(
+            imagesResponse(
+                [
+                    {
+                        ...imageJob('i1', '2026-06-10T10:00:00'),
+                        generation_prompt: 'Image-only illustration of a moon gate.',
+                    },
+                ],
+                null,
+            ),
+        )
+
+        const { result } = renderHook(() => useMediaGallery(PAGE_SIZE))
+        await waitFor(() => expect(result.current.loading).toBe(false))
+
+        const item = result.current.items[0]
+        expect(item.kind).toBe('image')
+        if (item.kind === 'image') {
+            expect(item.prompt).toBe('Image-only illustration of a moon gate.')
+            expect(item.modelAlias).toBe('text_to_image_qwen')
+        }
     })
 
     it('keeps paging a source whose buffer runs dry mid-page (refill before pop)', async () => {

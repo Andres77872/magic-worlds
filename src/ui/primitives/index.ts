@@ -8,6 +8,8 @@ export { PageHeader } from './PageHeader'
 export { Button, type ButtonVariant, type ButtonSize } from './Button'
 export { IconButton, type IconButtonSize, type IconButtonTone } from './IconButton'
 export { Card } from './Card'
+export { CardDeletingOverlay } from './CardDeletingOverlay'
+export { SelectionCheck } from './SelectionCheck'
 export { AuthenticatedImage } from './AuthenticatedImage'
 export { Illustration, type IllustrationTone } from './Illustration'
 export { Portrait } from './Portrait'
@@ -29,3 +31,9 @@ export { Select, type SelectOption, type SelectSize } from './Select'
 export { SuggestInput, type SuggestInputProps } from './SuggestInput'
 export { Switch, SwitchRow, type SwitchSize } from './Switch'
 export { useMediaQuery, useIsDesktop } from './useMediaQuery'
+export {
+    useDraggable,
+    type DragPosition,
+    type DragHandleProps,
+    type UseDraggableResult,
+} from './useDraggable'

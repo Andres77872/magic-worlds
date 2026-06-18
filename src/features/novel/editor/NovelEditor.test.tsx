@@ -1,5 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+// The editor opens detected lore/codex references in floating windows.
+vi.mock('@/app/hooks', () => ({
+    useFloatingWindows: () => ({ openWindow: vi.fn(), closeWindow: vi.fn(), closeAll: vi.fn(), focusWindow: vi.fn(), windows: [] }),
+}))
+
 import { NovelEditor } from './NovelEditor'
 import type { NovelEditorProps } from './types'
 

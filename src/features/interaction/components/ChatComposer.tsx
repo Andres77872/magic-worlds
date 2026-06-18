@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Images, ListChecks, RotateCcw, Send, Square, Volume2 } from 'lucide-react'
 import { cx, IconButton } from '@/ui/primitives'
+import { HighlightedTextarea, matcherIsEmpty, type TriggerMatcher } from '@/features/lorebook'
 
 const MAX_LENGTH = 4000
 
@@ -28,6 +29,8 @@ interface ChatComposerProps {
     /** Disable Reset when there is nothing to clear. */
     canReset: boolean
     placeholder: string
+    /** When set, underline session-lore triggers as the player types (Ctrl/Cmd-click opens). */
+    loreMatcher?: TriggerMatcher | null
 }
 
 /**
@@ -59,9 +62,11 @@ export function ChatComposer({
     onReset,
     canReset,
     placeholder,
+    loreMatcher,
 }: ChatComposerProps) {
     const { t } = useTranslation()
     const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+    const showLoreHighlights = !matcherIsEmpty(loreMatcher)
 
     // Auto-grow: reset to `auto` so the box can shrink, then clamp to scrollHeight.
     // The element's max-height caps growth; longer text scrolls internally.
@@ -108,22 +113,37 @@ export function ChatComposer({
                     'focus-within:border-ember-500 focus-within:shadow-[0_0_0_3px_rgba(232,162,74,.14)]',
                 )}
             >
-                <textarea
-                    ref={textareaRef}
-                    value={value}
-                    onChange={(e) => onValueChange(e.target.value)}
-                    onInput={autoGrow}
-                    onKeyDown={handleKeyDown}
-                    rows={1}
-                    maxLength={MAX_LENGTH}
-                    placeholder={placeholder}
-                    aria-label={t('interaction.composer.messageLabel')}
-                    className={cx(
-                        'block max-h-[160px] min-h-[44px] w-full resize-none border-0 bg-transparent px-4 pb-1.5 pt-3',
-                        'font-narrative text-[15px] leading-relaxed text-parchment-50 placeholder:text-parchment-400',
-                        'focus:outline-none focus:ring-0',
-                    )}
-                />
+                {showLoreHighlights ? (
+                    <HighlightedTextarea
+                        value={value}
+                        matcher={loreMatcher!}
+                        textareaRef={textareaRef}
+                        onChange={(e) => onValueChange(e.target.value)}
+                        onInput={autoGrow}
+                        onKeyDown={handleKeyDown}
+                        rows={1}
+                        maxLength={MAX_LENGTH}
+                        placeholder={placeholder}
+                        ariaLabel={t('interaction.composer.messageLabel')}
+                    />
+                ) : (
+                    <textarea
+                        ref={textareaRef}
+                        value={value}
+                        onChange={(e) => onValueChange(e.target.value)}
+                        onInput={autoGrow}
+                        onKeyDown={handleKeyDown}
+                        rows={1}
+                        maxLength={MAX_LENGTH}
+                        placeholder={placeholder}
+                        aria-label={t('interaction.composer.messageLabel')}
+                        className={cx(
+                            'block max-h-[160px] min-h-[44px] w-full resize-none border-0 bg-transparent px-4 pb-1.5 pt-3',
+                            'font-narrative text-[15px] leading-relaxed text-parchment-50 placeholder:text-parchment-400',
+                            'focus:outline-none focus:ring-0',
+                        )}
+                    />
+                )}
 
                 <div className="flex items-center justify-between gap-2 px-2 pb-2 pt-1">
                     <div className="flex items-center gap-1">

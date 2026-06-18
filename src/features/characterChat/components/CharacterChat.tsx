@@ -31,20 +31,20 @@ export function CharacterChat() {
         toggleCharacterChatCodexCard,
         removeCharacterChatCodexCard,
     } = useData()
-    const { isAuthenticated, openLoginModal } = useAuth()
+    const { isAuthenticated } = useAuth()
 
-    // Gate behind auth — unauthenticated users cannot access chat.
+    // Detail route fallback: page navigation is allowed, but an active chat is
+    // required before mounting the socket-backed chat surface.
     useEffect(() => {
         if (!isAuthenticated) {
-            openLoginModal()
-            setPage('landing')
+            setPage('chatroom')
         }
-    }, [isAuthenticated, openLoginModal, setPage])
+    }, [isAuthenticated, setPage])
 
-    // No active chat (e.g. deep link / refresh) → back to the dashboard.
+    // No active chat (e.g. deep link / refresh) → back to the chat list.
     useEffect(() => {
         if (isAuthenticated && !activeCharacterChat) {
-            setPage('landing')
+            setPage('chatroom')
         }
     }, [isAuthenticated, activeCharacterChat, setPage])
 

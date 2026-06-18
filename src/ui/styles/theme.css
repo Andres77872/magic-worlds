@@ -497,6 +497,66 @@
   .chat-prose .rp-thought::before { content: '('; }
   .chat-prose .rp-thought::after { content: ')'; }
 
+  /* Lorebook trigger: a word that touches session lore. A quiet arcane dotted
+     underline that brightens on hover (or while the composer is "armed" with
+     Ctrl/Cmd); Ctrl/Cmd-click opens the entry's floating card. */
+  .lore-trigger {
+    text-decoration: underline dotted;
+    text-decoration-color: rgba(195, 176, 242, 0.6);
+    text-underline-offset: 0.18em;
+    text-decoration-thickness: 1.5px;
+    border-radius: var(--radius-xs);
+    transition:
+      background-color var(--default-transition-duration) var(--ease-out),
+      color var(--default-transition-duration) var(--ease-out),
+      text-decoration-color var(--default-transition-duration) var(--ease-out);
+  }
+  .lore-trigger:hover {
+    cursor: pointer;
+    color: var(--color-arcane-300);
+    background: rgba(143, 111, 227, 0.16);
+    text-decoration-color: var(--color-arcane-300);
+  }
+  .is-armed .lore-trigger {
+    background: rgba(143, 111, 227, 0.16);
+    text-decoration-color: var(--color-arcane-300);
+  }
+
+  /* Codex reference: a plain-text occurrence of a codex entity name
+     (character / world / item / adventure). The ember mirror of .lore-trigger —
+     a quiet gold dotted underline that brightens on hover or while the editor is
+     "armed" (Ctrl/Cmd held); Ctrl/Cmd-click opens the entry's floating card. */
+  .codex-reference {
+    text-decoration: underline dotted;
+    text-decoration-color: rgba(232, 162, 74, 0.5);
+    text-underline-offset: 0.18em;
+    text-decoration-thickness: 1.5px;
+    border-radius: var(--radius-xs);
+    transition:
+      background-color var(--default-transition-duration) var(--ease-out),
+      color var(--default-transition-duration) var(--ease-out),
+      text-decoration-color var(--default-transition-duration) var(--ease-out);
+  }
+  .codex-reference:hover {
+    cursor: pointer;
+    color: var(--color-ember-300);
+    background: rgba(232, 162, 74, 0.14);
+    text-decoration-color: var(--color-ember-300);
+  }
+  .is-armed .codex-reference {
+    background: rgba(232, 162, 74, 0.14);
+    text-decoration-color: var(--color-ember-300);
+  }
+  /* Search & replace match highlights (find panel). */
+  .story-editor-prose .search-match {
+    border-radius: var(--radius-xs);
+    background: rgba(232, 162, 74, 0.18);
+  }
+  .story-editor-prose .search-match-active {
+    background: rgba(232, 162, 74, 0.38);
+    box-shadow: 0 0 0 1px rgba(232, 162, 74, 0.55);
+  }
+
   .story-editor-shell {
     background:
       linear-gradient(180deg, rgba(246, 239, 226, 0.025), transparent 160px),
@@ -513,6 +573,17 @@
     line-height: 1.78;
     color: var(--color-parchment-100);
     caret-color: var(--color-ember-400);
+  }
+  /* Focus mode hides the rails: give the measured column more vertical room
+     to breathe so drafting feels distraction-free. */
+  .story-editor-shell[data-focus] .story-editor-prose {
+    padding-top: 56px;
+    padding-bottom: 56px;
+  }
+  /* Typewriter mode keeps the active line centered; pad the tail so the last
+     lines can still scroll to the middle of the viewport. */
+  .story-editor-shell[data-typewriter] .story-editor-prose {
+    padding-bottom: 45vh;
   }
 
   .story-editor-prose:focus-visible {
@@ -554,11 +625,26 @@
     color: var(--color-parchment-100);
     font-style: italic;
   }
+  /* Scene break: a centered ember ornament rather than a flat rule, so a
+     section break reads like a manuscript flourish. Serializes to plain `---`. */
   .story-editor-prose hr {
-    margin: 1.6rem 0;
+    margin: 2.4rem 0;
     border: none;
-    height: 1px;
-    background: rgba(246, 239, 226, 0.16);
+    height: auto;
+    background: none;
+    text-align: center;
+    overflow: visible;
+  }
+  .story-editor-prose hr::before {
+    content: '✦';
+    color: var(--color-ember-500);
+    font-size: 18px;
+    letter-spacing: 0.55em;
+    opacity: 0.85;
+  }
+  .story-editor-prose hr.ProseMirror-selectednode::before {
+    color: var(--color-ember-300);
+    opacity: 1;
   }
   .story-editor-prose code {
     border: 1px solid rgba(246, 239, 226, 0.1);

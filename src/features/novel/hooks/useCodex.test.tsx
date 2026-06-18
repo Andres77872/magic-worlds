@@ -212,4 +212,43 @@ describe('useCodex', () => {
 
         expect(deleteStoryCardRef).toHaveBeenCalledWith('s1', 'a')
     })
+
+    it('detectionNames lists only enabled entity names (not lore or disabled)', () => {
+        const refs = [
+            ref({ id: 'a', kind: 'character', snapshot: { name: 'Aria' } }),
+            ref({ id: 'b', kind: 'world', enabled: false, precedence: 1, snapshot: { name: 'Eldoria' } }),
+            ref({ id: 'c', kind: 'lorebook_entry', cardId: 'e1', precedence: 2, snapshot: { name: 'Pact', keys: ['pact'] } }),
+        ]
+        const { result } = renderHook(() => useCodex({ story: story(refs) }))
+
+        expect(result.current.detectionNames).toEqual([{ id: 'a', label: 'Aria', kind: 'character' }])
+    })
+
+    it('loreEntries reconstructs session lore from cloned snapshots with chat-matching defaults', () => {
+        const refs = [
+            ref({
+                id: 'l',
+                kind: 'lorebook_entry',
+                cardId: 'entry-1',
+                enabled: false,
+                snapshot: {
+                    name: 'The Glass Pact',
+                    content: 'An oath sworn on shattered mirrors.',
+                    keys: ['pact', 'oath'],
+                    entry_type: 'rule',
+                    source_lorebook_id: 'lb-1',
+                    source_lorebook_name: 'Twin Courts',
+                    source_entry_id: 'entry-1',
+                },
+            }),
+            ref({ id: 'c', kind: 'character', precedence: 1, snapshot: { name: 'Aria' } }),
+        ]
+        const { result } = renderHook(() => useCodex({ story: story(refs) }))
+
+        expect(result.current.loreEntries).toHaveLength(1)
+        const session = result.current.loreEntries[0]
+        expect(session.lorebookName).toBe('Twin Courts')
+        // enabled mirrors the codex ref (disabled here); match options match the chat engine.
+        expect(session.entry).toMatchObject({ keys: ['pact', 'oath'], enabled: false, matchWholeWords: true, caseSensitive: false, regex: false })
+    })
 })

@@ -10,9 +10,10 @@ const openLoginModal = vi.fn()
 const editLorebook = vi.fn()
 const setEditingLorebook = vi.fn()
 const deleteLorebook = vi.fn().mockResolvedValue(undefined)
+let authed = true
 
 vi.mock('@/app/hooks', () => ({
-    useAuth: () => ({ isAuthenticated: true, openLoginModal }),
+    useAuth: () => ({ isAuthenticated: authed, openLoginModal }),
     useNavigation: () => ({ setPage }),
     useData: () => ({ editLorebook, setEditingLorebook, deleteLorebook }),
 }))
@@ -61,6 +62,26 @@ const LOREBOOK: Lorebook = {
         },
     ],
     attachments: [{ id: 'att-1', lorebookId: 'lore-1', targetKind: 'world', targetId: 'world-1', mode: 'linked' }],
+    metadata: {
+        resources: [
+            {
+                id: 'resource-1',
+                title: 'Court archive',
+                triggers: ['court archive'],
+                fileName: 'court.md',
+                fileType: 'md',
+                content: 'archive',
+                extractionStatus: 'completed',
+                extraction: {
+                    keywords: ['glass court'],
+                    shortSummary: 'A court archive.',
+                    longSummary: 'A court archive.',
+                    notes: [],
+                    snippets: [],
+                },
+            },
+        ],
+    },
 }
 
 function renderSpanish(ui: ReactElement) {
@@ -71,6 +92,7 @@ function renderSpanish(ui: ReactElement) {
 describe('LorebookGalleryPage', () => {
     beforeEach(async () => {
         await i18n.changeLanguage('en')
+        authed = true
         vi.clearAllMocks()
         vi.mocked(apiService.getLorebooks).mockResolvedValue([LOREBOOK])
     })
@@ -83,7 +105,23 @@ describe('LorebookGalleryPage', () => {
         expect(editLorebook).toHaveBeenCalledWith(expect.objectContaining({ id: 'lore-1' }))
         expect(setPage).toHaveBeenCalledWith('lorebook')
         expect(screen.getByText('Entries')).toBeInTheDocument()
+        expect(screen.getByText('Resources')).toBeInTheDocument()
         expect(screen.getByText('1 secret')).toBeInTheDocument()
+    })
+
+    it('renders signed-out without fetching and asks for login only on create', async () => {
+        authed = false
+
+        render(<LorebookGalleryPage />)
+
+        expect(await screen.findByText('No lorebooks yet')).toBeInTheDocument()
+        expect(apiService.getLorebooks).not.toHaveBeenCalled()
+        expect(openLoginModal).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'New lorebook' })[0])
+
+        expect(openLoginModal).toHaveBeenCalledTimes(1)
+        expect(setPage).not.toHaveBeenCalledWith('lorebook')
     })
 
     it('renders Spanish gallery and empty state', async () => {
@@ -101,6 +139,7 @@ describe('LorebookGalleryPage', () => {
 
         expect(await screen.findByText('Glass Courts')).toBeInTheDocument()
         expect(screen.getByText('Entradas')).toBeInTheDocument()
+        expect(screen.getByText('Recursos')).toBeInTheDocument()
         expect(screen.getByText('1 secreto')).toBeInTheDocument()
     })
 })

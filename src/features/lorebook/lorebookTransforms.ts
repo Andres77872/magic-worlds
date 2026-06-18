@@ -13,6 +13,17 @@ import type {
     LorebookSettings,
     LorebookTargetKind,
 } from '@/shared'
+import {
+    LOREBOOK_RESOURCE_MAX_CHARS,
+    LOREBOOK_RESOURCE_MAX_RESOURCES,
+    LOREBOOK_RESOURCE_MAX_TRIGGERS,
+    findInvalidLorebookResource,
+    lorebookHasResourceContent,
+    lorebookResourceActivationEntries,
+    lorebookResourcesFromMetadata,
+    stripHydratedLorebookResourceMetadata,
+} from './lorebookResources'
+import { buildKeyRegex } from './loreTriggers'
 
 type Raw = Record<string, unknown>
 
@@ -199,7 +210,7 @@ export function lorebookToApiPayload(lorebook: Lorebook | LorebookDraft | Partia
         recursive_scanning: lorebook.settings?.recursiveScanning ?? DEFAULT_LOREBOOK_SETTINGS.recursiveScanning,
         match_whole_words: lorebook.settings?.matchWholeWords ?? DEFAULT_LOREBOOK_SETTINGS.matchWholeWords,
         case_sensitive: lorebook.settings?.caseSensitive ?? DEFAULT_LOREBOOK_SETTINGS.caseSensitive,
-        metadata: lorebook.metadata ?? {},
+        metadata: stripHydratedLorebookResourceMetadata(lorebook.metadata),
         entries: 'entries' in lorebook && Array.isArray(lorebook.entries)
             ? lorebook.entries.map(entryToApiPayload)
             : undefined,
@@ -272,22 +283,10 @@ function hasKey(value: Partial<LorebookEntry | LorebookEntryDraft>, key: keyof L
 }
 
 function matchKey(sample: string, key: string, options: MatchOptions): boolean {
-    const text = sample || ''
-    const needle = key.trim()
-    if (!needle) return false
-    const flags = options.caseSensitive ? '' : 'i'
-    try {
-        if (options.regex) {
-            return new RegExp(needle, flags).test(text)
-        }
-        const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const pattern = options.matchWholeWords
-            ? `(?:^|[^A-Za-z0-9_])${escaped}(?=$|[^A-Za-z0-9_])`
-            : escaped
-        return new RegExp(pattern, flags).test(text)
-    } catch {
-        return false
-    }
+    // Shares its key→regex compilation with the inline trigger scanner so the two
+    // can never drift apart on escaping / whole-word / regex semantics.
+    const regex = buildKeyRegex(key, options)
+    return regex ? regex.test(sample || '') : false
 }
 
 function matchedKeys(sample: string, keys: string[], options: MatchOptions): string[] {
@@ -375,6 +374,7 @@ function sortEntriesForPrompt(entries: Array<{ entry: LorebookEntry | LorebookEn
 export function validateLorebookLocally(lorebook: Lorebook | LorebookDraft): LorebookIssue[] {
     const issues: LorebookIssue[] = []
     const entries = lorebook.entries ?? []
+    const resources = lorebookResourcesFromMetadata(lorebook.metadata)
     if (!lorebook.name.trim()) {
         issues.push({ severity: 'error', code: 'name_required', message: 'Name the lorebook before saving.' })
     }
@@ -384,8 +384,30 @@ export function validateLorebookLocally(lorebook: Lorebook | LorebookDraft): Lor
     if (lorebook.settings.tokenBudget < 100) {
         issues.push({ severity: 'error', code: 'token_budget_invalid', message: 'Token budget must be at least 100.' })
     }
-    if (entries.length === 0) {
+    if (entries.length === 0 && !lorebookHasResourceContent(lorebook)) {
         issues.push({ severity: 'warning', code: 'empty_book', message: 'Add at least one entry so the book can activate.' })
+    }
+    const invalidResource = findInvalidLorebookResource(resources)
+    if (invalidResource?.type === 'count') {
+        issues.push({ severity: 'error', code: 'resource_count_invalid', message: `Lorebooks can include up to ${LOREBOOK_RESOURCE_MAX_RESOURCES} resources.` })
+    } else if (invalidResource?.type === 'size') {
+        issues.push({
+            severity: 'error',
+            code: 'resource_size_invalid',
+            message: `${invalidResource.resource.fileName} is over ${LOREBOOK_RESOURCE_MAX_CHARS} characters.`,
+        })
+    } else if (invalidResource?.type === 'triggers') {
+        issues.push({
+            severity: 'error',
+            code: 'resource_triggers_invalid',
+            message: `${invalidResource.resource.fileName} has more than ${LOREBOOK_RESOURCE_MAX_TRIGGERS} resource triggers.`,
+        })
+    } else if (invalidResource?.type === 'fileType') {
+        issues.push({
+            severity: 'error',
+            code: 'resource_file_type_invalid',
+            message: `${invalidResource.resource.fileName} must be a .md or .txt file.`,
+        })
     }
     const seenKeys = new Map<string, string>()
     for (const entry of entries) {
@@ -438,7 +460,10 @@ export function previewLocally(lorebook: Lorebook | LorebookDraft, sample: strin
     let searchText = sample
     let usedTokens = 0
     const maxPasses = lorebook.settings.recursiveScanning ? Math.max(1, lorebook.settings.scanDepth) : 1
-    const entries = lorebook.entries ?? []
+    const manualEntries = lorebook.entries ?? []
+    const entries = 'id' in lorebook
+        ? [...manualEntries, ...lorebookResourceActivationEntries(lorebook)]
+        : manualEntries
     const activatedIds = new Set<string>()
 
     for (let pass = 0; pass < maxPasses; pass += 1) {

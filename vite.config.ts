@@ -1,11 +1,55 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type PluginOption } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+type BuildSource = 'cloudflare-pages' | 'local'
+
+interface BuildInfo {
+  buildId: string
+  commit: string | null
+  branch: string | null
+  builtAt: string
+  source: BuildSource
+}
+
+function createBuildInfo(): BuildInfo {
+  const builtAt = new Date().toISOString()
+  const commit = process.env.CF_PAGES_COMMIT_SHA || null
+  const branch = process.env.CF_PAGES_BRANCH || null
+  const source: BuildSource = process.env.CF_PAGES === '1' || commit || branch ? 'cloudflare-pages' : 'local'
+  const version = commit || 'local'
+
+  return {
+    buildId: `${version}-${builtAt}`,
+    commit,
+    branch,
+    builtAt,
+    source,
+  }
+}
+
+const buildInfo = createBuildInfo()
+
+function appVersionPlugin(): PluginOption {
+  return {
+    name: 'magic-worlds-app-version',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: `${JSON.stringify(buildInfo, null, 2)}\n`,
+      })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  define: {
+    __MW_BUILD_INFO__: JSON.stringify(buildInfo),
+  },
+  plugins: [react(), tailwindcss(), appVersionPlugin()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

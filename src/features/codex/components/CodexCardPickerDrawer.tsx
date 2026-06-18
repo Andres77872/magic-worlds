@@ -3,12 +3,13 @@
  * kind+cardId; each backend clones the snapshot into its own scope.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Loader2, Search } from 'lucide-react'
+import { Loader2, Search } from 'lucide-react'
 import type { CardMediaTargetType } from '@/shared'
 import { useCardPickerOptions } from '@/features/gallery/media/hooks/useCardPickerOptions'
-import { AuthenticatedImage, Button, Drawer, Icon, Tag, cx } from '@/ui/primitives'
+import { AuthenticatedImage, Button, Chip, Drawer, Icon, SelectionCheck, Tag, cx } from '@/ui/primitives'
+import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card'
 import { CODEX_LIBRARY_KINDS, KIND_ICONS, KIND_META, type CodexLibraryCardKind, type CodexLibraryCardSelection } from '../utils/codexUtils'
 
 const PICKER_LIMIT = 24
@@ -29,6 +30,8 @@ interface CodexCardPickerDrawerProps {
     open: boolean
     busy: boolean
     existingCardKeys: Set<string>
+    /** Seeds the search field each time the drawer opens (e.g. an "Add to codex" selection). */
+    initialQuery?: string
     onClose: () => void
     onAdd: (cards: CodexLibraryCardSelection[]) => Promise<void>
     copyKeys?: PickerCopyKeys
@@ -46,13 +49,19 @@ const DEFAULT_COPY_KEYS: Required<PickerCopyKeys> = {
     adding: 'novelEditor.cardPicker.adding',
 }
 
-export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, onAdd, copyKeys }: CodexCardPickerDrawerProps) {
+export function CodexCardPickerDrawer({ open, busy, existingCardKeys, initialQuery, onClose, onAdd, copyKeys }: CodexCardPickerDrawerProps) {
     const { t } = useTranslation()
     const keys = { ...DEFAULT_COPY_KEYS, ...copyKeys }
     const [kind, setKind] = useState<CodexLibraryCardKind>('character')
     const [query, setQuery] = useState('')
     const [selected, setSelected] = useState<Map<string, CodexLibraryCardSelection>>(new Map())
     const { options, loading } = useCardPickerOptions(kind, query, open, PICKER_LIMIT)
+
+    // Seed the search whenever the drawer (re)opens — e.g. from an "Add to codex"
+    // selection in the editor.
+    useEffect(() => {
+        if (open) setQuery(initialQuery ?? '')
+    }, [open, initialQuery])
 
     const close = () => {
         setSelected(new Map())
@@ -111,21 +120,15 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, o
                         const meta = KIND_META.find((item) => item.kind === pickerKind)
                         const active = kind === pickerKind
                         return (
-                            <button
+                            <Chip
                                 key={pickerKind}
-                                type="button"
-                                onClick={() => setKind(pickerKind)}
+                                active={active}
                                 aria-pressed={active}
-                                className={cx(
-                                    'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 font-ui text-xs font-medium transition-all',
-                                    active
-                                        ? 'border-ember-500/45 bg-ember-500/15 text-ember-300'
-                                        : 'border-parchment-50/[.08] bg-ink-600 text-parchment-300 hover:border-parchment-50/20 hover:text-parchment-100',
-                                )}
+                                onClick={() => setKind(pickerKind)}
+                                icon={<Icon icon={KIND_ICONS[pickerKind]} size={13} />}
                             >
-                                <Icon icon={KIND_ICONS[pickerKind]} size={13} />
                                 {meta ? t(meta.pluralKey) : pickerKind}
-                            </button>
+                            </Chip>
                         )
                     })}
                 </div>
@@ -161,7 +164,7 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, o
                                         inCodex
                                             ? 'cursor-default border-parchment-50/[.06] opacity-55'
                                             : isSelected
-                                              ? 'cursor-pointer border-ember-500/45 bg-ember-500/10'
+                                              ? `cursor-pointer ${SELECTED_CARD_CLASS}`
                                               : 'cursor-pointer border-parchment-50/10 hover:border-parchment-50/25 hover:bg-parchment-50/[.04]',
                                     )}
                                     data-testid="codex-card-option"
@@ -177,17 +180,7 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, onClose, o
                                     {inCodex ? (
                                         <Tag className="shrink-0">{t(keys.inCodex)}</Tag>
                                     ) : (
-                                        <span
-                                            aria-hidden="true"
-                                            className={cx(
-                                                'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors',
-                                                isSelected
-                                                    ? 'border-ember-500 bg-ember-500 text-on-ember'
-                                                    : 'border-parchment-50/25 text-transparent',
-                                            )}
-                                        >
-                                            <Icon icon={Check} size={13} />
-                                        </span>
+                                        <SelectionCheck selected={isSelected} />
                                     )}
                                 </button>
                             </li>

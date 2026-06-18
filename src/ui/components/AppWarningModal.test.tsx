@@ -23,6 +23,22 @@ describe('AppWarningModal', () => {
         expect(screen.getByRole('link', { name: /privacy/i })).toHaveAttribute('href', '#/privacy')
     })
 
+    it('keeps long warning content scrollable while the accept action remains in the footer', () => {
+        render(<AppWarningModal />)
+
+        const dialog = screen.getByRole('dialog')
+        const content = dialog.querySelector('.overflow-y-auto')
+        const acceptButton = screen.getByRole('button', { name: /i understand and accept/i })
+        const footer = acceptButton.parentElement
+
+        expect(content).not.toBeNull()
+        expect(content!).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto', 'overscroll-contain')
+        expect(content!).toContainElement(screen.getByText(/zero-retention mode/i))
+        expect(content!).not.toContainElement(acceptButton)
+        expect(footer).toHaveClass('flex-col', 'items-stretch', 'sm:flex-row', 'sm:justify-end')
+        expect(acceptButton).toHaveClass('w-full', 'sm:w-auto')
+    })
+
     it('stores acceptance and dismisses the warning', () => {
         render(<AppWarningModal />)
 

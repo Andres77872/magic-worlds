@@ -1,9 +1,11 @@
 /**
- * Slash command — typing "/" opens the inline AI menu at the caret
- * (Notion-AI style). Built on @tiptap/suggestion: the query tracks live
- * (spaces allowed, styled arcane via decorationClass), and any free text
- * becomes a `custom` instruction sent with the chapter. Rendering is bridged
- * to React through a controller ref so the extension stays stable.
+ * Slash command — typing "/" opens the inline menu at the caret (Notion style).
+ * Two kinds of items: BLOCK insertions (headings, lists, quote, scene break)
+ * that run a TipTap chain instantly, and AI commands (continue/describe/critique
+ * + free-text custom) that route to the inline-AI lifecycle. Built on
+ * @tiptap/suggestion: the query tracks live (spaces allowed, styled arcane via
+ * decorationClass), and rendering is bridged to React through a controller ref so
+ * the extension stays stable.
  */
 
 import { Extension, type Editor, type Range } from '@tiptap/core'
@@ -15,13 +17,32 @@ import type { InlineAIPhase } from '../types'
 
 export const SLASH_COMMAND_PLUGIN_KEY = new PluginKey('novelSlashCommand')
 
-export interface SlashItem {
+export type SlashSection = 'block' | 'ai'
+
+interface SlashItemBase {
     key: string
     label: string
     description: string
+    section: SlashSection
+}
+
+/** An AI command routed through the inline-AI lifecycle. */
+export interface SlashAiItem extends SlashItemBase {
+    type: 'ai'
+    section: 'ai'
     command: StoryGenerationCommand
     instruction?: string
 }
+
+/** A structural block insertion that mutates the document directly. */
+export interface SlashBlockItem extends SlashItemBase {
+    type: 'block'
+    section: 'block'
+    /** Runs after the slash query range is already deleted. */
+    run: (editor: Editor) => void
+}
+
+export type SlashItem = SlashAiItem | SlashBlockItem
 
 interface CannedSlashSpec {
     key: string
@@ -30,6 +51,22 @@ interface CannedSlashSpec {
     command: StoryGenerationCommand
 }
 
+interface BlockSlashSpec {
+    key: string
+    labelKey: string
+    descriptionKey: string
+    run: (editor: Editor) => void
+}
+
+const BLOCK_ITEMS: BlockSlashSpec[] = [
+    { key: 'heading', labelKey: 'novelEditor.slash.heading.label', descriptionKey: 'novelEditor.slash.heading.description', run: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run() },
+    { key: 'subheading', labelKey: 'novelEditor.slash.subheading.label', descriptionKey: 'novelEditor.slash.subheading.description', run: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run() },
+    { key: 'bulletList', labelKey: 'novelEditor.slash.bulletList.label', descriptionKey: 'novelEditor.slash.bulletList.description', run: (editor) => editor.chain().focus().toggleBulletList().run() },
+    { key: 'orderedList', labelKey: 'novelEditor.slash.orderedList.label', descriptionKey: 'novelEditor.slash.orderedList.description', run: (editor) => editor.chain().focus().toggleOrderedList().run() },
+    { key: 'quote', labelKey: 'novelEditor.slash.quote.label', descriptionKey: 'novelEditor.slash.quote.description', run: (editor) => editor.chain().focus().toggleBlockquote().run() },
+    { key: 'sceneBreak', labelKey: 'novelEditor.slash.sceneBreak.label', descriptionKey: 'novelEditor.slash.sceneBreak.description', run: (editor) => editor.chain().focus().setHorizontalRule().run() },
+]
+
 const CANNED_ITEMS: CannedSlashSpec[] = [
     { key: 'continue', labelKey: 'novelEditor.slash.continue.label', descriptionKey: 'novelEditor.slash.continue.description', command: 'continue' },
     { key: 'describe', labelKey: 'novelEditor.slash.describe.label', descriptionKey: 'novelEditor.slash.describe.description', command: 'describe' },
@@ -37,24 +74,31 @@ const CANNED_ITEMS: CannedSlashSpec[] = [
 ]
 
 export function buildSlashItems(query: string, t: TFunction): SlashItem[] {
+    const needle = query.trim().toLowerCase()
+    const matches = (label: string) => label.toLowerCase().includes(needle)
+
+    const blocks: SlashItem[] = BLOCK_ITEMS.map(
+        (spec): SlashBlockItem => ({ type: 'block', section: 'block', key: spec.key, label: t(spec.labelKey), description: t(spec.descriptionKey), run: spec.run }),
+    ).filter((item) => matches(item.label))
+
+    const canned: SlashItem[] = CANNED_ITEMS.map(
+        (spec): SlashAiItem => ({ type: 'ai', section: 'ai', key: spec.key, label: t(spec.labelKey), description: t(spec.descriptionKey), command: spec.command }),
+    ).filter((item) => matches(item.label))
+
+    const items = [...blocks, ...canned]
     const trimmed = query.trim()
-    const resolved = CANNED_ITEMS.map((spec) => ({
-        key: spec.key,
-        label: t(spec.labelKey),
-        description: t(spec.descriptionKey),
-        command: spec.command,
-    }))
-    const canned = resolved.filter((item) => item.label.toLowerCase().includes(trimmed.toLowerCase()))
-    if (!trimmed) return canned
-    const custom: SlashItem = {
+    if (!trimmed) return items
+    // Free text is always offered as a custom instruction to the muse.
+    const custom: SlashAiItem = {
+        type: 'ai',
+        section: 'ai',
         key: 'custom',
         label: t('novelEditor.slash.custom.label', { text: trimmed }),
         description: t('novelEditor.slash.custom.description'),
         command: 'custom',
         instruction: trimmed,
     }
-    // Free text leads when nothing canned matches; otherwise it trails.
-    return canned.length > 0 ? [...canned, custom] : [custom]
+    return [...items, custom]
 }
 
 export interface SlashMenuController {
