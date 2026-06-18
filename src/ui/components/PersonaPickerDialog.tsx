@@ -117,7 +117,7 @@ export function PersonaPickerDialog({
                                 />
                                 <span className="min-w-0 flex-1">
                                     <span className="flex flex-wrap items-center gap-2">
-                                        <span className="truncate font-display text-[15px] font-semibold text-parchment-50">
+                                        <span className="truncate font-display text-body font-semibold text-parchment-50">
                                             {character.name || t('ui.personaPicker.untitled')}
                                         </span>
                                         <Tag>{role === 'persona' ? t('ui.personaPicker.persona') : t('ui.personaPicker.character')}</Tag>

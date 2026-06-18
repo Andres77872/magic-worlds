@@ -313,7 +313,7 @@ export function GalleryCard({
 
                 <div className={cx('absolute inset-x-0 bottom-0 z-[2] flex flex-col', compact ? 'gap-1 p-3' : 'gap-1.5 p-4')}>
                     {eyebrow && (
-                        <div className={cx('truncate font-mono text-ember-400', compact ? 'text-[10px]' : 'text-[11px]')}>
+                        <div className={cx('truncate font-mono text-ember-400', compact ? 'text-micro' : 'text-meta')}>
                             {eyebrow}
                         </div>
                     )}
@@ -330,7 +330,7 @@ export function GalleryCard({
                         <p
                             className={cx(
                                 'm-0 line-clamp-2 font-narrative text-parchment-200',
-                                compact ? 'text-[13px] leading-[1.4]' : 'text-[14.5px] leading-[1.45]',
+                                compact ? 'text-label leading-[1.4]' : 'text-[14.5px] leading-[1.45]',
                             )}
                         >
                             {description}
@@ -348,7 +348,7 @@ export function GalleryCard({
                                             onTagClick(tag)
                                         }}
                                         aria-label={t('galleryCard.searchFor', { tag })}
-                                        className="min-w-0 max-w-[60%] shrink cursor-pointer truncate whitespace-nowrap rounded-full bg-ink-900/65 px-2 py-[2px] font-ui text-[10px] font-semibold text-parchment-200 backdrop-blur transition-colors hover:bg-ember-500/25 hover:text-ember-300"
+                                        className="min-w-0 max-w-[60%] shrink cursor-pointer truncate whitespace-nowrap rounded-full bg-ink-900/65 px-2 py-[2px] font-ui text-micro font-semibold text-parchment-200 backdrop-blur transition-colors hover:bg-ember-500/25 hover:text-ember-300"
                                     >
                                         {tag}
                                     </button>

@@ -175,10 +175,10 @@ export function AudioWavePlayer({
                         className={cx(!engaged && 'opacity-70', error && 'opacity-25')}
                     />
                     {isLoading && (
-                        // The arcane shimmer sweep (same keyframe as image loading) —
+                        // The shared arcane shimmer sweep (same keyframe as image loading) —
                         // transparent so the dormant bars stay visible underneath.
                         <div
-                            className="pointer-events-none absolute inset-0 animate-shimmer rounded-sm bg-[linear-gradient(100deg,transparent_30%,rgba(143,111,227,0.22)_50%,transparent_70%)] bg-no-repeat [background-size:200%_100%]"
+                            className="pointer-events-none absolute inset-0 rounded-sm shimmer-arcane"
                             aria-hidden="true"
                             data-testid="waveform-loading"
                         />
@@ -227,7 +227,7 @@ export function AudioWavePlayer({
 
             <div
                 className={cx(
-                    'flex items-center justify-between pl-[46px] font-mono text-[10px]',
+                    'flex items-center justify-between pl-[46px] font-mono text-micro',
                     showEnqueue && showDownload ? 'pr-[74px]' : (showEnqueue || showDownload) && 'pr-[38px]',
                 )}
             >

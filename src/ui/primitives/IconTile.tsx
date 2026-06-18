@@ -31,8 +31,8 @@ const SIZE = {
 // A lit glyph-plate: a candlelit gradient fill + inset ring + a soft resting
 // halo, so tiles read as glowing runes rather than flat tinted squares.
 const TONE = {
-    ember: 'bg-gradient-to-br from-ember-500/25 to-ember-500/[.06] text-ember-300 ring-1 ring-inset ring-ember-500/25 shadow-[0_0_20px_-8px_var(--color-ember-500)]',
-    arcane: 'bg-gradient-to-br from-arcane-500/28 to-arcane-500/[.08] text-arcane-300 ring-1 ring-inset ring-arcane-500/25 shadow-[0_0_20px_-7px_var(--color-arcane-500)]',
+    ember: 'bg-gradient-to-br from-ember-500/25 to-ember-500/[.06] text-ember-300 ring-1 ring-inset ring-ember-500/25 shadow-glow-ember-soft',
+    arcane: 'bg-gradient-to-br from-arcane-500/28 to-arcane-500/[.08] text-arcane-300 ring-1 ring-inset ring-arcane-500/25 shadow-glow-arcane-soft',
 } as const
 
 const GLOW = {

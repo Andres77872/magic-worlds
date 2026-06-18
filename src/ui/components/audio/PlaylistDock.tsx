@@ -441,7 +441,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                             aria-label={t('playlist.playTrack', { index: index + 1, title: track.title })}
                                             className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 px-3 py-2 text-left"
                                         >
-                                            <span className="w-5 shrink-0 text-center font-mono text-[10px] text-parchment-400">
+                                            <span className="w-5 shrink-0 text-center font-mono text-micro text-parchment-400">
                                                 {isCurrent ? (
                                                     <span
                                                         className={cx(
@@ -457,19 +457,19 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                             <span className="min-w-0 flex-1">
                                                 <span
                                                     className={cx(
-                                                        'block truncate font-ui text-[13px] font-medium leading-snug',
+                                                        'block truncate font-ui text-label font-medium leading-snug',
                                                         isCurrent ? 'text-ember-300' : 'text-parchment-100',
                                                     )}
                                                 >
                                                     {track.title}
                                                 </span>
                                                 {track.cardName && (
-                                                    <span className="block truncate text-[11px] text-parchment-400">
+                                                    <span className="block truncate text-meta text-parchment-400">
                                                         {track.cardName}
                                                     </span>
                                                 )}
                                             </span>
-                                            <span className="shrink-0 font-mono text-[10px] text-parchment-400">
+                                            <span className="shrink-0 font-mono text-micro text-parchment-400">
                                                 {track.durationMs ? formatSeconds(track.durationMs / 1000) : ''}
                                             </span>
                                         </button>
@@ -487,7 +487,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                             })}
                         </ul>
                         <div className="flex items-center justify-between border-t border-parchment-50/10 py-1 pl-3 pr-1">
-                            <Eyebrow tone="muted" className="text-[10px]">
+                            <Eyebrow tone="muted" className="text-micro">
                                 {t('playlist.track', { count: playlist.queue.length })}
                             </Eyebrow>
                             <div className="flex items-center">
@@ -530,7 +530,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                             </div>
                         )}
                         <div className="min-w-0 flex-1">
-                            <p className="truncate font-ui text-[13px] font-semibold leading-snug text-parchment-50">
+                            <p className="truncate font-ui text-label font-semibold leading-snug text-parchment-50">
                                 {currentTrack.title}
                             </p>
                             {currentTrack.cardName && (
@@ -538,12 +538,12 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                     <button
                                         type="button"
                                         onClick={openCurrentCard}
-                                        className="block max-w-full cursor-pointer truncate text-left text-[11px] text-parchment-400 underline-offset-2 transition-colors hover:text-ember-300 hover:underline"
+                                        className="block max-w-full cursor-pointer truncate text-left text-meta text-parchment-400 underline-offset-2 transition-colors hover:text-ember-300 hover:underline"
                                     >
                                         {currentTrack.cardName}
                                     </button>
                                 ) : (
-                                    <p className="truncate text-[11px] text-parchment-400">{currentTrack.cardName}</p>
+                                    <p className="truncate text-meta text-parchment-400">{currentTrack.cardName}</p>
                                 )
                             )}
                         </div>
@@ -674,7 +674,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                                 onChange={changeVolume}
                                                 className="h-2 min-w-0 flex-1 cursor-pointer accent-ember-500"
                                             />
-                                            <span className="w-8 shrink-0 text-right font-mono text-[10px] text-parchment-400">
+                                            <span className="w-8 shrink-0 text-right font-mono text-micro text-parchment-400">
                                                 {playlist.muted ? t('playlist.muteShort') : `${volumePercent}%`}
                                             </span>
                                         </div>
@@ -737,7 +737,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                     <div className="flex items-center gap-2">
                         <span
                             className={cx(
-                                'w-8 shrink-0 text-right font-mono text-[10px]',
+                                'w-8 shrink-0 text-right font-mono text-micro',
                                 playlist.isPlaying ? 'text-ember-300' : 'text-parchment-400',
                             )}
                         >
@@ -756,21 +756,21 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 className={cx('h-6', !engaged && 'opacity-70', playlist.error && 'opacity-25')}
                             />
                             {playlist.isLoading && (
-                                // The arcane shimmer sweep, same as AudioWavePlayer's
+                                // The shared arcane shimmer sweep, same as AudioWavePlayer's
                                 // loading state — transparent so the bars stay visible.
                                 <div
-                                    className="pointer-events-none absolute inset-0 animate-shimmer rounded-sm bg-[linear-gradient(100deg,transparent_30%,rgba(143,111,227,0.22)_50%,transparent_70%)] bg-no-repeat [background-size:200%_100%]"
+                                    className="pointer-events-none absolute inset-0 rounded-sm shimmer-arcane"
                                     aria-hidden="true"
                                     data-testid="dock-waveform-loading"
                                 />
                             )}
                         </div>
-                        <span className="w-8 shrink-0 font-mono text-[10px] text-parchment-400">
+                        <span className="w-8 shrink-0 font-mono text-micro text-parchment-400">
                             {playlist.error ? '' : playlist.duration != null ? formatSeconds(playlist.duration) : ''}
                         </span>
                     </div>
                     {playlist.error && (
-                        <p className="pl-10 font-mono text-[10px] text-blood-500">{playlist.error}</p>
+                        <p className="pl-10 font-mono text-micro text-blood-500">{playlist.error}</p>
                     )}
                 </div>
             </section>

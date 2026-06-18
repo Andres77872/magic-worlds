@@ -446,7 +446,7 @@ export function SidebarShell({
                                     <Icon icon={ListChecks} size={19} />
                                 </RailButton>
                                 {activeCount > 0 && (
-                                    <span className="pointer-events-none absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-arcane-500 px-1 font-ui text-[10px] font-bold leading-none text-ink-900 ring-2 ring-ink-900">
+                                    <span className="pointer-events-none absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-arcane-500 px-1 font-ui text-micro font-bold leading-none text-ink-900 ring-2 ring-ink-900">
                                         {activeCount > 9 ? '9+' : activeCount}
                                     </span>
                                 )}

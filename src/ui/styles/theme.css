@@ -144,6 +144,16 @@
     0 10px 40px -6px color-mix(in srgb, var(--color-ember-500) 45%, transparent);
   --shadow-glow-arcane-strong: 0 0 0 1px color-mix(in srgb, var(--color-arcane-500) 50%, transparent),
     0 10px 42px -6px color-mix(in srgb, var(--color-arcane-500) 50%, transparent);
+  /* soft resting halos for tinted glyph plates (IconTile) — a quiet centered glow */
+  --shadow-glow-ember-soft: 0 0 20px -8px var(--color-ember-500);
+  --shadow-glow-arcane-soft: 0 0 20px -7px var(--color-arcane-500);
+  /* avatar identity rings: a 2px solid ring + a soft candlelit halo (centered,
+     not a downward drop) — ember marks the player, arcane marks the AI. */
+  --shadow-ring-ember: 0 0 0 2px var(--color-ember-500), 0 0 16px -4px var(--color-ember-500);
+  --shadow-ring-arcane: 0 0 0 2px var(--color-arcane-500), 0 0 18px -3px var(--color-arcane-500);
+  /* tonal toast elevation: semantic hue at emphasis alpha (--alpha-emphasis) */
+  --shadow-glow-verdant: 0 18px 44px -18px color-mix(in srgb, var(--color-verdant-500) 55%, transparent);
+  --shadow-glow-blood: 0 18px 44px -18px color-mix(in srgb, var(--color-blood-500) 55%, transparent);
 
   /* ---------- non-utility design constants (consumed via var()) ---------- */
   /* alpha ladder for tints + borders */

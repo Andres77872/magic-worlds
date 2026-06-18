@@ -136,7 +136,7 @@ export function LanguageMenu({ collapsed = false, defaultOpen = false }: Languag
                                         >
                                             {opt.nativeLabel}
                                         </span>
-                                        <span className="block truncate font-ui text-[11px] text-parchment-400">
+                                        <span className="block truncate font-ui text-meta text-parchment-400">
                                             {t(`language.options.${opt.code}.description`)}
                                         </span>
                                     </span>
@@ -145,7 +145,7 @@ export function LanguageMenu({ collapsed = false, defaultOpen = false }: Languag
                             )
                         })}
                     </div>
-                    <div className="flex items-center gap-2 border-t border-parchment-50/10 px-3 py-2 font-ui text-[11px] text-parchment-400">
+                    <div className="flex items-center gap-2 border-t border-parchment-50/10 px-3 py-2 font-ui text-meta text-parchment-400">
                         {isSyncing ? (
                             <>
                                 <Loader2 size={13} className="animate-spin text-parchment-300" />

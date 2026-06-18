@@ -28,5 +28,5 @@ export function CardUsageLine({ usage, showNone = false, className }: CardUsageL
     const text = parts.length > 0 ? `${t('cardVersions.usage.used')} ${parts.join(' · ')}` : showNone ? t('cardVersions.usage.none') : null
     if (!text) return null
 
-    return <p className={cx('font-ui text-[12px] text-parchment-400', className)}>{text}</p>
+    return <p className={cx('font-ui text-caption text-parchment-400', className)}>{text}</p>
 }

@@ -7,7 +7,7 @@
  * even though the surrounding Storybook docs page is light.
  */
 import type { CSSProperties, ReactNode } from 'react'
-import { COLOR_GROUPS, FONTS, RADII, SEMANTIC_COLORS, SHADOWS, TYPE_SCALE } from './tokens'
+import { COLOR_GROUPS, FONTS, RADII, SEMANTIC_COLORS, SHADOWS, TYPE_SCALE, type ShadowToken } from './tokens'
 
 /**
  * Resolve a CSS custom property's live value from theme.css. getComputedStyle
@@ -136,6 +136,8 @@ export function TypeScale() {
               style={{
                 fontFamily: `var(${t.family})`,
                 fontSize: `var(${t.token})`,
+                // render the token's own tracking where it defines one (display, eyebrow)
+                letterSpacing: `var(${t.token}--letter-spacing, normal)`,
                 color: 'var(--color-parchment-50)',
                 lineHeight: 1.15,
               }}
@@ -203,6 +205,43 @@ export function ShadowScale() {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 28, rowGap: 32 }}>
         {SHADOWS.map((s) => (
           <ShadowSwatch key={s.token} token={s.token} label={s.label} />
+        ))}
+      </div>
+    </Stage>
+  )
+}
+
+/** The global focus-ring composites (a 2px ink gap + a 4px accent band). */
+const RINGS: ShadowToken[] = [
+  { token: '--ring-ember', label: 'ring-ember · default focus' },
+  { token: '--ring-arcane', label: 'ring-arcane · AI surfaces' },
+  { token: '--ring-danger', label: 'ring-danger · destructive' },
+]
+
+export function FocusRings() {
+  return (
+    <Stage>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 36, rowGap: 28 }}>
+        {RINGS.map((r) => (
+          <div key={r.token} style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+            <div
+              style={{
+                ...mono,
+                width: 132,
+                height: 44,
+                borderRadius: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--color-ink-700)',
+                color: 'var(--color-parchment-200)',
+                boxShadow: `var(${r.token})`,
+              }}
+            >
+              focus
+            </div>
+            <div style={{ ...mono, color: 'var(--color-parchment-300)' }}>{r.label}</div>
+          </div>
         ))}
       </div>
     </Stage>

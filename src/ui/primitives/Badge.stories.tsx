@@ -10,14 +10,14 @@ const meta = {
     docs: {
       description: {
         component:
-          'Compact status pill. `ember` = highlight, `arcane` = AI, `live` = success, `nsfw` = danger, `neutral` = quiet, `glass` = translucent over imagery.',
+          'Compact status pill. `ember` = highlight, `arcane` = AI, `live` = success, `danger` = errors, `nsfw` = sensitive content (both blood-red), `neutral` = quiet, `glass` = translucent over imagery.',
       },
     },
   },
   argTypes: {
     tone: {
       control: 'inline-radio',
-      options: ['ember', 'arcane', 'live', 'nsfw', 'neutral', 'glass'],
+      options: ['ember', 'arcane', 'live', 'danger', 'nsfw', 'neutral', 'glass'],
     },
     icon: { control: false },
     children: { control: 'text' },
@@ -31,6 +31,7 @@ type Story = StoryObj<typeof meta>
 export const Ember: Story = {}
 export const Arcane: Story = { args: { tone: 'arcane', children: 'AI', icon: <Sparkles size={12} strokeWidth={2} /> } }
 export const Live: Story = { args: { tone: 'live', children: 'Live' } }
+export const Danger: Story = { args: { tone: 'danger', children: 'Error' } }
 export const Nsfw: Story = { args: { tone: 'nsfw', children: 'NSFW' } }
 export const Neutral: Story = { args: { tone: 'neutral', children: 'Draft' } }
 
@@ -41,6 +42,7 @@ export const AllTones: Story = {
       <Badge tone="ember" icon={<Flame size={12} strokeWidth={2} />}>Featured</Badge>
       <Badge tone="arcane" icon={<Sparkles size={12} strokeWidth={2} />}>AI</Badge>
       <Badge tone="live">Live</Badge>
+      <Badge tone="danger">Error</Badge>
       <Badge tone="nsfw">NSFW</Badge>
       <Badge tone="neutral">Draft</Badge>
       <Badge tone="glass">Glass</Badge>

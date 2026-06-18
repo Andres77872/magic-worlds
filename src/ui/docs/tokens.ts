@@ -88,13 +88,30 @@ export interface ShadowToken {
 }
 
 export const SHADOWS: ShadowToken[] = [
+  // ambient elevation
   { token: '--shadow-sm', label: 'sm' },
   { token: '--shadow-md', label: 'md · default lift' },
   { token: '--shadow-lg', label: 'lg' },
   { token: '--shadow-xl', label: 'xl' },
+  // candlelight glow — ember (you) / arcane (AI), at three intensities
   { token: '--shadow-glow-ember', label: 'glow-ember' },
+  { token: '--shadow-glow-ember-strong', label: 'glow-ember-strong' },
+  { token: '--shadow-glow-ember-soft', label: 'glow-ember-soft · IconTile' },
   { token: '--shadow-glow-arcane', label: 'glow-arcane' },
+  { token: '--shadow-glow-arcane-strong', label: 'glow-arcane-strong' },
+  { token: '--shadow-glow-arcane-soft', label: 'glow-arcane-soft · IconTile' },
+  // identity rings — a solid ring + halo around an Avatar
+  { token: '--shadow-ring-ember', label: 'ring-ember · Avatar (you)' },
+  { token: '--shadow-ring-arcane', label: 'ring-arcane · Avatar (AI)' },
+  // input focus glow (the field-level twin of the global focus ring)
+  { token: '--shadow-input-focus', label: 'input-focus' },
+  { token: '--shadow-input-focus-arcane', label: 'input-focus-arcane' },
+  // card hover — elevation + glow combined, in one box-shadow
   { token: '--shadow-card-hover', label: 'card-hover' },
+  { token: '--shadow-card-hover-arcane', label: 'card-hover-arcane' },
+  // tonal elevation — semantic hue at emphasis alpha (Toast)
+  { token: '--shadow-glow-verdant', label: 'glow-verdant · Toast' },
+  { token: '--shadow-glow-blood', label: 'glow-blood · Toast' },
 ]
 
 export interface FontToken {
@@ -127,4 +144,7 @@ export const TYPE_SCALE: TypeToken[] = [
   { token: '--text-body', label: 'body', family: '--font-ui', sample: 'Write your reply — dialogue or action.' },
   { token: '--text-label', label: 'label', family: '--font-ui', sample: 'Character name' },
   { token: '--text-caption', label: 'caption', family: '--font-ui', sample: 'Lyra will remember this.' },
+  { token: '--text-eyebrow', label: 'eyebrow · tracked caps', family: '--font-ui', sample: 'CREATION STUDIO' },
+  { token: '--text-meta', label: 'meta · badges & counts', family: '--font-ui', sample: 'Featured · 14 turns' },
+  { token: '--text-micro', label: 'micro · tiniest meta', family: '--font-mono', sample: 'turn 014 · 21:47' },
 ]

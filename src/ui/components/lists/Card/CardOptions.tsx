@@ -219,7 +219,7 @@ export function CardActionMenu({
                             itemRefs.current[index] = el
                         }}
                         className={cx(
-                            'flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left font-ui text-[13px] font-semibold leading-tight transition-colors hover:bg-parchment-50/[.06] disabled:cursor-not-allowed disabled:opacity-45',
+                            'flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left font-ui text-label font-semibold leading-tight transition-colors hover:bg-parchment-50/[.06] disabled:cursor-not-allowed disabled:opacity-45',
                             option.separatorBefore && 'mt-1 border-t border-parchment-50/[.08]',
                             isDanger ? 'text-blood-500 hover:bg-blood-500/15' : 'text-parchment-200 hover:text-parchment-50',
                             isHighlight && !isDanger && 'text-ember-300',

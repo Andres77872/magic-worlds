@@ -22,7 +22,7 @@ export function LoadingSpinner({ message, size = 'medium' }: LoadingSpinnerProps
     return (
         <div className="flex flex-col items-center justify-center gap-3 py-12 text-parchment-200">
             <Loader2 size={SIZE[size]} strokeWidth={1.75} className="animate-spin text-ember-400" />
-            {displayMessage && <p className="font-narrative text-[15px] text-parchment-400">{displayMessage}</p>}
+            {displayMessage && <p className="font-narrative text-body text-parchment-400">{displayMessage}</p>}
         </div>
     )
 }

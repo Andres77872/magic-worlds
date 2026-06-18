@@ -30,7 +30,7 @@ export function LogoutConfirmDialog({ open, username, onCancel, onConfirm }: Log
                 </>
             }
         >
-            <div className="flex flex-col gap-3 text-[15px] leading-relaxed text-parchment-200">
+            <div className="flex flex-col gap-3 text-body leading-relaxed text-parchment-200">
                 <p>
                     {username ? (
                         <>

@@ -17,7 +17,7 @@ const TONE = {
 export function Eyebrow({ tone = 'ember', className, children, ...rest }: EyebrowProps) {
     return (
         <span
-            className={cx('font-ui text-[12px] font-semibold uppercase tracking-[0.18em]', TONE[tone], className)}
+            className={cx('font-ui text-eyebrow font-semibold uppercase', TONE[tone], className)}
             {...rest}
         >
             {children}

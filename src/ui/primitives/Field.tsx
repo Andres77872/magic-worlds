@@ -24,7 +24,7 @@ export const controlBaseClass =
     'hover:border-line-strong focus-visible:outline-none focus-visible:border-ember-500 focus-visible:shadow-input-focus ' +
     'aria-invalid:border-blood-500/60 disabled:opacity-50 disabled:cursor-not-allowed'
 
-export const controlClass = controlBaseClass + ' px-3.5 py-2.5 text-[15px]'
+export const controlClass = controlBaseClass + ' px-3.5 py-2.5 text-body'
 
 interface FieldProps extends HTMLAttributes<HTMLDivElement> {
     label?: ReactNode

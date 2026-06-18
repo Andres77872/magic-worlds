@@ -184,7 +184,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                                 </Field>
 
                                 {forgotError && (
-                                    <div className="flex items-center gap-2 text-[13px] text-blood-500">
+                                    <div className="flex items-center gap-2 text-label text-blood-500">
                                         <Icon icon={AlertTriangle} size={15} className="shrink-0" />
                                         <span>{forgotError}</span>
                                     </div>
@@ -237,7 +237,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 </div>
 
                 {/* Alpha Version Disclaimer */}
-                <div className="flex gap-2.5 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-[13px] leading-relaxed text-parchment-200">
+                <div className="flex gap-2.5 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-label leading-relaxed text-parchment-200">
                     <Icon icon={AlertTriangle} size={18} className="mt-0.5 shrink-0 text-amber-500" />
                     <p>
                         <strong className="text-parchment-50">{t('auth.alphaTitle')}</strong> {t('auth.alphaBody')}
@@ -301,7 +301,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                         <div className="-mt-1 flex justify-end">
                             <button
                                 type="button"
-                                className="text-[13px] font-semibold text-ember-400 transition-colors hover:text-ember-300"
+                                className="text-label font-semibold text-ember-400 transition-colors hover:text-ember-300"
                                 onClick={openForgot}
                             >
                                 {t('auth.login.forgotLink')}
@@ -332,7 +332,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     )}
 
                     {error && (
-                        <div className="flex items-center gap-2 text-[13px] text-blood-500">
+                        <div className="flex items-center gap-2 text-label text-blood-500">
                             <Icon icon={AlertTriangle} size={15} className="shrink-0" />
                             <span>{error}</span>
                         </div>
@@ -358,7 +358,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
                 <div className="flex items-center gap-3">
                     <span className="h-px flex-1 bg-parchment-50/10" />
-                    <span className="font-ui text-[12px] uppercase tracking-wide text-parchment-400">
+                    <span className="font-ui text-caption uppercase tracking-wide text-parchment-400">
                         {t('auth.orContinueWith', { defaultValue: 'or' })}
                     </span>
                     <span className="h-px flex-1 bg-parchment-50/10" />

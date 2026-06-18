@@ -61,7 +61,7 @@ function ModalDemo(props: Partial<ComponentProps<typeof Modal>>) {
         }
       >
         {props.children ?? (
-          <p className="font-narrative text-[15px] leading-relaxed text-parchment-200">
+          <p className="font-narrative text-body leading-relaxed text-parchment-200">
             You&rsquo;ve reached the end of this chapter. Step through to keep playing —
             your companions are waiting just beyond the door.
           </p>
@@ -77,6 +77,27 @@ export const Default: Story = {
 
 export const Small: Story = {
   args: { size: 'sm', title: 'Leave this scene?' },
+  render: (args) => <ModalDemo {...args} />,
+}
+
+/** The widest band — long-form content like a world summary or scene recap. */
+export const Large: Story = {
+  args: {
+    size: 'lg',
+    title: 'Review your world',
+    children: (
+      <div className="space-y-3">
+        <p className="font-narrative text-body leading-relaxed text-parchment-200">
+          The wide band gives long-form content room to breathe — a world summary,
+          a roster of factions, or a scene the reader takes in at a glance.
+        </p>
+        <p className="font-narrative text-body leading-relaxed text-parchment-300">
+          Reach for `lg` once `md` starts to feel cramped; if the content is really
+          a side panel, use a Drawer instead.
+        </p>
+      </div>
+    ),
+  },
   render: (args) => <ModalDemo {...args} />,
 }
 

@@ -92,15 +92,15 @@ function HealthDependencyRow({
                     <div className="min-w-0">
                         <p className="truncate font-ui text-xs font-semibold text-parchment-100">{service.label}</p>
                         {service.message && (
-                            <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-parchment-300">
+                            <p className="mt-0.5 line-clamp-2 text-meta leading-snug text-parchment-300">
                                 {service.message}
                             </p>
                         )}
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                    {latency && <span className="font-mono text-[10px] text-parchment-400">{latency}</span>}
-                    <Badge tone={serviceStatusTone(service.status)} className="px-2 py-0.5 text-[10px]">
+                    {latency && <span className="font-mono text-micro text-parchment-400">{latency}</span>}
+                    <Badge tone={serviceStatusTone(service.status)} className="px-2 py-0.5 text-micro">
                         {serviceStatusLabel(service.status, t)}
                     </Badge>
                 </div>
@@ -216,7 +216,7 @@ export function ApiStatusMonitor({ status, services = [], checkedAt, collapsed =
                                 <p className="truncate font-ui text-sm font-semibold text-parchment-50">
                                     {t('sidebar.api.dependenciesTitle')}
                                 </p>
-                                <p className="mt-0.5 font-mono text-[11px] text-parchment-400">
+                                <p className="mt-0.5 font-mono text-meta text-parchment-400">
                                     {formatCheckedAt(checkedAt, t, intlLocale)}
                                 </p>
                             </div>

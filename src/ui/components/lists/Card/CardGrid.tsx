@@ -61,9 +61,9 @@ interface CardGridProps<T> {
 // Skeleton card for loading state
 const SkeletonCard = () => (
     <div className="flex h-full flex-col overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-700 p-4" aria-hidden="true">
-        <div className="mb-4 w-full rounded-sm bg-ink-600" style={{height: '180px'}}/>
-        <div className="rounded-sm bg-ink-600" style={{height: '24px', width: '70%', marginBottom: '8px'}}/>
-        <div className="rounded-sm bg-ink-600" style={{height: '16px', width: '40%'}}/>
+        <div className="mb-4 h-[180px] w-full rounded-sm bg-ink-600"/>
+        <div className="mb-2 h-6 w-[70%] rounded-sm bg-ink-600"/>
+        <div className="h-4 w-2/5 rounded-sm bg-ink-600"/>
     </div>
 )
 

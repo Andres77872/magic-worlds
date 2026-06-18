@@ -66,7 +66,7 @@ function CookieBanner({ onAcceptAll, onAcceptEssential, onCustomize }: CookieBan
                 </span>
                 <div className="min-w-0 flex-1">
                     <h2 className="font-display text-[18px] font-semibold text-parchment-50">{t('cookieConsent.title')}</h2>
-                    <p className="mt-1 font-ui text-[13px] leading-relaxed text-parchment-300">
+                    <p className="mt-1 font-ui text-label leading-relaxed text-parchment-300">
                         {t('cookieConsent.body')}{' '}
                         <button
                             type="button"

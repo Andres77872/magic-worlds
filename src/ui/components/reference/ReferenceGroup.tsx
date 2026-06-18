@@ -57,7 +57,7 @@ export function ReferenceGroup({
             <div className="flex items-center gap-2 px-0.5">
                 <Eyebrow tone={tone}>{label}</Eyebrow>
                 {count !== undefined && count > 0 && (
-                    <span className="font-mono text-[11px] text-parchment-500">{count}</span>
+                    <span className="font-mono text-meta text-parchment-500">{count}</span>
                 )}
                 {(headerExtras || (onAdd && addLabel)) && (
                     <div className="ml-auto flex items-center gap-1">

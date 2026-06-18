@@ -60,7 +60,7 @@ export function AppWarningModal() {
                 </Button>
             }
         >
-            <div className="flex flex-col gap-4 text-[15px] leading-relaxed text-parchment-200">
+            <div className="flex flex-col gap-4 text-body leading-relaxed text-parchment-200">
                 <p>{t('warning.body')}</p>
 
                 <ul className="list-disc space-y-2 pl-5">

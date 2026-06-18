@@ -281,7 +281,7 @@ export function SidebarAccountMenu({
                                 {isAuthenticated ? displayedName || t('sidebar.profile') : t('sidebar.account.signedOut')}
                             </p>
                             {isAuthenticated && user?.username && (
-                                <p className="truncate font-mono text-[11px] text-parchment-400">@{user.username}</p>
+                                <p className="truncate font-mono text-meta text-parchment-400">@{user.username}</p>
                             )}
                         </div>
                     </div>
@@ -376,7 +376,7 @@ export function SidebarAccountMenu({
                             })}
                         </div>
                         {(isSyncing || syncError) && (
-                            <div className="flex items-center gap-2 px-2.5 pb-0.5 pt-1.5 font-ui text-[11px] text-parchment-400">
+                            <div className="flex items-center gap-2 px-2.5 pb-0.5 pt-1.5 font-ui text-meta text-parchment-400">
                                 {isSyncing ? (
                                     <>
                                         <Loader2 size={12} className="animate-spin text-parchment-300" />

@@ -30,7 +30,7 @@ export function MobileTopBar({ onOpenNav }: MobileTopBarProps) {
                     <Menu size={20} strokeWidth={1.75} />
                 </IconButton>
                 {activeCount > 0 && (
-                    <span className="pointer-events-none absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-arcane-500 px-1 font-ui text-[10px] font-bold leading-none text-ink-900 ring-2 ring-ink-900">
+                    <span className="pointer-events-none absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-arcane-500 px-1 font-ui text-micro font-bold leading-none text-ink-900 ring-2 ring-ink-900">
                         {activeCount > 9 ? '9+' : activeCount}
                     </span>
                 )}

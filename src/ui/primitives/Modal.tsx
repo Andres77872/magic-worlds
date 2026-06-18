@@ -74,7 +74,7 @@ export function Modal({
                         <div className="flex items-center gap-2.5">
                             {icon}
                             {title && (
-                                <h2 id={titleId} className="font-display text-[24px] font-semibold text-parchment-50">
+                                <h2 id={titleId} className="font-display text-h3 font-semibold text-parchment-50">
                                     {title}
                                 </h2>
                             )}

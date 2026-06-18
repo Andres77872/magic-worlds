@@ -52,8 +52,8 @@ interface SelectProps {
 }
 
 const SIZE_CLASS: Record<SelectSize, string> = {
-    sm: 'px-3 py-2 text-[13px]',
-    md: 'px-3.5 py-2.5 text-[15px]',
+    sm: 'px-3 py-2 text-label',
+    md: 'px-3.5 py-2.5 text-body',
 }
 
 function optionText(option: SelectOption): string {
@@ -312,7 +312,7 @@ export function Select({
                                     <span className="min-w-0">
                                         <span className="block truncate">{option.label}</span>
                                         {option.description && (
-                                            <span className="mt-0.5 block text-[12px] leading-snug text-parchment-300">
+                                            <span className="mt-0.5 block text-caption leading-snug text-parchment-300">
                                                 {option.description}
                                             </span>
                                         )}

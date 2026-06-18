@@ -17,8 +17,8 @@ interface ToastProps {
 }
 
 const TONE: Record<ToastTone, string> = {
-    success: 'border-verdant-500/30 bg-ink-800/95 shadow-[0_18px_44px_-18px_rgba(111,191,139,.55)]',
-    error: 'border-blood-500/35 bg-ink-800/95 shadow-[0_18px_44px_-18px_rgba(226,104,95,.55)]',
+    success: 'border-verdant-500/30 bg-ink-800/95 shadow-glow-verdant',
+    error: 'border-blood-500/35 bg-ink-800/95 shadow-glow-blood',
 }
 
 /** Floating app notice for short-lived action feedback. */
@@ -58,11 +58,11 @@ export function Toast({ open, tone, title, message, onClose, autoCloseMs }: Toas
                     <Icon size={16} strokeWidth={2} />
                 </span>
                 <div className="min-w-0 flex-1">
-                    <p id={titleId} className="font-ui text-[13px] font-semibold leading-snug text-parchment-50">
+                    <p id={titleId} className="font-ui text-label font-semibold leading-snug text-parchment-50">
                         {title}
                     </p>
                     {message && (
-                        <p className="mt-0.5 break-words font-ui text-[12px] leading-relaxed text-parchment-300">
+                        <p className="mt-0.5 break-words font-ui text-caption leading-relaxed text-parchment-300">
                             {message}
                         </p>
                     )}
