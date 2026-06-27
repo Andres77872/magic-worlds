@@ -2,36 +2,78 @@
  * Profile route container. Wires the `/user/me` data hook and auth, and renders
  * the appropriate shell (loading / error / signed-out) around {@link ProfileView}.
  */
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { UserCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useAuth, useData } from '@/app/hooks'
+import { apiService } from '@/infrastructure/api'
+import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { Button, Icon } from '@/ui/primitives'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
+import { isBillingFeatureEnabled } from '@/shared/billingFeatureFlag'
+import { useBillingCatalog } from '@/features/billing/hooks/useBillingCatalog'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useProfileSharedCards } from '../hooks/useProfileSharedCards'
-import { ProfileView } from './ProfileView'
+import { ProfileView, type ProfileTab } from './ProfileView'
 
-function hasEmailInviteClaimIntent(): boolean {
+const PROFILE_TABS: readonly ProfileTab[] = ['membership', 'usage', 'sharing', 'account', 'security']
+
+function hasEmailCreditGrantClaimIntent(): boolean {
     if (typeof window === 'undefined') return false
     const [, query = ''] = window.location.hash.split('?')
-    return new URLSearchParams(query).get('claimCredits') === '1'
+    return new URLSearchParams(query).get('claimEmailCredits') === '1'
+}
+
+/** Detect a Stripe Checkout/Portal return (`#/profile?billing=success|cancel|portal`). */
+function billingReturnIntent(): 'success' | 'cancel' | 'portal' | null {
+    if (typeof window === 'undefined') return null
+    const [, query = ''] = window.location.hash.split('?')
+    const value = new URLSearchParams(query).get('billing')
+    return value === 'success' || value === 'cancel' || value === 'portal' ? value : null
+}
+
+/** The active section from `#/profile?tab=…`, or null for the default (Membership). */
+function tabFromHash(hash: string): ProfileTab | null {
+    const [, query = ''] = hash.split('?')
+    const value = new URLSearchParams(query).get('tab')
+    return PROFILE_TABS.includes(value as ProfileTab) ? (value as ProfileTab) : null
 }
 
 export function ProfilePage() {
     const { t } = useTranslation()
     const { isAuthenticated, logout, openLoginModal, updateUser } = useAuth()
     const { clearAllData } = useData()
+    const { currentHash, setPage } = useNavigation()
     const { profile, isLoading, error, isTransientError, refresh } = useUserProfile()
     const sharing = useProfileSharedCards()
-    const autoClaimEmailInvites = hasEmailInviteClaimIntent()
+    // The active section is derived from the URL hash so it's deep-linkable and the
+    // browser Back button steps through sections. Billing/claim returns carry no
+    // `?tab=` and fall through to Membership, where their content lives.
+    const activeTab = tabFromHash(currentHash) ?? 'membership'
+    const handleTabChange = (tab: ProfileTab) => setPage('profile', { hash: `#/profile?tab=${tab}` })
+    // Drives whether the Stripe purchase entry ("Plans & credits") is offered;
+    // false until the server confirms billing is enabled.
+    const { enabled: billingEnabled } = useBillingCatalog()
+    const autoClaimEmailCreditGrants = hasEmailCreditGrantClaimIntent()
+    const billingIntent = billingReturnIntent()
+    const billingReconciledRef = useRef(false)
 
     useEffect(() => {
-        if (!isAuthenticated && autoClaimEmailInvites) {
+        if (!isAuthenticated && autoClaimEmailCreditGrants) {
             openLoginModal()
         }
-    }, [autoClaimEmailInvites, isAuthenticated, openLoginModal])
+    }, [autoClaimEmailCreditGrants, isAuthenticated, openLoginModal])
+
+    // Returning from a Stripe Checkout/Portal: reconcile server-side so the plan
+    // upgrade and any purchased credits land, then re-fetch /user/me. Runs once,
+    // best-effort (a transient reconcile failure shouldn't block the profile).
+    useEffect(() => {
+        if (!isBillingFeatureEnabled() || !isAuthenticated || billingReconciledRef.current) return
+        if (billingIntent === 'success' || billingIntent === 'portal') {
+            billingReconciledRef.current = true
+            void apiService.reconcileBilling().catch(() => {}).finally(() => refresh())
+        }
+    }, [billingIntent, isAuthenticated, refresh])
 
     // Patch the auth context (updates the sidebar label + localStorage instantly),
     // then re-fetch /user/me so the hero reflects server truth.
@@ -108,7 +150,10 @@ export function ProfilePage() {
             onDeleteAllData={handleDeleteAllData}
             onDisplayNameUpdated={handleDisplayNameUpdated}
             onRedeemed={refresh}
-            autoClaimEmailInvites={autoClaimEmailInvites}
+            autoClaimEmailCreditGrants={autoClaimEmailCreditGrants}
+            billingEnabled={billingEnabled}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
         />
     )
 }

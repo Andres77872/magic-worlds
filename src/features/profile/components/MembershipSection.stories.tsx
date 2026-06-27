@@ -26,6 +26,15 @@ type Story = StoryObj<typeof meta>
 /** Free plan current, Plus/Pro as reference previews, PAYG balance card. */
 export const Default: Story = {}
 
+/**
+ * Stripe billing enabled server-side — the "Plans & credits" entry appears. When
+ * billing is off (the default) the purchase entry is hidden so the UI never
+ * advertises a checkout that can't run.
+ */
+export const BillingEnabled: Story = {
+  args: { billingEnabled: true },
+}
+
 /** Legacy account without the membership block — the simple credits card. */
 export const LegacyCredits: Story = {
   args: { profile: { ...baseProfile, membership: undefined } },

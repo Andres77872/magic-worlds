@@ -6,6 +6,9 @@ import { CardGrid, ConfirmDialog, type CardOption } from '@/ui/components'
 import { Button, controlClass, Icon, IconButton, PageHeader } from '@/ui/primitives'
 import type { Lorebook } from '@/shared'
 import { useLorebookGallery } from '../hooks/useLorebookGallery'
+import { useGalleryView } from '@/features/gallery/hooks/useGalleryView'
+import { cardGridDensity, cardGridLayout, galleryCardView } from '@/features/gallery/galleryView'
+import { GalleryViewToggle } from '@/features/gallery/components/GalleryViewToggle'
 import { LorebookCard } from './LorebookCard'
 import { LorebookResourcePickerDrawer } from './LorebookResourcePickerDrawer'
 
@@ -20,6 +23,7 @@ export function LorebookGalleryPage() {
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const gallery = useLorebookGallery(undefined, { enabled: isAuthenticated })
+    const [layoutView, setLayoutView] = useGalleryView()
     const { editLorebook, setEditingLorebook, deleteLorebook, lorebooks, setLorebooks } = useData()
     const [pendingDelete, setPendingDelete] = useState<Lorebook | null>(null)
     const [resourceTarget, setResourceTarget] = useState<Lorebook | null>(null)
@@ -129,6 +133,7 @@ export function LorebookGalleryPage() {
                                 </IconButton>
                             )}
                         </div>
+                        <GalleryViewToggle value={layoutView} onChange={setLayoutView} className="shrink-0" />
                         <Button variant="primary" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook}>
                             {t('lorebookGallery.actions.new')}
                         </Button>
@@ -145,8 +150,8 @@ export function LorebookGalleryPage() {
 
             <CardGrid
                 items={gallery.items}
-                layout="grid"
-                density="compact"
+                layout={cardGridLayout(layoutView)}
+                density={cardGridDensity(layoutView)}
                 getItemKey={(item) => item.id}
                 loading={gallery.loading}
                 hasMore={gallery.hasMore}
@@ -165,6 +170,7 @@ export function LorebookGalleryPage() {
                 renderCard={(lorebook) => (
                     <LorebookCard
                         lorebook={lorebook}
+                        view={galleryCardView(layoutView)}
                         deleting={deletingId === lorebook.id}
                         onClick={() => openLorebook(lorebook)}
                         onTagClick={gallery.setQuery}

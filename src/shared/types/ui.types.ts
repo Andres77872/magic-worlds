@@ -30,6 +30,7 @@ export type PageType =
     | 'community'
     | 'shared-card'
     | 'profile'
+    | 'billing'
     | 'voice-studio'
     | 'admin-voices'
     | 'admin-agents'

@@ -46,20 +46,37 @@ import type {
     UserProfile,
 } from '../../shared/types/auth.types'
 import type {
-    CreditRedeemResponse,
-    EmailCreditInviteClaimResponse,
-    EmailCreditInviteListResponse,
-    FreeCreditInvite,
-    FreeCreditInviteCreateRequest,
-    FreeCreditInviteListResponse,
-    FreeCreditInviteUpdateRequest,
-    FreeCreditToken,
-    FreeCreditTokenCreateRequest,
-    FreeCreditTokenListResponse,
-    FreeCreditTokenUpdateRequest,
+    BillingCheckoutSessionResponse,
+    BillingPlanCatalogResponse,
+    BillingPortalSessionResponse,
+    BillingReconcileResponse,
+    CreditCodeGrant,
+    CreditCodeGrantCreateRequest,
+    CreditCodeGrantListResponse,
+    CreditCodeGrantUpdateRequest,
+    CreditGrantListParams,
+    CreditGrantSummaryResponse,
+    CreditCodeRedeemResponse,
+    EmailCreditGrant,
+    EmailCreditGrantClaimResponse,
+    EmailCreditGrantCreateRequest,
+    EmailCreditGrantListResponse,
+    EmailCreditGrantOfferListResponse,
+    EmailCreditGrantUpdateRequest,
+    QuotaResetRequest,
+    QuotaResetResponse,
 } from '../../shared/types/billing.types'
+import type {
+    PatreonLinkRequest,
+    PatreonLinkStatusResponse,
+    PatreonProofConfirmRequest,
+    PatreonProofRequestResponse,
+    PatreonUnlinkRequest,
+    PatreonUnlinkResponse,
+} from '../../shared/types/patreon.types'
 import { API_BASE_URL } from './baseUrl'
 import { getProtectedMediaPath } from './mediaUrl'
+import { isPatreonFeatureEnabled } from '../../shared/patreonFeatureFlag'
 import { makeRequestId } from '../../utils/uuid'
 import { configureChatSocketAuthRefresh } from './chatSocket'
 import { configureVoiceSocketAuthRefresh } from './voiceSocket'
@@ -1107,108 +1124,225 @@ class ApiService {
         })
     }
 
-    // --- Billing / credit codes (root admin) -------------------------------
+    // --- Billing / promotional credit grants -------------------------------
 
-    /** List free-credit tokens (redeem codes). Root only. */
-    async listFreeCreditTokens(limit = 100, offset = 0): Promise<FreeCreditTokenListResponse> {
+    /** Serialise admin grant list filters into a query string (omitting empties). */
+    private creditGrantQuery(params: CreditGrantListParams = {}): string {
+        const search = new URLSearchParams()
+        if (params.status) search.set('status', params.status)
+        if (params.search?.trim()) search.set('search', params.search.trim())
+        if (params.sort) search.set('sort', params.sort)
+        search.set('limit', String(params.limit ?? 100))
+        search.set('offset', String(params.offset ?? 0))
+        return search.toString()
+    }
+
+    /** Per-state counts (codes + email grants) for the console KPI tiles. Root only. */
+    async getCreditGrantsSummary(): Promise<CreditGrantSummaryResponse> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<FreeCreditTokenListResponse>(
-            `/admin/billing/free-credit-tokens?limit=${limit}&offset=${offset}`,
+        return this.authenticatedRequest<CreditGrantSummaryResponse>(
+            '/admin/billing/credit-grants/summary',
             token,
             { method: 'GET' },
         )
     }
 
-    /** Create a one-time redeem code. The response includes the raw `token` once. Root only. */
-    async createFreeCreditToken(body: FreeCreditTokenCreateRequest): Promise<FreeCreditToken> {
+    /** Reset daily and/or monthly included-membership quota counters. Root only. */
+    async resetMembershipQuotas(body: QuotaResetRequest): Promise<QuotaResetResponse> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<FreeCreditToken>('/admin/billing/free-credit-tokens', token, {
+        return this.authenticatedRequest<QuotaResetResponse>('/admin/billing/quota-resets', token, {
             method: 'POST',
             body: body as unknown as BodyInit,
         })
     }
 
-    /** Update a redeem code (credits / label / status / expiry / reason). Root only. */
-    async updateFreeCreditToken(tokenId: number, body: FreeCreditTokenUpdateRequest): Promise<FreeCreditToken> {
+    /** List one-time credit code grants, filtered / sorted / paginated. Root only. */
+    async listCreditCodeGrants(params: CreditGrantListParams = {}): Promise<CreditCodeGrantListResponse> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<FreeCreditToken>(
-            `/admin/billing/free-credit-tokens/${encodeURIComponent(tokenId)}`,
-            token,
-            { method: 'PATCH', body: body as unknown as BodyInit },
-        )
-    }
-
-    /** Disable a redeem code (soft delete). Root only. */
-    async disableFreeCreditToken(tokenId: number): Promise<FreeCreditToken> {
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<FreeCreditToken>(
-            `/admin/billing/free-credit-tokens/${encodeURIComponent(tokenId)}`,
-            token,
-            { method: 'DELETE' },
-        )
-    }
-
-    /** List email-invite credit grants. Root only. */
-    async listFreeCreditInvites(limit = 100, offset = 0): Promise<FreeCreditInviteListResponse> {
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<FreeCreditInviteListResponse>(
-            `/admin/billing/free-credit-invites?limit=${limit}&offset=${offset}`,
+        return this.authenticatedRequest<CreditCodeGrantListResponse>(
+            `/admin/billing/credit-codes?${this.creditGrantQuery(params)}`,
             token,
             { method: 'GET' },
         )
     }
 
-    /** Create (or refresh) email-invite credit grants for a batch of addresses. Root only. */
-    async createFreeCreditInvites(body: FreeCreditInviteCreateRequest): Promise<FreeCreditInvite[]> {
+    /** Create a one-time credit code. The response includes the raw `code` once. Root only. */
+    async createCreditCodeGrant(body: CreditCodeGrantCreateRequest): Promise<CreditCodeGrant> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<FreeCreditInvite[]>('/admin/billing/free-credit-invites', token, {
+        return this.authenticatedRequest<CreditCodeGrant>('/admin/billing/credit-codes', token, {
             method: 'POST',
             body: body as unknown as BodyInit,
         })
     }
 
-    /** Update an email-invite grant. Root only. */
-    async updateFreeCreditInvite(inviteId: number, body: FreeCreditInviteUpdateRequest): Promise<FreeCreditInvite> {
+    /** Update an unclaimed credit code (credits / label / status / expiry / reason). Root only. */
+    async updateCreditCodeGrant(codeId: number, body: CreditCodeGrantUpdateRequest): Promise<CreditCodeGrant> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<FreeCreditInvite>(
-            `/admin/billing/free-credit-invites/${encodeURIComponent(inviteId)}`,
+        return this.authenticatedRequest<CreditCodeGrant>(
+            `/admin/billing/credit-codes/${encodeURIComponent(codeId)}`,
             token,
             { method: 'PATCH', body: body as unknown as BodyInit },
         )
     }
 
-    /** Disable an email-invite grant. Root only. */
-    async disableFreeCreditInvite(inviteId: number): Promise<FreeCreditInvite> {
+    /** Disable an unclaimed credit code. Root only. */
+    async disableCreditCodeGrant(codeId: number): Promise<CreditCodeGrant> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<FreeCreditInvite>(
-            `/admin/billing/free-credit-invites/${encodeURIComponent(inviteId)}`,
+        return this.authenticatedRequest<CreditCodeGrant>(
+            `/admin/billing/credit-codes/${encodeURIComponent(codeId)}`,
             token,
             { method: 'DELETE' },
         )
     }
 
-    /** Redeem a credit code for the signed-in user (the "usage" side). Any authed user. */
-    async redeemCreditCode(code: string): Promise<CreditRedeemResponse> {
+    /** List email-address credit grants, filtered / sorted / paginated. Root only. */
+    async listEmailCreditGrants(params: CreditGrantListParams = {}): Promise<EmailCreditGrantListResponse> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<CreditRedeemResponse>('/billing/credits/redeem', token, {
+        return this.authenticatedRequest<EmailCreditGrantListResponse>(
+            `/admin/billing/email-credit-grants?${this.creditGrantQuery(params)}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Create email-address credit grants for a batch of addresses. Root only. */
+    async createEmailCreditGrants(body: EmailCreditGrantCreateRequest): Promise<EmailCreditGrant[]> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<EmailCreditGrant[]>('/admin/billing/email-credit-grants', token, {
             method: 'POST',
-            body: { token: code } as unknown as BodyInit,
+            body: body as unknown as BodyInit,
         })
     }
 
-    /** List invite credits attached to the signed-in user's activated emails. */
-    async listEmailCreditInvites(): Promise<EmailCreditInviteListResponse> {
+    /** Update an unclaimed email-address credit grant. Root only. */
+    async updateEmailCreditGrant(grantId: number, body: EmailCreditGrantUpdateRequest): Promise<EmailCreditGrant> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<EmailCreditInviteListResponse>('/billing/credits/email-invites', token, {
+        return this.authenticatedRequest<EmailCreditGrant>(
+            `/admin/billing/email-credit-grants/${encodeURIComponent(grantId)}`,
+            token,
+            { method: 'PATCH', body: body as unknown as BodyInit },
+        )
+    }
+
+    /** Disable an unclaimed email-address credit grant. Root only. */
+    async disableEmailCreditGrant(grantId: number): Promise<EmailCreditGrant> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<EmailCreditGrant>(
+            `/admin/billing/email-credit-grants/${encodeURIComponent(grantId)}`,
+            token,
+            { method: 'DELETE' },
+        )
+    }
+
+    /** Redeem a credit code for the signed-in user. Any authed user. */
+    async redeemCreditCode(code: string): Promise<CreditCodeRedeemResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CreditCodeRedeemResponse>('/billing/credit-codes/redeem', token, {
+            method: 'POST',
+            body: { code } as unknown as BodyInit,
+        })
+    }
+
+    /** List credit grants attached to the signed-in user's activated emails. */
+    async listEmailCreditGrantOffers(): Promise<EmailCreditGrantOfferListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<EmailCreditGrantOfferListResponse>('/billing/email-credit-grants', token, {
             method: 'GET',
         })
     }
 
-    /** Claim invite credits attached to the signed-in user's activated emails. */
-    async claimEmailCreditInvites(): Promise<EmailCreditInviteClaimResponse> {
+    /** Claim credit grants attached to the signed-in user's activated emails. */
+    async claimEmailCreditGrants(): Promise<EmailCreditGrantClaimResponse> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<EmailCreditInviteClaimResponse>('/billing/credits/email-invites/claim', token, {
+        return this.authenticatedRequest<EmailCreditGrantClaimResponse>('/billing/email-credit-grants/claim', token, {
             method: 'POST',
+        })
+    }
+
+    // --- Subscriptions & PAYG checkout (api.auth-backed billing) -----------
+
+    /** Static plan + credit-pack catalog with a live `enabled` flag. Any authed user. */
+    async getBillingPlans(): Promise<BillingPlanCatalogResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<BillingPlanCatalogResponse>('/billing/plans', token, {
+            method: 'GET',
+        })
+    }
+
+    /** Start a Stripe subscription Checkout. Redirect the browser to the returned `url`. */
+    async createSubscriptionCheckout(planCode: string): Promise<BillingCheckoutSessionResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<BillingCheckoutSessionResponse>('/billing/subscription/checkout', token, {
+            method: 'POST',
+            body: { plan_code: planCode } as unknown as BodyInit,
+        })
+    }
+
+    /** Start a Stripe one-time Checkout for a PAYG credit pack. Redirect to the returned `url`. */
+    async createCreditCheckout(creditProductCode: string): Promise<BillingCheckoutSessionResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<BillingCheckoutSessionResponse>('/billing/credits/checkout', token, {
+            method: 'POST',
+            body: { credit_product_code: creditProductCode } as unknown as BodyInit,
+        })
+    }
+
+    /** Create a restricted Stripe Portal session (cancel / payment method). Redirect to `url`. */
+    async createBillingPortal(returnUrl?: string): Promise<BillingPortalSessionResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<BillingPortalSessionResponse>('/billing/portal', token, {
+            method: 'POST',
+            body: { return_url: returnUrl ?? null } as unknown as BodyInit,
+        })
+    }
+
+    /**
+     * Pull api.auth billing/Patreon facts and apply them to the local membership.
+     * Idempotent — safe to call on checkout return and whenever the billing UI opens.
+     */
+    async reconcileBilling(): Promise<BillingReconcileResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<BillingReconcileResponse>('/billing/reconcile', token, {
+            method: 'POST',
+        })
+    }
+
+    /** Start the Patreon email-loop proof for the signed-in user. */
+    async requestPatreonLink(body: PatreonLinkRequest): Promise<PatreonProofRequestResponse> {
+        if (!isPatreonFeatureEnabled()) throw new Error('Patreon integration is disabled.')
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<PatreonProofRequestResponse>('/patreon/link/request', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    /** Consume a Patreon proof token/parts for the signed-in user. */
+    async confirmPatreonLink(body: PatreonProofConfirmRequest): Promise<PatreonLinkStatusResponse> {
+        if (!isPatreonFeatureEnabled()) throw new Error('Patreon integration is disabled.')
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<PatreonLinkStatusResponse>('/patreon/link/confirm', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    /** Read the signed-in user's safe Patreon link and entitlement projection. */
+    async getPatreonLinkStatus(): Promise<PatreonLinkStatusResponse> {
+        if (!isPatreonFeatureEnabled()) throw new Error('Patreon integration is disabled.')
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<PatreonLinkStatusResponse>('/patreon/link/status', token, {
+            method: 'GET',
+        })
+    }
+
+    /** Soft-unlink Patreon entitlement state for the signed-in user. */
+    async unlinkPatreon(body?: PatreonUnlinkRequest): Promise<PatreonUnlinkResponse> {
+        if (!isPatreonFeatureEnabled()) throw new Error('Patreon integration is disabled.')
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<PatreonUnlinkResponse>('/patreon/link', token, {
+            method: 'DELETE',
+            body: body ? body as unknown as BodyInit : undefined,
         })
     }
 

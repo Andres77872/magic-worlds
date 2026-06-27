@@ -1,23 +1,42 @@
 /**
- * Shared formatting helpers for the credit-code lists: status → Badge tone /
- * label, and a compact date formatter for created / expiry / redeemed stamps.
+ * Shared formatting helpers for the credit-grant console: derives the presented
+ * view-status (folding in the computed `expired` state), maps it to a Badge
+ * tone / label, and formats created / expiry / claimed stamps.
  */
 import type { TFunction } from 'i18next'
 import type { BadgeTone } from '@/ui/primitives'
-import type { FreeCreditStatus } from '@/shared'
+import type { CreditGrantStatus, CreditGrantViewStatus } from '@/shared'
 
-export function statusTone(status: FreeCreditStatus): BadgeTone {
+/** The minimal shape needed to derive a presented status from either grant kind. */
+interface GrantStatusLike {
+    status: CreditGrantStatus
+    is_expired?: boolean | null
+}
+
+/**
+ * Fold the stored status + computed expiry into the four presented states.
+ * An `active` grant past its `expires_at` reads as `expired`; everything else
+ * maps straight through.
+ */
+export function viewStatus(grant: GrantStatusLike): CreditGrantViewStatus {
+    if (grant.status === 'active' && grant.is_expired) return 'expired'
+    return grant.status
+}
+
+export function statusTone(status: CreditGrantViewStatus): BadgeTone {
     switch (status) {
         case 'active':
             return 'live'
-        case 'redeemed':
+        case 'claimed':
             return 'ember'
+        case 'expired':
+            return 'danger'
         default:
             return 'neutral'
     }
 }
 
-export function statusLabel(status: FreeCreditStatus, t: TFunction): string {
+export function statusLabel(status: CreditGrantViewStatus, t: TFunction): string {
     return t(`admin.creditCodes.status.${status}`, { defaultValue: status })
 }
 

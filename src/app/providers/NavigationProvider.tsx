@@ -15,6 +15,8 @@ interface NavigationContextValue extends NavigationState {
     resourceEdit: ResourceEditHashTarget | null
     /** Rewrite the current page's hash in place (no history push) — e.g. to stamp a card id. */
     replaceHash: (hash: string) => void
+    /** The live `window.location.hash`, kept reactive across setPage/goBack/hashchange/popstate. */
+    currentHash: string
 }
 
 const NavigationContext = createContext<NavigationContextValue | undefined>(undefined)
@@ -136,7 +138,8 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         cardEdit,
         resourceEdit,
         replaceHash,
-    }), [currentPage, backStack, setPage, goBack, cardEdit, resourceEdit, replaceHash])
+        currentHash,
+    }), [currentPage, backStack, setPage, goBack, cardEdit, resourceEdit, replaceHash, currentHash])
 
     return (
         <NavigationContext.Provider value={value}>

@@ -6,7 +6,7 @@ import { apiService, type LorebookResourceMetadataSaveOptions } from '@/infrastr
 import type { LorebookResource } from '@/shared'
 import { buildResourceHash } from '@/features/gallery/galleryLinks'
 import { ConfirmDialog } from '@/ui/components'
-import { Button, Icon, IconButton, PageHeader, controlClass } from '@/ui/primitives'
+import { Button, Callout, Icon, IconButton, PageHeader, controlClass } from '@/ui/primitives'
 import {
     LOREBOOK_RESOURCE_ACCEPT,
     LOREBOOK_RESOURCE_MAX_CHARS,
@@ -166,16 +166,15 @@ export function LorebookResourcesGalleryPage() {
     const banner = (error || gallery.error || notice) ? (
         <div className="grid gap-3">
             {(error || gallery.error) && (
-                <div className="flex items-center justify-between gap-4 rounded-lg border border-blood-500/30 bg-blood-500/10 px-4 py-3 font-ui text-sm text-parchment-200" role="alert">
-                    <span>{error || gallery.error}</span>
-                    {gallery.error && <Button variant="secondary" size="sm" onClick={gallery.refresh}>{t('lorebookResourcesGallery.actions.retry')}</Button>}
-                </div>
+                <Callout
+                    tone="danger"
+                    role="alert"
+                    action={gallery.error ? <Button variant="secondary" size="sm" onClick={gallery.refresh}>{t('lorebookResourcesGallery.actions.retry')}</Button> : undefined}
+                >
+                    {error || gallery.error}
+                </Callout>
             )}
-            {notice && (
-                <div className="rounded-lg border border-verdant-500/30 bg-verdant-500/10 px-4 py-3 font-ui text-sm text-parchment-200">
-                    {notice}
-                </div>
-            )}
+            {notice && <Callout tone="success">{notice}</Callout>}
         </div>
     ) : null
 

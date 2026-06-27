@@ -2,7 +2,7 @@ import { CheckCircle2, Coins, Crown, Lock, Rocket, Sparkles, WalletCards } from 
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { useLanguage } from '@/app/hooks'
+import { useLanguage, useNavigation } from '@/app/hooks'
 import type {
     MembershipPaygProfileCard,
     MembershipProfileCardCredits,
@@ -13,15 +13,21 @@ import type {
 import { Badge, Button, Card, Eyebrow, Icon, IconTile, SectionHeader, Tag } from '@/ui/primitives'
 import { cx } from '@/ui/primitives/cx'
 import { formatNumber, operationLabel, orderedLimitEntries } from './membership.helpers'
-import { EmailInviteClaimCard } from './EmailInviteClaimCard'
-import { RedeemCodeCard } from './RedeemCodeCard'
+import { CreditCodeRedemptionCard } from './CreditCodeRedemptionCard'
+import { EmailCreditGrantClaimCard } from './EmailCreditGrantClaimCard'
 
 interface MembershipSectionProps {
     profile: UserProfile
     /** Re-fetch /user/me after a code is redeemed so the wallet balance updates. */
     onRedeemed?: () => void
-    /** Automatically claim email-attached invite credits after an invite email opens Profile. */
-    autoClaimEmailInvites?: boolean
+    /** Automatically claim email-attached credit grants after an email opens Profile. */
+    autoClaimEmailCreditGrants?: boolean
+    /**
+     * Whether Stripe billing is enabled server-side. The "Plans & credits" entry
+     * is only offered when true — when billing is off there is nothing to buy, so
+     * advertising the purchase page would misrepresent the integration status.
+     */
+    billingEnabled?: boolean
 }
 
 const VISUAL_ICONS: Record<string, LucideIcon> = {
@@ -31,9 +37,10 @@ const VISUAL_ICONS: Record<string, LucideIcon> = {
     coins: Coins,
 }
 
-export function MembershipSection({ profile, onRedeemed, autoClaimEmailInvites = false }: MembershipSectionProps) {
+export function MembershipSection({ profile, onRedeemed, autoClaimEmailCreditGrants = false, billingEnabled = false }: MembershipSectionProps) {
     const { t } = useTranslation()
     const { intlLocale } = useLanguage()
+    const { setPage } = useNavigation()
     const membership = profile.membership
     const cards = membership?.profile_cards
 
@@ -46,7 +53,16 @@ export function MembershipSection({ profile, onRedeemed, autoClaimEmailInvites =
                     <SectionHeader
                         icon={WalletCards}
                         title={<span id="membership-heading">{t('membership.title')}</span>}
-                        right={<Badge tone="neutral">{t('membership.available', { value: formatNumber(membership.total_available_credits, intlLocale) })}</Badge>}
+                        right={
+                            <div className="flex items-center gap-2">
+                                <Badge tone="neutral">{t('membership.available', { value: formatNumber(membership.total_available_credits, intlLocale) })}</Badge>
+                                {billingEnabled && (
+                                    <Button variant="secondary" size="sm" onClick={() => setPage('billing')}>
+                                        <Icon icon={Sparkles} size={14} /> {t('membership.viewPlans', { defaultValue: 'Plans & credits' })}
+                                    </Button>
+                                )}
+                            </div>
+                        }
                     />
 
                     <div className="grid gap-4 md:grid-cols-3">
@@ -58,8 +74,8 @@ export function MembershipSection({ profile, onRedeemed, autoClaimEmailInvites =
                 </section>
             )}
 
-            <EmailInviteClaimCard autoClaim={autoClaimEmailInvites} onClaimed={onRedeemed} />
-            <RedeemCodeCard onRedeemed={onRedeemed} />
+            <EmailCreditGrantClaimCard autoClaim={autoClaimEmailCreditGrants} onClaimed={onRedeemed} />
+            <CreditCodeRedemptionCard onRedeemed={onRedeemed} />
         </div>
     )
 }

@@ -41,6 +41,7 @@ const PAGE_TO_HASH: Partial<Record<PageType, string>> = {
     community: '#/community',
     'shared-card': '#/shared',
     profile: '#/profile',
+    billing: '#/billing',
     'voice-studio': '#/voices',
     'admin-voices': '#/admin/voices',
     'admin-credit-codes': '#/admin/credit-codes',
@@ -69,6 +70,8 @@ const HASH_TO_PAGE = Object.entries(PAGE_TO_HASH).reduce<Record<string, PageType
     acc[hash] = page as PageType
     return acc
 }, {})
+
+HASH_TO_PAGE['#/admin/membership-management'] = 'admin-credit-codes'
 
 export interface GalleryHashTarget {
     type: GalleryType

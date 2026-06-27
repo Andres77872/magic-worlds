@@ -164,3 +164,56 @@ export const ShowcaseStatic: Story = {
   },
   parameters: { docs: { description: { story: 'The landing showcase renders this same component: a static, curated-gradient card with the genre as a top-left badge and no action bubble.' } } },
 }
+
+export const Row: Story = {
+  args: {
+    id: 'story-card-row',
+    view: 'row',
+    imageUrl: 'https://picsum.photos/seed/row-reverie/400/533',
+    eyebrow: 'Silverwood',
+    description: 'A wandering bard who trades secrets for a warm hearth and a willing audience.',
+    tags: ['bard', 'companion', 'moonlight'],
+    versionNumber: 3,
+    hasDraft: true,
+    shareOptions,
+    options,
+    onClick: () => {},
+  },
+  decorators: [(Story) => <div className="w-[680px] max-w-full"><Story /></div>],
+  parameters: { docs: { description: { story: "CardGrid's `list` layout: the same card as a full-width row — thumbnail, title with inline badge/version/draft chips, eyebrow + description, tag pills + usage, and the hover/touch action cluster on the trailing edge." } } },
+}
+
+export const RowWithFooter: Story = {
+  args: {
+    id: 'story-card-row-footer',
+    view: 'row',
+    imageUrl: 'https://picsum.photos/seed/row-footer-reverie/400/533',
+    eyebrow: 'The Ember Coast',
+    description: 'A card-sharp innkeeper who knows more than she lets on.',
+    tags: ['innkeeper', 'mystery'],
+    shareOptions,
+    options,
+    onClick: () => {},
+    footer: (
+      <Button variant="arcane" size="sm" iconLeft={<Icon icon={MessageCircle} size={15} />} onClick={() => {}}>
+        Chat
+      </Button>
+    ),
+  },
+  decorators: [(Story) => <div className="w-[680px] max-w-full"><Story /></div>],
+  parameters: { docs: { description: { story: 'Rows pin the primary CTA (e.g. Chat) just left of the overflow menu on the trailing edge.' } } },
+}
+
+export const RowGradient: Story = {
+  args: {
+    view: 'row',
+    badge: 'Lich',
+    eyebrow: 'Umbral Convocation',
+    description: 'Keeper of forbidden lore and the undead court that guards it.',
+    tags: ['necromancy', 'undead court', 'forbidden lore'],
+    options,
+    onClick: () => {},
+  },
+  decorators: [(Story) => <div className="w-[680px] max-w-full"><Story /></div>],
+  parameters: { docs: { description: { story: 'No cover image: the row thumbnail falls back to the seeded gradient + initial, exactly like the tile.' } } },
+}

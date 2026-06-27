@@ -15,8 +15,20 @@ export { Illustration, type IllustrationTone } from './Illustration'
 export { Portrait } from './Portrait'
 export { ThemeSongButton, type ThemeSongButtonSize } from './ThemeSongButton'
 export { Chip } from './Chip'
+export { SegmentedControl, type SegmentedControlOption } from './SegmentedControl'
+export {
+    Tabs,
+    TabPanel,
+    tabId,
+    tabPanelId,
+    type TabOption,
+    type TabsOrientation,
+    type TabsVariant,
+    type TabsSize,
+} from './Tabs'
 export { Tag } from './Tag'
 export { Badge, type BadgeTone } from './Badge'
+export { Callout, type CalloutTone } from './Callout'
 export { Avatar, type AvatarRing, type AvatarStatus } from './Avatar'
 export { Eyebrow } from './Eyebrow'
 export { SectionHeader } from './SectionHeader'

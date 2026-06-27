@@ -47,7 +47,7 @@ export function ResourceGrid({
             <Card className="flex min-h-[280px] flex-col items-center justify-center gap-4 p-8 text-center">
                 <Icon icon={Plus} size={32} className="text-arcane-300" />
                 <div className="grid gap-1">
-                    <h2 className="font-display text-2xl font-semibold text-parchment-50">
+                    <h2 className="font-display text-h3 font-semibold text-parchment-50">
                         {hasQuery ? t('lorebookResourcesGallery.empty.noMatchTitle') : t('lorebookResourcesGallery.empty.noItemsTitle')}
                     </h2>
                     <p className="m-0 max-w-[44ch] font-narrative text-sm text-parchment-300">

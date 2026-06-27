@@ -4,17 +4,25 @@ import type { Membership, UserProfile } from '@/shared'
 import { ProfileView } from './ProfileView'
 
 const apiMocks = vi.hoisted(() => ({
-    listEmailCreditInvites: vi.fn(),
+    listEmailCreditGrantOffers: vi.fn(),
     listEmails: vi.fn(),
 }))
 
 vi.mock('@/infrastructure/api', () => ({
     apiService: {
-        listEmailCreditInvites: (...args: unknown[]) => apiMocks.listEmailCreditInvites(...args),
+        listEmailCreditGrantOffers: (...args: unknown[]) => apiMocks.listEmailCreditGrantOffers(...args),
         listEmails: (...args: unknown[]) => apiMocks.listEmails(...args),
     },
     ApiError: class ApiError extends Error {},
 }))
+
+// ProfileView renders in isolation (no app providers). MembershipSection needs a
+// navigation context only to route to the billing page, so stub it; the real
+// useLanguage has a provider-safe fallback and is kept.
+vi.mock('@/app/hooks', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/app/hooks')>()
+    return { ...actual, useNavigation: () => ({ setPage: vi.fn() }) }
+})
 
 const membership: Membership = {
     plan_code: 'free',
@@ -133,7 +141,7 @@ const noop = vi.fn()
 const deleteAll = vi.fn().mockResolvedValue(undefined)
 
 beforeEach(() => {
-    apiMocks.listEmailCreditInvites.mockResolvedValue({ items: [], total_credits: 0 })
+    apiMocks.listEmailCreditGrantOffers.mockResolvedValue({ items: [], total_credits: 0 })
     apiMocks.listEmails.mockResolvedValue({ emails: [] })
 })
 
@@ -158,8 +166,22 @@ describe('ProfileView membership section', () => {
         expect(screen.getAllByText('Call mode').length).toBeGreaterThan(0)
         expect(screen.getAllByText('Indicative limits')).toHaveLength(2)
         expect(screen.getAllByText('Daily limits')).toHaveLength(1)
-        // Plan cards carry no live usage — that lives in the usage section below.
+        // Plan cards carry no live usage — that lives in the Usage tab.
         expect(screen.queryByText(/used today/)).not.toBeInTheDocument()
+        // PAYG wallet card highlights.
+        expect(screen.getByText('1 credit per action')).toBeInTheDocument()
+        expect(screen.getByText('Non-expiring')).toBeInTheDocument()
+        expect(screen.queryByText(/checkout/i)).not.toBeInTheDocument()
+        for (const action of screen.getAllByRole('button', { name: 'Reference only' })) {
+            expect(action).toBeDisabled()
+        }
+        // Billing is off by default — the purchase entry must not be advertised.
+        expect(screen.queryByRole('button', { name: 'Plans & credits' })).not.toBeInTheDocument()
+    })
+
+    it('renders the usage monitor with daily meters and the monthly breakdown', () => {
+        render(<ProfileView profile={profile} onLogout={noop} onDeleteAllData={deleteAll} initialTab="usage" />)
+
         expect(screen.getByRole('heading', { name: 'Usage monitor' })).toBeInTheDocument()
         expect(screen.getByText('June 2026 to date')).toBeInTheDocument()
         expect(screen.getAllByRole('progressbar')).toHaveLength(5)
@@ -179,12 +201,14 @@ describe('ProfileView membership section', () => {
         expect(screen.getByText('10 included / 4 PAYG')).toBeInTheDocument()
         expect(screen.getByText('14 actions')).toBeInTheDocument()
         expect(screen.getByText('9 sec audio time')).toBeInTheDocument()
-        expect(screen.getByText('1 credit per action')).toBeInTheDocument()
-        expect(screen.getByText('Non-expiring')).toBeInTheDocument()
-        expect(screen.queryByText(/checkout/i)).not.toBeInTheDocument()
-        for (const action of screen.getAllByRole('button', { name: 'Reference only' })) {
-            expect(action).toBeDisabled()
-        }
+    })
+
+    it('offers the "Plans & credits" entry only when billing is enabled', () => {
+        const { rerender } = render(<ProfileView profile={profile} onLogout={noop} onDeleteAllData={deleteAll} />)
+        expect(screen.queryByRole('button', { name: 'Plans & credits' })).not.toBeInTheDocument()
+
+        rerender(<ProfileView profile={profile} onLogout={noop} onDeleteAllData={deleteAll} billingEnabled />)
+        expect(screen.getByRole('button', { name: 'Plans & credits' })).toBeInTheDocument()
     })
 
     it('falls back to a legacy credits card when membership cards are absent', () => {
@@ -210,6 +234,7 @@ describe('ProfileView membership section', () => {
                 profile={{ ...profile, membership: { ...membership, monthly_usage: undefined } }}
                 onLogout={noop}
                 onDeleteAllData={deleteAll}
+                initialTab="usage"
             />,
         )
 
@@ -255,8 +280,8 @@ describe('ProfileView identity hero', () => {
         expect(screen.getByRole('heading', { level: 1, name: 'The Loremaster' })).toBeInTheDocument()
         expect(screen.getByText('@Lyra')).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Edit display name' })).toBeInTheDocument()
-        // The immutable login identity still appears on the account row.
-        expect(screen.getByText('Username')).toBeInTheDocument()
+        // The copyable user hash anchors the identity header.
+        expect(screen.getByText('usr-profile')).toBeInTheDocument()
     })
 
     it('falls back to the username as the heading when no display name is set', () => {
@@ -264,5 +289,24 @@ describe('ProfileView identity hero', () => {
 
         expect(screen.getByRole('heading', { level: 1, name: 'Lyra' })).toBeInTheDocument()
         expect(screen.getByText('@Lyra')).toBeInTheDocument()
+    })
+})
+
+describe('ProfileView section tabs', () => {
+    it('defaults to the Membership section and switches panels on tab click', () => {
+        render(<ProfileView profile={profile} onLogout={noop} onDeleteAllData={deleteAll} />)
+
+        // Membership is the default active tab; its content is visible.
+        expect(screen.getByRole('tab', { name: 'Membership' })).toHaveAttribute('aria-selected', 'true')
+        expect(screen.getByRole('heading', { name: 'Membership' })).toBeInTheDocument()
+        // The Usage panel is mounted but hidden — its heading is not accessible yet.
+        expect(screen.queryByRole('heading', { name: 'Usage monitor' })).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('tab', { name: 'Usage' }))
+
+        expect(screen.getByRole('tab', { name: 'Usage' })).toHaveAttribute('aria-selected', 'true')
+        expect(screen.getByRole('heading', { name: 'Usage monitor' })).toBeInTheDocument()
+        // The Membership tier cards are hidden once Usage is active.
+        expect(screen.queryByRole('heading', { name: 'Free' })).not.toBeInTheDocument()
     })
 })

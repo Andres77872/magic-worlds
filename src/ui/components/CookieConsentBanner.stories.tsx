@@ -15,6 +15,7 @@ const navStub: NavValue = {
     cardEdit: null,
     resourceEdit: null,
     replaceHash: () => {},
+    currentHash: '',
 }
 
 // Forget any prior choice on each render so the banner is always visible in the

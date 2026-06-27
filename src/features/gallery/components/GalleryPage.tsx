@@ -23,6 +23,9 @@ import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { GALLERY_CONFIG, publicConfigFor, publicItems, type GalleryItem, type GalleryType } from '../galleryConfig'
 import { buildCardEditHash, buildGalleryModeHash, buildGalleryViewHash, buildSharedCardUrl, galleryPageForType, parseGalleryHash } from '../galleryLinks'
 import { useCardGallery } from '../hooks/useCardGallery'
+import { useGalleryView } from '../hooks/useGalleryView'
+import { cardGridDensity, cardGridLayout, galleryCardView } from '../galleryView'
+import { GalleryViewToggle } from './GalleryViewToggle'
 import { useCardImport, useGalleryCardPreview } from '../hooks/useCardImport'
 import { CardImportOverlays } from './CardImportOverlays'
 
@@ -88,6 +91,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const { t } = useTranslation()
     const config = GALLERY_CONFIG[type]
     const [viewMode, setViewMode] = useState<'mine' | 'public'>(() => galleryViewFor(type))
+    const [layoutView, setLayoutView] = useGalleryView()
     const publicConfig = useMemo(() => publicConfigFor(type), [type])
     const activeConfig = viewMode === 'public' ? publicConfig : config
     const isPublicView = viewMode === 'public'
@@ -766,6 +770,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                                 {t('gallery.publicCards')}
                             </Chip>
                         </div>
+                        <GalleryViewToggle value={layoutView} onChange={setLayoutView} className="shrink-0" />
                         <div className="relative flex w-full items-center sm:w-[320px]">
                             <span className="pointer-events-none absolute left-3 flex items-center text-parchment-400">
                                 <Icon icon={Search} size={16} />
@@ -876,11 +881,11 @@ export function GalleryPage({ type }: GalleryPageProps) {
 
             <CardGrid
                 items={gallery.items}
-                layout="grid"
-                density="comfortable"
+                layout={cardGridLayout(layoutView)}
+                density={cardGridDensity(layoutView)}
                 getItemKey={(item) => item.id}
                 loading={gallery.loading}
-                renderSkeleton={() => <GalleryCardSkeleton />}
+                renderSkeleton={() => <GalleryCardSkeleton view={galleryCardView(layoutView)} />}
                 hasMore={gallery.hasMore}
                 loadingMore={gallery.loadingMore}
                 onLoadMore={gallery.loadMore}
@@ -898,6 +903,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                     return (
                         <GalleryCard
                             id={item.id}
+                            view={galleryCardView(layoutView)}
                             title={item.title}
                             badge={alreadyImported ? t('gallery.alreadyImported') : item.badge}
                             eyebrow={item.eyebrow}

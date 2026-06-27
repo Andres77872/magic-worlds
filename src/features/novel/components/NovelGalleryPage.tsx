@@ -10,11 +10,14 @@ import { BookOpenText, Loader2, Plus, Search, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import type { StoryCreateRequest } from '@/shared'
-import { CardGrid, GalleryCard, type CardOption } from '@/ui/components'
+import { CardGrid, GalleryCard, GalleryCardSkeleton, type CardOption } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { Button, controlClass, Icon, IconButton, PageHeader, Toast } from '@/ui/primitives'
 import { getNovelGalleryConfig, type NovelGalleryItem } from '../novelGalleryConfig'
 import { useCardGallery } from '@/features/gallery/hooks/useCardGallery'
+import { useGalleryView } from '@/features/gallery/hooks/useGalleryView'
+import { cardGridDensity, cardGridLayout, galleryCardView } from '@/features/gallery/galleryView'
+import { GalleryViewToggle } from '@/features/gallery/components/GalleryViewToggle'
 import { NovelCreateModal } from './NovelCreateModal'
 
 interface ActionNotice {
@@ -29,6 +32,7 @@ export function NovelGalleryPage() {
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const gallery = useCardGallery<NovelGalleryItem>(galleryConfig, undefined, { enabled: isAuthenticated })
+    const [layoutView, setLayoutView] = useGalleryView()
     const { createStory, openStory, deleteStory } = useData()
 
     const [createOpen, setCreateOpen] = useState(false)
@@ -167,6 +171,7 @@ export function NovelGalleryPage() {
                                 </IconButton>
                             )}
                         </div>
+                        <GalleryViewToggle value={layoutView} onChange={setLayoutView} className="shrink-0" />
                         <Button
                             variant="primary"
                             iconLeft={<Icon icon={Plus} size={16} />}
@@ -202,10 +207,16 @@ export function NovelGalleryPage() {
 
             <CardGrid
                 items={gallery.items}
-                layout="grid"
-                density="compact"
+                layout={cardGridLayout(layoutView)}
+                density={cardGridDensity(layoutView)}
                 getItemKey={(item) => item.id}
                 loading={gallery.loading}
+                renderSkeleton={() => (
+                    <GalleryCardSkeleton
+                        view={galleryCardView(layoutView)}
+                        size={cardGridDensity(layoutView) === 'compact' ? 'compact' : 'default'}
+                    />
+                )}
                 hasMore={gallery.hasMore}
                 loadingMore={gallery.loadingMore}
                 onLoadMore={gallery.loadMore}
@@ -216,6 +227,7 @@ export function NovelGalleryPage() {
                 renderCard={(item) => (
                     <GalleryCard
                         id={item.id}
+                        view={galleryCardView(layoutView)}
                         title={item.title}
                         badge={item.badge}
                         tags={item.tags}

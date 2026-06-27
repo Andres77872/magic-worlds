@@ -43,6 +43,7 @@ const LorebookStudio = lazy(() => import('../../features/lorebook/components/Lor
 const NovelGalleryPage = lazy(() => import('../../features/novel/components/NovelGalleryPage').then(m => ({ default: m.NovelGalleryPage })))
 const NovelStudio = lazy(() => import('../../features/novel/components/NovelStudio').then(m => ({ default: m.NovelStudio })))
 const ProfilePage = lazy(() => import('../../features/profile/components/ProfilePage').then(m => ({ default: m.ProfilePage })))
+const BillingPage = lazy(() => import('../../features/billing/components/BillingPage').then(m => ({ default: m.BillingPage })))
 const PasswordResetPage = lazy(() => import('../../features/auth/PasswordResetPage').then(m => ({ default: m.PasswordResetPage })))
 const EmailVerifyPage = lazy(() => import('../../features/auth/EmailVerifyPage').then(m => ({ default: m.EmailVerifyPage })))
 const GoogleCallbackPage = lazy(() => import('../../features/auth/GoogleCallbackPage').then(m => ({ default: m.GoogleCallbackPage })))
@@ -126,6 +127,7 @@ export function AppRouter() {
                         {currentPage === 'chatroom' && <ChatroomPage />}
                         {currentPage === 'calls' && <CallsPage />}
                         {currentPage === 'profile' && <ProfilePage />}
+                        {currentPage === 'billing' && <BillingPage />}
                         {currentPage === 'password-reset' && <PasswordResetPage />}
                         {currentPage === 'verify-email' && <EmailVerifyPage />}
                         {currentPage === 'google-callback' && <GoogleCallbackPage />}

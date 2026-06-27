@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { Membership, UserProfile } from '@/shared'
+import type { ProfileSharedCardsState } from '../hooks/useProfileSharedCards'
 import { ProfileView } from './ProfileView'
 
 // Exported for the UsageSection / MembershipSection stories.
@@ -139,6 +140,16 @@ export const baseProfile: UserProfile = {
     card_counts: { character: 7, world: 3, item: 6, adventure_template: 5 },
 }
 
+// Empty-but-loaded sharing state so the Sharing tab renders its real section
+// (and its empty copy) rather than the signed-out fallback.
+const sharingStub: ProfileSharedCardsState = {
+    publicCards: [],
+    shareLinks: [],
+    isLoading: false,
+    error: null,
+    refresh: () => {},
+}
+
 const meta = {
     title: 'Features/Profile',
     component: ProfileView,
@@ -148,7 +159,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'Account/profile view backed by `GET /user/me`: identity, role, content stats, membership reference cards, and account details. The hero shows the effective name (chosen display name, else the login username, with `@username` beneath) and an inline editor that PATCHes the display name. Username, role and email remain read-only here.',
+                    'Account/profile view backed by `GET /user/me`. A two-column settings shell: an always-visible identity header (avatar, display-name editor, role, content-stat pills, log out) over a sticky section nav — Membership, Usage, Shared cards, Account, Security — beside the active panel, instead of one long scroll. The nav is vertical on desktop and a horizontal scroller on mobile. Use the `initialTab` control to preview each section.',
             },
         },
     },
@@ -157,6 +168,13 @@ const meta = {
         profile: { control: false },
         onLogout: { control: false },
         onDeleteAllData: { control: false },
+        activeTab: { control: false },
+        onTabChange: { control: false },
+        initialTab: {
+            control: 'inline-radio',
+            options: ['membership', 'usage', 'sharing', 'account', 'security'],
+            description: 'Section shown on first render (uncontrolled).',
+        },
     },
     args: { profile: baseProfile, onLogout: () => {}, onDeleteAllData: async () => {} },
 } satisfies Meta<typeof ProfileView>
@@ -262,6 +280,7 @@ export const FreshAccount: Story = {
 /** Usage meters near and at their limits — exercises the ember → amber → blood fill tones. */
 export const HeavyUsage: Story = {
     args: {
+        initialTab: 'usage',
         profile: {
             ...baseProfile,
             username: 'Nightowl',
@@ -299,6 +318,7 @@ export const HeavyUsage: Story = {
 
 export const NoMonthlyUsage: Story = {
     args: {
+        initialTab: 'usage',
         profile: {
             ...baseProfile,
             membership: {
@@ -320,3 +340,15 @@ export const LegacyProfileResponse: Story = {
         },
     },
 }
+
+/** The Usage section — daily quota meters plus the month-to-date breakdown. */
+export const UsageTab: Story = { args: { initialTab: 'usage' } }
+
+/** The Shared cards section (empty state) — public cards / unlisted links sub-toggle. */
+export const SharingTab: Story = { args: { initialTab: 'sharing', sharing: sharingStub } }
+
+/** The Account section — manage the email addresses linked to the account. */
+export const AccountTab: Story = { args: { initialTab: 'account' } }
+
+/** The Security section — change password and the danger zone. */
+export const SecurityTab: Story = { args: { initialTab: 'security' } }

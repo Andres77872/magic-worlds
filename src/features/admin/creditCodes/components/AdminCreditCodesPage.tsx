@@ -1,20 +1,33 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { KeyRound, Mail, RefreshCw, Ticket } from 'lucide-react'
 import { useAuth } from '@/app/hooks'
+import type { CreditGrantKind } from '@/shared'
 import { Button, Card, Icon, IconTile, PageHeader, SectionHeader, Toast } from '@/ui/primitives'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { useCreditCodesStudio } from '../hooks/useCreditCodesStudio'
-import { CreateCreditTokenForm } from './CreateCreditTokenForm'
-import { CreditTokensList } from './CreditTokensList'
-import { InviteUsersForm } from './InviteUsersForm'
-import { CreditInvitesList } from './CreditInvitesList'
+import { CreateCreditCodeGrantForm } from './CreateCreditCodeGrantForm'
+import { CreateEmailCreditGrantsForm } from './CreateEmailCreditGrantsForm'
+import { CreditCodeGrantsList } from './CreditCodeGrantsList'
+import { CreditGrantSummaryTiles } from './CreditGrantSummaryTiles'
+import { CreditTokensToolbar } from './CreditTokensToolbar'
+import { EditCreditGrantDialog, type EditableGrant } from './EditCreditGrantDialog'
+import { EmailCreditGrantsList } from './EmailCreditGrantsList'
+import { QuotaResetPanel } from './QuotaResetPanel'
+
+interface EditingTarget {
+    kind: CreditGrantKind
+    grant: EditableGrant
+}
 
 export function AdminCreditCodesPage() {
     const { t } = useTranslation()
     const { isAuthenticated, user, openLoginModal } = useAuth()
     const isRoot = isAuthenticated && user?.user_type === 'root'
     const studio = useCreditCodesStudio(Boolean(isRoot))
+    const [createOpen, setCreateOpen] = useState(false)
+    const [editing, setEditing] = useState<EditingTarget | null>(null)
 
     if (!isAuthenticated) {
         return (
@@ -27,22 +40,21 @@ export function AdminCreditCodesPage() {
     }
 
     if (!isRoot) {
-        return (
-            <RootAccessState
-                message={t('admin.creditCodes.access.title')}
-                secondaryText={t('admin.creditCodes.access.rootOnly')}
-            />
-        )
+        return <RootAccessState message={t('admin.creditCodes.access.title')} secondaryText={t('admin.creditCodes.access.rootOnly')} />
     }
 
-    const refreshing = studio.loadingTokens || studio.loadingInvites
-    const refreshAll = () => {
-        void studio.refreshTokens()
-        void studio.refreshInvites()
+    const { activeType } = studio
+    const counts = studio.summary ? (activeType === 'code' ? studio.summary.codes : studio.summary.emails) : undefined
+
+    const handleSaveEdit = async (patch: Parameters<typeof studio.editGrant>[2]) => {
+        if (!editing) return
+        const id = editing.kind === 'code' ? (editing.grant as { code_id: number }).code_id : (editing.grant as { grant_id: number }).grant_id
+        const ok = await studio.editGrant(editing.kind, id, patch)
+        if (ok) setEditing(null)
     }
 
     return (
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-6 px-5 py-8 sm:px-8 sm:py-10">
+        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-5 px-5 py-8 sm:px-8 sm:py-10">
             <PageHeader
                 eyebrow={t('admin.common.rootConsole')}
                 eyebrowTone="arcane"
@@ -54,9 +66,9 @@ export function AdminCreditCodesPage() {
                     <Button
                         variant="secondary"
                         size="sm"
-                        iconLeft={<Icon icon={RefreshCw} size={15} className={refreshing ? 'animate-spin' : undefined} />}
-                        onClick={refreshAll}
-                        disabled={refreshing}
+                        iconLeft={<Icon icon={RefreshCw} size={15} className={studio.loading ? 'animate-spin' : undefined} />}
+                        onClick={() => void studio.reload()}
+                        disabled={studio.loading}
                     >
                         {t('admin.common.refresh')}
                     </Button>
@@ -76,57 +88,114 @@ export function AdminCreditCodesPage() {
                 </div>
             )}
 
+            <QuotaResetPanel
+                resetting={studio.resettingQuotas}
+                lastReset={studio.lastQuotaReset}
+                onReset={studio.resetMembershipQuotas}
+            />
+
+            <CreditGrantSummaryTiles counts={counts} activeStatus={studio.status} onSelect={studio.setStatus} />
+
             <Card>
                 <div className="flex flex-col gap-5 p-5">
-                    <SectionHeader icon={KeyRound} title={t('admin.creditCodes.tokens.title')} tone="ember" />
-                    <p className="font-ui text-[13px] leading-relaxed text-parchment-300">
-                        {t('admin.creditCodes.tokens.description')}
-                    </p>
-                    <CreateCreditTokenForm
-                        onCreated={studio.addToken}
-                        notify={studio.setToast}
-                        setError={studio.setError}
+                    <CreditTokensToolbar
+                        activeType={activeType}
+                        onTypeChange={(type) => {
+                            setCreateOpen(false)
+                            studio.setActiveType(type)
+                        }}
+                        status={studio.status}
+                        onStatusChange={studio.setStatus}
+                        search={studio.searchInput}
+                        onSearchChange={studio.setSearchInput}
+                        searching={studio.loading}
+                        sort={studio.sort}
+                        onSortChange={studio.setSort}
+                        total={studio.total}
+                        onCreate={() => setCreateOpen((open) => !open)}
+                        createActive={createOpen}
+                        onExport={() => void studio.exportCsv()}
+                        exporting={studio.exporting}
+                        exportDisabled={(studio.total ?? 0) === 0}
                     />
+
+                    {createOpen && (
+                        <div className="rounded-lg border border-ember-500/25 bg-ember-500/[.04] p-4">
+                            <SectionHeader
+                                icon={activeType === 'code' ? KeyRound : Mail}
+                                title={
+                                    activeType === 'code'
+                                        ? t('admin.creditCodes.codes.title')
+                                        : t('admin.creditCodes.emailGrants.title')
+                                }
+                                tone="ember"
+                            />
+                            <p className="mt-1 mb-4 font-ui text-[13px] leading-relaxed text-parchment-300">
+                                {activeType === 'code'
+                                    ? t('admin.creditCodes.codes.description')
+                                    : t('admin.creditCodes.emailGrants.description')}
+                            </p>
+                            {activeType === 'code' ? (
+                                <CreateCreditCodeGrantForm
+                                    onCreated={() => studio.handleCreated()}
+                                    notify={studio.setToast}
+                                    setError={studio.setError}
+                                />
+                            ) : (
+                                <CreateEmailCreditGrantsForm
+                                    onCreated={() => studio.handleCreated()}
+                                    notify={studio.setToast}
+                                    setError={studio.setError}
+                                />
+                            )}
+                        </div>
+                    )}
+
                     <div className="border-t border-parchment-50/[.08] pt-5">
-                        <CreditTokensList
-                            tokens={studio.tokens}
-                            loading={studio.loadingTokens}
-                            disablingId={studio.disablingId}
-                            onDisable={(token) =>
-                                studio.setPendingDisable({
-                                    kind: 'token',
-                                    id: token.token_id,
-                                    label: token.label || t('admin.creditCodes.tokens.untitled'),
-                                })
-                            }
-                        />
+                        {activeType === 'code' ? (
+                            <CreditCodeGrantsList
+                                grants={studio.codeGrants}
+                                loading={studio.loading}
+                                mutatingId={studio.mutatingId}
+                                onDisable={(grant) =>
+                                    studio.setPendingDisable({
+                                        kind: 'code',
+                                        id: grant.code_id,
+                                        label: grant.label || t('admin.creditCodes.codes.untitled'),
+                                    })
+                                }
+                                onEdit={(grant) => setEditing({ kind: 'code', grant })}
+                                hasMore={studio.hasMore}
+                                loadingMore={studio.loadingMore}
+                                onLoadMore={() => void studio.loadMore()}
+                            />
+                        ) : (
+                            <EmailCreditGrantsList
+                                grants={studio.emailGrants}
+                                loading={studio.loading}
+                                mutatingId={studio.mutatingId}
+                                onDisable={(grant) =>
+                                    studio.setPendingDisable({ kind: 'email', id: grant.grant_id, label: grant.email })
+                                }
+                                onEdit={(grant) => setEditing({ kind: 'email', grant })}
+                                hasMore={studio.hasMore}
+                                loadingMore={studio.loadingMore}
+                                onLoadMore={() => void studio.loadMore()}
+                            />
+                        )}
                     </div>
                 </div>
             </Card>
 
-            <Card>
-                <div className="flex flex-col gap-5 p-5">
-                    <SectionHeader icon={Mail} title={t('admin.creditCodes.invites.title')} tone="ember" />
-                    <p className="font-ui text-[13px] leading-relaxed text-parchment-300">
-                        {t('admin.creditCodes.invites.description')}
-                    </p>
-                    <InviteUsersForm
-                        onCreated={studio.addInvites}
-                        notify={studio.setToast}
-                        setError={studio.setError}
-                    />
-                    <div className="border-t border-parchment-50/[.08] pt-5">
-                        <CreditInvitesList
-                            invites={studio.invites}
-                            loading={studio.loadingInvites}
-                            disablingId={studio.disablingId}
-                            onDisable={(invite) =>
-                                studio.setPendingDisable({ kind: 'invite', id: invite.invite_id, label: invite.email })
-                            }
-                        />
-                    </div>
-                </div>
-            </Card>
+            <EditCreditGrantDialog
+                key={editing ? `${editing.kind}-${editing.kind === 'code' ? (editing.grant as { code_id: number }).code_id : (editing.grant as { grant_id: number }).grant_id}` : 'edit-none'}
+                open={editing !== null}
+                kind={editing?.kind ?? 'code'}
+                grant={editing?.grant ?? null}
+                saving={editing != null && studio.mutatingId != null}
+                onSave={(patch) => void handleSaveEdit(patch)}
+                onClose={() => setEditing(null)}
+            />
 
             <ConfirmDialog
                 visible={studio.pendingDisable !== null}

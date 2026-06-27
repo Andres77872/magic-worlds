@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { ArrowLeft, ExternalLink, Link2, Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeft, ExternalLink, FileText, Link2, Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { LorebookResource } from '@/shared'
-import { Badge, Button, Field, Icon, IconButton, Input, SwitchRow, Tag, Textarea } from '@/ui/primitives'
+import { Badge, Button, Callout, Field, Icon, IconButton, Input, PageHeader, SwitchRow, Tag, Textarea } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
 import { formatApiDateTime } from '@/utils/time'
 import {
@@ -19,6 +19,7 @@ import {
 } from '../../markdownNewImport'
 import { ResourceContentView, type ContentView } from './ResourceContentView'
 import { ResourceExtractionMetadata } from './ResourceExtractionMetadata'
+import { Stat } from './Stat'
 import { statusTone } from './resourceStatus'
 
 interface ResourceDetailViewProps {
@@ -164,61 +165,66 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
     const contentLength = resource.contentLength ?? resource.content.length
     const extraction = lorebookResourceCompletedExtraction(resource)
     const snippets = extraction?.snippets ?? []
+    const metaLine = [
+        createdAt && t('lorebookResourcesGallery.detail.created', { date: createdAt }),
+        updatedAt && updatedAt !== createdAt && t('lorebookResourcesGallery.detail.updated', { date: updatedAt }),
+        t('lorebookResourcesGallery.detail.chars', { count: contentLength }),
+    ].filter(Boolean).join(' · ')
 
     return (
         <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-6 px-5 py-8 sm:px-8 sm:py-10">
-            <div className="flex flex-col gap-4">
-                <Button variant="ghost" size="sm" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack} className="self-start">
-                    {t('lorebookResourcesGallery.actions.back')}
-                </Button>
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="min-w-0">
-                        <h1 className="truncate font-display text-3xl font-semibold leading-tight text-parchment-50" title={headTitle}>
-                            {headTitle}
-                        </h1>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <Tag>{headType}</Tag>
-                            {!isCreate && <Badge tone={statusTone(resource)}>{resource.extractionStatus ?? 'pending'}</Badge>}
-                        </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                        {isEdit ? (
-                            <>
-                                <Button variant="ghost" type="button" onClick={cancelEdit} disabled={saving}>
-                                    {t('common.cancel')}
-                                </Button>
-                                <Button
-                                    variant="primary"
-                                    type="button"
-                                    onClick={() => void save()}
-                                    disabled={saving || overLimit || triggerOverLimit}
-                                    iconLeft={saving ? <Icon icon={Loader2} className="animate-spin" size={16} /> : undefined}
-                                >
-                                    {saving ? t('common.saving') : isCreate ? t('lorebookResourcesGallery.actions.create') : t('common.save')}
-                                </Button>
-                            </>
-                        ) : (
-                            <>
-                                {onSyncMetadata && (
-                                    <Button
-                                        variant="secondary"
-                                        type="button"
-                                        iconLeft={<Icon icon={saving ? Loader2 : RefreshCw} className={saving ? 'animate-spin' : undefined} size={16} />}
-                                        onClick={() => void syncMetadata()}
-                                        disabled={saving}
-                                    >
-                                        {t('lorebookResourcesGallery.actions.syncMetadata')}
+            <div className="flex flex-col gap-3">
+                <PageHeader
+                    eyebrow={t(isCreate ? 'lorebookResourcesGallery.editor.createEyebrow' : 'lorebookResourcesGallery.editor.editEyebrow')}
+                    title={headTitle}
+                    icon={<span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-arcane-500/15 text-arcane-300"><Icon icon={FileText} size={22} /></span>}
+                    actions={
+                        <>
+                            <Button variant="ghost" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack}>
+                                {t('lorebookResourcesGallery.actions.back')}
+                            </Button>
+                            {isEdit ? (
+                                <>
+                                    <Button variant="ghost" type="button" onClick={cancelEdit} disabled={saving}>
+                                        {t('common.cancel')}
                                     </Button>
-                                )}
-                                <Button variant="primary" type="button" iconLeft={<Icon icon={Pencil} size={16} />} onClick={startEdit}>
-                                    {t('lorebookResourcesGallery.actions.edit')}
-                                </Button>
-                                <IconButton label={t('lorebookResourcesGallery.card.deleteAria', { name: headTitle })} tone="danger" onClick={() => onDelete(resource)}>
-                                    <Icon icon={Trash2} size={16} />
-                                </IconButton>
-                            </>
-                        )}
-                    </div>
+                                    <Button
+                                        variant="primary"
+                                        type="button"
+                                        onClick={() => void save()}
+                                        disabled={saving || overLimit || triggerOverLimit}
+                                        iconLeft={saving ? <Icon icon={Loader2} className="animate-spin" size={16} /> : undefined}
+                                    >
+                                        {saving ? t('common.saving') : isCreate ? t('lorebookResourcesGallery.actions.create') : t('common.save')}
+                                    </Button>
+                                </>
+                            ) : (
+                                <>
+                                    {onSyncMetadata && (
+                                        <Button
+                                            variant="secondary"
+                                            type="button"
+                                            iconLeft={<Icon icon={saving ? Loader2 : RefreshCw} className={saving ? 'animate-spin' : undefined} size={16} />}
+                                            onClick={() => void syncMetadata()}
+                                            disabled={saving}
+                                        >
+                                            {t('lorebookResourcesGallery.actions.syncMetadata')}
+                                        </Button>
+                                    )}
+                                    <Button variant="primary" type="button" iconLeft={<Icon icon={Pencil} size={16} />} onClick={startEdit}>
+                                        {t('lorebookResourcesGallery.actions.edit')}
+                                    </Button>
+                                    <IconButton label={t('lorebookResourcesGallery.card.deleteAria', { name: headTitle })} tone="danger" onClick={() => onDelete(resource)}>
+                                        <Icon icon={Trash2} size={16} />
+                                    </IconButton>
+                                </>
+                            )}
+                        </>
+                    }
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                    <Tag>{headType}</Tag>
+                    {!isCreate && <Badge tone={statusTone(resource)}>{resource.extractionStatus ?? 'pending'}</Badge>}
                 </div>
             </div>
 
@@ -330,9 +336,9 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                         disabled={saving}
                     />
                     {extractMetadata && (
-                        <div className="rounded-lg border border-ember-500/30 bg-ember-500/10 px-4 py-3 font-ui text-sm text-parchment-200" role="note">
+                        <Callout tone="warning" role="note">
                             {t('lorebookResourcesGallery.metadata.saveUsageWarning')}
-                        </div>
+                        </Callout>
                     )}
                 </div>
             ) : (
@@ -341,13 +347,12 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                         <p className="m-0 max-w-[72ch] font-narrative text-base leading-relaxed text-parchment-200">{resource.description}</p>
                     )}
                     <div className="flex flex-col gap-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                            {createdAt && <Tag>{t('lorebookResourcesGallery.detail.created', { date: createdAt })}</Tag>}
-                            {updatedAt && updatedAt !== createdAt && <Tag>{t('lorebookResourcesGallery.detail.updated', { date: updatedAt })}</Tag>}
-                            <Tag>{t('lorebookResourcesGallery.detail.chars', { count: contentLength })}</Tag>
-                            <Tag>{t('lorebookResourcesGallery.card.snippetCount', { count: snippets.length })}</Tag>
-                            {(resource.linkCount ?? 0) > 0 && <Tag>{t('lorebookResourcesGallery.detail.links', { count: resource.linkCount })}</Tag>}
+                        <div className="grid grid-cols-3 gap-2 sm:max-w-[460px]">
+                            <Stat label={t('lorebookResourcesGallery.card.triggers')} value={String(resource.triggers.length)} />
+                            <Stat label={t('lorebookResourcesGallery.card.snippets')} value={String(snippets.length)} />
+                            <Stat label={t('lorebookResourcesGallery.card.links')} value={String(resource.linkCount ?? 0)} />
                         </div>
+                        {metaLine && <p className="m-0 font-ui text-caption text-parchment-400">{metaLine}</p>}
                         {resource.triggers.length > 0 && (
                             <div className="flex flex-wrap gap-1.5">
                                 {resource.triggers.slice(0, 12).map((trigger) => (
@@ -359,9 +364,9 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                     </div>
                     <ResourceExtractionMetadata resource={resource} />
                     {onSyncMetadata && (
-                        <div className="rounded-lg border border-ember-500/30 bg-ember-500/10 px-4 py-3 font-ui text-sm text-parchment-200" role="note">
+                        <Callout tone="warning" role="note">
                             {t('lorebookResourcesGallery.metadata.syncUsageWarning')}
-                        </div>
+                        </Callout>
                     )}
                     <ResourceContentView
                         mode="read"

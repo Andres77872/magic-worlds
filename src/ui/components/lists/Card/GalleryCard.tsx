@@ -16,7 +16,7 @@ import { downloadThemeSong } from '@/ui/components/audio/downloadThemeSong'
 import { CardUsageLine } from '@/ui/components/common/CardUsageLine'
 import { Badge, Card, CardDeletingOverlay, cx, Icon, Portrait, Tag, ThemeSongButton } from '@/ui/primitives'
 import { CardActionMenu, CardOptions, type CardOption } from './CardOptions'
-import { SELECTED_CARD_CLASS } from './cardStyles'
+import { CARD_ACTION_REVEAL_CLASS, SELECTED_CARD_CLASS } from './cardStyles'
 import { useCardActionContextMenu } from './useCardActionContextMenu'
 
 export interface GalleryCardProps {
@@ -49,6 +49,14 @@ export interface GalleryCardProps {
      * tighter vignette, tags capped at 2 so narrow cards stay legible.
      */
     size?: 'default' | 'compact'
+    /**
+     * `card` (default) — the image-forward 3:4 portrait tile. `row` — a
+     * horizontal, full-width list row (thumbnail + text + trailing actions) for
+     * `CardGrid`'s `list` layout. Every feature (badges, version/draft chips,
+     * theme song, share/options menus, tags, usage, footer CTA, highlight,
+     * deleting) is preserved — only the arrangement changes.
+     */
+    view?: 'card' | 'row'
     /** Mono "where" label above the name (e.g. a world/location); shown when set. */
     eyebrow?: string
     /** One-line narrative hook under the name — the card's substance line. */
@@ -90,6 +98,7 @@ export function GalleryCard({
     highlighted = false,
     deleting = false,
     size = 'default',
+    view = 'card',
     eyebrow,
     description,
     gradient,
@@ -238,6 +247,126 @@ export function GalleryCard({
         onClick?.()
     }
 
+    // Shared pointer/keyboard wiring for the root surface — identical for the
+    // portrait tile and the list row so both honour click, context menu, and
+    // long-press the same way.
+    const rootHandlers = {
+        onClick: interactive ? handleClick : undefined,
+        onKeyDown: interactive ? handleKeyDown : undefined,
+        onContextMenu: contextMenu.handleContextMenu,
+        onPointerDown: contextMenu.pointerHandlers.onPointerDown,
+        onPointerMove: contextMenu.pointerHandlers.onPointerMove,
+        onPointerCancel: contextMenu.pointerHandlers.onPointerCancel,
+        onPointerLeave: contextMenu.pointerHandlers.onPointerLeave,
+        onPointerUp: contextMenu.pointerHandlers.onPointerUp,
+    }
+
+    // The list row's trailing action affordance: a single overflow menu carrying
+    // the full action set (theme play/queue/download + share + edit/delete…) —
+    // the same `contextOptions` the right-click menu uses. One fixed-width ⋯ keeps
+    // every row's trailing edge aligned (a variable icon strip made it ragged) and
+    // its hover-reveal slot stays in flow, so the CTAs never shift. The portrait
+    // tile keeps its own translucent bubble, so only build this for rows.
+    const rowMenu = view === 'row' && !staticCard && contextOptions.length > 0 ? (
+        <div className={cx('flex shrink-0 items-center', CARD_ACTION_REVEAL_CLASS)}>
+            <CardOptions options={contextOptions} aria-label={t('galleryCard.actions', { title })} onOpenChange={setMenuOpen} />
+        </div>
+    ) : null
+
+    if (view === 'row') {
+        return (
+            <Card
+                ref={cardRef}
+                interactive={interactive}
+                role={interactive ? 'button' : 'article'}
+                tabIndex={interactive ? 0 : undefined}
+                aria-label={actionLabel || title}
+                aria-busy={deleting || undefined}
+                {...rootHandlers}
+                className={cx(
+                    'group relative flex w-full items-center gap-3 p-2.5 sm:gap-4 sm:p-3',
+                    (highlighted || menuOpen) && cx(SELECTED_CARD_CLASS, 'shadow-card-hover'),
+                    deleting && 'pointer-events-none opacity-60',
+                )}
+                data-gallery-card-id={id}
+                data-testid={testId}
+            >
+                <Portrait
+                    name={title}
+                    src={imageUrl}
+                    staticSrc={staticImageUrl}
+                    gradient={gradient}
+                    height={72}
+                    lazy
+                    className="w-[54px] shrink-0 rounded-md group-hover:[&>img]:scale-[1.04]"
+                />
+
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <h3 className="m-0 min-w-0 truncate font-display text-[17px] font-semibold leading-tight text-parchment-50" title={title}>
+                            {title}
+                        </h3>
+                        {badge && <Badge tone="glass" className="hidden shrink-0 sm:inline-flex">{badge}</Badge>}
+                        {showVersion && (
+                            <Badge tone="glass" className="hidden shrink-0 font-mono sm:inline-flex">
+                                {t('cardVersions.drawer.versionLabel', { number: versionNumber })}
+                            </Badge>
+                        )}
+                        {hasDraft && <Badge tone="ember" className="shrink-0">{t('cardVersions.gallery.draftPending')}</Badge>}
+                    </div>
+                    {(eyebrow || description) && (
+                        <p className="m-0 truncate font-narrative text-label leading-snug text-parchment-200">
+                            {eyebrow && <span className="font-mono text-meta text-ember-400">{eyebrow}</span>}
+                            {eyebrow && description && <span className="text-parchment-400"> · </span>}
+                            {description}
+                        </p>
+                    )}
+                    {(tags.length > 0 || usage) && (
+                        <div className="flex min-w-0 items-center gap-1.5 overflow-hidden pt-0.5">
+                            {visibleTags.map((tag) =>
+                                onTagClick ? (
+                                    <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={(e: MouseEvent) => {
+                                            e.stopPropagation()
+                                            onTagClick(tag)
+                                        }}
+                                        aria-label={t('galleryCard.searchFor', { tag })}
+                                        className="min-w-0 max-w-[40%] shrink cursor-pointer truncate whitespace-nowrap rounded-full bg-ink-600 px-2 py-[2px] font-ui text-micro font-semibold text-parchment-200 transition-colors hover:bg-ember-500/25 hover:text-ember-300"
+                                    >
+                                        {tag}
+                                    </button>
+                                ) : (
+                                    <Tag key={tag} className="min-w-0 max-w-[40%] shrink truncate whitespace-nowrap">
+                                        {tag}
+                                    </Tag>
+                                ),
+                            )}
+                            {extraTagCount > 0 && <Tag className="shrink-0 text-parchment-300">+{extraTagCount}</Tag>}
+                            {usage && <CardUsageLine usage={usage} className="shrink-0 truncate text-parchment-400" />}
+                        </div>
+                    )}
+                </div>
+
+                {(footer || rowMenu) && (
+                    <div className="flex shrink-0 items-center gap-2" onClick={(e: MouseEvent) => e.stopPropagation()}>
+                        {footer && <div className="hidden items-center sm:flex">{footer}</div>}
+                        {rowMenu}
+                    </div>
+                )}
+
+                <CardActionMenu
+                    {...contextMenu.menuProps}
+                    menuTestId="card-context-menu"
+                    optionTestIdPrefix="card-context-option"
+                />
+
+                {deleting && <CardDeletingOverlay label={t('galleryCard.deleting')} />}
+            </Card>
+        )
+    }
+
     return (
         <Card
             ref={cardRef}
@@ -246,14 +375,7 @@ export function GalleryCard({
             tabIndex={interactive ? 0 : undefined}
             aria-label={actionLabel || title}
             aria-busy={deleting || undefined}
-            onClick={interactive ? handleClick : undefined}
-            onKeyDown={interactive ? handleKeyDown : undefined}
-            onContextMenu={contextMenu.handleContextMenu}
-            onPointerDown={contextMenu.pointerHandlers.onPointerDown}
-            onPointerMove={contextMenu.pointerHandlers.onPointerMove}
-            onPointerCancel={contextMenu.pointerHandlers.onPointerCancel}
-            onPointerLeave={contextMenu.pointerHandlers.onPointerLeave}
-            onPointerUp={contextMenu.pointerHandlers.onPointerUp}
+            {...rootHandlers}
             className={cx(
                 'group relative flex h-full flex-col',
                 (highlighted || menuOpen) && cx(SELECTED_CARD_CLASS, 'shadow-card-hover'),
