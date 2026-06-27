@@ -1,0 +1,24 @@
+{
+  "_comment": "Comment-free path map for the design-sync esbuild bundle. (1) The real tsconfig.app.json carries block comments AND an at-slash-star glob whose literal slash-star collides with the converter comment-stripper, so it cannot be parsed. (2) The converter path plugin returns a directory for barrel imports instead of its index, so every directory-barrel needs an explicit index entry. (3) The at-slash-infrastructure-api boundary is redirected to inert stubs because the real apiService reads import.meta.env at module scope (fatal in an IIFE) and opens backend side effects previews never need. baseUrl dot-dot resolves the at-slash alias to repo-root src. Specific entries MUST precede the at-slash-star wildcard.",
+  "compilerOptions": {
+    "baseUrl": "..",
+    "paths": {
+      "@/infrastructure/api": [".design-sync/stubs/api.ts"],
+      "@/infrastructure/api/mediaUrl": [".design-sync/stubs/mediaUrl.ts"],
+      "@/infrastructure/api/useAuthenticatedMediaUrl": [".design-sync/stubs/useAuthenticatedMediaUrl.ts"],
+      "@/infrastructure": [".design-sync/stubs/api.ts"],
+      "@/ui/primitives": ["./src/ui/primitives/index.ts"],
+      "@/ui/components": ["./src/ui/components/index.ts"],
+      "@/ui/components/audio": ["./src/ui/components/audio/index.ts"],
+      "@/ui/components/lists/Card": ["./src/ui/components/lists/Card/index.ts"],
+      "@/app/hooks": ["./src/app/hooks/index.ts"],
+      "@/app/i18n": ["./src/app/i18n/index.ts"],
+      "@/app/providers": ["./src/app/providers/index.ts"],
+      "@/shared": ["./src/shared/index.ts"],
+      "@/shared/hooks": ["./src/shared/hooks/index.ts"],
+      "@/shared/types": ["./src/shared/types/index.ts"],
+      "@/assets/marketing": ["./src/assets/marketing/index.ts"],
+      "@/*": ["./src/*"]
+    }
+  }
+}

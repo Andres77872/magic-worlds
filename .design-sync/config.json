@@ -1,0 +1,21 @@
+{
+  "projectId": "7888d2e2-9907-4930-9b2c-24a6b4ac3aea",
+  "shape": "storybook",
+  "pkg": "magic-worlds",
+  "globalName": "Reverie",
+  "tsconfig": "../tsconfig.paths.json",
+  "storybookConfigDir": ".design-sync/sb-config",
+  "storybookStatic": ".design-sync/sb-reference",
+  "cssEntry": "reverie-compiled.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "provider": { "component": "ReveriePreviewProvider" },
+  "storyImports": { "loaders": { ".webp": "dataurl", ".png": "dataurl" } },
+  "overrides": {
+    "AppWarningModal": { "cardMode": "single", "primaryStory": "Default" },
+    "LogoutConfirmDialog": { "cardMode": "single", "primaryStory": "Default" },
+    "FloatingWindow": { "cardMode": "column" },
+    "PlaylistDock": { "skip": ["components-audio-playlistdock--seeded"] },
+    "Card": { "skip": ["components-lists-card--default", "components-lists-card--highlighted", "components-lists-card--loading", "components-lists-card--disabled"] },
+    "CardGrid": { "skip": ["components-lists-cardgrid--default", "components-lists-cardgrid--with-search"] }
+  }
+}

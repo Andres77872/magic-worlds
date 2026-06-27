@@ -1,0 +1,23 @@
+{
+  "//": "Emits a .d.ts tree for the Reverie design system into .design-sync/dist so the design-sync storybook converter can read the component export list and per-component prop contracts. magic-worlds is an unbuilt app, so this stands in for the published dist the converter expects. Regenerated each sync (see NOTES.md).",
+  "extends": "../tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "declarationDir": "./dist",
+    "outDir": "./dist",
+    "rootDir": "../src",
+    "noEmitOnError": false,
+    "composite": false,
+    "incremental": false,
+    "skipLibCheck": true
+  },
+  "include": ["../src/ui/**/*.ts", "../src/ui/**/*.tsx"],
+  "exclude": [
+    "../src/**/*.stories.ts",
+    "../src/**/*.stories.tsx",
+    "../src/**/*.test.ts",
+    "../src/**/*.test.tsx"
+  ]
+}
