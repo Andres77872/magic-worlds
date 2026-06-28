@@ -70,13 +70,12 @@ export function SidebarTasksMenu({ collapsed = false, defaultOpen = false }: Sid
 
     return (
         <div ref={containerRef} className="relative w-full">
-            <Tooltip label={label} disabled={!collapsed} wrapperClassName="w-full">
+            <Tooltip label={label} disabled={!collapsed || open} wrapperClassName="w-full">
                 <button
                     type="button"
                     aria-label={label}
                     aria-expanded={open}
                     aria-controls="sidebar-tasks-panel"
-                    title={label}
                     className={cx(
                         'relative inline-flex h-10 w-10 shrink-0 items-center justify-center gap-3 rounded-md px-0 font-ui text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500 lg:w-full lg:justify-start lg:px-3',
                         collapsed && 'lg:w-10 lg:justify-center lg:px-0',

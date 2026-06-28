@@ -79,13 +79,12 @@ export function LanguageMenu({ collapsed = false, defaultOpen = false }: Languag
 
     return (
         <div ref={containerRef} className="relative w-full">
-            <Tooltip label={triggerLabel} disabled={!collapsed} wrapperClassName="w-full">
+            <Tooltip label={triggerLabel} disabled={!collapsed || open} wrapperClassName="w-full">
                 <button
                     type="button"
                     aria-label={triggerLabel}
                     aria-haspopup="menu"
                     aria-expanded={open}
-                    title={triggerLabel}
                     onClick={() => setOpen((current) => !current)}
                     className={cx(
                         'inline-flex h-10 w-10 shrink-0 items-center justify-center gap-3 rounded-md px-0 font-ui text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500 lg:w-full lg:justify-start lg:px-3',

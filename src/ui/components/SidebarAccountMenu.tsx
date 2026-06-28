@@ -214,7 +214,7 @@ export function SidebarAccountMenu({
         <div ref={containerRef} className={containerClassName}>
             <Tooltip
                 label={visibleLabel}
-                disabled={placement !== 'rise' || !collapsed}
+                disabled={placement !== 'rise' || !collapsed || open}
                 wrapperClassName={placement === 'rise' ? 'w-full items-center justify-center' : undefined}
             >
                 <button
@@ -222,7 +222,6 @@ export function SidebarAccountMenu({
                     aria-label={triggerLabel}
                     aria-haspopup="menu"
                     aria-expanded={open}
-                    title={visibleLabel}
                     onClick={() => setOpen((current) => !current)}
                     className={cx(
                         // The base classes ARE the icon-only state — a centered 40px circle,
