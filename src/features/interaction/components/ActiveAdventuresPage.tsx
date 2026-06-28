@@ -45,17 +45,18 @@ export function ActiveAdventuresPage() {
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null)
 
     useEffect(() => {
-        if (!isAuthenticated) {
-            openLoginModal()
-            setPage('landing')
-        }
-    }, [isAuthenticated, openLoginModal, setPage])
-
-    useEffect(() => {
         if (isAuthenticated) void loadData({ silent: true })
         // Refresh the session list on entry without replacing the page with the global loader.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated])
+
+    const requireAuth = (action: () => void) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            return
+        }
+        action()
+    }
 
     const sessions = useMemo(() => toResumeSessions(inProgressAdventures, []), [inProgressAdventures])
     const normalizedQuery = query.trim().toLowerCase()
@@ -64,11 +65,11 @@ export function ActiveAdventuresPage() {
         return sessions.filter((session) => searchableText(session).includes(normalizedQuery))
     }, [normalizedQuery, sessions])
 
-    if (!isAuthenticated) return null
-
     const openAdventure = (session: ResumeSession) => {
-        editInProgress(session.source as Adventure)
-        setPage('interaction')
+        requireAuth(() => {
+            editInProgress(session.source as Adventure)
+            setPage('interaction')
+        })
     }
 
     const confirmDelete = async () => {
@@ -109,12 +110,12 @@ export function ActiveAdventuresPage() {
 
     const hasQuery = query.trim().length > 0
     const emptyAction = hasQuery ? (
-        <Button kind="secondary" size="sm" onClick={() => setQuery('')}>
+        <Button variant="secondary" size="sm" onClick={() => setQuery('')}>
             {t('interaction.adventures.clearSearch')}
         </Button>
     ) : (
         <Button
-            kind="primary"
+            variant="primary"
             size="sm"
             iconLeft={<Icon icon={Swords} size={15} />}
             onClick={() => setPage('gallery-adventures')}
@@ -178,7 +179,7 @@ export function ActiveAdventuresPage() {
                             key={session.id}
                             session={session}
                             onContinue={() => openAdventure(session)}
-                            onDelete={() => setPendingDelete(session)}
+                            onDelete={() => requireAuth(() => setPendingDelete(session))}
                             deleting={deletingId === session.id}
                         />
                     ))}

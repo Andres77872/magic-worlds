@@ -23,8 +23,13 @@ export function HowItWorksSection() {
                     {HOW_IT_WORKS_STEPS.map((step, i) => (
                         <div
                             key={step.titleKey}
-                            className="group relative rounded-xl border border-parchment-50/[.06] bg-ink-700 px-[26px] pb-7 pt-[30px] transition-colors hover:border-arcane-500/30"
+                            className="group lift lift-arcane relative overflow-hidden rounded-xl border border-line-faint bg-gradient-to-b from-ink-700 to-ink-800 px-[26px] pb-7 pt-[30px]"
                         >
+                            {/* top hairline glint — a faint candlelight catch on the upper edge */}
+                            <span
+                                aria-hidden
+                                className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-arcane-500/40 to-transparent"
+                            />
                             <span className="absolute right-6 top-[22px] font-mono text-xs text-parchment-500">
                                 {String(i + 1).padStart(2, '0')}
                             </span>

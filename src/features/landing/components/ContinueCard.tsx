@@ -6,11 +6,12 @@
  * shown by an overlapped-avatar banner and a "Chat" vs "Group chat" badge.
  */
 
+import { useRef } from 'react'
 import { Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { resolveMediaUrl } from '@/infrastructure/api'
-import { CardOptions, type CardOption } from '@/ui/components/lists/Card'
-import { Avatar, Badge, Button, Icon, Portrait, cx, gradientFor } from '@/ui/primitives'
+import { CardActionMenu, CardOptions, type CardOption, useCardActionContextMenu } from '@/ui/components/lists/Card'
+import { Avatar, Badge, Button, CardDeletingOverlay, Icon, Portrait, cx, gradientFor } from '@/ui/primitives'
 import { RESUME_KIND_META, type ResumeSession } from './resumeModel'
 
 export interface ContinueCardProps {
@@ -25,6 +26,7 @@ export function ContinueCard({ session, onContinue, onDelete, deleting = false }
     const meta = RESUME_KIND_META[session.kind]
     const isArcane = meta.tone === 'arcane'
     const isGroupChat = Boolean(session.isGroupChat)
+    const cardRef = useRef<HTMLElement>(null!)
 
     const options: CardOption[] | undefined = onDelete
         ? [
@@ -38,12 +40,27 @@ export function ContinueCard({ session, onContinue, onDelete, deleting = false }
               },
           ]
         : undefined
+    const cardOptions = options ?? []
+    const contextMenu = useCardActionContextMenu({
+        options: cardOptions,
+        disabled: deleting,
+        returnFocusRef: cardRef,
+    })
 
     return (
         <article
+            ref={cardRef}
+            tabIndex={cardOptions.length > 0 && !deleting ? 0 : undefined}
+            onKeyDown={contextMenu.handleContextMenuKeyDown}
+            onContextMenu={contextMenu.handleContextMenu}
+            onPointerDown={contextMenu.pointerHandlers.onPointerDown}
+            onPointerMove={contextMenu.pointerHandlers.onPointerMove}
+            onPointerCancel={contextMenu.pointerHandlers.onPointerCancel}
+            onPointerLeave={contextMenu.pointerHandlers.onPointerLeave}
+            onPointerUp={contextMenu.pointerHandlers.onPointerUp}
             className={cx(
-                'group relative flex h-full flex-col overflow-hidden rounded-xl border border-parchment-50/[.08] bg-ink-700 transition-all hover:-translate-y-[3px]',
-                isArcane ? 'hover:border-arcane-500/45 hover:shadow-card-hover-arcane' : 'hover:border-ember-500/45 hover:shadow-card-hover',
+                'group relative flex h-full flex-col overflow-hidden rounded-xl border border-parchment-50/[.08] bg-ink-700 lift',
+                isArcane && 'lift-arcane',
                 deleting && 'pointer-events-none opacity-60',
             )}
             data-testid="continue-card"
@@ -83,12 +100,12 @@ export function ContinueCard({ session, onContinue, onDelete, deleting = false }
                         </Badge>
                     )}
                 </div>
-                {options && (
+                {cardOptions.length > 0 && (
                     <div
                         className="absolute right-2 top-2 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
                         onClick={(event) => event.stopPropagation()}
                     >
-                        <CardOptions options={options} aria-label={t('galleryCard.actions', { title: session.title })} />
+                        <CardOptions options={cardOptions} aria-label={t('galleryCard.actions', { title: session.title })} />
                     </div>
                 )}
             </div>
@@ -103,7 +120,7 @@ export function ContinueCard({ session, onContinue, onDelete, deleting = false }
                 )}
                 <p className="m-0 mt-auto font-mono text-[11px] tracking-wide text-parchment-400">{session.meta}</p>
                 <Button
-                    kind={isArcane ? 'arcane' : 'primary'}
+                    variant={isArcane ? 'arcane' : 'primary'}
                     size="sm"
                     full
                     iconLeft={<Icon icon={meta.icon} size={15} />}
@@ -113,11 +130,12 @@ export function ContinueCard({ session, onContinue, onDelete, deleting = false }
                     {t(meta.resumeLabelKey)}
                 </Button>
             </div>
-            {deleting && (
-                <div className="absolute inset-0 z-[1] flex items-center justify-center bg-ink-900/70 font-medium text-parchment-50">
-                    {t('galleryCard.deleting')}
-                </div>
-            )}
+            {deleting && <CardDeletingOverlay label={t('galleryCard.deleting')} />}
+            <CardActionMenu
+                {...contextMenu.menuProps}
+                menuTestId="card-context-menu"
+                optionTestIdPrefix="card-context-option"
+            />
         </article>
     )
 }

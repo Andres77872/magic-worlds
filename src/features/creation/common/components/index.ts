@@ -50,6 +50,15 @@ export type { MediaHistoryDrawerProps } from './MediaHistoryDrawer';
 export { VersionHistoryDrawer } from './VersionHistoryDrawer';
 export type { VersionHistoryDrawerProps } from './VersionHistoryDrawer';
 
+export { CardHistoryDrawer } from './CardHistoryDrawer';
+export type { CardHistoryDrawerProps } from './CardHistoryDrawer';
+
+export { CardDraftControls } from './CardDraftControls';
+export type { CardDraftControlsProps } from './CardDraftControls';
+
+export { HistoricalVersionBanner } from './HistoricalVersionBanner';
+export type { HistoricalVersionBannerProps } from './HistoricalVersionBanner';
+
 export { GeneratedDraftNotice } from './GeneratedDraftNotice';
 export type { GeneratedDraftNoticeProps } from './GeneratedDraftNotice';
 

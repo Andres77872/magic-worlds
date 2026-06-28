@@ -46,7 +46,7 @@ function PreviewDemo(args: ComponentProps<typeof CardPreviewModal>) {
     const [open, setOpen] = useState(false)
     return (
         <>
-            <Button kind="secondary" onClick={() => setOpen(true)}>
+            <Button variant="secondary" onClick={() => setOpen(true)}>
                 Open preview
             </Button>
             <CardPreviewModal {...args} target={open ? args.target : null} onClose={() => setOpen(false)} />

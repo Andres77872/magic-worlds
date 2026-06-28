@@ -100,7 +100,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                 picked ? (
                     <div className="flex w-full items-center justify-between gap-2">
                         <Button
-                            kind="ghost"
+                            variant="ghost"
                             size="sm"
                             onClick={() => setSelectedIds(allSelected ? new Set() : new Set(selectableIds))}
                             disabled={busy || selectableIds.length === 0}
@@ -108,11 +108,11 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                             {allSelected ? t('novelEditor.lorebookPicker.selectNone') : t('novelEditor.lorebookPicker.selectAll')}
                         </Button>
                         <div className="flex items-center gap-2">
-                            <Button kind="ghost" onClick={close} disabled={busy}>
+                            <Button variant="ghost" onClick={close} disabled={busy}>
                                 {t('common.cancel')}
                             </Button>
                             <Button
-                                kind="primary"
+                                variant="primary"
                                 onClick={() => void submit()}
                                 disabled={busy || selectedIds.size === 0}
                                 data-testid="codex-clone-entries-submit"

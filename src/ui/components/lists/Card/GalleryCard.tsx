@@ -5,14 +5,19 @@
  * in a hover-revealed menu so a wall of cards stays calm until pointed at.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, ListMusic, Loader2, Pause, Play, Share2 } from 'lucide-react'
 import { usePlaylist } from '@/app/hooks/usePlaylist'
 import { themeTrack, type PlaylistTrack } from '@/app/providers/audioPlaylistContext'
+import { useCardUsage } from '@/shared/hooks/useCardUsage'
+import type { VersionableCardType } from '@/shared'
 import { downloadThemeSong } from '@/ui/components/audio/downloadThemeSong'
-import { Badge, Card, cx, Icon, Portrait, Tag, ThemeSongButton } from '@/ui/primitives'
-import { CardActionMenu, CardOptions, type CardMenuAnchor, type CardOption } from './CardOptions'
+import { CardUsageLine } from '@/ui/components/common/CardUsageLine'
+import { Badge, Card, CardDeletingOverlay, cx, Icon, Portrait, Tag, ThemeSongButton } from '@/ui/primitives'
+import { CardActionMenu, CardOptions, type CardOption } from './CardOptions'
+import { CARD_ACTION_REVEAL_CLASS, SELECTED_CARD_CLASS } from './cardStyles'
+import { useCardActionContextMenu } from './useCardActionContextMenu'
 
 export interface GalleryCardProps {
     id?: string
@@ -44,6 +49,14 @@ export interface GalleryCardProps {
      * tighter vignette, tags capped at 2 so narrow cards stay legible.
      */
     size?: 'default' | 'compact'
+    /**
+     * `card` (default) — the image-forward 3:4 portrait tile. `row` — a
+     * horizontal, full-width list row (thumbnail + text + trailing actions) for
+     * `CardGrid`'s `list` layout. Every feature (badges, version/draft chips,
+     * theme song, share/options menus, tags, usage, footer CTA, highlight,
+     * deleting) is preserved — only the arrangement changes.
+     */
+    view?: 'card' | 'row'
     /** Mono "where" label above the name (e.g. a world/location); shown when set. */
     eyebrow?: string
     /** One-line narrative hook under the name — the card's substance line. */
@@ -56,10 +69,16 @@ export interface GalleryCardProps {
     staticCard?: boolean
     /** Pinned action row at the bottom of the vignette (e.g. a Chat button). */
     footer?: ReactNode
+    /** Newest saved version number — renders a "v{n}" chip when > 0. */
+    versionNumber?: number
+    /** Owner-only: renders a "Draft" chip when there are unpublished edits. */
+    hasDraft?: boolean
+    /** Card type for the usage lookup; required alongside `usageEnabled`. */
+    usageCardType?: VersionableCardType
+    /** Opt in to fetching + showing the usage line (owned-library galleries only). */
+    usageEnabled?: boolean
     'data-testid'?: string
 }
-
-const LONG_PRESS_MS = 520
 
 export function GalleryCard({
     id,
@@ -79,20 +98,22 @@ export function GalleryCard({
     highlighted = false,
     deleting = false,
     size = 'default',
+    view = 'card',
     eyebrow,
     description,
     gradient,
     staticImageUrl,
     staticCard = false,
     footer,
+    versionNumber,
+    hasDraft = false,
+    usageCardType,
+    usageEnabled = false,
     'data-testid': testId = 'gallery-card',
 }: GalleryCardProps) {
     const { t } = useTranslation()
     const interactive = Boolean(onClick) && !deleting
     const cardRef = useRef<HTMLDivElement>(null!)
-    const longPressTimerRef = useRef<number | null>(null)
-    const didLongPressRef = useRef(false)
-    const [contextAnchor, setContextAnchor] = useState<CardMenuAnchor | null>(null)
     const [menuOpen, setMenuOpen] = useState(false)
     const [themeDownloadState, setThemeDownloadState] = useState<{
         url: string
@@ -104,6 +125,31 @@ export function GalleryCard({
     const compact = size === 'compact'
     const visibleTags = tags.slice(0, compact ? 2 : 3)
     const extraTagCount = Math.max(0, tags.length - visibleTags.length)
+    const showVersion = typeof versionNumber === 'number' && versionNumber > 0
+    // Usage is an extra request per card, so only fetch once a card scrolls near the
+    // viewport (jsdom / no-IO environments enable immediately). Results are cached.
+    const wantUsage = usageEnabled && Boolean(usageCardType) && Boolean(cardId)
+    const [usageInView, setUsageInView] = useState(false)
+    useEffect(() => {
+        if (!wantUsage) return
+        const node = cardRef.current
+        if (!node || typeof IntersectionObserver === 'undefined') {
+            setUsageInView(true)
+            return
+        }
+        const observer = new IntersectionObserver(
+            (entries, obs) => {
+                if (entries.some((entry) => entry.isIntersecting)) {
+                    setUsageInView(true)
+                    obs.disconnect()
+                }
+            },
+            { rootMargin: '200px' },
+        )
+        observer.observe(node)
+        return () => observer.disconnect()
+    }, [wantUsage])
+    const usage = useCardUsage(usageCardType ?? null, cardId, { enabled: wantUsage && usageInView })
     // The description is the substance line (like the landing showcase); only fall
     // back to trigger pills when a card has no description, so every card stays clean.
     const showTags = tags.length > 0 && !description
@@ -181,25 +227,15 @@ export function GalleryCard({
         handleDownloadTheme,
         t,
     ])
-
-    const closeContextMenu = () => {
-        setContextAnchor(null)
-        setMenuOpen(false)
-    }
-
-    const openContextMenu = (anchor: CardMenuAnchor) => {
-        if (deleting || contextOptions.length === 0) return
-        setContextAnchor(anchor)
-        setMenuOpen(true)
-    }
+    const contextMenu = useCardActionContextMenu({
+        options: staticCard ? [] : contextOptions,
+        disabled: deleting,
+        returnFocusRef: cardRef,
+        onOpenChange: setMenuOpen,
+    })
 
     const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-        if ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu') {
-            e.preventDefault()
-            const rect = cardRef.current.getBoundingClientRect()
-            openContextMenu({ top: rect.top + 16, left: rect.left + 16 })
-            return
-        }
+        if (contextMenu.handleContextMenuKeyDown(e)) return
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
             onClick?.()
@@ -207,35 +243,128 @@ export function GalleryCard({
     }
 
     const handleClick = (e: MouseEvent<HTMLDivElement>) => {
-        if (didLongPressRef.current) {
-            e.preventDefault()
-            didLongPressRef.current = false
-            return
-        }
+        if (contextMenu.suppressClickAfterLongPress(e)) return
         onClick?.()
     }
 
-    const clearLongPress = () => {
-        if (longPressTimerRef.current !== null) {
-            window.clearTimeout(longPressTimerRef.current)
-            longPressTimerRef.current = null
-        }
+    // Shared pointer/keyboard wiring for the root surface — identical for the
+    // portrait tile and the list row so both honour click, context menu, and
+    // long-press the same way.
+    const rootHandlers = {
+        onClick: interactive ? handleClick : undefined,
+        onKeyDown: interactive ? handleKeyDown : undefined,
+        onContextMenu: contextMenu.handleContextMenu,
+        onPointerDown: contextMenu.pointerHandlers.onPointerDown,
+        onPointerMove: contextMenu.pointerHandlers.onPointerMove,
+        onPointerCancel: contextMenu.pointerHandlers.onPointerCancel,
+        onPointerLeave: contextMenu.pointerHandlers.onPointerLeave,
+        onPointerUp: contextMenu.pointerHandlers.onPointerUp,
     }
 
-    useEffect(() => {
-        return () => {
-            if (longPressTimerRef.current !== null) window.clearTimeout(longPressTimerRef.current)
-        }
-    }, [])
+    // The list row's trailing action affordance: a single overflow menu carrying
+    // the full action set (theme play/queue/download + share + edit/delete…) —
+    // the same `contextOptions` the right-click menu uses. One fixed-width ⋯ keeps
+    // every row's trailing edge aligned (a variable icon strip made it ragged) and
+    // its hover-reveal slot stays in flow, so the CTAs never shift. The portrait
+    // tile keeps its own translucent bubble, so only build this for rows.
+    const rowMenu = view === 'row' && !staticCard && contextOptions.length > 0 ? (
+        <div className={cx('flex shrink-0 items-center', CARD_ACTION_REVEAL_CLASS)}>
+            <CardOptions options={contextOptions} aria-label={t('galleryCard.actions', { title })} onOpenChange={setMenuOpen} />
+        </div>
+    ) : null
 
-    const handlePointerDown = (e: PointerEvent<HTMLDivElement>) => {
-        if (e.pointerType === 'mouse' || contextOptions.length === 0 || deleting) return
-        const anchor = { top: e.clientY, left: e.clientX }
-        clearLongPress()
-        longPressTimerRef.current = window.setTimeout(() => {
-            didLongPressRef.current = true
-            openContextMenu(anchor)
-        }, LONG_PRESS_MS)
+    if (view === 'row') {
+        return (
+            <Card
+                ref={cardRef}
+                interactive={interactive}
+                role={interactive ? 'button' : 'article'}
+                tabIndex={interactive ? 0 : undefined}
+                aria-label={actionLabel || title}
+                aria-busy={deleting || undefined}
+                {...rootHandlers}
+                className={cx(
+                    'group relative flex w-full items-center gap-3 p-2.5 sm:gap-4 sm:p-3',
+                    (highlighted || menuOpen) && cx(SELECTED_CARD_CLASS, 'shadow-card-hover'),
+                    deleting && 'pointer-events-none opacity-60',
+                )}
+                data-gallery-card-id={id}
+                data-testid={testId}
+            >
+                <Portrait
+                    name={title}
+                    src={imageUrl}
+                    staticSrc={staticImageUrl}
+                    gradient={gradient}
+                    height={72}
+                    lazy
+                    className="w-[54px] shrink-0 rounded-md group-hover:[&>img]:scale-[1.04]"
+                />
+
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <h3 className="m-0 min-w-0 truncate font-display text-[17px] font-semibold leading-tight text-parchment-50" title={title}>
+                            {title}
+                        </h3>
+                        {badge && <Badge tone="glass" className="hidden shrink-0 sm:inline-flex">{badge}</Badge>}
+                        {showVersion && (
+                            <Badge tone="glass" className="hidden shrink-0 font-mono sm:inline-flex">
+                                {t('cardVersions.drawer.versionLabel', { number: versionNumber })}
+                            </Badge>
+                        )}
+                        {hasDraft && <Badge tone="ember" className="shrink-0">{t('cardVersions.gallery.draftPending')}</Badge>}
+                    </div>
+                    {(eyebrow || description) && (
+                        <p className="m-0 truncate font-narrative text-label leading-snug text-parchment-200">
+                            {eyebrow && <span className="font-mono text-meta text-ember-400">{eyebrow}</span>}
+                            {eyebrow && description && <span className="text-parchment-400"> · </span>}
+                            {description}
+                        </p>
+                    )}
+                    {(tags.length > 0 || usage) && (
+                        <div className="flex min-w-0 items-center gap-1.5 overflow-hidden pt-0.5">
+                            {visibleTags.map((tag) =>
+                                onTagClick ? (
+                                    <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={(e: MouseEvent) => {
+                                            e.stopPropagation()
+                                            onTagClick(tag)
+                                        }}
+                                        aria-label={t('galleryCard.searchFor', { tag })}
+                                        className="min-w-0 max-w-[40%] shrink cursor-pointer truncate whitespace-nowrap rounded-full bg-ink-600 px-2 py-[2px] font-ui text-micro font-semibold text-parchment-200 transition-colors hover:bg-ember-500/25 hover:text-ember-300"
+                                    >
+                                        {tag}
+                                    </button>
+                                ) : (
+                                    <Tag key={tag} className="min-w-0 max-w-[40%] shrink truncate whitespace-nowrap">
+                                        {tag}
+                                    </Tag>
+                                ),
+                            )}
+                            {extraTagCount > 0 && <Tag className="shrink-0 text-parchment-300">+{extraTagCount}</Tag>}
+                            {usage && <CardUsageLine usage={usage} className="shrink-0 truncate text-parchment-400" />}
+                        </div>
+                    )}
+                </div>
+
+                {(footer || rowMenu) && (
+                    <div className="flex shrink-0 items-center gap-2" onClick={(e: MouseEvent) => e.stopPropagation()}>
+                        {footer && <div className="hidden items-center sm:flex">{footer}</div>}
+                        {rowMenu}
+                    </div>
+                )}
+
+                <CardActionMenu
+                    {...contextMenu.menuProps}
+                    menuTestId="card-context-menu"
+                    optionTestIdPrefix="card-context-option"
+                />
+
+                {deleting && <CardDeletingOverlay label={t('galleryCard.deleting')} />}
+            </Card>
+        )
     }
 
     return (
@@ -246,22 +375,10 @@ export function GalleryCard({
             tabIndex={interactive ? 0 : undefined}
             aria-label={actionLabel || title}
             aria-busy={deleting || undefined}
-            onClick={interactive ? handleClick : undefined}
-            onKeyDown={interactive ? handleKeyDown : undefined}
-            onContextMenu={(e) => {
-                if (contextOptions.length === 0 || deleting) return
-                e.preventDefault()
-                e.stopPropagation()
-                openContextMenu({ top: e.clientY, left: e.clientX })
-            }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={clearLongPress}
-            onPointerCancel={clearLongPress}
-            onPointerLeave={clearLongPress}
-            onPointerUp={clearLongPress}
+            {...rootHandlers}
             className={cx(
                 'group relative flex h-full flex-col',
-                (highlighted || menuOpen) && 'border-ember-500/55 shadow-card-hover ring-1 ring-ember-500/40',
+                (highlighted || menuOpen) && cx(SELECTED_CARD_CLASS, 'shadow-card-hover'),
                 deleting && 'pointer-events-none opacity-60',
             )}
             data-gallery-card-id={id}
@@ -281,10 +398,16 @@ export function GalleryCard({
                 {/* Candlelit bottom gradient: lifts the name/description/CTA off the art.
                     Graceful (depth by softness), not a heavy slab. */}
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[62%] bg-gradient-to-t from-ink-900 via-ink-900/70 to-transparent" />
-                {badge && (
-                    <Badge tone="glass" className="absolute left-3 top-3 z-[3] max-w-[65%] truncate">
-                        {badge}
-                    </Badge>
+                {(badge || showVersion || hasDraft) && (
+                    <div className="absolute left-3 top-3 z-[3] flex max-w-[65%] flex-col items-start gap-1">
+                        {badge && <Badge tone="glass" className="max-w-full truncate">{badge}</Badge>}
+                        {showVersion && (
+                            <Badge tone="glass" className="font-mono">
+                                {t('cardVersions.drawer.versionLabel', { number: versionNumber })}
+                            </Badge>
+                        )}
+                        {hasDraft && <Badge tone="ember">{t('cardVersions.gallery.draftPending')}</Badge>}
+                    </div>
                 )}
                 {hasBubble && (
                 <div
@@ -312,7 +435,7 @@ export function GalleryCard({
 
                 <div className={cx('absolute inset-x-0 bottom-0 z-[2] flex flex-col', compact ? 'gap-1 p-3' : 'gap-1.5 p-4')}>
                     {eyebrow && (
-                        <div className={cx('truncate font-mono text-ember-400', compact ? 'text-[10px]' : 'text-[11px]')}>
+                        <div className={cx('truncate font-mono text-ember-400', compact ? 'text-micro' : 'text-meta')}>
                             {eyebrow}
                         </div>
                     )}
@@ -329,7 +452,7 @@ export function GalleryCard({
                         <p
                             className={cx(
                                 'm-0 line-clamp-2 font-narrative text-parchment-200',
-                                compact ? 'text-[13px] leading-[1.4]' : 'text-[14.5px] leading-[1.45]',
+                                compact ? 'text-label leading-[1.4]' : 'text-[14.5px] leading-[1.45]',
                             )}
                         >
                             {description}
@@ -347,7 +470,7 @@ export function GalleryCard({
                                             onTagClick(tag)
                                         }}
                                         aria-label={t('galleryCard.searchFor', { tag })}
-                                        className="min-w-0 max-w-[60%] shrink cursor-pointer truncate whitespace-nowrap rounded-full bg-ink-900/65 px-2 py-[2px] font-ui text-[10px] font-semibold text-parchment-200 backdrop-blur transition-colors hover:bg-ember-500/25 hover:text-ember-300"
+                                        className="min-w-0 max-w-[60%] shrink cursor-pointer truncate whitespace-nowrap rounded-full bg-ink-900/65 px-2 py-[2px] font-ui text-micro font-semibold text-parchment-200 backdrop-blur transition-colors hover:bg-ember-500/25 hover:text-ember-300"
                                     >
                                         {tag}
                                     </button>
@@ -364,6 +487,7 @@ export function GalleryCard({
                             )}
                         </div>
                     )}
+                    {usage && <CardUsageLine usage={usage} className="truncate text-parchment-300" />}
                     {footer && (
                         <div className="pt-1" onClick={(e: MouseEvent) => e.stopPropagation()}>
                             {footer}
@@ -373,20 +497,12 @@ export function GalleryCard({
             </Portrait>
 
             <CardActionMenu
-                options={contextOptions}
-                open={contextAnchor !== null}
-                anchor={contextAnchor}
+                {...contextMenu.menuProps}
                 menuTestId="card-context-menu"
                 optionTestIdPrefix="card-context-option"
-                returnFocusRef={cardRef}
-                onClose={closeContextMenu}
             />
 
-            {deleting && (
-                <div className="absolute inset-0 z-[3] flex items-center justify-center bg-ink-900/70 font-medium text-parchment-50">
-                    {t('galleryCard.deleting')}
-                </div>
-            )}
+            {deleting && <CardDeletingOverlay label={t('galleryCard.deleting')} />}
         </Card>
     )
 }

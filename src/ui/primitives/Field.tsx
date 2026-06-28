@@ -16,13 +16,15 @@ import {
 import { cx } from './cx'
 import { FieldContext, useFieldContext } from './fieldContext'
 
-/** Shared control look minus sizing — composed into size variants below. */
+/** Shared control look minus sizing — composed into size variants below. The
+ *  candlelit `shadow-input-focus` (1px ember edge + soft glow) is more integrated
+ *  than the global 4px focus ring, and overrides it on keyboard focus. */
 export const controlBaseClass =
-    'w-full bg-ink-700 text-parchment-50 placeholder:text-parchment-400 border border-parchment-50/[.13] rounded-md font-ui transition-all ' +
-    'hover:border-parchment-50/22 focus:outline-none focus:border-ember-500 focus:shadow-[0_0_0_3px_rgba(232,162,74,.14)] ' +
+    'w-full bg-surface-raised text-fg placeholder:text-fg-faint border border-line rounded-md font-ui transition-all ' +
+    'hover:border-line-strong focus-visible:outline-none focus-visible:border-ember-500 focus-visible:shadow-input-focus ' +
     'aria-invalid:border-blood-500/60 disabled:opacity-50 disabled:cursor-not-allowed'
 
-export const controlClass = controlBaseClass + ' px-3.5 py-2.5 text-[15px]'
+export const controlClass = controlBaseClass + ' px-3.5 py-2.5 text-body'
 
 interface FieldProps extends HTMLAttributes<HTMLDivElement> {
     label?: ReactNode
@@ -35,21 +37,24 @@ interface FieldProps extends HTMLAttributes<HTMLDivElement> {
 export function Field({ label, error, helper, htmlFor, className, children, ...rest }: FieldProps) {
     const generatedId = useId()
     const controlId = htmlFor ?? generatedId
+    // Wire the visible error/helper text to the control via aria-describedby so
+    // screen readers announce it on focus (error takes precedence over helper).
+    const messageId = error ? `${controlId}-error` : helper ? `${controlId}-helper` : undefined
     return (
         <div className={cx('block', className)} {...rest}>
             {label && (
-                <label htmlFor={controlId} className="mb-2 block text-[13px] font-semibold font-ui text-parchment-50">
+                <label htmlFor={controlId} className="mb-2 block text-label font-semibold font-ui text-fg">
                     {label}
                 </label>
             )}
-            <FieldContext.Provider value={{ id: controlId, invalid: Boolean(error) }}>
+            <FieldContext.Provider value={{ id: controlId, invalid: Boolean(error), describedById: messageId }}>
                 {children}
             </FieldContext.Provider>
             {error && (
-                <span className="mt-1.5 block text-[12px] text-blood-500">{error}</span>
+                <span id={messageId} className="mt-1.5 block text-caption text-blood-500">{error}</span>
             )}
             {!error && helper && (
-                <span className="mt-1.5 block text-[12px] text-parchment-200">{helper}</span>
+                <span id={messageId} className="mt-1.5 block text-caption text-fg-muted">{helper}</span>
             )}
         </div>
     )
@@ -57,7 +62,15 @@ export function Field({ label, error, helper, htmlFor, className, children, ...r
 
 export function Input({ className, id, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
     const ctx = useFieldContext()
-    return <input id={id ?? ctx?.id} aria-invalid={ctx?.invalid || undefined} className={cx(controlClass, className)} {...rest} />
+    return (
+        <input
+            id={id ?? ctx?.id}
+            aria-invalid={ctx?.invalid || undefined}
+            aria-describedby={ctx?.describedById}
+            className={cx(controlClass, className)}
+            {...rest}
+        />
+    )
 }
 
 export function Textarea({ className, id, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -66,6 +79,7 @@ export function Textarea({ className, id, ...rest }: TextareaHTMLAttributes<HTML
         <textarea
             id={id ?? ctx?.id}
             aria-invalid={ctx?.invalid || undefined}
+            aria-describedby={ctx?.describedById}
             className={cx(controlClass, 'min-h-[120px] resize-y', className)}
             {...rest}
         />

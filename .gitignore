@@ -16,6 +16,17 @@ dist-ssr
 storybook-static
 *.storybook.log
 
+# design-sync (claude.ai/design) — staged scripts, build output, and transient
+# verification state. The durable set (.design-sync/config.json, NOTES.md,
+# conventions.md, previews/, overrides/, ds-entry.ts, sb-config/) stays tracked.
+.ds-sync/
+ds-bundle/
+.design-sync/dist/
+.design-sync/sb-reference/
+.design-sync/learnings/
+.design-sync/.cache/
+.design-sync/node_modules
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -28,3 +39,5 @@ storybook-static
 *.sw?
 .claude/settings.local.json
 .codex
+.design-sync/app-dist/
+.design-sync/reverie-compiled.css

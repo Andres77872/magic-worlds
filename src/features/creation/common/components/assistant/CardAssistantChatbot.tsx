@@ -40,7 +40,7 @@ export function AssistantPendingCardBanner({
             <p className="min-w-0 flex-1 font-ui text-[12px] leading-snug text-parchment-200">
                 {t('creation.common.assistant.pendingSnapshot', { label })}
             </p>
-            <Button kind="secondary" size="sm" className="px-2.5 py-1.5" onClick={onApply}>
+            <Button variant="secondary" size="sm" className="px-2.5 py-1.5" onClick={onApply}>
                 {t('creation.common.assistant.applyToForm')}
             </Button>
             <IconButton label={t('creation.common.assistant.dismissSnapshot', { label })} size="sm" className="h-7 w-7" onClick={onDismiss}>

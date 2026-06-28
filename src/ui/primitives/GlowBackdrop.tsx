@@ -20,11 +20,12 @@ import { cx } from './cx'
 
 export type GlowVariant = 'hero' | 'center' | 'header' | 'page'
 
-const EMBER = 'rgba(232,162,74,.16)'
-const ARCANE = 'rgba(143,111,227,.18)'
-/* dimmer twins for the always-on shell ambience */
-const PAGE_EMBER = 'rgba(232,162,74,.13)'
-const PAGE_ARCANE = 'rgba(143,111,227,.14)'
+/* candlelight fills are tokenized in theme.css (--glow-*); the dimmer page
+   twins drive the always-on app-shell ambience. */
+const EMBER = 'var(--glow-ember-hero)'
+const ARCANE = 'var(--glow-arcane-hero)'
+const PAGE_EMBER = 'var(--glow-ember-page)'
+const PAGE_ARCANE = 'var(--glow-arcane-page)'
 
 interface GlowBackdropProps {
     variant?: GlowVariant
@@ -54,7 +55,7 @@ export function GlowBackdrop({ variant = 'hero', className, animated = false }: 
                     className="absolute left-1/2 top-1/2 h-[520px] w-[760px] max-w-full -translate-x-1/2 -translate-y-1/2"
                     style={{
                         background:
-                            'radial-gradient(circle, rgba(232,162,74,.18), rgba(143,111,227,.10) 45%, transparent 68%)',
+                            'radial-gradient(circle, var(--glow-ember-hero), var(--glow-arcane-faint) 45%, transparent 68%)',
                     }}
                 />
             )}

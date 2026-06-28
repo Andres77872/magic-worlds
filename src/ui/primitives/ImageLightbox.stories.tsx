@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { Button } from './Button'
 import { ImageLightbox } from './ImageLightbox'
@@ -12,7 +13,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Full-bleed portal overlay showing a single image at natural size (viewport-capped) over a dim+blur scrim. Click the scrim or press Escape to close. `src` is used as-is — resolve relative media URLs before passing.',
+          'Full-bleed portal overlay showing a single image at natural size (viewport-capped) over a dim+blur scrim, with an optional details panel for image metadata.',
       },
     },
   },
@@ -21,6 +22,7 @@ const meta = {
     onClose: { control: false },
     src: { control: false },
     alt: { control: 'text' },
+    details: { control: false },
   },
   args: {
     open: false,
@@ -34,7 +36,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 /** Stories render a trigger; the lightbox opens into its own scrim. */
-function LightboxDemo(props: { src?: string; alt?: string }) {
+function LightboxDemo(props: { src?: string; alt?: string; details?: ReactNode }) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -46,4 +48,21 @@ function LightboxDemo(props: { src?: string; alt?: string }) {
 
 export const Default: Story = {
   render: (args) => <LightboxDemo src={args.src} alt={args.alt} />,
+}
+
+export const WithDetails: Story = {
+  render: (args) => (
+    <LightboxDemo
+      src={args.src}
+      alt={args.alt}
+      details={
+        <section className="flex flex-col gap-2">
+          <h2 className="font-ui text-sm font-semibold text-parchment-100">Prompt</h2>
+          <p className="font-narrative text-sm leading-relaxed text-parchment-300">
+            Image-only illustration of a candlelit archivist standing before a moon gate, low-key painterly lighting, no readable text.
+          </p>
+        </section>
+      }
+    />
+  ),
 }

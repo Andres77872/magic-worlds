@@ -13,5 +13,7 @@ soft shadow — *not* heavy material elevation.
 <ShadowScale />
 
 - **`shadow-md`** is the default card lift.
-- **`shadow-glow-ember`** rings interactive/active elements in warm candlelight; **`shadow-glow-arcane`** does the same in violet for AI moments.
-- **`shadow-card-hover`** combines elevation + ember glow in a single box-shadow — it's what an interactive `Card` animates to on hover.
+- **`shadow-glow-ember`** rings interactive/active elements in warm candlelight; **`shadow-glow-arcane`** does the same in violet for AI moments. The **`-strong`** twins push the glow for hero moments; the **`-soft`** twins are the quiet resting halo on tinted glyph plates (`IconTile`).
+- **`shadow-ring-ember` / `shadow-ring-arcane`** are the `Avatar` identity rings — a solid ring + halo marking the player (ember) or the AI (arcane).
+- **`shadow-input-focus`** is the field-level focus glow (the form twin of the global focus ring); **`shadow-card-hover`** combines elevation + ember glow in a single box-shadow — what an interactive `Card` animates to on hover (`-arcane` for AI-side cards).
+- **`shadow-glow-verdant` / `shadow-glow-blood`** are tonal elevations — a semantic hue at emphasis alpha — used by `Toast` so a success or error notice carries its own coloured lift.

@@ -74,7 +74,7 @@ describe('CardGrid loading skeletons', () => {
     const renderGrid = (props: {
         renderSkeleton?: () => ReactNode
         skeletonCount?: number
-        layout?: 'grid' | 'rail'
+        layout?: 'grid' | 'rail' | 'list'
     } = {}) =>
         render(
             <CardGrid<string>
@@ -109,5 +109,30 @@ describe('CardGrid loading skeletons', () => {
 
         expect(screen.queryByTestId('sk')).toBeNull()
         expect(screen.getByText('Loading items...')).toBeInTheDocument()
+    })
+
+    it('renders a matched skeleton list (not the spinner) for list layout', () => {
+        renderGrid({ layout: 'list', renderSkeleton: () => <div data-testid="sk" /> })
+
+        expect(screen.getAllByTestId('sk')).toHaveLength(8)
+        expect(screen.queryByText('Loading items...')).toBeNull()
+    })
+})
+
+describe('CardGrid list layout', () => {
+    it('renders rows and the infinite-scroll trigger like the grid', () => {
+        render(
+            <CardGrid<string>
+                items={['Lyra', 'Theron']}
+                layout="list"
+                hasMore
+                onLoadMore={() => {}}
+                renderCard={(name) => <div>{name}</div>}
+            />,
+        )
+
+        expect(screen.getByText('Lyra')).toBeInTheDocument()
+        expect(screen.getByText('Theron')).toBeInTheDocument()
+        expect(screen.getByTestId('load-more-trigger')).toBeInTheDocument()
     })
 })

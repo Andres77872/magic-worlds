@@ -1,0 +1,53 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+
+<Meta title="Design System/Patterns/Responsive" />
+
+# Responsive
+
+Reverie is **mobile-first**. Base styles target the small screen — a single
+column, no permanent chrome — and Tailwind breakpoint prefixes *add* structure
+as the viewport grows. Write the phone first, then layer on the larger forms;
+never the reverse.
+
+## Breakpoints
+
+The default Tailwind v4 scale, unprefixed = mobile, each prefix is a `min-width`:
+
+- **`sm`** — 640px
+- **`md`** — 768px
+- **`lg`** — 1024px
+- **`xl`** — 1280px
+
+So `lg:hidden` means *"hidden from 1024px up"* and `lg:flex` means *"flex from
+1024px up"*. The app's primary structural break is **`lg`**: that's where the
+docked navigation rail appears and the mobile chrome retires.
+
+## The navigation pair
+
+Above and below `lg`, navigation is delivered by two complementary pieces that
+share the same `SidebarShell`, so the model is identical at every size — only the
+form changes.
+
+- **Sidebar** — the permanent, icon-only rail. Docked from `lg` up (its mobile siblings are `lg:hidden`).
+- **MobileTopBar** — sticky top chrome shown **below `lg`** (`lg:hidden`): hamburger · brand (home) · account menu. It keeps the page width free for content since there's no permanent rail, and still surfaces the background-task count.
+- **SidebarNavDrawer** — the off-canvas form of the sidebar. The hamburger opens it; it slides in from the left over a dim + blur scrim and renders the shared shell in its always-labelled `panel` form. It auto-closes on navigate and **force-closes when the viewport crosses back to the docked breakpoint**, so no overlay is ever stranded.
+
+The takeaway: one navigation source of truth, presented as a docked rail on the
+desktop and a drawer-behind-a-hamburger on mobile.
+
+## Reviewing responsiveness in Storybook
+
+Resize the preview frame (or use the viewport toolbar) to cross the `lg` line and
+watch the rail give way to the MobileTopBar + drawer.
+
+## Reduced motion
+
+Drawers, scrims and the candlelit ambience all carry motion. Test the calm path
+with the **"Motion: reduced"** toolbar toggle, which injects the same collapse
+the theme applies under `prefers-reduced-motion` — so you can review reduced
+motion without changing OS settings. Layouts must remain fully usable with motion
+off: nothing should depend on a transition to become visible or operable.
+
+> Mobile-first base, `lg` as the structural hinge: rail when there's room, a
+> hamburger-and-drawer when there isn't — the same navigation, dressed for the
+> screen.

@@ -51,7 +51,7 @@ export function CastRail({ cast, onChat, onCall, onEdit, onDelete, onViewAll }: 
                 icon={Users}
                 right={
                     <Button
-                        kind="ghost"
+                        variant="ghost"
                         size="sm"
                         iconRight={<Icon icon={ArrowRight} size={14} />}
                         onClick={onViewAll}
@@ -95,7 +95,7 @@ export function CastRail({ cast, onChat, onCall, onEdit, onDelete, onViewAll }: 
                             footer={
                                 <div className="flex gap-2">
                                     <Button
-                                        kind="primary"
+                                        variant="primary"
                                         size="sm"
                                         className="min-w-0 flex-1"
                                         iconLeft={<Icon icon={MessageCircle} size={15} />}
@@ -105,7 +105,7 @@ export function CastRail({ cast, onChat, onCall, onEdit, onDelete, onViewAll }: 
                                     </Button>
                                     {onCall && (
                                         <Button
-                                            kind="secondary"
+                                            variant="secondary"
                                             size="sm"
                                             className="min-w-0 flex-1"
                                             iconLeft={<Icon icon={Phone} size={15} />}

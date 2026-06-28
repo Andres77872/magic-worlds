@@ -34,6 +34,10 @@ export interface GalleryItem {
     resource?: SharedCardResource
     ownerName?: string | null
     originalCreatorName?: string | null
+    /** Newest saved version number (versionable cards only); 0/undefined when none saved. */
+    versionNumber?: number
+    /** Owner-only: true when there are unpublished draft edits (absent on public/foreign reads). */
+    hasDraft?: boolean
     backendType: ShareableCardType
     galleryType: GalleryType
     /** Original typed entity, for wiring actions. */
@@ -68,6 +72,8 @@ const characterItems = (raw: unknown): GalleryItem[] =>
         themeSongUrl: resolveMediaUrl(character.theme_song_url),
         visibility: character.visibility,
         originalCreatorName: actorName(character.original_creator),
+        versionNumber: character.latest_version_number,
+        hasDraft: character.has_draft,
         backendType: 'character',
         galleryType: 'character',
         source: character,
@@ -84,6 +90,8 @@ const personaItems = (raw: unknown): GalleryItem[] =>
         themeSongUrl: resolveMediaUrl(character.theme_song_url),
         visibility: character.visibility,
         originalCreatorName: actorName(character.original_creator),
+        versionNumber: character.latest_version_number,
+        hasDraft: character.has_draft,
         backendType: 'character',
         galleryType: 'persona',
         source: character,
@@ -100,6 +108,8 @@ const worldItems = (raw: unknown): GalleryItem[] =>
         themeSongUrl: resolveMediaUrl(world.theme_song_url),
         visibility: world.visibility,
         originalCreatorName: actorName(world.original_creator),
+        versionNumber: world.latest_version_number,
+        hasDraft: world.has_draft,
         backendType: 'world',
         galleryType: 'world',
         source: world,
@@ -116,6 +126,8 @@ const itemItems = (raw: unknown): GalleryItem[] =>
         themeSongUrl: resolveMediaUrl(item.theme_song_url),
         visibility: item.visibility,
         originalCreatorName: actorName(item.original_creator),
+        versionNumber: item.latest_version_number,
+        hasDraft: item.has_draft,
         backendType: 'item',
         galleryType: 'item',
         source: item,

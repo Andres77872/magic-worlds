@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ChatImageAsset, ChatNarratorIdentity, ChatResponseSegment, ForwardOption, ImageLifecycleStatus, TurnEntry } from '../../../shared'
 import { cx, Eyebrow } from '../../../ui/primitives'
+import type { TriggerMatcher } from '@/features/lorebook'
 import { formatApiTime } from '@/utils/time'
 import { isSafeAssetUrl } from '../utils/chatImageTurnState'
 import { ChatAvatar } from './ChatAvatar'
@@ -43,9 +44,11 @@ interface ChatTurnProps {
     actionsDisabled?: boolean
     confirmingDelete?: boolean
     deleting?: boolean
+    /** Session-lore matcher passed to ChatMessage for inline trigger marking. */
+    loreMatcher?: TriggerMatcher | null
 }
 
-export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onConfirmDeleteClick, onCancelDeleteClick, onEditClick, onRequestNarration, aiLabel, showForwardOptions = true, showImage = true, actionsDisabled = false, confirmingDelete = false, deleting = false }: ChatTurnProps) {
+export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onConfirmDeleteClick, onCancelDeleteClick, onEditClick, onRequestNarration, aiLabel, showForwardOptions = true, showImage = true, actionsDisabled = false, confirmingDelete = false, deleting = false, loreMatcher }: ChatTurnProps) {
     const { t } = useTranslation()
     const resolvedAiLabel = aiLabel ?? t('interaction.chat.gameMaster')
     const isUser = turn.type === 'user'
@@ -82,29 +85,37 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                         <span className="font-mono text-[11px] text-parchment-500">
                             {formatApiTime(turn.timestamp)}
                         </span>
-                        {!isUser && !isEditing && onRequestNarration && (
-                            <TurnNarration
-                                status={turn.ttsStatus}
-                                url={turn.ttsUrl ?? turn.ttsAssets?.[0]?.url}
-                                segments={turn.ttsSegments}
-                                errorDetail={turn.ttsError?.detail}
-                                canRequest={!turn.isStreaming && Boolean(turn.assistantMessageId || turn.turnId)}
-                                onRequest={() => onRequestNarration(turn.assistantMessageId, turn.turnId)}
-                            />
+                        {/* Group TTS + copy/edit/regenerate/delete into one quiet toolbar so they
+                            read as a single control cluster rather than glyphs crowding the name. */}
+                        {!isEditing && (
+                            <div className="flex items-center gap-0.5 rounded-full border border-parchment-50/[.08] bg-ink-700/60 px-1 py-0.5">
+                                {!isUser && onRequestNarration && (
+                                    <TurnNarration
+                                        status={turn.ttsStatus}
+                                        url={turn.ttsUrl ?? turn.ttsAssets?.[0]?.url}
+                                        segments={turn.ttsSegments}
+                                        errorDetail={turn.ttsError?.detail}
+                                        canRequest={!turn.isStreaming && Boolean(turn.assistantMessageId || turn.turnId)}
+                                        onRequest={() => onRequestNarration(turn.assistantMessageId, turn.turnId)}
+                                    />
+                                )}
+                                <ChatActions
+                                    turnId={turn.id}
+                                    isUser={isUser}
+                                    isEditing={isEditing}
+                                    isStreaming={turn.isStreaming}
+                                    actionsDisabled={actionsDisabled}
+                                    messageContent={turn.content}
+                                    onEditClick={onEditClick ? handleEditStart : undefined}
+                                    onRegenerateClick={onRegenerateClick}
+                                    onDeleteClick={onDeleteClick}
+                                    confirmingDelete={confirmingDelete}
+                                    deleting={deleting}
+                                    onConfirmDelete={() => onConfirmDeleteClick?.(turn.id)}
+                                    onCancelDelete={onCancelDeleteClick}
+                                />
+                            </div>
                         )}
-                        <ChatActions
-                            turnId={turn.id}
-                            isUser={isUser}
-                            isEditing={isEditing}
-                            isStreaming={turn.isStreaming || actionsDisabled}
-                            onEditClick={onEditClick ? handleEditStart : undefined}
-                            onRegenerateClick={onRegenerateClick}
-                            onDeleteClick={onDeleteClick}
-                            confirmingDelete={confirmingDelete}
-                            deleting={deleting}
-                            onConfirmDelete={() => onConfirmDeleteClick?.(turn.id)}
-                            onCancelDelete={onCancelDeleteClick}
-                        />
                     </div>
                 </div>
 
@@ -119,7 +130,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                     onCancel={handleEditCancel}
                                 />
                             ) : (
-                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} />
+                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} loreMatcher={loreMatcher} />
                             )}
                         </div>
                     ) : (
@@ -132,7 +143,7 @@ export function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDele
                                     onCancel={handleEditCancel}
                                 />
                             ) : (
-                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} narratorIdentity={turn.narratorIdentity} aiLabel={resolvedAiLabel} />
+                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} narratorIdentity={turn.narratorIdentity} aiLabel={resolvedAiLabel} loreMatcher={loreMatcher} />
                             )}
                             {!isUser && !isEditing && showImage && (
                                 <GeneratedImage

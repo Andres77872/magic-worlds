@@ -65,10 +65,10 @@ export function DeleteDataDialog({ open, username, onClose, onConfirm }: DeleteD
             showClose={false}
             footer={
                 <>
-                    <Button kind="secondary" onClick={requestClose} disabled={isProcessing}>
+                    <Button variant="secondary" onClick={requestClose} disabled={isProcessing}>
                         {t('common.cancel')}
                     </Button>
-                    <Button kind="danger" onClick={handleConfirm} disabled={!matches || isProcessing}>
+                    <Button variant="danger" onClick={handleConfirm} disabled={!matches || isProcessing}>
                         {isProcessing ? t('profile.danger.deleting') : t('profile.danger.deleteAllConfirm')}
                     </Button>
                 </>

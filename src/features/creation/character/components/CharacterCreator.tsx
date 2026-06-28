@@ -33,12 +33,17 @@ import {
     GeneratedDraftNotice,
     TriggersField,
     FormActions,
+    CardDraftControls,
+    HistoricalVersionBanner,
     QualityHint,
     TriggerHints,
     type StudioNavItem,
     type AttributePreset,
 } from '../../common/components'
-import { GuidedSection, UseExampleLink, useGuidedCard, type CardTemplate } from '../../common/engine'
+import { GuidedSection, UseExampleLink, useCardDraft, useCardEditorRoute, useGuidedCard, type CardTemplate } from '../../common/engine'
+import { buildCardEditHash } from '@/features/gallery/galleryLinks'
+import { LoadingSpinner } from '@/ui/components'
+import { Toast } from '@/ui/primitives/Toast'
 import { CreatorIntro, TemplateGallery } from '../../common/templates'
 import { getCharacterFields, getCharacterSections, getRaceOptions } from '../fields'
 import { CHARACTER_TEMPLATES } from '../templates'
@@ -94,9 +99,10 @@ function toCharacter(card: CharacterCardResponse): Character {
 
 export function CharacterCreator() {
     const { t } = useTranslation()
-    const { goBack } = useNavigation()
+    const { goBack, cardEdit, replaceHash } = useNavigation()
     const { editingCharacter, setEditingCharacter, loadData } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
+    const routeHasId = cardEdit?.cardType === 'character' && Boolean(cardEdit.cardId)
 
     // One minimal default category; users add attributes here or create more groups.
     // `id`/`name` are saved-card data; the description is display copy.
@@ -155,6 +161,37 @@ export function CharacterCreator() {
         return ordered.map((section) => ({ id: section.id, label: String(section.title), icon: section.icon! }))
     }, [role, sections])
 
+    /** Re-seed the form fields from a card body (published, draft, or restored version). */
+    const hydrateFromCardBody = (card: CharacterCardResponse) => {
+        setName(card.name ?? '')
+        setRole(card.role === 'persona' ? 'persona' : 'character')
+        setIsDefaultPersona(Boolean(card.is_default_persona))
+        setRace(card.race ?? '')
+        setDescription(card.description ?? '')
+        setGreeting(card.greeting ?? '')
+        setSystemInstructions(card.system_instructions ?? '')
+        setTriggers(card.triggers ?? [])
+        setImageUrl(card.image_url)
+        setThemeSongUrl(card.theme_song_url)
+        guided.hydrateFrom(card, { preserveActive: true })
+    }
+
+    // Deep-link / refresh: when the URL carries `?card=<id>` but no card is in memory, fetch it and
+    // hydrate the form (the create-mode useState above mounted empty). No-ops on normal navigation.
+    const { bootstrapping, version } = useCardEditorRoute('character', {
+        onCardLoaded: (raw) => hydrateFromCardBody(raw as CharacterCardResponse),
+    })
+
+    // Draft/publish lifecycle: edits save to a private draft; Publish makes it live + a version.
+    // `version` (from the URL) chooses what hydrates: draft-or-published, latest, or a read-only version.
+    const draft = useCardDraft({
+        cardType: 'character',
+        cardId: editingCharacter?.id ?? null,
+        version,
+        onDraftLoaded: (body) => hydrateFromCardBody(body as unknown as CharacterCardResponse),
+    })
+    const [draftToast, setDraftToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
+
     /** Build the create/update payload from current form state. */
     const buildPayload = () => ({
         name,
@@ -186,13 +223,18 @@ export function CharacterCreator() {
             throw new Error(t('creation.character.validation.nameAndRaceForTheme'))
         }
         if (editingCharacter) {
-            await apiService.updateCharacter(editingCharacter.id, buildPayload())
+            // The card already exists — media generation only needs its id. Authored edits stay
+            // in the draft (saved via "Save draft"); we must not publish the body here.
             savedIdRef.current = editingCharacter.id
             return editingCharacter.id
         }
         const created = await apiService.createCharacter(buildPayload())
         const saved = toCharacter(created as CharacterCardResponse)
-        if (saved.id) setEditingCharacter(saved)
+        if (saved.id) {
+            setEditingCharacter(saved)
+            // Stamp the new id into the URL so a refresh mid-edit restores this card.
+            replaceHash(buildCardEditHash('character', saved.id))
+        }
         savedIdRef.current = saved.id
         // No loadData() here: a refresh would unmount this creator mid-generation (AppRouter
         // shows a spinner while loading). The new card lands in the gallery on Save.
@@ -210,11 +252,11 @@ export function CharacterCreator() {
         setImageUrl(url)
         const id = savedIdRef.current ?? editingCharacter?.id
         if (id && url) {
-            void apiService
-                .updateCharacter(id, { ...buildPayload(), image_url: url })
-                .catch(() => {
-                    /* best-effort — the asset still exists; Save re-persists the link */
-                })
+            // Media is a published-body property persisted immediately (not part of the draft),
+            // so the portrait shows in the gallery without a publish and never stages authored text.
+            void apiService.setCardMedia('character', id, { image_url: url }).catch(() => {
+                /* best-effort — the asset still exists; it re-persists on the next media action */
+            })
         }
     }
 
@@ -230,11 +272,9 @@ export function CharacterCreator() {
             // Persist the link only — do NOT loadData() here. A refresh flips isLoading,
             // which makes AppRouter unmount the whole creator (discarding in-progress edits)
             // and re-run the theme effect. The gallery refreshes on Save / next navigation.
-            void apiService
-                .updateCharacter(id, { ...buildPayload(), theme_song_url: url })
-                .catch(() => {
-                    /* best-effort — the asset still exists; Save re-persists the link */
-                })
+            void apiService.setCardMedia('character', id, { theme_song_url: url }).catch(() => {
+                /* best-effort — the asset still exists; it re-persists on the next media action */
+            })
         }
     }
 
@@ -259,6 +299,8 @@ export function CharacterCreator() {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
+        // Read-only historical view: nothing to save until the version is restored into the draft.
+        if (draft.isHistorical) return
         if (!isAuthenticated) {
             openLoginModal()
             return
@@ -271,15 +313,29 @@ export function CharacterCreator() {
         try {
             const payload = buildPayload()
             if (editingCharacter) {
-                await apiService.updateCharacter(editingCharacter.id, payload)
+                // Edit mode: save to the private draft and stay in the editor. Publishing (a
+                // separate action) is what makes the changes live and cuts a new version.
+                const ok = await draft.saveDraft(payload)
+                setDraftToast(
+                    ok
+                        ? { tone: 'success', message: t('cardVersions.draft.saved') }
+                        : { tone: 'error', message: t('cardVersions.errors.draftSave') },
+                )
             } else {
-                await apiService.createCharacter(payload)
+                // Create mode: create the live card, then transition into edit mode (drafts from
+                // here on) instead of navigating away, so Publish/history are immediately available.
+                const created = await apiService.createCharacter(payload)
+                const saved = toCharacter(created as CharacterCardResponse)
+                if (saved.id) {
+                    setEditingCharacter(saved)
+                    savedIdRef.current = saved.id
+                    // Stamp the new id into the URL so a refresh keeps the freshly-created card.
+                    replaceHash(buildCardEditHash('character', saved.id))
+                }
+                await loadData({ silent: true })
             }
-            setEditingCharacter(null)
-            await loadData()
-            goBack('landing')
         } catch (error) {
-            console.error(`Failed to ${editingCharacter ? 'update' : 'create'} character:`, error)
+            console.error(`Failed to ${editingCharacter ? 'save draft for' : 'create'} character:`, error)
             // Gentle, non-blocking inline message — the form stays put so the
             // user can retry. Transient backend outages get reassuring copy.
             const transient = error instanceof ApiError && error.isTransient
@@ -296,23 +352,27 @@ export function CharacterCreator() {
     }
 
     const applyAssistantCard = (card: CharacterCardResponse) => {
-        setName(card.name ?? '')
-        setRole(card.role === 'persona' ? 'persona' : 'character')
-        setIsDefaultPersona(Boolean(card.is_default_persona))
-        setRace(card.race ?? '')
-        setDescription(card.description ?? '')
-        setGreeting(card.greeting ?? '')
-        setSystemInstructions(card.system_instructions ?? '')
-        setTriggers(card.triggers ?? [])
-        setImageUrl(card.image_url)
-        setThemeSongUrl(card.theme_song_url)
-        guided.hydrateFrom(card, { preserveActive: true })
+        hydrateFromCardBody(card)
         setEditingCharacter(toCharacter(card))
-        savedIdRef.current = card.id || card.uuid || null
+        const newId = card.id || card.uuid || null
+        savedIdRef.current = newId
+        if (newId) replaceHash(buildCardEditHash('character', newId))
         setAssistantApplied(true)
         // AI generation skips the gallery; a picked template's scaffolding survives.
         setTemplate((current) => (current === undefined ? null : current))
         void loadData({ silent: true })
+    }
+
+    /** Leave the read-only historical view by staging that version into the draft for editing. */
+    const handleRestoreHistorical = async () => {
+        const number = draft.viewingVersionNumber
+        if (number == null) return
+        const body = await draft.restoreIntoDraft(number)
+        if (body) {
+            hydrateFromCardBody(body as unknown as CharacterCardResponse)
+            if (editingCharacter?.id) replaceHash(buildCardEditHash('character', editingCharacter.id))
+            setDraftToast({ tone: 'success', message: t('cardVersions.history.restored', { number }) })
+        }
     }
 
     const handleBack = () => {
@@ -365,9 +425,20 @@ export function CharacterCreator() {
         />
     )
 
+    // Deep-link / refresh: while the card behind `?card=<id>` loads, show a spinner instead of
+    // flashing the "create" template gallery (its useState mounted empty before the fetch lands).
+    if (bootstrapping || (routeHasId && !editingCharacter)) {
+        return (
+            <div className="flex min-h-full flex-1 items-center justify-center">
+                <LoadingSpinner />
+            </div>
+        )
+    }
+
     // The chatbot is rendered as a stable sibling of BOTH screens so the
     // gallery → form transition never remounts an in-flight conversation.
-    if (template === undefined) {
+    // The template gallery is the true "create" entry — only when there's no card and no route id.
+    if (template === undefined && !editingCharacter && !routeHasId) {
         return (
             <>
                 <CreatorIntro title={t('creation.character.createTitle')} icon={<Icon icon={Drama} size={28} />} onBack={handleBack}>
@@ -395,9 +466,26 @@ export function CharacterCreator() {
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
-                <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
-                    {isSubmitting ? t('common.saving') : editingCharacter ? t('creation.common.studio.update') : t('creation.character.create')}
-                </Button>
+                <>
+                    <Button variant="primary" type="submit" form={FORM_ID} disabled={isSubmitting || draft.isHistorical}>
+                        {isSubmitting
+                            ? t('common.saving')
+                            : editingCharacter
+                              ? t('cardVersions.draft.saveButton')
+                              : t('creation.character.create')}
+                    </Button>
+                    <CardDraftControls
+                        cardType="character"
+                        cardId={editingCharacter?.id ?? null}
+                        cardName={name.trim() || t('creation.character.untitled')}
+                        draft={draft}
+                        onHydrate={(body) => hydrateFromCardBody(body as unknown as CharacterCardResponse)}
+                        onPublished={() => {
+                            void loadData({ silent: true })
+                        }}
+                        disabled={isSubmitting}
+                    />
+                </>
             }
             preview={
                 <StudioPreviewDock
@@ -417,6 +505,13 @@ export function CharacterCreator() {
             }
         >
             <form id={FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-6" onKeyDown={handleKeyDown}>
+                {draft.isHistorical && draft.viewingVersionNumber != null && (
+                    <HistoricalVersionBanner
+                        versionNumber={draft.viewingVersionNumber}
+                        onRestore={() => void handleRestoreHistorical()}
+                        busy={draft.busy}
+                    />
+                )}
                 <StudioSection
                     id={sections.identity.id}
                     icon={sections.identity.icon}
@@ -610,7 +705,7 @@ export function CharacterCreator() {
                                 )}
                             </div>
                             <Button
-                                kind="secondary"
+                                variant="secondary"
                                 size="sm"
                                 iconLeft={<Icon icon={AudioLines} size={14} />}
                                 onClick={() => setVoicePickerOpen(true)}
@@ -690,13 +785,21 @@ export function CharacterCreator() {
 
                 <FormActions
                     onCancel={handleStudioBack}
-                    submitLabel={editingCharacter ? t('creation.character.actions.updateCharacter') : t('creation.character.actions.createCharacter')}
+                    submitLabel={editingCharacter ? t('cardVersions.draft.saveButton') : t('creation.character.actions.createCharacter')}
                     isSubmitting={isSubmitting}
+                    disabled={draft.isHistorical}
                     error={saveError}
                 />
             </form>
         </CreatorStudio>
         {chatbot}
+        <Toast
+            open={draftToast !== null}
+            tone={draftToast?.tone ?? 'success'}
+            title={draftToast?.message ?? ''}
+            onClose={() => setDraftToast(null)}
+            autoCloseMs={3000}
+        />
         </>
     )
 }

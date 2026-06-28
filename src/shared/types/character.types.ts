@@ -42,6 +42,9 @@ export interface Character {
     /** Newest saved version pointer (read-only; 0/absent when no version saved yet). */
     latest_version_id?: string | null
     latest_version_number?: number
+    /** Owner-only: true when there are unpublished draft edits (absent on foreign reads). */
+    has_draft?: boolean
+    draft_updated_at?: string | null
 
     createdAt?: string
     updatedAt?: string

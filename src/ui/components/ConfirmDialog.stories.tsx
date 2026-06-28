@@ -43,7 +43,7 @@ function ConfirmDemo(args: ComponentProps<typeof ConfirmDialog>) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <Button kind={args.variant === 'danger' ? 'danger' : 'primary'} onClick={() => setOpen(true)}>
+      <Button variant={args.variant === 'danger' ? 'danger' : 'primary'} onClick={() => setOpen(true)}>
         {args.title}
       </Button>
       <ConfirmDialog {...args} visible={open} onConfirm={() => setOpen(false)} onCancel={() => setOpen(false)} />

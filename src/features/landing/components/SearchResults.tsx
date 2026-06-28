@@ -70,10 +70,10 @@ export function SearchResults({
                 secondaryText={t('landing.search.secondary')}
             >
                 <div className="flex flex-wrap items-center justify-center gap-3">
-                    <Button kind="secondary" size="sm" onClick={onClear}>
+                    <Button variant="secondary" size="sm" onClick={onClear}>
                         {t('gallery.clearSearch')}
                     </Button>
-                    <Button kind="primary" size="sm" iconLeft={<Icon icon={Wand2} size={15} />} onClick={onCreateAdventure}>
+                    <Button variant="primary" size="sm" iconLeft={<Icon icon={Wand2} size={15} />} onClick={onCreateAdventure}>
                         {t('landing.search.forgeAdventure')}
                     </Button>
                 </div>
@@ -93,7 +93,7 @@ export function SearchResults({
                         right={
                             group.key !== 'sessions' ? (
                                 <Button
-                                    kind="ghost"
+                                    variant="ghost"
                                     size="sm"
                                     iconRight={<Icon icon={ArrowRight} size={14} />}
                                     onClick={() => onViewGallery(group.key)}
@@ -177,7 +177,7 @@ function renderGroup(group: DashboardSearchGroup, t: TFunction, handlers: GroupH
                         t('landing.rail.editAria', { name: character.name }),
                         <div className="flex gap-2">
                             <Button
-                                kind="primary"
+                                variant="primary"
                                 size="sm"
                                 className="min-w-0 flex-1"
                                 iconLeft={<Icon icon={MessageCircle} size={15} />}
@@ -187,7 +187,7 @@ function renderGroup(group: DashboardSearchGroup, t: TFunction, handlers: GroupH
                             </Button>
                             {handlers.onCallCharacter && (
                                 <Button
-                                    kind="secondary"
+                                    variant="secondary"
                                     size="sm"
                                     className="min-w-0 flex-1"
                                     iconLeft={<Icon icon={Phone} size={15} />}

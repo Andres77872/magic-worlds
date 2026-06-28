@@ -192,6 +192,16 @@ describe('TasksDrawer', () => {
         expect(created).toHaveAttribute('title', absolute)
     })
 
+    it('toggles a task row open and closed', async () => {
+        renderDrawer({ active: [task('pending', 'active-1')], completed: [], failed: [] })
+
+        const toggle = await screen.findByRole('button', { name: /show .*details/i })
+        expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+        fireEvent.click(toggle)
+        expect(screen.getByRole('button', { name: /hide .*details/i })).toHaveAttribute('aria-expanded', 'true')
+    })
+
     it('renders drawer tabs, statuses, and audio labels in Spanish', async () => {
         renderDrawerSpanish({
             active: [],

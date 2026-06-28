@@ -23,6 +23,7 @@ import {
     Loader2,
     LogIn,
     LogOut,
+    Ticket,
     UserRound,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -30,7 +31,7 @@ import type { PageType } from '../../shared'
 import { effectiveName } from '@/utils/displayName'
 import { useAuth, useLanguage, useNavigation } from '../../app/hooks'
 import { SUPPORTED_LANGUAGE_OPTIONS } from '../../app/i18n'
-import { Avatar, Eyebrow, Icon, cx } from '../primitives'
+import { Avatar, Eyebrow, Icon, Tooltip, cx } from '../primitives'
 import { LogoutConfirmDialog } from './LogoutConfirmDialog'
 
 // Matches the Drawer/LanguageMenu transition so the menu shares the app idiom.
@@ -202,7 +203,7 @@ export function SidebarAccountMenu({
     }
 
     const onProfile = currentPage === 'profile'
-    const containerClassName = cx('group relative', placement === 'rise' && 'w-full')
+    const containerClassName = cx('relative', placement === 'rise' && 'w-full')
     const menuPlacement =
         placement === 'rise'
             ? 'bottom-0 left-full ml-3 origin-bottom-left'
@@ -211,45 +212,48 @@ export function SidebarAccountMenu({
 
     return (
         <div ref={containerRef} className={containerClassName}>
-            <button
-                type="button"
-                aria-label={triggerLabel}
-                aria-haspopup="menu"
-                aria-expanded={open}
-                title={visibleLabel}
-                onClick={() => setOpen((current) => !current)}
-                className={cx(
-                    'inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2.5 rounded-md px-0 font-ui text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500',
-                    placement === 'rise' && 'lg:w-full lg:justify-start lg:px-2',
-                    placement === 'rise' && collapsed && 'lg:w-10 lg:justify-center lg:px-0',
-                    open
-                        ? 'bg-ember-500/15 text-ember-400'
-                        : 'text-parchment-200 hover:bg-parchment-50/[.05] hover:text-parchment-50',
-                    placement === 'rise' && onProfile && 'ring-2 ring-ember-400 ring-offset-2 ring-offset-ink-900',
-                )}
+            <Tooltip
+                label={visibleLabel}
+                disabled={placement !== 'rise' || !collapsed}
+                wrapperClassName={placement === 'rise' ? 'w-full items-center justify-center' : undefined}
             >
-                {isAuthenticated ? (
-                    <Avatar name={displayedName || 'You'} size={28} ring="ember" />
-                ) : (
-                    <Icon icon={CircleUserRound} size={20} />
-                )}
-                {placement === 'rise' && (
-                    <span className={cx('hidden min-w-0 truncate', !collapsed && 'lg:inline')}>{visibleLabel}</span>
-                )}
-            </button>
-
-            {/* Collapsed-rail / mobile tooltip (native title covers the rest). */}
-            {placement === 'rise' && (
-                <div
-                    role="tooltip"
+                <button
+                    type="button"
+                    aria-label={triggerLabel}
+                    aria-haspopup="menu"
+                    aria-expanded={open}
+                    title={visibleLabel}
+                    onClick={() => setOpen((current) => !current)}
                     className={cx(
-                        'pointer-events-none absolute bottom-1 left-full z-50 ml-2 whitespace-nowrap rounded-md border border-parchment-50/[.08] bg-ink-900 px-2.5 py-1.5 font-ui text-xs text-parchment-100 opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
-                        collapsed ? 'lg:block' : 'lg:hidden',
+                        // The base classes ARE the icon-only state — a centered 40px circle,
+                        // concentric with the round avatar. `cx` is a plain joiner (not
+                        // tailwind-merge), so the rail must never carry a conflicting `lg:`
+                        // override; the expanded row classes are applied only when expanded.
+                        'inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2.5 rounded-full px-0 font-ui text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500',
+                        // Expanded desktop rail only: stretch into the labelled pill row beside the name.
+                        placement === 'rise' && !collapsed && 'lg:w-full lg:justify-start lg:px-2 lg:rounded-md',
+                        open || onProfile
+                            ? 'bg-ember-500/15 text-ember-400'
+                            : 'text-parchment-200 hover:bg-parchment-50/[.05] hover:text-parchment-50',
                     )}
                 >
-                    {visibleLabel}
-                </div>
-            )}
+                    {isAuthenticated ? (
+                        <Avatar
+                            name={displayedName || 'You'}
+                            size={28}
+                            ring="ember"
+                            // Active = a circular ring hugging the disc, concentric with the avatar's
+                            // own ember halo (no rounded-rect border fighting the round icon).
+                            className={cx(onProfile && 'ring-2 ring-ember-300 ring-offset-2 ring-offset-ink-900')}
+                        />
+                    ) : (
+                        <Icon icon={CircleUserRound} size={20} />
+                    )}
+                    {placement === 'rise' && (
+                        <span className={cx('hidden min-w-0 truncate', !collapsed && 'lg:inline')}>{visibleLabel}</span>
+                    )}
+                </button>
+            </Tooltip>
 
             {mounted && (
                 <div
@@ -277,7 +281,7 @@ export function SidebarAccountMenu({
                                 {isAuthenticated ? displayedName || t('sidebar.profile') : t('sidebar.account.signedOut')}
                             </p>
                             {isAuthenticated && user?.username && (
-                                <p className="truncate font-mono text-[11px] text-parchment-400">@{user.username}</p>
+                                <p className="truncate font-mono text-meta text-parchment-400">@{user.username}</p>
                             )}
                         </div>
                     </div>
@@ -327,6 +331,12 @@ export function SidebarAccountMenu({
                                     current={currentPage === 'admin-agents'}
                                     onClick={() => navigate('admin-agents')}
                                 />
+                                <AccountMenuRow
+                                    icon={Ticket}
+                                    label={t('sidebar.creditCodesAdmin')}
+                                    current={currentPage === 'admin-credit-codes'}
+                                    onClick={() => navigate('admin-credit-codes')}
+                                />
                             </div>
                         </div>
                     )}
@@ -366,7 +376,7 @@ export function SidebarAccountMenu({
                             })}
                         </div>
                         {(isSyncing || syncError) && (
-                            <div className="flex items-center gap-2 px-2.5 pb-0.5 pt-1.5 font-ui text-[11px] text-parchment-400">
+                            <div className="flex items-center gap-2 px-2.5 pb-0.5 pt-1.5 font-ui text-meta text-parchment-400">
                                 {isSyncing ? (
                                     <>
                                         <Loader2 size={12} className="animate-spin text-parchment-300" />

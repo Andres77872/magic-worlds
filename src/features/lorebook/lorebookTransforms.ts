@@ -13,6 +13,17 @@ import type {
     LorebookSettings,
     LorebookTargetKind,
 } from '@/shared'
+import {
+    LOREBOOK_RESOURCE_MAX_CHARS,
+    LOREBOOK_RESOURCE_MAX_RESOURCES,
+    LOREBOOK_RESOURCE_MAX_TRIGGERS,
+    findInvalidLorebookResource,
+    lorebookHasResourceContent,
+    lorebookResourceActivationEntries,
+    lorebookResourcesFromMetadata,
+    stripHydratedLorebookResourceMetadata,
+} from './lorebookResources'
+import { buildKeyRegex } from './loreTriggers'
 
 type Raw = Record<string, unknown>
 
@@ -199,7 +210,7 @@ export function lorebookToApiPayload(lorebook: Lorebook | LorebookDraft | Partia
         recursive_scanning: lorebook.settings?.recursiveScanning ?? DEFAULT_LOREBOOK_SETTINGS.recursiveScanning,
         match_whole_words: lorebook.settings?.matchWholeWords ?? DEFAULT_LOREBOOK_SETTINGS.matchWholeWords,
         case_sensitive: lorebook.settings?.caseSensitive ?? DEFAULT_LOREBOOK_SETTINGS.caseSensitive,
-        metadata: lorebook.metadata ?? {},
+        metadata: stripHydratedLorebookResourceMetadata(lorebook.metadata),
         entries: 'entries' in lorebook && Array.isArray(lorebook.entries)
             ? lorebook.entries.map(entryToApiPayload)
             : undefined,
@@ -207,7 +218,11 @@ export function lorebookToApiPayload(lorebook: Lorebook | LorebookDraft | Partia
 }
 
 export function entryToApiPayload(entry: Partial<LorebookEntry | LorebookEntryDraft>): Record<string, unknown> {
+    const id = 'id' in entry && typeof entry.id === 'string' && !entry.id.startsWith('draft-entry-')
+        ? entry.id
+        : undefined
     return {
+        ...(id ? { id } : {}),
         title: entry.title ?? '',
         entry_type: entry.entryType ?? 'other',
         content: entry.content ?? '',
@@ -229,18 +244,170 @@ export function entryToApiPayload(entry: Partial<LorebookEntry | LorebookEntryDr
     }
 }
 
+export function attachmentToApiPayload(attachment: Partial<LorebookAttachment>): Record<string, unknown> {
+    return {
+        ...(attachment.id ? { id: attachment.id } : {}),
+        lorebook_id: attachment.lorebookId,
+        target_kind: attachment.targetKind ?? 'global',
+        target_id: attachment.targetId || null,
+        mode: attachment.mode ?? 'linked',
+        snapshot: attachment.snapshot ? lorebookToApiPayload(attachment.snapshot) : null,
+    }
+}
+
 export function estimateTokens(text: string): number {
     return Math.max(1, Math.ceil(text.trim().split(/\s+/).filter(Boolean).length * 1.35))
+}
+
+type MatchOptions = {
+    caseSensitive: boolean
+    matchWholeWords: boolean
+    regex: boolean
+}
+
+type EntryMatch = {
+    active: boolean
+    matchedKeys: string[]
+    reason?: string
+}
+
+const POSITION_ORDER: Record<LorebookInsertionPosition, number> = {
+    system: 0,
+    before_context: 1,
+    author_note: 2,
+    after_context: 3,
+}
+
+function hasKey(value: Partial<LorebookEntry | LorebookEntryDraft>, key: keyof LorebookEntry): boolean {
+    return Object.prototype.hasOwnProperty.call(value, key)
+}
+
+function matchKey(sample: string, key: string, options: MatchOptions): boolean {
+    // Shares its key→regex compilation with the inline trigger scanner so the two
+    // can never drift apart on escaping / whole-word / regex semantics.
+    const regex = buildKeyRegex(key, options)
+    return regex ? regex.test(sample || '') : false
+}
+
+function matchedKeys(sample: string, keys: string[], options: MatchOptions): string[] {
+    return keys.filter((key) => matchKey(sample, key, options))
+}
+
+function allKeysMatched(keys: string[], matched: string[]): boolean {
+    return keys.length > 0 && keys.every((key) => matched.includes(key))
+}
+
+function entryMatchOptions(lorebook: Lorebook | LorebookDraft, entry: LorebookEntry | LorebookEntryDraft): MatchOptions {
+    return {
+        caseSensitive: hasKey(entry, 'caseSensitive') ? entry.caseSensitive : lorebook.settings.caseSensitive,
+        matchWholeWords: hasKey(entry, 'matchWholeWords') ? entry.matchWholeWords : lorebook.settings.matchWholeWords,
+        regex: entry.regex,
+    }
+}
+
+function evaluateEntryMatch(lorebook: Lorebook | LorebookDraft, entry: LorebookEntry | LorebookEntryDraft, sample: string): EntryMatch {
+    if (!entry.enabled) return { active: false, matchedKeys: [], reason: 'Entry disabled.' }
+    if (entry.constant) return { active: true, matchedKeys: ['constant'] }
+
+    const options = entryMatchOptions(lorebook, entry)
+    const primary = matchedKeys(sample, entry.keys, options)
+    const secondary = matchedKeys(sample, entry.secondaryKeys, options)
+    const primaryAny = primary.length > 0
+    const primaryAll = allKeysMatched(entry.keys, primary)
+    const secondaryAny = secondary.length > 0
+    const secondaryAll = allKeysMatched(entry.secondaryKeys, secondary)
+    const primaryGate = entry.selectiveLogic === 'all' ? primaryAll : primaryAny
+
+    let active = false
+    switch (entry.selectiveLogic) {
+        case 'all':
+            active = primaryAll
+            break
+        case 'and_any':
+            active = primaryGate && secondaryAny
+            break
+        case 'and_all':
+            active = primaryGate && secondaryAll
+            break
+        case 'not_any':
+            active = primaryGate && !secondaryAny
+            break
+        case 'not_all':
+            active = primaryGate && !secondaryAll
+            break
+        case 'any':
+        default:
+            active = primaryAny
+            break
+    }
+
+    const matched = [...primary, ...secondary]
+    if (active && entry.isSecret && entry.revealCondition?.trim()) {
+        const revealed = matchKey(sample, entry.revealCondition, {
+            ...options,
+            regex: false,
+            matchWholeWords: false,
+        })
+        if (!revealed) {
+            return { active: false, matchedKeys: matched, reason: 'Reveal condition not met.' }
+        }
+        matched.push(entry.revealCondition)
+    }
+
+    return {
+        active,
+        matchedKeys: matched,
+        reason: active ? undefined : 'No key matched the sample text.',
+    }
+}
+
+function sortEntriesForPrompt(entries: Array<{ entry: LorebookEntry | LorebookEntryDraft; result: LoreActivationResult }>) {
+    return [...entries].sort((a, b) => {
+        const positionDelta = POSITION_ORDER[a.entry.insertionPosition] - POSITION_ORDER[b.entry.insertionPosition]
+        if (positionDelta !== 0) return positionDelta
+        const orderDelta = a.entry.insertionOrder - b.entry.insertionOrder
+        if (orderDelta !== 0) return orderDelta
+        return b.entry.priority - a.entry.priority
+    })
 }
 
 export function validateLorebookLocally(lorebook: Lorebook | LorebookDraft): LorebookIssue[] {
     const issues: LorebookIssue[] = []
     const entries = lorebook.entries ?? []
+    const resources = lorebookResourcesFromMetadata(lorebook.metadata)
     if (!lorebook.name.trim()) {
         issues.push({ severity: 'error', code: 'name_required', message: 'Name the lorebook before saving.' })
     }
-    if (entries.length === 0) {
+    if (lorebook.settings.scanDepth < 1) {
+        issues.push({ severity: 'error', code: 'scan_depth_invalid', message: 'Scan depth must be at least 1.' })
+    }
+    if (lorebook.settings.tokenBudget < 100) {
+        issues.push({ severity: 'error', code: 'token_budget_invalid', message: 'Token budget must be at least 100.' })
+    }
+    if (entries.length === 0 && !lorebookHasResourceContent(lorebook)) {
         issues.push({ severity: 'warning', code: 'empty_book', message: 'Add at least one entry so the book can activate.' })
+    }
+    const invalidResource = findInvalidLorebookResource(resources)
+    if (invalidResource?.type === 'count') {
+        issues.push({ severity: 'error', code: 'resource_count_invalid', message: `Lorebooks can include up to ${LOREBOOK_RESOURCE_MAX_RESOURCES} resources.` })
+    } else if (invalidResource?.type === 'size') {
+        issues.push({
+            severity: 'error',
+            code: 'resource_size_invalid',
+            message: `${invalidResource.resource.fileName} is over ${LOREBOOK_RESOURCE_MAX_CHARS} characters.`,
+        })
+    } else if (invalidResource?.type === 'triggers') {
+        issues.push({
+            severity: 'error',
+            code: 'resource_triggers_invalid',
+            message: `${invalidResource.resource.fileName} has more than ${LOREBOOK_RESOURCE_MAX_TRIGGERS} resource triggers.`,
+        })
+    } else if (invalidResource?.type === 'fileType') {
+        issues.push({
+            severity: 'error',
+            code: 'resource_file_type_invalid',
+            message: `${invalidResource.resource.fileName} must be a .md or .txt file.`,
+        })
     }
     const seenKeys = new Map<string, string>()
     for (const entry of entries) {
@@ -254,6 +421,21 @@ export function validateLorebookLocally(lorebook: Lorebook | LorebookDraft): Lor
         }
         if (estimateTokens(entry.content) > 220) {
             issues.push({ severity: 'warning', code: 'entry_long', message: `${title} is long enough to pressure context budget.`, messageParams: { title }, entryId })
+        }
+        if (entry.regex) {
+            for (const key of [...entry.keys, ...entry.secondaryKeys]) {
+                try {
+                    new RegExp(key)
+                } catch {
+                    issues.push({ severity: 'error', code: 'entry_regex_invalid', message: `"${key}" is not a valid regular expression.`, messageParams: { key }, entryId })
+                }
+            }
+        }
+        if (entry.isSecret && !entry.revealCondition?.trim()) {
+            issues.push({ severity: 'warning', code: 'entry_reveal_missing', message: `${title} is secret but has no reveal condition.`, messageParams: { title }, entryId })
+        }
+        if (entry.tokenBudget !== null && entry.tokenBudget !== undefined && entry.tokenBudget < 1) {
+            issues.push({ severity: 'error', code: 'entry_token_budget_invalid', message: `${title} has an invalid entry token cap.`, messageParams: { title }, entryId })
         }
         for (const key of entry.keys) {
             const normalized = key.toLowerCase()
@@ -272,24 +454,79 @@ export function validateLorebookLocally(lorebook: Lorebook | LorebookDraft): Lor
 }
 
 export function previewLocally(lorebook: Lorebook | LorebookDraft, sample: string): LoreActivationPreviewResponse {
-    const haystack = sample.toLowerCase()
-    const results: LoreActivationResult[] = (lorebook.entries ?? []).map((entry) => {
-        const matchedKeys = entry.constant
-            ? ['constant']
-            : entry.keys.filter((key) => haystack.includes(entry.caseSensitive ? key : key.toLowerCase()))
-        const active = Boolean(entry.enabled && matchedKeys.length > 0)
-        return {
-            entryId: (entry as Partial<LorebookEntry>).id ?? entry.title,
+    const includeBook = lorebook.enabled
+    const results: LoreActivationResult[] = []
+    const activatedEntries: Array<{ entry: LorebookEntry | LorebookEntryDraft; result: LoreActivationResult }> = []
+    let searchText = sample
+    let usedTokens = 0
+    const maxPasses = lorebook.settings.recursiveScanning ? Math.max(1, lorebook.settings.scanDepth) : 1
+    const manualEntries = lorebook.entries ?? []
+    const entries = 'id' in lorebook
+        ? [...manualEntries, ...lorebookResourceActivationEntries(lorebook)]
+        : manualEntries
+    const activatedIds = new Set<string>()
+
+    for (let pass = 0; pass < maxPasses; pass += 1) {
+        let changed = false
+        const activatedThisPass: Array<LorebookEntry | LorebookEntryDraft> = []
+        for (const entry of entries) {
+            const entryId = (entry as Partial<LorebookEntry>).id ?? entry.title
+            if (activatedIds.has(entryId)) continue
+            const tokens = estimateTokens(entry.content)
+            let match: EntryMatch = includeBook
+                ? evaluateEntryMatch(lorebook, entry, searchText)
+                : { active: false, matchedKeys: [], reason: 'Lorebook disabled.' }
+            if (match.active && entry.tokenBudget !== null && entry.tokenBudget !== undefined && tokens > entry.tokenBudget) {
+                match = { active: false, matchedKeys: match.matchedKeys, reason: 'Entry exceeds its token cap.' }
+            }
+            if (match.active && usedTokens + tokens > lorebook.settings.tokenBudget) {
+                match = { active: false, matchedKeys: match.matchedKeys, reason: 'Lorebook token budget exhausted.' }
+            }
+            if (!match.active && pass > 0 && match.matchedKeys.length === 0) continue
+            const result: LoreActivationResult = {
+                entryId,
+                lorebookId: 'id' in lorebook ? lorebook.id : 'draft',
+                title: entry.title || 'Untitled entry',
+                matchedKeys: match.matchedKeys,
+                status: match.active ? 'activated' : 'skipped',
+                reason: match.reason,
+                estimatedTokens: tokens,
+                insertionOrder: entry.insertionOrder,
+                priority: entry.priority,
+            }
+            if (pass === 0) {
+                results.push(result)
+            } else {
+                const index = results.findIndex((candidate) => candidate.entryId === entryId)
+                if (index >= 0) results[index] = result
+            }
+            if (match.active) {
+                activatedIds.add(entryId)
+                activatedEntries.push({ entry, result })
+                activatedThisPass.push(entry)
+                usedTokens += tokens
+                changed = true
+            }
+        }
+        if (!lorebook.settings.recursiveScanning || !changed) break
+        searchText = `${searchText}\n\n${activatedThisPass.map((entry) => entry.content).join('\n\n')}`
+    }
+
+    for (const entry of entries) {
+        const entryId = (entry as Partial<LorebookEntry>).id ?? entry.title
+        if (results.some((result) => result.entryId === entryId)) continue
+        results.push({
+            entryId,
             lorebookId: 'id' in lorebook ? lorebook.id : 'draft',
             title: entry.title || 'Untitled entry',
-            matchedKeys,
-            status: active ? 'activated' : 'skipped',
-            reason: active ? undefined : entry.enabled ? 'No key matched the sample text.' : 'Entry disabled.',
+            matchedKeys: [],
+            status: 'skipped',
+            reason: includeBook ? 'No key matched the sample text.' : 'Lorebook disabled.',
             estimatedTokens: estimateTokens(entry.content),
             insertionOrder: entry.insertionOrder,
             priority: entry.priority,
-        }
-    })
+        })
+    }
     const activated = results.filter((result) => result.status === 'activated')
     return {
         targetKind: 'global',
@@ -297,10 +534,7 @@ export function previewLocally(lorebook: Lorebook | LorebookDraft, sample: strin
         results,
         totalEstimatedTokens: activated.reduce((sum, result) => sum + result.estimatedTokens, 0),
         tokenBudget: lorebook.settings.tokenBudget,
-        promptPreview: activated.map((result) => {
-            const entry = (lorebook.entries ?? []).find((candidate) => ('id' in candidate ? candidate.id : candidate.title) === result.entryId)
-            return entry?.content ?? ''
-        }).filter(Boolean).join('\n\n'),
+        promptPreview: sortEntriesForPrompt(activatedEntries).map(({ entry }) => entry.content).filter(Boolean).join('\n\n'),
         issues: validateLorebookLocally(lorebook),
     }
 }

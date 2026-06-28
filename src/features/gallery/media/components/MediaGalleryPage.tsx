@@ -13,7 +13,7 @@ import { Button, PageHeader } from '@/ui/primitives'
 import { ImageLightbox } from '@/ui/primitives'
 import { CardGrid } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
-import { emptyCopy, type CardRef, type MediaGalleryItem } from '../mediaGalleryTypes'
+import { emptyCopy, type CardRef, type MediaGalleryItem, type MediaImageItem } from '../mediaGalleryTypes'
 import { useMediaGallery } from '../hooks/useMediaGallery'
 import { MediaFilterBar } from './MediaFilterBar'
 import { MediaImageTile } from './MediaImageTile'
@@ -21,11 +21,11 @@ import { MediaThemeCard } from './MediaThemeCard'
 
 export function MediaGalleryPage() {
     const { t } = useTranslation()
-    const gallery = useMediaGallery()
     const { isAuthenticated, openLoginModal } = useAuth()
     const { characters, worlds, items, templateAdventures } = useData()
+    const gallery = useMediaGallery(undefined, { enabled: isAuthenticated })
 
-    const [lightboxUrl, setLightboxUrl] = useState<string | undefined>(undefined)
+    const [selectedImage, setSelectedImage] = useState<MediaImageItem | undefined>(undefined)
     const [pendingDelete, setPendingDelete] = useState<MediaGalleryItem | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [actionError, setActionError] = useState<string | null>(null)
@@ -105,7 +105,7 @@ export function MediaGalleryPage() {
                 >
                     <span>{error}</span>
                     <Button
-                        kind="secondary"
+                        variant="secondary"
                         size="sm"
                         onClick={() => {
                             setActionError(null)
@@ -130,7 +130,7 @@ export function MediaGalleryPage() {
                 emptyStateDescription={empty.description}
                 emptyStateAction={
                     filtered ? (
-                        <Button kind="secondary" size="sm" onClick={gallery.clearFilters}>
+                        <Button variant="secondary" size="sm" onClick={gallery.clearFilters}>
                             {t('mediaGallery.actions.clearFilters')}
                         </Button>
                     ) : undefined
@@ -141,7 +141,7 @@ export function MediaGalleryPage() {
                         <MediaImageTile
                             item={item}
                             deleting={deletingId === item.id}
-                            onView={() => setLightboxUrl(item.url)}
+                            onView={() => setSelectedImage(item)}
                             onDelete={() => requestDelete(item)}
                             onFilterCard={gallery.setCard}
                         />
@@ -158,10 +158,22 @@ export function MediaGalleryPage() {
             />
 
             <ImageLightbox
-                open={Boolean(lightboxUrl)}
-                src={lightboxUrl}
+                open={Boolean(selectedImage)}
+                src={selectedImage?.url}
                 alt={t('mediaGallery.tile.generatedImage')}
-                onClose={() => setLightboxUrl(undefined)}
+                details={
+                    selectedImage ? (
+                        <section className="flex flex-col gap-2" data-testid="media-image-prompt-panel">
+                            <h2 className="font-ui text-sm font-semibold text-parchment-100">
+                                {t('mediaGallery.lightbox.promptTitle')}
+                            </h2>
+                            <p className="whitespace-pre-wrap font-narrative text-sm leading-relaxed text-parchment-300">
+                                {selectedImage.prompt || t('mediaGallery.lightbox.promptUnavailable')}
+                            </p>
+                        </section>
+                    ) : undefined
+                }
+                onClose={() => setSelectedImage(undefined)}
             />
 
             <ConfirmDialog

@@ -9,10 +9,12 @@ interface CardGridProps<T> {
     renderCard: (item: T, index: number) => React.ReactNode
     /**
      * `grid` (default) — responsive auto-fill gallery for full pages.
+     * `list` — a single-column stack of full-width rows over the same paginated
+     * data; infinite scroll, search, and skeletons all apply just like `grid`.
      * `rail` — a horizontal scroll shelf of fixed-width cards, so a handful of
      * items reads as an intentional row instead of stretching full width.
      */
-    layout?: 'grid' | 'rail'
+    layout?: 'grid' | 'rail' | 'list'
     /**
      * Grid column sizing: `comfortable` (default, 240/280px min) or `compact`
      * (200/220px min) for image-forward galleries of many cards.
@@ -61,9 +63,9 @@ interface CardGridProps<T> {
 // Skeleton card for loading state
 const SkeletonCard = () => (
     <div className="flex h-full flex-col overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-700 p-4" aria-hidden="true">
-        <div className="mb-4 w-full rounded-sm bg-ink-600" style={{height: '180px'}}/>
-        <div className="rounded-sm bg-ink-600" style={{height: '24px', width: '70%', marginBottom: '8px'}}/>
-        <div className="rounded-sm bg-ink-600" style={{height: '16px', width: '40%'}}/>
+        <div className="mb-4 h-[180px] w-full rounded-sm bg-ink-600"/>
+        <div className="mb-2 h-6 w-[70%] rounded-sm bg-ink-600"/>
+        <div className="h-4 w-2/5 rounded-sm bg-ink-600"/>
     </div>
 )
 
@@ -259,15 +261,22 @@ export function CardGrid<T>({
         density === 'compact'
             ? `grid w-full grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-5 ${className}`
             : `grid w-full grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4 md:grid-cols-[repeat(auto-fill,minmax(320px,1fr))] md:gap-6 ${className}`
+    // List rows stack full-width; same wrapper handles the content + skeletons.
+    const listClass = `flex w-full flex-col gap-2 md:gap-3 ${className}`
+    // The container for the current paginated layout (drives content + skeletons).
+    const containerClass = layout === 'list' ? listClass : gridClass
+    // Grid and list are paginated full-page layouts; only the horizontal rail
+    // opts out of load-more, the infinite-scroll sentinel, and end-of-results.
+    const paged = layout !== 'rail'
 
     // Enhanced loading state
     if (loading) {
-        // A matched skeleton grid reserves layout and avoids the spinner→grid
-        // pop; falls back to the centered spinner for rails/lists without one.
-        if (renderSkeleton && layout === 'grid') {
+        // A matched skeleton grid/list reserves layout and avoids the spinner→content
+        // pop; falls back to the centered spinner for rails (or callers without one).
+        if (renderSkeleton && paged) {
             return (
                 <div className="w-full" data-testid={testId}>
-                    <div className={gridClass} role="status" aria-busy="true" aria-label={t('cardGrid.loadingItems')}>
+                    <div className={containerClass} role="status" aria-busy="true" aria-label={t('cardGrid.loadingItems')}>
                         {Array.from({ length: skeletonCount }).map((_, i) => (
                             <div key={`skeleton-${i}`} className="contents">{renderSkeleton()}</div>
                         ))}
@@ -359,19 +368,26 @@ export function CardGrid<T>({
                             // hover-lift + ember glow room; the -mx cancels the inline
                             // padding so cards still align with the section header.
                             ? `flex gap-4 overflow-x-auto -mx-4 pl-4 ${railShouldFade ? 'rail-fade-right pr-12' : 'pr-4'} pb-9 pt-5 [scroll-snap-type:x_proximity] md:gap-5 ${className}`
-                            : gridClass
+                            : containerClass
                     }
                     role="list"
                     ref={gridRef}
-                    aria-label={t(layout === 'rail' ? 'cardGrid.shelfLabel' : 'cardGrid.gridLabel', { count: items.length })}
+                    aria-label={t(
+                        layout === 'rail'
+                            ? 'cardGrid.shelfLabel'
+                            : layout === 'list'
+                              ? 'cardGrid.listLabel'
+                              : 'cardGrid.gridLabel',
+                        { count: items.length },
+                    )}
                     data-testid="card-grid-list"
                 >
                     {renderedCards}
 
-                    {/* Enhanced loading more indicator (paged grids only). Matches the
-                        card via renderSkeleton when given; the generic text-card
+                    {/* Enhanced loading more indicator (paged grids/lists only). Matches
+                        the card via renderSkeleton when given; the generic text-card
                         SkeletonCard is the fallback for callers without one. */}
-                    {layout === 'grid' && loadingMore && (
+                    {paged && loadingMore && (
                         <>
                             {[...Array(3)].map((_, i) =>
                                 renderSkeleton ? (
@@ -383,8 +399,8 @@ export function CardGrid<T>({
                         </>
                     )}
 
-                    {/* Infinite scroll trigger (paged grids only) */}
-                    {layout === 'grid' && hasMore && !loadingMore && (
+                    {/* Infinite scroll trigger (paged grids/lists only) */}
+                    {paged && hasMore && !loadingMore && (
                         <div
                             ref={loadingRef}
                             className="h-px w-full"
@@ -397,7 +413,7 @@ export function CardGrid<T>({
 
             {/* End-of-results indicator — only for paginated galleries, never for
                 short shelves where it would just advertise emptiness. */}
-            {layout === 'grid' && onLoadMore && !hasMore && items.length > 0 && (
+            {paged && onLoadMore && !hasMore && items.length > 0 && (
                 <div
                     className="mt-6 border-t border-parchment-50/10 p-6 text-center text-sm text-parchment-400"
                     role="status"

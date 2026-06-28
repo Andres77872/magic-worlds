@@ -5,9 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/app/i18n'
 
 const openLoginModal = vi.fn()
+let authed = true
 
 vi.mock('@/app/hooks', () => ({
-    useAuth: () => ({ isAuthenticated: true, openLoginModal }),
+    useAuth: () => ({ isAuthenticated: authed, openLoginModal }),
     useData: () => ({
         characters: [],
         worlds: [{ id: 'card-2', name: 'Rivendell', image_url: '/generated-images/rivendell.jpeg' }],
@@ -66,6 +67,8 @@ import { MediaGalleryPage } from './MediaGalleryPage'
 const IMAGE_JOB: ImageJobPublic = {
     job_id: 'job-i1',
     status: 'completed',
+    model_alias: 'text_to_image_qwen',
+    generation_prompt: 'Image-only illustration of Lyra beneath violet rain, candlelit and painterly.',
     status_url: '',
     result_url: '',
     assets: [{ asset_id: 'img-1', url: '/generated-images/1.jpeg', content_type: 'image/jpeg' }],
@@ -106,6 +109,7 @@ function renderSpanish(ui: ReactElement) {
 describe('MediaGalleryPage', () => {
     beforeEach(async () => {
         await i18n.changeLanguage('en')
+        authed = true
         vi.clearAllMocks()
         clearAudioDataCaches()
         vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:protected-media'), revokeObjectURL: vi.fn() })
@@ -134,6 +138,18 @@ describe('MediaGalleryPage', () => {
         const grid = screen.getByTestId('card-grid-list')
         const tiles = grid.querySelectorAll('[data-testid="media-image-tile"], [data-testid="media-theme-card"]')
         expect(tiles[0].getAttribute('data-testid')).toBe('media-image-tile')
+    })
+
+    it('renders signed-out without prompting login or fetching protected media lists', async () => {
+        authed = false
+
+        render(<MediaGalleryPage />)
+
+        expect(screen.getByRole('heading', { name: 'Media' })).toBeInTheDocument()
+        expect(await screen.findByText(i18n.t('mediaGallery.empty.noMedia'))).toBeInTheDocument()
+        expect(apiService.listImageJobs).not.toHaveBeenCalled()
+        expect(apiService.listUserThemeSongs).not.toHaveBeenCalled()
+        expect(openLoginModal).not.toHaveBeenCalled()
     })
 
     it('media-type chips refetch only the matching source', async () => {
@@ -239,6 +255,9 @@ describe('MediaGalleryPage', () => {
         fireEvent.click(screen.getByRole('button', { name: /View image .* full size/ }))
 
         expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
+        expect(screen.getByTestId('media-image-prompt-panel')).toHaveTextContent('Prompt')
+        expect(screen.getByText('Image-only illustration of Lyra beneath violet rain, candlelit and painterly.')).toBeInTheDocument()
+        expect(screen.queryByText('text_to_image_qwen')).not.toBeInTheDocument()
     })
 
     it('shows filtered empty-state copy with a Clear filters action', async () => {

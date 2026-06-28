@@ -126,6 +126,16 @@ describe('ChatroomPage', () => {
         expect(setPage).toHaveBeenCalledWith('character-chat')
     })
 
+    it('hides voice-call actions for group chats when the flag is enabled', async () => {
+        vi.stubEnv('VITE_VOICE_MODE_ENABLED', 'true')
+        render(<ChatroomPage />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra, Sable' }))
+
+        expect(await screen.findByRole('menuitem', { name: 'Resume chat' })).toBeInTheDocument()
+        expect(screen.queryByRole('menuitem', { name: 'Start voice call' })).not.toBeInTheDocument()
+    })
+
     it('deletes a chat after confirmation', async () => {
         render(<ChatroomPage />)
 
@@ -140,13 +150,21 @@ describe('ChatroomPage', () => {
         expect(deleteCharacterChat).toHaveBeenCalledWith('chat-1')
     })
 
-    it('gates signed-out visitors', () => {
+    it('renders signed-out visitors and gates only new group chat', () => {
         authed = false
+        characterChats = []
 
         render(<ChatroomPage />)
 
-        expect(openLoginModal).toHaveBeenCalled()
-        expect(setPage).toHaveBeenCalledWith('landing')
-        expect(screen.queryByTestId('chatroom-page')).not.toBeInTheDocument()
+        expect(screen.getByTestId('chatroom-page')).toBeInTheDocument()
+        expect(openLoginModal).not.toHaveBeenCalled()
+        expect(setPage).not.toHaveBeenCalledWith('landing')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Find characters' }))
+        expect(setPage).toHaveBeenCalledWith('gallery-characters')
+        expect(openLoginModal).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getByRole('button', { name: 'New group chat' }))
+        expect(openLoginModal).toHaveBeenCalledTimes(1)
     })
 })

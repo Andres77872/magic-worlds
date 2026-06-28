@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { Loader2, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import { useClickOutside } from '../../../shared/hooks/useClickOutside'
 import { Button, IconButton } from '../../../ui/primitives'
+import { CopyTextButton } from '@/ui/components'
 
 interface PopoverAnchor {
     top: number
@@ -113,11 +114,11 @@ function MessageDeleteConfirmPopover({
                 {t('interaction.actions.deleteMessageConfirm')}
             </div>
             <div className="flex items-center justify-end gap-2">
-                <Button kind="ghost" size="sm" onClick={close} disabled={deleting}>
+                <Button variant="ghost" size="sm" onClick={close} disabled={deleting}>
                     {t('common.cancel')}
                 </Button>
                 <Button
-                    kind="danger"
+                    variant="danger"
                     size="sm"
                     onClick={onConfirm}
                     disabled={deleting}
@@ -136,6 +137,8 @@ interface ChatActionsProps {
     isUser: boolean
     isEditing: boolean
     isStreaming?: boolean
+    actionsDisabled?: boolean
+    messageContent?: string
     onEditClick?: () => void
     onRegenerateClick?: (turnId: string) => void
     onDeleteClick?: (turnId: string) => void
@@ -150,6 +153,8 @@ export function ChatActions({
     isUser,
     isEditing,
     isStreaming,
+    actionsDisabled,
+    messageContent,
     onEditClick,
     onRegenerateClick,
     onDeleteClick,
@@ -162,6 +167,8 @@ export function ChatActions({
     const deleteButtonRef = useRef<HTMLButtonElement>(null)
     const popoverTitleId = useId()
     const popoverId = `${popoverTitleId}-popover`
+    const hideMutatingActions = Boolean(isEditing || isStreaming || actionsDisabled)
+    const canCopy = !isEditing && !isStreaming && messageContent !== undefined && messageContent.length > 0
 
     const popoverAnchor = (() => {
         if (!confirmingDelete || typeof window === 'undefined') return null
@@ -175,17 +182,20 @@ export function ChatActions({
 
     return (
         <div className="flex items-center gap-0.5">
-            {onEditClick && !isEditing && !isStreaming && (
+            {canCopy && (
+                <CopyTextButton text={messageContent} onError={(error) => console.error('Failed to copy chat message:', error)} />
+            )}
+            {onEditClick && !hideMutatingActions && (
                 <IconButton label={t('interaction.actions.editMessage')} size="sm" onClick={onEditClick}>
                     <Pencil size={14} strokeWidth={1.75} />
                 </IconButton>
             )}
-            {!isUser && onRegenerateClick && !isStreaming && !isEditing && (
+            {!isUser && onRegenerateClick && !hideMutatingActions && (
                 <IconButton label={t('interaction.actions.regenerate')} size="sm" onClick={() => onRegenerateClick(turnId)}>
                     <RotateCcw size={14} strokeWidth={1.75} />
                 </IconButton>
             )}
-            {onDeleteClick && !isStreaming && !isEditing ? (
+            {onDeleteClick && !hideMutatingActions ? (
                 <>
                     <IconButton
                         ref={deleteButtonRef}

@@ -52,10 +52,10 @@ export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDra
             size="lg"
             footer={
                 <div className="flex w-full items-center justify-end gap-2">
-                    <Button kind="ghost" onClick={onClose} disabled={busy}>
+                    <Button variant="ghost" onClick={onClose} disabled={busy}>
                         {t('common.cancel')}
                     </Button>
-                    <Button kind="primary" onClick={() => void submit()} disabled={busy} data-testid="codex-entry-save">
+                    <Button variant="primary" onClick={() => void submit()} disabled={busy} data-testid="codex-entry-save">
                         {busy ? t('common.saving') : t('common.save')}
                     </Button>
                 </div>

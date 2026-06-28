@@ -76,11 +76,11 @@ export function AddCardModal({ open, title, confirmKind, candidates, emptyHint, 
             size="md"
             footer={
                 <>
-                    <Button kind="ghost" onClick={onClose} disabled={busy}>
+                    <Button variant="ghost" onClick={onClose} disabled={busy}>
                         Cancel
                     </Button>
                     <Button
-                        kind="primary"
+                        variant="primary"
                         iconLeft={<Icon icon={Plus} size={16} />}
                         onClick={confirm}
                         disabled={busy || selected.length === 0}

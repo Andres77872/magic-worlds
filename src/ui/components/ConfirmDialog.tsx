@@ -50,16 +50,16 @@ export function ConfirmDialog({
             showClose={false}
             footer={
                 <>
-                    <Button kind="secondary" onClick={requestCancel} disabled={isProcessing}>
+                    <Button variant="secondary" onClick={requestCancel} disabled={isProcessing}>
                         {resolvedCancelLabel}
                     </Button>
-                    <Button kind={confirmKind} onClick={onConfirm} disabled={isProcessing}>
+                    <Button variant={confirmKind} onClick={onConfirm} disabled={isProcessing}>
                         {isProcessing ? resolvedProcessingLabel : resolvedConfirmLabel}
                     </Button>
                 </>
             }
         >
-            <div className="text-[15px] leading-relaxed text-parchment-200">{message}</div>
+            <div className="text-body leading-relaxed text-parchment-200">{message}</div>
         </Modal>
     )
 }

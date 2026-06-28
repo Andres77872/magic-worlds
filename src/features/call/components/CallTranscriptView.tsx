@@ -106,7 +106,7 @@ export function CallTranscriptView({ call, characters, onBack }: CallTranscriptV
                 subtitle={subtitleParts.join(' · ')}
                 size="md"
                 actions={
-                    <Button kind="secondary" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack}>
+                    <Button variant="secondary" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack}>
                         {t('call.transcript.backToCalls')}
                     </Button>
                 }

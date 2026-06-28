@@ -119,16 +119,16 @@ export function SharedCardPage() {
                 subtitle={t('gallery.shared.subtitle')}
                 actions={
                     <div className="flex flex-wrap items-center gap-2">
-                        <Button kind="secondary" iconLeft={<Icon icon={Link2} size={16} />} onClick={() => void copyCurrentLink()}>
+                        <Button variant="secondary" iconLeft={<Icon icon={Link2} size={16} />} onClick={() => void copyCurrentLink()}>
                             {t('profile.sharing.copyLink')}
                         </Button>
                         {alreadyImported && existingCardId && (
-                            <Button kind="secondary" onClick={() => importHook.openExisting(existingCardId, item.galleryType)}>
+                            <Button variant="secondary" onClick={() => importHook.openExisting(existingCardId, item.galleryType)}>
                                 {t('gallery.preview.openExisting')}
                             </Button>
                         )}
                         <Button
-                            kind="primary"
+                            variant="primary"
                             iconLeft={
                                 importing ? (
                                     <Icon icon={Loader2} size={16} className="animate-spin" />
@@ -171,7 +171,7 @@ export function SharedCardPage() {
                     onClick={() => preview.open(item)}
                     footer={
                         <Button
-                            kind={alreadyImported ? 'secondary' : 'primary'}
+                            variant={alreadyImported ? 'secondary' : 'primary'}
                             size="sm"
                             full
                             iconLeft={
@@ -209,7 +209,7 @@ export function SharedCardPage() {
                         </div>
                         <div className="border-t border-parchment-50/[.08] pt-4">
                             <Button
-                                kind="secondary"
+                                variant="secondary"
                                 size="sm"
                                 iconLeft={<Icon icon={Link2} size={15} />}
                                 onClick={() => void copyCurrentLink()}

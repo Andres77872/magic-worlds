@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookOpenText, CheckCircle2, Download, Globe2, History, Import, Link2, Loader2, Pencil, Phone, Play, Plus, MessageCircle, Search, Trash2, Users, X } from 'lucide-react'
+import { BookOpenText, CheckCircle2, Copy, Download, Globe2, History, Import, Link2, Loader2, Pencil, Phone, Play, Plus, MessageCircle, Search, Trash2, Users, X } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import type { PlaylistTrack } from '@/app/providers/audioPlaylistContext'
 import type { Adventure, Character, Item, VersionableCardType, World } from '@/shared'
@@ -21,8 +21,11 @@ import { downloadBlob, safeFilename } from '@/utils/download'
 import { useStartCall } from '@/features/call'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { GALLERY_CONFIG, publicConfigFor, publicItems, type GalleryItem, type GalleryType } from '../galleryConfig'
-import { buildGalleryModeHash, buildGalleryViewHash, buildSharedCardUrl, galleryPageForType, parseGalleryHash } from '../galleryLinks'
+import { buildCardEditHash, buildGalleryModeHash, buildGalleryViewHash, buildSharedCardUrl, galleryPageForType, parseGalleryHash } from '../galleryLinks'
 import { useCardGallery } from '../hooks/useCardGallery'
+import { useGalleryView } from '../hooks/useGalleryView'
+import { cardGridDensity, cardGridLayout, galleryCardView } from '../galleryView'
+import { GalleryViewToggle } from './GalleryViewToggle'
 import { useCardImport, useGalleryCardPreview } from '../hooks/useCardImport'
 import { CardImportOverlays } from './CardImportOverlays'
 
@@ -88,27 +91,35 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const { t } = useTranslation()
     const config = GALLERY_CONFIG[type]
     const [viewMode, setViewMode] = useState<'mine' | 'public'>(() => galleryViewFor(type))
+    const [layoutView, setLayoutView] = useGalleryView()
     const publicConfig = useMemo(() => publicConfigFor(type), [type])
     const activeConfig = viewMode === 'public' ? publicConfig : config
     const isPublicView = viewMode === 'public'
-    const gallery = useCardGallery(activeConfig)
-    const { upsertItem } = gallery
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
+    const gallery = useCardGallery(activeConfig, undefined, { enabled: isPublicView || isAuthenticated })
+    const { upsertItem } = gallery
     const {
         editCharacter,
+        setCharacters,
         setEditingCharacter,
         deleteCharacter,
         characters,
         startCharacterChat,
         startCharacterGroupChat,
         editWorld,
+        worlds,
+        setWorlds,
         setEditingWorld,
         deleteWorld,
         editItem,
+        items: libraryItems,
+        setItems,
         setEditingItem,
         deleteItem,
         editTemplate,
+        templateAdventures,
+        setTemplateAdventures,
         setEditingTemplate,
         startTemplate,
         deleteTemplateById,
@@ -119,6 +130,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const preview = useGalleryCardPreview()
     const [pendingDelete, setPendingDelete] = useState<GalleryItem | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
     const [exportingId, setExportingId] = useState<string | null>(null)
     const [sharingId, setSharingId] = useState<string | null>(null)
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null)
@@ -129,7 +141,6 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const [startingChatId, setStartingChatId] = useState<string | null>(null)
     const [versionTarget, setVersionTarget] = useState<GalleryItem | null>(null)
     const fetchedLinkedRef = useRef<string | null>(null)
-    const openLoginModalRef = useRef(openLoginModal)
     const [personaPick, setPersonaPick] = useState<
         | { kind: 'adventure'; item: GalleryItem }
         | { kind: 'chat'; item: GalleryItem }
@@ -164,14 +175,6 @@ export function GalleryPage({ type }: GalleryPageProps) {
     }
 
     useEffect(() => {
-        openLoginModalRef.current = openLoginModal
-    }, [openLoginModal])
-
-    useEffect(() => {
-        if (isPublicView && !isAuthenticated) openLoginModal()
-    }, [isAuthenticated, isPublicView, openLoginModal])
-
-    useEffect(() => {
         const syncLinkedCard = () => {
             const next = linkedCardIdFor(type)
             const nextView = galleryViewFor(type)
@@ -196,10 +199,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     useEffect(() => {
         if (!linkedCardId || !activeConfig.fetchItem || !activeConfig.toItem) return
         if (gallery.loading) return
-        if (!isAuthenticated) {
-            openLoginModalRef.current()
-            return
-        }
+        if (!isAuthenticated && !isPublicView) return
         const key = `${viewMode}:${type}:${linkedCardId}`
         if (fetchedLinkedRef.current === key) return
         fetchedLinkedRef.current = key
@@ -226,7 +226,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
         return () => {
             cancelled = true
         }
-    }, [activeConfig, gallery.loading, isAuthenticated, linkedCardId, type, upsertItem, viewMode])
+    }, [activeConfig, gallery.loading, isAuthenticated, isPublicView, linkedCardId, type, upsertItem, viewMode])
 
     useEffect(() => {
         if (!linkedCardId || !gallery.items.some((item) => item.id === linkedCardId)) return
@@ -260,14 +260,18 @@ export function GalleryPage({ type }: GalleryPageProps) {
 
     // Re-pull a single card after a version save/restore so the gallery reflects the
     // new latest_version_number (and any restored body changes).
-    const refreshGalleryItem = (id: string) => {
-        if (!activeConfig.fetchItem || !activeConfig.toItem) return
-        void activeConfig.fetchItem(id)
-            .then((raw) => {
-                const updated = activeConfig.toItem?.(raw)
-                if (updated) upsertItem(updated)
-            })
-            .catch(() => {})
+    /** Open the matching card editor (where draft/publish/restore are managed). */
+    const openEditorForItem = (item: GalleryItem) => {
+        if (item.galleryType === 'character' || item.galleryType === 'persona') {
+            editCharacter(item.source as Character)
+            setPage('character', { hash: buildCardEditHash('character', item.id) })
+        } else if (item.galleryType === 'world') {
+            editWorld(item.source as World)
+            setPage('world', { hash: buildCardEditHash('world', item.id) })
+        } else if (item.galleryType === 'item') {
+            editItem(item.source as Item)
+            setPage('item', { hash: buildCardEditHash('item', item.id) })
+        }
     }
 
     const switchViewMode = (mode: 'mine' | 'public') => {
@@ -382,17 +386,17 @@ export function GalleryPage({ type }: GalleryPageProps) {
         if (type === 'character' || type === 'persona') {
             requireAuth(() => {
                 editCharacter(item.source as Character)
-                setPage('character')
+                setPage('character', { hash: buildCardEditHash('character', item.id) })
             })
         } else if (type === 'world') {
             requireAuth(() => {
                 editWorld(item.source as World)
-                setPage('world')
+                setPage('world', { hash: buildCardEditHash('world', item.id) })
             })
         } else if (type === 'item') {
             requireAuth(() => {
                 editItem(item.source as Item)
-                setPage('item')
+                setPage('item', { hash: buildCardEditHash('item', item.id) })
             })
         } else {
             requireAuth(() => {
@@ -471,6 +475,50 @@ export function GalleryPage({ type }: GalleryPageProps) {
             })
         } finally {
             setSharingId(null)
+        }
+    }
+
+    const prependDuplicateIntoData = (item: GalleryItem) => {
+        if (item.galleryType === 'character' || item.galleryType === 'persona') {
+            const duplicate = item.source as Character
+            setCharacters([duplicate, ...characters.filter((character) => character.id !== duplicate.id)])
+        } else if (item.galleryType === 'world') {
+            const duplicate = item.source as World
+            setWorlds([duplicate, ...worlds.filter((world) => world.id !== duplicate.id)])
+        } else if (item.galleryType === 'item') {
+            const duplicate = item.source as Item
+            setItems([duplicate, ...libraryItems.filter((storedItem) => storedItem.id !== duplicate.id)])
+        } else {
+            const duplicate = item.source as Adventure
+            setTemplateAdventures([duplicate, ...templateAdventures.filter((template) => template.id !== duplicate.id)])
+        }
+    }
+
+    const duplicateCard = async (item: GalleryItem) => {
+        if (duplicatingId) return
+        setActionNotice(null)
+        setDuplicatingId(item.id)
+        try {
+            const response = await apiService.duplicateCard(item.backendType, item.id)
+            const duplicated = publicItems(response, type)[0]
+            if (!duplicated) throw new Error(t('gallery.action.tryAgain'))
+            upsertItem(duplicated)
+            prependDuplicateIntoData(duplicated)
+            setHighlightedId(duplicated.id)
+            setActionNotice({
+                tone: 'success',
+                title: t('gallery.action.duplicateTitle'),
+                message: t('gallery.action.duplicateBody', { title: item.title.slice(0, 80) }),
+            })
+        } catch (error) {
+            console.error('Failed to duplicate gallery card:', error)
+            setActionNotice({
+                tone: 'error',
+                title: t('gallery.action.duplicateFailed'),
+                message: startErrorCopy(error, t('gallery.action.tryAgain')),
+            })
+        } finally {
+            setDuplicatingId(null)
         }
     }
 
@@ -600,6 +648,17 @@ export function GalleryPage({ type }: GalleryPageProps) {
         }
         options.push({
             type: 'custom',
+            icon: duplicatingId === item.id ? (
+                <Icon icon={Loader2} size={15} className="animate-spin" />
+            ) : (
+                <Icon icon={Copy} size={15} />
+            ),
+            label: duplicatingId === item.id ? t('gallery.duplicating') : t('gallery.duplicate'),
+            onClick: () => requireAuth(() => void duplicateCard(item)),
+            disabled: duplicatingId !== null,
+        })
+        options.push({
+            type: 'custom',
             icon: <Icon icon={Trash2} size={15} />,
             label: t('gallery.delete'),
             onClick: () => requireAuth(() => setPendingDelete(item)),
@@ -668,16 +727,16 @@ export function GalleryPage({ type }: GalleryPageProps) {
     }
 
     const emptyAction: ReactNode = hasQuery ? (
-        <Button kind="secondary" size="sm" onClick={() => gallery.setQuery('')}>
+        <Button variant="secondary" size="sm" onClick={() => gallery.setQuery('')}>
             {t('gallery.clearSearch')}
         </Button>
     ) : isPublicView ? (
-        <Button kind="secondary" size="sm" onClick={gallery.refresh}>
+        <Button variant="secondary" size="sm" onClick={gallery.refresh}>
             {t('gallery.refresh')}
         </Button>
     ) : (
         <Button
-            kind="primary"
+            variant="primary"
             size="sm"
             iconLeft={<Icon icon={Plus} size={16} />}
             onClick={openCreatePage}
@@ -711,6 +770,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                                 {t('gallery.publicCards')}
                             </Chip>
                         </div>
+                        <GalleryViewToggle value={layoutView} onChange={setLayoutView} className="shrink-0" />
                         <div className="relative flex w-full items-center sm:w-[320px]">
                             <span className="pointer-events-none absolute left-3 flex items-center text-parchment-400">
                                 <Icon icon={Search} size={16} />
@@ -749,7 +809,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                         </div>
                         {type === 'character' && !groupSelectionMode && !isPublicView && (
                             <Button
-                                kind="primary"
+                                variant="primary"
                                 iconLeft={<Icon icon={Users} size={16} />}
                                 onClick={enterGroupSelection}
                                 className="shrink-0"
@@ -759,7 +819,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                         )}
                         {!groupSelectionMode && !isPublicView && (
                             <Button
-                                kind={type === 'character' ? 'secondary' : 'primary'}
+                                variant={type === 'character' ? 'secondary' : 'primary'}
                                 iconLeft={<Icon icon={Plus} size={16} />}
                                 onClick={openCreatePage}
                                 className="shrink-0"
@@ -782,11 +842,11 @@ export function GalleryPage({ type }: GalleryPageProps) {
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <Button kind="ghost" size="sm" onClick={cancelGroupSelection}>
+                        <Button variant="ghost" size="sm" onClick={cancelGroupSelection}>
                             {t('common.cancel')}
                         </Button>
                         <Button
-                            kind="primary"
+                            variant="primary"
                             size="sm"
                             iconLeft={<Icon icon={Users} size={15} />}
                             disabled={Object.keys(selectedGroupItems).length < 2}
@@ -804,7 +864,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                     role="alert"
                 >
                     <span>{gallery.error}</span>
-                    <Button kind="secondary" size="sm" onClick={gallery.refresh}>
+                    <Button variant="secondary" size="sm" onClick={gallery.refresh}>
                         {t('gallery.retry')}
                     </Button>
                 </div>
@@ -821,11 +881,11 @@ export function GalleryPage({ type }: GalleryPageProps) {
 
             <CardGrid
                 items={gallery.items}
-                layout="grid"
-                density="comfortable"
+                layout={cardGridLayout(layoutView)}
+                density={cardGridDensity(layoutView)}
                 getItemKey={(item) => item.id}
                 loading={gallery.loading}
-                renderSkeleton={() => <GalleryCardSkeleton />}
+                renderSkeleton={() => <GalleryCardSkeleton view={galleryCardView(layoutView)} />}
                 hasMore={gallery.hasMore}
                 loadingMore={gallery.loadingMore}
                 onLoadMore={gallery.loadMore}
@@ -838,9 +898,12 @@ export function GalleryPage({ type }: GalleryPageProps) {
                     const selectionMode = groupSelectionMode && type === 'character' && !isPublicView
                     const importing = importHook.importingKey === `${item.backendType}:${item.id}`
                     const alreadyImported = isPublicView && Boolean(item.resource?.already_imported)
+                    // Usage is owner-scoped, so only fetch it for the user's own libraries.
+                    const usageType = isPublicView ? null : versionableCardType()
                     return (
                         <GalleryCard
                             id={item.id}
+                            view={galleryCardView(layoutView)}
                             title={item.title}
                             badge={alreadyImported ? t('gallery.alreadyImported') : item.badge}
                             eyebrow={item.eyebrow}
@@ -850,6 +913,10 @@ export function GalleryPage({ type }: GalleryPageProps) {
                             themeSongUrl={item.themeSongUrl}
                             cardType={playlistCardType(item.galleryType)}
                             cardId={item.id}
+                            versionNumber={item.versionNumber}
+                            hasDraft={item.hasDraft}
+                            usageCardType={usageType ?? undefined}
+                            usageEnabled={usageType !== null}
                             shareOptions={selectionMode || isPublicView ? undefined : shareOptionsFor(item)}
                             deleting={deletingId === item.id}
                             onClick={() => primaryAction(item)}
@@ -867,7 +934,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                             highlighted={selectionMode ? selected : highlightedId === item.id}
                             footer={selectionMode ? (
                                 <Button
-                                    kind={selected ? 'primary' : 'secondary'}
+                                    variant={selected ? 'primary' : 'secondary'}
                                     size="sm"
                                     full
                                     iconLeft={selected ? <Icon icon={CheckCircle2} size={15} /> : <Icon icon={Plus} size={15} />}
@@ -877,7 +944,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                                 </Button>
                             ) : isPublicView ? (
                                 <Button
-                                    kind={alreadyImported ? 'secondary' : 'primary'}
+                                    variant={alreadyImported ? 'secondary' : 'primary'}
                                     size="sm"
                                     full
                                     iconLeft={
@@ -899,7 +966,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                             ) : type === 'character' ? (
                                 <div className="flex gap-2">
                                     <Button
-                                        kind="primary"
+                                        variant="primary"
                                         size="sm"
                                         className="min-w-0 flex-1"
                                         iconLeft={
@@ -916,7 +983,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                                     </Button>
                                     {voiceModeEnabled && (
                                         <Button
-                                            kind="secondary"
+                                            variant="secondary"
                                             size="sm"
                                             className="min-w-0 flex-1"
                                             iconLeft={
@@ -990,8 +1057,11 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 cardType={versionableCardType() ?? 'character'}
                 cardId={versionTarget?.id}
                 cardName={versionTarget?.title ?? ''}
-                onChanged={() => {
-                    if (versionTarget) refreshGalleryItem(versionTarget.id)
+                onEdit={() => {
+                    const target = versionTarget
+                    if (!target) return
+                    setVersionTarget(null)
+                    requireAuth(() => openEditorForItem(target))
                 }}
             />
 

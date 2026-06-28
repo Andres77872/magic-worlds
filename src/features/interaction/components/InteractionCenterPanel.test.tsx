@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TurnEntry } from '../../../shared'
 import type { ChatSessionConfig } from '../chatSessionConfig'
+import { apiService } from '../../../infrastructure/api'
 import { InteractionCenterPanel } from './InteractionCenterPanel'
 
 vi.mock('../../../infrastructure/api/useAuthenticatedMediaUrl', () => ({
@@ -19,6 +20,7 @@ vi.mock('../../../app/hooks', () => ({
         openLoginModal: vi.fn(),
         token: 'token',
     }),
+    useData: () => ({ lorebooks: [] }),
 }))
 
 vi.mock('../hooks/useAdventureChatSocket', () => ({
@@ -56,10 +58,10 @@ function makeConfig(overrides: Partial<ChatSessionConfig> = {}): ChatSessionConf
     }
 }
 
-function renderPanel(config: ChatSessionConfig, seed: TurnEntry[] = initialTurns) {
+function renderPanel(config: ChatSessionConfig, seed: TurnEntry[] = initialTurns, sessionId = 7) {
     function Harness() {
         const [turns, setTurns] = useState<TurnEntry[]>(seed)
-        return <InteractionCenterPanel sessionId={7} turns={turns} setTurns={setTurns} config={config} />
+        return <InteractionCenterPanel sessionId={sessionId} turns={turns} setTurns={setTurns} config={config} />
     }
 
     return render(<Harness />)
@@ -69,6 +71,8 @@ describe('InteractionCenterPanel message deletion', () => {
     beforeEach(() => {
         localStorage.clear()
         vi.restoreAllMocks()
+        // The session-lore hook lists attachments on mount; keep it empty + offline-safe.
+        vi.spyOn(apiService, 'listLorebookAttachments').mockResolvedValue([])
         hookMocks.useAdventureChatSocket.mockReturnValue({
             status: 'open',
             sendChat: vi.fn(),
@@ -219,6 +223,105 @@ describe('InteractionCenterPanel message deletion', () => {
         renderPanel(config, seed)
 
         expect(screen.getByText('The mirror catches candlelight.')).toBeInTheDocument()
+        expect(screen.getByText('Suggested Actions')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /ask about the mirror/i })).toBeInTheDocument()
+        expect(screen.getByText(/conjuring the scene/i)).toBeInTheDocument()
+    })
+
+    it('defaults generation toggles on and sends them with chat frames', async () => {
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockReturnValue({
+            status: 'open',
+            sendChat,
+            sendTts: vi.fn(),
+            cancel: vi.fn(),
+        })
+
+        renderPanel(makeConfig(), [])
+
+        expect(screen.getByRole('button', { name: 'Generated images on' })).toHaveAttribute('aria-pressed', 'true')
+        expect(screen.getByRole('button', { name: 'Suggested actions on' })).toHaveAttribute('aria-pressed', 'true')
+
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+
+        await waitFor(() => expect(sendChat).toHaveBeenCalled())
+        expect(sendChat).toHaveBeenCalledWith(
+            [{ role: 'user', content: 'Look around' }],
+            { generateImage: true, suggestActions: true },
+        )
+    })
+
+    it('persists generation toggles per chat kind and session id', async () => {
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockReturnValue({
+            status: 'open',
+            sendChat,
+            sendTts: vi.fn(),
+            cancel: vi.fn(),
+        })
+
+        const view = renderPanel(makeConfig(), [])
+
+        fireEvent.click(screen.getByRole('button', { name: 'Generated images on' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Suggested actions on' }))
+
+        await waitFor(() => {
+            expect(localStorage.getItem('mw:chat-options:adventure:7')).toBe(JSON.stringify({
+                generateImage: false,
+                suggestActions: false,
+            }))
+        })
+
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Wait quietly' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+
+        await waitFor(() =>
+            expect(sendChat).toHaveBeenCalledWith(
+                [{ role: 'user', content: 'Wait quietly' }],
+                { generateImage: false, suggestActions: false },
+            ),
+        )
+
+        view.unmount()
+        const secondView = renderPanel(makeConfig(), [], 8)
+        expect(screen.getByRole('button', { name: 'Generated images on' })).toHaveAttribute('aria-pressed', 'true')
+        expect(screen.getByRole('button', { name: 'Suggested actions on' })).toHaveAttribute('aria-pressed', 'true')
+
+        secondView.unmount()
+        renderPanel(makeConfig({ kind: 'character', basePath: 'character-chats' }), [], 7)
+        expect(screen.getByRole('button', { name: 'Generated images on' })).toHaveAttribute('aria-pressed', 'true')
+        expect(screen.getByRole('button', { name: 'Suggested actions on' })).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    it('does not hide existing images or suggested actions when generation toggles are off', () => {
+        const config = makeConfig({
+            kind: 'character',
+            basePath: 'character-chats',
+            aiLabel: 'Lyra',
+            showForwardOptions: true,
+            showImages: true,
+        })
+        const seed: TurnEntry[] = [
+            {
+                id: '201',
+                type: 'ai',
+                content: 'The mirror catches candlelight.',
+                timestamp: '2026-06-04T00:00:01',
+                assistantMessageId: 201,
+                turnId: 'turn-char-1',
+                forwardOptions: [{ label: 'Ask about the mirror', message: 'What do you see in the mirror?' }],
+                imagePrompt: 'A candlelit mirror in a fantasy parlor.',
+                imageStatus: 'in_progress',
+                imageJobId: 'img-char-1',
+            } as TurnEntry,
+        ]
+
+        renderPanel(config, seed)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Generated images on' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Suggested actions on' }))
+
         expect(screen.getByText('Suggested Actions')).toBeInTheDocument()
         expect(screen.getByRole('button', { name: /ask about the mirror/i })).toBeInTheDocument()
         expect(screen.getByText(/conjuring the scene/i)).toBeInTheDocument()

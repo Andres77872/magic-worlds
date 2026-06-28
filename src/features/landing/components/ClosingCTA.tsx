@@ -29,7 +29,7 @@ export function ClosingCTA({ onAction, actionLabel }: ClosingCTAProps) {
                 </p>
                 <div className="flex flex-wrap justify-center gap-3.5">
                     <Button
-                        kind="primary"
+                        variant="primary"
                         size="lg"
                         iconLeft={<Icon icon={Feather} size={19} />}
                         onClick={onAction}

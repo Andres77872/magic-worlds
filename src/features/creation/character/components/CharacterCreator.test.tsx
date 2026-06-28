@@ -13,15 +13,27 @@ const mocks = vi.hoisted(() => ({
     sendCardAssistantMessage: vi.fn(),
     streamCardAssistantMessage: vi.fn(),
     setEditingCharacter: vi.fn(),
+    replaceHash: vi.fn(),
     createCharacter: vi.fn(),
     updateCharacter: vi.fn(),
     generateCardPortrait: vi.fn(),
+    getCharacter: vi.fn(),
+    getCardDraft: vi.fn(),
+    saveCardDraft: vi.fn(),
+    discardCardDraft: vi.fn(),
+    publishCardDraft: vi.fn(),
+    restoreVersionIntoDraft: vi.fn(),
+    getCardVersion: vi.fn(),
+    getPublishedBody: vi.fn(),
+    setCardMedia: vi.fn(),
+    listCardVersions: vi.fn(),
     isAuthenticated: true,
     editingCharacter: null as Record<string, unknown> | null,
+    cardEdit: null as Record<string, unknown> | null,
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack }),
+    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, cardEdit: mocks.cardEdit, replaceHash: mocks.replaceHash }),
     useData: () => ({ editingCharacter: mocks.editingCharacter, setEditingCharacter: mocks.setEditingCharacter, loadData: mocks.loadData }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
     useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
@@ -40,6 +52,16 @@ vi.mock('@/infrastructure/api', () => ({
         createCharacter: mocks.createCharacter,
         updateCharacter: mocks.updateCharacter,
         generateCardPortrait: mocks.generateCardPortrait,
+        getCharacter: mocks.getCharacter,
+        getCardDraft: mocks.getCardDraft,
+        saveCardDraft: mocks.saveCardDraft,
+        discardCardDraft: mocks.discardCardDraft,
+        publishCardDraft: mocks.publishCardDraft,
+        restoreVersionIntoDraft: mocks.restoreVersionIntoDraft,
+        getCardVersion: mocks.getCardVersion,
+        getPublishedBody: mocks.getPublishedBody,
+        setCardMedia: mocks.setCardMedia,
+        listCardVersions: mocks.listCardVersions,
         waitForImageJob: vi.fn(),
         listThemeSongs: vi.fn().mockResolvedValue({ items: [] }),
     },
@@ -52,6 +74,7 @@ describe('CharacterCreator AI generation', () => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true
         mocks.editingCharacter = null
+        mocks.cardEdit = null
         mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
         mocks.createCardAssistantConversation.mockResolvedValue({
             conversation: { conversation_id: 1, card_type: 'character', card_id: null, title: 'Untitled Character' },
@@ -138,6 +161,7 @@ describe('CharacterCreator role payload', () => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true
         mocks.editingCharacter = null
+        mocks.cardEdit = null
         mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
         mocks.createCharacter.mockResolvedValue({ id: 'p1', name: 'Aria', race: 'Human', role: 'persona', is_default_persona: true })
         mocks.loadData.mockResolvedValue(undefined)
@@ -225,12 +249,13 @@ describe('CharacterCreator navigation', () => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true
         mocks.editingCharacter = null
+        mocks.cardEdit = null
         mocks.createCharacter.mockResolvedValue({ id: 'c4', name: 'Bren', race: 'Dwarf' })
         mocks.loadData.mockResolvedValue(undefined)
         mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
     })
 
-    it('returns to the origin after saving a new character', async () => {
+    it('stays in the editor after creating a new character (draft/publish from here)', async () => {
         render(<CharacterCreator />)
 
         fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
@@ -239,7 +264,10 @@ describe('CharacterCreator navigation', () => {
         fireEvent.click(screen.getByRole('button', { name: /^Create Character$/i }))
 
         await waitFor(() => expect(mocks.createCharacter).toHaveBeenCalledTimes(1))
-        await waitFor(() => expect(mocks.goBack).toHaveBeenCalledWith('landing'))
+        // New model: creating transitions into edit mode (so Publish/history are available)
+        // instead of navigating away.
+        await waitFor(() => expect(mocks.setEditingCharacter).toHaveBeenCalledWith(expect.objectContaining({ id: 'c4' })))
+        expect(mocks.goBack).not.toHaveBeenCalledWith('landing')
         expect(mocks.setPage).not.toHaveBeenCalledWith('landing')
     })
 
@@ -276,7 +304,9 @@ describe('CharacterCreator portrait persistence', () => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true
         mocks.editingCharacter = { id: 'char-1', name: 'Nyra', race: 'moon elf', description: '', triggers: [] }
-        mocks.updateCharacter.mockResolvedValue({})
+        mocks.cardEdit = null
+        mocks.getCardDraft.mockResolvedValue({ id: 'char-1', is_draft: false, latest_version_number: 0 })
+        mocks.setCardMedia.mockResolvedValue({})
         mocks.generateCardPortrait.mockResolvedValue({
             job_id: 'job-1',
             status: 'completed',
@@ -284,16 +314,83 @@ describe('CharacterCreator portrait persistence', () => {
         })
     })
 
-    it('persists a generated portrait onto the saved card immediately (no Save click)', async () => {
+    it('persists a generated portrait to the published body immediately (no Save click)', async () => {
         render(<CharacterCreator />)
 
         fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
 
+        // Media is a published-body property — persisted via setCardMedia, not staged in the draft.
         await waitFor(() =>
-            expect(mocks.updateCharacter).toHaveBeenCalledWith(
+            expect(mocks.setCardMedia).toHaveBeenCalledWith(
+                'character',
                 'char-1',
                 expect.objectContaining({ image_url: '/generated-images/p.png' }),
             ),
         )
+    })
+})
+
+describe('CharacterCreator deep-link bootstrap', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingCharacter = null
+        mocks.cardEdit = null
+        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.getCardDraft.mockResolvedValue({ id: 'char-1', is_draft: false, latest_version_number: 2 })
+        // Reflect the editing card back into the mocked DataProvider so the editor re-renders
+        // (the real provider does this; here setEditingCharacter is a stub).
+        mocks.setEditingCharacter.mockImplementation((card: Record<string, unknown> | null) => {
+            mocks.editingCharacter = card
+        })
+    })
+
+    it('restores the editor from `?card=<id>` on refresh without flashing the create gallery', async () => {
+        // Deep-link / cold refresh: route carries the id but no card is in memory yet.
+        mocks.cardEdit = { cardType: 'character', cardId: 'char-1' }
+        mocks.getCharacter.mockResolvedValue({ id: 'char-1', name: 'Nyra', race: 'moon elf', description: 'Scout', triggers: [] })
+
+        render(<CharacterCreator />)
+
+        // No "create" template gallery flash — the fetched card hydrates the edit form instead.
+        expect(screen.queryByRole('button', { name: /skip — start with the standard fields/i })).not.toBeInTheDocument()
+        await waitFor(() => expect(mocks.getCharacter).toHaveBeenCalledWith('char-1'))
+        await waitFor(() => expect(mocks.setEditingCharacter).toHaveBeenCalledWith(expect.objectContaining({ id: 'char-1', name: 'Nyra' })))
+        await waitFor(() => expect(screen.getByDisplayValue('Nyra')).toBeInTheDocument())
+    })
+
+    it('bounces to the gallery when the deep-linked card cannot be loaded', async () => {
+        mocks.cardEdit = { cardType: 'character', cardId: 'gone' }
+        mocks.getCharacter.mockRejectedValue(new Error('404'))
+
+        render(<CharacterCreator />)
+
+        await waitFor(() => expect(mocks.setPage).toHaveBeenCalledWith('gallery-characters'))
+    })
+
+    it('prompts login for a deep-link while unauthenticated (no fetch)', async () => {
+        mocks.isAuthenticated = false
+        mocks.cardEdit = { cardType: 'character', cardId: 'char-1' }
+
+        render(<CharacterCreator />)
+
+        await waitFor(() => expect(mocks.openLoginModal).toHaveBeenCalled())
+        expect(mocks.getCharacter).not.toHaveBeenCalled()
+    })
+
+    it('shows a read-only version banner for `?version=<n>` and never clobbers the draft', async () => {
+        mocks.editingCharacter = { id: 'char-1', name: 'Nyra', race: 'moon elf', description: 'Scout', triggers: [] }
+        mocks.cardEdit = { cardType: 'character', cardId: 'char-1', version: 2 }
+        mocks.getCardVersion.mockResolvedValue({ id: 'char-1', name: 'Nyra v2', race: 'moon elf', description: 'Older scout', triggers: [], is_historical: true, viewing_version_number: 2 })
+
+        render(<CharacterCreator />)
+
+        await waitFor(() => expect(mocks.getCardVersion).toHaveBeenCalledWith('character', 'char-1', 2))
+        await waitFor(() => expect(screen.getByDisplayValue('Nyra v2')).toBeInTheDocument())
+        // Read-only view must not stage/overwrite the draft.
+        expect(mocks.saveCardDraft).not.toHaveBeenCalled()
+        expect(mocks.restoreVersionIntoDraft).not.toHaveBeenCalled()
+        // A "restore this version to edit" affordance is offered.
+        expect(screen.getByRole('button', { name: /restore this version to edit/i })).toBeInTheDocument()
     })
 })

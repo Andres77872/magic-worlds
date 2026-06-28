@@ -19,6 +19,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Compass,
+    FileText,
     Flame,
     Gem,
     Globe,
@@ -34,7 +35,7 @@ import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
 import { isFrontendVoiceModeEnabled } from '../../shared/voiceFeatureFlag'
 import { useNavigation, useAuth, useBackgroundTasks, useApiStatus } from '../../app/hooks'
-import { Eyebrow, Icon, cx } from '../primitives'
+import { Eyebrow, Icon, Tooltip, cx } from '../primitives'
 import { ApiStatusMonitor } from './ApiStatusMonitor'
 import { SidebarAccountMenu } from './SidebarAccountMenu'
 
@@ -42,8 +43,6 @@ interface RailItem {
     page: PageType
     labelKey: string
     icon: LucideIcon
-    /** create/library pages require auth before navigating */
-    gated?: boolean
 }
 
 interface NavGroup {
@@ -56,8 +55,7 @@ interface NavGroup {
 // Always-visible top anchors: discovery entry points with no group header.
 const NAV_PRIMARY: RailItem[] = [
     { page: 'landing', labelKey: 'sidebar.nav.landing', icon: Compass },
-    { page: 'community', labelKey: 'sidebar.nav.community', icon: Sparkles, gated: true },
-    { page: 'gallery-stories', labelKey: 'sidebar.nav.stories', icon: BookOpenText, gated: true },
+    { page: 'community', labelKey: 'sidebar.nav.community', icon: Sparkles },
 ]
 
 // Collapsible sections. The library items open the full galleries; the creators
@@ -67,28 +65,30 @@ const NAV_GROUPS: NavGroup[] = [
         id: 'activity',
         labelKey: 'sidebar.group.activity',
         items: [
-            { page: 'chatroom', labelKey: 'sidebar.nav.chatroom', icon: MessageCircle, gated: true },
-            { page: 'active-adventures', labelKey: 'sidebar.nav.activeAdventures', icon: CirclePlay, gated: true },
-            { page: 'calls', labelKey: 'sidebar.nav.calls', icon: Phone, gated: true },
+            { page: 'chatroom', labelKey: 'sidebar.nav.chatroom', icon: MessageCircle },
+            { page: 'active-adventures', labelKey: 'sidebar.nav.activeAdventures', icon: CirclePlay },
+            { page: 'gallery-stories', labelKey: 'sidebar.nav.stories', icon: BookOpenText },
+            { page: 'calls', labelKey: 'sidebar.nav.calls', icon: Phone },
         ],
     },
     {
         id: 'library',
         labelKey: 'sidebar.group.library',
         items: [
-            { page: 'gallery-characters', labelKey: 'sidebar.nav.characters', icon: Users, gated: true },
-            { page: 'gallery-worlds', labelKey: 'sidebar.nav.worlds', icon: Globe, gated: true },
-            { page: 'gallery-items', labelKey: 'sidebar.nav.items', icon: Gem, gated: true },
-            { page: 'gallery-adventures', labelKey: 'sidebar.nav.adventures', icon: Swords, gated: true },
+            { page: 'gallery-characters', labelKey: 'sidebar.nav.characters', icon: Users },
+            { page: 'gallery-worlds', labelKey: 'sidebar.nav.worlds', icon: Globe },
+            { page: 'gallery-items', labelKey: 'sidebar.nav.items', icon: Gem },
+            { page: 'gallery-adventures', labelKey: 'sidebar.nav.adventures', icon: Swords },
         ],
     },
     {
         id: 'assets',
         labelKey: 'sidebar.group.assets',
         items: [
-            { page: 'gallery-lorebooks', labelKey: 'sidebar.nav.lorebooks', icon: BookOpen, gated: true },
-            { page: 'gallery-media', labelKey: 'sidebar.nav.media', icon: Images, gated: true },
-            { page: 'voice-studio', labelKey: 'sidebar.nav.voices', icon: AudioLines, gated: true },
+            { page: 'gallery-lorebooks', labelKey: 'sidebar.nav.lorebooks', icon: BookOpen },
+            { page: 'gallery-resources', labelKey: 'sidebar.nav.resources', icon: FileText },
+            { page: 'gallery-media', labelKey: 'sidebar.nav.media', icon: Images },
+            { page: 'voice-studio', labelKey: 'sidebar.nav.voices', icon: AudioLines },
         ],
     },
 ]
@@ -125,33 +125,6 @@ function controlLabel(panel: boolean, collapsed: boolean): string {
 /** Cross-axis alignment for a zone/group — stretched in `panel`, centered/stretched on the rail. */
 function zoneAlign(panel: boolean, collapsed: boolean): string {
     return panel ? 'items-stretch' : cx('items-center', collapsed ? 'lg:items-center' : 'lg:items-stretch')
-}
-
-function RailTooltip({
-    label,
-    children,
-    showOnDesktop = false,
-    className,
-}: {
-    label: string
-    children: ReactNode
-    showOnDesktop?: boolean
-    className?: string
-}) {
-    return (
-        <div className={cx('group relative flex h-10 w-full items-center justify-center', className)}>
-            {children}
-            <div
-                role="tooltip"
-                className={cx(
-                    'pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-md border border-parchment-50/[.08] bg-ink-900 px-2.5 py-1.5 font-ui text-xs text-parchment-100 opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
-                    showOnDesktop ? 'lg:block' : 'lg:hidden',
-                )}
-            >
-                {label}
-            </div>
-        </div>
-    )
 }
 
 function RailButton({
@@ -217,7 +190,11 @@ function NavItemButton({
     const { t } = useTranslation()
     const label = t(item.labelKey)
     return (
-        <RailTooltip label={label} showOnDesktop={tooltipOnDesktop}>
+        <Tooltip
+            label={label}
+            disabled={!tooltipOnDesktop}
+            wrapperClassName="flex h-10 w-full items-center justify-center"
+        >
             <RailButton
                 label={label}
                 active={active}
@@ -235,7 +212,7 @@ function NavItemButton({
                 )}
                 <Icon icon={item.icon} size={20} />
             </RailButton>
-        </RailTooltip>
+        </Tooltip>
     )
 }
 
@@ -246,6 +223,12 @@ export interface SidebarShellProps {
     onToggleCollapsed?: () => void
     /** Called after any navigation — lets an open mobile drawer close itself. */
     onNavigate?: () => void
+    /**
+     * Footer tasks control. When provided (desktop rail), it replaces the legacy
+     * button → drawer entry with a host-supplied node (the anchored tasks popover).
+     * Omitted on the mobile panel, which falls back to opening the full drawer.
+     */
+    renderTasks?: (ctx: { collapsed: boolean; panel: boolean }) => ReactNode
 }
 
 /** The three-zone shell (header / scrolling nav / footer). Shared by both hosts. */
@@ -254,10 +237,11 @@ export function SidebarShell({
     collapsed = false,
     onToggleCollapsed,
     onNavigate,
+    renderTasks,
 }: SidebarShellProps) {
     const { t } = useTranslation()
     const { currentPage, setPage } = useNavigation()
-    const { isAuthenticated, openLoginModal } = useAuth()
+    const { isAuthenticated } = useAuth()
     const { activeCount, openDrawer } = useBackgroundTasks()
     const { status: apiStatus, services, checkedAt } = useApiStatus()
 
@@ -292,13 +276,6 @@ export function SidebarShell({
     }
 
     const go = (item: RailItem) => {
-        if (item.gated && !isAuthenticated) {
-            // Close the mobile drawer first so the login modal isn't stacked on
-            // top of it (two focus-traps would otherwise fight).
-            onNavigate?.()
-            openLoginModal()
-            return
-        }
         setPage(item.page)
         onNavigate?.()
     }
@@ -315,7 +292,11 @@ export function SidebarShell({
         <>
             {/* HEADER zone — fixed; brand + the desktop-only collapse toggle. */}
             <div className={cx('flex shrink-0 flex-col gap-2 px-3 pb-2 pt-4', align)}>
-                <RailTooltip label={t('sidebar.home')} showOnDesktop={tooltipOnDesktop}>
+                <Tooltip
+                    label={t('sidebar.home')}
+                    disabled={!tooltipOnDesktop}
+                    wrapperClassName="flex h-10 w-full items-center justify-center"
+                >
                     <button
                         onClick={goHome}
                         aria-label={t('sidebar.homeButton')}
@@ -328,13 +309,13 @@ export function SidebarShell({
                         <Icon icon={Flame} size={20} />
                         <span className={controlLabel(panel, collapsed)}>Magic Worlds</span>
                     </button>
-                </RailTooltip>
+                </Tooltip>
 
                 {!panel && onToggleCollapsed && (
-                    <RailTooltip
+                    <Tooltip
                         label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-                        showOnDesktop={tooltipOnDesktop}
-                        className="hidden lg:flex"
+                        disabled={!tooltipOnDesktop}
+                        wrapperClassName="hidden h-10 w-full items-center justify-center lg:flex"
                     >
                         <button
                             type="button"
@@ -350,7 +331,7 @@ export function SidebarShell({
                             <Icon icon={collapsed ? ChevronRight : ChevronLeft} size={18} />
                             <span className={controlLabel(panel, collapsed)}>{t('sidebar.collapse')}</span>
                         </button>
-                    </RailTooltip>
+                    </Tooltip>
                 )}
             </div>
 
@@ -451,20 +432,27 @@ export function SidebarShell({
             <div className={cx('flex shrink-0 flex-col gap-2 border-t border-parchment-50/[.08] px-3 pb-4 pt-2', align)}>
                 <ApiStatusMonitor status={apiStatus} services={services} checkedAt={checkedAt} collapsed={collapsed} />
 
-                {isAuthenticated && (
-                    <RailTooltip label={tasksLabel} showOnDesktop={tooltipOnDesktop}>
-                        <div className="relative w-full">
-                            <RailButton label={tasksLabel} collapsed={collapsed} panel={panel} onClick={openDrawer}>
-                                <Icon icon={ListChecks} size={19} />
-                            </RailButton>
-                            {activeCount > 0 && (
-                                <span className="pointer-events-none absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-arcane-500 px-1 font-ui text-[10px] font-bold leading-none text-ink-900 ring-2 ring-ink-900">
-                                    {activeCount > 9 ? '9+' : activeCount}
-                                </span>
-                            )}
-                        </div>
-                    </RailTooltip>
-                )}
+                {isAuthenticated &&
+                    (renderTasks ? (
+                        renderTasks({ collapsed, panel })
+                    ) : (
+                        <Tooltip
+                            label={tasksLabel}
+                            disabled={!tooltipOnDesktop}
+                            wrapperClassName="flex h-10 w-full items-center justify-center"
+                        >
+                            <div className="relative w-full">
+                                <RailButton label={tasksLabel} collapsed={collapsed} panel={panel} onClick={openDrawer}>
+                                    <Icon icon={ListChecks} size={19} />
+                                </RailButton>
+                                {activeCount > 0 && (
+                                    <span className="pointer-events-none absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-arcane-500 px-1 font-ui text-micro font-bold leading-none text-ink-900 ring-2 ring-ink-900">
+                                        {activeCount > 9 ? '9+' : activeCount}
+                                    </span>
+                                )}
+                            </div>
+                        </Tooltip>
+                    ))}
 
                 {/* Account lives in the top bar on mobile, so the drawer footer omits it. */}
                 {!panel && <SidebarAccountMenu collapsed={collapsed} placement="rise" onNavigate={onNavigate} />}
@@ -474,7 +462,13 @@ export function SidebarShell({
 }
 
 /** Docked, responsive rail. AppRouter passes `className="hidden lg:flex"`. */
-export function Sidebar({ className = 'flex' }: { className?: string }) {
+export function Sidebar({
+    className = 'flex',
+    renderTasks,
+}: {
+    className?: string
+    renderTasks?: SidebarShellProps['renderTasks']
+}) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
         if (typeof window === 'undefined') return false
         return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
@@ -497,6 +491,7 @@ export function Sidebar({ className = 'flex' }: { className?: string }) {
                 variant="rail"
                 collapsed={sidebarCollapsed}
                 onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
+                renderTasks={renderTasks}
             />
         </aside>
     )

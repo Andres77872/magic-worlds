@@ -34,6 +34,38 @@ describe('cardTransforms', () => {
         expect(char.is_default_persona).toBe(true)
     })
 
+    it('preserves character voice recipes with a valid voice id', () => {
+        const [withVoice, withoutVoice] = transformCharacters([
+            {
+                id: 'c1',
+                name: 'Mira',
+                voice: {
+                    voice_id: ' English_magnetic_voiced_man ',
+                    speed: 1.1,
+                    vol: 1.8,
+                    pitch: -2,
+                    emotion: 'calm',
+                    language_boost: 'English',
+                    preset_id: 'preset-1',
+                    preset_name: 'Warm narrator',
+                },
+            },
+            { id: 'c2', name: 'No Voice', voice: { voice_id: '   ' } },
+        ])
+
+        expect(withVoice.voice).toEqual({
+            voice_id: 'English_magnetic_voiced_man',
+            speed: 1.1,
+            vol: 1.8,
+            pitch: -2,
+            emotion: 'calm',
+            language_boost: 'English',
+            preset_id: 'preset-1',
+            preset_name: 'Warm narrator',
+        })
+        expect(withoutVoice.voice).toBeUndefined()
+    })
+
     it('maps world place type independently from genre type', () => {
         const [world, fallback] = transformWorlds([
             { id: 'w1', name: 'Sunspire', placeType: 'city', type: 'fantasy' },

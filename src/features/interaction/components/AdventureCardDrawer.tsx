@@ -11,7 +11,8 @@ import { startTransition, useEffect, useRef, useState, type FormEvent, type Reac
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { Pencil, Trash2 } from 'lucide-react'
-import type { CardUsage, SnapshotCard, VersionableCardType } from '../../../shared'
+import type { SnapshotCard, VersionableCardType } from '../../../shared'
+import { useCardUsage } from '@/shared/hooks/useCardUsage'
 import {
     CUSTOM_WORLD_PLACE_TYPE,
     DEFAULT_WORLD_PLACE_TYPE,
@@ -22,7 +23,8 @@ import {
 } from '../../../shared'
 import { useAuth } from '@/app/hooks'
 import { Badge, Button, Chip, Drawer, Eyebrow, Icon, Portrait, Select, Tag } from '../../../ui/primitives'
-import { apiService, ApiError, resolveMediaUrl } from '../../../infrastructure/api'
+import { CardUsageLine } from '../../../ui/components/common/CardUsageLine'
+import { ApiError, resolveMediaUrl } from '../../../infrastructure/api'
 import type { AttributeCategory } from '../../../ui/components/common/AttributeList'
 import {
     AttributeManager,
@@ -134,7 +136,7 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
             <div className="flex w-full items-center justify-between gap-3">
                 {onRemove ? (
                     <Button
-                        kind="ghost"
+                        variant="ghost"
                         iconLeft={<Icon icon={Trash2} size={16} />}
                         onClick={handleRemove}
                         disabled={removing}
@@ -146,7 +148,7 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
                     <span />
                 )}
                 <Button
-                    kind="primary"
+                    variant="primary"
                     iconLeft={<Icon icon={Pencil} size={16} />}
                     // Defer the view→edit swap out of this click. React 19 commits a
                     // click handler's state synchronously; swapping this button for the
@@ -161,10 +163,10 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
             </div>
         ) : (
             <div className="flex w-full items-center justify-end gap-2">
-                <Button kind="ghost" onClick={() => startTransition(() => setMode('view'))} disabled={isSubmitting}>
+                <Button variant="ghost" onClick={() => startTransition(() => setMode('view'))} disabled={isSubmitting}>
                     {t('common.cancel')}
                 </Button>
-                <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
+                <Button variant="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
                     {isSubmitting ? t('common.saving') : t('interaction.cardDrawer.saveChanges')}
                 </Button>
             </div>
@@ -205,23 +207,7 @@ function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
     // this snapshot was cloned from. Only character/world live in adventure snapshots.
     const sourceCardId = typeof card.source_card_id === 'string' ? card.source_card_id : undefined
     const usageType: VersionableCardType | null = isWorld ? 'world' : ref.kind === 'character' || ref.kind === 'persona' ? 'character' : null
-    const [usage, setUsage] = useState<CardUsage | null>(null)
-    useEffect(() => {
-        if (!sourceCardId || !usageType) {
-            setUsage(null)
-            return
-        }
-        let cancelled = false
-        void apiService
-            .getCardUsage(usageType, sourceCardId)
-            .then((result) => {
-                if (!cancelled) setUsage(result)
-            })
-            .catch(() => {})
-        return () => {
-            cancelled = true
-        }
-    }, [sourceCardId, usageType])
+    const usage = useCardUsage(usageType, sourceCardId, { enabled: Boolean(sourceCardId) && usageType !== null })
     const badges = isWorld
         ? [worldPlaceTypeLabel(readWorldPlaceType(card)), card.type]
             .map((item) => item?.trim())
@@ -265,11 +251,7 @@ function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
                 </div>
             )}
 
-            {usage && usage.sessions > 0 && (
-                <p className="font-ui text-[12px] text-parchment-400">
-                    {t('cardVersions.usage.sessions', { count: usage.sessions })}
-                </p>
-            )}
+            <CardUsageLine usage={usage} />
 
             <DetailSection title={isWorld ? t('interaction.cardDrawer.setting') : t('interaction.cardDrawer.about')}>
                 {description ? (

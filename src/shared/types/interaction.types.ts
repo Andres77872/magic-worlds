@@ -29,8 +29,13 @@ export interface ForwardOption {
  * is out of scope here — we only capture and persist the prompt).
  */
 export interface TurnMetadata {
-    forwardOptions: ForwardOption[]
-    imagePrompt: string
+    forwardOptions?: ForwardOption[]
+    imagePrompt?: string
+}
+
+export interface ChatGenerationOptions {
+    generateImage: boolean
+    suggestActions: boolean
 }
 
 export type ChatResponseSegmentKind = 'narrator' | 'speech' | 'thought'
@@ -176,7 +181,7 @@ export interface ChatState {
  * ignored. See magic-worlds-api `route_chat.chat_session_ws`.
  */
 export type ChatSocketClientMessage =
-    | { type: 'chat'; messages: { role: 'user' | 'assistant'; content: string }[] }
+    | { type: 'chat'; messages: { role: 'user' | 'assistant'; content: string }[]; options?: ChatGenerationOptions }
     | { type: 'tts'; assistant_message_id: number; turn_id: string; request_id?: string }
     | { type: 'cancel' }
     | { type: 'ping' }
@@ -185,7 +190,7 @@ export type ChatSocketServerMessage =
     | { type: 'ready' }
     | { type: 'speakers'; roster: ChatSpeakerRosterEntry[]; narrator?: ChatNarratorIdentity | null }
     | { type: 'delta'; content: string }
-    | { type: 'metadata'; forwardOptions: ForwardOption[]; imagePrompt: string }
+    | { type: 'metadata'; forwardOptions?: ForwardOption[]; imagePrompt?: string }
     | { type: 'segments'; responseFormat: string; segments: ChatResponseSegment[]; displayText?: string }
     | { type: 'image_job'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: Extract<ImageLifecycleStatus, 'pending' | 'in_progress' | 'mirroring'>; status_url: string; result_url: string }
     | { type: 'image_complete'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: 'completed'; assets: ChatImageAsset[]; status_url?: string; result_url?: string }

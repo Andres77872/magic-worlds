@@ -59,18 +59,18 @@ function DrawerDemo(props: Partial<ComponentProps<typeof Drawer>>) {
         onClose={() => setOpen(false)}
         footer={
           <>
-            <Button kind="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button kind="primary" onClick={() => setOpen(false)}>Save changes</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={() => setOpen(false)}>Save changes</Button>
           </>
         }
       >
         {props.children ?? (
           <div className="space-y-3">
-            <p className="font-narrative text-[15px] leading-relaxed text-parchment-200">
+            <p className="font-narrative text-body leading-relaxed text-parchment-200">
               Edits here touch the adventure&rsquo;s own copy of this card — the library
               original stays untouched, so the scene can drift from canon freely.
             </p>
-            <p className="font-narrative text-[15px] leading-relaxed text-parchment-300">
+            <p className="font-narrative text-body leading-relaxed text-parchment-300">
               A half-elf ranger with a singed cloak and a debt to the Shardwrights. She
               speaks to glass the way sailors speak to weather.
             </p>
@@ -82,6 +82,24 @@ function DrawerDemo(props: Partial<ComponentProps<typeof Drawer>>) {
 }
 
 export const Default: Story = {
+  render: (args) => <DrawerDemo {...args} />,
+}
+
+/** The narrow band — quick, single-field edits like a rename. */
+export const Small: Story = {
+  args: { size: 'sm', eyebrow: 'Quick edit', title: 'Rename card' },
+  render: (args) => <DrawerDemo {...args} />,
+}
+
+/** A roomier panel for lore entries and multi-field forms. */
+export const Large: Story = {
+  args: { size: 'lg', eyebrow: 'Lore', title: 'Codex entry' },
+  render: (args) => <DrawerDemo {...args} />,
+}
+
+/** Workshop width — side-by-side fields or a composer with a preview. */
+export const ExtraLarge: Story = {
+  args: { size: 'xl', eyebrow: 'Workshop', title: 'Scene composer' },
   render: (args) => <DrawerDemo {...args} />,
 }
 

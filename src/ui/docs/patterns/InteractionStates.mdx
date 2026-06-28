@@ -1,0 +1,76 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import { FocusRings } from '../Swatch'
+
+<Meta title="Design System/Patterns/Interaction States" />
+
+# Interaction States
+
+Every tappable surface in Reverie speaks the same body language: a warm rise on
+hover, a small press inward on click, a single candlelit focus ring, and a
+hushed, slightly-warmer disabled state. These are **consistency rules**, not
+per-component choices — reach for the shared utilities and tokens below so a card,
+a tile, and a button all feel like the same hand made them.
+
+## Hover — `.lift` / `.lift-arcane`
+
+Interactive cards, tiles and tappable surfaces use the shared **`.lift`**
+utility from `theme.css`: a 3px rise, a warm hairline, and an ember glow
+(`--shadow-card-hover`), all eased with `--ease-out` over 220ms. It is the ember
+default. Add **`.lift-arcane`** to swap the accent to the AI side
+(`--shadow-card-hover-arcane`) — used on chat-flavoured cards so ember stays the
+play/create accent and arcane marks the AI.
+
+- Don't hand-roll a hover with ad-hoc shadows; compose `.lift` so the rise, glow and hairline always move together.
+- The glow **is** the elevation here — depth comes from lightening + glowing, not from heavy drop shadows.
+
+## Active / press — `--scale-press`
+
+On press, surfaces shrink slightly to `--scale-press` (0.98). `.lift:active`
+already applies this; standalone controls (Button, IconButton) use the same
+token so the whole system presses with one feel. Its siblings `--scale-hover`
+(1.02) and `--scale-zoom` (1.035) cover lift-on-hover and media zoom.
+
+## Focus — the global candlelit ring
+
+Focus is **never** restyled per component. The base layer in `theme.css` paints
+a global `:focus-visible` ring using **`--ring-ember`** (a 2px ink gap + 4px
+ember band). Two context variants exist for when the surrounding accent demands
+it:
+
+- **`--ring-arcane`** — on AI / arcane-tinted surfaces.
+- **`--ring-danger`** — on destructive controls.
+
+<FocusRings />
+
+Use `:focus-visible` so the ring shows for keyboard users without lighting up on
+mouse clicks. Don't remove the outline without replacing it with one of these
+rings.
+
+## Disabled — warmer, not greyed
+
+A disabled control stays in the candlelit world: lower **opacity** plus a touch
+of de-**saturation** (so it reads dimmed-by-candlelight rather than a hard grey
+lockout), and `cursor: not-allowed`. Keep the label legible — disabled is a
+*pause*, not a deletion. Never simply `display: none` an action the user expects
+to be there.
+
+## Loading — the arcane shimmer
+
+Pending and generating states share one sweep so they always look related:
+
+- **`.shimmer-arcane`** — a soft arcane highlight that travels across a surface (`--animate-shimmer`), for pending-AI widgets, audio loaders and placeholders.
+- **`.image-shimmer`** — the same idea tuned for generated-scene image placeholders, sitting on an ink-700 base until the bytes paint.
+
+Both are arcane because *waiting on the AI* is an arcane moment. Prefer a shimmer
+over a spinner — Reverie has no spinning anywhere.
+
+## Reduced motion
+
+All of the above are motion-bearing, and all of them collapse under
+`prefers-reduced-motion`: the base layer in `theme.css` reduces non-essential
+animation and transition to ~0ms globally. You get this for free by using the
+shared utilities — the lift settles instantly, the shimmer freezes to a static
+tint. You can preview both ways with the **"Motion: reduced"** toolbar toggle.
+
+> One surface, one language: rise on hover, press on click, a single ember ring
+> on focus, a warmer hush when disabled, an arcane shimmer while we wait.

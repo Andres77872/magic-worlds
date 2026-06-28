@@ -161,6 +161,20 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
     expect(socketInstances).toHaveLength(0)
   })
 
+  it('passes chat generation options to the socket', () => {
+    const { result } = renderHook(() => useAdventureChatSocket(7, {}))
+
+    result.current.sendChat(
+      [{ role: 'user', content: 'Look around' }],
+      { generateImage: false, suggestActions: false },
+    )
+
+    expect(socketInstances[0].sendChat).toHaveBeenCalledWith(
+      [{ role: 'user', content: 'Look around' }],
+      { generateImage: false, suggestActions: false },
+    )
+  })
+
   it('ignores voice transport frames on the text chat hook', () => {
     const onDelta = vi.fn()
     const onDone = vi.fn()

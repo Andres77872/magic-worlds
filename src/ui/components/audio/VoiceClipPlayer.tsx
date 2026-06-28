@@ -157,7 +157,7 @@ export function VoiceClipPlayer({ src, title, durationMs, className }: VoiceClip
                 </div>
             </div>
 
-            <div className="flex items-center justify-between pl-[46px] font-mono text-[10px]">
+            <div className="flex items-center justify-between pl-[46px] font-mono text-micro">
                 <span className={cx(isPlaying ? 'text-ember-300' : 'text-parchment-400')}>
                     {engaged ? formatSeconds(currentTime) : ''}
                 </span>

@@ -116,6 +116,8 @@ export interface VoiceCallLimits {
     max_call_seconds: number
     idle_timeout_seconds: number
     remaining_daily_seconds: number
+    remaining_voice_credits?: number
+    seconds_per_credit?: number
 }
 
 export type VoiceSocketServerFrame =
@@ -207,6 +209,8 @@ export interface CallSummary {
     started_at?: string | null
     ended_at?: string | null
     duration_seconds?: number | null
+    billable_audio_seconds?: number | null
+    billed_credits?: number | null
     segment_count?: number
 }
 

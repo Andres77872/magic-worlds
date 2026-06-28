@@ -115,7 +115,7 @@ export const InsideModal: Story = {
       const [open, setOpen] = useState(false)
       return (
         <>
-          <Button kind="secondary" onClick={() => setOpen(true)}>Open modal</Button>
+          <Button variant="secondary" onClick={() => setOpen(true)}>Open modal</Button>
           <Modal open={open} onClose={() => setOpen(false)} title="Layering demo">
             <Field label="Secondary logic" helper="The popup stacks above the modal scrim.">
               <ControlledSelect options={args.options} initial="any" />

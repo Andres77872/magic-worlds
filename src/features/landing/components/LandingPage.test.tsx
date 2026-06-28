@@ -1,9 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { Adventure, Character, CharacterChatSession, Lorebook, Story, World } from '@/shared'
 import { LandingPage } from './LandingPage'
 
 const setPage = vi.fn()
+const editCharacter = vi.fn()
+const setEditingCharacter = vi.fn()
+const deleteCharacter = vi.fn().mockResolvedValue(undefined)
+const editWorld = vi.fn()
+const setEditingWorld = vi.fn()
+const deleteWorld = vi.fn().mockResolvedValue(undefined)
+const editItem = vi.fn()
+const setEditingItem = vi.fn()
+const deleteItem = vi.fn().mockResolvedValue(undefined)
+const editTemplate = vi.fn()
+const setEditingTemplate = vi.fn()
+const startTemplate = vi.fn().mockResolvedValue(undefined)
+const deleteTemplate = vi.fn()
+const editInProgress = vi.fn()
+const deleteInProgress = vi.fn().mockResolvedValue(undefined)
+const startCharacterChat = vi.fn().mockResolvedValue(undefined)
+const resumeCharacterChat = vi.fn()
+const deleteCharacterChat = vi.fn().mockResolvedValue(undefined)
+const openStory = vi.fn().mockResolvedValue(undefined)
+const createStory = vi.fn().mockResolvedValue(undefined)
+const editLorebook = vi.fn()
+const setEditingLorebook = vi.fn()
+const deleteLorebook = vi.fn().mockResolvedValue(undefined)
+const loadData = vi.fn().mockResolvedValue(undefined)
 let authed = true
 
 // GalleryCard reaches usePlaylist through a deep import that bypasses the
@@ -82,33 +106,33 @@ vi.mock('@/app/hooks', () => ({
         templateAdventures: TEMPLATES,
         inProgressAdventures,
         isLoading: false,
-        editCharacter: vi.fn(),
-        setEditingCharacter: vi.fn(),
-        deleteCharacter: vi.fn().mockResolvedValue(undefined),
-        editWorld: vi.fn(),
-        setEditingWorld: vi.fn(),
-        deleteWorld: vi.fn().mockResolvedValue(undefined),
-        editItem: vi.fn(),
-        setEditingItem: vi.fn(),
-        deleteItem: vi.fn().mockResolvedValue(undefined),
-        editTemplate: vi.fn(),
-        setEditingTemplate: vi.fn(),
-        startTemplate: vi.fn().mockResolvedValue(undefined),
-        deleteTemplate: vi.fn(),
-        editInProgress: vi.fn(),
-        deleteInProgress: vi.fn().mockResolvedValue(undefined),
-        startCharacterChat: vi.fn().mockResolvedValue(undefined),
+        editCharacter,
+        setEditingCharacter,
+        deleteCharacter,
+        editWorld,
+        setEditingWorld,
+        deleteWorld,
+        editItem,
+        setEditingItem,
+        deleteItem,
+        editTemplate,
+        setEditingTemplate,
+        startTemplate,
+        deleteTemplate,
+        editInProgress,
+        deleteInProgress,
+        startCharacterChat,
         characterChats,
-        resumeCharacterChat: vi.fn(),
-        deleteCharacterChat: vi.fn().mockResolvedValue(undefined),
+        resumeCharacterChat,
+        deleteCharacterChat,
         stories,
-        openStory: vi.fn().mockResolvedValue(undefined),
-        createStory: vi.fn().mockResolvedValue(undefined),
+        openStory,
+        createStory,
         lorebooks: LOREBOOKS,
-        editLorebook: vi.fn(),
-        setEditingLorebook: vi.fn(),
-        deleteLorebook: vi.fn().mockResolvedValue(undefined),
-        loadData: vi.fn().mockResolvedValue(undefined),
+        editLorebook,
+        setEditingLorebook,
+        deleteLorebook,
+        loadData,
         loadingState: { isLoading: false },
     }),
 }))
@@ -177,6 +201,41 @@ describe('LandingPage (returning dashboard)', () => {
         expect(screen.getByText('Nothing matches "zzz-no-match"')).toBeTruthy()
         fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
         expect(screen.getByTestId('begin-zone')).toBeTruthy()
+    })
+
+    it('starts a fresh character chat from the cast rail', async () => {
+        render(<LandingPage />)
+
+        fireEvent.click(within(screen.getByTestId('cast-rail')).getByRole('button', { name: 'Start chat' }))
+        const dialog = await screen.findByRole('dialog', { name: 'Choose your persona' })
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Start chat' }))
+
+        await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(CHARACTERS[1], CHARACTERS[0]))
+        expect(resumeCharacterChat).not.toHaveBeenCalled()
+        expect(setPage).toHaveBeenCalledWith('character-chat')
+    })
+
+    it('starts a fresh character chat from search character results', async () => {
+        render(<LandingPage />)
+
+        fireEvent.change(screen.getByLabelText('Search your library'), { target: { value: 'lyra' } })
+        fireEvent.click(within(screen.getByTestId('search-results')).getByRole('button', { name: 'Start chat' }))
+        const dialog = await screen.findByRole('dialog', { name: 'Choose your persona' })
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Start chat' }))
+
+        await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(CHARACTERS[1], CHARACTERS[0]))
+        expect(resumeCharacterChat).not.toHaveBeenCalled()
+        expect(setPage).toHaveBeenCalledWith('character-chat')
+    })
+
+    it('resumes saved chat cards from the continue rail', () => {
+        render(<LandingPage />)
+
+        fireEvent.click(within(screen.getByTestId('active-chats')).getByRole('button', { name: 'Resume chat' }))
+
+        expect(resumeCharacterChat).toHaveBeenCalledWith(CHATS[0])
+        expect(startCharacterChat).not.toHaveBeenCalled()
+        expect(setPage).toHaveBeenCalledWith('character-chat')
     })
 })
 

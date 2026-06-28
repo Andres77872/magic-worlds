@@ -5,10 +5,13 @@ import type { Adventure, AdventureSnapshot, CharacterVoice } from '../../../shar
 import { readWorldPlaceType, worldPlaceTypeLabel } from '../../../shared'
 import { Badge, Button, Icon, IconButton, SectionHeader, SwitchRow, Tag, Textarea } from '../../../ui/primitives'
 import { VoicePickerDialog } from '../../voices/components/VoicePickerDialog'
+import { SessionLorebookPanel } from '@/features/lorebook'
+import { cardWindow } from '@/features/floatingWindows'
+import { snapshotToCardPreview } from '@/features/codex'
 import { Card } from '../../../ui/components/lists/Card'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
 import { resolveMediaUrl } from '../../../infrastructure/api'
-import { useData } from '../../../app/hooks'
+import { useData, useFloatingWindows } from '../../../app/hooks'
 import { isAiCharacterCard, personaCandidates as orderedPersonaCandidates } from '../../../utils/characterRoles'
 import { AdventureCardDrawer } from './AdventureCardDrawer'
 import { AddCardModal, type AddCandidate } from './AddCardModal'
@@ -41,6 +44,7 @@ interface InteractionLeftPanelProps {
 export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: InteractionLeftPanelProps) {
     const { t } = useTranslation()
     const { characters: libraryCharacters, worlds: libraryWorlds } = useData()
+    const { openWindow } = useFloatingWindows()
     const snapshot = ensureAdventureSnapshot(adventure)
     const persona = personaEntry(snapshot)
     const cast = characterEntries(snapshot)
@@ -51,6 +55,17 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
     const [selectedRef, setSelectedRef] = useState<SnapshotCardRef | null>(null)
     const [picker, setPicker] = useState<PickerKind | null>(null)
     const selectedEntry = selectedRef ? findSnapshotEntry(snapshot, selectedRef) : null
+
+    // Clicking a card opens a floating preview window; its Edit action opens the
+    // existing card drawer (driven by selectedRef) above the window.
+    const openCardPreview = (entry: SnapshotCardEntry) => {
+        openWindow(
+            cardWindow(snapshotToCardPreview(entry.card as unknown as Record<string, unknown>, entry.ref.kind, entry.key), {
+                onEdit: () => setSelectedRef(entry.ref),
+                editLabel: t('floatingWindows.edit'),
+            }),
+        )
+    }
 
     const usedIds = snapshotSourceIds(snapshot)
     const personaSourceId = persona?.card.source_card_id || persona?.card.id
@@ -99,15 +114,17 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
     }
 
     return (
-        <div className="flex flex-col gap-6 p-5">
+        <div className="flex flex-col gap-4 p-5">
             <div className="flex items-center gap-2">
-                <Button kind="secondary" full iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack} className="flex-1">
+                <Button variant="secondary" full iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack} className="flex-1">
                     {t('interaction.leftPanel.backToAdventures')}
                 </Button>
                 <ModeBadge mode="adventure" />
             </div>
 
             <ScenarioSection scenario={scenario} editable={editable} onSave={handleSaveScenario} />
+
+            <SessionLorebookPanel targetKind="adventure_session" targetId={adventure.id} />
 
             <section className="flex flex-col gap-2.5">
                 <SectionHeader
@@ -117,7 +134,7 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
                     right={editable && !persona ? <AddButton label={t('interaction.leftPanel.choosePersona')} onClick={() => setPicker('persona')} /> : undefined}
                 />
                 {persona ? (
-                    <CardList entries={[persona]} onOpen={setSelectedRef} />
+                    <CardList entries={[persona]} onPreview={openCardPreview} />
                 ) : (
                     <EmptyState>{t('interaction.leftPanel.noPersona')}</EmptyState>
                 )}
@@ -130,7 +147,7 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
                     right={editable ? <AddButton label={t('interaction.leftPanel.addWorld')} onClick={() => setPicker('world')} /> : undefined}
                 />
                 {worlds.length > 0 ? (
-                    <CardList entries={worlds} onOpen={setSelectedRef} />
+                    <CardList entries={worlds} onPreview={openCardPreview} />
                 ) : (
                     <EmptyState>{t('interaction.leftPanel.noWorld')}</EmptyState>
                 )}
@@ -143,7 +160,7 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
                     right={editable ? <AddButton label={t('interaction.leftPanel.addCharacter')} onClick={() => setPicker('cast')} /> : undefined}
                 />
                 {cast.length > 0 ? (
-                    <CardList entries={cast} onOpen={setSelectedRef} />
+                    <CardList entries={cast} onPreview={openCardPreview} />
                 ) : (
                     <EmptyState>{t('interaction.leftPanel.noCharacters')}</EmptyState>
                 )}
@@ -225,7 +242,7 @@ function NarrationSection({
                     )}
                 </div>
                 <Button
-                    kind="secondary"
+                    variant="secondary"
                     size="sm"
                     iconLeft={<Icon icon={AudioLines} size={14} />}
                     onClick={() => setPickerOpen(true)}
@@ -256,23 +273,23 @@ function NarrationSection({
 
 function CardList({
     entries,
-    onOpen,
+    onPreview,
 }: {
     entries: SnapshotCardEntry[]
-    onOpen: (ref: SnapshotCardRef) => void
+    onPreview: (entry: SnapshotCardEntry) => void
 }) {
     // A lone card reads better full-width; multiples tile two-up in the column.
     const layout = entries.length > 1 ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-3'
     return (
         <div className={layout}>
             {entries.map((entry) => (
-                <CompactCard key={entry.key} entry={entry} onOpen={onOpen} />
+                <CompactCard key={entry.key} entry={entry} onPreview={onPreview} />
             ))}
         </div>
     )
 }
 
-function CompactCard({ entry, onOpen }: { entry: SnapshotCardEntry; onOpen: (ref: SnapshotCardRef) => void }) {
+function CompactCard({ entry, onPreview }: { entry: SnapshotCardEntry; onPreview: (entry: SnapshotCardEntry) => void }) {
     const { t } = useTranslation()
     const { card, ref } = entry
     const isWorld = ref.kind === 'world'
@@ -292,7 +309,7 @@ function CompactCard({ entry, onOpen }: { entry: SnapshotCardEntry; onOpen: (ref
             title={card.name || t('interaction.leftPanel.untitled')}
             subtitle={subtitle}
             highlight={ref.kind === 'persona'}
-            onClick={() => onOpen(ref)}
+            onClick={() => onPreview(entry)}
             imageUrl={resolveMediaUrl(card.image_url)}
             themeSongUrl={resolveMediaUrl(card.theme_song_url)}
         />
@@ -363,7 +380,7 @@ function ScenarioSection({
                     {error && <p className="font-ui text-[12px] text-blood-500">{error}</p>}
                     <div className="flex justify-end gap-2">
                         <Button
-                            kind="ghost"
+                            variant="ghost"
                             size="sm"
                             iconLeft={<Icon icon={X} size={15} />}
                             onClick={() => setEditing(false)}
@@ -371,7 +388,7 @@ function ScenarioSection({
                         >
                             {t('common.cancel')}
                         </Button>
-                        <Button kind="primary" size="sm" iconLeft={<Icon icon={Check} size={15} />} onClick={submit} disabled={saving}>
+                        <Button variant="primary" size="sm" iconLeft={<Icon icon={Check} size={15} />} onClick={submit} disabled={saving}>
                             {saving ? t('common.saving') : t('common.save')}
                         </Button>
                     </div>

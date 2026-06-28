@@ -53,7 +53,7 @@ export function ContinueRail<T>({
                 right={
                     onViewAll ? (
                         <Button
-                            kind="ghost"
+                            variant="ghost"
                             size="sm"
                             iconRight={<Icon icon={ArrowRight} size={14} />}
                             onClick={onViewAll}

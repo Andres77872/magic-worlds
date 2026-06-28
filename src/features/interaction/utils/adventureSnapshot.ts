@@ -11,6 +11,7 @@ import type {
     Adventure,
     AdventureSnapshot,
     Character,
+    CharacterVoice,
     SnapshotCard,
     SnapshotTemplate,
     World,
@@ -78,6 +79,23 @@ export function findSnapshotEntry(
     return worldEntries(snapshot)[ref.index] ?? null
 }
 
+function snapshotVoice(value: unknown): CharacterVoice | undefined {
+    if (!value || typeof value !== 'object') return undefined
+    const voice = value as Partial<CharacterVoice>
+    const voiceId = typeof voice.voice_id === 'string' ? voice.voice_id.trim() : ''
+    if (!voiceId) return undefined
+    return {
+        voice_id: voiceId,
+        ...(voice.speed !== undefined ? { speed: voice.speed } : {}),
+        ...(voice.vol !== undefined ? { vol: voice.vol } : {}),
+        ...(voice.pitch !== undefined ? { pitch: voice.pitch } : {}),
+        ...(voice.emotion !== undefined ? { emotion: voice.emotion } : {}),
+        ...(voice.language_boost !== undefined ? { language_boost: voice.language_boost } : {}),
+        ...(voice.preset_id !== undefined ? { preset_id: voice.preset_id } : {}),
+        ...(voice.preset_name !== undefined ? { preset_name: voice.preset_name } : {}),
+    }
+}
+
 /** Maps a snapshot card to the frontend Character shape (for compatibility/consumers). */
 export function snapshotToCharacter(card: SnapshotCard, fallbackId: string): Character {
     return {
@@ -92,6 +110,7 @@ export function snapshotToCharacter(card: SnapshotCard, fallbackId: string): Cha
         triggers: card.triggers ?? [],
         image_url: card.image_url,
         theme_song_url: card.theme_song_url,
+        voice: snapshotVoice(card.voice),
     }
 }
 
@@ -182,6 +201,7 @@ export function libraryCardToSnapshotCard(card: Character | World, kind: 'charac
         base.type = (card as World).type ?? ''
     } else {
         base.race = (card as Character).race ?? ''
+        base.voice = snapshotVoice((card as Character).voice)
     }
     return base
 }

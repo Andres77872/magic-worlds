@@ -13,15 +13,27 @@ const mocks = vi.hoisted(() => ({
     sendCardAssistantMessage: vi.fn(),
     streamCardAssistantMessage: vi.fn(),
     setEditingItem: vi.fn(),
+    replaceHash: vi.fn(),
     createItem: vi.fn(),
     updateItem: vi.fn(),
     generateCardPortrait: vi.fn(),
+    getItem: vi.fn(),
+    getCardDraft: vi.fn(),
+    saveCardDraft: vi.fn(),
+    discardCardDraft: vi.fn(),
+    publishCardDraft: vi.fn(),
+    restoreVersionIntoDraft: vi.fn(),
+    getCardVersion: vi.fn(),
+    getPublishedBody: vi.fn(),
+    setCardMedia: vi.fn(),
+    listCardVersions: vi.fn(),
     isAuthenticated: true,
     editingItem: null as Record<string, unknown> | null,
+    cardEdit: null as Record<string, unknown> | null,
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack }),
+    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, cardEdit: mocks.cardEdit, replaceHash: mocks.replaceHash }),
     useData: () => ({ editingItem: mocks.editingItem, setEditingItem: mocks.setEditingItem, loadData: mocks.loadData }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
     useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
@@ -40,6 +52,16 @@ vi.mock('@/infrastructure/api', () => ({
         createItem: mocks.createItem,
         updateItem: mocks.updateItem,
         generateCardPortrait: mocks.generateCardPortrait,
+        getItem: mocks.getItem,
+        getCardDraft: mocks.getCardDraft,
+        saveCardDraft: mocks.saveCardDraft,
+        discardCardDraft: mocks.discardCardDraft,
+        publishCardDraft: mocks.publishCardDraft,
+        restoreVersionIntoDraft: mocks.restoreVersionIntoDraft,
+        getCardVersion: mocks.getCardVersion,
+        getPublishedBody: mocks.getPublishedBody,
+        setCardMedia: mocks.setCardMedia,
+        listCardVersions: mocks.listCardVersions,
         waitForImageJob: vi.fn(),
         listThemeSongs: vi.fn().mockResolvedValue({ items: [] }),
     },
@@ -129,7 +151,7 @@ describe('ItemCreator navigation', () => {
         mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
     })
 
-    it('returns to the origin after saving a new item', async () => {
+    it('stays in the editor after creating a new item (draft/publish from here)', async () => {
         render(<ItemCreator />)
 
         fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
@@ -138,7 +160,9 @@ describe('ItemCreator navigation', () => {
         fireEvent.click(screen.getByRole('button', { name: /^Create Item$/i }))
 
         await waitFor(() => expect(mocks.createItem).toHaveBeenCalledTimes(1))
-        await waitFor(() => expect(mocks.goBack).toHaveBeenCalledWith('landing'))
+        // New model: creating transitions into edit mode instead of navigating away.
+        await waitFor(() => expect(mocks.setEditingItem).toHaveBeenCalledWith(expect.objectContaining({ id: 'item-1' })))
+        expect(mocks.goBack).not.toHaveBeenCalledWith('landing')
         expect(mocks.setPage).not.toHaveBeenCalledWith('landing')
     })
 

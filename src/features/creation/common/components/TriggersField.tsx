@@ -18,6 +18,8 @@ export interface TriggersFieldProps {
     label?: string
     helper?: string
     placeholder?: string
+    maxValues?: number
+    limitReachedText?: string
 }
 
 export function TriggersField({
@@ -26,17 +28,21 @@ export function TriggersField({
     label,
     helper,
     placeholder,
+    maxValues,
+    limitReachedText,
 }: TriggersFieldProps) {
     const { t } = useTranslation()
     const resolvedLabel = label ?? t('creation.common.triggers.label')
     const resolvedHelper = helper ?? t('creation.common.triggers.helper')
     const resolvedPlaceholder = placeholder ?? t('creation.common.triggers.placeholder')
     const [draft, setDraft] = useState('')
+    const limitReached = typeof maxValues === 'number' && values.length >= maxValues
 
     const commit = (raw: string) => {
         const next = raw.trim()
         setDraft('')
         if (!next) return
+        if (limitReached) return
         // Dedupe case-insensitively — the server matcher casefolds both sides.
         if (values.some((value) => value.toLowerCase() === next.toLowerCase())) return
         onChange([...values, next])
@@ -56,7 +62,7 @@ export function TriggersField({
     }
 
     return (
-        <Field label={resolvedLabel} helper={resolvedHelper}>
+        <Field label={resolvedLabel} helper={limitReached && limitReachedText ? limitReachedText : resolvedHelper}>
             {values.length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-2">
                     {values.map((trigger, index) => (
@@ -78,6 +84,7 @@ export function TriggersField({
                 onKeyDown={handleKeyDown}
                 onBlur={() => commit(draft)}
                 placeholder={resolvedPlaceholder}
+                disabled={limitReached}
             />
         </Field>
     )

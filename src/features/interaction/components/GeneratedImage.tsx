@@ -84,6 +84,9 @@ function SceneImage({ url, aspectRatio, errorDetail }: { url: string; aspectRati
                     <Icon icon={Sparkles} size={20} className="animate-pulse text-arcane-300/60" />
                 </div>
             )}
+            {/* Candlelit inner edge so AI art (often with its own pale border) reads
+                as pooled light in the scene rather than a flat sticker on dark ink. */}
+            <div className="candle-vignette pointer-events-none absolute inset-0 rounded-xl" />
         </figure>
     )
 }
@@ -104,13 +107,19 @@ export function GeneratedImage({ status, url, width, height, errorDetail }: Gene
         return <SceneImage key={url} url={url} aspectRatio={aspectRatio} errorDetail={errorDetail} />
     }
 
-    // No usable image yet → compact banner while the job is still generating.
+    // No usable image yet → an aspect-reserved shimmer box while the job runs, so
+    // the layout doesn't jump when the box later swaps for the painted image.
     const generating = status ? PENDING_STATUSES.includes(status) : false
     if (!generating) return null
     return (
-        <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-arcane-400/25 bg-arcane-500/10 px-4 py-3 text-[13px] text-arcane-200">
-            <Icon icon={Sparkles} size={14} className="animate-pulse text-arcane-300" />
-            {t('interaction.image.conjuring')}
-        </div>
+        <figure
+            className="image-shimmer relative mt-3 flex w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-arcane-400/25"
+            style={{ aspectRatio: 3 / 2, maxHeight: 420 }}
+        >
+            <Icon icon={Sparkles} size={22} className="animate-pulse text-arcane-300" />
+            <figcaption className="font-ui text-[13px] text-arcane-200">
+                {t('interaction.image.conjuring')}
+            </figcaption>
+        </figure>
     )
 }

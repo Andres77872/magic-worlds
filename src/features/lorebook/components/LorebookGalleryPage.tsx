@@ -1,20 +1,32 @@
 import { useState } from 'react'
-import { BookOpen, Pencil, Plus, Search, Trash2, X, Loader2 } from 'lucide-react'
+import { BookOpen, Library, Pencil, Plus, Search, Trash2, X, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { CardGrid, ConfirmDialog, type CardOption } from '@/ui/components'
 import { Button, controlClass, Icon, IconButton, PageHeader } from '@/ui/primitives'
 import type { Lorebook } from '@/shared'
 import { useLorebookGallery } from '../hooks/useLorebookGallery'
+import { useGalleryView } from '@/features/gallery/hooks/useGalleryView'
+import { cardGridDensity, cardGridLayout, galleryCardView } from '@/features/gallery/galleryView'
+import { GalleryViewToggle } from '@/features/gallery/components/GalleryViewToggle'
 import { LorebookCard } from './LorebookCard'
+import { LorebookResourcePickerDrawer } from './LorebookResourcePickerDrawer'
+
+function upsertLorebook(list: Lorebook[], next: Lorebook): Lorebook[] {
+    const index = list.findIndex((item) => item.id === next.id)
+    if (index < 0) return [next, ...list]
+    return list.map((item) => (item.id === next.id ? next : item))
+}
 
 export function LorebookGalleryPage() {
     const { t } = useTranslation()
-    const gallery = useLorebookGallery()
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
-    const { editLorebook, setEditingLorebook, deleteLorebook } = useData()
+    const gallery = useLorebookGallery(undefined, { enabled: isAuthenticated })
+    const [layoutView, setLayoutView] = useGalleryView()
+    const { editLorebook, setEditingLorebook, deleteLorebook, lorebooks, setLorebooks } = useData()
     const [pendingDelete, setPendingDelete] = useState<Lorebook | null>(null)
+    const [resourceTarget, setResourceTarget] = useState<Lorebook | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
 
     const requireAuth = (action: () => void) => {
@@ -48,6 +60,12 @@ export function LorebookGalleryPage() {
         },
         {
             type: 'custom',
+            label: t('lorebookGallery.actions.addResources'),
+            icon: <Icon icon={Library} size={15} />,
+            onClick: () => requireAuth(() => setResourceTarget(lorebook)),
+        },
+        {
+            type: 'custom',
             label: t('lorebookGallery.actions.delete'),
             icon: <Icon icon={Trash2} size={15} />,
             onClick: () => requireAuth(() => setPendingDelete(lorebook)),
@@ -77,7 +95,7 @@ export function LorebookGalleryPage() {
             <PageHeader
                 eyebrow={t('lorebookGallery.header.eyebrow')}
                 title={t('lorebookGallery.header.title')}
-                icon={<span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-ember-500/15 text-ember-400"><Icon icon={BookOpen} size={22} /></span>}
+                icon={<span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-arcane-500/15 text-arcane-300"><Icon icon={BookOpen} size={22} /></span>}
                 size="lg"
                 subtitle={t('lorebookGallery.header.subtitle')}
                 actions={
@@ -115,7 +133,8 @@ export function LorebookGalleryPage() {
                                 </IconButton>
                             )}
                         </div>
-                        <Button kind="primary" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook}>
+                        <GalleryViewToggle value={layoutView} onChange={setLayoutView} className="shrink-0" />
+                        <Button variant="primary" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook}>
                             {t('lorebookGallery.actions.new')}
                         </Button>
                     </div>
@@ -125,14 +144,14 @@ export function LorebookGalleryPage() {
             {gallery.error && (
                 <div className="flex items-center justify-between gap-4 rounded-lg border border-blood-500/30 bg-blood-500/10 px-4 py-3 font-ui text-sm text-parchment-200" role="alert">
                     <span>{gallery.error}</span>
-                    <Button kind="secondary" size="sm" onClick={gallery.refresh}>{t('lorebookGallery.actions.retry')}</Button>
+                    <Button variant="secondary" size="sm" onClick={gallery.refresh}>{t('lorebookGallery.actions.retry')}</Button>
                 </div>
             )}
 
             <CardGrid
                 items={gallery.items}
-                layout="grid"
-                density="compact"
+                layout={cardGridLayout(layoutView)}
+                density={cardGridDensity(layoutView)}
                 getItemKey={(item) => item.id}
                 loading={gallery.loading}
                 hasMore={gallery.hasMore}
@@ -142,15 +161,16 @@ export function LorebookGalleryPage() {
                 emptyStateDescription={hasQuery ? t('lorebookGallery.empty.noMatchDescription') : t('lorebookGallery.empty.noItemsDescription')}
                 emptyStateAction={
                     hasQuery ? (
-                        <Button kind="secondary" size="sm" onClick={() => gallery.setQuery('')}>{t('lorebookGallery.actions.clearSearch')}</Button>
+                        <Button variant="secondary" size="sm" onClick={() => gallery.setQuery('')}>{t('lorebookGallery.actions.clearSearch')}</Button>
                     ) : (
-                        <Button kind="primary" size="sm" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook}>{t('lorebookGallery.actions.new')}</Button>
+                        <Button variant="primary" size="sm" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook}>{t('lorebookGallery.actions.new')}</Button>
                     )
                 }
                 data-testid="gallery-grid-lorebook"
                 renderCard={(lorebook) => (
                     <LorebookCard
                         lorebook={lorebook}
+                        view={galleryCardView(layoutView)}
                         deleting={deletingId === lorebook.id}
                         onClick={() => openLorebook(lorebook)}
                         onTagClick={gallery.setQuery}
@@ -168,6 +188,16 @@ export function LorebookGalleryPage() {
                 variant="danger"
                 onConfirm={confirmDelete}
                 onCancel={() => setPendingDelete(null)}
+            />
+            <LorebookResourcePickerDrawer
+                open={resourceTarget !== null}
+                lorebook={resourceTarget}
+                onClose={() => setResourceTarget(null)}
+                onAttached={(updated) => {
+                    gallery.upsertItem(updated)
+                    setLorebooks(upsertLorebook(lorebooks, updated))
+                    setResourceTarget(updated)
+                }}
             />
         </div>
     )

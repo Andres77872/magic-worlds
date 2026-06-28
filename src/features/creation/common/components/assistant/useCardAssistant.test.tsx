@@ -270,6 +270,23 @@ describe('useCardAssistant: send + streaming', () => {
         expect(result.current.notice).toMatchObject({ kind: 'error', canRetry: true, canReload: true })
     })
 
+    it('a non-retryable quota error removes the optimistic message without offering retry', async () => {
+        mocks.streamCardAssistantMessage.mockRejectedValue(new ApiError(429, 'AI card generation credit limit reached.', {
+            category: 'quota_exceeded',
+            retryable: false,
+        }))
+        const { result } = renderHook(() => useCardAssistant(hookOptions()))
+
+        await act(async () => { await result.current.send('Generate it') })
+
+        expect(result.current.turns).toHaveLength(0)
+        expect(result.current.notice).toMatchObject({
+            kind: 'error',
+            message: 'AI card generation credit limit reached.',
+            canRetry: false,
+        })
+    })
+
     it('a local timeout keeps the partial reply flagged as interrupted and offers reload', async () => {
         const stream = controllableStream()
         const { result } = renderHook(() => useCardAssistant(hookOptions()))

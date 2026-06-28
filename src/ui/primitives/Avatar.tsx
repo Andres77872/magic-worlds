@@ -40,8 +40,9 @@ export function Avatar({
         <span
             className={cx(
                 'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-display font-semibold text-parchment-100',
-                ring === 'ember' && 'shadow-[0_0_0_2px_var(--color-ember-500)]',
-                ring === 'arcane' && 'shadow-[0_0_0_2px_var(--color-arcane-500),0_0_18px_-2px_rgba(143,111,227,.6)]',
+                // ring + a soft candlelit halo (centered glow, not a downward drop)
+                ring === 'ember' && 'shadow-ring-ember',
+                ring === 'arcane' && 'shadow-ring-arcane',
                 status === 'think' && 'animate-think',
                 className,
             )}

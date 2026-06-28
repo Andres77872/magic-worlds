@@ -22,7 +22,7 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                     <h3 className="font-display text-xl font-semibold text-parchment-50">{t('lorebookStudio.entryTable.heading')}</h3>
                     <p className="font-ui text-xs text-parchment-300">{t('lorebookStudio.entryTable.subtitle', { count: entries.length })}</p>
                 </div>
-                <Button size="sm" kind="secondary" iconLeft={<Icon icon={Plus} size={15} />} onClick={onAdd}>
+                <Button size="sm" variant="secondary" iconLeft={<Icon icon={Plus} size={15} />} onClick={onAdd}>
                     {t('lorebookStudio.entryTable.addEntry')}
                 </Button>
             </div>
@@ -33,7 +33,7 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                         onClick={onAdd}
                         className="flex min-h-[280px] w-full flex-col items-center justify-center gap-3 px-6 text-center text-parchment-300 transition-colors hover:bg-parchment-50/[.03] hover:text-parchment-100"
                     >
-                        <Icon icon={ScrollText} size={34} className="text-ember-400" />
+                        <Icon icon={ScrollText} size={34} className="text-arcane-300" />
                         <span className="font-display text-xl text-parchment-50">{t('lorebookStudio.entryTable.empty.title')}</span>
                         <span className="max-w-[34ch] font-narrative text-sm">
                             {t('lorebookStudio.entryTable.empty.description')}
@@ -72,7 +72,7 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                                         <p className="mt-1 line-clamp-2 font-narrative text-sm leading-snug text-parchment-300">
                                             {entry.content || t('lorebookStudio.entryTable.noContent')}
                                         </p>
-                                        <div className="mt-2 flex flex-wrap items-center gap-2 font-ui text-[11px] text-parchment-400">
+                                        <div className="mt-2 flex flex-wrap items-center gap-2 font-ui text-meta text-parchment-400">
                                             <span>{t(entryTypeLabelKey(entry.entryType))}</span>
                                             <span>{t('lorebookStudio.entryTable.tokens', { count: estimateTokens(entry.content) })}</span>
                                             {entry.keys.slice(0, 3).map((key) => (

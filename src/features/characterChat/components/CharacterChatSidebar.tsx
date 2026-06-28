@@ -5,12 +5,16 @@
 
 import { ArrowLeft, MessageCircle, Pencil, Phone, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { Character } from '../../../shared'
+import type { Character, CharacterChatCodexCard } from '../../../shared'
+import type { CodexLibraryCardSelection } from '@/features/codex'
+import { SessionLorebookPanel } from '@/features/lorebook'
 import { resolveMediaUrl } from '../../../infrastructure/api'
 import { Avatar, Button, Eyebrow, Icon, Portrait, Tag } from '../../../ui/primitives'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
+import { CharacterChatCodexPanel } from './CharacterChatCodexPanel'
 
 interface CharacterChatSidebarProps {
+    sessionId?: string
     character?: Character
     characters?: Character[]
     title?: string
@@ -20,20 +24,41 @@ interface CharacterChatSidebarProps {
     mode?: 'text' | 'voice'
     voiceEnabled?: boolean
     onSetMode?: (mode: 'text' | 'voice') => void
+    codexCards?: CharacterChatCodexCard[]
+    onAddCodexCards?: (cards: CodexLibraryCardSelection[]) => Promise<unknown>
+    onToggleCodexCard?: (card: CharacterChatCodexCard, enabled: boolean) => Promise<unknown>
+    onRemoveCodexCard?: (card: CharacterChatCodexCard) => Promise<unknown>
     onBack: () => void
     onEditCharacter: (character: Character) => void
 }
 
-export function CharacterChatSidebar({ character, characters, title, isGroup = false, persona, mode = 'text', voiceEnabled = false, onSetMode, onBack, onEditCharacter }: CharacterChatSidebarProps) {
+export function CharacterChatSidebar({
+    sessionId,
+    character,
+    characters,
+    title,
+    isGroup = false,
+    persona,
+    mode = 'text',
+    voiceEnabled = false,
+    onSetMode,
+    codexCards = [],
+    onAddCodexCards,
+    onToggleCodexCard,
+    onRemoveCodexCard,
+    onBack,
+    onEditCharacter,
+}: CharacterChatSidebarProps) {
     const { t } = useTranslation()
     const cast: Character[] = isGroup ? (characters ?? []) : character ? [character] : []
     const lead = cast[0]
     const heading = title || cast.map((entry) => entry.name).filter(Boolean).join(', ') || t('characterChat.fallbackTitle')
+    const hasCodexControls = Boolean(onAddCodexCards && onToggleCodexCard && onRemoveCodexCard)
 
     return (
         <div className="flex h-full flex-col bg-ink-900">
             <div className="flex items-center gap-2 border-b border-parchment-50/10 px-4 py-3">
-                <Button kind="ghost" size="sm" onClick={onBack} iconLeft={<ArrowLeft size={16} />}>
+                <Button variant="ghost" size="sm" onClick={onBack} iconLeft={<ArrowLeft size={16} />}>
                     {t('common.back')}
                 </Button>
                 <span className="ml-auto">
@@ -76,6 +101,23 @@ export function CharacterChatSidebar({ character, characters, title, isGroup = f
                         </div>
                     )}
 
+                    {(hasCodexControls || sessionId) && (
+                        <div className="flex flex-col divide-y divide-parchment-50/[.08] rounded-lg border border-parchment-50/10 bg-ink-800 px-4 py-3">
+                            {onAddCodexCards && onToggleCodexCard && onRemoveCodexCard && (
+                                <CharacterChatCodexPanel
+                                    cards={codexCards}
+                                    onAddCards={onAddCodexCards}
+                                    onToggleCard={onToggleCodexCard}
+                                    onRemoveCard={onRemoveCodexCard}
+                                />
+                            )}
+
+                            {sessionId && (
+                                <SessionLorebookPanel targetKind="character_chat" targetId={sessionId} framed={false} />
+                            )}
+                        </div>
+                    )}
+
                     {isGroup ? (
                         <div className="flex flex-col gap-2">
                             {cast.map((member) => (
@@ -104,7 +146,7 @@ export function CharacterChatSidebar({ character, characters, title, isGroup = f
                                             )}
                                         </div>
                                         <Button
-                                            kind="ghost"
+                                            variant="ghost"
                                             size="sm"
                                             onClick={() => onEditCharacter(member)}
                                             iconLeft={<Pencil size={14} />}
@@ -140,7 +182,7 @@ export function CharacterChatSidebar({ character, characters, title, isGroup = f
                     {voiceEnabled && onSetMode && (
                         mode === 'voice' ? (
                             <Button
-                                kind="secondary"
+                                variant="secondary"
                                 onClick={() => onSetMode('text')}
                                 iconLeft={<Icon icon={MessageCircle} size={15} />}
                                 className="w-full"
@@ -149,7 +191,7 @@ export function CharacterChatSidebar({ character, characters, title, isGroup = f
                             </Button>
                         ) : (
                             <Button
-                                kind="primary"
+                                variant="primary"
                                 onClick={() => onSetMode('voice')}
                                 iconLeft={<Icon icon={Phone} size={15} />}
                                 className="w-full"
@@ -158,7 +200,7 @@ export function CharacterChatSidebar({ character, characters, title, isGroup = f
                             </Button>
                         )
                     )}
-                    <Button kind="secondary" onClick={() => onEditCharacter(lead)} iconLeft={<Pencil size={15} />} className="w-full">
+                    <Button variant="secondary" onClick={() => onEditCharacter(lead)} iconLeft={<Pencil size={15} />} className="w-full">
                         {t('characterChat.sidebar.editCharacter')}
                     </Button>
                 </div>

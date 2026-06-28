@@ -63,11 +63,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 </p>
                 <div className="mt-2 flex items-center gap-2">
                     {this.props.inline && (
-                        <Button kind="secondary" onClick={this.handleReset}>
+                        <Button variant="secondary" onClick={this.handleReset}>
                             Try again
                         </Button>
                     )}
-                    <Button kind="primary" onClick={this.handleReload}>
+                    <Button variant="primary" onClick={this.handleReload}>
                         Reload
                     </Button>
                 </div>

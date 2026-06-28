@@ -41,8 +41,10 @@ const PAGE_TO_HASH: Partial<Record<PageType, string>> = {
     community: '#/community',
     'shared-card': '#/shared',
     profile: '#/profile',
+    billing: '#/billing',
     'voice-studio': '#/voices',
     'admin-voices': '#/admin/voices',
+    'admin-credit-codes': '#/admin/credit-codes',
     docs: '#/docs',
     about: '#/about',
     contact: '#/contact',
@@ -54,18 +56,22 @@ const PAGE_TO_HASH: Partial<Record<PageType, string>> = {
     'gallery-items': '#/gallery/items',
     'gallery-adventures': '#/gallery/adventures',
     'gallery-lorebooks': '#/gallery/lorebooks',
+    'gallery-resources': '#/gallery/resources',
     'gallery-media': '#/gallery/media',
     'gallery-stories': '#/gallery/stories',
     story: '#/story',
     'password-reset': '#/password-reset',
     'verify-email': '#/verify-email',
     'google-callback': '#/google-callback',
+    'not-found': '#/404',
 }
 
 const HASH_TO_PAGE = Object.entries(PAGE_TO_HASH).reduce<Record<string, PageType>>((acc, [page, hash]) => {
     acc[hash] = page as PageType
     return acc
 }, {})
+
+HASH_TO_PAGE['#/admin/membership-management'] = 'admin-credit-codes'
 
 export interface GalleryHashTarget {
     type: GalleryType
@@ -138,6 +144,92 @@ export function parseGalleryHash(hash: string = typeof window === 'undefined' ? 
     const mode = type === 'character' && params.get('mode') === 'group-chat' ? 'group-chat' : undefined
     const view = params.get('view') === 'public' ? 'public' : undefined
     return { type, page: TYPE_TO_PAGE[type], cardId, mode, view }
+}
+
+// --- Card editor deep-links (character / world / item) -----------------------------
+// The editor for a versionable card lives at `#/<type>?card=<id>[&version=<v>]`, reusing the
+// same query convention as the gallery `?card=` links. The bare `#/<type>` (no `card`) stays the
+// "create" route, so `pageFromHash` needs no change — only param extraction is new.
+
+/** Versionable card types that have a deep-linkable editor (persona edits via `character`). */
+export type CardEditType = 'character' | 'world' | 'item'
+
+/** Version selector in the URL: the private draft, the latest published, or a specific version. */
+export type CardEditVersion = 'draft' | 'latest' | number
+
+export interface CardEditHashTarget {
+    page: PageType
+    cardType: CardEditType
+    cardId: string
+    /** undefined ⇒ server default (draft if one exists, else the latest published body). */
+    version?: CardEditVersion
+}
+
+/** Normalize a raw `version` query value to `draft` | `latest` | a positive integer | undefined. */
+function normalizeCardEditVersion(raw: string | null): CardEditVersion | undefined {
+    if (!raw) return undefined
+    if (raw === 'draft' || raw === 'latest') return raw
+    const n = Number(raw)
+    return Number.isInteger(n) && n > 0 ? n : undefined
+}
+
+export function buildCardEditHash(cardType: CardEditType, cardId: string, version?: CardEditVersion): string {
+    const params = new URLSearchParams({ card: cardId })
+    if (version !== undefined) params.set('version', String(version))
+    return `#/${cardType}?${params.toString()}`
+}
+
+export function parseCardEditHash(
+    hash: string = typeof window === 'undefined' ? '' : window.location.hash,
+): CardEditHashTarget | null {
+    const withoutHash = hash.startsWith('#') ? hash.slice(1) : hash
+    const [path, query = ''] = withoutHash.split('?')
+    const match = path.match(/^\/(character|world|item)$/)
+    if (!match) return null
+    const cardType = match[1] as CardEditType
+    const cardId = new URLSearchParams(query).get('card')
+    if (!cardId) return null
+    return {
+        page: cardType,
+        cardType,
+        cardId,
+        version: normalizeCardEditVersion(new URLSearchParams(query).get('version')),
+    }
+}
+
+// --- Lorebook resource deep-links --------------------------------------------------
+// A single resource opens at `#/gallery/resources?resource=<id>` — a dedicated in-page
+// view (not a slide-in drawer). `?resource=new&type=md|txt` opens the create form. The
+// query is ignored by `pageFromHash` route matching (it strips the query first), so the
+// page stays `gallery-resources`; only param extraction is new — mirrors `parseCardEditHash`.
+
+export interface ResourceEditHashTarget {
+    /** Always `gallery-resources` — kept for symmetry with the other hash targets. */
+    page: PageType
+    /** A resource id, or the literal `new` for the create form. */
+    resourceId: string
+    /** File type for a fresh resource; only meaningful when `resourceId === 'new'`. */
+    createType?: 'md' | 'txt'
+}
+
+export function buildResourceHash(resourceId: string, createType?: 'md' | 'txt'): string {
+    const params = new URLSearchParams({ resource: resourceId })
+    if (resourceId === 'new' && createType) params.set('type', createType)
+    return `#/gallery/resources?${params.toString()}`
+}
+
+export function parseResourceEditHash(
+    hash: string = typeof window === 'undefined' ? '' : window.location.hash,
+): ResourceEditHashTarget | null {
+    const withoutHash = hash.startsWith('#') ? hash.slice(1) : hash
+    const [path, query = ''] = withoutHash.split('?')
+    if (path !== '/gallery/resources') return null
+    const params = new URLSearchParams(query)
+    const resourceId = params.get('resource')
+    if (!resourceId) return null
+    const rawType = params.get('type')
+    const createType = rawType === 'md' || rawType === 'txt' ? rawType : undefined
+    return { page: 'gallery-resources', resourceId, createType }
 }
 
 export function pageFromHash(hash: string = typeof window === 'undefined' ? '' : window.location.hash): PageType | null {

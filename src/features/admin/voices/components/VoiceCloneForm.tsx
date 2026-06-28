@@ -268,7 +268,7 @@ export function VoiceCloneForm({ onCreated, notify, setError, onSendToLab }: Voi
             <div className="flex justify-end">
                 <Button
                     type="submit"
-                    kind="primary"
+                    variant="primary"
                     iconLeft={<Icon icon={cloning ? Loader2 : Mic} size={15} className={cloning ? 'animate-spin' : undefined} />}
                     disabled={!canClone}
                 >

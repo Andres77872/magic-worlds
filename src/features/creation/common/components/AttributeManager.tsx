@@ -65,7 +65,7 @@ export function AttributeManager({
                     className="max-sm:flex-col max-sm:items-start max-sm:gap-4"
                     right={
                         <Button
-                            kind="secondary"
+                            variant="secondary"
                             size="sm"
                             onClick={() => setShowAddCategory(prev => !prev)}
                             iconLeft={<Icon icon={Plus} size={16} />}

@@ -13,7 +13,7 @@ import type { ApiStatus } from '../../app/hooks'
 import { useLanguage } from '../../app/hooks'
 import type { ApiDependencyService } from '@/infrastructure/api'
 import { formatApiTime } from '@/utils/time'
-import { Badge, type BadgeTone, Icon, IconTile, cx } from '../primitives'
+import { Badge, type BadgeTone, Icon, IconTile, Tooltip, cx } from '../primitives'
 
 // Matches the Drawer transition so the popover enters/exits with the app's idiom.
 const PANEL_TRANSITION_MS = 200
@@ -92,15 +92,15 @@ function HealthDependencyRow({
                     <div className="min-w-0">
                         <p className="truncate font-ui text-xs font-semibold text-parchment-100">{service.label}</p>
                         {service.message && (
-                            <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-parchment-300">
+                            <p className="mt-0.5 line-clamp-2 text-meta leading-snug text-parchment-300">
                                 {service.message}
                             </p>
                         )}
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                    {latency && <span className="font-mono text-[10px] text-parchment-400">{latency}</span>}
-                    <Badge tone={serviceStatusTone(service.status)} className="px-2 py-0.5 text-[10px]">
+                    {latency && <span className="font-mono text-micro text-parchment-400">{latency}</span>}
+                    <Badge tone={serviceStatusTone(service.status)} className="px-2 py-0.5 text-micro">
                         {serviceStatusLabel(service.status, t)}
                     </Badge>
                 </div>
@@ -173,39 +173,32 @@ export function ApiStatusMonitor({ status, services = [], checkedAt, collapsed =
     }, [open])
 
     return (
-        <div ref={containerRef} className="group relative w-full">
-            <button
-                type="button"
-                aria-label={viewLabel}
-                aria-expanded={open}
-                aria-controls="api-health-dependencies"
-                title={viewLabel}
-                className={cx(
-                    'relative inline-flex h-10 w-10 shrink-0 items-center justify-center gap-3 rounded-md px-0 font-ui text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500 lg:w-full lg:justify-start lg:px-3',
-                    collapsed && 'lg:w-10 lg:justify-center lg:px-0',
-                    view.className,
-                )}
-                onClick={() => setOpen((current) => !current)}
-            >
-                <span role="status" aria-label={viewLabel} className="sr-only">
-                    {viewLabel}
-                </span>
-                <Icon icon={Server} size={18} />
-                <span className={cx('hidden min-w-0 truncate', !collapsed && 'lg:inline')}>{viewLabel}</span>
-                <span
-                    aria-hidden="true"
-                    className={cx('absolute right-1.5 top-1.5 h-2 w-2 rounded-full ring-2 ring-ink-900', view.dotClassName)}
-                />
-            </button>
-            <div
-                role="tooltip"
-                className={cx(
-                    'pointer-events-none absolute bottom-1 left-full z-50 ml-2 whitespace-nowrap rounded-md border border-parchment-50/[.08] bg-ink-900 px-2.5 py-1.5 font-ui text-xs text-parchment-100 opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
-                    collapsed ? 'lg:block' : 'lg:hidden',
-                )}
-            >
-                {viewLabel}
-            </div>
+        <div ref={containerRef} className="relative w-full">
+            <Tooltip label={viewLabel} disabled={!collapsed} wrapperClassName="w-full">
+                <button
+                    type="button"
+                    aria-label={viewLabel}
+                    aria-expanded={open}
+                    aria-controls="api-health-dependencies"
+                    title={viewLabel}
+                    className={cx(
+                        'relative inline-flex h-10 w-10 shrink-0 items-center justify-center gap-3 rounded-md px-0 font-ui text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500 lg:w-full lg:justify-start lg:px-3',
+                        collapsed && 'lg:w-10 lg:justify-center lg:px-0',
+                        view.className,
+                    )}
+                    onClick={() => setOpen((current) => !current)}
+                >
+                    <span role="status" aria-label={viewLabel} className="sr-only">
+                        {viewLabel}
+                    </span>
+                    <Icon icon={Server} size={18} />
+                    <span className={cx('hidden min-w-0 truncate', !collapsed && 'lg:inline')}>{viewLabel}</span>
+                    <span
+                        aria-hidden="true"
+                        className={cx('absolute right-1.5 top-1.5 h-2 w-2 rounded-full ring-2 ring-ink-900', view.dotClassName)}
+                    />
+                </button>
+            </Tooltip>
             {mounted && (
                 <div
                     id="api-health-dependencies"
@@ -223,7 +216,7 @@ export function ApiStatusMonitor({ status, services = [], checkedAt, collapsed =
                                 <p className="truncate font-ui text-sm font-semibold text-parchment-50">
                                     {t('sidebar.api.dependenciesTitle')}
                                 </p>
-                                <p className="mt-0.5 font-mono text-[11px] text-parchment-400">
+                                <p className="mt-0.5 font-mono text-meta text-parchment-400">
                                     {formatCheckedAt(checkedAt, t, intlLocale)}
                                 </p>
                             </div>

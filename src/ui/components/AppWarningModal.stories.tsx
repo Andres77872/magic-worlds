@@ -10,7 +10,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'First-run acknowledgement shown until accepted (acceptance is stored in localStorage). It lists what is saved, the alpha-version caveats, NSFW and credit notes. There is no close affordance — the single primary action records acceptance and dismisses it.',
+          'First-run acknowledgement shown until accepted (acceptance is stored in localStorage). It states the 18+ age requirement, lists what is saved, the alpha-version caveats, AI-content/NSFW/no-personal-data and credit notes, and links to the Disclaimer and Privacy pages. There is no close affordance — the single primary action records acceptance and dismisses it.',
       },
     },
   },

@@ -86,6 +86,37 @@ describe('VoicePickerDialog', () => {
         expect(onSelect).toHaveBeenCalledWith(null)
     })
 
+    it('surfaces the current preset voice (summary + selected row) on open', async () => {
+        render(
+            <VoicePickerDialog
+                open
+                currentVoice={{ voice_id: 'English_radiant_girl', preset_id: 'global-child-girl', preset_name: 'Child girl' }}
+                onSelect={vi.fn()}
+                onClose={vi.fn()}
+            />,
+        )
+
+        expect(await screen.findByText('Currently using')).toBeInTheDocument()
+        // The matching preset's action button reads "Selected" instead of "Use".
+        expect(await screen.findByRole('button', { name: 'Selected' })).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Use' })).not.toBeInTheDocument()
+    })
+
+    it('auto-opens the System voices tab when the current voice is a system voice', async () => {
+        render(
+            <VoicePickerDialog
+                open
+                currentVoice={{ voice_id: 'English_expressive_narrator' }}
+                onSelect={vi.fn()}
+                onClose={vi.fn()}
+            />,
+        )
+
+        // No tab click — the system voice row is highlighted as selected directly.
+        expect(await screen.findByRole('button', { name: 'Selected' })).toBeInTheDocument()
+        expect(screen.getByText('Expressive narrator')).toBeInTheDocument()
+    })
+
     it('previews a preset', async () => {
         previewVoice.mockResolvedValue({ voice_id: 'English_radiant_girl', audio_hex: '00', content_type: 'audio/mpeg', base_resp: { status_code: 0, status_msg: 'ok' } })
         render(<VoicePickerDialog open onSelect={vi.fn()} onClose={vi.fn()} />)

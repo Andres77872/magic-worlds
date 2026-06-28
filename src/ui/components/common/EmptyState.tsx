@@ -51,7 +51,7 @@ export function EmptyState({
             )}
             {button && (
                 <Button
-                    kind="primary"
+                    variant="primary"
                     className={`mt-2 ${button.className || ''}`}
                     onClick={button.onClick}
                 >

@@ -48,6 +48,10 @@ export interface MediaGallery {
     removeItem: (id: string) => void
 }
 
+export interface MediaGalleryOptions {
+    enabled?: boolean
+}
+
 interface SourceState {
     buffer: MediaGalleryItem[]
     offset: number
@@ -71,10 +75,11 @@ function createdTime(item?: MediaGalleryItem): number {
 
 const DEFAULT_FILTERS: MediaGalleryFilters = { mediaType: 'all', cardType: 'all' }
 
-export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE): MediaGallery {
+export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGalleryOptions = {}): MediaGallery {
+    const enabled = options.enabled ?? true
     const [items, setItems] = useState<MediaGalleryItem[]>([])
     const [filters, setFilters] = useState<MediaGalleryFilters>(DEFAULT_FILTERS)
-    const [loading, setLoading] = useState(true)
+    const [loading, setLoading] = useState(enabled)
     const [loadingMore, setLoadingMore] = useState(false)
     const [hasMore, setHasMore] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -83,6 +88,18 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE): MediaGallery {
     const seqRef = useRef(0)
     const imagesRef = useRef<SourceState>(newSource())
     const themesRef = useRef<SourceState>(newSource())
+
+    useEffect(() => {
+        if (enabled) return
+        seqRef.current += 1
+        imagesRef.current = newSource()
+        themesRef.current = newSource()
+        setItems([])
+        setLoading(false)
+        setLoadingMore(false)
+        setHasMore(false)
+        setError(null)
+    }, [enabled])
 
     const fetchImagesPage = useCallback(
         async (f: MediaGalleryFilters) => {
@@ -154,6 +171,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE): MediaGallery {
 
     const fetchPage = useCallback(
         async (reset: boolean, f: MediaGalleryFilters) => {
+            if (!enabled) return
             const seq = ++seqRef.current
             if (reset) {
                 imagesRef.current = newSource(f.mediaType === 'themes')
@@ -180,23 +198,25 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE): MediaGallery {
                 }
             }
         },
-        [emitPage],
+        [emitPage, enabled],
     )
 
     // Mount + every filter change → reset & refetch.
     useEffect(() => {
+        if (!enabled) return
         // eslint-disable-next-line react-hooks/set-state-in-effect
         void fetchPage(true, filters)
-    }, [fetchPage, filters])
+    }, [enabled, fetchPage, filters])
 
     const loadMore = useCallback(() => {
-        if (loading || loadingMore || !hasMore) return
+        if (!enabled || loading || loadingMore || !hasMore) return
         void fetchPage(false, filters)
-    }, [fetchPage, filters, loading, loadingMore, hasMore])
+    }, [enabled, fetchPage, filters, loading, loadingMore, hasMore])
 
     const refresh = useCallback(() => {
+        if (!enabled) return
         void fetchPage(true, filters)
-    }, [fetchPage, filters])
+    }, [enabled, fetchPage, filters])
 
     const removeItem = useCallback((id: string) => {
         setItems((prev) => prev.filter((item) => item.id !== id))

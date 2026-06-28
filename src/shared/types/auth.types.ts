@@ -38,6 +38,9 @@ export interface MembershipOperationLimit {
     max_in_flight: number
     in_flight: number
     credit_cost: number
+    billing_unit?: 'action' | 'audio_seconds' | string
+    seconds_per_credit?: number
+    billable_seconds_today?: number
 }
 
 export interface MembershipPayg {
@@ -49,6 +52,7 @@ export interface MembershipMonthlyOperationUsage {
     credits_used: number
     included_credits_used: number
     payg_credits_used: number
+    billable_seconds?: number
 }
 
 export interface MembershipMonthlyUsage {
@@ -276,4 +280,3 @@ export interface EmailListResponse {
     message?: string
     emails: UserEmail[]
 }
-

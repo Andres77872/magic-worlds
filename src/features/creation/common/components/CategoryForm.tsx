@@ -85,7 +85,7 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
 
             <div className="mt-6 flex justify-end gap-4 border-t border-parchment-50/10 pt-6 max-sm:flex-col max-sm:gap-2">
                 <Button
-                    kind="secondary"
+                    variant="secondary"
                     size="sm"
                     onClick={onCancel}
                     className="max-sm:w-full"
@@ -93,7 +93,7 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
                     {t('common.cancel')}
                 </Button>
                 <Button
-                    kind="primary"
+                    variant="primary"
                     size="sm"
                     type={useFormWrapper ? "submit" : "button"}
                     onClick={useFormWrapper ? undefined : (e) => {

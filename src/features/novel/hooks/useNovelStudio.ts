@@ -10,6 +10,7 @@ import type { Story, StoryChapter } from '@/shared'
 import { chaptersFor } from '../utils/novelUtils'
 
 const CODEX_OPEN_STORAGE_KEY = 'magic_worlds:novel:codexOpen'
+const TYPEWRITER_STORAGE_KEY = 'magic_worlds:novel:typewriter'
 
 export interface NovelStudioApi {
     story: Story | null
@@ -23,6 +24,8 @@ export interface NovelStudioApi {
     toggleFocusMode: () => void
     codexOpen: boolean
     setCodexOpen: (open: boolean) => void
+    typewriter: boolean
+    toggleTypewriter: () => void
     historyOpen: boolean
     setHistoryOpen: (open: boolean) => void
 }
@@ -35,6 +38,14 @@ function readCodexOpen(): boolean {
     }
 }
 
+function readTypewriter(): boolean {
+    try {
+        return window.localStorage.getItem(TYPEWRITER_STORAGE_KEY) === 'true'
+    } catch {
+        return false
+    }
+}
+
 export function useNovelStudio(): NovelStudioApi {
     const { activeStory, createStoryChapter, deleteStoryChapter, updateStory } = useData()
     const { setPage } = useNavigation()
@@ -42,6 +53,7 @@ export function useNovelStudio(): NovelStudioApi {
     const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
     const [focusMode, setFocusMode] = useState(false)
     const [codexOpen, setCodexOpenState] = useState(readCodexOpen)
+    const [typewriter, setTypewriter] = useState(readTypewriter)
     const [historyOpen, setHistoryOpen] = useState(false)
 
     const chapters = chaptersFor(activeStory)
@@ -103,6 +115,18 @@ export function useNovelStudio(): NovelStudioApi {
         }
     }, [])
 
+    const toggleTypewriter = useCallback(() => {
+        setTypewriter((value) => {
+            const next = !value
+            try {
+                window.localStorage.setItem(TYPEWRITER_STORAGE_KEY, String(next))
+            } catch {
+                // Storage unavailable — keep the in-memory state.
+            }
+            return next
+        })
+    }, [])
+
     return {
         story: activeStory,
         chapters,
@@ -115,6 +139,8 @@ export function useNovelStudio(): NovelStudioApi {
         toggleFocusMode: () => setFocusMode((value) => !value),
         codexOpen,
         setCodexOpen,
+        typewriter,
+        toggleTypewriter,
         historyOpen,
         setHistoryOpen,
     }

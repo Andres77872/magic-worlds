@@ -39,6 +39,8 @@ import {
     GeneratedDraftNotice,
     TriggersField,
     FormActions,
+    CardDraftControls,
+    HistoricalVersionBanner,
     QualityHint,
     TriggerHints,
     type StudioNavItem,
@@ -48,9 +50,14 @@ import {
     GuidedSection,
     UseExampleLink,
     readCategoryAttribute,
+    useCardDraft,
+    useCardEditorRoute,
     useGuidedCard,
     type CardTemplate,
 } from '../../common/engine'
+import { buildCardEditHash } from '@/features/gallery/galleryLinks'
+import { LoadingSpinner } from '@/ui/components'
+import { Toast } from '@/ui/primitives/Toast'
 import { CreatorIntro, TemplateGallery } from '../../common/templates'
 import {
     PLACE_TYPE_MIRROR,
@@ -110,9 +117,10 @@ function initialPlaceType(world: World | null | undefined): string {
 
 export function WorldCreator() {
     const { t } = useTranslation()
-    const { goBack } = useNavigation()
+    const { goBack, cardEdit, replaceHash } = useNavigation()
     const { editingWorld, setEditingWorld, loadData } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
+    const routeHasId = cardEdit?.cardType === 'world' && Boolean(cardEdit.cardId)
 
     // One minimal default category; users add details here or create more groups.
     // `id`/`name` are saved-card data; the description is display copy.
@@ -172,6 +180,34 @@ export function WorldCreator() {
 
     const sectionById = useMemo(() => Object.fromEntries(worldSections.map((s) => [s.id, s])), [worldSections])
 
+    /** Re-seed the form fields from a card body (published, draft, or restored version). */
+    const hydrateFromCardBody = (card: WorldCardResponse) => {
+        setName(card.name ?? '')
+        setPlaceType(readWorldPlaceType(card))
+        setType(card.type ?? '')
+        setDescription(card.description ?? '')
+        setTriggers(card.triggers ?? [])
+        setImageUrl(card.image_url)
+        setThemeSongUrl(card.theme_song_url)
+        // The Setting/Place type mirror overrides the place type set above when present.
+        guided.hydrateFrom(card, { preserveActive: true })
+    }
+
+    // Deep-link / refresh: when the URL carries `?card=<id>` but no card is in memory, fetch it and
+    // hydrate the form. No-ops on normal navigation (the gallery sets the card before mount).
+    const { bootstrapping, version } = useCardEditorRoute('world', {
+        onCardLoaded: (raw) => hydrateFromCardBody(raw as WorldCardResponse),
+    })
+
+    // Draft/publish lifecycle: edits save to a private draft; Publish makes it live + a version.
+    const draft = useCardDraft({
+        cardType: 'world',
+        cardId: editingWorld?.id ?? null,
+        version,
+        onDraftLoaded: (body) => hydrateFromCardBody(body as unknown as WorldCardResponse),
+    })
+    const [draftToast, setDraftToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
+
     /** Build the create/update payload from current form state. */
     const buildPayload = () => ({
         name,
@@ -198,13 +234,18 @@ export function WorldCreator() {
             throw new Error(t('creation.world.validation.fieldsForTheme'))
         }
         if (editingWorld) {
-            await apiService.updateWorld(editingWorld.id, buildPayload())
+            // The card already exists — media generation only needs its id. Authored edits stay
+            // in the draft (saved via "Save draft"); we must not publish the body here.
             savedIdRef.current = editingWorld.id
             return editingWorld.id
         }
         const created = await apiService.createWorld(buildPayload())
         const saved = toWorld(created as WorldCardResponse)
-        if (saved.id) setEditingWorld(saved)
+        if (saved.id) {
+            setEditingWorld(saved)
+            // Stamp the new id into the URL so a refresh mid-edit restores this card.
+            replaceHash(buildCardEditHash('world', saved.id))
+        }
         savedIdRef.current = saved.id
         // No loadData() here: a refresh would unmount this creator mid-generation (AppRouter
         // shows a spinner while loading). The new card lands in the gallery on Save.
@@ -222,11 +263,10 @@ export function WorldCreator() {
         setImageUrl(url)
         const id = savedIdRef.current ?? editingWorld?.id
         if (id && url) {
-            void apiService
-                .updateWorld(id, { ...buildPayload(), image_url: url })
-                .catch(() => {
-                    /* best-effort — the asset still exists; Save re-persists the link */
-                })
+            // Media is a published-body property persisted immediately (not part of the draft).
+            void apiService.setCardMedia('world', id, { image_url: url }).catch(() => {
+                /* best-effort — the asset still exists; it re-persists on the next media action */
+            })
         }
     }
 
@@ -242,11 +282,9 @@ export function WorldCreator() {
             // Persist the link only — do NOT loadData() here. A refresh flips isLoading,
             // which makes AppRouter unmount the whole creator (discarding in-progress edits)
             // and re-run the theme effect. The gallery refreshes on Save / next navigation.
-            void apiService
-                .updateWorld(id, { ...buildPayload(), theme_song_url: url })
-                .catch(() => {
-                    /* best-effort — the asset still exists; Save re-persists the link */
-                })
+            void apiService.setCardMedia('world', id, { theme_song_url: url }).catch(() => {
+                /* best-effort — the asset still exists; it re-persists on the next media action */
+            })
         }
     }
 
@@ -277,6 +315,8 @@ export function WorldCreator() {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
+        // Read-only historical view: nothing to save until the version is restored into the draft.
+        if (draft.isHistorical) return
         if (!isAuthenticated) {
             openLoginModal()
             return
@@ -289,15 +329,27 @@ export function WorldCreator() {
         try {
             const payload = buildPayload()
             if (editingWorld) {
-                await apiService.updateWorld(editingWorld.id, payload)
+                // Edit mode: save to the private draft and stay; Publish makes it live + a version.
+                const ok = await draft.saveDraft(payload)
+                setDraftToast(
+                    ok
+                        ? { tone: 'success', message: t('cardVersions.draft.saved') }
+                        : { tone: 'error', message: t('cardVersions.errors.draftSave') },
+                )
             } else {
-                await apiService.createWorld(payload)
+                // Create mode: create the live card, then transition into edit mode (drafts onward).
+                const created = await apiService.createWorld(payload)
+                const saved = toWorld(created as WorldCardResponse)
+                if (saved.id) {
+                    setEditingWorld(saved)
+                    savedIdRef.current = saved.id
+                    // Stamp the new id into the URL so a refresh keeps the freshly-created card.
+                    replaceHash(buildCardEditHash('world', saved.id))
+                }
+                await loadData({ silent: true })
             }
-            setEditingWorld(null)
-            await loadData()
-            goBack('landing')
         } catch (error) {
-            console.error(`Failed to ${editingWorld ? 'update' : 'create'} world:`, error)
+            console.error(`Failed to ${editingWorld ? 'save draft for' : 'create'} world:`, error)
             // Gentle, non-blocking inline message — the form stays put so the
             // user can retry. Transient backend outages get reassuring copy.
             const transient = error instanceof ApiError && error.isTransient
@@ -314,21 +366,27 @@ export function WorldCreator() {
     }
 
     const applyAssistantCard = (card: WorldCardResponse) => {
-        setName(card.name ?? '')
-        setPlaceType(readWorldPlaceType(card))
-        setType(card.type ?? '')
-        setDescription(card.description ?? '')
-        setTriggers(card.triggers ?? [])
-        setImageUrl(card.image_url)
-        setThemeSongUrl(card.theme_song_url)
-        // The Setting/Place type mirror overrides the default set above when present.
-        guided.hydrateFrom(card, { preserveActive: true })
+        hydrateFromCardBody(card)
         setEditingWorld(toWorld(card))
-        savedIdRef.current = card.id || card.uuid || null
+        const newId = card.id || card.uuid || null
+        savedIdRef.current = newId
+        if (newId) replaceHash(buildCardEditHash('world', newId))
         setAssistantApplied(true)
         // AI generation skips the gallery; a picked template's scaffolding survives.
         setTemplate((current) => (current === undefined ? null : current))
         void loadData({ silent: true })
+    }
+
+    /** Leave the read-only historical view by staging that version into the draft for editing. */
+    const handleRestoreHistorical = async () => {
+        const number = draft.viewingVersionNumber
+        if (number == null) return
+        const body = await draft.restoreIntoDraft(number)
+        if (body) {
+            hydrateFromCardBody(body as unknown as WorldCardResponse)
+            if (editingWorld?.id) replaceHash(buildCardEditHash('world', editingWorld.id))
+            setDraftToast({ tone: 'success', message: t('cardVersions.history.restored', { number }) })
+        }
     }
 
     const handleBack = () => {
@@ -373,9 +431,20 @@ export function WorldCreator() {
         />
     )
 
+    // Deep-link / refresh: while the card behind `?card=<id>` loads, show a spinner instead of
+    // flashing the "create" template gallery (its useState mounted empty before the fetch lands).
+    if (bootstrapping || (routeHasId && !editingWorld)) {
+        return (
+            <div className="flex min-h-full flex-1 items-center justify-center">
+                <LoadingSpinner />
+            </div>
+        )
+    }
+
     // The chatbot is rendered as a stable sibling of BOTH screens so the
     // gallery → form transition never remounts an in-flight conversation.
-    if (template === undefined) {
+    // The template gallery is the true "create" entry — only when there's no card and no route id.
+    if (template === undefined && !editingWorld && !routeHasId) {
         return (
             <>
                 <CreatorIntro title={t('creation.world.createTitle')} icon="✨" onBack={handleBack}>
@@ -403,9 +472,26 @@ export function WorldCreator() {
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
-                <Button kind="primary" type="submit" form={FORM_ID} disabled={isSubmitting}>
-                    {isSubmitting ? t('common.saving') : editingWorld ? t('creation.common.studio.update') : t('creation.world.create')}
-                </Button>
+                <>
+                    <Button variant="primary" type="submit" form={FORM_ID} disabled={isSubmitting || draft.isHistorical}>
+                        {isSubmitting
+                            ? t('common.saving')
+                            : editingWorld
+                              ? t('cardVersions.draft.saveButton')
+                              : t('creation.world.create')}
+                    </Button>
+                    <CardDraftControls
+                        cardType="world"
+                        cardId={editingWorld?.id ?? null}
+                        cardName={name.trim() || t('creation.world.untitled')}
+                        draft={draft}
+                        onHydrate={(body) => hydrateFromCardBody(body as unknown as WorldCardResponse)}
+                        onPublished={() => {
+                            void loadData({ silent: true })
+                        }}
+                        disabled={isSubmitting}
+                    />
+                </>
             }
             preview={
                 <StudioPreviewDock
@@ -426,6 +512,13 @@ export function WorldCreator() {
             }
         >
             <form id={FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-6" onKeyDown={handleKeyDown}>
+                {draft.isHistorical && draft.viewingVersionNumber != null && (
+                    <HistoricalVersionBanner
+                        versionNumber={draft.viewingVersionNumber}
+                        onRestore={() => void handleRestoreHistorical()}
+                        busy={draft.busy}
+                    />
+                )}
                 <StudioSection
                     id="identity"
                     icon={sectionById['identity'].icon}
@@ -586,13 +679,21 @@ export function WorldCreator() {
 
                 <FormActions
                     onCancel={handleStudioBack}
-                    submitLabel={editingWorld ? t('creation.world.actions.updateWorld') : t('creation.world.actions.createWorld')}
+                    submitLabel={editingWorld ? t('cardVersions.draft.saveButton') : t('creation.world.actions.createWorld')}
                     isSubmitting={isSubmitting}
+                    disabled={draft.isHistorical}
                     error={saveError}
                 />
             </form>
         </CreatorStudio>
         {chatbot}
+        <Toast
+            open={draftToast !== null}
+            tone={draftToast?.tone ?? 'success'}
+            title={draftToast?.message ?? ''}
+            onClose={() => setDraftToast(null)}
+            autoCloseMs={3000}
+        />
         </>
     )
 }

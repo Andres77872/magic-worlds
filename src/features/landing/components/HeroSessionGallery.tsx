@@ -243,14 +243,14 @@ function HeroSessionSlide({ session, eager, onOpen, onBeginNew }: HeroSessionSli
                 </p>
                 <div className="flex flex-wrap items-center gap-3 pt-1">
                     <Button
-                        kind={isArcane ? 'arcane' : 'primary'}
+                        variant={isArcane ? 'arcane' : 'primary'}
                         size="lg"
                         iconLeft={<Icon icon={actionIcon} size={18} />}
                         onClick={onOpen}
                     >
                         {actionLabel}
                     </Button>
-                    <Button kind="secondary" onClick={onBeginNew}>
+                    <Button variant="secondary" onClick={onBeginNew}>
                         {t('landing.heroGallery.beginNew')}
                     </Button>
                 </div>

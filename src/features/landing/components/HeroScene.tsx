@@ -136,7 +136,7 @@ export function HeroScene({
                 )}
                 <div className="flex flex-wrap items-center gap-3 pt-1">
                     <Button
-                        kind="primary"
+                        variant="primary"
                         size="lg"
                         iconLeft={primary.icon ? <Icon icon={primary.icon} size={18} /> : undefined}
                         onClick={primary.onClick}
@@ -144,7 +144,7 @@ export function HeroScene({
                         {primary.label}
                     </Button>
                     {secondary && (
-                        <Button kind="secondary" onClick={secondary.onClick}>
+                        <Button variant="secondary" onClick={secondary.onClick}>
                             {secondary.label}
                         </Button>
                     )}

@@ -32,7 +32,7 @@ export function CreatorIntro({ eyebrow, title, icon, onBack, children, overlay }
                 icon={icon ? <span className="text-[28px] leading-none max-sm:text-2xl">{icon}</span> : undefined}
                 divider
                 actions={
-                    <Button kind="ghost" onClick={onBack} iconLeft={<Icon icon={ArrowLeft} size={16} />}>
+                    <Button variant="ghost" onClick={onBack} iconLeft={<Icon icon={ArrowLeft} size={16} />}>
                         {t('creation.common.back')}
                     </Button>
                 }

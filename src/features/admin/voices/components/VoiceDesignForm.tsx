@@ -84,7 +84,7 @@ export function VoiceDesignForm({ onCreated, notify, setError, onSendToLab }: Vo
             <div className="flex justify-end">
                 <Button
                     type="submit"
-                    kind="primary"
+                    variant="primary"
                     iconLeft={<Icon icon={designing ? Loader2 : WandSparkles} size={15} className={designing ? 'animate-spin' : undefined} />}
                     disabled={!canDesign}
                 >

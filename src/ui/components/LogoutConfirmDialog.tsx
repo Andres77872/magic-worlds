@@ -21,16 +21,16 @@ export function LogoutConfirmDialog({ open, username, onCancel, onConfirm }: Log
             showClose={false}
             footer={
                 <>
-                    <Button kind="secondary" onClick={onCancel}>
+                    <Button variant="secondary" onClick={onCancel}>
                         {t('logout.cancel')}
                     </Button>
-                    <Button kind="primary" onClick={onConfirm} iconLeft={<Icon icon={LogOut} size={16} />}>
+                    <Button variant="primary" onClick={onConfirm} iconLeft={<Icon icon={LogOut} size={16} />}>
                         {t('logout.confirm')}
                     </Button>
                 </>
             }
         >
-            <div className="flex flex-col gap-3 text-[15px] leading-relaxed text-parchment-200">
+            <div className="flex flex-col gap-3 text-body leading-relaxed text-parchment-200">
                 <p>
                     {username ? (
                         <>

@@ -7,7 +7,7 @@
 
 import { useTranslation } from 'react-i18next'
 import { MODE_META, type PlayMode } from '@/shared/modes'
-import { Eyebrow, IconTile } from '@/ui/primitives'
+import { Eyebrow, IconTile, cx } from '@/ui/primitives'
 import { MODE_EXPLAINER_MODES } from './landingContent'
 
 export function TwoWaysToPlay() {
@@ -24,12 +24,23 @@ export function TwoWaysToPlay() {
                 <div className="grid gap-[22px] sm:grid-cols-2">
                     {MODE_EXPLAINER_MODES.map(({ mode, bodyKey }) => {
                         const meta = MODE_META[mode as PlayMode]
-                        const hover = meta.tone === 'ember' ? 'hover:border-ember-500/30' : 'hover:border-arcane-500/30'
+                        const isArcane = meta.tone === 'arcane'
+                        const glint = isArcane ? 'via-arcane-500/40' : 'via-ember-500/40'
                         return (
                             <div
                                 key={mode}
-                                className={`rounded-xl border border-parchment-50/[.06] bg-ink-700 px-[26px] pb-7 pt-[30px] transition-colors ${hover}`}
+                                className={cx(
+                                    'group lift relative overflow-hidden rounded-xl border border-line-faint bg-gradient-to-b from-ink-700 to-ink-800 px-[26px] pb-7 pt-[30px]',
+                                    isArcane && 'lift-arcane',
+                                )}
                             >
+                                <span
+                                    aria-hidden
+                                    className={cx(
+                                        'pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent to-transparent',
+                                        glint,
+                                    )}
+                                />
                                 <IconTile icon={meta.icon} tone={meta.tone} glow className="mb-5" />
                                 <h3 className="mb-[9px] font-ui text-[19px] font-semibold tracking-[-0.01em] text-parchment-50">
                                     {meta.label}

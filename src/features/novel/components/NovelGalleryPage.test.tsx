@@ -6,8 +6,10 @@ import { i18n } from '@/app/i18n'
 
 const setPage = vi.fn()
 const createStory = vi.fn()
+const openLoginModal = vi.fn()
 const openStory = vi.fn().mockResolvedValue(undefined)
 const deleteStory = vi.fn().mockResolvedValue(undefined)
+let authed = true
 
 // GalleryCard deep-imports the playlist hook (not the barrel) to keep the
 // primitives module graph light, so it gets its own mock.
@@ -22,7 +24,7 @@ vi.mock('@/app/hooks/usePlaylist', () => ({
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useAuth: () => ({ isAuthenticated: true, openLoginModal: vi.fn() }),
+    useAuth: () => ({ isAuthenticated: authed, openLoginModal }),
     useNavigation: () => ({ setPage }),
     useData: () => ({ createStory, openStory, deleteStory }),
 }))
@@ -94,6 +96,7 @@ function renderSpanish(ui: ReactElement) {
 describe('NovelGalleryPage', () => {
     beforeEach(async () => {
         await i18n.changeLanguage('en')
+        authed = true
         vi.clearAllMocks()
         if (!globalThis.IntersectionObserver) {
             vi.stubGlobal('IntersectionObserver', class IntersectionObserver {
@@ -116,6 +119,21 @@ describe('NovelGalleryPage', () => {
         expect(apiService.getStories).toHaveBeenCalledWith(0, 24, undefined)
         expect(screen.getByText('Aria')).toBeInTheDocument()
         expect(screen.getAllByText('1 chapter').length).toBe(2)
+    })
+
+    it('renders signed-out without fetching and opens login from create', async () => {
+        authed = false
+
+        render(<NovelGalleryPage />)
+
+        expect(await screen.findByText('No novels yet')).toBeInTheDocument()
+        expect(apiService.getStories).not.toHaveBeenCalled()
+        expect(openLoginModal).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getAllByRole('button', { name: /New novel/ })[0])
+
+        expect(openLoginModal).toHaveBeenCalledTimes(1)
+        expect(screen.queryByRole('dialog', { name: 'New novel' })).not.toBeInTheDocument()
     })
 
     it('fires a debounced server search with the typed query', async () => {

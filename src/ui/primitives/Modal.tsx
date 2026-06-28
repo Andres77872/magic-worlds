@@ -63,7 +63,7 @@ export function Modal({
                 aria-labelledby={title ? titleId : undefined}
                 tabIndex={-1}
                 className={cx(
-                    'w-full overflow-hidden rounded-2xl border border-parchment-50/10 bg-ink-700 shadow-lg outline-none',
+                    'flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-parchment-50/10 bg-ink-700 shadow-lg outline-none',
                     MAX[size],
                     className,
                 )}
@@ -74,7 +74,7 @@ export function Modal({
                         <div className="flex items-center gap-2.5">
                             {icon}
                             {title && (
-                                <h2 id={titleId} className="font-display text-[24px] font-semibold text-parchment-50">
+                                <h2 id={titleId} className="font-display text-h3 font-semibold text-parchment-50">
                                     {title}
                                 </h2>
                             )}
@@ -86,9 +86,11 @@ export function Modal({
                         )}
                     </div>
                 )}
-                <div className="px-6 py-6">{children}</div>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6">{children}</div>
                 {footer && (
-                    <div className="flex justify-end gap-2 border-t border-parchment-50/10 px-6 py-4">{footer}</div>
+                    <div className="flex flex-col items-stretch gap-2 border-t border-parchment-50/10 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
+                        {footer}
+                    </div>
                 )}
             </div>
         </div>,

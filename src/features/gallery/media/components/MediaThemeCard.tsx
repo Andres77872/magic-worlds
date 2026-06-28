@@ -54,7 +54,7 @@ export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, o
                 playing
                     ? 'border-ember-500/40 shadow-glow-ember'
                     : 'border-arcane-500/20 hover:border-arcane-400/40 hover:shadow-glow-arcane',
-                deleting && 'pointer-events-none opacity-40',
+                deleting && 'pointer-events-none opacity-60',
             )}
             aria-busy={deleting}
             data-testid="media-theme-card"

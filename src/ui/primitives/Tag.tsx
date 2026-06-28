@@ -8,7 +8,7 @@ export function Tag({ className, children, ...rest }: HTMLAttributes<HTMLSpanEle
     return (
         <span
             className={cx(
-                'inline-flex items-center rounded-full bg-ink-600 px-2.5 py-[3px] font-ui text-[11px] font-semibold text-parchment-200',
+                'inline-flex items-center rounded-full bg-ink-600 px-2.5 py-[3px] font-ui text-meta font-semibold text-parchment-200',
                 className,
             )}
             {...rest}

@@ -7,16 +7,21 @@ import { normalizeLorebookList } from '../lorebookTransforms'
 const PAGE_SIZE = 24
 const SEARCH_DEBOUNCE_MS = 300
 
+interface LorebookGalleryOptions {
+    enabled?: boolean
+}
+
 function appendDeduped(prev: Lorebook[], page: Lorebook[]): Lorebook[] {
     const seen = new Set(prev.map((item) => item.id))
     return [...prev, ...page.filter((item) => !seen.has(item.id))]
 }
 
-export function useLorebookGallery(pageSize = PAGE_SIZE) {
+export function useLorebookGallery(pageSize = PAGE_SIZE, options: LorebookGalleryOptions = {}) {
+    const enabled = options.enabled ?? true
     const [items, setItems] = useState<Lorebook[]>([])
     const [query, setQuery] = useState('')
     const [debouncedQuery, setDebouncedQuery] = useState('')
-    const [loading, setLoading] = useState(true)
+    const [loading, setLoading] = useState(enabled)
     const [loadingMore, setLoadingMore] = useState(false)
     const [hasMore, setHasMore] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -28,7 +33,19 @@ export function useLorebookGallery(pageSize = PAGE_SIZE) {
         return () => clearTimeout(timer)
     }, [query])
 
+    useEffect(() => {
+        if (enabled) return
+        seqRef.current += 1
+        skipRef.current = 0
+        setItems([])
+        setLoading(false)
+        setLoadingMore(false)
+        setHasMore(false)
+        setError(null)
+    }, [enabled])
+
     const fetchPage = useCallback(async (reset: boolean) => {
+        if (!enabled) return
         const seq = ++seqRef.current
         const skip = reset ? 0 : skipRef.current
         if (reset) setLoading(true)
@@ -52,16 +69,17 @@ export function useLorebookGallery(pageSize = PAGE_SIZE) {
                 setLoadingMore(false)
             }
         }
-    }, [debouncedQuery, pageSize])
+    }, [debouncedQuery, enabled, pageSize])
 
     useEffect(() => {
+        if (!enabled) return
         void fetchPage(true)
-    }, [fetchPage])
+    }, [enabled, fetchPage])
 
     const loadMore = useCallback(() => {
-        if (loading || loadingMore || !hasMore) return
+        if (!enabled || loading || loadingMore || !hasMore) return
         void fetchPage(false)
-    }, [fetchPage, hasMore, loading, loadingMore])
+    }, [enabled, fetchPage, hasMore, loading, loadingMore])
 
     const removeItem = useCallback((id: string) => {
         setItems((prev) => {
@@ -71,17 +89,28 @@ export function useLorebookGallery(pageSize = PAGE_SIZE) {
         })
     }, [])
 
+    const upsertItem = useCallback((lorebook: Lorebook) => {
+        setItems((prev) => {
+            const index = prev.findIndex((item) => item.id === lorebook.id)
+            if (index < 0) return [lorebook, ...prev]
+            return prev.map((item) => (item.id === lorebook.id ? lorebook : item))
+        })
+    }, [])
+
     return {
         items,
         query,
         setQuery,
-        searching: query.trim() !== debouncedQuery || (loading && debouncedQuery !== ''),
+        searching: enabled && (query.trim() !== debouncedQuery || (loading && debouncedQuery !== '')),
         loading,
         loadingMore,
         hasMore,
         error,
         loadMore,
-        refresh: () => void fetchPage(true),
+        refresh: () => {
+            if (enabled) void fetchPage(true)
+        },
         removeItem,
+        upsertItem,
     }
 }

@@ -6,22 +6,27 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookMarked, History, Minimize2, PanelRightOpen, Save } from 'lucide-react'
+import { AlignVerticalSpaceAround, BookMarked, History, Minimize2, PanelRightOpen, Save } from 'lucide-react'
 import type { Story } from '@/shared'
 import { Button, Eyebrow, Icon, cx } from '@/ui/primitives'
 import { formatSaveState, storySourceLabel, type NovelSaveState } from '../utils/novelUtils'
+import { WordGoalControl } from './WordGoalControl'
 
 interface NovelStudioHeaderProps {
     story: Story
     saveState: NovelSaveState
     lastSavedAt: Date | null
     words: number
+    goal: number | null
+    onSetGoal: (goal: number | null) => void
     focusMode: boolean
     codexOpen: boolean
+    typewriter: boolean
     saveDisabled?: boolean
     onSave: () => void
     onToggleFocusMode: () => void
     onToggleCodex: () => void
+    onToggleTypewriter: () => void
     onOpenHistory: () => void
     onSaveMeta: (patch: { title?: string; description?: string }) => void
 }
@@ -31,12 +36,16 @@ export function NovelStudioHeader({
     saveState,
     lastSavedAt,
     words,
+    goal,
+    onSetGoal,
     focusMode,
     codexOpen,
+    typewriter,
     saveDisabled,
     onSave,
     onToggleFocusMode,
     onToggleCodex,
+    onToggleTypewriter,
     onOpenHistory,
     onSaveMeta,
 }: NovelStudioHeaderProps) {
@@ -102,13 +111,22 @@ export function NovelStudioHeader({
                     >
                         {formatSaveState(saveState, lastSavedAt, t)}
                     </span>
-                    <span className="font-ui text-xs text-parchment-400">{t('novelEditor.header.words', { count: words, formatted: words.toLocaleString() })}</span>
-                    <Button kind="ghost" size="sm" iconLeft={<Icon icon={History} size={15} />} onClick={onOpenHistory}>
+                    <WordGoalControl words={words} goal={goal} onSetGoal={onSetGoal} />
+                    <Button
+                        variant={typewriter ? 'secondary' : 'ghost'}
+                        size="sm"
+                        iconLeft={<Icon icon={AlignVerticalSpaceAround} size={15} />}
+                        onClick={onToggleTypewriter}
+                        aria-pressed={typewriter}
+                    >
+                        {t('novelEditor.header.typewriter')}
+                    </Button>
+                    <Button variant="ghost" size="sm" iconLeft={<Icon icon={History} size={15} />} onClick={onOpenHistory}>
                         {t('novelEditor.header.history')}
                     </Button>
                     {!focusMode && (
                         <Button
-                            kind={codexOpen ? 'secondary' : 'ghost'}
+                            variant={codexOpen ? 'secondary' : 'ghost'}
                             size="sm"
                             iconLeft={<Icon icon={BookMarked} size={15} />}
                             onClick={onToggleCodex}
@@ -118,7 +136,7 @@ export function NovelStudioHeader({
                         </Button>
                     )}
                     <Button
-                        kind="secondary"
+                        variant="secondary"
                         size="sm"
                         iconLeft={<Icon icon={focusMode ? PanelRightOpen : Minimize2} size={15} />}
                         onClick={onToggleFocusMode}
@@ -126,7 +144,7 @@ export function NovelStudioHeader({
                         {focusMode ? t('novelEditor.header.panels') : t('novelEditor.header.focus')}
                     </Button>
                     <Button
-                        kind="primary"
+                        variant="primary"
                         size="sm"
                         iconLeft={<Icon icon={Save} size={15} />}
                         onClick={onSave}

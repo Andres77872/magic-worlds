@@ -83,7 +83,7 @@ export function PasswordResetPage() {
                     <Icon icon={AlertTriangle} size={40} className="text-blood-500" />
                     <h1 className="font-display text-h2 font-semibold text-parchment-50">{t('passwordReset.invalidToken.title')}</h1>
                     <p className="font-ui text-[14px] text-parchment-300">{t('passwordReset.invalidToken.body')}</p>
-                    <Button kind="secondary" iconLeft={<Icon icon={KeyRound} size={16} />} onClick={goToSignIn}>
+                    <Button variant="secondary" iconLeft={<Icon icon={KeyRound} size={16} />} onClick={goToSignIn}>
                         {t('passwordReset.requestNew')}
                     </Button>
                 </Card>

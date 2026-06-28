@@ -19,13 +19,20 @@ import { AudioPlaylistProvider } from '../src/app/providers/AudioPlaylistProvide
  */
 const withReverieFrame: Decorator = (Story, context) => {
   const locale = (context.globals.locale as string) ?? 'en'
+  const reduceMotion = context.globals.reduceMotion === 'reduce'
   useEffect(() => {
     void i18n.changeLanguage(locale)
   }, [locale])
   return (
     <I18nextProvider i18n={i18n}>
       <AudioPlaylistProvider>
-        <div className="font-ui text-parchment-50" style={{ padding: '1.5rem' }}>
+        {/* The toolbar "Motion" toggle injects the same collapse the theme applies
+            under prefers-reduced-motion, so the motion tokens can be reviewed both
+            ways without changing OS settings. */}
+        {reduceMotion && (
+          <style>{`*,::before,::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}`}</style>
+        )}
+        <div className="font-ui text-fg" style={{ padding: '1.5rem' }}>
           <Story />
         </div>
       </AudioPlaylistProvider>
@@ -56,7 +63,7 @@ const preview: Preview = {
       storySort: {
         order: [
           'Design System',
-          ['Overview', 'Foundations', 'Brand'],
+          ['Overview', 'Foundations', 'Patterns', 'Brand'],
           'Primitives',
           'Components',
           'Creation',
@@ -69,6 +76,7 @@ const preview: Preview = {
   initialGlobals: {
     backgrounds: { value: 'ink800' },
     locale: 'en',
+    reduceMotion: 'normal',
   },
   globalTypes: {
     locale: {
@@ -79,6 +87,18 @@ const preview: Preview = {
         items: [
           { value: 'en', title: 'English' },
           { value: 'es', title: 'Español' },
+        ],
+        dynamicTitle: true,
+      },
+    },
+    reduceMotion: {
+      description: 'Simulate prefers-reduced-motion',
+      toolbar: {
+        title: 'Motion',
+        icon: 'lightning',
+        items: [
+          { value: 'normal', title: 'Motion: full' },
+          { value: 'reduce', title: 'Motion: reduced' },
         ],
         dynamicTitle: true,
       },

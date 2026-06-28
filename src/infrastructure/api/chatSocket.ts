@@ -10,12 +10,13 @@
  */
 
 import type { ChatMessage } from '../../shared/types/auth.types'
-import type { ChatSocketServerMessage } from '../../shared/types/interaction.types'
+import type { ChatGenerationOptions, ChatSocketServerMessage } from '../../shared/types/interaction.types'
 import { API_BASE_URL } from './baseUrl'
 
 const WS_BEARER_SUBPROTOCOL = 'mw.bearer.v1'
 const HEARTBEAT_MS = 25_000
 const MAX_RECONNECT_MS = 30_000
+const CHAT_AUTH_REFRESH_SKEW_MS = 60_000
 
 let refreshAccessTokenForSocket: (() => Promise<string>) | null = null
 
@@ -40,6 +41,31 @@ function toWsUrl(base: string): string {
 function getStoredToken(): string {
     const token = localStorage.getItem('magic_worlds:token')
     return token ? token.replace(/"/g, '') : ''
+}
+
+function decodeBase64UrlJson(value: string): unknown {
+    const base64 = value.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    return JSON.parse(atob(padded))
+}
+
+function accessTokenExpiresAtMs(token: string): number | null {
+    const payload = token.split('.')[1]
+    if (!payload) return null
+    try {
+        const decoded = decodeBase64UrlJson(payload)
+        if (typeof decoded !== 'object' || decoded === null) return null
+        const exp = (decoded as { exp?: unknown }).exp
+        const seconds = typeof exp === 'number' ? exp : Number(exp)
+        return Number.isFinite(seconds) ? seconds * 1_000 : null
+    } catch {
+        return null
+    }
+}
+
+function shouldRefreshBeforeChat(token: string, nowMs: number = Date.now()): boolean {
+    const expiresAt = accessTokenExpiresAtMs(token)
+    return expiresAt !== null && expiresAt - nowMs <= CHAT_AUTH_REFRESH_SKEW_MS
 }
 
 export type ChatSocketStatus = 'connecting' | 'open' | 'closed'
@@ -100,6 +126,17 @@ export class ChatSocket {
             this.setStatus('open')
             this.startHeartbeat()
             if (this.pendingChat) {
+                const pendingFrame = this.pendingChat
+                const storedToken = getStoredToken()
+                if (!storedToken) {
+                    this.pendingChat = null
+                    this.expireAuth()
+                    return
+                }
+                if (shouldRefreshBeforeChat(storedToken)) {
+                    void this.refreshBeforeSendingPendingChat(pendingFrame)
+                    return
+                }
                 ws.send(this.pendingChat)
                 this.pendingChat = null
             }
@@ -139,8 +176,18 @@ export class ChatSocket {
     }
 
     /** Request a generation. Queues until the socket is OPEN, (re)connecting if needed. */
-    sendChat(messages: ChatMessage[]): void {
-        const frame = JSON.stringify({ type: 'chat', messages })
+    sendChat(messages: ChatMessage[], options: ChatGenerationOptions = { generateImage: true, suggestActions: true }): void {
+        const frame = JSON.stringify({ type: 'chat', messages, options })
+        const token = getStoredToken()
+        if (!token) {
+            this.expireAuth()
+            return
+        }
+        if (shouldRefreshBeforeChat(token)) {
+            this.pendingChat = frame
+            void this.refreshBeforeSendingPendingChat(frame)
+            return
+        }
         if (this.isOpen) {
             this.ws!.send(frame)
             return
@@ -224,6 +271,59 @@ export class ChatSocket {
     private detach(ws: WebSocket | null): void {
         if (!ws) return
         ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null
+    }
+
+    private retireCurrentSocketForAuthRefresh(): void {
+        this.stopHeartbeat()
+        const ws = this.ws
+        if (!ws) return
+        this.detach(ws)
+        if (ws.readyState === WebSocket.CONNECTING) {
+            ws.onopen = () => {
+                try {
+                    ws.close(1000)
+                } catch {
+                    // ignore
+                }
+            }
+        } else {
+            try {
+                ws.close(1000)
+            } catch {
+                // ignore
+            }
+        }
+        this.ws = null
+        this.setStatus('closed')
+    }
+
+    private async refreshBeforeSendingPendingChat(expectedFrame: string): Promise<void> {
+        if (this.closedByUser || this.pendingChat !== expectedFrame) return
+        this.retireCurrentSocketForAuthRefresh()
+        if (!refreshAccessTokenForSocket) {
+            this.pendingChat = null
+            this.expireAuth()
+            return
+        }
+
+        try {
+            await refreshAccessTokenForSocket()
+            this.authRecoveryAttempted = false
+        } catch (error) {
+            if (this.pendingChat === expectedFrame) {
+                this.pendingChat = null
+            }
+            if (this.isTerminalRefreshError(error)) {
+                if (!this.closedByUser) this.expireAuth()
+                return
+            }
+            if (!this.closedByUser) this.reportRecoverableAuthFailure()
+            return
+        }
+
+        if (!this.closedByUser && this.pendingChat === expectedFrame) {
+            this.connect()
+        }
     }
 
     private async recoverFromAuthClose(): Promise<void> {

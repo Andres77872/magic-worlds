@@ -1,0 +1,81 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import { Field, Input } from '../../primitives/Field'
+import { Stage } from '../Swatch'
+
+<Meta title="Design System/Patterns/Forms" />
+
+# Forms
+
+Reverie forms are quiet. A field is a **label above a control**, with one line of
+guidance below — helper text when all is well, an error when it isn't. The chrome
+recedes so the writing (a character name, a backstory, a world's premise) stays the
+focus.
+
+Every control shares one wrapper, `Field`, and one focus treatment: the candlelit
+ember edge. The building blocks are `Input`, `Textarea`, `Select`, `SuggestInput`,
+and `Switch` — interchangeable inside a `Field`.
+
+## Anatomy
+
+<Stage>
+  <div style={{ maxWidth: 360 }}>
+    <Field label="Character name" helper="The name your companions will call you.">
+      <Input placeholder="e.g. Lyra Dawnwhisper" />
+    </Field>
+  </div>
+</Stage>
+
+A `Field` renders, top to bottom: a real `<label>`, the control, then the message
+line. Pass `label`, then exactly one of `helper` or `error` — **error wins** and
+turns the line blood-red.
+
+## Label wiring via FieldContext
+
+`Field` generates one id (via `useId`) and shares it through `FieldContext`. The
+visible `<label htmlFor>` points at that id, and whichever control sits inside reads
+the same id back off the context. This means a single, correct label/control pairing
+with no manual `id` plumbing — and it works for **button-based controls** (`Select`,
+`Switch`) too, where a native `<label for>` would otherwise double-fire the click.
+
+You can still pass an explicit `htmlFor` to `Field` (or `id` to the control) when you
+need to own the id; the context only fills the gap when you don't.
+
+## Validation
+
+Set `error` on the `Field` and three things happen at once:
+
+- the **message line** switches from muted helper text to blood-red error text;
+- the control gets **`aria-invalid`**, which the shared control style paints as a soft `blood-500/60` border;
+- the error text gets an id wired to the control's **`aria-describedby`**, so a screen reader announces the reason on focus.
+
+Error and helper never show together — `error` replaces `helper`, and the
+`describedById` points at whichever one is live. Keep error text short and in-world:
+*"A name is required to begin."*, not *"Validation failed: field is required."*
+
+## The candlelit focus
+
+Controls don't use the global 4px ember ring. They use **`shadow-input-focus`** — a
+1px ember edge plus a soft inner glow — which reads as the field *catching the
+candlelight* rather than being boxed. It only appears on **keyboard focus**
+(`focus-visible`), and overrides the global ring there. The shared look lives in
+`controlBaseClass`:
+
+- resting: `bg-surface-raised`, hairline `border-line`, parchment text;
+- hover: border brightens to `border-line-strong`;
+- focus-visible: `border-ember-500` + `shadow-input-focus`;
+- invalid: `border-blood-500/60`;
+- disabled: dimmed to 50% with `not-allowed`.
+
+`Input` and `Textarea` carry this directly; `Select` and `SuggestInput` compose
+`controlBaseClass` into their triggers so the whole family focuses identically.
+
+## The controls
+
+- **`Input` / `Textarea`** — plain text. `Textarea` adds a minimum height and vertical resize.
+- **`Select`** — themed replacement for native `<select>`; the option list portals to `<body>` and renders the dark candlelit popup at the popover z-rung so it survives overflow and stacks above any surrounding Drawer/Modal.
+- **`SuggestInput`** — a *creatable* combobox: the value is always free text, with described suggestions the user may pick instead of type. Use it where examples should teach a field (race, genre, item type) without ever constraining it.
+- **`Switch`** — a boolean toggle (`role="switch"`, ember-on track). For settings lists, reach for **`SwitchRow`**: a bordered row with label + description on the left and the switch on the right.
+
+> All five read their id and validity from the nearest `Field` through
+> `FieldContext`, so any of them can be dropped into the same wrapper and stay
+> labelled and accessible.

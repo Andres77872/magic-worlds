@@ -6,6 +6,7 @@
 
 import type { Adventure, Character, Item, World } from '../shared'
 import type { CardActor, CardVisibility } from '../shared'
+import type { CharacterVoice } from '../shared/types/voicePreset.types'
 import { readWorldPlaceType } from '../shared'
 
 /**
@@ -40,6 +41,7 @@ interface RawCardRow {
     system_instructions?: string
     image_url?: string
     theme_song_url?: string
+    voice?: CharacterVoice
     visibility?: CardVisibility
     original_creator?: CardActor
     latest_version_id?: string | null
@@ -51,6 +53,23 @@ interface RawCardRow {
     updatedAt?: string
     created_at?: string
     updated_at?: string
+}
+
+function readCharacterVoice(value: unknown): CharacterVoice | undefined {
+    if (!value || typeof value !== 'object') return undefined
+    const voice = value as Partial<CharacterVoice>
+    const voiceId = typeof voice.voice_id === 'string' ? voice.voice_id.trim() : ''
+    if (!voiceId) return undefined
+    return {
+        voice_id: voiceId,
+        ...(voice.speed !== undefined ? { speed: voice.speed } : {}),
+        ...(voice.vol !== undefined ? { vol: voice.vol } : {}),
+        ...(voice.pitch !== undefined ? { pitch: voice.pitch } : {}),
+        ...(voice.emotion !== undefined ? { emotion: voice.emotion } : {}),
+        ...(voice.language_boost !== undefined ? { language_boost: voice.language_boost } : {}),
+        ...(voice.preset_id !== undefined ? { preset_id: voice.preset_id } : {}),
+        ...(voice.preset_name !== undefined ? { preset_name: voice.preset_name } : {}),
+    }
 }
 
 export function transformCharacters(raw: unknown): Character[] {
@@ -68,6 +87,7 @@ export function transformCharacters(raw: unknown): Character[] {
         system_instructions: char.system_instructions,
         image_url: char.image_url,
         theme_song_url: char.theme_song_url,
+        voice: readCharacterVoice(char.voice),
         visibility: char.visibility,
         original_creator: char.original_creator,
         latest_version_id: char.latest_version_id,

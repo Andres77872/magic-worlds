@@ -101,6 +101,20 @@ function renderSidebar(auth: AuthValue, apiStatus: ApiStatusContextValue = depen
     )
 }
 
+function stubRect(element: Element) {
+    vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+        x: 32,
+        y: 80,
+        top: 80,
+        left: 32,
+        right: 72,
+        bottom: 120,
+        width: 40,
+        height: 40,
+        toJSON: () => ({}),
+    } as DOMRect)
+}
+
 describe('Sidebar API status', () => {
     beforeEach(() => {
         vi.clearAllMocks()
@@ -141,7 +155,8 @@ describe('Sidebar API status', () => {
 
         expect(await screen.findByRole('status', { name: 'API online' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Chatroom' })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Active adventures' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Started adventures' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Novels' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Items' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Tasks' })).toBeInTheDocument()
 
@@ -182,12 +197,38 @@ describe('Sidebar API status', () => {
         expect(items).toHaveAttribute('aria-current', 'page')
     })
 
+    it('opens library routes while signed out without prompting login', async () => {
+        const openLoginModal = vi.fn()
+        renderSidebar({ ...baseAuth, openLoginModal })
+
+        const items = screen.getByRole('button', { name: 'Items' })
+        fireEvent.click(items)
+
+        expect(items).toHaveAttribute('aria-current', 'page')
+        expect(openLoginModal).not.toHaveBeenCalled()
+    })
+
     it('renders the grouped navigation section headers', async () => {
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
 
         expect(await screen.findByRole('button', { name: 'Activity' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Assets' })).toBeInTheDocument()
+    })
+
+    it('keeps direct asset destinations without the removed assets hub item', async () => {
+        renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
+
+        await screen.findByRole('button', { name: 'Assets' })
+        const assetsGroup = document.querySelector('#sidebar-group-assets')
+        expect(assetsGroup).toBeInTheDocument()
+
+        const group = within(assetsGroup as HTMLElement)
+        expect(group.queryByRole('button', { name: 'Assets' })).not.toBeInTheDocument()
+        expect(group.getByRole('button', { name: 'Lorebooks' })).toBeInTheDocument()
+        expect(group.getByRole('button', { name: 'Resources' })).toBeInTheDocument()
+        expect(group.getByRole('button', { name: 'Media' })).toBeInTheDocument()
+        expect(group.getByRole('button', { name: 'Voices' })).toBeInTheDocument()
     })
 
     it('toggles a navigation group from its header', async () => {
@@ -203,10 +244,19 @@ describe('Sidebar API status', () => {
         expect(libraryHeader).toHaveAttribute('aria-expanded', 'true')
     })
 
-    it('opens active adventures from the primary rail', async () => {
+    it('keeps started adventures and novels in the activity group', async () => {
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
 
-        const activeAdventures = screen.getByRole('button', { name: 'Active adventures' })
+        const activity = document.querySelector('#sidebar-group-activity')
+        expect(activity).toBeInTheDocument()
+        expect(within(activity as HTMLElement).getByRole('button', { name: 'Started adventures' })).toBeInTheDocument()
+        expect(within(activity as HTMLElement).getByRole('button', { name: 'Novels' })).toBeInTheDocument()
+    })
+
+    it('opens started adventures from the activity rail', async () => {
+        renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
+
+        const activeAdventures = screen.getByRole('button', { name: 'Started adventures' })
         fireEvent.click(activeAdventures)
 
         expect(activeAdventures).toHaveAttribute('aria-current', 'page')
@@ -240,6 +290,35 @@ describe('Sidebar API status', () => {
 
         expect(sidebar).toHaveAttribute('data-sidebar-collapsed', 'false')
         expect(window.localStorage.getItem('magic-worlds-sidebar-collapsed')).toBe('false')
+    })
+
+    it('shows collapsed rail labels in a body portal on hover', async () => {
+        renderSidebar(baseAuth)
+        fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+
+        const community = screen.getByRole('button', { name: 'Community' })
+        const wrapper = community.parentElement as HTMLElement
+        stubRect(wrapper)
+        fireEvent.mouseEnter(wrapper)
+
+        const tooltip = await screen.findByRole('tooltip', { name: 'Community' })
+        expect(tooltip.parentElement).toBe(document.body)
+        expect(wrapper).not.toContainElement(tooltip)
+        expect(tooltip).toHaveClass('z-[100]')
+    })
+
+    it('shows the collapsed account label in a body portal on hover', async () => {
+        renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
+        fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+
+        const account = screen.getByRole('button', { name: 'Account menu' })
+        const wrapper = account.parentElement as HTMLElement
+        stubRect(wrapper)
+        fireEvent.mouseEnter(wrapper)
+
+        const tooltip = await screen.findByRole('tooltip', { name: 'Lyra the Bard' })
+        expect(tooltip.parentElement).toBe(document.body)
+        expect(wrapper).not.toContainElement(tooltip)
     })
 
     it('confirms before logging out from the account menu', async () => {

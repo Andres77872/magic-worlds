@@ -9,6 +9,7 @@
  * protected media blobs through the authed media hook).
  */
 import heroImage from './hero.webp'
+import notFoundImage from './not-found.webp'
 
 import adventuresImg from './features/adventures.webp'
 import charactersImg from './features/characters.webp'
@@ -47,6 +48,9 @@ import wordmarkDark from '@/assets/brand/wordmark-ink.png' // dark lockup — fo
 
 /** Wide candlelit hero tableau (2560×1440). */
 export const heroArt = heroImage
+
+/** "Lost on a fading map" tableau (1536×1024) — the 404 / not-found view hero. */
+export const notFoundArt = notFoundImage
 
 /**
  * Per-feature illustration, keyed by the create-action key (matches
@@ -87,6 +91,7 @@ export const docsArt: Record<string, string> = {
     'voice-presets': docsVoicePresetsImg,
     voice: docsVoiceImg,
     writing: docsWritingImg,
+    resources: lorebookImg,
     media: docsMediaImg,
     'best-practices': docsBestPracticesImg,
 }

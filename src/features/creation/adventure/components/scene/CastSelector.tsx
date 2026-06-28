@@ -55,7 +55,6 @@ export function CastSelector({ characters, selectedIds, onToggle, onCreateCharac
                         name={c.name}
                         race={c.race}
                         description={c.description}
-                        mode="check"
                         selected={selectedIds.includes(c.id)}
                         onToggle={() => onToggle(c.id)}
                     />

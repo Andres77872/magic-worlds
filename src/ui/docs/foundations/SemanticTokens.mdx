@@ -1,0 +1,40 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import { SemanticScales } from '../Swatch'
+
+<Meta title="Design System/Foundations/Semantic Tokens" />
+
+# Semantic Tokens
+
+The [Colors](?path=/docs/design-system-foundations-colors--docs) page shows the
+**raw ramps** — ink, parchment, ember, arcane. This page is the layer on top: a
+small set of tokens named for their *role*, not their hue. `--color-fg` instead
+of `--color-parchment-50`, `--color-surface` instead of `--color-ink-800`.
+
+Reach for the **role token** wherever you can. It makes intent read clearly at
+the call site — `--color-line` says *this is a border* in a way `parchment-50 at
+12%` never will — and it keeps the palette movable: re-point a role token and
+every component that used it shifts at once, no find-and-replace through the app.
+
+Each token is an alias, read **live** from `theme.css`, so the swatches below
+resolve to the exact ramp step they currently point at.
+
+<SemanticScales />
+
+## How they map
+
+- **Foreground** rides the parchment ramp. `fg` is primary text and icons;
+  `fg-muted` is secondary; `fg-subtle` is genuinely muted; `fg-faint` is for
+  placeholders and disabled glyphs. Never reach past `fg-faint` for readable copy.
+- **Surfaces** ride the ink ramp and build depth by *lightening*. `surface` is
+  the page; `surface-raised` is cards and controls; `surface-overlay` is
+  popovers and raised wells; `surface-sunken` is the deepest well and the scrim
+  behind modals.
+- **Accents** are the meaning-bearing colors. `accent` (ember) is the one hero —
+  primary actions, active states, focus — with `accent-hover` a step brighter.
+  `accent-ai` (arcane) marks the AI / magic side and is spent sparingly.
+- **Lines** are parchment at low alpha. `line` is the default hairline;
+  `line-faint` is the quietest divider; `line-strong` is an emphasised edge. An
+  `accent` border is reserved for the active / selected state.
+
+> Rule of thumb: build components against the role tokens. Drop to a raw ramp
+> step only when you need a specific shade the role layer doesn't name.

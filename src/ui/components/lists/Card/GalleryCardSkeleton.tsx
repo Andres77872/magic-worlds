@@ -10,10 +10,29 @@ import { Card } from '@/ui/primitives'
 export interface GalleryCardSkeletonProps {
     /** Match GalleryCard density: `compact` tightens the vignette padding. */
     size?: 'default' | 'compact'
+    /** Match GalleryCard layout: `row` reserves the list-row box instead of a tile. */
+    view?: 'card' | 'row'
 }
 
-export function GalleryCardSkeleton({ size = 'default' }: GalleryCardSkeletonProps) {
+export function GalleryCardSkeleton({ size = 'default', view = 'card' }: GalleryCardSkeletonProps) {
     const compact = size === 'compact'
+    if (view === 'row') {
+        // Mirrors the GalleryCard list row: a small 3:4 thumbnail + three text bars.
+        return (
+            <Card
+                className="flex w-full items-center gap-3 p-2.5 sm:gap-4 sm:p-3"
+                aria-hidden="true"
+                data-testid="gallery-card-skeleton"
+            >
+                <div className="image-shimmer h-[72px] w-[54px] shrink-0 overflow-hidden rounded-md" />
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                    <div className="h-4 w-[42%] rounded bg-parchment-50/15" />
+                    <div className="h-3 w-[70%] rounded bg-parchment-50/10" />
+                    <div className="h-3 w-[28%] rounded bg-parchment-50/10" />
+                </div>
+            </Card>
+        )
+    }
     return (
         <Card
             className="relative flex h-full flex-col"

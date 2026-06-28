@@ -38,7 +38,7 @@ export function CreatorLayout({
                     </h2>
                 </div>
                 <Button
-                    kind="secondary"
+                    variant="secondary"
                     onClick={onBack}
                     iconLeft={<Icon icon={ArrowLeft} size={16} />}
                     className="shrink-0 max-sm:w-full"

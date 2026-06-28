@@ -414,7 +414,7 @@ export function LandingPage() {
             {loadingState.error && (
                 <div className="mx-auto mt-4 flex w-full max-w-[1240px] items-center justify-between gap-3 rounded-md border border-blood-500/30 bg-blood-500/10 px-4 py-3 text-[14px] text-blood-500 sm:px-8">
                     <span>{t('common.loadError')}</span>
-                    <Button kind="secondary" size="sm" onClick={() => void loadData()}>{t('common.tryAgain')}</Button>
+                    <Button variant="secondary" size="sm" onClick={() => void loadData()}>{t('common.tryAgain')}</Button>
                 </div>
             )}
             {/* ZONE 1 — hero: greeting + global search + the cinematic opener.

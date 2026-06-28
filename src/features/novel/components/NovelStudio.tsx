@@ -9,6 +9,7 @@ import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MessageSquareQuote } from 'lucide-react'
 import { useAuth, useData } from '@/app/hooks'
+import { CodexCardPickerDrawer } from '@/features/codex'
 import type { StoryContextSettings, StoryGeneration } from '@/shared'
 import { Drawer, Icon, cx } from '@/ui/primitives'
 import { NovelEditor } from '../editor/NovelEditor'
@@ -17,6 +18,8 @@ import { useChapterDraft } from '../hooks/useChapterDraft'
 import { useCodex } from '../hooks/useCodex'
 import { useGenerationHistory } from '../hooks/useGenerationHistory'
 import { useNovelStudio } from '../hooks/useNovelStudio'
+import { useOpenCodexEntry } from '../hooks/useOpenCodexEntry'
+import { useWordGoal } from '../hooks/useWordGoal'
 import { wordCount } from '../utils/novelUtils'
 import { CodexPanel } from './codex/CodexPanel'
 import { NovelChapterRail } from './NovelChapterRail'
@@ -42,16 +45,29 @@ export function NovelStudio() {
     const draft = useChapterDraft({ storyId: story?.id ?? null, chapter: studio.activeChapter })
     const codex = useCodex({ story })
     const history = useGenerationHistory({ story })
+    const wordGoal = useWordGoal(story?.id ?? null, studio.activeChapter?.id ?? null)
 
     const editorHandleRef = useRef<NovelEditorHandle | null>(null)
     const [critique, setCritique] = useState<StoryGeneration | null>(null)
     const [suggestionActive, setSuggestionActive] = useState(false)
+    const [cardPickerOpen, setCardPickerOpen] = useState(false)
+    const [cardPickerQuery, setCardPickerQuery] = useState('')
 
     const requireAuth = useCallback(() => {
         if (isAuthenticated) return true
         openLoginModal()
         return false
     }, [isAuthenticated, openLoginModal])
+
+    const openCodexEntry = useOpenCodexEntry()
+    const openCardPicker = useCallback(
+        (query = '') => {
+            if (!requireAuth()) return
+            setCardPickerQuery(query)
+            setCardPickerOpen(true)
+        },
+        [requireAuth],
+    )
 
     if (!story) return null
     const activeChapter = studio.activeChapter
@@ -95,14 +111,18 @@ export function NovelStudio() {
                 saveState={draft.saveState}
                 lastSavedAt={draft.lastSavedAt}
                 words={wordCount(draft.body)}
+                goal={wordGoal.goal}
+                onSetGoal={wordGoal.setGoal}
                 focusMode={studio.focusMode}
                 codexOpen={studio.codexOpen}
+                typewriter={studio.typewriter}
                 saveDisabled={suggestionActive}
                 onSave={() => {
                     if (requireAuth()) void draft.saveNow()
                 }}
                 onToggleFocusMode={studio.toggleFocusMode}
                 onToggleCodex={() => studio.setCodexOpen(!studio.codexOpen)}
+                onToggleTypewriter={studio.toggleTypewriter}
                 onOpenHistory={() => studio.setHistoryOpen(true)}
                 onSaveMeta={(patch) => {
                     if (requireAuth()) void studio.saveNovelMeta(patch)
@@ -144,6 +164,15 @@ export function NovelStudio() {
                             chapterId={activeChapter.id}
                             initialBody={activeChapter.body}
                             codexEntries={codex.mentionEntries}
+                            detectionNames={codex.detectionNames}
+                            loreEntries={codex.loreEntries}
+                            focusMode={studio.focusMode}
+                            typewriter={studio.typewriter}
+                            onOpenCodexEntry={(id) => {
+                                const entry = codex.entries.find((candidate) => candidate.id === id)
+                                if (entry) openCodexEntry(entry)
+                            }}
+                            onAddToCodex={(text) => openCardPicker(text)}
                             onBodyChange={draft.onBodyChange}
                             onRequestSaveFlush={draft.flush}
                             onGenerate={handleGenerate}
@@ -165,8 +194,19 @@ export function NovelStudio() {
                     )}
                 </section>
 
-                {!studio.focusMode && studio.codexOpen && <CodexPanel codex={codex} requireAuth={requireAuth} />}
+                {!studio.focusMode && studio.codexOpen && (
+                    <CodexPanel codex={codex} requireAuth={requireAuth} onOpenCardPicker={() => openCardPicker()} />
+                )}
             </div>
+
+            <CodexCardPickerDrawer
+                open={cardPickerOpen}
+                busy={codex.busy}
+                existingCardKeys={codex.existingCardKeys}
+                initialQuery={cardPickerQuery}
+                onClose={() => setCardPickerOpen(false)}
+                onAdd={codex.addCards}
+            />
 
             <NovelGenerationHistoryDrawer
                 open={studio.historyOpen}

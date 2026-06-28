@@ -29,6 +29,18 @@ const renderRailCard = (c: Character) => (
   />
 )
 
+const renderRowCard = (c: Character) => (
+  <GalleryCard
+    title={c.name}
+    badge={c.race}
+    eyebrow={c.class ?? undefined}
+    description={`A ${c.race.toLowerCase()} ${(c.class ?? 'wanderer').toLowerCase()} with a story worth telling.`}
+    tags={c.class ? [c.class] : []}
+    view="row"
+    onClick={() => {}}
+  />
+)
+
 const meta = {
   title: 'Components/Lists/CardGrid',
   component: CardGrid<Character>,
@@ -75,6 +87,33 @@ export const Empty: Story = {
     items: [],
     emptyStateTitle: 'No characters yet',
     emptyStateDescription: 'Conjure your first companion to see them here.',
+  },
+}
+
+export const List: Story = {
+  args: {
+    layout: 'list',
+    renderCard: renderRowCard,
+    getItemKey: (c) => c.id,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'List layout: the same paginated data rendered as full-width rows (GalleryCard `view="row"`). Search, infinite scroll, and the entrance animation all apply exactly like the grid.',
+      },
+    },
+  },
+}
+
+export const ListLoadingSkeletons: Story = {
+  args: { layout: 'list', loading: true, renderSkeleton: () => <GalleryCardSkeleton view="row" /> },
+  parameters: {
+    docs: {
+      description: {
+        story: 'List loading reserves each row’s box with the matched row skeleton instead of flashing a centered spinner.',
+      },
+    },
   },
 }
 

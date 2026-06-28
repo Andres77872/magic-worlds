@@ -26,7 +26,7 @@ export function Badge({ tone = 'ember', icon, className, children, ...rest }: Ba
     return (
         <span
             className={cx(
-                'inline-flex items-center gap-1.5 text-[11px] font-semibold font-ui px-2.5 py-1 rounded-full tracking-[0.02em] whitespace-nowrap',
+                'inline-flex items-center gap-1.5 text-meta font-semibold font-ui px-2.5 py-1 rounded-full tracking-[0.02em] whitespace-nowrap',
                 TONE[tone],
                 className,
             )}

@@ -11,9 +11,9 @@ import { BookMarked, BookOpenText, Plus } from 'lucide-react'
 import type { StoryCardKind } from '@/shared'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
-import { Badge, Button, Eyebrow, Icon } from '@/ui/primitives'
+import { ReferenceGroup } from '@/ui/components'
+import { Badge, Button, Icon } from '@/ui/primitives'
 import type { CodexApi, CodexEntry } from '../../hooks/useCodex'
-import { CodexCardPickerDrawer } from './CodexCardPickerDrawer'
 import { CodexEntryDrawer } from './CodexEntryDrawer'
 import { CodexEntryRow } from './CodexEntryRow'
 import { CodexLorebookPickerDrawer } from './CodexLorebookPickerDrawer'
@@ -22,24 +22,25 @@ interface CodexPanelProps {
     codex: CodexApi
     /** Gate mutations behind login; returns false (and opens the modal) when logged out. */
     requireAuth: () => boolean
+    /** Opens the card picker (owned by the studio so "Add to codex" works panel-closed). */
+    onOpenCardPicker: () => void
 }
 
-export function CodexPanel({ codex, requireAuth }: CodexPanelProps) {
+export function CodexPanel({ codex, requireAuth, onOpenCardPicker }: CodexPanelProps) {
     const { t } = useTranslation()
-    const [cardPickerOpen, setCardPickerOpen] = useState(false)
     const [lorebookPickerOpen, setLorebookPickerOpen] = useState(false)
     const [editingEntry, setEditingEntry] = useState<CodexEntry | null>(null)
     const [pendingRemove, setPendingRemove] = useState<CodexEntry | null>(null)
 
-    const openCardPicker = () => requireAuth() && setCardPickerOpen(true)
+    const openCardPicker = () => onOpenCardPicker()
     const openLorebookPicker = () => requireAuth() && setLorebookPickerOpen(true)
 
     const addButtons = (
         <>
-            <Button kind="secondary" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={openCardPicker}>
+            <Button variant="secondary" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={openCardPicker}>
                 {t('novelEditor.codex.addCards')}
             </Button>
-            <Button kind="secondary" size="sm" iconLeft={<Icon icon={BookMarked} size={14} />} onClick={openLorebookPicker}>
+            <Button variant="secondary" size="sm" iconLeft={<Icon icon={BookMarked} size={14} />} onClick={openLorebookPicker}>
                 {t('novelEditor.codex.addLorebook')}
             </Button>
         </>
@@ -73,12 +74,14 @@ export function CodexPanel({ codex, requireAuth }: CodexPanelProps) {
                     </EmptyState>
                 ) : (
                     codex.groups.map((group) => (
-                        <section key={group.kind} aria-label={t(group.labelKey)}>
-                            <div className="mb-2 flex items-center gap-2">
-                                <Eyebrow tone={groupTone(group.kind)}>{t(group.labelKey)}</Eyebrow>
-                                <span className="font-ui text-xs text-parchment-500">{group.entries.length}</span>
-                            </div>
-                            <div className="flex flex-col gap-1.5">
+                        <ReferenceGroup
+                            key={group.kind}
+                            flush
+                            label={t(group.labelKey)}
+                            tone={groupTone(group.kind)}
+                            count={group.entries.length}
+                        >
+                            <div className="flex flex-col gap-1">
                                 {group.entries.map((entry) => (
                                     <CodexEntryRow
                                         key={entry.id}
@@ -92,18 +95,11 @@ export function CodexPanel({ codex, requireAuth }: CodexPanelProps) {
                                     />
                                 ))}
                             </div>
-                        </section>
+                        </ReferenceGroup>
                     ))
                 )}
             </div>
 
-            <CodexCardPickerDrawer
-                open={cardPickerOpen}
-                busy={codex.busy}
-                existingCardKeys={codex.existingCardKeys}
-                onClose={() => setCardPickerOpen(false)}
-                onAdd={codex.addCards}
-            />
             <CodexLorebookPickerDrawer
                 open={lorebookPickerOpen}
                 busy={codex.busy}

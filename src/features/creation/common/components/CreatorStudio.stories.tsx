@@ -34,7 +34,7 @@ const meta = {
     isLoading: false,
     onBack: () => {},
     headerActions: (
-      <Button kind="primary" form="demo-form" type="submit">
+      <Button variant="primary" form="demo-form" type="submit">
         Create
       </Button>
     ),

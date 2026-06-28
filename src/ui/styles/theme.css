@@ -102,6 +102,92 @@
   --text-caption: 12px;
   --text-eyebrow: 12px;
   --text-eyebrow--letter-spacing: 0.18em;
+  /* micro type for badges, counts, and meta rows */
+  --text-meta: 11px;
+  --text-meta--line-height: 1.3;
+  --text-micro: 10px;
+  --text-micro--line-height: 1.2;
+  /* prose heading sizes shared by chat-prose + the story editor */
+  --text-prose-h1: 30px;
+  --text-prose-h2: 26px;
+  --text-prose-h3: 22px;
+
+  /* ---------- semantic / role tokens → bg-/text-/border- utilities ----------
+     Prefer these over raw ramps so intent reads clearly and a palette shift is a
+     token edit, not a find/replace. The raw ramps stay available underneath. */
+  --color-fg: var(--color-parchment-50); /* primary text/icon */
+  --color-fg-muted: var(--color-parchment-200); /* secondary text */
+  --color-fg-subtle: var(--color-parchment-300); /* muted text */
+  --color-fg-faint: var(--color-parchment-400); /* placeholders */
+  --color-surface: var(--color-ink-800); /* page / base surface */
+  --color-surface-raised: var(--color-ink-700); /* cards, controls */
+  --color-surface-overlay: var(--color-ink-600); /* popovers, raised wells */
+  --color-surface-sunken: var(--color-ink-900); /* code, deepest wells */
+  --color-accent: var(--color-ember-500); /* primary action / focus */
+  --color-accent-hover: var(--color-ember-400);
+  --color-accent-ai: var(--color-arcane-500); /* AI / magic side */
+  --color-line: color-mix(in srgb, var(--color-parchment-50) 12%, transparent); /* hairline border */
+  --color-line-faint: color-mix(in srgb, var(--color-parchment-50) 8%, transparent);
+  --color-line-strong: color-mix(in srgb, var(--color-parchment-50) 22%, transparent);
+
+  /* ---------- aspect ratios → aspect-* ---------- */
+  --aspect-portrait: 3 / 4;
+  --aspect-square: 1 / 1;
+  --aspect-wide: 16 / 9;
+
+  /* ---------- candlelit focus + stronger glows → shadow-* ---------- */
+  --shadow-input-focus: 0 0 0 1px var(--color-ember-500),
+    0 0 14px -2px color-mix(in srgb, var(--color-ember-500) 45%, transparent);
+  --shadow-input-focus-arcane: 0 0 0 1px var(--color-arcane-500),
+    0 0 14px -2px color-mix(in srgb, var(--color-arcane-500) 45%, transparent);
+  --shadow-glow-ember-strong: 0 0 0 1px color-mix(in srgb, var(--color-ember-500) 50%, transparent),
+    0 10px 40px -6px color-mix(in srgb, var(--color-ember-500) 45%, transparent);
+  --shadow-glow-arcane-strong: 0 0 0 1px color-mix(in srgb, var(--color-arcane-500) 50%, transparent),
+    0 10px 42px -6px color-mix(in srgb, var(--color-arcane-500) 50%, transparent);
+  /* soft resting halos for tinted glyph plates (IconTile) — a quiet centered glow */
+  --shadow-glow-ember-soft: 0 0 20px -8px var(--color-ember-500);
+  --shadow-glow-arcane-soft: 0 0 20px -7px var(--color-arcane-500);
+  /* avatar identity rings: a 2px solid ring + a soft candlelit halo (centered,
+     not a downward drop) — ember marks the player, arcane marks the AI. */
+  --shadow-ring-ember: 0 0 0 2px var(--color-ember-500), 0 0 16px -4px var(--color-ember-500);
+  --shadow-ring-arcane: 0 0 0 2px var(--color-arcane-500), 0 0 18px -3px var(--color-arcane-500);
+  /* tonal toast elevation: semantic hue at emphasis alpha (--alpha-emphasis) */
+  --shadow-glow-verdant: 0 18px 44px -18px color-mix(in srgb, var(--color-verdant-500) 55%, transparent);
+  --shadow-glow-blood: 0 18px 44px -18px color-mix(in srgb, var(--color-blood-500) 55%, transparent);
+
+  /* ---------- non-utility design constants (consumed via var()) ---------- */
+  /* alpha ladder for tints + borders */
+  --alpha-faint: 0.06;
+  --alpha-subtle: 0.1;
+  --alpha-soft: 0.15;
+  --alpha-medium: 0.25;
+  --alpha-strong: 0.35;
+  --alpha-emphasis: 0.55;
+  /* candlelight glow fills (radial-gradient color stops) */
+  --glow-ember-hero: color-mix(in srgb, var(--color-ember-500) 16%, transparent);
+  --glow-ember-page: color-mix(in srgb, var(--color-ember-500) 13%, transparent);
+  --glow-ember-faint: color-mix(in srgb, var(--color-ember-500) 8%, transparent);
+  --glow-arcane-hero: color-mix(in srgb, var(--color-arcane-500) 18%, transparent);
+  --glow-arcane-page: color-mix(in srgb, var(--color-arcane-500) 14%, transparent);
+  --glow-arcane-faint: color-mix(in srgb, var(--color-arcane-500) 10%, transparent);
+  /* focus-ring composites (2px ink gap + 4px accent) */
+  --ring-ember: 0 0 0 2px var(--color-ink-800), 0 0 0 4px var(--color-ember-500);
+  --ring-arcane: 0 0 0 2px var(--color-ink-800), 0 0 0 4px var(--color-arcane-500);
+  --ring-danger: 0 0 0 2px var(--color-ink-800), 0 0 0 4px var(--color-blood-500);
+  /* interaction transforms */
+  --scale-press: 0.98;
+  --scale-hover: 1.02;
+  --scale-zoom: 1.035;
+  /* layout widths (Drawer / Modal / Sidebar size maps consume via var()) */
+  --width-sidebar: 264px;
+  --width-drawer-sm: 360px;
+  --width-drawer-md: 440px;
+  --width-drawer-lg: 600px;
+  --width-drawer-xl: 760px;
+  --width-drawer-2xl: 920px;
+  --width-modal-sm: 420px;
+  --width-modal-md: 540px;
+  --width-modal-lg: 720px;
 }
 
 /* AI "thinking" pulse used by the character avatar while generating */
@@ -172,14 +258,15 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* always-visible candlelit focus ring (Reverie --ring-focus) */
+  /* always-visible candlelit focus ring (Reverie --ring-focus). Per-context
+     variants (arcane/danger) are available as --ring-arcane / --ring-danger. */
   :focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px var(--color-ink-800), 0 0 0 4px var(--color-ember-500);
+    box-shadow: var(--ring-ember);
   }
 
   ::selection {
-    background: rgba(232, 162, 74, 0.28);
+    background: color-mix(in srgb, var(--color-ember-500) 28%, transparent);
     color: var(--color-parchment-50);
   }
 
@@ -236,10 +323,65 @@
   .app-stone {
     background-color: var(--color-ink-800);
     background-image:
-      linear-gradient(rgba(232, 162, 74, 0.03), rgba(143, 111, 227, 0.025)),
+      /* edge vignette: pools the candlelight toward the centre for depth */
+      radial-gradient(140% 120% at 50% 6%, transparent 52%, rgba(0, 0, 0, 0.4)),
+      /* warm ember→cool arcane cast (a touch richer than before — the glow-up) */
+      linear-gradient(
+        color-mix(in srgb, var(--color-ember-500) 4%, transparent),
+        color-mix(in srgb, var(--color-arcane-500) 3.5%, transparent)
+      ),
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch' seed='7'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.04'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    background-repeat: no-repeat, repeat;
-    background-size: cover, 200px 200px;
+    background-repeat: no-repeat, no-repeat, repeat;
+    background-size: cover, cover, 200px 200px;
+  }
+
+  /* Shared interactive lift — the candlelit hover for cards, tiles, and tappable
+     surfaces: a small rise, a warm hairline, and a glow. `.lift` is the ember
+     default; add `.lift-arcane` to swap the accent to the AI side. Press shrinks.
+     Reduced motion (handled globally) collapses the transition. */
+  .lift {
+    transition:
+      transform 220ms var(--ease-out),
+      box-shadow 220ms var(--ease-out),
+      border-color 220ms var(--ease-out);
+  }
+  .lift:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-card-hover);
+    border-color: color-mix(in srgb, var(--color-ember-500) 45%, transparent);
+  }
+  .lift-arcane:hover {
+    box-shadow: var(--shadow-card-hover-arcane);
+    border-color: color-mix(in srgb, var(--color-arcane-500) 45%, transparent);
+  }
+  .lift:active {
+    transform: scale(var(--scale-press));
+  }
+
+  /* Reusable arcane shimmer sweep — image placeholders, pending-AI widgets, and
+     audio loading states share this instead of duplicating the gradient inline. */
+  .shimmer-arcane {
+    background-image: linear-gradient(
+      100deg,
+      transparent 30%,
+      var(--glow-arcane-hero) 50%,
+      transparent 70%
+    );
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: var(--animate-shimmer);
+  }
+
+  /* Inner edge darkening — gives flat cards/modals a candlelit pooled-light feel. */
+  .candle-vignette {
+    box-shadow: inset 0 0 60px -22px rgba(0, 0, 0, 0.7);
+  }
+
+  /* Hairline accent glow along the top edge — modal/drawer headers, focused wells. */
+  .glow-edge {
+    box-shadow:
+      0 1px 0 0 color-mix(in srgb, var(--color-ember-500) 20%, transparent),
+      0 10px 26px -18px color-mix(in srgb, var(--color-ember-500) 40%, transparent);
   }
 
   /* Animated placeholder shown over a generated scene image until its bytes
@@ -250,7 +392,7 @@
     background-image: linear-gradient(
       100deg,
       transparent 30%,
-      rgba(143, 111, 227, 0.14) 50%,
+      color-mix(in srgb, var(--color-arcane-500) 14%, transparent) 50%,
       transparent 70%
     );
     background-size: 200% 100%;
@@ -359,11 +501,71 @@
     background: rgba(246, 239, 226, 0.1);
   }
   /* roleplay elements: dialogue stands out, action/thought recede */
-  .chat-prose .rp-dialogue { color: var(--color-parchment-50); font-weight: 500; }
+  .chat-prose .rp-dialogue { color: var(--color-parchment-50); font-weight: 600; }
   .chat-prose .rp-action { font-style: italic; color: var(--color-parchment-300); }
   .chat-prose .rp-thought { font-style: italic; color: var(--color-arcane-300); }
   .chat-prose .rp-thought::before { content: '('; }
   .chat-prose .rp-thought::after { content: ')'; }
+
+  /* Lorebook trigger: a word that touches session lore. A quiet arcane dotted
+     underline that brightens on hover (or while the composer is "armed" with
+     Ctrl/Cmd); Ctrl/Cmd-click opens the entry's floating card. */
+  .lore-trigger {
+    text-decoration: underline dotted;
+    text-decoration-color: rgba(195, 176, 242, 0.6);
+    text-underline-offset: 0.18em;
+    text-decoration-thickness: 1.5px;
+    border-radius: var(--radius-xs);
+    transition:
+      background-color var(--default-transition-duration) var(--ease-out),
+      color var(--default-transition-duration) var(--ease-out),
+      text-decoration-color var(--default-transition-duration) var(--ease-out);
+  }
+  .lore-trigger:hover {
+    cursor: pointer;
+    color: var(--color-arcane-300);
+    background: rgba(143, 111, 227, 0.16);
+    text-decoration-color: var(--color-arcane-300);
+  }
+  .is-armed .lore-trigger {
+    background: rgba(143, 111, 227, 0.16);
+    text-decoration-color: var(--color-arcane-300);
+  }
+
+  /* Codex reference: a plain-text occurrence of a codex entity name
+     (character / world / item / adventure). The ember mirror of .lore-trigger —
+     a quiet gold dotted underline that brightens on hover or while the editor is
+     "armed" (Ctrl/Cmd held); Ctrl/Cmd-click opens the entry's floating card. */
+  .codex-reference {
+    text-decoration: underline dotted;
+    text-decoration-color: rgba(232, 162, 74, 0.5);
+    text-underline-offset: 0.18em;
+    text-decoration-thickness: 1.5px;
+    border-radius: var(--radius-xs);
+    transition:
+      background-color var(--default-transition-duration) var(--ease-out),
+      color var(--default-transition-duration) var(--ease-out),
+      text-decoration-color var(--default-transition-duration) var(--ease-out);
+  }
+  .codex-reference:hover {
+    cursor: pointer;
+    color: var(--color-ember-300);
+    background: rgba(232, 162, 74, 0.14);
+    text-decoration-color: var(--color-ember-300);
+  }
+  .is-armed .codex-reference {
+    background: rgba(232, 162, 74, 0.14);
+    text-decoration-color: var(--color-ember-300);
+  }
+  /* Search & replace match highlights (find panel). */
+  .story-editor-prose .search-match {
+    border-radius: var(--radius-xs);
+    background: rgba(232, 162, 74, 0.18);
+  }
+  .story-editor-prose .search-match-active {
+    background: rgba(232, 162, 74, 0.38);
+    box-shadow: 0 0 0 1px rgba(232, 162, 74, 0.55);
+  }
 
   .story-editor-shell {
     background:
@@ -381,6 +583,17 @@
     line-height: 1.78;
     color: var(--color-parchment-100);
     caret-color: var(--color-ember-400);
+  }
+  /* Focus mode hides the rails: give the measured column more vertical room
+     to breathe so drafting feels distraction-free. */
+  .story-editor-shell[data-focus] .story-editor-prose {
+    padding-top: 56px;
+    padding-bottom: 56px;
+  }
+  /* Typewriter mode keeps the active line centered; pad the tail so the last
+     lines can still scroll to the middle of the viewport. */
+  .story-editor-shell[data-typewriter] .story-editor-prose {
+    padding-bottom: 45vh;
   }
 
   .story-editor-prose:focus-visible {
@@ -422,11 +635,26 @@
     color: var(--color-parchment-100);
     font-style: italic;
   }
+  /* Scene break: a centered ember ornament rather than a flat rule, so a
+     section break reads like a manuscript flourish. Serializes to plain `---`. */
   .story-editor-prose hr {
-    margin: 1.6rem 0;
+    margin: 2.4rem 0;
     border: none;
-    height: 1px;
-    background: rgba(246, 239, 226, 0.16);
+    height: auto;
+    background: none;
+    text-align: center;
+    overflow: visible;
+  }
+  .story-editor-prose hr::before {
+    content: '✦';
+    color: var(--color-ember-500);
+    font-size: 18px;
+    letter-spacing: 0.55em;
+    opacity: 0.85;
+  }
+  .story-editor-prose hr.ProseMirror-selectednode::before {
+    color: var(--color-ember-300);
+    opacity: 1;
   }
   .story-editor-prose code {
     border: 1px solid rgba(246, 239, 226, 0.1);

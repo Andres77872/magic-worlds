@@ -1,10 +1,9 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Gem, Globe, Import, Loader2, RefreshCw, Sparkles, Swords, UserCircle, Users } from 'lucide-react'
+import { Gem, Globe, Import, Loader2, RefreshCw, Swords, UserCircle, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { useAuth, useNavigation } from '@/app/hooks'
+import { useNavigation } from '@/app/hooks'
 import { CardGrid, GalleryCard, GalleryCardSkeleton } from '@/ui/components'
-import { EmptyState } from '@/ui/components/common/EmptyState'
 import { Button, Icon, PageHeader, SectionHeader, Toast } from '@/ui/primitives'
 import { buildGalleryViewHash, galleryPageForType } from '../galleryLinks'
 import { publicConfigFor, type GalleryItem, type GalleryType } from '../galleryConfig'
@@ -31,22 +30,8 @@ function playlistCardType(type: GalleryType) {
 
 export function CommunityGalleryPage() {
     const { t } = useTranslation()
-    const { isAuthenticated, openLoginModal } = useAuth()
     const importHook = useCardImport()
     const preview = useGalleryCardPreview()
-
-    if (!isAuthenticated) {
-        return (
-            <div className="mx-auto flex w-full max-w-[960px] px-5 py-10 sm:px-8">
-                <EmptyState
-                    icon={<Icon icon={Sparkles} size={44} />}
-                    message={t('gallery.communitySignedOutTitle')}
-                    secondaryText={t('gallery.communitySignedOutBody')}
-                    button={{ label: t('sidebar.login'), onClick: openLoginModal }}
-                />
-            </div>
-        )
-    }
 
     return (
         <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-8 px-5 py-8 sm:px-8 sm:py-10">
@@ -118,7 +103,7 @@ function CommunityGallerySection({
                     <div className="flex items-center gap-2">
                         {gallery.error && (
                             <Button
-                                kind="ghost"
+                                variant="ghost"
                                 size="sm"
                                 iconLeft={<Icon icon={RefreshCw} size={14} />}
                                 onClick={gallery.refresh}
@@ -126,7 +111,7 @@ function CommunityGallerySection({
                                 {t('gallery.retry')}
                             </Button>
                         )}
-                        <Button kind="secondary" size="sm" onClick={openFullGallery}>
+                        <Button variant="secondary" size="sm" onClick={openFullGallery}>
                             {t('gallery.viewAll')}
                         </Button>
                     </div>
@@ -163,7 +148,7 @@ function CommunityGallerySection({
                             actionLabel={t('gallery.preview.previewAction', { title: item.title })}
                             footer={
                                 <Button
-                                    kind={alreadyImported ? 'secondary' : 'primary'}
+                                    variant={alreadyImported ? 'secondary' : 'primary'}
                                     size="sm"
                                     full
                                     iconLeft={

@@ -1,0 +1,196 @@
+/**
+ * Shared multi-select card browser for Codex shelves. Adding sends only
+ * kind+cardId; each backend clones the snapshot into its own scope.
+ */
+
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Loader2, Search } from 'lucide-react'
+import type { CardMediaTargetType } from '@/shared'
+import { useCardPickerOptions } from '@/features/gallery/media/hooks/useCardPickerOptions'
+import { AuthenticatedImage, Button, Chip, Drawer, Icon, SelectionCheck, Tag, cx } from '@/ui/primitives'
+import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card'
+import { CODEX_LIBRARY_KINDS, KIND_ICONS, KIND_META, type CodexLibraryCardKind, type CodexLibraryCardSelection } from '../utils/codexUtils'
+
+const PICKER_LIMIT = 24
+
+interface PickerCopyKeys {
+    eyebrow?: string
+    title?: string
+    hint?: string
+    searchPlaceholder?: string
+    noMatches?: string
+    inCodex?: string
+    add?: string
+    addCount?: string
+    adding?: string
+}
+
+interface CodexCardPickerDrawerProps {
+    open: boolean
+    busy: boolean
+    existingCardKeys: Set<string>
+    /** Seeds the search field each time the drawer opens (e.g. an "Add to codex" selection). */
+    initialQuery?: string
+    onClose: () => void
+    onAdd: (cards: CodexLibraryCardSelection[]) => Promise<void>
+    copyKeys?: PickerCopyKeys
+}
+
+const DEFAULT_COPY_KEYS: Required<PickerCopyKeys> = {
+    eyebrow: 'novelEditor.codex.title',
+    title: 'novelEditor.cardPicker.title',
+    hint: 'novelEditor.cardPicker.hint',
+    searchPlaceholder: 'novelEditor.cardPicker.searchPlaceholder',
+    noMatches: 'novelEditor.cardPicker.noMatches',
+    inCodex: 'novelEditor.codex.inCodex',
+    add: 'novelEditor.cardPicker.add',
+    addCount: 'novelEditor.cardPicker.addCount',
+    adding: 'novelEditor.cardPicker.adding',
+}
+
+export function CodexCardPickerDrawer({ open, busy, existingCardKeys, initialQuery, onClose, onAdd, copyKeys }: CodexCardPickerDrawerProps) {
+    const { t } = useTranslation()
+    const keys = { ...DEFAULT_COPY_KEYS, ...copyKeys }
+    const [kind, setKind] = useState<CodexLibraryCardKind>('character')
+    const [query, setQuery] = useState('')
+    const [selected, setSelected] = useState<Map<string, CodexLibraryCardSelection>>(new Map())
+    const { options, loading } = useCardPickerOptions(kind, query, open, PICKER_LIMIT)
+
+    // Seed the search whenever the drawer (re)opens — e.g. from an "Add to codex"
+    // selection in the editor.
+    useEffect(() => {
+        if (open) setQuery(initialQuery ?? '')
+    }, [open, initialQuery])
+
+    const close = () => {
+        setSelected(new Map())
+        setQuery('')
+        onClose()
+    }
+
+    const toggle = (optionKind: CardMediaTargetType, cardId: string) => {
+        const key = `${optionKind}:${cardId}`
+        setSelected((prev) => {
+            const next = new Map(prev)
+            if (next.has(key)) next.delete(key)
+            else next.set(key, { kind: optionKind as CodexLibraryCardKind, cardId })
+            return next
+        })
+    }
+
+    const submit = async () => {
+        await onAdd(Array.from(selected.values()))
+        close()
+    }
+
+    return (
+        <Drawer
+            open={open}
+            onClose={close}
+            eyebrow={t(keys.eyebrow)}
+            title={t(keys.title)}
+            size="lg"
+            footer={
+                <div className="flex w-full items-center justify-end gap-2">
+                    <Button variant="ghost" onClick={close} disabled={busy}>
+                        {t('common.cancel')}
+                    </Button>
+                    <Button
+                        variant="primary"
+                        onClick={() => void submit()}
+                        disabled={busy || selected.size === 0}
+                        data-testid="codex-add-cards-submit"
+                    >
+                        {busy
+                            ? t(keys.adding)
+                            : selected.size > 0
+                              ? t(keys.addCount, { count: selected.size })
+                              : t(keys.add)}
+                    </Button>
+                </div>
+            }
+        >
+            <div className="flex flex-col gap-3">
+                <p className="m-0 font-ui text-xs text-parchment-400">
+                    {t(keys.hint)}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                    {CODEX_LIBRARY_KINDS.map((pickerKind) => {
+                        const meta = KIND_META.find((item) => item.kind === pickerKind)
+                        const active = kind === pickerKind
+                        return (
+                            <Chip
+                                key={pickerKind}
+                                active={active}
+                                aria-pressed={active}
+                                onClick={() => setKind(pickerKind)}
+                                icon={<Icon icon={KIND_ICONS[pickerKind]} size={13} />}
+                            >
+                                {meta ? t(meta.pluralKey) : pickerKind}
+                            </Chip>
+                        )
+                    })}
+                </div>
+                <div className="relative flex items-center">
+                    <span className="pointer-events-none absolute left-3 text-parchment-400">
+                        <Icon icon={Search} size={15} />
+                    </span>
+                    <input
+                        type="search"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder={t(keys.searchPlaceholder)}
+                        aria-label={t(keys.searchPlaceholder)}
+                        className="w-full rounded-md border border-parchment-50/10 bg-ink-800 py-2 pl-9 pr-9 font-ui text-sm text-parchment-50 placeholder:text-parchment-500 focus:border-ember-500 focus:outline-none"
+                        data-testid="codex-card-search"
+                    />
+                    {loading && <Loader2 size={15} className="absolute right-3 animate-spin text-ember-500" aria-hidden="true" />}
+                </div>
+                <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+                    {options.map((option) => {
+                        const key = `${option.type}:${option.id}`
+                        const inCodex = existingCardKeys.has(key)
+                        const isSelected = selected.has(key)
+                        return (
+                            <li key={key}>
+                                <button
+                                    type="button"
+                                    onClick={() => !inCodex && toggle(option.type, option.id)}
+                                    disabled={inCodex}
+                                    aria-pressed={isSelected}
+                                    className={cx(
+                                        'flex w-full items-center gap-2.5 rounded-md border px-2.5 py-2 text-left transition-colors',
+                                        inCodex
+                                            ? 'cursor-default border-parchment-50/[.06] opacity-55'
+                                            : isSelected
+                                              ? `cursor-pointer ${SELECTED_CARD_CLASS}`
+                                              : 'cursor-pointer border-parchment-50/10 hover:border-parchment-50/25 hover:bg-parchment-50/[.04]',
+                                    )}
+                                    data-testid="codex-card-option"
+                                >
+                                    {option.imageUrl ? (
+                                        <AuthenticatedImage src={option.imageUrl} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover" />
+                                    ) : (
+                                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ink-800 text-parchment-500">
+                                            <Icon icon={KIND_ICONS[option.type]} size={14} />
+                                        </span>
+                                    )}
+                                    <span className="min-w-0 flex-1 truncate font-ui text-sm text-parchment-100">{option.name}</span>
+                                    {inCodex ? (
+                                        <Tag className="shrink-0">{t(keys.inCodex)}</Tag>
+                                    ) : (
+                                        <SelectionCheck selected={isSelected} />
+                                    )}
+                                </button>
+                            </li>
+                        )
+                    })}
+                    {options.length === 0 && !loading && (
+                        <li className="px-2 py-4 text-center font-ui text-xs text-parchment-500">{t(keys.noMatches)}</li>
+                    )}
+                </ul>
+            </div>
+        </Drawer>
+    )
+}

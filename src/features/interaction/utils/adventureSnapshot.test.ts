@@ -40,6 +40,14 @@ function makeSnapshot(): AdventureSnapshot {
                     race: 'Dwarf',
                     description: 'A gruff smith.',
                     category: [{ name: 'Stats', attributes: [{ Strength: '16' }] }],
+                    voice: {
+                        voice_id: ' English_magnetic_voiced_man ',
+                        speed: 1.1,
+                        vol: 1.7,
+                        pitch: -2,
+                        emotion: 'calm',
+                        language_boost: 'English',
+                    },
                 },
             ],
             world: [
@@ -69,6 +77,14 @@ describe('adventureSnapshot', () => {
         expect(fields.characters).toHaveLength(1)
         expect(fields.characters[0].name).toBe('Dorn')
         expect(fields.characters[0].category?.[0].attributes?.[0]).toEqual({ Strength: '16' })
+        expect(fields.characters[0].voice).toEqual({
+            voice_id: 'English_magnetic_voiced_man',
+            speed: 1.1,
+            vol: 1.7,
+            pitch: -2,
+            emotion: 'calm',
+            language_boost: 'English',
+        })
 
         expect(fields.world?.name).toBe('Eldoria')
         expect(fields.world?.type).toBe('Kingdom')
@@ -124,6 +140,7 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         triggers: ['lyra'],
         image_url: '/generated-images/lyra.jpeg',
         theme_song_url: '/generated-audio/lyra.mp3',
+        voice: { voice_id: 'English_radiant_girl', speed: 1.05, language_boost: 'English' },
     }
     const libWorld: World = {
         id: 'world-9',
@@ -145,6 +162,7 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         expect(snapCard.name).toBe('Lyra')
         expect(snapCard.race).toBe('Half-elf')
         expect(snapCard.category?.[0].attributes?.[0]).toEqual({ CHA: '17' })
+        expect(snapCard.voice).toEqual({ voice_id: 'English_radiant_girl', speed: 1.05, language_boost: 'English' })
 
         const w = libraryCardToSnapshotCard(libWorld, 'world')
         expect(w.place_type).toBe('city')

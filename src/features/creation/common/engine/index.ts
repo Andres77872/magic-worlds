@@ -18,6 +18,17 @@ export type {
     GuidedSectionDefinition,
 } from './types'
 export { useGuidedCard, readCategoryAttribute, type GuidedCardApi } from './useGuidedCard'
+export {
+    useCardDraft,
+    type CardDraftState,
+    type UseCardDraftApi,
+    type UseCardDraftOptions,
+} from './useCardDraft'
+export {
+    useCardEditorRoute,
+    type UseCardEditorRouteOptions,
+    type UseCardEditorRouteResult,
+} from './useCardEditorRoute'
 export { GuidedFieldRow, type GuidedFieldRowProps } from './GuidedFieldRow'
 export { FieldPalette, type FieldPaletteProps } from './FieldPalette'
 export { GuidedSection, type GuidedSectionProps } from './GuidedSection'

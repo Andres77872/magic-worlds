@@ -49,7 +49,7 @@ export function AdminVoicesPage() {
                 actions={
                     <div className="flex gap-2">
                         <Button
-                            kind="secondary"
+                            variant="secondary"
                             size="sm"
                             iconLeft={<Icon icon={BookOpenText} size={15} />}
                             onClick={() => setReferenceOpen(true)}
@@ -57,7 +57,7 @@ export function AdminVoicesPage() {
                             {t('admin.voices.page.reference')}
                         </Button>
                         <Button
-                            kind="secondary"
+                            variant="secondary"
                             size="sm"
                             iconLeft={<Icon icon={RefreshCw} size={15} className={studio.loadingVoices ? 'animate-spin' : undefined} />}
                             onClick={() => void studio.refreshVoices()}
@@ -76,7 +76,7 @@ export function AdminVoicesPage() {
                     role="alert"
                 >
                     <span>{studio.error}</span>
-                    <Button kind="secondary" size="sm" onClick={() => studio.setError(null)}>
+                    <Button variant="secondary" size="sm" onClick={() => studio.setError(null)}>
                         {t('admin.common.dismiss')}
                     </Button>
                 </div>

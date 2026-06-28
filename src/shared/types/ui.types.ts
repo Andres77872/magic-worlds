@@ -30,9 +30,11 @@ export type PageType =
     | 'community'
     | 'shared-card'
     | 'profile'
+    | 'billing'
     | 'voice-studio'
     | 'admin-voices'
     | 'admin-agents'
+    | 'admin-credit-codes'
     | 'docs'
     | 'about'
     | 'contact'
@@ -44,12 +46,14 @@ export type PageType =
     | 'gallery-items'
     | 'gallery-adventures'
     | 'gallery-lorebooks'
+    | 'gallery-resources'
     | 'gallery-media'
     | 'gallery-stories'
     | 'story'
     | 'password-reset'
     | 'verify-email'
     | 'google-callback'
+    | 'not-found'
 
 export interface NavigationState {
     currentPage: PageType

@@ -87,7 +87,7 @@ export function EmailVerifyPage() {
                         <p className="font-ui text-[14px] text-parchment-300">
                             {status === 'missing' ? t('emailVerify.missingToken') : t('emailVerify.fail.body')}
                         </p>
-                        <Button kind="secondary" iconLeft={<Icon icon={LogIn} size={16} />} onClick={goToSignIn}>
+                        <Button variant="secondary" iconLeft={<Icon icon={LogIn} size={16} />} onClick={goToSignIn}>
                             {t('emailVerify.signIn')}
                         </Button>
                     </>

@@ -62,7 +62,7 @@ export function BeginZone({
                             {t('landing.begin.emptyBody')}
                         </p>
                         <div className="pt-2">
-                            <Button kind="primary" iconLeft={<Icon icon={Wand2} size={16} />} onClick={onCreate}>
+                            <Button variant="primary" iconLeft={<Icon icon={Wand2} size={16} />} onClick={onCreate}>
                                 {t('landing.begin.emptyAction')}
                             </Button>
                         </div>
@@ -126,7 +126,7 @@ export function BeginZone({
                     <p className="m-0 font-narrative text-narrative text-parchment-300">
                         {t('landing.begin.noGenreMatch')}
                     </p>
-                    <Button kind="secondary" size="sm" onClick={() => onFilterChange('All')}>
+                    <Button variant="secondary" size="sm" onClick={() => onFilterChange('All')}>
                         {t('landing.begin.clearFilter')}
                     </Button>
                 </div>
@@ -143,12 +143,12 @@ function BeginHeader({ count, onViewAll, onCreate }: { count: number; onViewAll?
             title={t('landing.begin.title')}
             right={
                 <>
-                    <Button kind="ghost" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={onCreate}>
+                    <Button variant="ghost" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={onCreate}>
                         {t('landing.begin.newAdventure')}
                     </Button>
                     {onViewAll && (
                         <Button
-                            kind="ghost"
+                            variant="ghost"
                             size="sm"
                             iconRight={<Icon icon={ArrowRight} size={14} />}
                             onClick={onViewAll}

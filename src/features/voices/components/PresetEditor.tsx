@@ -129,11 +129,11 @@ export function PresetEditor({ open, mode, source, systemVoices, loadingVoices, 
             title={mode === 'edit' ? t('voices.editor.editTitle') : t('voices.editor.newTitle')}
             footer={
                 <>
-                    <Button kind="ghost" onClick={onClose}>
+                    <Button variant="ghost" onClick={onClose}>
                         {t('common.cancel')}
                     </Button>
                     <Button
-                        kind="primary"
+                        variant="primary"
                         onClick={() => void handleSave()}
                         disabled={!canSave}
                         iconLeft={<Icon icon={saving ? Loader2 : WandSparkles} size={15} className={saving ? 'animate-spin' : undefined} />}
@@ -160,7 +160,7 @@ export function PresetEditor({ open, mode, source, systemVoices, loadingVoices, 
                                 <p className="font-ui text-sm font-semibold text-parchment-50">{baseVoice.voice_name || baseVoice.voice_id}</p>
                                 <code className="font-mono text-xs text-parchment-400">{baseVoice.voice_id}</code>
                             </div>
-                            <Button kind="secondary" size="sm" onClick={() => setPickerOpen(true)}>
+                            <Button variant="secondary" size="sm" onClick={() => setPickerOpen(true)}>
                                 {t('voices.editor.change')}
                             </Button>
                         </div>
@@ -185,7 +185,7 @@ export function PresetEditor({ open, mode, source, systemVoices, loadingVoices, 
                     </Field>
                     <div className="flex items-center justify-between gap-3">
                         <Button
-                            kind="secondary"
+                            variant="secondary"
                             size="sm"
                             disabled={!baseVoice?.voice_id || previewing}
                             iconLeft={<Icon icon={previewing ? Loader2 : Play} size={14} className={previewing ? 'animate-spin' : undefined} />}

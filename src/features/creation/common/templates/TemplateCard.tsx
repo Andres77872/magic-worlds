@@ -32,8 +32,7 @@ export function TemplateCard({ template, fields, onPick, tone = 'ember' }: Templ
             type="button"
             onClick={onPick}
             className={cx(
-                'group flex h-full flex-col items-start gap-3 rounded-xl border border-parchment-50/10 bg-ink-700 p-5 text-left',
-                'transition-all hover:-translate-y-0.5 hover:border-ember-500/45 hover:shadow-[var(--shadow-glow-ember)]',
+                'lift group flex h-full flex-col items-start gap-3 rounded-xl border border-parchment-50/10 bg-ink-700 p-5 text-left',
             )}
         >
             <IconTile icon={template.icon ?? Feather} tone={tone} size="sm" glow />
@@ -65,8 +64,8 @@ export function EmptyCardTile({ noun, onPick }: { noun: string; onPick: () => vo
             type="button"
             onClick={onPick}
             className={cx(
-                'group flex h-full min-h-[150px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-parchment-50/20 bg-transparent p-5 text-center',
-                'transition-all hover:border-arcane-500/50 hover:bg-arcane-500/[.04]',
+                'lift lift-arcane group flex h-full min-h-[150px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-parchment-50/20 bg-transparent p-5 text-center',
+                'hover:bg-arcane-500/[.04]',
             )}
         >
             <IconTile icon={Feather} tone="arcane" size="sm" glow />

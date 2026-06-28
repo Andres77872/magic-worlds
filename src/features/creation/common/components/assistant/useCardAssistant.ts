@@ -444,7 +444,11 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                 setNotice({ kind: 'error', message: err.message, canReload: true })
             } else {
                 setMessages((prev) => prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId))
-                setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current), canRetry: true })
+                setNotice({
+                    kind: 'error',
+                    message: assistantErrorMessage(err, tRef.current),
+                    canRetry: err instanceof ApiError ? err.retryable !== false : true,
+                })
             }
         } finally {
             if (activeRequestRef.current === requestId) {

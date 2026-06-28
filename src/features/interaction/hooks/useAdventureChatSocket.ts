@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChatMessage } from '../../../shared/types/auth.types'
-import type { ChatSocketServerMessage, ForwardOption } from '../../../shared'
+import type { ChatGenerationOptions, ChatSocketServerMessage, ForwardOption } from '../../../shared'
 import { AdventureChatSocket, type ChatSocketStatus } from '../../../infrastructure/api'
 
 export interface AdventureChatHandlers {
@@ -9,7 +9,7 @@ export interface AdventureChatHandlers {
     /** A narrative text chunk arrived. */
     onDelta?: (content: string) => void
     /** Validated turn metadata (suggested actions + image prompt) arrived. */
-    onMetadata?: (meta: { forwardOptions: ForwardOption[]; imagePrompt: string }) => void
+    onMetadata?: (meta: { forwardOptions?: ForwardOption[]; imagePrompt?: string }) => void
     /** Parsed XML response segments arrived after the narrative stream completed. */
     onSegments?: (frame: Extract<ChatSocketServerMessage, { type: 'segments' }>) => void
     /** The turn finished streaming (`interrupted` when stopped early). */
@@ -26,7 +26,7 @@ export interface AdventureChatHandlers {
 
 export interface AdventureChatSocketApi {
     status: ChatSocketStatus
-    sendChat: (messages: ChatMessage[]) => void
+    sendChat: (messages: ChatMessage[], options?: ChatGenerationOptions) => void
     sendTts: (assistantMessageId: number, turnId: string, requestId?: string) => void
     cancel: () => void
 }
@@ -121,7 +121,7 @@ export function useAdventureChatSocket(
         // basePath in deps so switching session kinds tears down + reconnects cleanly.
     }, [sessionId, authKey, basePath])
 
-    const sendChat = (messages: ChatMessage[]) => socketRef.current?.sendChat(messages)
+    const sendChat = (messages: ChatMessage[], options?: ChatGenerationOptions) => socketRef.current?.sendChat(messages, options)
     const sendTts = (assistantMessageId: number, turnId: string, requestId?: string) =>
         socketRef.current?.sendTts(assistantMessageId, turnId, requestId)
     const cancel = () => socketRef.current?.cancel()

@@ -148,7 +148,7 @@ export function EmailSection() {
                                     <div className="flex items-center gap-1.5">
                                         {!isActivated(email) && (
                                             <Button
-                                                kind="ghost"
+                                                variant="ghost"
                                                 size="sm"
                                                 disabled={busy}
                                                 iconLeft={<Icon icon={RefreshCw} size={14} />}
@@ -159,7 +159,7 @@ export function EmailSection() {
                                         )}
                                         {isActivated(email) && !email.is_primary && (
                                             <Button
-                                                kind="ghost"
+                                                variant="ghost"
                                                 size="sm"
                                                 disabled={busy}
                                                 iconLeft={<Icon icon={Star} size={14} />}

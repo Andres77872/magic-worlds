@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useTranslation} from 'react-i18next'
-import type {ChatMessage, ChatNarratorIdentity, ChatResponseSegment, ChatSpeakerRosterEntry, ForwardOption, TurnEntry} from '../../../shared'
+import type {ChatGenerationOptions, ChatMessage, ChatNarratorIdentity, ChatResponseSegment, ChatSpeakerRosterEntry, ForwardOption, TurnEntry} from '../../../shared'
 import {apiService, type ImageJobPublicResponse, type TtsJobPublicResponse} from '../../../infrastructure/api'
 import {useAuth} from '../../../app/hooks'
 import {Loader2, RotateCcw, Sparkles} from 'lucide-react'
@@ -8,6 +8,7 @@ import {Button, Icon} from '../../../ui/primitives'
 import {ConfirmDialog} from '@/ui/components'
 import {ChatComposer} from './ChatComposer'
 import {ChatTurn} from './ChatTurn'
+import {useSessionLorebookEntries} from '@/features/lorebook'
 import {generateUUID} from '../../../utils/uuid'
 import type {ChatSessionConfig} from '../chatSessionConfig'
 import {useAdventureChatSocket} from '../hooks/useAdventureChatSocket'
@@ -85,6 +86,10 @@ const RESET_IMAGE_FIELDS = {
 // offline). Without this the speaker control spins forever: polling skips turns
 // with no job id and hydration won't overwrite a non-terminal local status.
 const TTS_PENDING_WATCHDOG_MS = 15_000
+const DEFAULT_CHAT_GENERATION_OPTIONS: ChatGenerationOptions = {
+    generateImage: true,
+    suggestActions: true,
+}
 // Stable request key per (assistantMessageId, turnId), stored server-side for
 // tracing. Dedupe itself is content-hash based on the server (an in-flight or
 // completed job for the same turn + text + voice is reused).
@@ -102,8 +107,27 @@ function canonicalMessageId(turn?: TurnEntry | null): number | undefined {
     return undefined
 }
 
+function readChatGenerationOptions(key: string): ChatGenerationOptions {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(key) || 'null') as Partial<ChatGenerationOptions> | null
+        return {
+            generateImage: typeof parsed?.generateImage === 'boolean' ? parsed.generateImage : DEFAULT_CHAT_GENERATION_OPTIONS.generateImage,
+            suggestActions: typeof parsed?.suggestActions === 'boolean' ? parsed.suggestActions : DEFAULT_CHAT_GENERATION_OPTIONS.suggestActions,
+        }
+    } catch {
+        return DEFAULT_CHAT_GENERATION_OPTIONS
+    }
+}
+
 export function InteractionCenterPanel({sessionId, turns, setTurns, config}: InteractionCenterPanelProps) {
     const { t } = useTranslation()
+    // Session-attached lorebook triggers: underline matching words in the composer and
+    // transcript, Ctrl/Cmd-click to open the entry's floating card.
+    const loreTargetKind = config.kind === 'adventure' ? 'adventure_session' : 'character_chat'
+    const { matcher: loreMatcher } = useSessionLorebookEntries(
+        loreTargetKind,
+        Number.isNaN(sessionId) ? '' : String(sessionId),
+    )
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const { isAuthenticated, openLoginModal, token } = useAuth()
@@ -129,6 +153,17 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
             return false
         }
     })
+    const chatGenerationOptionsKey = `mw:chat-options:${config.kind}:${sessionId}`
+    const [chatGenerationOptionsState, setChatGenerationOptionsState] = useState<{
+        key: string
+        options: ChatGenerationOptions
+    }>(() => ({
+        key: chatGenerationOptionsKey,
+        options: readChatGenerationOptions(chatGenerationOptionsKey),
+    }))
+    const chatGenerationOptions = chatGenerationOptionsState.key === chatGenerationOptionsKey
+        ? chatGenerationOptionsState.options
+        : DEFAULT_CHAT_GENERATION_OPTIONS
 
     // Refs let the long-lived socket callbacks read the latest turns and target
     // the in-flight AI turn without being recreated every render.
@@ -154,6 +189,28 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
             // ignore storage failures (private mode / quota)
         }
     }, [autoNarrate, autoNarrateKey])
+    useEffect(() => {
+        setChatGenerationOptionsState({
+            key: chatGenerationOptionsKey,
+            options: readChatGenerationOptions(chatGenerationOptionsKey),
+        })
+    }, [chatGenerationOptionsKey])
+    useEffect(() => {
+        if (chatGenerationOptionsState.key !== chatGenerationOptionsKey) return
+        try {
+            localStorage.setItem(chatGenerationOptionsKey, JSON.stringify(chatGenerationOptionsState.options))
+        } catch {
+            // ignore storage failures (private mode / quota)
+        }
+    }, [chatGenerationOptionsKey, chatGenerationOptionsState])
+    const updateChatGenerationOptions = useCallback((mutate: (options: ChatGenerationOptions) => ChatGenerationOptions) => {
+        setChatGenerationOptionsState((current) => {
+            const currentOptions = current.key === chatGenerationOptionsKey
+                ? current.options
+                : readChatGenerationOptions(chatGenerationOptionsKey)
+            return { key: chatGenerationOptionsKey, options: mutate(currentOptions) }
+        })
+    }, [chatGenerationOptionsKey])
     // "Stop" is only armed a frame after loading begins. React 19 commits the Send
     // click's setIsLoading synchronously, swapping Send → Stop under the cursor, so
     // without this the same click would land on Stop and cancel the turn it just
@@ -328,7 +385,11 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                 }
             },
             onMetadata: ({ forwardOptions, imagePrompt }) => {
-                updateStreamingTurn((t) => ({ ...t, forwardOptions, imagePrompt }))
+                updateStreamingTurn((t) => ({
+                    ...t,
+                    ...(forwardOptions !== undefined ? { forwardOptions } : {}),
+                    ...(imagePrompt !== undefined ? { imagePrompt } : {}),
+                }))
             },
             onSegments: ({ segments, displayText }) => {
                 const resolved = resolveSegmentIdentity(segments, rosterRef.current.map)
@@ -596,7 +657,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                 role: t.type === 'user' ? ('user' as const) : ('assistant' as const),
                 content: t.content,
             }))
-        sendChat(messages)
+        sendChat(messages, chatGenerationOptions)
     }
 
     const handleRegenerateResponse = (turnId: string) => {
@@ -848,6 +909,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                                         confirmingDelete={isDeleteTarget}
                                         deleting={isDeleteTarget && isDeletingTurn}
                                         actionsDisabled={isLoading || isClearingTurns || (isDeletingTurn && !isDeleteTarget)}
+                                        loreMatcher={loreMatcher}
                                     />
                                 )
                             })}
@@ -887,9 +949,24 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                     isMutating={isMutatingTurns}
                     autoNarrate={autoNarrate}
                     onToggleAutoNarrate={() => setAutoNarrate((on) => !on)}
+                    generateImage={chatGenerationOptions.generateImage}
+                    onToggleGenerateImage={() =>
+                        updateChatGenerationOptions((options) => ({
+                            ...options,
+                            generateImage: !options.generateImage,
+                        }))
+                    }
+                    suggestActions={chatGenerationOptions.suggestActions}
+                    onToggleSuggestActions={() =>
+                        updateChatGenerationOptions((options) => ({
+                            ...options,
+                            suggestActions: !options.suggestActions,
+                        }))
+                    }
                     onReset={handleReset}
                     canReset={turns.length > 0}
                     placeholder={config.copy.placeholder}
+                    loreMatcher={loreMatcher}
                 />
                 {isLoading && (
                     <div className="mx-auto flex w-full max-w-[760px] items-center gap-2 px-4 pb-3 text-[13px] text-arcane-300 md:px-6">

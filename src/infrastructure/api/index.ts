@@ -45,8 +45,38 @@ import type {
     UserPreferencesUpdate,
     UserProfile,
 } from '../../shared/types/auth.types'
+import type {
+    BillingCheckoutSessionResponse,
+    BillingPlanCatalogResponse,
+    BillingPortalSessionResponse,
+    BillingReconcileResponse,
+    CreditCodeGrant,
+    CreditCodeGrantCreateRequest,
+    CreditCodeGrantListResponse,
+    CreditCodeGrantUpdateRequest,
+    CreditGrantListParams,
+    CreditGrantSummaryResponse,
+    CreditCodeRedeemResponse,
+    EmailCreditGrant,
+    EmailCreditGrantClaimResponse,
+    EmailCreditGrantCreateRequest,
+    EmailCreditGrantListResponse,
+    EmailCreditGrantOfferListResponse,
+    EmailCreditGrantUpdateRequest,
+    QuotaResetRequest,
+    QuotaResetResponse,
+} from '../../shared/types/billing.types'
+import type {
+    PatreonLinkRequest,
+    PatreonLinkStatusResponse,
+    PatreonProofConfirmRequest,
+    PatreonProofRequestResponse,
+    PatreonUnlinkRequest,
+    PatreonUnlinkResponse,
+} from '../../shared/types/patreon.types'
 import { API_BASE_URL } from './baseUrl'
 import { getProtectedMediaPath } from './mediaUrl'
+import { isPatreonFeatureEnabled } from '../../shared/patreonFeatureFlag'
 import { makeRequestId } from '../../utils/uuid'
 import { configureChatSocketAuthRefresh } from './chatSocket'
 import { configureVoiceSocketAuthRefresh } from './voiceSocket'
@@ -67,6 +97,7 @@ import type {
     LorebookEntry,
     LorebookEntryDraft,
     LorebookIssue,
+    LorebookResource,
     LorebookTargetKind,
 } from '../../shared/types/lorebook.types'
 import type {
@@ -92,6 +123,9 @@ import type {
     ShareableCardType,
 } from '../../shared/types/cardSharing.types'
 import type {
+    CardDraftDocument,
+    CardHistoricalDocument,
+    CardPublishResult,
     CardUsage,
     CardVersion,
     CardVersionList,
@@ -246,6 +280,12 @@ type ApiRequestOptions = RequestInit & {
 }
 
 type HeaderRecord = Record<string, string>
+
+export interface LorebookResourceMetadataSaveOptions {
+    extractMetadata?: boolean
+    requestId?: string
+    idempotencyKey?: string
+}
 
 class ApiService {
     private baseUrl: string
@@ -1084,6 +1124,228 @@ class ApiService {
         })
     }
 
+    // --- Billing / promotional credit grants -------------------------------
+
+    /** Serialise admin grant list filters into a query string (omitting empties). */
+    private creditGrantQuery(params: CreditGrantListParams = {}): string {
+        const search = new URLSearchParams()
+        if (params.status) search.set('status', params.status)
+        if (params.search?.trim()) search.set('search', params.search.trim())
+        if (params.sort) search.set('sort', params.sort)
+        search.set('limit', String(params.limit ?? 100))
+        search.set('offset', String(params.offset ?? 0))
+        return search.toString()
+    }
+
+    /** Per-state counts (codes + email grants) for the console KPI tiles. Root only. */
+    async getCreditGrantsSummary(): Promise<CreditGrantSummaryResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CreditGrantSummaryResponse>(
+            '/admin/billing/credit-grants/summary',
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Reset daily and/or monthly included-membership quota counters. Root only. */
+    async resetMembershipQuotas(body: QuotaResetRequest): Promise<QuotaResetResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<QuotaResetResponse>('/admin/billing/quota-resets', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    /** List one-time credit code grants, filtered / sorted / paginated. Root only. */
+    async listCreditCodeGrants(params: CreditGrantListParams = {}): Promise<CreditCodeGrantListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CreditCodeGrantListResponse>(
+            `/admin/billing/credit-codes?${this.creditGrantQuery(params)}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Create a one-time credit code. The response includes the raw `code` once. Root only. */
+    async createCreditCodeGrant(body: CreditCodeGrantCreateRequest): Promise<CreditCodeGrant> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CreditCodeGrant>('/admin/billing/credit-codes', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    /** Update an unclaimed credit code (credits / label / status / expiry / reason). Root only. */
+    async updateCreditCodeGrant(codeId: number, body: CreditCodeGrantUpdateRequest): Promise<CreditCodeGrant> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CreditCodeGrant>(
+            `/admin/billing/credit-codes/${encodeURIComponent(codeId)}`,
+            token,
+            { method: 'PATCH', body: body as unknown as BodyInit },
+        )
+    }
+
+    /** Disable an unclaimed credit code. Root only. */
+    async disableCreditCodeGrant(codeId: number): Promise<CreditCodeGrant> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CreditCodeGrant>(
+            `/admin/billing/credit-codes/${encodeURIComponent(codeId)}`,
+            token,
+            { method: 'DELETE' },
+        )
+    }
+
+    /** List email-address credit grants, filtered / sorted / paginated. Root only. */
+    async listEmailCreditGrants(params: CreditGrantListParams = {}): Promise<EmailCreditGrantListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<EmailCreditGrantListResponse>(
+            `/admin/billing/email-credit-grants?${this.creditGrantQuery(params)}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Create email-address credit grants for a batch of addresses. Root only. */
+    async createEmailCreditGrants(body: EmailCreditGrantCreateRequest): Promise<EmailCreditGrant[]> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<EmailCreditGrant[]>('/admin/billing/email-credit-grants', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    /** Update an unclaimed email-address credit grant. Root only. */
+    async updateEmailCreditGrant(grantId: number, body: EmailCreditGrantUpdateRequest): Promise<EmailCreditGrant> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<EmailCreditGrant>(
+            `/admin/billing/email-credit-grants/${encodeURIComponent(grantId)}`,
+            token,
+            { method: 'PATCH', body: body as unknown as BodyInit },
+        )
+    }
+
+    /** Disable an unclaimed email-address credit grant. Root only. */
+    async disableEmailCreditGrant(grantId: number): Promise<EmailCreditGrant> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<EmailCreditGrant>(
+            `/admin/billing/email-credit-grants/${encodeURIComponent(grantId)}`,
+            token,
+            { method: 'DELETE' },
+        )
+    }
+
+    /** Redeem a credit code for the signed-in user. Any authed user. */
+    async redeemCreditCode(code: string): Promise<CreditCodeRedeemResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CreditCodeRedeemResponse>('/billing/credit-codes/redeem', token, {
+            method: 'POST',
+            body: { code } as unknown as BodyInit,
+        })
+    }
+
+    /** List credit grants attached to the signed-in user's activated emails. */
+    async listEmailCreditGrantOffers(): Promise<EmailCreditGrantOfferListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<EmailCreditGrantOfferListResponse>('/billing/email-credit-grants', token, {
+            method: 'GET',
+        })
+    }
+
+    /** Claim credit grants attached to the signed-in user's activated emails. */
+    async claimEmailCreditGrants(): Promise<EmailCreditGrantClaimResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<EmailCreditGrantClaimResponse>('/billing/email-credit-grants/claim', token, {
+            method: 'POST',
+        })
+    }
+
+    // --- Subscriptions & PAYG checkout (api.auth-backed billing) -----------
+
+    /** Static plan + credit-pack catalog with a live `enabled` flag. Any authed user. */
+    async getBillingPlans(): Promise<BillingPlanCatalogResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<BillingPlanCatalogResponse>('/billing/plans', token, {
+            method: 'GET',
+        })
+    }
+
+    /** Start a Stripe subscription Checkout. Redirect the browser to the returned `url`. */
+    async createSubscriptionCheckout(planCode: string): Promise<BillingCheckoutSessionResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<BillingCheckoutSessionResponse>('/billing/subscription/checkout', token, {
+            method: 'POST',
+            body: { plan_code: planCode } as unknown as BodyInit,
+        })
+    }
+
+    /** Start a Stripe one-time Checkout for a PAYG credit pack. Redirect to the returned `url`. */
+    async createCreditCheckout(creditProductCode: string): Promise<BillingCheckoutSessionResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<BillingCheckoutSessionResponse>('/billing/credits/checkout', token, {
+            method: 'POST',
+            body: { credit_product_code: creditProductCode } as unknown as BodyInit,
+        })
+    }
+
+    /** Create a restricted Stripe Portal session (cancel / payment method). Redirect to `url`. */
+    async createBillingPortal(returnUrl?: string): Promise<BillingPortalSessionResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<BillingPortalSessionResponse>('/billing/portal', token, {
+            method: 'POST',
+            body: { return_url: returnUrl ?? null } as unknown as BodyInit,
+        })
+    }
+
+    /**
+     * Pull api.auth billing/Patreon facts and apply them to the local membership.
+     * Idempotent — safe to call on checkout return and whenever the billing UI opens.
+     */
+    async reconcileBilling(): Promise<BillingReconcileResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<BillingReconcileResponse>('/billing/reconcile', token, {
+            method: 'POST',
+        })
+    }
+
+    /** Start the Patreon email-loop proof for the signed-in user. */
+    async requestPatreonLink(body: PatreonLinkRequest): Promise<PatreonProofRequestResponse> {
+        if (!isPatreonFeatureEnabled()) throw new Error('Patreon integration is disabled.')
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<PatreonProofRequestResponse>('/patreon/link/request', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    /** Consume a Patreon proof token/parts for the signed-in user. */
+    async confirmPatreonLink(body: PatreonProofConfirmRequest): Promise<PatreonLinkStatusResponse> {
+        if (!isPatreonFeatureEnabled()) throw new Error('Patreon integration is disabled.')
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<PatreonLinkStatusResponse>('/patreon/link/confirm', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    /** Read the signed-in user's safe Patreon link and entitlement projection. */
+    async getPatreonLinkStatus(): Promise<PatreonLinkStatusResponse> {
+        if (!isPatreonFeatureEnabled()) throw new Error('Patreon integration is disabled.')
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<PatreonLinkStatusResponse>('/patreon/link/status', token, {
+            method: 'GET',
+        })
+    }
+
+    /** Soft-unlink Patreon entitlement state for the signed-in user. */
+    async unlinkPatreon(body?: PatreonUnlinkRequest): Promise<PatreonUnlinkResponse> {
+        if (!isPatreonFeatureEnabled()) throw new Error('Patreon integration is disabled.')
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<PatreonUnlinkResponse>('/patreon/link', token, {
+            method: 'DELETE',
+            body: body ? body as unknown as BodyInit : undefined,
+        })
+    }
+
     // --- Voice presets (user-facing) ---------------------------------------
 
     async listVoicePresets(q?: string): Promise<VoicePreset[]> {
@@ -1341,6 +1603,15 @@ class ApiService {
         )
     }
 
+    async duplicateCard(cardType: CardShareType, cardId: string): Promise<CardCloneResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardCloneResponse>(
+            `/cards/${cardType}/${encodeURIComponent(cardId)}/duplicate`,
+            token,
+            { method: 'POST' },
+        )
+    }
+
     // --- Explicit card versioning + usage (character / world / item only) --------------
 
     /** Route prefix for the versionable card type (characters/worlds/items). */
@@ -1391,6 +1662,121 @@ class ApiService {
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/usage`,
             token,
             { method: 'GET' },
+        )
+    }
+
+    // --- Draft buffer + publish (character / world / item only) -------------------------
+    // Editing writes to a PRIVATE draft; Publish promotes it to the live card + a new version.
+    // Sessions/clones/public viewers always see the published body, never the draft.
+
+    /** Fetch the editable body: the private draft if present, else the published body. */
+    async getCardDraft(cardType: VersionableCardType, cardId: string): Promise<CardDraftDocument> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardDraftDocument>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/draft`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Write the editor's payload into the private draft (does not touch the live card). */
+    async saveCardDraft(cardType: VersionableCardType, cardId: string, body: unknown): Promise<CardDraftDocument> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardDraftDocument>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/draft`,
+            token,
+            {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: body as unknown as BodyInit,
+            },
+        )
+    }
+
+    /** Discard the draft, reverting to the published version. Idempotent. */
+    async discardCardDraft(
+        cardType: VersionableCardType,
+        cardId: string,
+    ): Promise<{ card_id: string; discarded: boolean; has_draft: boolean }> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/draft`,
+            token,
+            { method: 'DELETE' },
+        )
+    }
+
+    /** Promote the draft → live and cut a new version (v{n+1}). 409 when there's nothing to publish. */
+    async publishCardDraft(cardType: VersionableCardType, cardId: string, label?: string): Promise<CardPublishResult> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardPublishResult>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/publish`,
+            token,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: { label: label?.trim() || null } as unknown as BodyInit,
+            },
+        )
+    }
+
+    /** Load an earlier version into the draft for review (the live card is unchanged until publish). */
+    async restoreVersionIntoDraft(
+        cardType: VersionableCardType,
+        cardId: string,
+        versionNumber: number,
+    ): Promise<CardDraftDocument> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardDraftDocument>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions/${versionNumber}/restore`,
+            token,
+            { method: 'POST' },
+        )
+    }
+
+    /**
+     * Read-only load of a single historical version's body for display in the editor — does NOT
+     * touch the private draft (unlike {@link restoreVersionIntoDraft}). Flagged `is_historical`.
+     */
+    async getCardVersion(
+        cardType: VersionableCardType,
+        cardId: string,
+        versionNumber: number,
+    ): Promise<CardHistoricalDocument> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardHistoricalDocument>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions/${versionNumber}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Fetch the latest PUBLISHED body for a versionable card (ignores any private draft). */
+    async getPublishedBody(cardType: VersionableCardType, cardId: string): Promise<CardDraftDocument> {
+        if (cardType === 'world') return (await this.getWorld(cardId)) as CardDraftDocument
+        if (cardType === 'item') return (await this.getItem(cardId)) as CardDraftDocument
+        return (await this.getCharacter(cardId)) as CardDraftDocument
+    }
+
+    /**
+     * Patch published-body media (image_url / theme_song_url) directly — media is a
+     * published-level property persisted immediately, so a generated portrait/theme shows
+     * without a publish and is never staged as unpublished authored content.
+     */
+    async setCardMedia(
+        cardType: VersionableCardType,
+        cardId: string,
+        media: { image_url?: string | null; theme_song_url?: string | null },
+    ): Promise<CardDraftDocument> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<CardDraftDocument>(
+            `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/media`,
+            token,
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: media as unknown as BodyInit,
+            },
         )
     }
 
@@ -1485,6 +1871,83 @@ class ApiService {
     private listQuery(skip: number, limit: number, q?: string): string {
         const term = q?.trim()
         return `?skip=${skip}&limit=${limit}${term ? `&q=${encodeURIComponent(term)}` : ''}`
+    }
+
+    private lorebookEntryPayload(entry: Partial<LorebookEntry | LorebookEntryDraft> | Record<string, unknown>): Record<string, unknown> {
+        if ('entry_type' in entry || 'secondary_keys' in entry) return entry as Record<string, unknown>
+        const item = entry as Partial<LorebookEntry | LorebookEntryDraft>
+        const id = 'id' in item && typeof item.id === 'string' && !item.id.startsWith('draft-entry-') ? item.id : undefined
+        return {
+            ...(id ? { id } : {}),
+            title: item.title ?? '',
+            entry_type: item.entryType ?? 'other',
+            content: item.content ?? '',
+            keys: item.keys ?? [],
+            secondary_keys: item.secondaryKeys ?? [],
+            selective_logic: item.selectiveLogic ?? 'any',
+            enabled: item.enabled ?? true,
+            constant: item.constant ?? false,
+            case_sensitive: item.caseSensitive ?? false,
+            match_whole_words: item.matchWholeWords ?? true,
+            regex: item.regex ?? false,
+            is_secret: item.isSecret ?? false,
+            reveal_condition: item.revealCondition || null,
+            insertion_order: item.insertionOrder ?? 0,
+            priority: item.priority ?? 0,
+            insertion_position: item.insertionPosition ?? 'before_context',
+            token_budget: item.tokenBudget ?? null,
+            metadata: item.metadata ?? {},
+        }
+    }
+
+    private lorebookAttachmentPayload(attachment: Partial<LorebookAttachment> | Record<string, unknown>): Record<string, unknown> {
+        if ('lorebook_id' in attachment || 'target_kind' in attachment) return attachment as Record<string, unknown>
+        const item = attachment as Partial<LorebookAttachment>
+        return {
+            ...(item.id ? { id: item.id } : {}),
+            lorebook_id: item.lorebookId,
+            target_kind: item.targetKind ?? 'global',
+            target_id: item.targetId || null,
+            mode: item.mode ?? 'linked',
+            snapshot: item.snapshot ?? null,
+        }
+    }
+
+    private lorebookResourceMetadataHeaders(options: LorebookResourceMetadataSaveOptions = {}): Record<string, string> {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (options.extractMetadata || options.requestId || options.idempotencyKey) {
+            const requestId = options.requestId || this.createClientId('mw-lorebook-resource-req')
+            headers['X-Request-Id'] = requestId
+            headers['Idempotency-Key'] = options.idempotencyKey || requestId
+        }
+        return headers
+    }
+
+    private extractMetadataQuery(shouldExtract?: boolean): string {
+        return shouldExtract ? '?extractMetadata=true' : ''
+    }
+
+    private lorebookResourcePayload(resource: Partial<LorebookResource> | Record<string, unknown>): Record<string, unknown> {
+        if ('fileName' in resource || 'file_name' in resource) {
+            const item = resource as Partial<LorebookResource> & Record<string, unknown>
+            return {
+                ...(typeof item.id === 'string' ? { id: item.id } : {}),
+                title: typeof item.title === 'string' ? item.title : '',
+                description: typeof item.description === 'string' && item.description.trim() ? item.description : null,
+                triggers: Array.isArray(item.triggers) ? item.triggers : [],
+                fileName: typeof item.fileName === 'string' ? item.fileName : typeof item.file_name === 'string' ? item.file_name : 'resource.txt',
+                fileType: item.fileType === 'md' || item.fileType === 'txt' ? item.fileType : item.file_type === 'md' || item.file_type === 'txt' ? item.file_type : 'txt',
+                content: typeof item.content === 'string' ? item.content : '',
+                contentLength: typeof item.contentLength === 'number'
+                    ? item.contentLength
+                    : typeof item.content_length === 'number'
+                      ? item.content_length
+                      : typeof item.content === 'string'
+                        ? item.content.length
+                        : 0,
+            }
+        }
+        return resource as Record<string, unknown>
     }
 
     private sharedCardListQuery(
@@ -1616,20 +2079,20 @@ class ApiService {
         })
     }
 
-    async createLorebook(lorebook: LorebookDraft | Record<string, unknown>): Promise<unknown> {
+    async createLorebook(lorebook: LorebookDraft | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest('/lorebooks', token, {
+        return this.authenticatedRequest(`/lorebooks${this.extractMetadataQuery(options.extractMetadata)}`, token, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: this.lorebookResourceMetadataHeaders(options),
             body: lorebook as unknown as BodyInit,
         })
     }
 
-    async updateLorebook(lorebookId: string, lorebook: Partial<LorebookDraft> | Record<string, unknown>): Promise<unknown> {
+    async updateLorebook(lorebookId: string, lorebook: Partial<LorebookDraft> | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}`, token, {
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}${this.extractMetadataQuery(options.extractMetadata)}`, token, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: this.lorebookResourceMetadataHeaders(options),
             body: lorebook as unknown as BodyInit,
         })
     }
@@ -1641,12 +2104,82 @@ class ApiService {
         })
     }
 
+    async getLorebookResources(skip: number = 0, limit: number = 100, q?: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebook-resources${this.listQuery(skip, limit, q)}`, token, {
+            method: 'GET',
+        })
+    }
+
+    async getLorebookResource(resourceId: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}`, token, {
+            method: 'GET',
+        })
+    }
+
+    async createLorebookResource(resource: LorebookResource | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebook-resources${this.extractMetadataQuery(options.extractMetadata)}`, token, {
+            method: 'POST',
+            headers: this.lorebookResourceMetadataHeaders(options),
+            body: this.lorebookResourcePayload(resource) as unknown as BodyInit,
+        })
+    }
+
+    async updateLorebookResource(resourceId: string, resource: Partial<LorebookResource> | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}${this.extractMetadataQuery(options.extractMetadata)}`, token, {
+            method: 'PUT',
+            headers: this.lorebookResourceMetadataHeaders(options),
+            body: this.lorebookResourcePayload(resource) as unknown as BodyInit,
+        })
+    }
+
+    async syncLorebookResourceMetadata(resourceId: string, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+        const token = this.getStoredToken()
+        const requestOptions = { ...options, extractMetadata: true }
+        return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}/metadata-sync`, token, {
+            method: 'POST',
+            headers: this.lorebookResourceMetadataHeaders(requestOptions),
+            body: {} as unknown as BodyInit,
+        })
+    }
+
+    async deleteLorebookResource(resourceId: string): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}`, token, {
+            method: 'DELETE',
+        })
+    }
+
+    async getLorebookLinkedResources(lorebookId: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/resources`, token, {
+            method: 'GET',
+        })
+    }
+
+    async attachLorebookResource(lorebookId: string, resourceId: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/resources/${encodeURIComponent(resourceId)}`, token, {
+            method: 'PUT',
+        })
+    }
+
+    async detachLorebookResource(lorebookId: string, resourceId: string): Promise<unknown> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/resources/${encodeURIComponent(resourceId)}`, token, {
+            method: 'DELETE',
+        })
+    }
+
     async createLorebookEntry(lorebookId: string, entry: LorebookEntryDraft | Record<string, unknown>): Promise<unknown> {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries`, token, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: entry as unknown as BodyInit,
+            body: this.lorebookEntryPayload(entry) as unknown as BodyInit,
         })
     }
 
@@ -1655,7 +2188,7 @@ class ApiService {
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries/${encodeURIComponent(entryId)}`, token, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: entry as unknown as BodyInit,
+            body: this.lorebookEntryPayload(entry) as unknown as BodyInit,
         })
     }
 
@@ -1682,7 +2215,7 @@ class ApiService {
         return this.authenticatedRequest<LorebookAttachment>('/lorebook-attachments', token, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: attachment as unknown as BodyInit,
+            body: this.lorebookAttachmentPayload(attachment) as unknown as BodyInit,
         })
     }
 
@@ -2770,9 +3303,7 @@ class ApiService {
     }
 
     /**
-     * Start (or resume) a 1:1 character chat. The backend is idempotent per
-     * (user, character): it returns the existing chat if one exists, otherwise
-     * creates one and seeds the character's greeting as the first turn.
+     * Start a fresh 1:1 character chat and seed the character's greeting as the first turn.
      */
     async createCharacterChat(characterId: string, personaId: string): Promise<any> {
         const token = this.getStoredToken()
@@ -2809,6 +3340,13 @@ class ApiService {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/character-chats/${chatId}`, token, {
             method: 'GET'
+        })
+    }
+
+    async getCharacterChatCodexCards(chatId: number): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}/codex-cards`, token, {
+            method: 'GET',
         })
     }
 
@@ -2860,6 +3398,31 @@ class ApiService {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: { last_turn: lastTurn } as unknown as BodyInit
+        })
+    }
+
+    async addCharacterChatCodexCards(chatId: number, cards: Array<{ kind: string; cardId: string }>): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}/codex-cards`, token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { cards: cards.map((card) => ({ kind: card.kind, card_id: card.cardId })) } as unknown as BodyInit,
+        })
+    }
+
+    async updateCharacterChatCodexCard(chatId: number, codexCardId: string, enabled: boolean): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}/codex-cards/${encodeURIComponent(codexCardId)}`, token, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: { enabled } as unknown as BodyInit,
+        })
+    }
+
+    async deleteCharacterChatCodexCard(chatId: number, codexCardId: string): Promise<any> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}/codex-cards/${encodeURIComponent(codexCardId)}`, token, {
+            method: 'DELETE',
         })
     }
 

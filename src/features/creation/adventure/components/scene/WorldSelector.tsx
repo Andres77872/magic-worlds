@@ -41,7 +41,6 @@ export function WorldSelector({ worlds, selectedId, onSelect, onCreateWorld, loa
                     name={w.name}
                     race={[w.place_type, w.type].filter(Boolean).join(' / ')}
                     description={w.description}
-                    mode="radio"
                     selected={selectedId === w.id}
                     onToggle={() => onSelect(w.id)}
                 />
