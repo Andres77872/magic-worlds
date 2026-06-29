@@ -1,0 +1,93 @@
+import { describe, expect, it } from 'vitest'
+import type { ForwardOption, TurnEntry } from '@/shared'
+import { mergeHydratedChatTurns } from './chatTurnMerge'
+
+type ExtendedTurnEntry = TurnEntry & { forwardOptions?: ForwardOption[] }
+
+const timestamp = '2026-06-07T00:00:00.000Z'
+
+const userTurn: TurnEntry = {
+  id: '100',
+  type: 'user',
+  content: 'Look around',
+  timestamp,
+  turnId: 'turn-9',
+}
+
+const liveAiTurn: ExtendedTurnEntry = {
+  id: '999',
+  type: 'ai',
+  content: 'Aria: Who goes there?',
+  timestamp,
+  assistantMessageId: 999,
+  turnId: 'turn-9',
+  segments: [{ kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Who goes there?', streaming: true }],
+  forwardOptions: [{ label: 'Answer Aria', message: 'I answer Aria.' }],
+  imagePrompt: 'A torchlit threshold.',
+}
+
+describe('mergeHydratedChatTurns', () => {
+  it('preserves current structured segments when hydrated AI turn is plain text only', () => {
+    const hydrated: TurnEntry[] = [
+      userTurn,
+      {
+        id: '999',
+        type: 'ai',
+        content: 'Aria: Who goes there?',
+        timestamp,
+        assistantMessageId: 999,
+        turnId: 'turn-9',
+      },
+    ]
+
+    const next = mergeHydratedChatTurns([userTurn, liveAiTurn], hydrated)
+
+    expect(next).toHaveLength(2)
+    expect(next[1].segments).toEqual([
+      { kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Who goes there?' },
+    ])
+    expect((next[1] as ExtendedTurnEntry).forwardOptions).toEqual(liveAiTurn.forwardOptions)
+    expect(next[1].imagePrompt).toBe('A torchlit threshold.')
+  })
+
+  it('uses authoritative hydrated segments when the server provides them', () => {
+    const hydratedAi: TurnEntry = {
+      id: '999',
+      type: 'ai',
+      content: 'Borin: Hold fast.',
+      timestamp,
+      assistantMessageId: 999,
+      turnId: 'turn-9',
+      segments: [{ kind: 'speech', speaker_id: 'borin', speaker_name: 'Borin', content: 'Hold fast.' }],
+    }
+
+    const next = mergeHydratedChatTurns([userTurn, liveAiTurn], [userTurn, hydratedAi])
+
+    expect(next[1].content).toBe('Borin: Hold fast.')
+    expect(next[1].segments).toEqual(hydratedAi.segments)
+  })
+
+  it('lets hydrated ordering and deletions win', () => {
+    const next = mergeHydratedChatTurns([userTurn, liveAiTurn], [userTurn])
+
+    expect(next).toEqual([userTurn])
+  })
+
+  it('preserves current segments when hydrated content differs but has no segments', () => {
+    const hydratedAi: TurnEntry = {
+      id: '999',
+      type: 'ai',
+      content: 'The hall falls silent.',
+      timestamp,
+      assistantMessageId: 999,
+      turnId: 'turn-9',
+    }
+
+    const next = mergeHydratedChatTurns([userTurn, liveAiTurn], [userTurn, hydratedAi])
+
+    expect(next[1].content).toBe('The hall falls silent.')
+    expect(next[1].segments).toEqual([
+      { kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Who goes there?' },
+    ])
+  })
+})
