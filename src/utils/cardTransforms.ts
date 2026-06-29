@@ -46,6 +46,8 @@ interface RawCardRow {
     original_creator?: CardActor
     latest_version_id?: string | null
     latest_version_number?: number
+    has_draft?: boolean
+    draft_updated_at?: string | null
     persona?: Character
     characters?: Character[]
     world?: World[]
@@ -92,6 +94,8 @@ export function transformCharacters(raw: unknown): Character[] {
         original_creator: char.original_creator,
         latest_version_id: char.latest_version_id,
         latest_version_number: char.latest_version_number,
+        has_draft: char.has_draft,
+        draft_updated_at: char.draft_updated_at,
         createdAt: char.createdAt ?? char.created_at,
         updatedAt: char.updatedAt ?? char.updated_at,
     }))

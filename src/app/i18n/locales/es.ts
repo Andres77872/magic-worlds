@@ -1322,6 +1322,13 @@ export const es = {
                 groupMinTitle: 'Elige al menos 2 personajes',
                 groupMinBody: 'Los chats grupales necesitan más de una carta de personaje.',
                 startGroupChat: 'Iniciar chat grupal',
+                personas: {
+                    sectionTitle: 'Tus personas',
+                    count: '{{count}} cartas',
+                    defaultBadge: 'Persona predeterminada',
+                    emptyTitle: 'Aún no hay personas',
+                    emptyDescription: 'Crea una persona para elegir a quién interpretas en chats y aventuras.',
+                },
                 clearSearch: 'Limpiar búsqueda',
                 refresh: 'Actualizar',
                 retry: 'Reintentar',

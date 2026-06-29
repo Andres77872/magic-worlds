@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookOpenText, CheckCircle2, Copy, Download, Globe2, History, Import, Link2, Loader2, Pencil, Phone, Play, Plus, MessageCircle, Search, Trash2, Users, X } from 'lucide-react'
+import { BookOpenText, CheckCircle2, Copy, Download, Globe2, History, Import, Link2, Loader2, Pencil, Phone, Play, Plus, MessageCircle, Search, Trash2, UserCircle, Users, X } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import type { PlaylistTrack } from '@/app/providers/audioPlaylistContext'
 import type { Adventure, Character, Item, VersionableCardType, World } from '@/shared'
@@ -15,8 +15,8 @@ import { apiService } from '@/infrastructure/api'
 import { VersionHistoryDrawer } from '@/features/creation/common/components'
 import { CardGrid, GalleryCard, GalleryCardSkeleton, PersonaPickerDialog, type CardOption } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
-import { Button, Chip, controlClass, Icon, IconButton, PageHeader, Toast } from '@/ui/primitives'
-import { defaultPersona } from '@/utils/characterRoles'
+import { Badge, Button, Chip, controlClass, Icon, IconButton, PageHeader, SectionHeader, Toast } from '@/ui/primitives'
+import { defaultPersona, isPersonaCard } from '@/utils/characterRoles'
 import { downloadBlob, safeFilename } from '@/utils/download'
 import { useStartCall } from '@/features/call'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
@@ -25,7 +25,7 @@ import {
     isGroupChatsFeatureEnabled,
     isNovelsFeatureEnabled,
 } from '@/shared/featureFlags'
-import { GALLERY_CONFIG, publicConfigFor, publicItems, type GalleryItem, type GalleryType } from '../galleryConfig'
+import { GALLERY_CONFIG, personaGalleryItem, publicConfigFor, publicItems, type GalleryItem, type GalleryType } from '../galleryConfig'
 import { buildCardEditHash, buildGalleryModeHash, buildGalleryViewHash, buildSharedCardUrl, galleryPageForType, parseGalleryHash } from '../galleryLinks'
 import { useCardGallery } from '../hooks/useCardGallery'
 import { useGalleryView } from '../hooks/useGalleryView'
@@ -62,6 +62,13 @@ function galleryViewFor(type: GalleryType): 'mine' | 'public' {
 
 function playlistCardType(type: GalleryType): PlaylistTrack['cardType'] {
     return type === 'adventure' ? 'adventure_template' : type
+}
+
+function versionableCardTypeFor(type: GalleryType): VersionableCardType | null {
+    if (type === 'character' || type === 'persona') return 'character'
+    if (type === 'world') return 'world'
+    if (type === 'item') return 'item'
+    return null
 }
 
 function scrollToGalleryCard(id: string): void {
@@ -182,6 +189,17 @@ export function GalleryPage({ type }: GalleryPageProps) {
         noMatchTitle: isPublicView ? displayConfig.publicNoMatchTitle : displayConfig.noMatchTitle,
         noMatchDescription: t('gallery.noMatchDescription'),
     }
+    const personaSectionItems = useMemo(() => {
+        return characters
+            .map((character, index) => ({ character, index }))
+            .filter(({ character }) => isPersonaCard(character))
+            .sort((a, b) =>
+                Number(Boolean(b.character.is_default_persona)) - Number(Boolean(a.character.is_default_persona))
+                || a.index - b.index,
+            )
+            .map(({ character }) => personaGalleryItem(character))
+    }, [characters])
+    const showPersonaSection = isAuthenticated && type === 'character' && !isPublicView && !groupSelectionMode
 
     useEffect(() => {
         const syncLinkedCard = () => {
@@ -260,12 +278,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     }
 
     // Versioning applies only to character/world/item (persona is a character card).
-    const versionableCardType = (): VersionableCardType | null => {
-        if (type === 'character' || type === 'persona') return 'character'
-        if (type === 'world') return 'world'
-        if (type === 'item') return 'item'
-        return null
-    }
+    const versionableCardType = (): VersionableCardType | null => versionableCardTypeFor(type)
 
     // Re-pull a single card after a version save/restore so the gallery reflects the
     // new latest_version_number (and any restored body changes).
@@ -423,7 +436,12 @@ export function GalleryPage({ type }: GalleryPageProps) {
         setActionNotice(null)
         setExportingId(item.id)
         try {
-            const exportType = type === 'adventure' ? 'adventure_template' : type === 'persona' ? 'character' : type
+            const exportType =
+                item.galleryType === 'adventure'
+                    ? 'adventure_template'
+                    : item.galleryType === 'persona'
+                      ? 'character'
+                      : item.galleryType
             const blob = await apiService.exportCardImage(exportType, item.id)
             downloadBlob(blob, `${safeFilename(item.title, 'card')}.png`)
         } catch (error) {
@@ -446,8 +464,8 @@ export function GalleryPage({ type }: GalleryPageProps) {
         try {
             const share = await apiService.createCardShareLink(item.backendType, item.id)
             await writeClipboardText(buildSharedCardUrl(share.share_token))
-            const updated = publicItems(share.resource, type)[0]
-            if (updated) upsertItem(updated)
+            const updated = publicItems(share.resource, item.galleryType)[0]
+            if (updated && updated.galleryType === type) upsertItem(updated)
             setActionNotice({
                 tone: 'success',
                 title: t('gallery.action.linkCopied'),
@@ -471,8 +489,8 @@ export function GalleryPage({ type }: GalleryPageProps) {
             const resource = isPublic
                 ? await apiService.unpublishCard(item.backendType, item.id)
                 : await apiService.publishCard(item.backendType, item.id)
-            const updated = publicItems(resource, type)[0]
-            if (updated) upsertItem(updated)
+            const updated = publicItems(resource, item.galleryType)[0]
+            if (updated && updated.galleryType === type) upsertItem(updated)
             setActionNotice({
                 tone: 'success',
                 title: isPublic ? t('gallery.action.publicRemoved') : t('gallery.action.publicShared'),
@@ -514,9 +532,9 @@ export function GalleryPage({ type }: GalleryPageProps) {
         setDuplicatingId(item.id)
         try {
             const response = await apiService.duplicateCard(item.backendType, item.id)
-            const duplicated = publicItems(response, type)[0]
+            const duplicated = publicItems(response, item.galleryType)[0]
             if (!duplicated) throw new Error(t('gallery.action.tryAgain'))
-            upsertItem(duplicated)
+            if (duplicated.galleryType === type) upsertItem(duplicated)
             prependDuplicateIntoData(duplicated)
             setHighlightedId(duplicated.id)
             setActionNotice({
@@ -592,14 +610,19 @@ export function GalleryPage({ type }: GalleryPageProps) {
         const writeFromCard = () =>
             requireAuth(() => {
                 const source =
-                    type === 'character' || type === 'persona'
+                    item.galleryType === 'character' || item.galleryType === 'persona'
                         ? { kind: 'character' as const, id: item.id, title: item.title }
-                        : type === 'world'
+                        : item.galleryType === 'world'
                           ? { kind: 'world' as const, id: item.id, title: item.title }
-                          : type === 'item'
+                          : item.galleryType === 'item'
                             ? { kind: 'item' as const, id: item.id, title: item.title }
                             : { kind: 'adventure_template' as const, id: item.id, title: item.title }
-                const cardRefKind = type === 'adventure' ? 'adventure_template' : type === 'persona' ? 'character' : type
+                const cardRefKind =
+                    item.galleryType === 'adventure'
+                        ? 'adventure_template'
+                        : item.galleryType === 'persona'
+                          ? 'character'
+                          : item.galleryType
                 void createStory({
                     title: t('gallery.novelTitle', { title: item.title }),
                     source,
@@ -615,7 +638,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 onClick: writeFromCard,
             })
         }
-        if (type === 'character') {
+        if (item.galleryType === 'character') {
             options.push({
                 type: 'custom',
                 icon: <Icon icon={MessageCircle} size={15} />,
@@ -633,7 +656,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 })
             }
         }
-        if (type === 'adventure') {
+        if (item.galleryType === 'adventure') {
             options.push({
                 type: 'custom',
                 icon: <Icon icon={Play} size={15} />,
@@ -652,13 +675,13 @@ export function GalleryPage({ type }: GalleryPageProps) {
             })
         } else {
             options.push({
-            type: 'custom',
-            icon: <Icon icon={Pencil} size={15} />,
+                type: 'custom',
+                icon: <Icon icon={Pencil} size={15} />,
                 label: t('gallery.edit'),
                 onClick: edit,
             })
         }
-        if (versionableCardType()) {
+        if (versionableCardTypeFor(item.galleryType)) {
             options.push({
                 type: 'custom',
                 icon: <Icon icon={History} size={15} />,
@@ -744,6 +767,12 @@ export function GalleryPage({ type }: GalleryPageProps) {
         } finally {
             setIsPersonaPickConfirming(false)
         }
+    }
+
+    const badgeForItem = (item: GalleryItem, alreadyImported = false) => {
+        if (alreadyImported) return t('gallery.alreadyImported')
+        if (item.isDefaultPersona) return t('gallery.personas.defaultBadge')
+        return item.badge
     }
 
     const emptyAction: ReactNode = hasQuery ? (
@@ -901,6 +930,79 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 onClose={() => (isPublicView ? importHook.setActionNotice(null) : setActionNotice(null))}
             />
 
+            {showPersonaSection && (
+                <section
+                    className="flex flex-col gap-3"
+                    aria-labelledby="character-personas-title"
+                    data-testid="character-persona-section"
+                >
+                    <SectionHeader
+                        icon={UserCircle}
+                        tone="ember"
+                        title={<span id="character-personas-title">{t('gallery.personas.sectionTitle')}</span>}
+                        right={<Badge tone="ember">{t('gallery.personas.count', { count: personaSectionItems.length })}</Badge>}
+                    />
+                    {personaSectionItems.length > 0 ? (
+                        <CardGrid
+                            items={personaSectionItems}
+                            layout="rail"
+                            railWidth="compact"
+                            fadeEdges
+                            getItemKey={(item) => item.id}
+                            showEmptyState={false}
+                            data-testid="character-persona-rail"
+                            renderCard={(item) => (
+                                <GalleryCard
+                                    id={item.id}
+                                    size="compact"
+                                    title={item.title}
+                                    badge={badgeForItem(item)}
+                                    eyebrow={item.eyebrow}
+                                    description={item.description}
+                                    tags={item.tags}
+                                    imageUrl={item.imageUrl}
+                                    themeSongUrl={item.themeSongUrl}
+                                    cardType={playlistCardType(item.galleryType)}
+                                    cardId={item.id}
+                                    versionNumber={item.versionNumber}
+                                    hasDraft={item.hasDraft}
+                                    usageCardType="character"
+                                    usageEnabled
+                                    shareOptions={shareOptionsFor(item)}
+                                    deleting={deletingId === item.id}
+                                    onClick={() => primaryAction(item)}
+                                    actionLabel={t('gallery.cardAction.edit', { title: item.title })}
+                                    onTagClick={gallery.setQuery}
+                                    options={optionsFor(item)}
+                                    highlighted={highlightedId === item.id}
+                                    data-testid="persona-gallery-card"
+                                />
+                            )}
+                        />
+                    ) : (
+                        <div className="flex flex-col gap-3 rounded-lg border border-parchment-50/10 bg-ink-700 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                                <p className="m-0 font-ui text-sm font-semibold text-parchment-50">
+                                    {t('gallery.personas.emptyTitle')}
+                                </p>
+                                <p className="m-0 mt-1 font-ui text-sm text-parchment-300">
+                                    {t('gallery.personas.emptyDescription')}
+                                </p>
+                            </div>
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                iconLeft={<Icon icon={Plus} size={15} />}
+                                onClick={openCreatePage}
+                                className="shrink-0"
+                            >
+                                {t('gallery.type.persona.create')}
+                            </Button>
+                        </div>
+                    )}
+                </section>
+            )}
+
             <CardGrid
                 items={gallery.items}
                 layout={cardGridLayout(layoutView)}
@@ -927,7 +1029,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                             id={item.id}
                             view={galleryCardView(layoutView)}
                             title={item.title}
-                            badge={alreadyImported ? t('gallery.alreadyImported') : item.badge}
+                            badge={badgeForItem(item, alreadyImported)}
                             eyebrow={item.eyebrow}
                             description={item.description}
                             tags={item.tags}
@@ -1030,7 +1132,11 @@ export function GalleryPage({ type }: GalleryPageProps) {
 
             <ConfirmDialog
                 visible={pendingDelete !== null}
-                title={t('gallery.deleteTitle', { type: displayConfig.singular })}
+                title={t('gallery.deleteTitle', {
+                    type: pendingDelete
+                        ? t(`gallery.type.${pendingDelete.galleryType}.singular`)
+                        : displayConfig.singular,
+                })}
                 message={
                     pendingDelete
                         ? t('gallery.deleteMessage', { title: pendingDelete.title.slice(0, 80) })

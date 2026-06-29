@@ -1312,6 +1312,13 @@ export const en = {
                 groupMinTitle: 'Choose at least 2 characters',
                 groupMinBody: 'Group chats need more than one character card.',
                 startGroupChat: 'Start group chat',
+                personas: {
+                    sectionTitle: 'Your personas',
+                    count: '{{count}} cards',
+                    defaultBadge: 'Default persona',
+                    emptyTitle: 'No personas yet',
+                    emptyDescription: 'Create a persona to choose who you play as in chats and adventures.',
+                },
                 clearSearch: 'Clear search',
                 refresh: 'Refresh',
                 retry: 'Retry',

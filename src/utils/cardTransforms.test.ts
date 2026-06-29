@@ -28,10 +28,11 @@ describe('cardTransforms', () => {
 
     it('preserves persona role and default persona metadata', () => {
         const [char] = transformCharacters([
-            { id: 'p1', name: 'Aria', role: 'persona', is_default_persona: true },
+            { id: 'p1', name: 'Aria', role: 'persona', is_default_persona: true, has_draft: true },
         ])
         expect(char.role).toBe('persona')
         expect(char.is_default_persona).toBe(true)
+        expect(char.has_draft).toBe(true)
     })
 
     it('preserves character voice recipes with a valid voice id', () => {

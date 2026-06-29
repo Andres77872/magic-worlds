@@ -38,6 +38,8 @@ export interface GalleryItem {
     versionNumber?: number
     /** Owner-only: true when there are unpublished draft edits (absent on public/foreign reads). */
     hasDraft?: boolean
+    /** Character-card metadata used to mark the selected player persona. */
+    isDefaultPersona?: boolean
     backendType: ShareableCardType
     galleryType: GalleryType
     /** Original typed entity, for wiring actions. */
@@ -61,41 +63,46 @@ export interface GalleryConfig {
     toItem?: (raw: unknown) => GalleryItem | null
 }
 
+export const characterGalleryItem = (character: Character): GalleryItem => ({
+    id: character.id,
+    title: character.name,
+    badge: character.race || undefined,
+    description: character.description || undefined,
+    tags: character.triggers ?? [],
+    imageUrl: resolveMediaUrl(character.image_url),
+    themeSongUrl: resolveMediaUrl(character.theme_song_url),
+    visibility: character.visibility,
+    originalCreatorName: actorName(character.original_creator),
+    versionNumber: character.latest_version_number,
+    hasDraft: character.has_draft,
+    backendType: 'character',
+    galleryType: 'character',
+    source: character,
+})
+
+export const personaGalleryItem = (character: Character): GalleryItem => ({
+    id: character.id,
+    title: character.name,
+    badge: character.race || undefined,
+    description: character.description || undefined,
+    tags: character.triggers ?? [],
+    imageUrl: resolveMediaUrl(character.image_url),
+    themeSongUrl: resolveMediaUrl(character.theme_song_url),
+    visibility: character.visibility,
+    originalCreatorName: actorName(character.original_creator),
+    versionNumber: character.latest_version_number,
+    hasDraft: character.has_draft,
+    isDefaultPersona: Boolean(character.is_default_persona),
+    backendType: 'character',
+    galleryType: 'persona',
+    source: character,
+})
+
 const characterItems = (raw: unknown): GalleryItem[] =>
-    transformCharacters(raw).map((character) => ({
-        id: character.id,
-        title: character.name,
-        badge: character.race || undefined,
-        description: character.description || undefined,
-        tags: character.triggers ?? [],
-        imageUrl: resolveMediaUrl(character.image_url),
-        themeSongUrl: resolveMediaUrl(character.theme_song_url),
-        visibility: character.visibility,
-        originalCreatorName: actorName(character.original_creator),
-        versionNumber: character.latest_version_number,
-        hasDraft: character.has_draft,
-        backendType: 'character',
-        galleryType: 'character',
-        source: character,
-    }))
+    transformCharacters(raw).map(characterGalleryItem)
 
 const personaItems = (raw: unknown): GalleryItem[] =>
-    transformCharacters(raw).map((character) => ({
-        id: character.id,
-        title: character.name,
-        badge: character.is_default_persona ? 'Default persona' : character.race || undefined,
-        description: character.description || undefined,
-        tags: character.triggers ?? [],
-        imageUrl: resolveMediaUrl(character.image_url),
-        themeSongUrl: resolveMediaUrl(character.theme_song_url),
-        visibility: character.visibility,
-        originalCreatorName: actorName(character.original_creator),
-        versionNumber: character.latest_version_number,
-        hasDraft: character.has_draft,
-        backendType: 'character',
-        galleryType: 'persona',
-        source: character,
-    }))
+    transformCharacters(raw).map(personaGalleryItem)
 
 const worldItems = (raw: unknown): GalleryItem[] =>
     transformWorlds(raw).map((world) => ({

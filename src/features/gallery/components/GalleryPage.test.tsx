@@ -7,6 +7,7 @@ const setWorlds = vi.fn()
 const setItems = vi.fn()
 const setTemplateAdventures = vi.fn()
 const editCharacter = vi.fn()
+const setEditingCharacter = vi.fn()
 const openLoginModal = vi.fn()
 const deleteCharacter = vi.fn().mockResolvedValue(undefined)
 const editItem = vi.fn()
@@ -60,6 +61,7 @@ vi.mock('@/app/hooks', () => ({
         templateAdventures: [],
         setTemplateAdventures,
         editCharacter,
+        setEditingCharacter,
         deleteCharacter,
         startCharacterChat,
         startCharacterGroupChat,
@@ -248,6 +250,75 @@ describe('GalleryPage', () => {
         expect(apiService.getCharacters).toHaveBeenCalledWith(0, 24, undefined, 'character')
     })
 
+    it('renders user personas above character cards and marks the default persona', async () => {
+        mockData.characters = [
+            {
+                id: 'p2',
+                name: 'Bryn',
+                race: 'Gnome',
+                description: 'A quiet scout.',
+                role: 'persona',
+                is_default_persona: false,
+            },
+            {
+                id: 'p1',
+                name: 'Aria',
+                race: 'Human',
+                description: 'A steady traveler.',
+                role: 'persona',
+                is_default_persona: true,
+            },
+            { id: 'c1', name: 'Lyra', race: 'Half-elf', role: 'character' },
+        ]
+
+        render(<GalleryPage type="character" />)
+
+        const section = await screen.findByTestId('character-persona-section')
+        const personaCards = within(section).getAllByTestId('persona-gallery-card')
+        expect(within(personaCards[0]).getByText('Aria')).toBeInTheDocument()
+        expect(within(personaCards[0]).getByText('Default persona')).toBeInTheDocument()
+        expect(within(personaCards[1]).getByText('Bryn')).toBeInTheDocument()
+        expect(within(section).queryByRole('button', { name: 'New chat' })).not.toBeInTheDocument()
+        expect(await screen.findByText('Lyra')).toBeInTheDocument()
+    })
+
+    it('opens the persona editor from the top persona section', async () => {
+        render(<GalleryPage type="character" />)
+
+        const section = await screen.findByTestId('character-persona-section')
+        fireEvent.click(within(section).getByTestId('persona-gallery-card'))
+
+        expect(editCharacter).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1' }))
+        expect(setPage).toHaveBeenCalledWith('character', { hash: '#/character?card=p1' })
+    })
+
+    it('shows an empty top persona section when the user has no persona cards', async () => {
+        mockData.characters = [{ id: 'c1', name: 'Lyra', race: 'Half-elf', role: 'character' }]
+
+        render(<GalleryPage type="character" />)
+
+        const section = await screen.findByTestId('character-persona-section')
+        expect(within(section).getByText('No personas yet')).toBeInTheDocument()
+        expect(within(section).getByText('Create a persona to choose who you play as in chats and adventures.')).toBeInTheDocument()
+        fireEvent.click(within(section).getByRole('button', { name: 'New persona' }))
+
+        expect(setPage).toHaveBeenCalledWith('character')
+    })
+
+    it('hides the top persona section in public cards and group selection mode', async () => {
+        render(<GalleryPage type="character" />)
+        expect(await screen.findByTestId('character-persona-section')).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Public cards' }))
+        await waitFor(() => expect(screen.queryByTestId('character-persona-section')).not.toBeInTheDocument())
+
+        fireEvent.click(screen.getByRole('button', { name: 'My cards' }))
+        expect(await screen.findByTestId('character-persona-section')).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Group chat' }))
+        expect(screen.queryByTestId('character-persona-section')).not.toBeInTheDocument()
+    })
+
     it('lets signed-out users open the owned gallery without fetching private cards', async () => {
         authed = false
 
@@ -315,9 +386,9 @@ describe('GalleryPage', () => {
 
     it('deletes via the hover menu through the confirm dialog and removes the card', async () => {
         render(<GalleryPage type="character" />)
-        await screen.findByText('Lyra')
+        const card = (await screen.findAllByTestId('gallery-card'))[0]
 
-        fireEvent.click(screen.getAllByTestId('card-options-button')[0])
+        fireEvent.click(within(card).getByTestId('card-options-button'))
         // Both cards' menus are portaled into the DOM (hidden only via CSS,
         // which jsdom doesn't apply) — the first belongs to the first card.
         fireEvent.click(screen.getAllByRole('menuitem', { name: 'Delete' })[0])
@@ -334,9 +405,9 @@ describe('GalleryPage', () => {
         const { click, revokeObjectURL } = mockDownload('Lyra.png')
 
         render(<GalleryPage type="character" />)
-        await screen.findByText('Lyra')
+        const card = (await screen.findAllByTestId('gallery-card'))[0]
 
-        fireEvent.click(screen.getAllByTestId('card-share-button')[0])
+        fireEvent.click(within(card).getByTestId('card-share-button'))
         fireEvent.click(screen.getAllByRole('menuitem', { name: 'Download PNG' })[0])
 
         await waitFor(() => expect(apiService.exportCardImage).toHaveBeenCalledWith('character', 'c1'))
@@ -352,9 +423,9 @@ describe('GalleryPage', () => {
         })
 
         render(<GalleryPage type="character" />)
-        await screen.findByText('Lyra')
+        const card = (await screen.findAllByTestId('gallery-card'))[0]
 
-        fireEvent.click(screen.getAllByTestId('card-share-button')[0])
+        fireEvent.click(within(card).getByTestId('card-share-button'))
         fireEvent.click(screen.getAllByRole('menuitem', { name: 'Copy unlisted link' })[0])
 
         await waitFor(() => expect(apiService.createCardShareLink).toHaveBeenCalledWith('character', 'c1'))
