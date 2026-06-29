@@ -14,7 +14,8 @@ import type {ChatSessionConfig} from '../chatSessionConfig'
 import {useAdventureChatSocket} from '../hooks/useAdventureChatSocket'
 import {hasNonTerminalImageJob, mergeHydratedImageTurns, upsertChatImageFrame, upsertImageJobResult} from '../utils/chatImageTurnState'
 import {hasNonTerminalTtsJob, mergeHydratedTtsTurns, nonTerminalTtsJobIds, upsertChatTtsFrame, upsertTtsJobResult} from '../utils/chatTtsTurnState'
-import {resolveSegmentIdentity, segmentsToPlainText, streamingXmlToPlainText, streamingXmlToSegments} from '@/utils/chatSegments'
+import {mergeHydratedChatTurns} from '../utils/chatTurnMerge'
+import {finalizeResponseSegments, resolveSegmentIdentity, segmentsToPlainText, streamingXmlToPlainText, streamingXmlToSegments} from '@/utils/chatSegments'
 
 // Extend TurnEntry to include forward options and the (out-of-scope) image prompt
 interface ExtendedTurnEntry extends TurnEntry {
@@ -278,9 +279,13 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
         try {
             const hydrated = await config.loadTurns(sessionId)
             if (hydrated.length > 0) {
+                // Hydration owns ordering/deletions, while the live stream may
+                // temporarily be the only source with parsed response segments.
+                const textMerged = mergeHydratedChatTurns(turnsRef.current, hydrated)
                 // Fold image then TTS state in; both apply terminal-precedence merges
                 // so a staler projection can't clobber live socket state.
-                const next = mergeHydratedTtsTurns(mergeHydratedImageTurns(turnsRef.current, hydrated), hydrated)
+                const imageMerged = mergeHydratedImageTurns(turnsRef.current, textMerged)
+                const next = mergeHydratedTtsTurns(imageMerged, textMerged)
                 setTurnState(next)
                 void saveTurnsToApi(next)
             }
@@ -405,10 +410,12 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                 }
                 const next = turnsRef.current.map((t, index) => {
                     if (t.id === id) {
+                        const entry = t as ExtendedTurnEntry
                         return {
-                            ...(t as ExtendedTurnEntry),
+                            ...entry,
                             id: assistantMessageId ? String(assistantMessageId) : t.id,
                             isStreaming: false,
+                            segments: finalizeResponseSegments(entry.segments),
                             assistantMessageId,
                             turnId,
                         }

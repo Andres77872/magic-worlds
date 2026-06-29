@@ -8,7 +8,7 @@ const PARTIAL_TAG_RE = /<[^>]*$/g
 const TAG_RE = /<[^>]+>/g
 /** Matches a visible-segment open tag (with optional attrs) OR its close tag. */
 const CHILD_TAG_RE = /<(narrator|say|think)((?:\s+[^>]*?)?)>|<\/(narrator|say|think)\s*>/gi
-const SPEAKER_ID_ATTR_RE = /speaker_id\s*=\s*"([^"]*)"/i
+const SPEAKER_ID_ATTR_RE = /speaker_id\s*=\s*(?:"([^"]*)"|'([^']*)')/i
 
 export function stripPrivateThink(value: string): string {
     return value.replace(PRIVATE_THINK_BLOCK_RE, '').replace(PRIVATE_THINK_TAIL_RE, '')
@@ -64,7 +64,8 @@ export function streamingXmlToSegments(value: string): {
                 const content = cleanSegmentContent(cleaned.slice(open.start, match.index))
                 if (content) segments.push(buildStreamingSegment(open, content, false))
             }
-            const speakerId = (SPEAKER_ID_ATTR_RE.exec(match[2] || '')?.[1] || '').trim() || undefined
+            const attrMatch = SPEAKER_ID_ATTR_RE.exec(match[2] || '')
+            const speakerId = (attrMatch?.[1] ?? attrMatch?.[2] ?? '').trim() || undefined
             open = { kind: kindForTag(openTag), speakerId, start: match.index + match[0].length }
         } else {
             // A close tag.
@@ -154,6 +155,11 @@ export function segmentsToPlainText(segments: ChatResponseSegment[] | undefined)
         })
         .filter(Boolean)
         .join('\n')
+}
+
+export function finalizeResponseSegments(segments: ChatResponseSegment[] | undefined): ChatResponseSegment[] | undefined {
+    if (!segments?.length) return undefined
+    return segments.map(({ streaming: _streaming, ...segment }) => segment as ChatResponseSegment)
 }
 
 export function safeResponseSegments(value: unknown): ChatResponseSegment[] {

@@ -1,7 +1,12 @@
 # design-sync notes — Reverie design system (magic-worlds)
 
 Project: **Reverie Design System** · claude.ai/design id `7888d2e2-9907-4930-9b2c-24a6b4ac3aea`.
-Shape: **storybook**. Scope: **src/ui only** (primitives + components, 57 components / 198 stories).
+Shape: **storybook**. Scope: **src/ui only** (primitives + components, 60 components / 220 stories).
+Last re-sync (2026-06-28) added 3 primitives — **Callout**, **SegmentedControl**, **Tabs** — all
+exported from `src/ui/primitives/index.ts`, so the `export *` in `ds-entry.ts` + `make-dist.mjs`
+paired them automatically (no unbarreled-component edit needed). Typography/shadow tokens were
+standardized upstream (`ff06b74`): a global styling re-render, grades carried, no token renames
+(conventions.md re-validated clean).
 
 ## The big picture (why this repo is unusual)
 
@@ -103,21 +108,27 @@ Intermediate fix-loop build (not the driver): `node .ds-sync/package-build.mjs -
 - **GRID_OVERFLOW overrides**: AppWarningModal + LogoutConfirmDialog → `cardMode: single`;
   FloatingWindow → `cardMode: column`.
 
-## Verification findings (grading, all 57 components)
+## Verification findings (grading, all 60 components)
 
 124+ stories `match`; the non-match grades are documented and accepted, not defects:
 - **Semi-transparent tone fills composite paler in the preview** than in Storybook (e.g. Badge
   `bg-ember-500/15`, AppUpdateBanner `bg-ember-500/10`) — the alpha fill sits over the preview's
   capture backdrop vs Storybook's small centered dark card. Not a CSS/token mismatch; the markup
   and tokens are identical. Affects Badge/ModeBadge (graded `match`) and AppUpdateBanner (`close`).
+  **Callout** (added 2026-06-28) is the most pronounced case — its tone fills are large full-width
+  bars (`{arcane,green,amber,blood}/10`), so all 5 stories graded `close` (Retry action + icon tints
+  read faint over the light product-card cell). Same compositing class, not a defect; unfixable
+  without forking the card-cell template (forbidden — app-contract surface).
 - **App-shell components render in the logged-out/empty state** (api stubbed) while their stories
   mock a signed-in user / active tasks / pending update → `close` (the component renders correctly,
   the state differs). Sidebar (Signed In ×2), MobileTopBar (Signed In, With Active Tasks),
   SidebarAccountMenu (Signed In/Root/Collapsed), AppUpdateBanner (Available). ApiStatusMonitor
   MATCHES (its stories drive state via explicit props, not runtime context).
 - **Context-gated banners** diverge by visibility: ServicesDownBanner (Storybook forces offline,
-  preview's stubbed ApiStatus is online → banner self-hides) and CookieConsentBanner (reverse:
-  preview shows it, Storybook's decorator resolves already-consented) → both `close`.
+  preview's stubbed ApiStatus is online → banner self-hides) → `close`. CookieConsentBanner is the
+  reverse (preview shows the full banner, Storybook's decorator resolves already-consented → blank);
+  per the §4 rubric, an un-gated preview rendering the real component is judged on its own, so it was
+  re-graded `match` (was `close`) on 2026-06-28.
 - **Card collision stories skipped** (`cfg.overrides.{Card,CardGrid}.skip`): the lists-Card stories
   and CardGrid Default/With Search render the primitive Card (collision), so they're skipped rather
   than ship a wrong render. `Card` then shows only its 2 primitive stories; `CardGrid` shows

@@ -109,7 +109,7 @@ describe('InteractionCenterPanel message deletion', () => {
 
     it('deletes canonical messages through the session config and adopts the server projection', async () => {
         const deleteMessage = vi.fn(async () => [initialTurns[1]])
-        const saveTurns = vi.fn(async () => {})
+        const saveTurns = vi.fn(async (_sessionId: number, _turns: TurnEntry[]) => {})
         const config = makeConfig({ deleteMessage, saveTurns })
 
         renderPanel(config)
@@ -195,6 +195,109 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(await screen.findByText('Who goes there?')).toBeInTheDocument()
         // Live status line is gone once streaming ends.
         expect(screen.queryByText('Aria is speaking…')).not.toBeInTheDocument()
+    })
+
+    it('keeps structured dialog when post-done hydration returns a plain turn projection', async () => {
+        let handlers: { onSpeakers: Function; onDelta: Function; onSegments: Function; onDone: Function } | undefined
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: never) => {
+            handlers = h
+            return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
+        })
+        const hydratedPlainTurns: TurnEntry[] = [
+            { id: '100', type: 'user', content: 'Look around', timestamp: '2026-06-04T00:00:00', turnId: 'turn-9' },
+            {
+                id: '999',
+                type: 'ai',
+                content: 'Aria: Who goes there?',
+                timestamp: '2026-06-04T00:00:01',
+                assistantMessageId: 999,
+                turnId: 'turn-9',
+            },
+        ]
+        const loadTurns = vi.fn()
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce(hydratedPlainTurns)
+        const savedTurns: TurnEntry[][] = []
+        const saveTurns = vi.fn(async (_sessionId: number, turnsToSave: TurnEntry[]) => {
+            savedTurns.push(turnsToSave)
+        })
+
+        renderPanel(makeConfig({ loadTurns, saveTurns }), [])
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(1))
+
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        await waitFor(() => expect(sendChat).toHaveBeenCalled())
+
+        act(() => {
+            handlers!.onSpeakers({
+                roster: [{ speaker_id: 'aria', name: 'Aria', image_url: null, has_voice: true }],
+                narrator: { name: 'Game Master', image_url: null, kind: 'narrator' },
+            })
+            handlers!.onSegments({
+                responseFormat: 'mw_xml_v1',
+                segments: [{ kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Who goes there?' }],
+                displayText: 'Aria: Who goes there?',
+            })
+            handlers!.onDone({ interrupted: false, userMessageId: 100, assistantMessageId: 999, turnId: 'turn-9' })
+        })
+
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
+        expect(screen.getByText('Aria')).toBeInTheDocument()
+        expect(screen.getByText('Who goes there?')).toBeInTheDocument()
+        expect(screen.queryByText('Aria: Who goes there?', { selector: '.chat-prose *' })).not.toBeInTheDocument()
+        expect(savedTurns.some((turns) => turns.some((turn) => turn.id === '999' && turn.segments?.length))).toBe(true)
+    })
+
+    it('keeps live structured dialog after done when no authoritative segments frame arrives', async () => {
+        let handlers: { onSpeakers: Function; onDelta: Function; onDone: Function } | undefined
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: never) => {
+            handlers = h
+            return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
+        })
+        const hydratedPlainTurns: TurnEntry[] = [
+            { id: '100', type: 'user', content: 'Look around', timestamp: '2026-06-04T00:00:00', turnId: 'turn-9' },
+            {
+                id: '999',
+                type: 'ai',
+                content: 'Aria: Who goes there?',
+                timestamp: '2026-06-04T00:00:01',
+                assistantMessageId: 999,
+                turnId: 'turn-9',
+            },
+        ]
+        const loadTurns = vi.fn()
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce(hydratedPlainTurns)
+
+        renderPanel(makeConfig({ loadTurns }), [])
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(1))
+
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        await waitFor(() => expect(sendChat).toHaveBeenCalled())
+
+        act(() => {
+            handlers!.onSpeakers({
+                roster: [{ speaker_id: 'aria', name: 'Aria', image_url: null, has_voice: true }],
+                narrator: { name: 'Game Master', image_url: null, kind: 'narrator' },
+            })
+            handlers!.onDelta('<response><say speaker_id="aria">Who goes there?')
+        })
+
+        expect(await screen.findByText('Aria is speaking…')).toBeInTheDocument()
+
+        act(() => {
+            handlers!.onDone({ interrupted: false, userMessageId: 100, assistantMessageId: 999, turnId: 'turn-9' })
+        })
+
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
+        expect(screen.getByText('Aria')).toBeInTheDocument()
+        expect(screen.getByText('Who goes there?')).toBeInTheDocument()
+        expect(screen.queryByText('Aria is speaking…')).not.toBeInTheDocument()
+        expect(screen.queryByText('Aria: Who goes there?', { selector: '.chat-prose *' })).not.toBeInTheDocument()
     })
 
     it('renders character-chat suggestions and generated image lifecycle from turn metadata', () => {

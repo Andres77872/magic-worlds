@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+    finalizeResponseSegments,
     resolveSegmentIdentity,
     safeResponseSegments,
     segmentsToPlainText,
@@ -32,6 +33,14 @@ describe('streamingXmlToSegments', () => {
         expect(segments).toEqual([
             { kind: 'narrator', content: 'The door creaks open.' },
             { kind: 'speech', content: "Who's the", speaker_id: 'aria', streaming: true },
+        ])
+    })
+
+    it('accepts single-quoted speaker_id attributes while streaming', () => {
+        const raw = "<response><say speaker_id='aria'>Who goes there?</say></response>"
+        const { segments } = streamingXmlToSegments(raw)
+        expect(segments).toEqual([
+            { kind: 'speech', content: 'Who goes there?', speaker_id: 'aria' },
         ])
     })
 
@@ -131,5 +140,19 @@ describe('segmentsToPlainText (regression)', () => {
                 { kind: 'thought', content: 'Hmm.', speaker_id: 'aria', speaker_name: 'Aria' },
             ]),
         ).toBe('Scene.\nAria: Hi.\nAria thinks: Hmm.')
+    })
+})
+
+describe('finalizeResponseSegments', () => {
+    it('removes live streaming markers without changing segment content', () => {
+        expect(
+            finalizeResponseSegments([
+                { kind: 'narrator', content: 'Scene.', streaming: true },
+                { kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Hi.', streaming: true },
+            ]),
+        ).toEqual([
+            { kind: 'narrator', content: 'Scene.' },
+            { kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Hi.' },
+        ])
     })
 })
