@@ -11,6 +11,7 @@ import { Button, Icon } from '@/ui/primitives'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
 import { isBillingFeatureEnabled } from '@/shared/billingFeatureFlag'
+import { isCommunityCardsFeatureEnabled } from '@/shared/featureFlags'
 import { useBillingCatalog } from '@/features/billing/hooks/useBillingCatalog'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useProfileSharedCards } from '../hooks/useProfileSharedCards'
@@ -46,11 +47,16 @@ export function ProfilePage() {
     const { currentHash, setPage } = useNavigation()
     const { profile, isLoading, error, isTransientError, refresh } = useUserProfile()
     const sharing = useProfileSharedCards()
+    const communityCardsEnabled = isCommunityCardsFeatureEnabled()
     // The active section is derived from the URL hash so it's deep-linkable and the
     // browser Back button steps through sections. Billing/claim returns carry no
     // `?tab=` and fall through to Membership, where their content lives.
-    const activeTab = tabFromHash(currentHash) ?? 'membership'
-    const handleTabChange = (tab: ProfileTab) => setPage('profile', { hash: `#/profile?tab=${tab}` })
+    const requestedTab = tabFromHash(currentHash)
+    const activeTab = requestedTab === 'sharing' && !communityCardsEnabled ? 'membership' : requestedTab ?? 'membership'
+    const handleTabChange = (tab: ProfileTab) => {
+        if (tab === 'sharing' && !communityCardsEnabled) return
+        setPage('profile', { hash: `#/profile?tab=${tab}` })
+    }
     // Drives whether the Stripe purchase entry ("Plans & credits") is offered;
     // false until the server confirms billing is enabled.
     const { enabled: billingEnabled } = useBillingCatalog()
@@ -152,6 +158,7 @@ export function ProfilePage() {
             onRedeemed={refresh}
             autoClaimEmailCreditGrants={autoClaimEmailCreditGrants}
             billingEnabled={billingEnabled}
+            sharingEnabled={communityCardsEnabled}
             activeTab={activeTab}
             onTabChange={handleTabChange}
         />

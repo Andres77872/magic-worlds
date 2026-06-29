@@ -19,6 +19,7 @@ import { LoadingSpinner } from '../../ui/components/LoadingSpinner'
 import { PlaylistDock } from '../../ui/components/audio/PlaylistDock'
 import { GlowBackdrop } from '../../ui/primitives'
 import { ErrorBoundary } from '../ErrorBoundary'
+import { isPageFeatureEnabled } from '../../shared/featureFlags'
 
 // Routes are code-split: each is its own chunk, loaded on demand. Import the LEAF
 // module (not the feature barrel) so a heavy sibling (e.g. NovelStudio's TipTap)
@@ -62,6 +63,7 @@ export function AppRouter() {
     const cardPreview = useCardPreviewModal()
     const mainRef = useRef<HTMLElement>(null)
     const [mobileNavOpen, setMobileNavOpen] = useState(false)
+    const pageEnabled = isPageFeatureEnabled(currentPage)
 
     useEffect(() => {
         mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
@@ -102,46 +104,52 @@ export function AppRouter() {
                     // Keyed on the page so a crash resets when the user navigates
                     // away; scoped to <main> so the sidebar/nav/modals survive it.
                     <ErrorBoundary scope="page" inline key={currentPage}>
-                      <Suspense fallback={<div className="flex min-h-full flex-1 items-center justify-center"><LoadingSpinner /></div>}>
-                        {currentPage === 'landing' && <LandingPage />}
-                        {currentPage === 'gallery-characters' && <GalleryPage type="character" />}
-                        {currentPage === 'gallery-personas' && <GalleryPage type="persona" />}
-                        {currentPage === 'gallery-worlds' && <GalleryPage type="world" />}
-                        {currentPage === 'gallery-items' && <GalleryPage type="item" />}
-                        {currentPage === 'gallery-adventures' && <GalleryPage type="adventure" />}
-                        {currentPage === 'gallery-lorebooks' && <LorebookGalleryPage />}
-                        {currentPage === 'gallery-resources' && <LorebookResourcesGalleryPage />}
-                        {currentPage === 'gallery-stories' && <NovelGalleryPage />}
-                        {currentPage === 'gallery-media' && <MediaGalleryPage />}
-                        {currentPage === 'community' && <CommunityGalleryPage />}
-                        {currentPage === 'shared-card' && <SharedCardPage />}
-                        {currentPage === 'character' && <CharacterCreator />}
-                        {currentPage === 'world' && <WorldCreator />}
-                        {currentPage === 'item' && <ItemCreator />}
-                        {currentPage === 'adventure' && <AdventureCreator />}
-                        {currentPage === 'lorebook' && <LorebookStudio />}
-                        {currentPage === 'story' && <NovelStudio />}
-                        {currentPage === 'active-adventures' && <ActiveAdventuresPage />}
-                        {currentPage === 'interaction' && <AdventureInteraction />}
-                        {currentPage === 'character-chat' && <CharacterChat />}
-                        {currentPage === 'chatroom' && <ChatroomPage />}
-                        {currentPage === 'calls' && <CallsPage />}
-                        {currentPage === 'profile' && <ProfilePage />}
-                        {currentPage === 'billing' && <BillingPage />}
-                        {currentPage === 'password-reset' && <PasswordResetPage />}
-                        {currentPage === 'verify-email' && <EmailVerifyPage />}
-                        {currentPage === 'google-callback' && <GoogleCallbackPage />}
-                        {currentPage === 'voice-studio' && <VoiceStudioPage />}
-                        {currentPage === 'admin-voices' && <AdminVoicesPage />}
-                        {currentPage === 'admin-agents' && <AdminAgentsPage />}
-                        {currentPage === 'admin-credit-codes' && <AdminCreditCodesPage />}
-                        {currentPage === 'docs' && <DocsPage />}
-                        {currentPage === 'about' && <LegalPage page="about" />}
-                        {currentPage === 'contact' && <LegalPage page="contact" />}
-                        {currentPage === 'privacy' && <LegalPage page="privacy" />}
-                        {currentPage === 'disclaimer' && <LegalPage page="disclaimer" />}
-                        {currentPage === 'not-found' && <NotFoundPage />}
-                      </Suspense>
+                        <Suspense fallback={<div className="flex min-h-full flex-1 items-center justify-center"><LoadingSpinner /></div>}>
+                            {!pageEnabled ? (
+                                <NotFoundPage />
+                            ) : (
+                                <>
+                                    {currentPage === 'landing' && <LandingPage />}
+                                    {currentPage === 'gallery-characters' && <GalleryPage type="character" />}
+                                    {currentPage === 'gallery-personas' && <GalleryPage type="persona" />}
+                                    {currentPage === 'gallery-worlds' && <GalleryPage type="world" />}
+                                    {currentPage === 'gallery-items' && <GalleryPage type="item" />}
+                                    {currentPage === 'gallery-adventures' && <GalleryPage type="adventure" />}
+                                    {currentPage === 'gallery-lorebooks' && <LorebookGalleryPage />}
+                                    {currentPage === 'gallery-resources' && <LorebookResourcesGalleryPage />}
+                                    {currentPage === 'gallery-stories' && <NovelGalleryPage />}
+                                    {currentPage === 'gallery-media' && <MediaGalleryPage />}
+                                    {currentPage === 'community' && <CommunityGalleryPage />}
+                                    {currentPage === 'shared-card' && <SharedCardPage />}
+                                    {currentPage === 'character' && <CharacterCreator />}
+                                    {currentPage === 'world' && <WorldCreator />}
+                                    {currentPage === 'item' && <ItemCreator />}
+                                    {currentPage === 'adventure' && <AdventureCreator />}
+                                    {currentPage === 'lorebook' && <LorebookStudio />}
+                                    {currentPage === 'story' && <NovelStudio />}
+                                    {currentPage === 'active-adventures' && <ActiveAdventuresPage />}
+                                    {currentPage === 'interaction' && <AdventureInteraction />}
+                                    {currentPage === 'character-chat' && <CharacterChat />}
+                                    {currentPage === 'chatroom' && <ChatroomPage />}
+                                    {currentPage === 'calls' && <CallsPage />}
+                                    {currentPage === 'profile' && <ProfilePage />}
+                                    {currentPage === 'billing' && <BillingPage />}
+                                    {currentPage === 'password-reset' && <PasswordResetPage />}
+                                    {currentPage === 'verify-email' && <EmailVerifyPage />}
+                                    {currentPage === 'google-callback' && <GoogleCallbackPage />}
+                                    {currentPage === 'voice-studio' && <VoiceStudioPage />}
+                                    {currentPage === 'admin-voices' && <AdminVoicesPage />}
+                                    {currentPage === 'admin-agents' && <AdminAgentsPage />}
+                                    {currentPage === 'admin-credit-codes' && <AdminCreditCodesPage />}
+                                    {currentPage === 'docs' && <DocsPage />}
+                                    {currentPage === 'about' && <LegalPage page="about" />}
+                                    {currentPage === 'contact' && <LegalPage page="contact" />}
+                                    {currentPage === 'privacy' && <LegalPage page="privacy" />}
+                                    {currentPage === 'disclaimer' && <LegalPage page="disclaimer" />}
+                                    {currentPage === 'not-found' && <NotFoundPage />}
+                                </>
+                            )}
+                        </Suspense>
                     </ErrorBoundary>
                 )}
             </main>

@@ -34,12 +34,14 @@ function segmentBody(): VoiceSegmentUploadRequest {
 
 describe('voice API helpers', () => {
     beforeEach(() => {
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
         localStorage.clear()
         localStorage.setItem('magic_worlds:token', 'old-token')
     })
 
     afterEach(() => {
         vi.unstubAllGlobals()
+        vi.unstubAllEnvs()
         vi.restoreAllMocks()
         localStorage.clear()
     })

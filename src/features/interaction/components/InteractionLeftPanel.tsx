@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ArrowLeft, AudioLines, Check, Globe, Info, Pencil, Plus, UserCircle, Users, Volume2, X } from 'lucide-react'
 import type { Adventure, AdventureSnapshot, CharacterVoice } from '../../../shared'
 import { readWorldPlaceType, worldPlaceTypeLabel } from '../../../shared'
+import { isLorebooksFeatureEnabled, isVoicesFeatureEnabled } from '../../../shared/featureFlags'
 import { Badge, Button, Icon, IconButton, SectionHeader, SwitchRow, Tag, Textarea } from '../../../ui/primitives'
 import { VoicePickerDialog } from '../../voices/components/VoicePickerDialog'
 import { SessionLorebookPanel } from '@/features/lorebook'
@@ -51,6 +52,7 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
     const worlds = worldEntries(snapshot)
     const scenario = (snapshot.template.description ?? '').trim()
     const editable = Boolean(onSnapshotChange)
+    const lorebooksEnabled = isLorebooksFeatureEnabled()
 
     const [selectedRef, setSelectedRef] = useState<SnapshotCardRef | null>(null)
     const [picker, setPicker] = useState<PickerKind | null>(null)
@@ -124,7 +126,7 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
 
             <ScenarioSection scenario={scenario} editable={editable} onSave={handleSaveScenario} />
 
-            <SessionLorebookPanel targetKind="adventure_session" targetId={adventure.id} />
+            {lorebooksEnabled && <SessionLorebookPanel targetKind="adventure_session" targetId={adventure.id} />}
 
             <section className="flex flex-col gap-2.5">
                 <SectionHeader
@@ -166,7 +168,7 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
                 )}
             </section>
 
-            {editable && (
+            {editable && isVoicesFeatureEnabled() && (
                 <NarrationSection
                     voice={snapshot.narrator_voice ?? null}
                     narrateThoughts={Boolean(snapshot.narrate_thoughts)}

@@ -100,7 +100,7 @@ describe('CharacterChat voice mode wiring', () => {
 
     it('renders the immersive CallScreen (not the text engine) when voice mode and the flag are both on', () => {
         activeCharacterChatMode = 'voice'
-        vi.stubEnv('VITE_VOICE_MODE_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
 
         render(<CharacterChat />)
 
@@ -111,7 +111,7 @@ describe('CharacterChat voice mode wiring', () => {
 
     it('falls back to the text engine when a stale voice launch intent survives with the flag off', () => {
         activeCharacterChatMode = 'voice'
-        vi.stubEnv('VITE_VOICE_MODE_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'false')
 
         render(<CharacterChat />)
 

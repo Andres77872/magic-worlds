@@ -24,6 +24,12 @@ import type {
     StoryGeneration,
 } from '../../shared'
 import { apiService, ApiError } from '../../infrastructure'
+import {
+    isCallsFeatureEnabled,
+    isGroupChatsFeatureEnabled,
+    isLorebooksFeatureEnabled,
+    isNovelsFeatureEnabled,
+} from '../../shared/featureFlags'
 import { parseApiTimestamp } from '../../utils/time'
 import { parseTurnState } from '../../utils/turnState'
 import { asArray, transformCharacters, transformItems, transformTemplates, transformWorlds } from '../../utils/cardTransforms'
@@ -199,6 +205,10 @@ function buildInProgressAdventure(session: RawAdventureSession, template: Advent
 }
 
 const CHARACTER_CHAT_CODEX_KINDS = new Set<CharacterChatCodexCardKind>(['character', 'world', 'item', 'adventure_template'])
+
+function disabledFeatureError(feature: string): Error {
+    return new Error(`${feature} feature is disabled.`)
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return Boolean(value && typeof value === 'object' && !Array.isArray(value))
@@ -483,6 +493,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const deleteLorebook = async (id: string) => {
+        if (!isLorebooksFeatureEnabled()) throw disabledFeatureError('Lorebooks')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to delete lorebooks')
@@ -503,6 +514,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const createStory = async (story: StoryCreateRequest): Promise<Story> => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to create stories')
@@ -514,6 +526,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const openStory = async (story: Story) => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to open stories')
@@ -524,6 +537,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const updateStory = async (storyId: string, patch: Partial<Story> | Record<string, unknown>): Promise<Story> => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to update stories')
@@ -534,6 +548,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const deleteStory = async (id: string) => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to delete stories')
@@ -544,6 +559,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const createStoryChapter = async (storyId: string, chapter: Partial<StoryChapter>): Promise<StoryChapter> => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to create story chapters')
@@ -555,6 +571,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const updateStoryChapter = async (storyId: string, chapterId: string, patch: Partial<StoryChapter>): Promise<StoryChapter> => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to update story chapters')
@@ -576,6 +593,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const deleteStoryChapter = async (storyId: string, chapterId: string) => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to delete story chapters')
@@ -586,6 +604,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const addStoryCardRef = async (storyId: string, ref: Partial<StoryCardRef> | Record<string, unknown>): Promise<StoryCardRef> => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to add story cards')
@@ -599,6 +618,7 @@ export function DataProvider({ children }: DataProviderProps) {
     // Batch variant for the codex: sequential POSTs keep precedence ordering
     // deterministic, and the story is refetched once at the end.
     const addStoryCardRefs = async (storyId: string, refs: Array<Partial<StoryCardRef> | Record<string, unknown>>): Promise<void> => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to add story cards')
@@ -616,12 +636,14 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const refreshStory = async (storyId: string): Promise<Story> => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         const loaded = await apiService.getStory(storyId)
         upsertStory(loaded)
         return loaded
     }
 
     const updateStoryCardRef = async (storyId: string, refId: string, ref: Partial<StoryCardRef> | Record<string, unknown>): Promise<StoryCardRef> => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to update story cards')
@@ -633,6 +655,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const deleteStoryCardRef = async (storyId: string, refId: string) => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to remove story cards')
@@ -643,6 +666,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const generateStoryCandidate = async (storyId: string, request: StoryGenerateRequest): Promise<StoryGeneration> => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to generate story text')
@@ -652,6 +676,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const previewStoryContext = async (storyId: string, request: StoryGenerateRequest): Promise<StoryContextTrace> => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to preview story context')
@@ -660,6 +685,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const acceptStoryGeneration = async (storyId: string, generationId: string): Promise<Story> => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to accept story generations')
@@ -670,6 +696,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const stashStoryGeneration = async (storyId: string, generationId: string) => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to stash story generations')
@@ -678,6 +705,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const discardStoryGeneration = async (storyId: string, generationId: string) => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to discard story generations')
@@ -714,6 +742,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const startCharacterGroupChat = async (selectedCharacters: Character[], persona: Character): Promise<CharacterChatSession> => {
+        if (!isGroupChatsFeatureEnabled()) throw disabledFeatureError('Group chats')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to chat with characters')
@@ -745,11 +774,12 @@ export function DataProvider({ children }: DataProviderProps) {
     // Reopen a chat from the list. No network call needed: the chat view re-hydrates
     // the conversation from the server when its socket opens.
     const resumeCharacterChat = (chat: CharacterChatSession, options: { mode?: CharacterChatMode } = {}) => {
+        if (chat.kind === 'character_group' && !isGroupChatsFeatureEnabled()) throw disabledFeatureError('Group chats')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to chat with characters')
         }
-        setActiveCharacterChatMode(options.mode ?? 'text')
+        setActiveCharacterChatMode(options.mode === 'voice' && isCallsFeatureEnabled() ? 'voice' : 'text')
         setActiveCharacterChat(chat)
     }
 
@@ -871,8 +901,8 @@ export function DataProvider({ children }: DataProviderProps) {
                 apiService.getAdventureTemplates(),
                 apiService.getAdventureSessions(),
                 apiService.getCharacterChats(),
-                apiService.getLorebooks(),
-                apiService.getStories(),
+                isLorebooksFeatureEnabled() ? apiService.getLorebooks() : Promise.resolve([]),
+                isNovelsFeatureEnabled() ? apiService.getStories() : Promise.resolve([]),
             ])
 
             const loadedCharacters = charsRes.status === 'fulfilled' ? charsRes.value : []
@@ -923,9 +953,9 @@ export function DataProvider({ children }: DataProviderProps) {
 
             // Transform character chats. Prefer live library cards; fall back to
             // frozen snapshots when a source card was deleted.
-            const transformedChats: CharacterChatSession[] = asArray(loadedChats).map((chat: any) =>
-                normalizeCharacterChat(chat, transformedCharacters),
-            )
+            const transformedChats: CharacterChatSession[] = asArray(loadedChats)
+                .map((chat: any) => normalizeCharacterChat(chat, transformedCharacters))
+                .filter((chat) => isGroupChatsFeatureEnabled() || chat.kind !== 'character_group')
             // Most recent first — this list renders as the "Recent chats" shelf.
             const chatStamp = (chat: CharacterChatSession) => {
                 const time = parseApiTimestamp(chat.updatedAt ?? chat.createdAt)

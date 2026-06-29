@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdventureSnapshot } from '../../shared'
 
 // Auth: always authenticated so saveInProgressSnapshot proceeds.
@@ -149,7 +149,13 @@ function ChatProbe() {
 describe('DataProvider character chats', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
         vi.mocked(apiService.getCharacterChats).mockResolvedValue([CHAT_ROW])
+    })
+
+    afterEach(() => {
+        vi.unstubAllEnvs()
     })
 
     it('loads the chat list with parsed turns and the chat character', async () => {

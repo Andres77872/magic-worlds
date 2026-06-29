@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import type { Character, CharacterChatCodexCard } from '../../../shared'
 import type { CodexLibraryCardSelection } from '@/features/codex'
 import { SessionLorebookPanel } from '@/features/lorebook'
+import { isLorebooksFeatureEnabled } from '@/shared/featureFlags'
 import { resolveMediaUrl } from '../../../infrastructure/api'
 import { Avatar, Button, Eyebrow, Icon, Portrait, Tag } from '../../../ui/primitives'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
@@ -54,6 +55,7 @@ export function CharacterChatSidebar({
     const lead = cast[0]
     const heading = title || cast.map((entry) => entry.name).filter(Boolean).join(', ') || t('characterChat.fallbackTitle')
     const hasCodexControls = Boolean(onAddCodexCards && onToggleCodexCard && onRemoveCodexCard)
+    const lorebooksEnabled = isLorebooksFeatureEnabled()
 
     return (
         <div className="flex h-full flex-col bg-ink-900">
@@ -101,7 +103,7 @@ export function CharacterChatSidebar({
                         </div>
                     )}
 
-                    {(hasCodexControls || sessionId) && (
+                    {(hasCodexControls || (sessionId && lorebooksEnabled)) && (
                         <div className="flex flex-col divide-y divide-parchment-50/[.08] rounded-lg border border-parchment-50/10 bg-ink-800 px-4 py-3">
                             {onAddCodexCards && onToggleCodexCard && onRemoveCodexCard && (
                                 <CharacterChatCodexPanel
@@ -112,7 +114,7 @@ export function CharacterChatSidebar({
                                 />
                             )}
 
-                            {sessionId && (
+                            {sessionId && lorebooksEnabled && (
                                 <SessionLorebookPanel targetKind="character_chat" targetId={sessionId} framed={false} />
                             )}
                         </div>

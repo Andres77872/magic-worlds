@@ -5,6 +5,7 @@ import { useData, useFloatingWindows } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
 import { lorebookWindow } from '@/features/floatingWindows'
 import type { Lorebook, LorebookAttachment, LorebookTargetKind } from '@/shared'
+import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { ReferenceEmpty, ReferenceGroup, ReferenceRow } from '@/ui/components'
 import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card'
 import { Badge, Button, Drawer, Icon, IconButton, IconTile, Input, SelectionCheck, cx } from '@/ui/primitives'
@@ -34,14 +35,14 @@ function removeAttachment(list: LorebookAttachment[], attachmentId: string): Lor
     return list.filter((item) => item.id !== attachmentId)
 }
 
-function lorebookMatches(lorebook: Lorebook, query: string): boolean {
+function lorebookMatches(lorebook: Lorebook, query: string, includeResources: boolean): boolean {
     if (!query) return true
     const haystack = [
         lorebook.name,
         lorebook.description ?? '',
         ...lorebook.tags,
         ...lorebook.entries.flatMap((entry) => [entry.title, ...entry.keys, ...entry.secondaryKeys]),
-        lorebookResourceSearchText(lorebook),
+        includeResources ? lorebookResourceSearchText(lorebook) : '',
     ].join(' ').toLowerCase()
     return haystack.includes(query)
 }
@@ -58,6 +59,7 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [error, setError] = useState<string | null>(null)
     const normalizedTargetId = targetId.trim()
+    const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
 
     useEffect(() => {
         if (!normalizedTargetId) {
@@ -86,8 +88,8 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
     const attachedLorebookIds = useMemo(() => new Set(attachments.map((attachment) => attachment.lorebookId)), [attachments])
     const filteredLorebooks = useMemo(() => {
         const q = query.trim().toLowerCase()
-        return lorebooks.filter((lorebook) => lorebookMatches(lorebook, q))
-    }, [lorebooks, query])
+        return lorebooks.filter((lorebook) => lorebookMatches(lorebook, q, resourceFeaturesEnabled))
+    }, [lorebooks, query, resourceFeaturesEnabled])
 
     const closePicker = () => {
         setPickerOpen(false)
@@ -282,7 +284,7 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
                         {filteredLorebooks.map((lorebook) => {
                             const inSession = attachedLorebookIds.has(lorebook.id)
                             const selected = selectedIds.has(lorebook.id)
-                            const resourceStats = lorebookResourceStats(lorebookResourcesFromMetadata(lorebook.metadata))
+                            const resourceStats = resourceFeaturesEnabled ? lorebookResourceStats(lorebookResourcesFromMetadata(lorebook.metadata)) : null
                             return (
                                 <li key={lorebook.id}>
                                     <button
@@ -306,7 +308,7 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate font-ui text-sm font-semibold text-parchment-100">{lorebook.name}</span>
                                             <span className="block truncate font-ui text-xs text-parchment-400">
-                                                {t('sessionLorebooks.entryResourceCount', { entries: lorebook.entries.length, resources: resourceStats.total })}
+                                                {t('sessionLorebooks.entryResourceCount', { entries: lorebook.entries.length, resources: resourceStats?.total ?? 0 })}
                                             </span>
                                         </span>
                                         {inSession ? (

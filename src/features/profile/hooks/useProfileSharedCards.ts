@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
 import type { SharedCardResource } from '@/shared'
+import { isCommunityCardsFeatureEnabled } from '@/shared/featureFlags'
 
 export interface ProfileSharedCardsState {
     publicCards: SharedCardResource[]
@@ -26,7 +27,7 @@ export function useProfileSharedCards(): ProfileSharedCardsState {
     }, [])
 
     useEffect(() => {
-        if (!isAuthenticated) {
+        if (!isAuthenticated || !isCommunityCardsFeatureEnabled()) {
             setPublicCards([])
             setShareLinks([])
             setIsLoading(false)

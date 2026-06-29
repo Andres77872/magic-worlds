@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useData } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
 import type { Lorebook, LorebookAttachment, LorebookTargetKind } from '@/shared'
+import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { normalizeLorebook, normalizeLorebookAttachment } from '../lorebookTransforms'
 import { lorebookResourceActivationEntries } from '../lorebookResources'
 import { buildTriggerMatcher, type SessionLoreEntry, type TriggerMatcher } from '../loreTriggers'
@@ -30,6 +31,7 @@ export function useSessionLorebookEntries(
     targetId: string,
 ): UseSessionLorebookEntriesResult {
     const { lorebooks } = useData()
+    const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
     const [attachments, setAttachments] = useState<LorebookAttachment[]>([])
     const [fetched, setFetched] = useState<Record<string, Lorebook>>({})
     const attemptedRef = useRef<Set<string>>(new Set())
@@ -95,12 +97,13 @@ export function useSessionLorebookEntries(
                     ? attachment.snapshot
                     : lorebookById.get(attachment.lorebookId) ?? fetched[attachment.lorebookId]
             if (!book || !book.enabled) continue
-            for (const entry of [...book.entries, ...lorebookResourceActivationEntries(book)]) {
+            const resourceEntries = resourceFeaturesEnabled ? lorebookResourceActivationEntries(book) : []
+            for (const entry of [...book.entries, ...resourceEntries]) {
                 flat.push({ entry, lorebookId: book.id, lorebookName: book.name })
             }
         }
         return flat
-    }, [attachments, lorebookById, fetched])
+    }, [attachments, lorebookById, fetched, resourceFeaturesEnabled])
 
     const matcher = useMemo<TriggerMatcher | null>(() => {
         const built = buildTriggerMatcher(entries)

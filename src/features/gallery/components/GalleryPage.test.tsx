@@ -149,6 +149,10 @@ describe('GalleryPage', () => {
     beforeEach(() => {
         authed = true
         vi.clearAllMocks()
+        vi.stubEnv('VITE_FEATURE_COMMUNITY_CARDS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
         if (!globalThis.IntersectionObserver) {
             vi.stubGlobal('IntersectionObserver', class IntersectionObserver {
                 observe() {}
@@ -233,6 +237,7 @@ describe('GalleryPage', () => {
         })
         Element.prototype.scrollIntoView = originalScrollIntoView
         window.location.hash = ''
+        vi.unstubAllEnvs()
     })
 
     it('renders cards fetched from the API', async () => {

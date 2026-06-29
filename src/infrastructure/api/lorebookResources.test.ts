@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiService } from './index'
 import type { LorebookResource } from '@/shared'
 
@@ -30,10 +30,16 @@ function resource(overrides: Partial<LorebookResource> = {}): LorebookResource {
 describe('lorebook resource API wire format', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
         localStorage.clear()
         localStorage.setItem('magic_worlds:token', 'test-token')
         vi.stubGlobal('fetch', fetchMock)
         fetchMock.mockResolvedValue(jsonResponse(resource({ extractionStatus: 'completed' })))
+    })
+
+    afterEach(() => {
+        vi.unstubAllEnvs()
     })
 
     it('saves pending standalone resources without extraction unless requested', async () => {

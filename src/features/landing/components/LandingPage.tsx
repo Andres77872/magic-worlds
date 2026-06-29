@@ -20,6 +20,7 @@ import { NovelCreateModal } from '@/features/novel/components/NovelCreateModal'
 import { PersonaPickerDialog } from '@/ui/components'
 import { useStartCall } from '@/features/call'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
+import { isLorebooksFeatureEnabled, isNovelsFeatureEnabled } from '@/shared/featureFlags'
 import { Button } from '@/ui/primitives'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { LandingLoading } from './LandingLoading'
@@ -148,6 +149,8 @@ export function LandingPage() {
     // Voice-call entry from character cards (mirrors the gallery). Gated by the
     // voice flag; the hook carries its own persona-picker for callers w/o a default.
     const voiceEnabled = isFrontendVoiceModeEnabled()
+    const lorebooksEnabled = isLorebooksFeatureEnabled()
+    const novelsEnabled = isNovelsFeatureEnabled()
     const callControls = useStartCall()
 
     // Every action that mutates or starts requires auth — open the modal if not.
@@ -171,8 +174,13 @@ export function LandingPage() {
     })
     const handleWorldEdit = (w: World) => requireAuth(() => { editWorld(w); setPage('world') })
     const handleItemEdit = (item: Item) => requireAuth(() => { editItem(item); setPage('item') })
-    const handleLorebookOpen = (lorebook: Lorebook) => requireAuth(() => { editLorebook(lorebook); setPage('lorebook') })
+    const handleLorebookOpen = (lorebook: Lorebook) => requireAuth(() => {
+        if (!lorebooksEnabled) return
+        editLorebook(lorebook)
+        setPage('lorebook')
+    })
     const handleStoryOpen = (story: Story) => requireAuth(() => {
+        if (!novelsEnabled) return
         void openStory(story)
             .then(() => setPage('story'))
             .catch((error) => console.error('Failed to open story:', error))
@@ -185,7 +193,7 @@ export function LandingPage() {
         } else if (session.kind === 'chat') {
             resumeCharacterChat(session.source as CharacterChatSession)
             setPage('character-chat')
-        } else {
+        } else if (novelsEnabled) {
             void openStory(session.source as Story)
                 .then(() => setPage('story'))
                 .catch((error) => console.error('Failed to open story:', error))
@@ -196,8 +204,14 @@ export function LandingPage() {
     const createCharacter = () => requireAuth(() => { setEditingCharacter(null); setPage('character') })
     const createWorld = () => requireAuth(() => { setEditingWorld(null); setPage('world') })
     const createItem = () => requireAuth(() => { setEditingItem(null); setPage('item') })
-    const createLorebook = () => requireAuth(() => { setEditingLorebook(null); setPage('lorebook') })
-    const openNovelCreate = () => requireAuth(() => setNovelModalOpen(true))
+    const createLorebook = () => requireAuth(() => {
+        if (!lorebooksEnabled) return
+        setEditingLorebook(null)
+        setPage('lorebook')
+    })
+    const openNovelCreate = () => requireAuth(() => {
+        if (novelsEnabled) setNovelModalOpen(true)
+    })
     const handleCreate = (key: CreateAction['key']) => {
         if (key === 'character') createCharacter()
         else if (key === 'world') createWorld()
@@ -208,6 +222,7 @@ export function LandingPage() {
     }
 
     const handleNovelCreate = async (request: StoryCreateRequest) => {
+        if (!novelsEnabled) return
         if (creatingNovel) return
         setCreatingNovel(true)
         try {
@@ -279,15 +294,15 @@ export function LandingPage() {
                 personas: personaCards,
                 worlds,
                 items,
-                stories,
+                stories: novelsEnabled ? stories : [],
             }),
-        [deferredQuery, searchSessions, scenes, aiCharacters, personaCards, worlds, items, stories],
+        [deferredQuery, searchSessions, scenes, aiCharacters, personaCards, worlds, items, stories, novelsEnabled],
     )
 
     // Content-based mode: an authenticated-but-empty account still gets the
     // welcoming front-door (it doubles as the empty state).
     const hasScenes = templateAdventures.length > 0
-    const hasContent = hasScenes || inProgressAdventures.length > 0 || characters.length > 0 || worlds.length > 0 || items.length > 0 || characterChats.length > 0 || stories.length > 0 || lorebooks.length > 0
+    const hasContent = hasScenes || inProgressAdventures.length > 0 || characters.length > 0 || worlds.length > 0 || items.length > 0 || characterChats.length > 0 || (novelsEnabled && stories.length > 0) || (lorebooksEnabled && lorebooks.length > 0)
     const mode: 'guest' | 'returning' = isAuthenticated && hasContent ? 'returning' : 'guest'
 
     const closePersonaPick = () => {
@@ -501,20 +516,21 @@ export function LandingPage() {
                         )}
                     />
 
-                    {/* 5 — back to your writing */}
-                    <ContinueRail
-                        title={t('landing.continue.writing')}
-                        icon={BookOpenText}
-                        tone="ember"
-                        items={activeNovelSessions}
-                        total={counts.novels}
-                        getItemKey={(session) => session.id}
-                        onViewAll={() => setPage('gallery-stories')}
-                        data-testid="active-novels"
-                        renderCard={(session) => (
-                            <ContinueCard session={session} onContinue={() => openSession(session)} />
-                        )}
-                    />
+                    {novelsEnabled && (
+                        <ContinueRail
+                            title={t('landing.continue.writing')}
+                            icon={BookOpenText}
+                            tone="ember"
+                            items={activeNovelSessions}
+                            total={counts.novels}
+                            getItemKey={(session) => session.id}
+                            onViewAll={() => setPage('gallery-stories')}
+                            data-testid="active-novels"
+                            renderCard={(session) => (
+                                <ContinueCard session={session} onContinue={() => openSession(session)} />
+                            )}
+                        />
+                    )}
 
                     {/* 6 — start a new adventure */}
                     <div id={BEGIN_ZONE_ID}>
@@ -547,13 +563,15 @@ export function LandingPage() {
                     {/* 8–10 — the quiet reference shelves: lore, worlds, items */}
                     {hasDiscreteShelf && (
                         <div className="flex flex-col gap-10 border-t border-parchment-50/[.06] pt-10">
-                            <LorebookRail
-                                lorebooks={railLorebooks}
-                                total={counts.lorebooks}
-                                onOpen={handleLorebookOpen}
-                                onDelete={(lorebook) => deleteLorebook(lorebook.id)}
-                                onViewAll={() => setPage('gallery-lorebooks')}
-                            />
+                            {lorebooksEnabled && (
+                                <LorebookRail
+                                    lorebooks={railLorebooks}
+                                    total={counts.lorebooks}
+                                    onOpen={handleLorebookOpen}
+                                    onDelete={(lorebook) => deleteLorebook(lorebook.id)}
+                                    onViewAll={() => setPage('gallery-lorebooks')}
+                                />
+                            )}
                             <LibraryRail
                                 title={t('landing.rail.worldsTitle')}
                                 icon={Globe}
@@ -589,12 +607,14 @@ export function LandingPage() {
 
             <LandingFooter onNavigate={setPage} />
 
-            <NovelCreateModal
-                open={novelModalOpen}
-                creating={creatingNovel}
-                onClose={() => setNovelModalOpen(false)}
-                onCreate={handleNovelCreate}
-            />
+            {novelsEnabled && (
+                <NovelCreateModal
+                    open={novelModalOpen}
+                    creating={creatingNovel}
+                    onClose={() => setNovelModalOpen(false)}
+                    onCreate={handleNovelCreate}
+                />
+            )}
 
             <ConfirmDialog
                 visible={pendingDelete !== null}

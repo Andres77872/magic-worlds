@@ -5,6 +5,7 @@ import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
 import { makeRequestId } from '@/utils/uuid'
 import type { Lorebook, LorebookEntry } from '@/shared'
+import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { ConfirmDialog } from '@/ui/components'
 import { Badge, Button, Card, Field, Icon, Input, PageHeader, SwitchRow, Textarea, Toast } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
@@ -33,6 +34,7 @@ import {
     lorebookResourceStats,
     lorebookResourcesFromMetadata,
     sharedLorebookResourcesFromMetadata,
+    withoutLorebookResourceMetadata,
     withLorebookResources,
 } from '../lorebookResources'
 
@@ -84,15 +86,25 @@ export function LorebookStudio() {
     const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
     const [extractResourceMetadata, setExtractResourceMetadata] = useState(false)
     const editorRef = useRef<HTMLElement>(null)
+    const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
+    const visibleDraft = useMemo(() => (
+        resourceFeaturesEnabled ? draft : withoutLorebookResourceMetadata(draft)
+    ), [draft, resourceFeaturesEnabled])
 
-    const selectedEntry = draft.entries.find((entry) => entry.id === selectedId)
-    const pendingDeleteEntry = draft.entries.find((entry) => entry.id === pendingDeleteId)
-    const embeddedResources = useMemo(() => embeddedLorebookResourcesFromMetadata(draft.metadata), [draft.metadata])
-    const linkedResources = useMemo(() => sharedLorebookResourcesFromMetadata(draft.metadata), [draft.metadata])
-    const resources = useMemo(() => lorebookResourcesFromMetadata(draft.metadata), [draft.metadata])
+    const selectedEntry = visibleDraft.entries.find((entry) => entry.id === selectedId)
+    const pendingDeleteEntry = visibleDraft.entries.find((entry) => entry.id === pendingDeleteId)
+    const embeddedResources = useMemo(() => (
+        resourceFeaturesEnabled ? embeddedLorebookResourcesFromMetadata(visibleDraft.metadata) : []
+    ), [visibleDraft.metadata, resourceFeaturesEnabled])
+    const linkedResources = useMemo(() => (
+        resourceFeaturesEnabled ? sharedLorebookResourcesFromMetadata(visibleDraft.metadata) : []
+    ), [visibleDraft.metadata, resourceFeaturesEnabled])
+    const resources = useMemo(() => (
+        resourceFeaturesEnabled ? lorebookResourcesFromMetadata(visibleDraft.metadata) : []
+    ), [visibleDraft.metadata, resourceFeaturesEnabled])
     const resourceStats = useMemo(() => lorebookResourceStats(resources), [resources])
     const pendingExtractionCount = embeddedResources.filter((resource) => resource.extractionStatus !== 'completed' || resource.metadataOutdated).length
-    const issues = useMemo(() => validateLorebookLocally(draft), [draft])
+    const issues = useMemo(() => validateLorebookLocally(visibleDraft), [visibleDraft])
     const errorCount = issues.filter((issue) => issue.severity === 'error').length
     const saved = Boolean(draft.id)
 
@@ -351,7 +363,9 @@ export function LorebookStudio() {
                         <div className="grid grid-cols-2 gap-2">
                             <Badge tone="arcane">{t('lorebookStudio.shell.summary.entries', { count: draft.entries.length })}</Badge>
                             <Badge tone="arcane">{t('lorebookStudio.shell.summary.keys', { count: draft.entries.reduce((sum, entry) => sum + entry.keys.length, 0) })}</Badge>
-                            <Badge tone="arcane">{t('lorebookStudio.shell.summary.resources', { count: resourceStats.total })}</Badge>
+                            {resourceFeaturesEnabled && (
+                                <Badge tone="arcane">{t('lorebookStudio.shell.summary.resources', { count: resourceStats.total })}</Badge>
+                            )}
                             <Badge tone={errorCount > 0 ? 'danger' : 'live'}>{t('lorebookStudio.shell.summary.issues', { count: issues.length })}</Badge>
                             <Badge tone={saved ? 'live' : 'neutral'}>{saved ? t('lorebookStudio.shell.summary.saved') : t('lorebookStudio.shell.summary.draft')}</Badge>
                         </div>
@@ -359,17 +373,19 @@ export function LorebookStudio() {
                 </aside>
 
                 <main className="flex min-w-0 flex-col gap-6">
-                    <LorebookResourcePanel
-                        resources={embeddedResources}
-                        onChange={updateResources}
-                        linkedResources={linkedResources}
-                        onAddFromLibrary={saved ? () => setResourcePickerOpen(true) : undefined}
-                        onDetachResource={(resource) => void detachSharedResource(resource.id)}
-                        saving={saving}
-                        pendingExtractionCount={pendingExtractionCount}
-                        extractMetadataOnSave={extractResourceMetadata}
-                        onExtractMetadataOnSaveChange={setExtractResourceMetadata}
-                    />
+                    {resourceFeaturesEnabled && (
+                        <LorebookResourcePanel
+                            resources={embeddedResources}
+                            onChange={updateResources}
+                            linkedResources={linkedResources}
+                            onAddFromLibrary={saved ? () => setResourcePickerOpen(true) : undefined}
+                            onDetachResource={(resource) => void detachSharedResource(resource.id)}
+                            saving={saving}
+                            pendingExtractionCount={pendingExtractionCount}
+                            extractMetadataOnSave={extractResourceMetadata}
+                            onExtractMetadataOnSaveChange={setExtractResourceMetadata}
+                        />
+                    )}
                     <LoreEntryTable
                         entries={draft.entries}
                         selectedId={selectedId}
@@ -387,7 +403,7 @@ export function LorebookStudio() {
                         </div>
                         <LorebookAttachPanel lorebook={draft} onChange={(attachments) => patchDraft({ attachments })} />
                     </div>
-                    <ActivationPreviewPanel lorebook={draft} saved={saved} />
+                    <ActivationPreviewPanel lorebook={visibleDraft} saved={saved} />
                 </main>
 
                 <aside ref={editorRef} className="min-w-0 scroll-mt-4 xl:sticky xl:top-4 xl:self-start">
@@ -430,12 +446,14 @@ export function LorebookStudio() {
                 isAuthenticated={isAuthenticated}
                 onAuthRequired={openLoginModal}
             />
-            <LorebookResourcePickerDrawer
-                open={resourcePickerOpen}
-                lorebook={saved ? draft : null}
-                onClose={() => setResourcePickerOpen(false)}
-                onAttached={applyResourceLorebook}
-            />
+            {resourceFeaturesEnabled && (
+                <LorebookResourcePickerDrawer
+                    open={resourcePickerOpen}
+                    lorebook={saved ? draft : null}
+                    onClose={() => setResourcePickerOpen(false)}
+                    onAttached={applyResourceLorebook}
+                />
+            )}
         </div>
     )
 }

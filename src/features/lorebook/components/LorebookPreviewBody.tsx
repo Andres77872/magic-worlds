@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { BookOpenText, FileText } from 'lucide-react'
 import { Badge, Icon, IconTile, Tag } from '@/ui/primitives'
 import type { Lorebook } from '@/shared'
+import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { lorebookResourceCompletedExtraction, lorebookResourcesFromMetadata } from '../lorebookResources'
 
 interface LorebookPreviewBodyProps {
@@ -14,7 +15,7 @@ interface LorebookPreviewBodyProps {
 
 export function LorebookPreviewBody({ lorebook }: LorebookPreviewBodyProps) {
     const { t } = useTranslation()
-    const resources = lorebookResourcesFromMetadata(lorebook.metadata)
+    const resources = isLorebookResourcesFeatureEnabled() ? lorebookResourcesFromMetadata(lorebook.metadata) : []
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-start gap-3">

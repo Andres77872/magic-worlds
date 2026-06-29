@@ -12,6 +12,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { AudioLines, Bot, Drama, Plus, UserCircle } from 'lucide-react'
 import type { Character, CharacterVoice } from '@/shared'
 import type { CharacterRole } from '@/shared/types/character.types'
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { VoicePickerDialog } from '@/features/voices'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService, ApiError } from '@/infrastructure/api'
@@ -123,6 +124,7 @@ export function CharacterCreator() {
     const [themeSongUrl, setThemeSongUrl] = useState<string | undefined>(editingCharacter?.theme_song_url)
     const [voice, setVoice] = useState<CharacterVoice | null>(editingCharacter?.voice ?? null)
     const [voicePickerOpen, setVoicePickerOpen] = useState(false)
+    const voicesEnabled = isVoicesFeatureEnabled()
     // Card id resolved at save time, so theme persistence never races `editingCharacter` state.
     const savedIdRef = useRef<string | null>(editingCharacter?.id ?? null)
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -688,40 +690,44 @@ export function CharacterCreator() {
                         />
                     </CreatorField>
 
-                    <CreatorField
-                        label={t('creation.character.fieldsForm.voiceLabel')}
-                        htmlFor="character-voice"
-                        tooltip={t('creation.character.fieldsForm.voiceTooltip')}
-                    >
-                        <div className="flex items-center justify-between gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3">
-                            <div className="min-w-0">
-                                {voice?.voice_id ? (
-                                    <>
-                                        <p className="font-ui text-sm font-semibold text-parchment-50">{voice.preset_name || voice.voice_id}</p>
-                                        <code className="font-mono text-xs text-parchment-400">{voice.voice_id}</code>
-                                    </>
-                                ) : (
-                                    <p className="font-ui text-sm text-parchment-300">{t('creation.character.fieldsForm.voiceDefault')}</p>
-                                )}
+                    {voicesEnabled && (
+                        <CreatorField
+                            label={t('creation.character.fieldsForm.voiceLabel')}
+                            htmlFor="character-voice"
+                            tooltip={t('creation.character.fieldsForm.voiceTooltip')}
+                        >
+                            <div className="flex items-center justify-between gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3">
+                                <div className="min-w-0">
+                                    {voice?.voice_id ? (
+                                        <>
+                                            <p className="font-ui text-sm font-semibold text-parchment-50">{voice.preset_name || voice.voice_id}</p>
+                                            <code className="font-mono text-xs text-parchment-400">{voice.voice_id}</code>
+                                        </>
+                                    ) : (
+                                        <p className="font-ui text-sm text-parchment-300">{t('creation.character.fieldsForm.voiceDefault')}</p>
+                                    )}
+                                </div>
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    iconLeft={<Icon icon={AudioLines} size={14} />}
+                                    onClick={() => setVoicePickerOpen(true)}
+                                >
+                                    {voice?.voice_id ? t('creation.character.fieldsForm.voiceChange') : t('creation.character.fieldsForm.voiceChoose')}
+                                </Button>
                             </div>
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                iconLeft={<Icon icon={AudioLines} size={14} />}
-                                onClick={() => setVoicePickerOpen(true)}
-                            >
-                                {voice?.voice_id ? t('creation.character.fieldsForm.voiceChange') : t('creation.character.fieldsForm.voiceChoose')}
-                            </Button>
-                        </div>
-                    </CreatorField>
+                        </CreatorField>
+                    )}
                 </StudioSection>
 
-                <VoicePickerDialog
-                    open={voicePickerOpen}
-                    currentVoice={voice}
-                    onSelect={setVoice}
-                    onClose={() => setVoicePickerOpen(false)}
-                />
+                {voicesEnabled && (
+                    <VoicePickerDialog
+                        open={voicePickerOpen}
+                        currentVoice={voice}
+                        onSelect={setVoice}
+                        onClose={() => setVoicePickerOpen(false)}
+                    />
+                )}
 
                 <GuidedSection section={sections.drives} guided={guided} />
                 {isPersona && <GuidedSection section={sections.boundaries} guided={guided} />}

@@ -9,7 +9,7 @@ import type { KeyboardEvent } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Card, Eyebrow, Icon, IconTile, cx } from '@/ui/primitives'
-import { CREATE_ACTIONS, type CreateAction } from './landingContent'
+import { CREATE_ACTIONS, isCreateActionEnabled, type CreateAction } from './landingContent'
 
 export interface AccessMenuProps {
     /** Eyebrow + title (varies by guest vs empty-account). */
@@ -41,7 +41,7 @@ export function AccessMenu({
                     <h2 className="font-display text-h3 font-semibold text-parchment-50">{title ?? t('landing.access.defaultTitle')}</h2>
                 </div>
                 <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                    {CREATE_ACTIONS.map((action) => (
+                    {CREATE_ACTIONS.filter(isCreateActionEnabled).map((action) => (
                         <Card
                             key={action.key}
                             interactive

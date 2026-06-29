@@ -141,7 +141,7 @@ async function startVoiceCallThroughConsent() {
 
 describe('Voice call integration proof', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_VOICE_MODE_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
         localStorage.clear()
         integration.isAuthenticated = true
         integration.characterChats = CHATS
@@ -245,7 +245,7 @@ describe('Voice call integration proof', () => {
     })
 
     it('keeps chatroom voice-call affordances hidden while the frontend flag is off', async () => {
-        vi.stubEnv('VITE_VOICE_MODE_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'false')
 
         render(<ChatroomPage />)
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))

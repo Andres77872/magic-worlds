@@ -58,6 +58,7 @@ vi.mock('@/app/hooks', () => ({
 beforeEach(() => {
     authed = true
     characterChats = CHATS
+    vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
 })
 
 afterEach(() => {
@@ -106,7 +107,7 @@ describe('ChatroomPage', () => {
     })
 
     it('hides voice-call actions while the frontend flag is off', async () => {
-        vi.stubEnv('VITE_VOICE_MODE_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'false')
         render(<ChatroomPage />)
 
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))
@@ -116,7 +117,7 @@ describe('ChatroomPage', () => {
     })
 
     it('resumes an existing chat in voice mode when the flag is enabled', async () => {
-        vi.stubEnv('VITE_VOICE_MODE_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
         render(<ChatroomPage />)
 
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))
@@ -127,7 +128,7 @@ describe('ChatroomPage', () => {
     })
 
     it('hides voice-call actions for group chats when the flag is enabled', async () => {
-        vi.stubEnv('VITE_VOICE_MODE_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
         render(<ChatroomPage />)
 
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra, Sable' }))

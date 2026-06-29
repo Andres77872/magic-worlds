@@ -11,6 +11,11 @@
 import type { LucideIcon } from 'lucide-react'
 import { BookOpenText, Feather, Gem, Globe, Infinity as InfinityIcon, ScrollText, Swords, Users, UsersRound } from 'lucide-react'
 import type { FeatureArtKey } from '@/assets/marketing'
+import {
+    isLorebooksFeatureEnabled,
+    isNovelsFeatureEnabled,
+    isVoicesFeatureEnabled,
+} from '@/shared/featureFlags'
 
 export const GITHUB_URL = 'https://github.com/Andres77872/magic-worlds'
 
@@ -102,6 +107,12 @@ export const CREATE_ACTIONS: CreateAction[] = [
     },
 ]
 
+export function isCreateActionEnabled(action: CreateAction): boolean {
+    if (action.key === 'novel') return isNovelsFeatureEnabled()
+    if (action.key === 'lorebook') return isLorebooksFeatureEnabled()
+    return true
+}
+
 /**
  * Illustrated "what you can build" gallery (guest front-door) — pairs each
  * generated feature illustration with the existing create copy. `key` indexes
@@ -124,6 +135,13 @@ export const FEATURE_GALLERY: FeatureGalleryItem[] = [
     { key: 'themeSong', titleKey: 'landing.create.themeSong.title', descKey: 'landing.create.themeSong.desc' },
     { key: 'voice', titleKey: 'landing.create.voice.title', descKey: 'landing.create.voice.desc' },
 ]
+
+export function isFeatureGalleryItemEnabled(item: FeatureGalleryItem): boolean {
+    if (item.key === 'novel') return isNovelsFeatureEnabled()
+    if (item.key === 'lorebook') return isLorebooksFeatureEnabled()
+    if (item.key === 'voice') return isVoicesFeatureEnabled()
+    return true
+}
 
 /**
  * The "two ways to play" explainer — the one place that spells out Adventure

@@ -7,7 +7,7 @@
 import { useTranslation } from 'react-i18next'
 import { featureArt } from '@/assets/marketing'
 import { Card, Eyebrow, Illustration } from '@/ui/primitives'
-import { FEATURE_GALLERY } from './landingContent'
+import { FEATURE_GALLERY, isFeatureGalleryItemEnabled } from './landingContent'
 
 export function FeatureGallery() {
     const { t } = useTranslation()
@@ -21,7 +21,7 @@ export function FeatureGallery() {
                     </h2>
                 </div>
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                    {FEATURE_GALLERY.map((item) => (
+                    {FEATURE_GALLERY.filter(isFeatureGalleryItemEnabled).map((item) => (
                         <Card key={item.key} className="overflow-hidden p-0">
                             <Illustration
                                 src={featureArt[item.key]}

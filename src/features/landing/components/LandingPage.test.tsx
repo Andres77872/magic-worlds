@@ -142,11 +142,18 @@ beforeEach(() => {
     inProgressAdventures = IN_PROGRESS
     characterChats = CHATS
     stories = STORIES
+    vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
+    vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
+    vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+    vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+    vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+    vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
 })
 
 afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    vi.unstubAllEnvs()
 })
 
 describe('LandingPage (returning dashboard)', () => {

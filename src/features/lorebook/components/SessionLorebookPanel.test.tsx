@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Lorebook } from '@/shared'
 import { apiService } from '@/infrastructure/api'
 import { SessionLorebookPanel } from './SessionLorebookPanel'
@@ -94,6 +94,8 @@ const MOON_BOOK: Lorebook = {
 describe('SessionLorebookPanel', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
         lorebooks = [GLASS_BOOK, MOON_BOOK]
         vi.mocked(apiService.listLorebookAttachments).mockResolvedValue([
             { id: 'att-1', lorebookId: 'lb-1', targetKind: 'character_chat', targetId: '9', mode: 'linked' },
@@ -106,6 +108,10 @@ describe('SessionLorebookPanel', () => {
             mode: 'linked',
         })
         vi.mocked(apiService.deleteLorebookAttachment).mockResolvedValue(undefined)
+    })
+
+    afterEach(() => {
+        vi.unstubAllEnvs()
     })
 
     it('loads and renders lorebooks attached to the active target', async () => {

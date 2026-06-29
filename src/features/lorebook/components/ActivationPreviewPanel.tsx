@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { Loader2, Play, Sparkles } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
 import type { LoreActivationPreviewResponse, Lorebook } from '@/shared'
+import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { Badge, Button, Field, Icon, Textarea } from '@/ui/primitives'
-import { lorebookResourceStats, lorebookResourcesFromMetadata } from '../lorebookResources'
+import { lorebookResourceStats, lorebookResourcesFromMetadata, withoutLorebookResourceMetadata } from '../lorebookResources'
 import { previewLocally } from '../lorebookTransforms'
 
 interface ActivationPreviewPanelProps {
@@ -16,19 +17,25 @@ const DEFAULT_SAMPLE = 'I ask Mira about the Glass Market and show her the silve
 
 export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPreviewPanelProps) {
     const { t } = useTranslation()
+    const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
+    const previewLorebook = useMemo(() => (
+        resourceFeaturesEnabled ? lorebook : withoutLorebookResourceMetadata(lorebook)
+    ), [lorebook, resourceFeaturesEnabled])
     const [sample, setSample] = useState(DEFAULT_SAMPLE)
-    const [preview, setPreview] = useState<LoreActivationPreviewResponse>(() => previewLocally(lorebook, DEFAULT_SAMPLE))
+    const [preview, setPreview] = useState<LoreActivationPreviewResponse>(() => previewLocally(previewLorebook, DEFAULT_SAMPLE))
     const [loading, setLoading] = useState(false)
     const [source, setSource] = useState<'backend' | 'local'>('local')
     const [error, setError] = useState<string | null>(null)
-    const resourceStats = useMemo(() => lorebookResourceStats(lorebookResourcesFromMetadata(lorebook.metadata)), [lorebook.metadata])
+    const resourceStats = useMemo(() => (
+        resourceFeaturesEnabled ? lorebookResourceStats(lorebookResourcesFromMetadata(previewLorebook.metadata)) : null
+    ), [previewLorebook.metadata, resourceFeaturesEnabled])
 
     const activated = useMemo(() => preview.results.filter((result) => result.status === 'activated'), [preview.results])
     const skipped = preview.results.length - activated.length
 
     useEffect(() => {
-        if (source === 'local') setPreview(previewLocally(lorebook, sample))
-    }, [lorebook, sample, source])
+        if (source === 'local') setPreview(previewLocally(previewLorebook, sample))
+    }, [previewLorebook, sample, source])
 
     const runPreview = async () => {
         setLoading(true)
@@ -39,12 +46,12 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
                 mode: 'continue',
                 messages: [{ role: 'user', content: sample }],
                 includePromptPreview: true,
-                overrides: { lorebooks: [lorebook] },
+                overrides: { lorebooks: [previewLorebook] },
             })
             setPreview(result)
             setSource('backend')
         } catch (e) {
-            setPreview(previewLocally(lorebook, sample))
+            setPreview(previewLocally(previewLorebook, sample))
             setSource('local')
             setError(e instanceof Error ? e.message : t('lorebookStudio.activationPreview.backendUnavailable'))
         } finally {
@@ -88,7 +95,7 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
                 </div>
             )}
 
-            {resourceStats.pending > 0 && (
+            {resourceStats && resourceStats.pending > 0 && (
                 <div className="rounded-lg border border-arcane-500/25 bg-arcane-500/10 px-4 py-3 font-ui text-sm text-parchment-200">
                     {t('lorebookStudio.activationPreview.pendingResources', { count: resourceStats.pending })}
                 </div>

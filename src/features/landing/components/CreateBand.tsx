@@ -8,7 +8,7 @@
 
 import { useTranslation } from 'react-i18next'
 import { Eyebrow, IconTile, cx } from '@/ui/primitives'
-import { CREATE_ACTIONS, type CreateAction } from './landingContent'
+import { CREATE_ACTIONS, isCreateActionEnabled, type CreateAction } from './landingContent'
 
 export interface CreateBandProps {
     onAction: (key: CreateAction['key']) => void
@@ -26,7 +26,7 @@ export function CreateBand({ onAction }: CreateBandProps) {
                     <h2 className="m-0 font-display text-h3 font-semibold text-parchment-50">{t('landing.create.title')}</h2>
                 </div>
                 <div className="relative mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                    {CREATE_ACTIONS.map((action) => (
+                    {CREATE_ACTIONS.filter(isCreateActionEnabled).map((action) => (
                         <button
                             key={action.key}
                             type="button"

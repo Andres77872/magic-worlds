@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
+import { isPageFeatureEnabled } from '../../shared/featureFlags'
 import { effectiveName } from '@/utils/displayName'
 import { useAuth, useLanguage, useNavigation } from '../../app/hooks'
 import { SUPPORTED_LANGUAGE_OPTIONS } from '../../app/i18n'
@@ -126,6 +127,7 @@ export function SidebarAccountMenu({
     const { currentPage, setPage } = useNavigation()
     const { language, isSyncing, syncError, setLanguage } = useLanguage()
     const isRoot = isAuthenticated && user?.user_type === 'root'
+    const showVoiceAdmin = isRoot && isPageFeatureEnabled('admin-voices')
     const displayedName = user ? effectiveName(user) : ''
     const triggerLabel = t('sidebar.account.open')
     const visibleLabel = isAuthenticated ? displayedName || t('sidebar.profile') : t('sidebar.account.title')
@@ -318,12 +320,14 @@ export function SidebarAccountMenu({
                                 <Eyebrow tone="muted">{t('sidebar.account.admin')}</Eyebrow>
                             </div>
                             <div className="flex flex-col gap-0.5">
-                                <AccountMenuRow
-                                    icon={Crown}
-                                    label={t('sidebar.voiceAdmin')}
-                                    current={currentPage === 'admin-voices'}
-                                    onClick={() => navigate('admin-voices')}
-                                />
+                                {showVoiceAdmin && (
+                                    <AccountMenuRow
+                                        icon={Crown}
+                                        label={t('sidebar.voiceAdmin')}
+                                        current={currentPage === 'admin-voices'}
+                                        onClick={() => navigate('admin-voices')}
+                                    />
+                                )}
                                 <AccountMenuRow
                                     icon={Bot}
                                     label={t('sidebar.agentAdmin')}

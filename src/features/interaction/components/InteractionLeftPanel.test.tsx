@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Adventure } from '@/shared'
 import { InteractionLeftPanel } from './InteractionLeftPanel'
 
@@ -34,6 +34,14 @@ const ADVENTURE: Adventure = {
 }
 
 describe('InteractionLeftPanel lorebooks', () => {
+    beforeEach(() => {
+        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
+    })
+
+    afterEach(() => {
+        vi.unstubAllEnvs()
+    })
+
     it('wires the session lorebook panel to the active adventure session id', () => {
         render(<InteractionLeftPanel adventure={ADVENTURE} onBack={vi.fn()} onSnapshotChange={vi.fn()} />)
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import type { Adventure, Character, CharacterChatSession, Item, Lorebook, Story, World } from '@/shared'
 import { useDashboardModel } from './useDashboardModel'
@@ -45,6 +45,16 @@ const mockData = { characters, worlds, items, inProgressAdventures, characterCha
 vi.mock('@/app/hooks', () => ({ useData: () => mockData }))
 
 describe('useDashboardModel', () => {
+    beforeEach(() => {
+        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
+    })
+
+    afterEach(() => {
+        vi.unstubAllEnvs()
+    })
+
     it('caps the carousel at 8 and the per-type rails at 9', () => {
         const { result } = renderHook(() => useDashboardModel())
         expect(result.current.resumeSessions).toHaveLength(8)

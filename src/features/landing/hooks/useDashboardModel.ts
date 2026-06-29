@@ -13,7 +13,8 @@
 
 import { useMemo } from 'react'
 import { useData } from '@/app/hooks'
-import type { Character, Item, Lorebook, World } from '@/shared'
+import type { Character, Item, Lorebook, Story, World } from '@/shared'
+import { isGroupChatsFeatureEnabled, isLorebooksFeatureEnabled, isNovelsFeatureEnabled } from '@/shared/featureFlags'
 import { isAiCharacterCard, isPersonaCard } from '@/utils/characterRoles'
 import { toResumeSessions, type ResumeSession } from '../components/resumeModel'
 
@@ -23,6 +24,9 @@ const CAP = {
     active: 9,
     library: 9,
 } as const
+
+const EMPTY_STORIES: Story[] = []
+const EMPTY_LOREBOOKS: Lorebook[] = []
 
 export interface DashboardModel {
     /** Recent across adventures + chats + novels, capped — the hero carousel. */
@@ -51,17 +55,23 @@ export interface DashboardModel {
 
 export function useDashboardModel(): DashboardModel {
     const { characters, worlds, items, inProgressAdventures, characterChats, stories, lorebooks } = useData()
+    const visibleChats = useMemo(
+        () => isGroupChatsFeatureEnabled() ? characterChats : characterChats.filter((chat) => chat.kind !== 'character_group'),
+        [characterChats],
+    )
+    const visibleStories = isNovelsFeatureEnabled() ? stories : EMPTY_STORIES
+    const visibleLorebooks = isLorebooksFeatureEnabled() ? lorebooks : EMPTY_LOREBOOKS
 
     const personaCards = useMemo(() => characters.filter(isPersonaCard), [characters])
     const aiCharacters = useMemo(() => characters.filter(isAiCharacterCard), [characters])
 
     const resumeSessions = useMemo(
-        () => toResumeSessions(inProgressAdventures, characterChats, stories).slice(0, CAP.carousel),
-        [inProgressAdventures, characterChats, stories],
+        () => toResumeSessions(inProgressAdventures, visibleChats, visibleStories).slice(0, CAP.carousel),
+        [inProgressAdventures, visibleChats, visibleStories],
     )
     const searchSessions = useMemo(
-        () => toResumeSessions(inProgressAdventures, characterChats),
-        [inProgressAdventures, characterChats],
+        () => toResumeSessions(inProgressAdventures, visibleChats),
+        [inProgressAdventures, visibleChats],
     )
 
     const activeAdventureSessions = useMemo(
@@ -69,28 +79,28 @@ export function useDashboardModel(): DashboardModel {
         [inProgressAdventures],
     )
     const activeChatSessions = useMemo(
-        () => toResumeSessions([], characterChats, []).slice(0, CAP.active),
-        [characterChats],
+        () => toResumeSessions([], visibleChats, []).slice(0, CAP.active),
+        [visibleChats],
     )
     const activeNovelSessions = useMemo(
-        () => toResumeSessions([], [], stories).slice(0, CAP.active),
-        [stories],
+        () => toResumeSessions([], [], visibleStories).slice(0, CAP.active),
+        [visibleStories],
     )
 
     const railWorlds = useMemo(() => worlds.slice(0, CAP.library), [worlds])
     const railItems = useMemo(() => items.slice(0, CAP.library), [items])
-    const railLorebooks = useMemo(() => lorebooks.slice(0, CAP.library), [lorebooks])
+    const railLorebooks = useMemo(() => visibleLorebooks.slice(0, CAP.library), [visibleLorebooks])
 
     const counts = useMemo(
         () => ({
             adventures: inProgressAdventures.length,
-            chats: characterChats.length,
-            novels: stories.length,
+            chats: visibleChats.length,
+            novels: visibleStories.length,
             worlds: worlds.length,
             items: items.length,
-            lorebooks: lorebooks.length,
+            lorebooks: visibleLorebooks.length,
         }),
-        [inProgressAdventures.length, characterChats.length, stories.length, worlds.length, items.length, lorebooks.length],
+        [inProgressAdventures.length, visibleChats.length, visibleStories.length, worlds.length, items.length, visibleLorebooks.length],
     )
 
     return {

@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import type { Character, CharacterChatSession } from '@/shared'
+import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { defaultPersona } from '@/utils/characterRoles'
 
 export interface UseStartCall {
@@ -51,6 +52,10 @@ export function useStartCall(): UseStartCall {
     // Open the call in voice mode. startCharacterChat resets the mode to 'text', so the
     // voice flip MUST happen after it resolves and before navigation (keyed remount).
     const launchVoice = (chat: CharacterChatSession) => {
+        if (!isCallsFeatureEnabled()) {
+            setError(t('call.start.error'))
+            return
+        }
         resumeCharacterChat(chat, { mode: 'voice' })
         setPage('character-chat')
     }
@@ -76,6 +81,7 @@ export function useStartCall(): UseStartCall {
     }
 
     const startCall = (character: Character) => {
+        if (!isCallsFeatureEnabled()) return
         if (!isAuthenticated) {
             openLoginModal()
             return
@@ -84,6 +90,7 @@ export function useStartCall(): UseStartCall {
     }
 
     const resumeCall = (chat: CharacterChatSession) => {
+        if (!isCallsFeatureEnabled()) return
         if (!isAuthenticated) {
             openLoginModal()
             return

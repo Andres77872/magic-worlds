@@ -34,6 +34,7 @@ vi.mock('@/infrastructure/api', () => ({
 }))
 
 beforeEach(() => {
+    vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
     authed = true
     characters = [MIRA, PERSONA]
     getRecentVoiceCalls.mockResolvedValue({ items: [] })

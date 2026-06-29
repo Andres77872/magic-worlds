@@ -20,6 +20,11 @@ import { defaultPersona } from '@/utils/characterRoles'
 import { downloadBlob, safeFilename } from '@/utils/download'
 import { useStartCall } from '@/features/call'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
+import {
+    isCommunityCardsFeatureEnabled,
+    isGroupChatsFeatureEnabled,
+    isNovelsFeatureEnabled,
+} from '@/shared/featureFlags'
 import { GALLERY_CONFIG, publicConfigFor, publicItems, type GalleryItem, type GalleryType } from '../galleryConfig'
 import { buildCardEditHash, buildGalleryModeHash, buildGalleryViewHash, buildSharedCardUrl, galleryPageForType, parseGalleryHash } from '../galleryLinks'
 import { useCardGallery } from '../hooks/useCardGallery'
@@ -50,6 +55,7 @@ function groupModeFor(type: GalleryType): boolean {
 }
 
 function galleryViewFor(type: GalleryType): 'mine' | 'public' {
+    if (!isCommunityCardsFeatureEnabled()) return 'mine'
     const target = parseGalleryHash()
     return target?.type === type && target.view === 'public' ? 'public' : 'mine'
 }
@@ -94,7 +100,10 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const [layoutView, setLayoutView] = useGalleryView()
     const publicConfig = useMemo(() => publicConfigFor(type), [type])
     const activeConfig = viewMode === 'public' ? publicConfig : config
-    const isPublicView = viewMode === 'public'
+    const communityCardsEnabled = isCommunityCardsFeatureEnabled()
+    const groupChatsEnabled = isGroupChatsFeatureEnabled()
+    const novelsEnabled = isNovelsFeatureEnabled()
+    const isPublicView = communityCardsEnabled && viewMode === 'public'
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const gallery = useCardGallery(activeConfig, undefined, { enabled: isPublicView || isAuthenticated })
@@ -136,7 +145,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null)
     const [linkedCardId, setLinkedCardId] = useState<string | null>(() => linkedCardIdFor(type))
     const [highlightedId, setHighlightedId] = useState<string | null>(() => linkedCardIdFor(type))
-    const [groupSelectionMode, setGroupSelectionMode] = useState(() => groupModeFor(type))
+    const [groupSelectionMode, setGroupSelectionMode] = useState(() => groupChatsEnabled && groupModeFor(type))
     const [selectedGroupItems, setSelectedGroupItems] = useState<Record<string, GalleryItem>>({})
     const [startingChatId, setStartingChatId] = useState<string | null>(null)
     const [versionTarget, setVersionTarget] = useState<GalleryItem | null>(null)
@@ -181,7 +190,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
             setViewMode(nextView)
             setLinkedCardId(next)
             if (next) setHighlightedId(next)
-            const nextGroupMode = nextView === 'mine' && type === 'character' && groupModeFor(type)
+            const nextGroupMode = groupChatsEnabled && nextView === 'mine' && type === 'character' && groupModeFor(type)
             setGroupSelectionMode(nextGroupMode)
             if (!nextGroupMode) {
                 setSelectedGroupItems((current) => (Object.keys(current).length > 0 ? {} : current))
@@ -194,7 +203,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
             window.removeEventListener('hashchange', syncLinkedCard)
             window.removeEventListener('popstate', syncLinkedCard)
         }
-    }, [type])
+    }, [groupChatsEnabled, type])
 
     useEffect(() => {
         if (!linkedCardId || !activeConfig.fetchItem || !activeConfig.toItem) return
@@ -275,6 +284,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     }
 
     const switchViewMode = (mode: 'mine' | 'public') => {
+        if (mode === 'public' && !communityCardsEnabled) return
         setActionNotice(null)
         setViewMode(mode)
         setSelectedGroupItems({})
@@ -295,6 +305,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     }
 
     const enterGroupSelection = () => {
+        if (!groupChatsEnabled) return
         requireAuth(() => {
             setActionNotice(null)
             setSelectedGroupItems({})
@@ -329,6 +340,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     }
 
     const beginGroupChat = () => {
+        if (!groupChatsEnabled) return
         const items = Object.values(selectedGroupItems)
         if (items.length < 2) {
             setActionNotice({
@@ -427,6 +439,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     }
 
     const copyShareLink = async (item: GalleryItem) => {
+        if (!communityCardsEnabled) return
         if (sharingId) return
         setActionNotice(null)
         setSharingId(item.id)
@@ -449,6 +462,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     }
 
     const togglePublicCard = async (item: GalleryItem) => {
+        if (!communityCardsEnabled) return
         if (sharingId) return
         setActionNotice(null)
         setSharingId(item.id)
@@ -523,27 +537,31 @@ export function GalleryPage({ type }: GalleryPageProps) {
     }
 
     const shareOptionsFor = (item: GalleryItem): CardOption[] => [
-        {
-            type: 'custom',
-            icon: <Icon icon={Link2} size={15} />,
-            label: sharingId === item.id ? t('gallery.copyingLink') : t('gallery.copyUnlistedLink'),
-            onClick: () => requireAuth(() => void copyShareLink(item)),
-            disabled: sharingId !== null,
-        },
-        {
-            type: 'custom',
-            icon: <Icon icon={Globe2} size={15} />,
-            label: item.visibility?.public ? t('gallery.removeFromPublic') : t('gallery.shareAsPublic'),
-            onClick: () => requireAuth(() => void togglePublicCard(item)),
-            disabled: sharingId !== null,
-        },
+        ...(communityCardsEnabled
+            ? [
+                  {
+                      type: 'custom',
+                      icon: <Icon icon={Link2} size={15} />,
+                      label: sharingId === item.id ? t('gallery.copyingLink') : t('gallery.copyUnlistedLink'),
+                      onClick: () => requireAuth(() => void copyShareLink(item)),
+                      disabled: sharingId !== null,
+                  } satisfies CardOption,
+                  {
+                      type: 'custom',
+                      icon: <Icon icon={Globe2} size={15} />,
+                      label: item.visibility?.public ? t('gallery.removeFromPublic') : t('gallery.shareAsPublic'),
+                      onClick: () => requireAuth(() => void togglePublicCard(item)),
+                      disabled: sharingId !== null,
+                  } satisfies CardOption,
+              ]
+            : []),
         {
             type: 'custom',
             icon: <Icon icon={Download} size={15} />,
             label: exportingId === item.id ? t('gallery.downloading') : t('gallery.downloadPng'),
             onClick: () => requireAuth(() => void exportCard(item)),
             disabled: exportingId !== null,
-            separatorBefore: true,
+            separatorBefore: communityCardsEnabled,
         },
     ]
 
@@ -589,12 +607,14 @@ export function GalleryPage({ type }: GalleryPageProps) {
                     cardRefs: [{ kind: cardRefKind, cardId: item.id, source: 'source' }],
                 }).then(() => setPage('story'))
             })
-        options.push({
-            type: 'custom',
-            icon: <Icon icon={BookOpenText} size={15} />,
-            label: t('gallery.write'),
-            onClick: writeFromCard,
-        })
+        if (novelsEnabled) {
+            options.push({
+                type: 'custom',
+                icon: <Icon icon={BookOpenText} size={15} />,
+                label: t('gallery.write'),
+                onClick: writeFromCard,
+            })
+        }
         if (type === 'character') {
             options.push({
                 type: 'custom',
@@ -753,23 +773,25 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 size="lg"
                 actions={
                     <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto md:justify-end">
-                        <div className="flex w-full gap-2 sm:w-auto">
-                            <Chip
-                                active={!isPublicView}
-                                onClick={() => switchViewMode('mine')}
-                                aria-pressed={!isPublicView}
-                            >
-                                {t('gallery.myCards')}
-                            </Chip>
-                            <Chip
-                                active={isPublicView}
-                                icon={<Icon icon={Globe2} size={13} />}
-                                onClick={() => switchViewMode('public')}
-                                aria-pressed={isPublicView}
-                            >
-                                {t('gallery.publicCards')}
-                            </Chip>
-                        </div>
+                        {communityCardsEnabled && (
+                            <div className="flex w-full gap-2 sm:w-auto">
+                                <Chip
+                                    active={!isPublicView}
+                                    onClick={() => switchViewMode('mine')}
+                                    aria-pressed={!isPublicView}
+                                >
+                                    {t('gallery.myCards')}
+                                </Chip>
+                                <Chip
+                                    active={isPublicView}
+                                    icon={<Icon icon={Globe2} size={13} />}
+                                    onClick={() => switchViewMode('public')}
+                                    aria-pressed={isPublicView}
+                                >
+                                    {t('gallery.publicCards')}
+                                </Chip>
+                            </div>
+                        )}
                         <GalleryViewToggle value={layoutView} onChange={setLayoutView} className="shrink-0" />
                         <div className="relative flex w-full items-center sm:w-[320px]">
                             <span className="pointer-events-none absolute left-3 flex items-center text-parchment-400">
@@ -807,7 +829,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                                 </IconButton>
                             )}
                         </div>
-                        {type === 'character' && !groupSelectionMode && !isPublicView && (
+                        {groupChatsEnabled && type === 'character' && !groupSelectionMode && !isPublicView && (
                             <Button
                                 variant="primary"
                                 iconLeft={<Icon icon={Users} size={16} />}

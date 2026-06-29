@@ -33,7 +33,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
-import { isFrontendVoiceModeEnabled } from '../../shared/voiceFeatureFlag'
+import { isPageFeatureEnabled } from '../../shared/featureFlags'
 import { useNavigation, useAuth, useBackgroundTasks, useApiStatus } from '../../app/hooks'
 import { Eyebrow, Icon, Tooltip, cx } from '../primitives'
 import { ApiStatusMonitor } from './ApiStatusMonitor'
@@ -95,8 +95,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 /** Items hidden behind a feature flag are filtered out before render. */
 function isItemVisible(item: RailItem): boolean {
-    if (item.page === 'calls') return isFrontendVoiceModeEnabled()
-    return true
+    return isPageFeatureEnabled(item.page)
 }
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'magic-worlds-sidebar-collapsed'

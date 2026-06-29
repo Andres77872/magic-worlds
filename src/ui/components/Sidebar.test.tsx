@@ -118,12 +118,20 @@ function stubRect(element: Element) {
 describe('Sidebar API status', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        vi.stubEnv('VITE_FEATURE_COMMUNITY_CARDS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
         window.localStorage.removeItem('magic-worlds-sidebar-collapsed')
         window.localStorage.removeItem('magic-worlds-sidebar-groups')
     })
 
     afterEach(() => {
         vi.unstubAllGlobals()
+        vi.unstubAllEnvs()
     })
 
     it('shows API status and reaches docs + log in from the account menu while signed out', async () => {

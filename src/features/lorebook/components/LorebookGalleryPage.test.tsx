@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { I18nextProvider } from 'react-i18next'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/app/i18n'
 import type { Lorebook } from '@/shared'
 
@@ -94,7 +94,13 @@ describe('LorebookGalleryPage', () => {
         await i18n.changeLanguage('en')
         authed = true
         vi.clearAllMocks()
+        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
         vi.mocked(apiService.getLorebooks).mockResolvedValue([LOREBOOK])
+    })
+
+    afterEach(() => {
+        vi.unstubAllEnvs()
     })
 
     it('renders lorebook cards and opens the editor from a card click', async () => {

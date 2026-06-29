@@ -45,6 +45,8 @@ interface ProfileViewProps {
     autoClaimEmailCreditGrants?: boolean
     /** Whether Stripe billing is enabled server-side — gates the "Plans & credits" entry. */
     billingEnabled?: boolean
+    /** Whether the community-card sharing manager is exposed. */
+    sharingEnabled?: boolean
     /** Uncontrolled initial section (Storybook, tests). Ignored when `activeTab` is set. */
     initialTab?: ProfileTab
     /** Controlled active section (the container drives this from the URL hash). */
@@ -62,6 +64,7 @@ export function ProfileView({
     onRedeemed,
     autoClaimEmailCreditGrants,
     billingEnabled,
+    sharingEnabled = true,
     initialTab,
     activeTab,
     onTabChange,
@@ -85,7 +88,7 @@ export function ProfileView({
     const tabs: TabOption<ProfileTab>[] = [
         { value: 'membership', label: t('profile.tabs.membership'), icon: <Icon icon={CreditCard} size={16} /> },
         { value: 'usage', label: t('profile.tabs.usage'), icon: <Icon icon={Activity} size={16} /> },
-        { value: 'sharing', label: t('profile.tabs.sharing'), icon: <Icon icon={Share2} size={16} /> },
+        ...(sharingEnabled ? [{ value: 'sharing' as const, label: t('profile.tabs.sharing'), icon: <Icon icon={Share2} size={16} /> }] : []),
         { value: 'account', label: t('profile.tabs.account'), icon: <Icon icon={Mail} size={16} /> },
         { value: 'security', label: t('profile.tabs.security'), icon: <Icon icon={ShieldCheck} size={16} /> },
     ]
@@ -125,13 +128,15 @@ export function ProfileView({
                         <UsageSection profile={profile} />
                     </TabPanel>
 
-                    <TabPanel value="sharing" idBase="profile" active={tab}>
-                        {sharing ? (
-                            <ProfileSharingSection sharing={sharing} />
-                        ) : (
-                            <EmptyState icon={<Icon icon={Share2} size={40} />} message={t('profile.sharing.title')} secondaryText={t('profile.sharing.publicEmpty')} />
-                        )}
-                    </TabPanel>
+                    {sharingEnabled && (
+                        <TabPanel value="sharing" idBase="profile" active={tab}>
+                            {sharing ? (
+                                <ProfileSharingSection sharing={sharing} />
+                            ) : (
+                                <EmptyState icon={<Icon icon={Share2} size={40} />} message={t('profile.sharing.title')} secondaryText={t('profile.sharing.publicEmpty')} />
+                            )}
+                        </TabPanel>
+                    )}
 
                     <TabPanel value="account" idBase="profile" active={tab}>
                         <EmailSection />

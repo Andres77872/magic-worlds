@@ -5,6 +5,7 @@ import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { CardGrid, ConfirmDialog, type CardOption } from '@/ui/components'
 import { Button, controlClass, Icon, IconButton, PageHeader } from '@/ui/primitives'
 import type { Lorebook } from '@/shared'
+import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { useLorebookGallery } from '../hooks/useLorebookGallery'
 import { useGalleryView } from '@/features/gallery/hooks/useGalleryView'
 import { cardGridDensity, cardGridLayout, galleryCardView } from '@/features/gallery/galleryView'
@@ -28,6 +29,7 @@ export function LorebookGalleryPage() {
     const [pendingDelete, setPendingDelete] = useState<Lorebook | null>(null)
     const [resourceTarget, setResourceTarget] = useState<Lorebook | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
+    const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
 
     const requireAuth = (action: () => void) => {
         if (!isAuthenticated) {
@@ -51,27 +53,32 @@ export function LorebookGalleryPage() {
         })
     }
 
-    const optionsFor = (lorebook: Lorebook): CardOption[] => [
-        {
-            type: 'custom',
-            label: t('lorebookGallery.actions.edit'),
-            icon: <Icon icon={Pencil} size={15} />,
-            onClick: () => openLorebook(lorebook),
-        },
-        {
-            type: 'custom',
-            label: t('lorebookGallery.actions.addResources'),
-            icon: <Icon icon={Library} size={15} />,
-            onClick: () => requireAuth(() => setResourceTarget(lorebook)),
-        },
-        {
+    const optionsFor = (lorebook: Lorebook): CardOption[] => {
+        const options: CardOption[] = [
+            {
+                type: 'custom',
+                label: t('lorebookGallery.actions.edit'),
+                icon: <Icon icon={Pencil} size={15} />,
+                onClick: () => openLorebook(lorebook),
+            },
+        ]
+        if (resourceFeaturesEnabled) {
+            options.push({
+                type: 'custom',
+                label: t('lorebookGallery.actions.addResources'),
+                icon: <Icon icon={Library} size={15} />,
+                onClick: () => requireAuth(() => setResourceTarget(lorebook)),
+            })
+        }
+        options.push({
             type: 'custom',
             label: t('lorebookGallery.actions.delete'),
             icon: <Icon icon={Trash2} size={15} />,
             onClick: () => requireAuth(() => setPendingDelete(lorebook)),
             danger: true,
-        },
-    ]
+        })
+        return options
+    }
 
     const confirmDelete = async () => {
         const target = pendingDelete
@@ -189,16 +196,18 @@ export function LorebookGalleryPage() {
                 onConfirm={confirmDelete}
                 onCancel={() => setPendingDelete(null)}
             />
-            <LorebookResourcePickerDrawer
-                open={resourceTarget !== null}
-                lorebook={resourceTarget}
-                onClose={() => setResourceTarget(null)}
-                onAttached={(updated) => {
-                    gallery.upsertItem(updated)
-                    setLorebooks(upsertLorebook(lorebooks, updated))
-                    setResourceTarget(updated)
-                }}
-            />
+            {resourceFeaturesEnabled && (
+                <LorebookResourcePickerDrawer
+                    open={resourceTarget !== null}
+                    lorebook={resourceTarget}
+                    onClose={() => setResourceTarget(null)}
+                    onAttached={(updated) => {
+                        gallery.upsertItem(updated)
+                        setLorebooks(upsertLorebook(lorebooks, updated))
+                        setResourceTarget(updated)
+                    }}
+                />
+            )}
         </div>
     )
 }

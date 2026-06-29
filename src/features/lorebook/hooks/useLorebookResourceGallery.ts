@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { i18n } from '@/app/i18n'
 import { apiService } from '@/infrastructure/api'
 import type { LorebookResource } from '@/shared'
+import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { normalizeLorebookResource } from '../lorebookResources'
 
 const PAGE_SIZE = 24
@@ -28,7 +29,7 @@ function appendDeduped(prev: LorebookResource[], page: LorebookResource[]): Lore
 }
 
 export function useLorebookResourceGallery(pageSize = PAGE_SIZE, options: LorebookResourceGalleryOptions = {}) {
-    const enabled = options.enabled ?? true
+    const enabled = (options.enabled ?? true) && isLorebookResourcesFeatureEnabled()
     const [items, setItems] = useState<LorebookResource[]>([])
     const [query, setQuery] = useState('')
     const [debouncedQuery, setDebouncedQuery] = useState('')

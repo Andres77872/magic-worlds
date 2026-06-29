@@ -2,6 +2,7 @@ import { useRef, type KeyboardEvent, type MouseEvent } from 'react'
 import { BookOpen, EyeOff, FileText, KeyRound, Link2, ScrollText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Lorebook } from '@/shared'
+import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { Badge, Card, CardDeletingOverlay, Icon, Tag, cx } from '@/ui/primitives'
 import { CardActionMenu, CardOptions, type CardOption, useCardActionContextMenu } from '@/ui/components'
 import { CARD_ACTION_REVEAL_CLASS } from '@/ui/components/lists/Card'
@@ -23,7 +24,8 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
     const enabledEntries = lorebook.entries.filter((entry) => entry.enabled).length
     const secretEntries = lorebook.entries.filter((entry) => entry.isSecret).length
     const keyCount = lorebook.entries.reduce((sum, entry) => sum + entry.keys.length, 0)
-    const resourceStats = lorebookResourceStats(lorebookResourcesFromMetadata(lorebook.metadata))
+    const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
+    const resourceStats = resourceFeaturesEnabled ? lorebookResourceStats(lorebookResourcesFromMetadata(lorebook.metadata)) : null
     const interactive = Boolean(onClick) && !deleting
     const cardRef = useRef<HTMLDivElement>(null!)
     const cardOptions = options ?? []
@@ -100,10 +102,12 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
                             <Icon icon={KeyRound} size={12} className="text-arcane-300" />
                             {keyCount}
                         </span>
-                        <span className="inline-flex items-center gap-1" title={t('lorebookGallery.card.resources')}>
-                            <Icon icon={FileText} size={12} className="text-arcane-300" />
-                            {resourceStats.completed}/{resourceStats.total}
-                        </span>
+                        {resourceStats && (
+                            <span className="inline-flex items-center gap-1" title={t('lorebookGallery.card.resources')}>
+                                <Icon icon={FileText} size={12} className="text-arcane-300" />
+                                {resourceStats.completed}/{resourceStats.total}
+                            </span>
+                        )}
                         <span className="inline-flex items-center gap-1" title={t('lorebookGallery.card.targets')}>
                             <Icon icon={Link2} size={12} className="text-parchment-300" />
                             {lorebook.attachments.length}
@@ -194,11 +198,13 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
                         label={t('lorebookGallery.card.keys')}
                         value={String(keyCount)}
                     />
-                    <Stat
-                        icon={<Icon icon={FileText} size={13} className="text-arcane-300" />}
-                        label={t('lorebookGallery.card.resources')}
-                        value={`${resourceStats.completed}/${resourceStats.total}`}
-                    />
+                    {resourceStats && (
+                        <Stat
+                            icon={<Icon icon={FileText} size={13} className="text-arcane-300" />}
+                            label={t('lorebookGallery.card.resources')}
+                            value={`${resourceStats.completed}/${resourceStats.total}`}
+                        />
+                    )}
                     <Stat
                         icon={<Icon icon={Link2} size={13} className="text-parchment-300" />}
                         label={t('lorebookGallery.card.targets')}

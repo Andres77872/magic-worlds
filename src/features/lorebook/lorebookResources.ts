@@ -228,6 +228,14 @@ export function stripHydratedLorebookResourceMetadata(metadata: Record<string, u
     return next
 }
 
+export function withoutLorebookResourceMetadata<T extends { metadata?: Record<string, unknown> }>(value: T): T {
+    const metadata = { ...(value.metadata ?? {}) }
+    delete metadata.resources
+    delete metadata.sharedResources
+    delete metadata.resourceIds
+    return { ...value, metadata }
+}
+
 export function withLorebookResources(metadata: Record<string, unknown> | undefined, resources: LorebookResource[]): Record<string, unknown> {
     return {
         ...(metadata ?? {}),

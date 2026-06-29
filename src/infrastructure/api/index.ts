@@ -77,6 +77,14 @@ import type {
 import { API_BASE_URL } from './baseUrl'
 import { getProtectedMediaPath } from './mediaUrl'
 import { isPatreonFeatureEnabled } from '../../shared/patreonFeatureFlag'
+import {
+    isCallsFeatureEnabled,
+    isCommunityCardsFeatureEnabled,
+    isLorebookResourcesFeatureEnabled,
+    isLorebooksFeatureEnabled,
+    isNovelsFeatureEnabled,
+    isVoicesFeatureEnabled,
+} from '../../shared/featureFlags'
 import { makeRequestId } from '../../utils/uuid'
 import { configureChatSocketAuthRefresh } from './chatSocket'
 import { configureVoiceSocketAuthRefresh } from './voiceSocket'
@@ -292,6 +300,30 @@ class ApiService {
 
     constructor() {
         this.baseUrl = API_BASE_URL
+    }
+
+    private assertCommunityCardsEnabled() {
+        if (!isCommunityCardsFeatureEnabled()) throw new Error('Community card sharing is disabled.')
+    }
+
+    private assertLorebooksEnabled() {
+        if (!isLorebooksFeatureEnabled()) throw new Error('Lorebooks are disabled.')
+    }
+
+    private assertLorebookResourcesEnabled() {
+        if (!isLorebookResourcesFeatureEnabled()) throw new Error('Lorebook resources are disabled.')
+    }
+
+    private assertVoicesEnabled() {
+        if (!isVoicesFeatureEnabled()) throw new Error('Voices are disabled.')
+    }
+
+    private assertCallsEnabled() {
+        if (!isCallsFeatureEnabled()) throw new Error('Calls are disabled.')
+    }
+
+    private assertNovelsEnabled() {
+        if (!isNovelsFeatureEnabled()) throw new Error('Novels are disabled.')
     }
 
     /**
@@ -1088,6 +1120,7 @@ class ApiService {
     }
 
     async listAdminVoices(voiceType: AdminVoiceQueryType = 'all'): Promise<AdminVoiceListResponse> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<AdminVoiceListResponse>(
             `/admin/voices?voice_type=${encodeURIComponent(voiceType)}`,
@@ -1097,6 +1130,7 @@ class ApiService {
     }
 
     async designAdminVoice(body: AdminVoiceDesignRequest): Promise<AdminVoiceDesignResponse> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<AdminVoiceDesignResponse>('/admin/voices/design', token, {
             method: 'POST',
@@ -1108,6 +1142,7 @@ class ApiService {
         voiceType: Exclude<AdminVoiceConcreteType, 'system'>,
         voiceId: string,
     ): Promise<AdminVoiceDeleteResponse> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<AdminVoiceDeleteResponse>(
             `/admin/voices/${encodeURIComponent(voiceType)}/${encodeURIComponent(voiceId)}`,
@@ -1117,6 +1152,7 @@ class ApiService {
     }
 
     async testAdminVoice(body: AdminVoiceTestRequest): Promise<AdminVoiceTestResponse> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<AdminVoiceTestResponse>('/admin/voices/test', token, {
             method: 'POST',
@@ -1349,12 +1385,14 @@ class ApiService {
     // --- Voice presets (user-facing) ---------------------------------------
 
     async listVoicePresets(q?: string): Promise<VoicePreset[]> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         const query = q && q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''
         return this.authenticatedRequest<VoicePreset[]>(`/voice-presets${query}`, token, { method: 'GET' })
     }
 
     async createVoicePreset(body: VoicePresetCreatePayload): Promise<VoicePreset> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<VoicePreset>('/voice-presets', token, {
             method: 'POST',
@@ -1363,6 +1401,7 @@ class ApiService {
     }
 
     async updateVoicePreset(presetId: string, body: VoicePresetUpdatePayload): Promise<VoicePreset> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<VoicePreset>(`/voice-presets/${encodeURIComponent(presetId)}`, token, {
             method: 'PUT',
@@ -1371,18 +1410,21 @@ class ApiService {
     }
 
     async deleteVoicePreset(presetId: string): Promise<void> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         await this.authenticatedRequest(`/voice-presets/${encodeURIComponent(presetId)}`, token, { method: 'DELETE' })
     }
 
     /** Authenticated (non-root) catalog of MiniMax system voices for the studio + picker. */
     async listSystemVoices(): Promise<AdminVoiceListResponse> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<AdminVoiceListResponse>('/voice-presets/system-voices', token, { method: 'GET' })
     }
 
     /** Ephemeral, non-root preview synthesis of a system voice + recipe (hex audio). */
     async previewVoice(body: VoicePresetPreviewRequest): Promise<AdminVoiceTestResponse> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<AdminVoiceTestResponse>('/voice-presets/preview', token, {
             method: 'POST',
@@ -1471,6 +1513,7 @@ class ApiService {
         purpose: AdminVoiceClonePurpose = 'voice_clone',
         options: { signal?: AbortSignal } = {},
     ): Promise<AdminVoiceCloneUploadResponse> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         const form = new FormData()
         form.append('file', file)
@@ -1484,6 +1527,7 @@ class ApiService {
 
     /** Step 2 of cloning: create the custom voice from an uploaded sample reference. */
     async cloneAdminVoice(body: AdminVoiceCloneRequest): Promise<AdminVoiceCloneResponse> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<AdminVoiceCloneResponse>('/admin/voices/clone', token, {
             method: 'POST',
@@ -1544,6 +1588,7 @@ class ApiService {
     }
 
     async createCardShareLink(cardType: CardShareType, cardId: string): Promise<CardShareLinkResponse> {
+        this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardShareLinkResponse>(
             `/cards/${cardType}/${encodeURIComponent(cardId)}/share`,
@@ -1553,12 +1598,14 @@ class ApiService {
     }
 
     async getSharedCard(shareToken: string): Promise<SharedCardResource> {
+        this.assertCommunityCardsEnabled()
         return this.request<SharedCardResource>(`/cards/shared/${encodeURIComponent(shareToken)}`, {
             method: 'GET',
         })
     }
 
     async importSharedCard(shareToken: string, opts?: { force?: boolean }): Promise<CardCloneResponse> {
+        this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         const query = opts?.force ? '?force=true' : ''
         return this.authenticatedRequest<CardCloneResponse>(
@@ -1569,6 +1616,7 @@ class ApiService {
     }
 
     async revokeSharedCardLink(shareToken: string): Promise<void> {
+        this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         await this.authenticatedRequest(`/cards/shared/${encodeURIComponent(shareToken)}`, token, {
             method: 'DELETE',
@@ -1576,6 +1624,7 @@ class ApiService {
     }
 
     async publishCard(cardType: CardShareType, cardId: string): Promise<SharedCardResource> {
+        this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardResource>(
             `/cards/${cardType}/${encodeURIComponent(cardId)}/public`,
@@ -1585,6 +1634,7 @@ class ApiService {
     }
 
     async unpublishCard(cardType: CardShareType, cardId: string): Promise<SharedCardResource> {
+        this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardResource>(
             `/cards/${cardType}/${encodeURIComponent(cardId)}/public`,
@@ -1594,6 +1644,7 @@ class ApiService {
     }
 
     async cloneCard(cardType: CardShareType, cardId: string, opts?: { force?: boolean }): Promise<CardCloneResponse> {
+        this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         const query = opts?.force ? '?force=true' : ''
         return this.authenticatedRequest<CardCloneResponse>(
@@ -1973,6 +2024,7 @@ class ApiService {
         cardType?: CardShareType,
         role?: 'character' | 'persona',
     ): Promise<SharedCardListResponse> {
+        this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardListResponse>(
             `/cards/public${this.sharedCardListQuery(skip, limit, q, cardType, role)}`,
@@ -1982,6 +2034,7 @@ class ApiService {
     }
 
     async getPublicCard(cardType: CardShareType, cardId: string): Promise<SharedCardResource> {
+        this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardResource>(
             `/cards/public/${cardType}/${encodeURIComponent(cardId)}`,
@@ -1997,6 +2050,7 @@ class ApiService {
         cardType?: CardShareType,
         role?: 'character' | 'persona',
     ): Promise<SharedCardListResponse> {
+        this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardListResponse>(
             `/cards/me/public${this.sharedCardListQuery(skip, limit, q, cardType, role)}`,
@@ -2012,6 +2066,7 @@ class ApiService {
         cardType?: CardShareType,
         role?: 'character' | 'persona',
     ): Promise<SharedCardListResponse> {
+        this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardListResponse>(
             `/cards/me/share-links${this.sharedCardListQuery(skip, limit, q, cardType, role)}`,
@@ -2066,6 +2121,7 @@ class ApiService {
      * List lorebooks with pagination and optional search.
      */
     async getLorebooks(skip: number = 0, limit: number = 100, q?: string): Promise<unknown> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebooks${this.listQuery(skip, limit, q)}`, token, {
             method: 'GET',
@@ -2073,6 +2129,7 @@ class ApiService {
     }
 
     async getLorebook(lorebookId: string): Promise<unknown> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}`, token, {
             method: 'GET',
@@ -2080,6 +2137,7 @@ class ApiService {
     }
 
     async createLorebook(lorebook: LorebookDraft | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebooks${this.extractMetadataQuery(options.extractMetadata)}`, token, {
             method: 'POST',
@@ -2089,6 +2147,7 @@ class ApiService {
     }
 
     async updateLorebook(lorebookId: string, lorebook: Partial<LorebookDraft> | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}${this.extractMetadataQuery(options.extractMetadata)}`, token, {
             method: 'PUT',
@@ -2098,6 +2157,7 @@ class ApiService {
     }
 
     async deleteLorebook(lorebookId: string): Promise<void> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         await this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}`, token, {
             method: 'DELETE',
@@ -2105,6 +2165,7 @@ class ApiService {
     }
 
     async getLorebookResources(skip: number = 0, limit: number = 100, q?: string): Promise<unknown> {
+        this.assertLorebookResourcesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebook-resources${this.listQuery(skip, limit, q)}`, token, {
             method: 'GET',
@@ -2112,6 +2173,7 @@ class ApiService {
     }
 
     async getLorebookResource(resourceId: string): Promise<unknown> {
+        this.assertLorebookResourcesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}`, token, {
             method: 'GET',
@@ -2119,6 +2181,7 @@ class ApiService {
     }
 
     async createLorebookResource(resource: LorebookResource | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+        this.assertLorebookResourcesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebook-resources${this.extractMetadataQuery(options.extractMetadata)}`, token, {
             method: 'POST',
@@ -2128,6 +2191,7 @@ class ApiService {
     }
 
     async updateLorebookResource(resourceId: string, resource: Partial<LorebookResource> | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+        this.assertLorebookResourcesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}${this.extractMetadataQuery(options.extractMetadata)}`, token, {
             method: 'PUT',
@@ -2137,6 +2201,7 @@ class ApiService {
     }
 
     async syncLorebookResourceMetadata(resourceId: string, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+        this.assertLorebookResourcesEnabled()
         const token = this.getStoredToken()
         const requestOptions = { ...options, extractMetadata: true }
         return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}/metadata-sync`, token, {
@@ -2147,6 +2212,7 @@ class ApiService {
     }
 
     async deleteLorebookResource(resourceId: string): Promise<void> {
+        this.assertLorebookResourcesEnabled()
         const token = this.getStoredToken()
         await this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}`, token, {
             method: 'DELETE',
@@ -2154,6 +2220,7 @@ class ApiService {
     }
 
     async getLorebookLinkedResources(lorebookId: string): Promise<unknown> {
+        this.assertLorebookResourcesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/resources`, token, {
             method: 'GET',
@@ -2161,6 +2228,7 @@ class ApiService {
     }
 
     async attachLorebookResource(lorebookId: string, resourceId: string): Promise<unknown> {
+        this.assertLorebookResourcesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/resources/${encodeURIComponent(resourceId)}`, token, {
             method: 'PUT',
@@ -2168,6 +2236,7 @@ class ApiService {
     }
 
     async detachLorebookResource(lorebookId: string, resourceId: string): Promise<unknown> {
+        this.assertLorebookResourcesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/resources/${encodeURIComponent(resourceId)}`, token, {
             method: 'DELETE',
@@ -2175,6 +2244,7 @@ class ApiService {
     }
 
     async createLorebookEntry(lorebookId: string, entry: LorebookEntryDraft | Record<string, unknown>): Promise<unknown> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries`, token, {
             method: 'POST',
@@ -2184,6 +2254,7 @@ class ApiService {
     }
 
     async updateLorebookEntry(lorebookId: string, entryId: string, entry: Partial<LorebookEntry> | Record<string, unknown>): Promise<unknown> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries/${encodeURIComponent(entryId)}`, token, {
             method: 'PUT',
@@ -2193,6 +2264,7 @@ class ApiService {
     }
 
     async deleteLorebookEntry(lorebookId: string, entryId: string): Promise<void> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         await this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries/${encodeURIComponent(entryId)}`, token, {
             method: 'DELETE',
@@ -2200,6 +2272,7 @@ class ApiService {
     }
 
     async listLorebookAttachments(targetKind?: LorebookTargetKind, targetId?: string): Promise<LorebookAttachment[]> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         const params = new URLSearchParams()
         if (targetKind) params.set('target_kind', targetKind)
@@ -2211,6 +2284,7 @@ class ApiService {
     }
 
     async putLorebookAttachment(attachment: Partial<LorebookAttachment> | Record<string, unknown>): Promise<LorebookAttachment> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<LorebookAttachment>('/lorebook-attachments', token, {
             method: 'PUT',
@@ -2220,6 +2294,7 @@ class ApiService {
     }
 
     async deleteLorebookAttachment(attachmentId: string): Promise<void> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         await this.authenticatedRequest(`/lorebook-attachments/${encodeURIComponent(attachmentId)}`, token, {
             method: 'DELETE',
@@ -2227,6 +2302,7 @@ class ApiService {
     }
 
     async validateLorebook(lorebook: Lorebook | LorebookDraft | Record<string, unknown>): Promise<{ issues: LorebookIssue[] }> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<{ issues: LorebookIssue[] }>('/lorebooks/validate', token, {
             method: 'POST',
@@ -2236,6 +2312,7 @@ class ApiService {
     }
 
     async previewLoreActivation(request: LoreActivationPreviewRequest): Promise<LoreActivationPreviewResponse> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<LoreActivationPreviewResponse>('/lorebooks/activation-preview', token, {
             method: 'POST',
@@ -2245,6 +2322,7 @@ class ApiService {
     }
 
     async getStories(skip: number = 0, limit: number = 100, q?: string): Promise<Story[]> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<Story[]>(`/stories${this.listQuery(skip, limit, q)}`, token, {
             method: 'GET',
@@ -2252,6 +2330,7 @@ class ApiService {
     }
 
     async getStory(storyId: string): Promise<Story> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<Story>(`/stories/${encodeURIComponent(storyId)}`, token, {
             method: 'GET',
@@ -2259,6 +2338,7 @@ class ApiService {
     }
 
     async createStory(story: StoryCreateRequest | Record<string, unknown>): Promise<Story> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<Story>('/stories', token, {
             method: 'POST',
@@ -2268,6 +2348,7 @@ class ApiService {
     }
 
     async updateStory(storyId: string, story: Partial<Story> | Record<string, unknown>): Promise<Story> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<Story>(`/stories/${encodeURIComponent(storyId)}`, token, {
             method: 'PUT',
@@ -2277,6 +2358,7 @@ class ApiService {
     }
 
     async deleteStory(storyId: string): Promise<void> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         await this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}`, token, {
             method: 'DELETE',
@@ -2284,6 +2366,7 @@ class ApiService {
     }
 
     async createStoryChapter(storyId: string, chapter: Partial<StoryChapter> | Record<string, unknown>): Promise<StoryChapter> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<StoryChapter>(`/stories/${encodeURIComponent(storyId)}/scenes`, token, {
             method: 'POST',
@@ -2293,6 +2376,7 @@ class ApiService {
     }
 
     async updateStoryChapter(storyId: string, chapterId: string, chapter: Partial<StoryChapter> | Record<string, unknown>): Promise<StoryChapter> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<StoryChapter>(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(chapterId)}`, token, {
             method: 'PUT',
@@ -2302,6 +2386,7 @@ class ApiService {
     }
 
     async deleteStoryChapter(storyId: string, chapterId: string): Promise<void> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         await this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(chapterId)}`, token, {
             method: 'DELETE',
@@ -2309,6 +2394,7 @@ class ApiService {
     }
 
     async addStoryCardRef(storyId: string, ref: Partial<StoryCardRef> | Record<string, unknown>): Promise<StoryCardRef> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<StoryCardRef>(`/stories/${encodeURIComponent(storyId)}/card-refs`, token, {
             method: 'POST',
@@ -2318,6 +2404,7 @@ class ApiService {
     }
 
     async updateStoryCardRef(storyId: string, refId: string, ref: Partial<StoryCardRef> | Record<string, unknown>): Promise<StoryCardRef> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<StoryCardRef>(`/stories/${encodeURIComponent(storyId)}/card-refs/${encodeURIComponent(refId)}`, token, {
             method: 'PUT',
@@ -2327,6 +2414,7 @@ class ApiService {
     }
 
     async deleteStoryCardRef(storyId: string, refId: string): Promise<void> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         await this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/card-refs/${encodeURIComponent(refId)}`, token, {
             method: 'DELETE',
@@ -2334,6 +2422,7 @@ class ApiService {
     }
 
     async previewStoryContext(storyId: string, request: StoryGenerateRequest): Promise<StoryContextTrace> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<StoryContextTrace>(`/stories/${encodeURIComponent(storyId)}/context-preview`, token, {
             method: 'POST',
@@ -2343,6 +2432,7 @@ class ApiService {
     }
 
     async generateStory(storyId: string, request: StoryGenerateRequest): Promise<StoryGenerateResponse> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         const requestId = request.requestId || this.createClientId('mw-story-generate')
         return this.authenticatedRequest<StoryGenerateResponse>(`/stories/${encodeURIComponent(storyId)}/generate`, token, {
@@ -2356,6 +2446,7 @@ class ApiService {
     }
 
     async acceptStoryGeneration(storyId: string, generationId: string): Promise<Story> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<Story>(`/stories/${encodeURIComponent(storyId)}/generations/${encodeURIComponent(generationId)}/accept`, token, {
             method: 'POST',
@@ -2363,6 +2454,7 @@ class ApiService {
     }
 
     async stashStoryGeneration(storyId: string, generationId: string): Promise<unknown> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/generations/${encodeURIComponent(generationId)}/stash`, token, {
             method: 'POST',
@@ -2370,6 +2462,7 @@ class ApiService {
     }
 
     async discardStoryGeneration(storyId: string, generationId: string): Promise<unknown> {
+        this.assertNovelsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/generations/${encodeURIComponent(generationId)}/discard`, token, {
             method: 'POST',
@@ -2586,6 +2679,7 @@ class ApiService {
         },
         options: LorebookAssistantRequestOptions = {},
     ): Promise<LorebookAssistantConversationResponse> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<LorebookAssistantConversationResponse>('/lorebook-assistant/conversations', token, {
             method: 'POST',
@@ -2599,6 +2693,7 @@ class ApiService {
         lorebookId?: string | null,
         options: LorebookAssistantRequestOptions = {},
     ): Promise<LorebookAssistantConversationListResponse> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         const params = new URLSearchParams()
         if (lorebookId) params.set('lorebook_id', lorebookId)
@@ -2614,6 +2709,7 @@ class ApiService {
         conversationId: number,
         options: LorebookAssistantRequestOptions = {},
     ): Promise<LorebookAssistantConversationResponse> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<LorebookAssistantConversationResponse>(`/lorebook-assistant/conversations/${conversationId}`, token, {
             method: 'GET',
@@ -2626,6 +2722,7 @@ class ApiService {
         conversationId: number,
         options: LorebookAssistantRequestOptions = {},
     ): Promise<void> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         await this.authenticatedRequest<void>(`/lorebook-assistant/conversations/${conversationId}`, token, {
             method: 'DELETE',
@@ -2643,6 +2740,7 @@ class ApiService {
         },
         options: LorebookAssistantRequestOptions = {},
     ): Promise<LorebookAssistantTurnResponse> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         const requestId = options.requestId || body.request_id || this.createClientId('mw-lorebook-assistant-turn')
         return this.authenticatedRequest<LorebookAssistantTurnResponse>(`/lorebook-assistant/conversations/${conversationId}/messages`, token, {
@@ -2663,6 +2761,7 @@ class ApiService {
         onEvent: (event: LorebookAssistantStreamEvent) => void,
         options: LorebookAssistantRequestOptions = {},
     ): Promise<void> {
+        this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         const requestId = options.requestId || body.request_id || this.createClientId('mw-lorebook-assistant-turn')
         const endpoint = `/lorebook-assistant/conversations/${conversationId}/messages/stream`
@@ -2881,6 +2980,7 @@ class ApiService {
     /* ------------------------------ voice call ------------------------------ */
 
     async saveVoiceConsent(sessionId: number, options: { signal?: AbortSignal } = {}): Promise<VoiceConsentResponse> {
+        this.assertCallsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<VoiceConsentResponse>(`/character-chats/${sessionId}/voice-consent`, token, {
             method: 'POST',
@@ -2894,6 +2994,7 @@ class ApiService {
         body: VoiceSegmentUploadRequest,
         options: { signal?: AbortSignal } = {},
     ): Promise<VoiceSegmentUploadResponse> {
+        this.assertCallsEnabled()
         const token = this.getStoredToken()
         const form = new FormData()
         form.append('voice_session_id', body.voice_session_id)
@@ -2922,6 +3023,7 @@ class ApiService {
         body: { voiceSessionId?: string | null; reason?: 'user' | 'navigation' | 'permission_lost' | string } = {},
         options: { signal?: AbortSignal } = {},
     ): Promise<VoiceEndResponse> {
+        this.assertCallsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<VoiceEndResponse>(`/character-chats/${sessionId}/voice-end`, token, {
             method: 'POST',
@@ -3352,6 +3454,7 @@ class ApiService {
 
     /** Recent voice calls across all of the user's character chats (call-history feed). */
     async getRecentVoiceCalls(params: { skip?: number; limit?: number } = {}): Promise<VoiceCallListResponse> {
+        this.assertCallsEnabled()
         const token = this.getStoredToken()
         const query = this.listQuery(params.skip ?? 0, params.limit ?? 20)
         return this.authenticatedRequest<VoiceCallListResponse>(`/voice-calls${query}`, token, { method: 'GET' })
@@ -3359,6 +3462,7 @@ class ApiService {
 
     /** Voice calls that belong to one character chat, newest first. */
     async getCharacterChatCalls(chatId: number, params: { skip?: number; limit?: number } = {}): Promise<VoiceCallListResponse> {
+        this.assertCallsEnabled()
         const token = this.getStoredToken()
         const query = this.listQuery(params.skip ?? 0, params.limit ?? 20)
         return this.authenticatedRequest<VoiceCallListResponse>(`/character-chats/${chatId}/calls${query}`, token, { method: 'GET' })
@@ -3366,6 +3470,7 @@ class ApiService {
 
     /** Ordered transcript for one call (user STT lines + character lines with saved audio). */
     async getVoiceCallTranscript(voiceSessionId: string): Promise<VoiceCallTranscriptResponse> {
+        this.assertCallsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<VoiceCallTranscriptResponse>(
             `/voice-calls/${encodeURIComponent(voiceSessionId)}/transcript`,

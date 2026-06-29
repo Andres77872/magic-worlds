@@ -14,6 +14,7 @@ import { ResumeCard } from '@/features/landing/components/ResumeCard'
 import { toResumeSessions, type ResumeSession } from '@/features/landing/components/resumeModel'
 import { buildGalleryModeHash } from '@/features/gallery/galleryLinks'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
+import { isGroupChatsFeatureEnabled } from '@/shared/featureFlags'
 
 interface ActionNotice {
     tone: 'success' | 'error'
@@ -50,6 +51,7 @@ export function ChatroomPage() {
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null)
     const voiceModeEnabled = isFrontendVoiceModeEnabled()
+    const groupChatsEnabled = isGroupChatsFeatureEnabled()
 
     useEffect(() => {
         if (isAuthenticated) void loadData({ silent: true })
@@ -65,7 +67,11 @@ export function ChatroomPage() {
         action()
     }
 
-    const sessions = useMemo(() => toResumeSessions([], characterChats), [characterChats])
+    const visibleChats = useMemo(
+        () => groupChatsEnabled ? characterChats : characterChats.filter((chat) => chat.kind !== 'character_group'),
+        [characterChats, groupChatsEnabled],
+    )
+    const sessions = useMemo(() => toResumeSessions([], visibleChats), [visibleChats])
     const normalizedQuery = query.trim().toLowerCase()
     const filteredSessions = useMemo(() => {
         if (!normalizedQuery) return sessions
@@ -87,6 +93,7 @@ export function ChatroomPage() {
     }
 
     const startGroupChat = () => {
+        if (!groupChatsEnabled) return
         requireAuth(() => setPage('gallery-characters', { hash: buildGalleryModeHash('character', 'group-chat') }))
     }
 
@@ -142,14 +149,16 @@ export function ChatroomPage() {
                 size="lg"
                 actions={
                     <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto md:justify-end">
-                        <Button
-                            variant="primary"
-                            iconLeft={<Icon icon={Users} size={16} />}
-                            onClick={startGroupChat}
-                            className="shrink-0"
-                        >
-                            {t('characterChat.room.newGroupChat')}
-                        </Button>
+                        {groupChatsEnabled && (
+                            <Button
+                                variant="primary"
+                                iconLeft={<Icon icon={Users} size={16} />}
+                                onClick={startGroupChat}
+                                className="shrink-0"
+                            >
+                                {t('characterChat.room.newGroupChat')}
+                            </Button>
+                        )}
                         <div className="relative flex w-full items-center sm:w-[320px]">
                             <span className="pointer-events-none absolute left-3 flex items-center text-parchment-400">
                                 <Icon icon={Search} size={16} />
