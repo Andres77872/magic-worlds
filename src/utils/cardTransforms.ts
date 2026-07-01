@@ -25,6 +25,7 @@ interface RawCardRow {
     alias?: string | null
     role?: Character['role']
     is_default_persona?: boolean
+    default_persona_id?: string | null
     race?: string
     place_type?: string
     placeType?: string
@@ -80,6 +81,9 @@ export function transformCharacters(raw: unknown): Character[] {
         name: char.name as string,
         role: char.role === 'persona' ? 'persona' : 'character',
         is_default_persona: Boolean(char.is_default_persona),
+        default_persona_id: char.role !== 'persona' && typeof char.default_persona_id === 'string' && char.default_persona_id.trim()
+            ? char.default_persona_id.trim()
+            : null,
         race: char.race || '',
         description: char.description || '',
         stats: {},

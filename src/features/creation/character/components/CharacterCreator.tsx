@@ -18,7 +18,7 @@ import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService, ApiError } from '@/infrastructure/api'
 import type { CharacterCardResponse } from '@/shared/types/aiCard.types'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
-import { Button, Chip, Icon, SuggestInput, SwitchRow } from '@/ui/primitives'
+import { Button, Chip, Icon, Select, SuggestInput, SwitchRow, type SelectOption } from '@/ui/primitives'
 import {
     CreatorStudio,
     StudioSection,
@@ -86,6 +86,7 @@ function toCharacter(card: CharacterCardResponse): Character {
         name: card.name ?? '',
         role: card.role === 'persona' ? 'persona' : 'character',
         is_default_persona: Boolean(card.is_default_persona),
+        default_persona_id: card.role !== 'persona' && typeof card.default_persona_id === 'string' ? card.default_persona_id : null,
         race: card.race ?? '',
         description: card.description ?? '',
         greeting: card.greeting,
@@ -101,7 +102,7 @@ function toCharacter(card: CharacterCardResponse): Character {
 export function CharacterCreator() {
     const { t } = useTranslation()
     const { goBack, cardEdit, replaceHash } = useNavigation()
-    const { editingCharacter, setEditingCharacter, loadData } = useData()
+    const { editingCharacter, setEditingCharacter, loadData, characters = [] } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
     const routeHasId = cardEdit?.cardType === 'character' && Boolean(cardEdit.cardId)
 
@@ -115,6 +116,7 @@ export function CharacterCreator() {
     const [name, setName] = useState(editingCharacter?.name ?? '')
     const [role, setRole] = useState<CharacterRole>(editingCharacter?.role === 'persona' ? 'persona' : 'character')
     const [isDefaultPersona, setIsDefaultPersona] = useState(Boolean(editingCharacter?.is_default_persona))
+    const [defaultPersonaId, setDefaultPersonaId] = useState(editingCharacter?.default_persona_id ?? '')
     const [race, setRace] = useState(editingCharacter?.race ?? '')
     const [description, setDescription] = useState(editingCharacter?.description ?? '')
     const [greeting, setGreeting] = useState(editingCharacter?.greeting ?? '')
@@ -139,6 +141,30 @@ export function CharacterCreator() {
     const characterFields = useMemo(() => getCharacterFields(role, t), [role, t])
     const sections = useMemo(() => getCharacterSections(role, t), [role, t])
     const raceOptions = useMemo(() => getRaceOptions(t), [t])
+    const defaultPersonaOptions = useMemo<SelectOption[]>(() => {
+        const personaCards = characters.filter((character) => character.role === 'persona')
+        const options: SelectOption[] = [
+            {
+                value: '',
+                label: t('creation.character.role.defaultPersonaGlobal'),
+                description: t('creation.character.role.defaultPersonaGlobalDescription'),
+            },
+            ...personaCards.map((character) => ({
+                value: character.id,
+                label: character.name || t('creation.character.untitled'),
+                description: character.race || undefined,
+            })),
+        ]
+        if (defaultPersonaId && !personaCards.some((character) => character.id === defaultPersonaId)) {
+            options.push({
+                value: defaultPersonaId,
+                label: t('creation.character.role.defaultPersonaUnavailable'),
+                description: defaultPersonaId,
+                disabled: true,
+            })
+        }
+        return options
+    }, [characters, defaultPersonaId, t])
 
     const guided = useGuidedCard({
         fields: characterFields,
@@ -168,6 +194,7 @@ export function CharacterCreator() {
         setName(card.name ?? '')
         setRole(card.role === 'persona' ? 'persona' : 'character')
         setIsDefaultPersona(Boolean(card.is_default_persona))
+        setDefaultPersonaId(card.role !== 'persona' && typeof card.default_persona_id === 'string' ? card.default_persona_id : '')
         setRace(card.race ?? '')
         setDescription(card.description ?? '')
         setGreeting(card.greeting ?? '')
@@ -199,6 +226,7 @@ export function CharacterCreator() {
         name,
         role,
         is_default_persona: role === 'persona' && isDefaultPersona,
+        default_persona_id: role === 'character' ? (defaultPersonaId || null) : null,
         race,
         description,
         greeting: greeting.trim() || null,
@@ -398,6 +426,7 @@ export function CharacterCreator() {
     const setCardRole = (nextRole: CharacterRole) => {
         setRole(nextRole)
         if (nextRole !== 'persona') setIsDefaultPersona(false)
+        if (nextRole !== 'character') setDefaultPersonaId('')
         // Surface the new role's recommended fields without dropping anything.
         guided.activateDefaultsForRole(nextRole)
     }
@@ -406,6 +435,7 @@ export function CharacterCreator() {
         if (picked?.role === 'persona' || picked?.role === 'character') {
             setRole(picked.role)
             if (picked.role !== 'persona') setIsDefaultPersona(false)
+            if (picked.role !== 'character') setDefaultPersonaId('')
         }
         guided.applyTemplate(picked)
         setTemplate(picked)
@@ -563,6 +593,19 @@ export function CharacterCreator() {
                             checked={isDefaultPersona}
                             onChange={setIsDefaultPersona}
                         />
+                    )}
+
+                    {!isPersona && (
+                        <CreatorField
+                            label={t('creation.character.role.defaultPersonaLabel')}
+                            tooltip={t('creation.character.role.defaultPersonaHelper')}
+                        >
+                            <Select
+                                options={defaultPersonaOptions}
+                                value={defaultPersonaId}
+                                onChange={setDefaultPersonaId}
+                            />
+                        </CreatorField>
                     )}
 
                     <CreatorField

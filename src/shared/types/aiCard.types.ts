@@ -51,6 +51,7 @@ export interface CharacterCardResponse {
     name: string
     role?: 'character' | 'persona'
     is_default_persona?: boolean
+    default_persona_id?: string | null
     race?: string
     description?: string
     /** In-character opening line for 1:1 chat (AI-generated drafts may include it). */

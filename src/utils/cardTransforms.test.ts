@@ -24,15 +24,22 @@ describe('cardTransforms', () => {
         expect(char.stats).toEqual({})
         expect(char.role).toBe('character')
         expect(char.is_default_persona).toBe(false)
+        expect(char.default_persona_id).toBeNull()
     })
 
     it('preserves persona role and default persona metadata', () => {
         const [char] = transformCharacters([
-            { id: 'p1', name: 'Aria', role: 'persona', is_default_persona: true, has_draft: true },
+            { id: 'p1', name: 'Aria', role: 'persona', is_default_persona: true, default_persona_id: 'p2', has_draft: true },
         ])
         expect(char.role).toBe('persona')
         expect(char.is_default_persona).toBe(true)
+        expect(char.default_persona_id).toBeNull()
         expect(char.has_draft).toBe(true)
+    })
+
+    it('preserves the default persona id on AI character cards', () => {
+        const [char] = transformCharacters([{ id: 'c1', name: 'Lyra', role: 'character', default_persona_id: 'p2' }])
+        expect(char.default_persona_id).toBe('p2')
     })
 
     it('preserves character voice recipes with a valid voice id', () => {

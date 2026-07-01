@@ -18,6 +18,15 @@ export function defaultPersona(characters: Character[] = []): Character | undefi
     return characters.find((character) => isPersonaCard(character) && character.is_default_persona)
 }
 
+export function defaultPersonaForCharacter(character: Character, characters: Character[] = []): Character | undefined {
+    const cardDefaultId = typeof character.default_persona_id === 'string' ? character.default_persona_id.trim() : ''
+    if (cardDefaultId) {
+        const cardDefault = characters.find((candidate) => candidate.id === cardDefaultId && isPersonaCard(candidate))
+        if (cardDefault) return cardDefault
+    }
+    return defaultPersona(characters)
+}
+
 export function personaCandidates(characters: Character[] = []): Character[] {
     const personas = characters.filter(isPersonaCard)
     const others = characters.filter(isAiCharacterCard)

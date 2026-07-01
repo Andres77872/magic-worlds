@@ -30,11 +30,17 @@ const mocks = vi.hoisted(() => ({
     isAuthenticated: true,
     editingCharacter: null as Record<string, unknown> | null,
     cardEdit: null as Record<string, unknown> | null,
+    characters: [] as Record<string, unknown>[],
 }))
 
 vi.mock('@/app/hooks', () => ({
     useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, cardEdit: mocks.cardEdit, replaceHash: mocks.replaceHash }),
-    useData: () => ({ editingCharacter: mocks.editingCharacter, setEditingCharacter: mocks.setEditingCharacter, loadData: mocks.loadData }),
+    useData: () => ({
+        editingCharacter: mocks.editingCharacter,
+        setEditingCharacter: mocks.setEditingCharacter,
+        loadData: mocks.loadData,
+        characters: mocks.characters,
+    }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
     useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
 }))
@@ -68,6 +74,10 @@ vi.mock('@/infrastructure/api', () => ({
 }))
 
 import { CharacterCreator } from './CharacterCreator'
+
+beforeEach(() => {
+    mocks.characters = []
+})
 
 describe('CharacterCreator AI generation', () => {
     beforeEach(() => {
@@ -186,6 +196,30 @@ describe('CharacterCreator role payload', () => {
                     race: 'Human',
                     role: 'persona',
                     is_default_persona: true,
+                }),
+            ),
+        )
+    })
+
+    it('creates an AI character with a card-specific default chat persona', async () => {
+        mocks.characters = [{ id: 'p2', name: 'Sera', race: 'Elf', role: 'persona' }]
+        mocks.createCharacter.mockResolvedValue({ id: 'c1', name: 'Lyra', race: 'Human', role: 'character', default_persona_id: 'p2' })
+        render(<CharacterCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
+        fireEvent.click(screen.getByRole('combobox', { name: /default 1:1 chat persona/i }))
+        fireEvent.click(screen.getByText('Sera'))
+        fireEvent.change(screen.getByPlaceholderText(/lyra emberwind/i), { target: { value: 'Lyra' } })
+        fireEvent.change(screen.getByPlaceholderText(/elf, human, construct/i), { target: { value: 'Human' } })
+        fireEvent.click(screen.getByRole('button', { name: /^Create Character$/i }))
+
+        await waitFor(() =>
+            expect(mocks.createCharacter).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    name: 'Lyra',
+                    race: 'Human',
+                    role: 'character',
+                    default_persona_id: 'p2',
                 }),
             ),
         )

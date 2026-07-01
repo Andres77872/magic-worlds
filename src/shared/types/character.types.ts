@@ -15,6 +15,8 @@ export interface Character {
     role?: CharacterRole
     /** The persona auto-selected by chat/adventure start flows. Only valid when role is `persona`. */
     is_default_persona?: boolean
+    /** Owner-only: persona card preferred when starting a new 1:1 chat with this AI character. */
+    default_persona_id?: string | null
     race: string
     class?: string
     stats: Record<string, string | number>

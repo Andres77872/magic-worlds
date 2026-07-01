@@ -14,7 +14,9 @@ let authed = true
 let characters: Character[] = []
 
 const PERSONA: Character = { id: 'p1', name: 'Aria', stats: {}, role: 'persona', is_default_persona: true } as Character
+const CARD_PERSONA: Character = { id: 'p2', name: 'Sera', stats: {}, role: 'persona' } as Character
 const MIRA: Character = { id: 'c1', name: 'Mira', race: 'Elf', stats: {}, role: 'character', voice: { voice_id: 'EN-1' } } as Character
+const MIRA_WITH_DEFAULT: Character = { ...MIRA, default_persona_id: 'p2' } as Character
 
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: authed, openLoginModal }),
@@ -67,6 +69,16 @@ describe('CallsPage', () => {
         await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(MIRA, PERSONA))
         await waitFor(() => expect(resumeCharacterChat).toHaveBeenCalledWith({ id: 'chat-1', character: MIRA }, { mode: 'voice' }))
         expect(setPage).toHaveBeenCalledWith('character-chat')
+    })
+
+    it('starts a voice call with the character card default persona before the global default', async () => {
+        characters = [MIRA_WITH_DEFAULT, PERSONA, CARD_PERSONA]
+        render(<CallsPage />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Call' }))
+
+        await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(MIRA_WITH_DEFAULT, CARD_PERSONA))
+        await waitFor(() => expect(resumeCharacterChat).toHaveBeenCalledWith({ id: 'chat-1', character: MIRA }, { mode: 'voice' }))
     })
 
     it('opens a saved call transcript from the recent list', async () => {

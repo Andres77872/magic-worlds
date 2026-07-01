@@ -51,7 +51,9 @@ interface DataContextValue {
     setEditingCharacter: (character: Character | null) => void
     editCharacter: (character: Character) => void
     deleteCharacter: (id: string) => Promise<void>
-    
+    /** Mark a persona as the default one (clears the previous default). */
+    setDefaultPersona: (persona: Character) => Promise<void>
+
     // Worlds
     worlds: World[]
     setWorlds: (worlds: World[]) => void
@@ -345,7 +347,47 @@ export function DataProvider({ children }: DataProviderProps) {
             throw error
         }
     }
-    
+
+    const setDefaultPersona = async (persona: Character) => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to set a default persona')
+        }
+        // PUT /characters/{id} is a full-replace, so send the complete editable body — anything
+        // omitted would be wiped. The backend clears the previous default for us, and (legacy
+        // publish-in-place) discards any pending draft, so we mirror has_draft:false locally too.
+        const body = {
+            name: persona.name,
+            role: 'persona' as const,
+            is_default_persona: true,
+            race: persona.race,
+            description: persona.description ?? '',
+            greeting: persona.greeting?.trim() || null,
+            system_instructions: persona.system_instructions?.trim() || null,
+            triggers: persona.triggers ?? [],
+            category: persona.category,
+            image_url: persona.image_url ?? null,
+            theme_song_url: persona.theme_song_url ?? null,
+            voice: persona.voice ?? null,
+        }
+        try {
+            const updated = await apiService.updateCharacter(persona.id, body)
+            const [normalized] = transformCharacters([updated])
+            setCharacters(prev =>
+                prev.map(character => {
+                    if (character.id === persona.id) {
+                        return normalized ?? { ...character, is_default_persona: true, has_draft: false }
+                    }
+                    // A user has at most one default persona — clear it everywhere else.
+                    return character.is_default_persona ? { ...character, is_default_persona: false } : character
+                }),
+            )
+        } catch (error) {
+            console.error('Failed to set default persona:', error)
+            throw error
+        }
+    }
+
     // World actions
     const editWorld = (world: World) => {
         setEditingWorld(world)
@@ -1056,7 +1098,8 @@ export function DataProvider({ children }: DataProviderProps) {
         setEditingCharacter,
         editCharacter,
         deleteCharacter,
-        
+        setDefaultPersona,
+
         worlds,
         setWorlds,
         editingWorld,

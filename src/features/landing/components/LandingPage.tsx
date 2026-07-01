@@ -50,6 +50,7 @@ import { searchDashboard, type DashboardSearchGroup } from './searchModel'
 import { itemCardProps, worldCardProps } from './libraryCards'
 import { type CreateAction } from './landingContent'
 import { useDashboardModel } from '../hooks/useDashboardModel'
+import { defaultPersonaForCharacter } from '@/utils/characterRoles'
 
 const GALLERY_PAGE_BY_GROUP: Partial<Record<DashboardSearchGroup['key'], PageType>> = {
     adventures: 'gallery-adventures',
@@ -169,6 +170,21 @@ export function LandingPage() {
     const handleTemplateEdit = (t: Adventure) => requireAuth(() => { editTemplate(t); setPage('adventure') })
     const handleCharacterEdit = (c: Character) => requireAuth(() => { editCharacter(c); setPage('character') })
     const handleCharacterChat = (c: Character) => requireAuth(() => {
+        const persona = defaultPersonaForCharacter(c, characters)
+        if (persona) {
+            if (isPersonaPickConfirming) return
+            setPersonaPickError(null)
+            setIsPersonaPickConfirming(true)
+            void startCharacterChat(c, persona)
+                .then(() => setPage('character-chat'))
+                .catch((error) => {
+                    console.error('Failed to start character chat:', error)
+                    setPersonaPick({ kind: 'chat', character: c })
+                    setPersonaPickError(startErrorCopy(error, t('landing.persona.startChatError')))
+                })
+                .finally(() => setIsPersonaPickConfirming(false))
+            return
+        }
         setPersonaPickError(null)
         setPersonaPick({ kind: 'chat', character: c })
     })

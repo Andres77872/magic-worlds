@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookOpenText, CheckCircle2, Copy, Download, Globe2, History, Import, Link2, Loader2, Pencil, Phone, Play, Plus, MessageCircle, Search, Trash2, UserCircle, Users, X } from 'lucide-react'
+import { BookOpenText, CheckCircle2, Copy, Download, Globe2, History, Import, Link2, Loader2, Pencil, Phone, Play, Plus, MessageCircle, Search, Star, Trash2, UserCircle, Users, X } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import type { PlaylistTrack } from '@/app/providers/audioPlaylistContext'
 import type { Adventure, Character, Item, VersionableCardType, World } from '@/shared'
@@ -15,8 +15,8 @@ import { apiService } from '@/infrastructure/api'
 import { VersionHistoryDrawer } from '@/features/creation/common/components'
 import { CardGrid, GalleryCard, GalleryCardSkeleton, PersonaPickerDialog, type CardOption } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
-import { Badge, Button, Chip, controlClass, Icon, IconButton, PageHeader, SectionHeader, Toast } from '@/ui/primitives'
-import { defaultPersona, isPersonaCard } from '@/utils/characterRoles'
+import { Badge, Button, Chip, controlClass, Eyebrow, Icon, IconButton, IconTile, PageHeader, SectionHeader, Toast } from '@/ui/primitives'
+import { defaultPersonaForCharacter, isPersonaCard } from '@/utils/characterRoles'
 import { downloadBlob, safeFilename } from '@/utils/download'
 import { useStartCall } from '@/features/call'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
@@ -120,6 +120,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
         setCharacters,
         setEditingCharacter,
         deleteCharacter,
+        setDefaultPersona,
         characters,
         startCharacterChat,
         startCharacterGroupChat,
@@ -146,6 +147,8 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const preview = useGalleryCardPreview()
     const [pendingDelete, setPendingDelete] = useState<GalleryItem | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [pendingDefault, setPendingDefault] = useState<GalleryItem | null>(null)
+    const [settingDefaultId, setSettingDefaultId] = useState<string | null>(null)
     const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
     const [exportingId, setExportingId] = useState<string | null>(null)
     const [sharingId, setSharingId] = useState<string | null>(null)
@@ -374,7 +377,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
 
     const startCharacterChatFromCard = (item: GalleryItem) => {
         requireAuth(() => {
-            const persona = defaultPersona(characters)
+            const persona = defaultPersonaForCharacter(item.source as Character, characters)
             if (!persona) {
                 openChatPersonaPicker(item)
                 return
@@ -681,6 +684,19 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 onClick: edit,
             })
         }
+        if (item.galleryType === 'persona' && !item.isDefaultPersona) {
+            options.push({
+                type: 'custom',
+                icon: settingDefaultId === item.id ? (
+                    <Icon icon={Loader2} size={15} className="animate-spin" />
+                ) : (
+                    <Icon icon={Star} size={15} />
+                ),
+                label: settingDefaultId === item.id ? t('gallery.personas.settingDefault') : t('gallery.personas.setDefault'),
+                onClick: () => setDefault(item),
+                disabled: settingDefaultId !== null,
+            })
+        }
         if (versionableCardTypeFor(item.galleryType)) {
             options.push({
                 type: 'custom',
@@ -771,8 +787,51 @@ export function GalleryPage({ type }: GalleryPageProps) {
 
     const badgeForItem = (item: GalleryItem, alreadyImported = false) => {
         if (alreadyImported) return t('gallery.alreadyImported')
-        if (item.isDefaultPersona) return t('gallery.personas.defaultBadge')
         return item.badge
+    }
+
+    // The default persona gets a distinct ember chip pinned above its (kept) race badge.
+    const markerFor = (item: GalleryItem): ReactNode =>
+        item.isDefaultPersona ? (
+            <Badge tone="ember" icon={<Icon icon={Star} size={11} />}>
+                {t('gallery.personas.defaultMarker')}
+            </Badge>
+        ) : undefined
+
+    const applyDefaultPersona = async (item: GalleryItem) => {
+        if (settingDefaultId) return
+        setActionNotice(null)
+        setSettingDefaultId(item.id)
+        try {
+            await setDefaultPersona(item.source as Character)
+            setActionNotice({
+                tone: 'success',
+                title: t('gallery.personas.setDefaultDone', { title: item.title.slice(0, 80) }),
+            })
+        } catch (error) {
+            console.error('Failed to set default persona:', error)
+            setActionNotice({ tone: 'error', title: t('gallery.personas.setDefaultFailed') })
+        } finally {
+            setSettingDefaultId(null)
+        }
+    }
+
+    // Setting default publishes the card (discarding any pending draft), so confirm first when
+    // there are unsaved draft edits; otherwise apply in one click.
+    const setDefault = (item: GalleryItem) =>
+        requireAuth(() => {
+            if (item.hasDraft) {
+                setPendingDefault(item)
+                return
+            }
+            void applyDefaultPersona(item)
+        })
+
+    const confirmSetDefault = async () => {
+        const target = pendingDefault
+        setPendingDefault(null)
+        if (!target) return
+        await applyDefaultPersona(target)
     }
 
     const emptyAction: ReactNode = hasQuery ? (
@@ -940,7 +999,21 @@ export function GalleryPage({ type }: GalleryPageProps) {
                         icon={UserCircle}
                         tone="ember"
                         title={<span id="character-personas-title">{t('gallery.personas.sectionTitle')}</span>}
-                        right={<Badge tone="ember">{t('gallery.personas.count', { count: personaSectionItems.length })}</Badge>}
+                        right={
+                            <div className="flex items-center gap-2">
+                                <Badge tone="ember">{t('gallery.personas.count', { count: personaSectionItems.length })}</Badge>
+                                {personaSectionItems.length > 0 && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        iconLeft={<Icon icon={Plus} size={15} />}
+                                        onClick={openCreatePage}
+                                    >
+                                        {t('gallery.personas.newPersona')}
+                                    </Button>
+                                )}
+                            </div>
+                        }
                     />
                     {personaSectionItems.length > 0 ? (
                         <CardGrid
@@ -957,6 +1030,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                                     size="compact"
                                     title={item.title}
                                     badge={badgeForItem(item)}
+                                    markerBadge={markerFor(item)}
                                     eyebrow={item.eyebrow}
                                     description={item.description}
                                     tags={item.tags}
@@ -980,17 +1054,21 @@ export function GalleryPage({ type }: GalleryPageProps) {
                             )}
                         />
                     ) : (
-                        <div className="flex flex-col gap-3 rounded-lg border border-parchment-50/10 bg-ink-700 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="min-w-0">
-                                <p className="m-0 font-ui text-sm font-semibold text-parchment-50">
-                                    {t('gallery.personas.emptyTitle')}
-                                </p>
-                                <p className="m-0 mt-1 font-ui text-sm text-parchment-300">
-                                    {t('gallery.personas.emptyDescription')}
-                                </p>
+                        <div className="flex flex-col gap-4 rounded-lg border border-dashed border-line-strong bg-ink-700 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                                <IconTile icon={UserCircle} tone="ember" size="md" className="shrink-0" />
+                                <div className="min-w-0">
+                                    <Eyebrow tone="muted" className="mb-1">{t('gallery.personas.emptyEyebrow')}</Eyebrow>
+                                    <p className="m-0 font-display text-body font-semibold text-parchment-50">
+                                        {t('gallery.personas.emptyTitle')}
+                                    </p>
+                                    <p className="m-0 mt-1 font-narrative text-label leading-snug text-parchment-300">
+                                        {t('gallery.personas.emptyDescription')}
+                                    </p>
+                                </div>
                             </div>
                             <Button
-                                variant="secondary"
+                                variant="primary"
                                 size="sm"
                                 iconLeft={<Icon icon={Plus} size={15} />}
                                 onClick={openCreatePage}
@@ -1146,6 +1224,21 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 variant="danger"
                 onConfirm={() => void confirmDelete()}
                 onCancel={() => setPendingDelete(null)}
+            />
+
+            <ConfirmDialog
+                visible={pendingDefault !== null}
+                icon={<Icon icon={Star} size={18} />}
+                title={t('gallery.personas.setDefaultDraftTitle')}
+                message={
+                    pendingDefault
+                        ? t('gallery.personas.setDefaultDraftBody', { title: pendingDefault.title.slice(0, 80) })
+                        : ''
+                }
+                confirmLabel={t('gallery.personas.setDefaultDraftConfirm')}
+                variant="warning"
+                onConfirm={() => void confirmSetDefault()}
+                onCancel={() => setPendingDefault(null)}
             />
 
             <CardImportOverlays

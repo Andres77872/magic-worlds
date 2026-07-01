@@ -24,6 +24,11 @@ export interface GalleryCardProps {
     title: string
     /** Identity badge beside the name: race / world type / world name. */
     badge?: string
+    /**
+     * Accent chip pinned above the identity badge (e.g. an ember "Default" marker).
+     * Stays generic — the caller owns the semantics and styling.
+     */
+    markerBadge?: ReactNode
     /** Trigger + category pills (capped at 3 in render). */
     tags?: string[]
     /** When provided, pills become buttons that push the tag into the search. */
@@ -84,6 +89,7 @@ export function GalleryCard({
     id,
     title,
     badge,
+    markerBadge,
     tags = [],
     onTagClick,
     imageUrl,
@@ -306,6 +312,7 @@ export function GalleryCard({
                         <h3 className="m-0 min-w-0 truncate font-display text-[17px] font-semibold leading-tight text-parchment-50" title={title}>
                             {title}
                         </h3>
+                        {markerBadge && <span className="shrink-0">{markerBadge}</span>}
                         {badge && <Badge tone="glass" className="hidden shrink-0 sm:inline-flex">{badge}</Badge>}
                         {showVersion && (
                             <Badge tone="glass" className="hidden shrink-0 font-mono sm:inline-flex">
@@ -398,8 +405,9 @@ export function GalleryCard({
                 {/* Candlelit bottom gradient: lifts the name/description/CTA off the art.
                     Graceful (depth by softness), not a heavy slab. */}
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[62%] bg-gradient-to-t from-ink-900 via-ink-900/70 to-transparent" />
-                {(badge || showVersion || hasDraft) && (
+                {(markerBadge || badge || showVersion || hasDraft) && (
                     <div className="absolute left-3 top-3 z-[3] flex max-w-[65%] flex-col items-start gap-1">
+                        {markerBadge}
                         {badge && <Badge tone="glass" className="max-w-full truncate">{badge}</Badge>}
                         {showVersion && (
                             <Badge tone="glass" className="font-mono">

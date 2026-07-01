@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import type { Character, CharacterChatSession } from '@/shared'
 import { isCallsFeatureEnabled } from '@/shared/featureFlags'
-import { defaultPersona } from '@/utils/characterRoles'
+import { defaultPersonaForCharacter } from '@/utils/characterRoles'
 
 export interface UseStartCall {
     /** Start a fresh voice call with a character. Opens the persona picker first
@@ -61,7 +61,7 @@ export function useStartCall(): UseStartCall {
     }
 
     const beginCall = async (character: Character) => {
-        const persona = defaultPersona(characters)
+        const persona = defaultPersonaForCharacter(character, characters)
         if (!persona) {
             setPendingCharacter(character)
             return

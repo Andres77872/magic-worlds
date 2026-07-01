@@ -95,12 +95,13 @@ const LOREBOOKS: Lorebook[] = [
 let inProgressAdventures = IN_PROGRESS
 let characterChats = CHATS
 let stories = STORIES
+let characters = CHARACTERS
 
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: authed, openLoginModal: vi.fn() }),
     useNavigation: () => ({ setPage }),
     useData: () => ({
-        characters: CHARACTERS,
+        characters,
         worlds: WORLDS,
         items: [],
         templateAdventures: TEMPLATES,
@@ -139,6 +140,7 @@ vi.mock('@/app/hooks', () => ({
 
 beforeEach(() => {
     authed = true
+    characters = CHARACTERS
     inProgressAdventures = IN_PROGRESS
     characterChats = CHATS
     stories = STORIES
@@ -214,12 +216,11 @@ describe('LandingPage (returning dashboard)', () => {
         render(<LandingPage />)
 
         fireEvent.click(within(screen.getByTestId('cast-rail')).getByRole('button', { name: 'Start chat' }))
-        const dialog = await screen.findByRole('dialog', { name: 'Choose your persona' })
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Start chat' }))
 
         await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(CHARACTERS[1], CHARACTERS[0]))
         expect(resumeCharacterChat).not.toHaveBeenCalled()
         expect(setPage).toHaveBeenCalledWith('character-chat')
+        expect(screen.queryByRole('dialog', { name: 'Choose your persona' })).toBeNull()
     })
 
     it('starts a fresh character chat from search character results', async () => {
@@ -227,11 +228,22 @@ describe('LandingPage (returning dashboard)', () => {
 
         fireEvent.change(screen.getByLabelText('Search your library'), { target: { value: 'lyra' } })
         fireEvent.click(within(screen.getByTestId('search-results')).getByRole('button', { name: 'Start chat' }))
-        const dialog = await screen.findByRole('dialog', { name: 'Choose your persona' })
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Start chat' }))
 
         await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(CHARACTERS[1], CHARACTERS[0]))
         expect(resumeCharacterChat).not.toHaveBeenCalled()
+        expect(setPage).toHaveBeenCalledWith('character-chat')
+        expect(screen.queryByRole('dialog', { name: 'Choose your persona' })).toBeNull()
+    })
+
+    it('starts a fresh character chat with a card-specific default persona from the cast rail', async () => {
+        const cardPersona = { id: 'p2', name: 'Sera', race: 'Elf', stats: {}, role: 'persona' } as Character
+        const target = { ...CHARACTERS[1], default_persona_id: 'p2' } as Character
+        characters = [CHARACTERS[0], target, cardPersona]
+        render(<LandingPage />)
+
+        fireEvent.click(within(screen.getByTestId('cast-rail')).getByRole('button', { name: 'Start chat' }))
+
+        await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(target, cardPersona))
         expect(setPage).toHaveBeenCalledWith('character-chat')
     })
 

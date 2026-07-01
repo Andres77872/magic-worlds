@@ -3407,12 +3407,15 @@ class ApiService {
     /**
      * Start a fresh 1:1 character chat and seed the character's greeting as the first turn.
      */
-    async createCharacterChat(characterId: string, personaId: string): Promise<any> {
+    async createCharacterChat(characterId: string, personaId?: string | null): Promise<any> {
         const token = this.getStoredToken()
+        const body: { character_id: string; persona_id?: string } = { character_id: characterId }
+        const resolvedPersonaId = personaId?.trim()
+        if (resolvedPersonaId) body.persona_id = resolvedPersonaId
         return this.authenticatedRequest('/character-chats/', token, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: { character_id: characterId, persona_id: personaId } as unknown as BodyInit
+            body: body as unknown as BodyInit
         })
     }
 

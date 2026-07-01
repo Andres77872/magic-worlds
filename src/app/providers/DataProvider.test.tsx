@@ -370,6 +370,65 @@ describe('DataProvider adventure starts', () => {
     })
 })
 
+const PERSONA_DEFAULT = { id: 'p1', name: 'Aria', race: 'Human', role: 'persona' as const, is_default_persona: true, stats: {} }
+const PERSONA_DRAFT = { id: 'p2', name: 'Bryn', race: 'Gnome', role: 'persona' as const, is_default_persona: false, has_draft: true, triggers: ['scout'], stats: {} }
+
+function PersonaProbe() {
+    const ctx = useContext(DataContext)
+    return (
+        <div>
+            {ctx?.characters.map((c) => (
+                <span key={c.id} data-testid={`persona-${c.id}`}>
+                    {c.is_default_persona ? 'default' : 'normal'}
+                    {c.has_draft ? ':draft' : ''}
+                </span>
+            ))}
+            <button onClick={() => void ctx?.setDefaultPersona(PERSONA_DRAFT)}>promote</button>
+        </div>
+    )
+}
+
+describe('DataProvider.setDefaultPersona', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+    })
+
+    it('publishes the persona as default and mirrors the single-default rule locally', async () => {
+        // Seed the library through the initial load so it isn't overwritten mid-test.
+        vi.mocked(apiService.getCharacters).mockResolvedValue([PERSONA_DEFAULT, PERSONA_DRAFT])
+        vi.mocked(apiService.updateCharacter).mockResolvedValue({
+            id: 'p2',
+            name: 'Bryn',
+            race: 'Gnome',
+            role: 'persona',
+            is_default_persona: true,
+        })
+        render(
+            <DataProvider>
+                <PersonaProbe />
+            </DataProvider>,
+        )
+
+        // Wait for the initial load to settle: Aria default, Bryn a non-default draft.
+        await waitFor(() => expect(screen.getByTestId('persona-p1')).toHaveTextContent('default'))
+        expect(screen.getByTestId('persona-p2')).toHaveTextContent('normal:draft')
+
+        fireEvent.click(screen.getByText('promote'))
+
+        // Full body (PUT replaces), flagged default, role pinned to persona.
+        await waitFor(() =>
+            expect(apiService.updateCharacter).toHaveBeenCalledWith(
+                'p2',
+                expect.objectContaining({ is_default_persona: true, role: 'persona', name: 'Bryn' }),
+            ),
+        )
+        // Target becomes default (draft cleared); the previous default is demoted.
+        await waitFor(() => expect(screen.getByTestId('persona-p2')).toHaveTextContent('default'))
+        expect(screen.getByTestId('persona-p2')).not.toHaveTextContent('draft')
+        expect(screen.getByTestId('persona-p1')).toHaveTextContent('normal')
+    })
+})
+
 function Clearer() {
     const ctx = useContext(DataContext)
     return <button onClick={() => ctx?.clearAllData()}>clear</button>

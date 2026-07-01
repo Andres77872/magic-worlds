@@ -10,6 +10,7 @@ const editCharacter = vi.fn()
 const setEditingCharacter = vi.fn()
 const openLoginModal = vi.fn()
 const deleteCharacter = vi.fn().mockResolvedValue(undefined)
+const setDefaultPersona = vi.fn().mockResolvedValue(undefined)
 const editItem = vi.fn()
 const deleteItem = vi.fn().mockResolvedValue(undefined)
 const startCharacterChat = vi.fn().mockResolvedValue(undefined)
@@ -23,6 +24,8 @@ const originalScrollIntoView = Element.prototype.scrollIntoView
 let authed = true
 
 const mockData = vi.hoisted(() => ({
+    // Loose row shape so individual tests can set role-specific fields (description,
+    // is_default_persona, has_draft, …) without fighting a narrow inferred union.
     characters: [
         {
             id: 'p1',
@@ -33,7 +36,7 @@ const mockData = vi.hoisted(() => ({
             is_default_persona: true,
         },
         { id: 'c1', name: 'Lyra', race: 'Half-elf', role: 'character' },
-    ],
+    ] as Array<Record<string, unknown>>,
 }))
 
 // GalleryCard deep-imports the playlist hook (not the barrel) to keep the
@@ -63,6 +66,7 @@ vi.mock('@/app/hooks', () => ({
         editCharacter,
         setEditingCharacter,
         deleteCharacter,
+        setDefaultPersona,
         startCharacterChat,
         startCharacterGroupChat,
         editWorld: vi.fn(),
@@ -275,9 +279,13 @@ describe('GalleryPage', () => {
 
         const section = await screen.findByTestId('character-persona-section')
         const personaCards = within(section).getAllByTestId('persona-gallery-card')
+        // Default persona: distinct ember "Default" marker AND its race badge is preserved.
         expect(within(personaCards[0]).getByText('Aria')).toBeInTheDocument()
-        expect(within(personaCards[0]).getByText('Default persona')).toBeInTheDocument()
+        expect(within(personaCards[0]).getByText('Default')).toBeInTheDocument()
+        expect(within(personaCards[0]).getByText('Human')).toBeInTheDocument()
+        // Non-default persona: no marker, just its race badge.
         expect(within(personaCards[1]).getByText('Bryn')).toBeInTheDocument()
+        expect(within(personaCards[1]).queryByText('Default')).not.toBeInTheDocument()
         expect(within(section).queryByRole('button', { name: 'New chat' })).not.toBeInTheDocument()
         expect(await screen.findByText('Lyra')).toBeInTheDocument()
     })
@@ -303,6 +311,48 @@ describe('GalleryPage', () => {
         fireEvent.click(within(section).getByRole('button', { name: 'New persona' }))
 
         expect(setPage).toHaveBeenCalledWith('character')
+    })
+
+    it('sets a non-default persona as the default from the hover menu', async () => {
+        mockData.characters = [
+            { id: 'p1', name: 'Aria', race: 'Human', role: 'persona', is_default_persona: true },
+            { id: 'p2', name: 'Bryn', race: 'Gnome', role: 'persona', is_default_persona: false },
+        ]
+
+        render(<GalleryPage type="character" />)
+
+        const section = await screen.findByTestId('character-persona-section')
+        const personaCards = within(section).getAllByTestId('persona-gallery-card')
+        // Default persona (Aria) is sorted first and offers no "set default" action.
+        fireEvent.click(within(personaCards[0]).getByTestId('card-options-button'))
+        expect(screen.queryByRole('menuitem', { name: 'Set as default persona' })).not.toBeInTheDocument()
+
+        // Non-default persona (Bryn) can be promoted in one click (no draft → no confirm).
+        fireEvent.click(within(personaCards[1]).getByTestId('card-options-button'))
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Set as default persona' }))
+
+        await waitFor(() => expect(setDefaultPersona).toHaveBeenCalledWith(expect.objectContaining({ id: 'p2' })))
+    })
+
+    it('confirms before setting a persona with a pending draft as default', async () => {
+        mockData.characters = [
+            { id: 'p1', name: 'Aria', race: 'Human', role: 'persona', is_default_persona: true },
+            { id: 'p2', name: 'Bryn', race: 'Gnome', role: 'persona', is_default_persona: false, has_draft: true },
+        ]
+
+        render(<GalleryPage type="character" />)
+
+        const section = await screen.findByTestId('character-persona-section')
+        const personaCards = within(section).getAllByTestId('persona-gallery-card')
+        fireEvent.click(within(personaCards[1]).getByTestId('card-options-button'))
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Set as default persona' }))
+
+        // A pending draft would be discarded on publish, so we confirm first.
+        const dialog = await screen.findByRole('dialog')
+        expect(setDefaultPersona).not.toHaveBeenCalled()
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Publish and set default' }))
+
+        await waitFor(() => expect(setDefaultPersona).toHaveBeenCalledWith(expect.objectContaining({ id: 'p2' })))
     })
 
     it('hides the top persona section in public cards and group selection mode', async () => {
@@ -676,6 +726,61 @@ describe('GalleryPage', () => {
         ))
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
         await waitFor(() => expect(setPage).toHaveBeenCalledWith('character-chat'))
+    })
+
+    it('starts a new character chat with the card-specific default persona before the global default', async () => {
+        mockData.characters = [
+            {
+                id: 'p1',
+                name: 'Aria',
+                race: 'Human',
+                description: 'A steady traveler.',
+                role: 'persona',
+                is_default_persona: true,
+            },
+            { id: 'p2', name: 'Sera', race: 'Elf', role: 'persona', is_default_persona: false },
+            { id: 'c1', name: 'Lyra', race: 'Half-elf', role: 'character', default_persona_id: 'p2' },
+        ]
+        vi.mocked(apiService.getCharacters).mockResolvedValue([
+            { id: 'c1', name: 'Lyra', race: 'Half-elf', role: 'character', default_persona_id: 'p2' },
+        ])
+        render(<GalleryPage type="character" />)
+        await screen.findByText('Lyra')
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'New chat' })[0])
+
+        await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'c1' }),
+            expect.objectContaining({ id: 'p2' }),
+        ))
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('falls back to the global persona when a card-specific default is invalid', async () => {
+        mockData.characters = [
+            {
+                id: 'p1',
+                name: 'Aria',
+                race: 'Human',
+                description: 'A steady traveler.',
+                role: 'persona',
+                is_default_persona: true,
+            },
+            { id: 'c1', name: 'Lyra', race: 'Half-elf', role: 'character', default_persona_id: 'missing' },
+        ]
+        vi.mocked(apiService.getCharacters).mockResolvedValue([
+            { id: 'c1', name: 'Lyra', race: 'Half-elf', role: 'character', default_persona_id: 'missing' },
+        ])
+        render(<GalleryPage type="character" />)
+        await screen.findByText('Lyra')
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'New chat' })[0])
+
+        await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'c1' }),
+            expect.objectContaining({ id: 'p1' }),
+        ))
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
     it('falls back to the persona picker when no default persona is set', async () => {
