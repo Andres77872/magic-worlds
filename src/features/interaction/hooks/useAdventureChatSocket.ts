@@ -51,10 +51,16 @@ export function useAdventureChatSocket(
     const socketRef = useRef<InstanceType<typeof AdventureChatSocket> | null>(null)
     const [status, setStatus] = useState<ChatSocketStatus>('closed')
 
+    // Only auth *availability* gates the socket. The token value itself must not
+    // be an effect dependency: the socket reads the stored token fresh on every
+    // (re)connect and owns its own refresh recovery, so recreating it on each
+    // `auth:refreshed` would drop a chat frame queued behind that very refresh.
+    const authDisabled = authKey === null
+
     useEffect(() => {
         // Disabled (no session / unauthenticated): stay disconnected. The prior
         // effect's cleanup already emitted 'closed' via the socket's onStatusChange.
-        if (sessionId === null || Number.isNaN(sessionId) || authKey === null) {
+        if (sessionId === null || Number.isNaN(sessionId) || authDisabled) {
             return
         }
 
@@ -119,7 +125,7 @@ export function useAdventureChatSocket(
             socketRef.current = null
         }
         // basePath in deps so switching session kinds tears down + reconnects cleanly.
-    }, [sessionId, authKey, basePath])
+    }, [sessionId, authDisabled, basePath])
 
     const sendChat = (messages: ChatMessage[], options?: ChatGenerationOptions) => socketRef.current?.sendChat(messages, options)
     const sendTts = (assistantMessageId: number, turnId: string, requestId?: string) =>

@@ -329,6 +329,54 @@ describe('AdventureChatSocket auth recovery', () => {
         expect(JSON.stringify(frames)).not.toContain('data_b64')
     })
 
+    it('treats a 4403 origin rejection as terminal instead of reconnecting', async () => {
+        vi.useFakeTimers()
+        const onMessage = vi.fn()
+        const socket = new AdventureChatSocket(3, { onMessage })
+        socket.connect()
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitClose(4403)
+        await vi.advanceTimersByTimeAsync(60_000)
+
+        expect(MockWebSocket.instances).toHaveLength(1)
+        expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'error',
+            category: 'forbidden',
+        }))
+    })
+
+    it('tears down and reconnects a half-open socket that stops answering pings', async () => {
+        vi.useFakeTimers()
+        const socket = new AdventureChatSocket(3, { onMessage: vi.fn() })
+        socket.connect()
+        MockWebSocket.instances[0].emitOpen()
+
+        // No inbound frame at all (not even a pong) across the liveness window.
+        await vi.advanceTimersByTimeAsync(25_000)
+        await vi.advanceTimersByTimeAsync(25_000)
+        expect(MockWebSocket.instances).toHaveLength(1)
+        await vi.advanceTimersByTimeAsync(25_000)
+        expect(MockWebSocket.instances[0].close).toHaveBeenCalled()
+
+        await vi.advanceTimersByTimeAsync(1_000)
+        expect(MockWebSocket.instances).toHaveLength(2)
+    })
+
+    it('keeps a quiet socket alive while pong frames arrive', async () => {
+        vi.useFakeTimers()
+        const socket = new AdventureChatSocket(3, { onMessage: vi.fn() })
+        socket.connect()
+        MockWebSocket.instances[0].emitOpen()
+
+        for (let i = 0; i < 4; i++) {
+            await vi.advanceTimersByTimeAsync(25_000)
+            MockWebSocket.instances[0].onmessage?.({ data: JSON.stringify({ type: 'pong' }) } as MessageEvent)
+        }
+
+        expect(MockWebSocket.instances).toHaveLength(1)
+        expect(MockWebSocket.instances[0].close).not.toHaveBeenCalled()
+    })
+
     it('serializes explicit chat generation options', () => {
         const socket = new AdventureChatSocket(7, { onMessage: vi.fn() })
         socket.connect()

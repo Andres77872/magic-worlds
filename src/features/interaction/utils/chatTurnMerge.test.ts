@@ -73,6 +73,45 @@ describe('mergeHydratedChatTurns', () => {
     expect(next).toEqual([userTurn])
   })
 
+  it('preserves trailing optimistic turns the projection cannot contain yet', () => {
+    const optimisticUser: TurnEntry = {
+      id: 'b6a1c9c2-2f1e-4d70-9a3d-2f57c2f5a111',
+      type: 'user',
+      content: 'And then?',
+      timestamp,
+    }
+    const optimisticAi: ExtendedTurnEntry = {
+      id: 'b6a1c9c2-2f1e-4d70-9a3d-2f57c2f5a222',
+      type: 'ai',
+      content: 'The door creaks',
+      timestamp,
+    }
+
+    // A stale projection (fetched before the follow-up send) only knows turn A.
+    const next = mergeHydratedChatTurns(
+      [userTurn, liveAiTurn, optimisticUser, optimisticAi],
+      [userTurn, { ...liveAiTurn, segments: undefined }],
+    )
+
+    expect(next.map((turn) => turn.id)).toEqual([userTurn.id, liveAiTurn.id, optimisticUser.id, optimisticAi.id])
+    expect(next[2]).toBe(optimisticUser)
+    expect(next[3]).toBe(optimisticAi)
+  })
+
+  it('still drops unmatched turns once the server has acknowledged them', () => {
+    const acknowledgedUser: TurnEntry = {
+      id: '412',
+      type: 'user',
+      content: 'Deleted elsewhere',
+      timestamp,
+      turnId: 'turn-12',
+    }
+
+    const next = mergeHydratedChatTurns([userTurn, liveAiTurn, acknowledgedUser], [userTurn, liveAiTurn])
+
+    expect(next.map((turn) => turn.id)).toEqual([userTurn.id, liveAiTurn.id])
+  })
+
   it('preserves current segments when hydrated content differs but has no segments', () => {
     const hydratedAi: TurnEntry = {
       id: '999',

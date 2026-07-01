@@ -130,25 +130,45 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
     })
   })
 
-  it('recreates the socket when the auth key changes for the same session', () => {
-    const { rerender, unmount } = renderHook(
-      ({ authKey }) => useAdventureChatSocket(7, {}, authKey),
-      { initialProps: { authKey: 'old-token' } },
+  it('keeps the same socket across a token refresh for the same session', () => {
+    const { result, rerender, unmount } = renderHook(
+      ({ authKey }: { authKey: string | null }) => useAdventureChatSocket(7, {}, authKey),
+      { initialProps: { authKey: 'old-token' as string | null } },
     )
 
     expect(socketInstances).toHaveLength(1)
     expect(socketInstances[0].sessionId).toBe(7)
     expect(socketInstances[0].connect).toHaveBeenCalledTimes(1)
 
+    // A rotated access token must NOT tear down the socket: the socket reads the
+    // stored token fresh on (re)connect, and recreating it here would drop a chat
+    // frame queued behind the refresh that rotated the token in the first place.
     rerender({ authKey: 'new-token' })
 
-    expect(socketInstances).toHaveLength(2)
-    expect(socketInstances[0].close).toHaveBeenCalledTimes(1)
-    expect(socketInstances[1].sessionId).toBe(7)
-    expect(socketInstances[1].connect).toHaveBeenCalledTimes(1)
+    expect(socketInstances).toHaveLength(1)
+    expect(socketInstances[0].close).not.toHaveBeenCalled()
+    result.current.sendChat([{ role: 'user', content: 'still flows on the same socket' }])
+    expect(socketInstances[0].sendChat).toHaveBeenCalledTimes(1)
 
     unmount()
-    expect(socketInstances[1].close).toHaveBeenCalledTimes(1)
+    expect(socketInstances[0].close).toHaveBeenCalledTimes(1)
+  })
+
+  it('disconnects when auth becomes unavailable and reconnects when it returns', () => {
+    const { rerender } = renderHook(
+      ({ authKey }: { authKey: string | null }) => useAdventureChatSocket(7, {}, authKey),
+      { initialProps: { authKey: 'token' as string | null } },
+    )
+
+    expect(socketInstances).toHaveLength(1)
+
+    rerender({ authKey: null })
+    expect(socketInstances[0].close).toHaveBeenCalledTimes(1)
+    expect(socketInstances).toHaveLength(1)
+
+    rerender({ authKey: 'token-2' })
+    expect(socketInstances).toHaveLength(2)
+    expect(socketInstances[1].connect).toHaveBeenCalledTimes(1)
   })
 
   it('stays disconnected when text chat is disabled for voice mode', () => {

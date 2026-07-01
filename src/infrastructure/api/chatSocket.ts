@@ -15,6 +15,10 @@ import { API_BASE_URL } from './baseUrl'
 
 const WS_BEARER_SUBPROTOCOL = 'mw.bearer.v1'
 const HEARTBEAT_MS = 25_000
+// A healthy server answers every ping with a pong, so two heartbeat intervals
+// (plus grace) with no inbound frame at all means the connection is half-open:
+// the browser may never fire onclose on its own, so we tear it down ourselves.
+const LIVENESS_TIMEOUT_MS = HEARTBEAT_MS * 2 + 5_000
 const MAX_RECONNECT_MS = 30_000
 const CHAT_AUTH_REFRESH_SKEW_MS = 60_000
 
@@ -88,6 +92,8 @@ export class ChatSocket {
     private closedByUser = false
     private authRecoveryAttempted = false
     private terminalAuthReported = false
+    // Timestamp of the last inbound frame (any type); drives the liveness check.
+    private lastFrameAt = 0
     // A chat frame requested before the socket is OPEN; flushed on connect.
     private pendingChat: string | null = null
 
@@ -123,6 +129,7 @@ export class ChatSocket {
         ws.onopen = () => {
             if (this.ws !== ws) return
             this.reconnectAttempts = 0
+            this.lastFrameAt = Date.now()
             this.setStatus('open')
             this.startHeartbeat()
             if (this.pendingChat) {
@@ -144,6 +151,7 @@ export class ChatSocket {
 
         ws.onmessage = (event) => {
             if (this.ws !== ws) return
+            this.lastFrameAt = Date.now()
             let message: ChatSocketServerMessage
             try {
                 message = JSON.parse(event.data)
@@ -163,6 +171,19 @@ export class ChatSocket {
 
             if (event.code === 4401) {
                 void this.recoverFromAuthClose()
+                return
+            }
+
+            if (event.code === 4403) {
+                // Origin rejected by the server (CORS_ORIGINS misconfiguration).
+                // No amount of reconnecting can succeed — surface a terminal
+                // error instead of looping on backoff forever.
+                this.pendingChat = null
+                this.handlers.onMessage({
+                    type: 'error',
+                    message: 'This chat connection was rejected by the server. Please reload; if the problem persists, contact support.',
+                    category: 'forbidden',
+                })
                 return
             }
 
@@ -433,7 +454,25 @@ export class ChatSocket {
     private startHeartbeat(): void {
         this.stopHeartbeat()
         this.heartbeat = setInterval(() => {
-            if (this.isOpen) this.ws!.send(JSON.stringify({ type: 'ping' }))
+            if (!this.isOpen) return
+            if (Date.now() - this.lastFrameAt > LIVENESS_TIMEOUT_MS) {
+                // Half-open socket: not even a pong has arrived within the
+                // liveness window. Emulate a close and reconnect — waiting on
+                // the browser's own onclose can take minutes on a dead link.
+                const ws = this.ws
+                this.stopHeartbeat()
+                this.detach(ws)
+                try {
+                    ws?.close()
+                } catch {
+                    // ignore
+                }
+                this.ws = null
+                this.setStatus('closed')
+                if (!this.closedByUser) this.scheduleReconnect()
+                return
+            }
+            this.ws!.send(JSON.stringify({ type: 'ping' }))
         }, HEARTBEAT_MS)
     }
 

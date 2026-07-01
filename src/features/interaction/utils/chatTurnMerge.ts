@@ -8,8 +8,10 @@ type MergeableTurnEntry = TurnEntry & {
 
 export function mergeHydratedChatTurns(current: TurnEntry[], hydrated: TurnEntry[]): TurnEntry[] {
   if (hydrated.length === 0) return current
-  return hydrated.map((turn) => {
+  const matched = new Set<TurnEntry>()
+  const merged = hydrated.map((turn) => {
     const existing = findMatchingTurn(current, turn)
+    if (existing) matched.add(existing)
     if (!existing || turn.type !== 'ai') return turn
     const hydratedTurn = turn as MergeableTurnEntry
     const existingTurn = existing as MergeableTurnEntry
@@ -24,6 +26,18 @@ export function mergeHydratedChatTurns(current: TurnEntry[], hydrated: TurnEntry
     const content = hydratedTurn.content?.trim() || visibleContent(existingTurn)
     return { ...next, content, segments }
   })
+  // Hydration owns ordering and deletions for turns the server has acknowledged,
+  // but a stale projection must never eat optimistic turns it can't contain yet
+  // (rapid follow-up send, mid-stream reconnect) — re-append those at the tail.
+  const optimisticTail = current.filter((turn) => !matched.has(turn) && !isServerAcknowledged(turn))
+  return optimisticTail.length ? [...merged, ...optimisticTail] : merged
+}
+
+function isServerAcknowledged(turn: TurnEntry): boolean {
+  if (turn.turnId) return true
+  if (turn.type === 'ai' && turn.assistantMessageId) return true
+  const numericId = Number(turn.id)
+  return Number.isInteger(numericId) && numericId > 0
 }
 
 function findMatchingTurn(current: TurnEntry[], turn: TurnEntry): TurnEntry | undefined {

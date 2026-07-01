@@ -87,6 +87,11 @@ const RESET_IMAGE_FIELDS = {
 // offline). Without this the speaker control spins forever: polling skips turns
 // with no job id and hydration won't overwrite a non-terminal local status.
 const TTS_PENDING_WATCHDOG_MS = 15_000
+// Recover from a generation whose `done`/`error` frame never arrives (server
+// stall, half-open or torn-down socket): without this the composer is stuck on
+// "Stop" forever. Every streaming frame re-arms the timer, so it only measures
+// silence — the window sits above the backend's 120s agent-graph timeout.
+const GENERATION_WATCHDOG_MS = 130_000
 const DEFAULT_CHAT_GENERATION_OPTIONS: ChatGenerationOptions = {
     generateImage: true,
     suggestActions: true,
@@ -132,7 +137,14 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const { isAuthenticated, openLoginModal, token } = useAuth()
-    const [error, setError] = useState<string | null>(null)
+    // `retryable` marks errors from a failed generation, where the banner can
+    // offer a one-tap retry (regenerate / answer the trailing user turn).
+    const [errorState, setErrorState] = useState<{ message: string; retryable: boolean } | null>(null)
+    const error = errorState?.message ?? null
+    const errorRetryable = errorState?.retryable ?? false
+    const setError = useCallback((message: string | null, retryable = false) => {
+        setErrorState(message === null ? null : { message, retryable })
+    }, [])
     const [pendingDeleteTurn, setPendingDeleteTurn] = useState<TurnEntry | null>(null)
     const [isDeletingTurn, setIsDeletingTurn] = useState(false)
     const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
@@ -274,10 +286,90 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
         setTurnState(next)
     }, [setTurnState])
 
+    const generationWatchdogRef = useRef<number | null>(null)
+    const clearGenerationWatchdog = useCallback(() => {
+        if (generationWatchdogRef.current !== null) {
+            window.clearTimeout(generationWatchdogRef.current)
+            generationWatchdogRef.current = null
+        }
+    }, [])
+
+    // Finalize the in-flight AI turn after a failure (server `error` frame or the
+    // generation watchdog): restore the previous answer on a failed regeneration,
+    // otherwise leave the turn empty so the regenerate affordance stays visible.
+    const failStreamingTurn = useCallback((message: string) => {
+        clearGenerationWatchdog()
+        const id = streamingIdRef.current
+        const restore = restoreRef.current
+        const next = id
+            ? turnsRef.current.map((t) => {
+                if (t.id !== id) return t
+                const entry = t as ExtendedTurnEntry
+                if (restore && restore.content) {
+                    return {
+                        ...entry,
+                        isStreaming: false,
+                        content: restore.content,
+                        forwardOptions: restore.forwardOptions,
+                        segments: restore.segments,
+                        imagePrompt: restore.imagePrompt,
+                        assistantMessageId: restore.assistantMessageId,
+                        turnId: restore.turnId,
+                        imageJobId: restore.imageJobId,
+                        imageStatus: restore.imageStatus,
+                        imageStatusUrl: restore.imageStatusUrl,
+                        imageResultUrl: restore.imageResultUrl,
+                        imageAssets: restore.imageAssets,
+                        imageUrl: restore.imageUrl,
+                        imageError: restore.imageError,
+                        ttsJobId: restore.ttsJobId,
+                        ttsStatus: restore.ttsStatus,
+                        ttsStatusUrl: restore.ttsStatusUrl,
+                        ttsResultUrl: restore.ttsResultUrl,
+                        ttsAssets: restore.ttsAssets,
+                        ttsUrl: restore.ttsUrl,
+                        ttsError: restore.ttsError,
+                    }
+                }
+                return { ...entry, isStreaming: false, content: '' }
+            })
+            : turnsRef.current
+        if (id) {
+            setTurnState(next)
+            saveTurnsToApi(next).catch((err) =>
+                console.error('Failed to save failed turns:', err)
+            )
+        }
+        streamingIdRef.current = null
+        rawResponseRef.current = ''
+        restoreRef.current = null
+        setIsLoading(false)
+        setError(message, true)
+    }, [clearGenerationWatchdog, saveTurnsToApi, setError, setTurnState])
+
+    const armGenerationWatchdog = useCallback(() => {
+        clearGenerationWatchdog()
+        if (!streamingIdRef.current) return
+        generationWatchdogRef.current = window.setTimeout(() => {
+            generationWatchdogRef.current = null
+            if (!streamingIdRef.current) return
+            failStreamingTurn(t('interaction.center.generationTimeout'))
+        }, GENERATION_WATCHDOG_MS)
+    }, [clearGenerationWatchdog, failStreamingTurn, t])
+
+    useEffect(() => clearGenerationWatchdog, [clearGenerationWatchdog])
+
     const hydrateTurnsFromApi = useCallback(async () => {
         if (!isAuthenticated || Number.isNaN(sessionId)) return
+        // Never hydrate over an in-flight stream: the server projection can't
+        // contain the streaming turn yet, so applying it would orphan
+        // streamingIdRef and silently drop the rest of the generation.
+        if (streamingIdRef.current) return
         try {
             const hydrated = await config.loadTurns(sessionId)
+            // A generation may have started while the projection was loading
+            // (rapid follow-up send) — that projection is stale; drop it.
+            if (streamingIdRef.current) return
             if (hydrated.length > 0) {
                 // Hydration owns ordering/deletions, while the live stream may
                 // temporarily be the only source with parsed response segments.
@@ -375,6 +467,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                 updateStreamingTurn((t) => ({ ...t, narratorIdentity: narrator ?? null }))
             },
             onDelta: (content) => {
+                armGenerationWatchdog()
                 rawResponseRef.current += content
                 const raw = rawResponseRef.current
                 // Paint live per-speaker segments when the XML voice markup is present;
@@ -397,11 +490,13 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                 }))
             },
             onSegments: ({ segments, displayText }) => {
+                armGenerationWatchdog()
                 const resolved = resolveSegmentIdentity(segments, rosterRef.current.map)
                 const content = displayText?.trim() || segmentsToPlainText(resolved)
                 updateStreamingTurn((t) => ({ ...t, segments: resolved, content: content || t.content }))
             },
             onDone: ({ userMessageId, assistantMessageId, turnId }) => {
+                clearGenerationWatchdog()
                 const id = streamingIdRef.current
                 const streamingIndex = turnsRef.current.findIndex((turn) => turn.id === id)
                 let userIndex = streamingIndex - 1
@@ -460,55 +555,21 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
             onTtsComplete: applyTtsFrame,
             onTtsFailed: applyTtsFrame,
             onError: (message) => {
-                const id = streamingIdRef.current
-                const restore = restoreRef.current
-                const next = turnsRef.current.map((t) => {
-                    if (t.id !== id) return t
-                    const entry = t as ExtendedTurnEntry
-                    // Restore the previous answer on a failed regeneration; otherwise
-                    // leave the AI turn empty so the regenerate affordance stays visible.
-                    if (restore && restore.content) {
-                        return {
-                            ...entry,
-                            isStreaming: false,
-                            content: restore.content,
-                            forwardOptions: restore.forwardOptions,
-                            segments: restore.segments,
-                            imagePrompt: restore.imagePrompt,
-                            assistantMessageId: restore.assistantMessageId,
-                            turnId: restore.turnId,
-                            imageJobId: restore.imageJobId,
-                            imageStatus: restore.imageStatus,
-                            imageStatusUrl: restore.imageStatusUrl,
-                            imageResultUrl: restore.imageResultUrl,
-                            imageAssets: restore.imageAssets,
-                            imageUrl: restore.imageUrl,
-                            imageError: restore.imageError,
-                            ttsJobId: restore.ttsJobId,
-                            ttsStatus: restore.ttsStatus,
-                            ttsStatusUrl: restore.ttsStatusUrl,
-                            ttsResultUrl: restore.ttsResultUrl,
-                            ttsAssets: restore.ttsAssets,
-                            ttsUrl: restore.ttsUrl,
-                            ttsError: restore.ttsError,
-                        }
-                    }
-                    return { ...entry, isStreaming: false, content: '' }
-                })
-                setTurnState(next)
-                streamingIdRef.current = null
-                rawResponseRef.current = ''
-                restoreRef.current = null
-                setIsLoading(false)
-                setError(message || t('interaction.center.generateFailed'))
-                saveTurnsToApi(next).catch((err) =>
-                    console.error('Failed to save failed turns:', err)
-                )
+                failStreamingTurn(message || t('interaction.center.generateFailed'))
             },
         },
         token,
         config.basePath
     )
+
+    // Surface the connection state once a real connection has existed — the
+    // socket also reports closed→connecting transiently on first mount, which
+    // must not flash a "reconnecting" notice.
+    const [hasEverConnected, setHasEverConnected] = useState(false)
+    useEffect(() => {
+        if (socketStatus === 'open') setHasEverConnected(true)
+    }, [socketStatus])
+    const isReconnecting = hasEverConnected && socketStatus !== 'open'
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({behavior: 'smooth', block: 'end'})
@@ -665,6 +726,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                 content: t.content,
             }))
         sendChat(messages, chatGenerationOptions)
+        armGenerationWatchdog()
     }
 
     const handleRegenerateResponse = (turnId: string) => {
@@ -811,6 +873,20 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
         startGeneration(newTurns.slice(0, -1), aiTurn)
     }
 
+    // Retry from the error banner: regenerate the trailing (empty or restored)
+    // AI turn, or answer a trailing user turn.
+    const handleRetryGeneration = () => {
+        if (isLoading || isMutatingTurns) return
+        const last = turnsRef.current[turnsRef.current.length - 1]
+        if (!last) return
+        setError(null)
+        if (last.type === 'user') {
+            handleGenerateResponse()
+        } else if (last.type === 'ai') {
+            handleRegenerateResponse(last.id)
+        }
+    }
+
     const handleSubmit = () => {
         if (!input.trim() || isLoading || isMutatingTurns) return
         if (!isAuthenticated) {
@@ -859,6 +935,12 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
     const handleStop = () => {
         if (!stopArmedRef.current) return
         cancel()
+        // With no open socket the cancel can't reach the server and no `done`
+        // will ever arrive for this stream — recover the composer right away
+        // instead of leaving the user to wait out the generation watchdog.
+        if (socketStatus !== 'open' && streamingIdRef.current) {
+            failStreamingTurn(t('interaction.center.generateFailed'))
+        }
     }
 
     return (
@@ -870,13 +952,24 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
             {error && (
                 <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-md border border-blood-500/30 bg-blood-500/10 px-4 py-2 text-[14px] text-blood-500">
                     <span>{error}</span>
-                    <button
-                        onClick={() => setError(null)}
-                        className="text-lg leading-none text-blood-500/80 hover:text-blood-500"
-                        aria-label={t('interaction.center.closeError')}
-                    >
-                        ×
-                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                        {errorRetryable && !isLoading && !isMutatingTurns && turns.length > 0 && (
+                            <button
+                                onClick={handleRetryGeneration}
+                                className="flex items-center gap-1.5 rounded-md border border-blood-500/30 px-2.5 py-1 text-[13px] font-semibold text-blood-500 hover:bg-blood-500/10"
+                            >
+                                <RotateCcw size={13} />
+                                {t('interaction.center.retry')}
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setError(null)}
+                            className="text-lg leading-none text-blood-500/80 hover:text-blood-500"
+                            aria-label={t('interaction.center.closeError')}
+                        >
+                            ×
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -979,6 +1072,15 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                     <div className="mx-auto flex w-full max-w-[760px] items-center gap-2 px-4 pb-3 text-[13px] text-arcane-300 md:px-6">
                         <Loader2 size={14} className="animate-spin" />
                         <span>{config.copy.loadingHint}</span>
+                    </div>
+                )}
+                {isReconnecting && (
+                    <div
+                        role="status"
+                        className="mx-auto flex w-full max-w-[760px] items-center gap-2 px-4 pb-3 text-[13px] text-parchment-400 md:px-6"
+                    >
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>{t('interaction.center.reconnecting')}</span>
                     </div>
                 )}
             </div>
