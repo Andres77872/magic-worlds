@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TurnEntry } from '../../../shared'
+import type { ChatSpeakerRosterEntry, TurnEntry } from '../../../shared'
 import type { ChatSessionConfig } from '../chatSessionConfig'
 import { apiService } from '../../../infrastructure/api'
 import { InteractionCenterPanel } from './InteractionCenterPanel'
@@ -58,10 +58,10 @@ function makeConfig(overrides: Partial<ChatSessionConfig> = {}): ChatSessionConf
     }
 }
 
-function renderPanel(config: ChatSessionConfig, seed: TurnEntry[] = initialTurns, sessionId = 7) {
+function renderPanel(config: ChatSessionConfig, seed: TurnEntry[] = initialTurns, sessionId = 7, speakerRoster?: ChatSpeakerRosterEntry[]) {
     function Harness() {
         const [turns, setTurns] = useState<TurnEntry[]>(seed)
-        return <InteractionCenterPanel sessionId={sessionId} turns={turns} setTurns={setTurns} config={config} />
+        return <InteractionCenterPanel sessionId={sessionId} turns={turns} setTurns={setTurns} config={config} speakerRoster={speakerRoster} />
     }
 
     return render(<Harness />)
@@ -298,6 +298,113 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.getByText('Who goes there?')).toBeInTheDocument()
         expect(screen.queryByText('Aria is speaking…')).not.toBeInTheDocument()
         expect(screen.queryByText('Aria: Who goes there?', { selector: '.chat-prose *' })).not.toBeInTheDocument()
+    })
+
+    it('deletes the replaced canonical reply before regenerating', async () => {
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+        const deleteMessage = vi.fn(async () => [initialTurns[0]])
+        const config = makeConfig({ deleteMessage })
+
+        renderPanel(config)
+        fireEvent.click(screen.getByLabelText('Regenerate'))
+
+        // The old canonical assistant row goes first, or hydration resurrects it.
+        await waitFor(() => expect(deleteMessage).toHaveBeenCalledWith(7, 101))
+        await waitFor(() => expect(sendChat).toHaveBeenCalledWith(
+            [{ role: 'user', content: 'Open the door' }],
+            expect.anything(),
+        ))
+    })
+
+    it('restores the previous reply and skips generation when the pre-regenerate delete fails', async () => {
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+        const deleteMessage = vi.fn(async () => {
+            throw new Error('conflict')
+        })
+        const config = makeConfig({ deleteMessage })
+
+        renderPanel(config)
+        fireEvent.click(screen.getByLabelText('Regenerate'))
+
+        expect(await screen.findByText('Could not generate a response. Please try again.')).toBeInTheDocument()
+        expect(sendChat).not.toHaveBeenCalled()
+        expect(screen.getByText('The door opens.')).toBeInTheDocument()
+    })
+
+    it('keeps speaker portraits when post-done hydration returns segments without image_url', async () => {
+        let handlers: { onSpeakers: Function; onSegments: Function; onDone: Function } | undefined
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: never) => {
+            handlers = h
+            return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
+        })
+        // The persisted projection strips image_url from segments — only the
+        // roster (seed or live frame) knows the portraits.
+        const hydratedTurns: TurnEntry[] = [
+            { id: '100', type: 'user', content: 'Look around', timestamp: '2026-06-04T00:00:00', turnId: 'turn-9' },
+            {
+                id: '999',
+                type: 'ai',
+                content: 'Aria: Who goes there?',
+                timestamp: '2026-06-04T00:00:01',
+                assistantMessageId: 999,
+                turnId: 'turn-9',
+                segments: [{ kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Who goes there?' }],
+            } as TurnEntry,
+        ]
+        const loadTurns = vi.fn()
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce(hydratedTurns)
+
+        renderPanel(makeConfig({ loadTurns }), [], 7, [
+            { speaker_id: 'aria', name: 'Aria', image_url: '/portraits/aria.png', has_voice: true },
+        ])
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(1))
+
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        await waitFor(() => expect(sendChat).toHaveBeenCalled())
+
+        act(() => {
+            handlers!.onSpeakers({
+                roster: [{ speaker_id: 'aria', name: 'Aria', image_url: '/portraits/aria.png', has_voice: true }],
+                narrator: { name: 'Game Master', image_url: null, kind: 'narrator' },
+            })
+            handlers!.onSegments({
+                responseFormat: 'mw_xml_v1',
+                segments: [{ kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Who goes there?' }],
+                displayText: 'Aria: Who goes there?',
+            })
+            handlers!.onDone({ interrupted: false, userMessageId: 100, assistantMessageId: 999, turnId: 'turn-9' })
+        })
+
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
+        expect(screen.getByText('Who goes there?')).toBeInTheDocument()
+        expect(screen.getByRole('img', { name: 'Aria' })).toHaveAttribute('src', '/portraits/aria.png')
+    })
+
+    it('resolves speaker portraits for hydrated turns at mount (reload)', () => {
+        const seed: TurnEntry[] = [
+            { id: '100', type: 'user', content: 'Hello', timestamp: '2026-06-04T00:00:00', turnId: 'turn-1' },
+            {
+                id: '101',
+                type: 'ai',
+                content: 'Aria: Well met.',
+                timestamp: '2026-06-04T00:00:01',
+                assistantMessageId: 101,
+                turnId: 'turn-1',
+                segments: [{ kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Well met.' }],
+            } as TurnEntry,
+        ]
+
+        renderPanel(makeConfig(), seed, 7, [
+            { speaker_id: 'aria', name: 'Aria', image_url: '/portraits/aria.png', has_voice: true },
+        ])
+
+        expect(screen.getByText('Well met.')).toBeInTheDocument()
+        expect(screen.getByRole('img', { name: 'Aria' })).toHaveAttribute('src', '/portraits/aria.png')
     })
 
     it('renders character-chat suggestions and generated image lifecycle from turn metadata', () => {

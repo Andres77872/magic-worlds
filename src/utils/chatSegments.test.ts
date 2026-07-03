@@ -103,6 +103,21 @@ describe('streamingXmlToSegments', () => {
     })
 })
 
+describe('safeResponseSegments credential scrubbing', () => {
+    it('keeps narrative mentions of secrets/bearers but drops credential-shaped text', () => {
+        const segments = safeResponseSegments([
+            { kind: 'speech', speaker_id: 'v1', speaker_name: 'Vesper', content: 'narradora de secretos olvidados' },
+            { kind: 'speech', speaker_id: 'v1', speaker_name: 'Vesper', content: 'the bearer of bad news arrives' },
+            { kind: 'speech', speaker_id: 'v1', speaker_name: 'Vesper', content: 'here: secret_key=abc123 for you' },
+            { kind: 'speech', speaker_id: 'v1', speaker_name: 'Vesper', content: 'use bearer abcdefabcdefabcdef99 now' },
+        ])
+        expect(segments.map((segment) => segment.content)).toEqual([
+            'narradora de secretos olvidados',
+            'the bearer of bad news arrives',
+        ])
+    })
+})
+
 describe('resolveSegmentIdentity', () => {
     const roster = new Map<string, ChatSpeakerRosterEntry>([
         ['aria', { speaker_id: 'aria', name: 'Aria', image_url: 'https://x/aria.png', has_voice: true }],

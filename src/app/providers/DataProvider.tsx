@@ -821,7 +821,9 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to chat with characters')
         }
-        setActiveCharacterChatMode(options.mode === 'voice' && isCallsFeatureEnabled() ? 'voice' : 'text')
+        // Voice calls are 1:1 only (the backend 409s group callbots) — a stale
+        // voice intent must never mount the CallScreen for a group room.
+        setActiveCharacterChatMode(options.mode === 'voice' && chat.kind !== 'character_group' && isCallsFeatureEnabled() ? 'voice' : 'text')
         setActiveCharacterChat(chat)
     }
 

@@ -21,6 +21,7 @@ import { PersonaPickerDialog } from '@/ui/components'
 import { useStartCall } from '@/features/call'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { isLorebooksFeatureEnabled, isNovelsFeatureEnabled } from '@/shared/featureFlags'
+import { chatDisplayTitle } from '@/utils/chatTitle'
 import { Button } from '@/ui/primitives'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { LandingLoading } from './LandingLoading'
@@ -665,7 +666,7 @@ export function LandingPage() {
                 title={t('landing.delete.chatTitle')}
                 message={
                     pendingChatDelete
-                        ? t('landing.delete.chatMessage', { name: pendingChatDelete.character?.name?.slice(0, 80) || t('landing.delete.thisChat') })
+                        ? t('landing.delete.chatMessage', { name: chatDisplayTitle(pendingChatDelete).slice(0, 80) || t('landing.delete.thisChat') })
                         : ''
                 }
                 confirmLabel={t('gallery.delete')}

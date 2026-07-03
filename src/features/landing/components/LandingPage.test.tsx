@@ -256,6 +256,33 @@ describe('LandingPage (returning dashboard)', () => {
         expect(startCharacterChat).not.toHaveBeenCalled()
         expect(setPage).toHaveBeenCalledWith('character-chat')
     })
+
+    it('shows the group title in the chat delete dialog', async () => {
+        const sable = { id: 'c2', name: 'Sable', race: 'Tiefling', stats: {}, role: 'character' } as Character
+        characterChats = [
+            ...CHATS,
+            {
+                id: 'chat2',
+                kind: 'character_group',
+                character_ids: ['c1', 'c2'],
+                title: 'Lyra, Sable',
+                characters: [CHARACTERS[1], sable],
+                turns: [],
+                updatedAt: '2026-06-10 09:00:00',
+            } as CharacterChatSession,
+        ]
+        render(<LandingPage />)
+
+        const rail = within(screen.getByTestId('active-chats'))
+        const card = rail.getByRole('heading', { name: 'Lyra, Sable' }).closest('[data-testid="continue-card"]') as HTMLElement
+        fireEvent.click(within(card).getByRole('button', { name: 'Delete' }))
+
+        const dialog = screen.getByRole('dialog', { name: 'Delete chat' })
+        expect(within(dialog).getByText('Delete "Lyra, Sable"? This cannot be undone.')).toBeInTheDocument()
+
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+        await waitFor(() => expect(deleteCharacterChat).toHaveBeenCalledWith('chat2'))
+    })
 })
 
 describe('LandingPage (guest)', () => {

@@ -138,6 +138,22 @@ function ChatProbe() {
             </button>
             <button onClick={() => ctx?.resumeCharacterChat(ctx.characterChats[0])}>resume</button>
             <button onClick={() => ctx?.resumeCharacterChat(ctx.characterChats[0], { mode: 'voice' })}>resume voice</button>
+            <button
+                onClick={() =>
+                    ctx?.resumeCharacterChat(
+                        {
+                            id: '77',
+                            kind: 'character_group',
+                            characters: [CHAT_CHARACTER, { id: 'c2', name: 'Dorn', race: 'Dwarf', role: 'character', stats: {} }],
+                            persona: CHAT_PERSONA,
+                            turns: [],
+                        },
+                        { mode: 'voice' },
+                    )
+                }
+            >
+                resume group voice
+            </button>
             <button onClick={() => ctx?.addCharacterChatCodexCards('9', [{ kind: 'item', cardId: 'i1' }])}>add codex</button>
             <button onClick={() => ctx?.toggleCharacterChatCodexCard('9', 'codex-1', false)}>toggle codex</button>
             <button onClick={() => ctx?.removeCharacterChatCodexCard('9', 'codex-1')}>remove codex</button>
@@ -224,6 +240,21 @@ describe('DataProvider character chats', () => {
         await waitFor(() => expect(screen.getByTestId('active-chat')).toHaveTextContent('12'))
         expect(screen.getByTestId('active-chat-mode')).toHaveTextContent('text')
         expect(screen.getByTestId('active-persona')).toHaveTextContent('Aria')
+    })
+
+    it('forces text mode when resuming a group chat with a voice intent', async () => {
+        render(
+            <DataProvider>
+                <ChatProbe />
+            </DataProvider>,
+        )
+        await waitFor(() => expect(screen.getByTestId('chat-count')).toHaveTextContent('1'))
+
+        // A stale voice intent must not mount the 1:1 CallScreen for a group room.
+        fireEvent.click(screen.getByText('resume group voice'))
+
+        await waitFor(() => expect(screen.getByTestId('active-chat')).toHaveTextContent('77'))
+        expect(screen.getByTestId('active-chat-mode')).toHaveTextContent('text')
     })
 
     it('resume sets the active chat without any network call', async () => {

@@ -14,7 +14,12 @@
  */
 
 import type { ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ChatTtsSegmentClip, ImageLifecycleStatus, TtsLifecycleStatus, TurnEntry } from '@/shared'
-import { safeResponseSegments } from '@/utils/chatSegments'
+import { safeResponseSegments, streamingXmlToPlainText } from '@/utils/chatSegments'
+
+// Interrupted turns persisted by an older backend carry the raw XML voice
+// protocol as content with no parsed segments — flatten it instead of
+// rendering literal <say>/<narrator> markup.
+const VOICE_MARKUP_RE = /<\/?(response|say|think|narrator)[\s>]/i
 
 export function parseTurnState(raw?: string | null): TurnEntry[] {
     if (!raw) return []
@@ -38,8 +43,12 @@ function sanitizeTurn(turn: TurnEntry): TurnEntry {
     const assets = safeAssets(turn.imageAssets)
     const ttsAssets = safeTtsAssets(turn.ttsAssets)
     const segments = safeResponseSegments(turn.segments)
+    const content = turn.type === 'ai' && segments.length === 0 && typeof turn.content === 'string' && VOICE_MARKUP_RE.test(turn.content)
+        ? streamingXmlToPlainText(turn.content)
+        : turn.content
     return {
         ...turn,
+        content,
         segments: segments.length > 0 ? segments : undefined,
         assistantMessageId: typeof turn.assistantMessageId === 'number' ? turn.assistantMessageId : numberFromUnknown(turn.assistantMessageId),
         turnId: typeof turn.turnId === 'string' ? turn.turnId : undefined,

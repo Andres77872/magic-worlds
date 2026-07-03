@@ -186,6 +186,12 @@ export function safeResponseSegments(value: unknown): ChatResponseSegment[] {
         .slice(0, 32)
 }
 
+// Credential-shaped text never renders. Bare words like "secret", "bearer",
+// or "authorization" legitimately appear in fiction ("secretos olvidados"),
+// so they only count in key/token-shaped contexts — otherwise a cast member's
+// whole reply silently disappears from the transcript.
+const CREDENTIAL_TEXT_RE = /secret[_-]?key|client_secret|secret\s*[=:]|authorization\s*[=:]|bearer\s+[a-z0-9._-]{16,}/i
+
 function safeText(value: unknown, max: number): string {
     if (typeof value !== 'string') return ''
     const text = value.trim()
@@ -196,10 +202,8 @@ function safeText(value: unknown, max: number): string {
         lowered.includes('https://') ||
         lowered.includes('/var/') ||
         lowered.includes('/tmp/') ||
-        lowered.includes('bearer ') ||
-        lowered.includes('authorization') ||
         lowered.includes('api_key') ||
-        lowered.includes('secret')
+        CREDENTIAL_TEXT_RE.test(text)
     ) {
         return ''
     }

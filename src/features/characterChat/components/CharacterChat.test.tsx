@@ -32,11 +32,15 @@ vi.mock('../../../app/hooks', () => ({
 }))
 
 vi.mock('../../interaction/components', () => ({
-    InteractionCenterPanel: ({ config }: { config: { kind: string; showForwardOptions: boolean; showImages: boolean } }) => (
+    InteractionCenterPanel: ({ config, speakerRoster }: {
+        config: { kind: string; showForwardOptions: boolean; showImages: boolean }
+        speakerRoster?: { speaker_id: string }[]
+    }) => (
         <div>
             <div data-testid="center-kind">{config.kind}</div>
             <div data-testid="center-forward-options">{String(config.showForwardOptions)}</div>
             <div data-testid="center-images">{String(config.showImages)}</div>
+            <div data-testid="center-roster">{(speakerRoster ?? []).map((entry) => entry.speaker_id).join(',')}</div>
         </div>
     ),
     InteractionTopBar: () => <header data-testid="top-bar" />,
@@ -96,6 +100,9 @@ describe('CharacterChat voice mode wiring', () => {
 
         expect(screen.getByTestId('chat-sidebar')).toHaveAttribute('data-session-id', '12')
         expect(screen.getByTestId('chat-sidebar')).toHaveAttribute('data-is-group', 'true')
+        // The whole cast reaches the chat engine as the speaker roster so
+        // per-speaker attribution survives hydration/reload.
+        expect(screen.getByTestId('center-roster')).toHaveTextContent('c1,c2')
     })
 
     it('renders the immersive CallScreen (not the text engine) when voice mode and the flag are both on', () => {

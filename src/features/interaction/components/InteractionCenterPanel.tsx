@@ -33,6 +33,12 @@ interface InteractionCenterPanelProps {
     setTurns: (turns: TurnEntry[]) => void
     /** Mode-specific wiring (load/save endpoints, copy, forward options, basePath). */
     config: ChatSessionConfig
+    /**
+     * Known AI cast for the session (speaker_id = card id). Persisted segments only
+     * carry speaker_id/speaker_name — portraits live in the transient `speakers`
+     * frame — so without this seed, group-turn avatars vanish on hydration/reload.
+     */
+    speakerRoster?: ChatSpeakerRosterEntry[]
 }
 
 // Snapshot of an AI turn used to restore it if a regeneration fails.
@@ -125,7 +131,7 @@ function readChatGenerationOptions(key: string): ChatGenerationOptions {
     }
 }
 
-export function InteractionCenterPanel({sessionId, turns, setTurns, config}: InteractionCenterPanelProps) {
+export function InteractionCenterPanel({sessionId, turns, setTurns, config, speakerRoster}: InteractionCenterPanelProps) {
     const { t } = useTranslation()
     // Session-attached lorebook triggers: underline matching words in the composer and
     // transcript, Ctrl/Cmd-click to open the entry's floating card.
@@ -183,11 +189,20 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
     const turnsRef = useRef<TurnEntry[]>(turns)
     const streamingIdRef = useRef<string | null>(null)
     const rawResponseRef = useRef('')
-    // Speaker roster + narrator identity for the in-flight turn (from the `speakers`
-    // frame). Read inside the long-lived socket callbacks to resolve speaker_id →
-    // name/portrait for live attribution. Reset at the start of each generation.
+    // Speaker roster + narrator identity (seeded from the session cast, refreshed by
+    // the `speakers` frame). Read inside the long-lived socket callbacks to resolve
+    // speaker_id → name/portrait for live attribution, and on hydration to restore
+    // portraits the persisted projection strips. Reset to the seed each generation.
+    const speakerRosterRef = useRef(speakerRoster)
+    useEffect(() => {
+        speakerRosterRef.current = speakerRoster
+    }, [speakerRoster])
+    const seededRosterMap = useCallback(
+        () => new Map((speakerRosterRef.current ?? []).map((entry) => [entry.speaker_id, entry] as const)),
+        [],
+    )
     const rosterRef = useRef<{ map: Map<string, ChatSpeakerRosterEntry>; narrator: ChatNarratorIdentity | null }>({
-        map: new Map(),
+        map: seededRosterMap(),
         narrator: null,
     })
     const restoreRef = useRef<TurnRestore | null>(null)
@@ -359,6 +374,18 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
 
     useEffect(() => clearGenerationWatchdog, [clearGenerationWatchdog])
 
+    // Persisted segments only carry speaker_id/speaker_name (portraits are stripped
+    // server-side), so hydrated AI turns re-resolve identity against the roster.
+    const resolveTurnIdentities = useCallback((list: TurnEntry[]): TurnEntry[] => {
+        const roster = rosterRef.current.map
+        if (roster.size === 0) return list
+        return list.map((turn) => {
+            const entry = turn as ExtendedTurnEntry
+            if (turn.type !== 'ai' || !entry.segments?.length) return turn
+            return { ...entry, segments: resolveSegmentIdentity(entry.segments, roster) }
+        })
+    }, [])
+
     const hydrateTurnsFromApi = useCallback(async () => {
         if (!isAuthenticated || Number.isNaN(sessionId)) return
         // Never hydrate over an in-flight stream: the server projection can't
@@ -377,14 +404,14 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
                 // Fold image then TTS state in; both apply terminal-precedence merges
                 // so a staler projection can't clobber live socket state.
                 const imageMerged = mergeHydratedImageTurns(turnsRef.current, textMerged)
-                const next = mergeHydratedTtsTurns(imageMerged, textMerged)
+                const next = resolveTurnIdentities(mergeHydratedTtsTurns(imageMerged, textMerged))
                 setTurnState(next)
                 void saveTurnsToApi(next)
             }
         } catch (err) {
             console.warn('Failed to hydrate chat media state:', err)
         }
-    }, [config, isAuthenticated, saveTurnsToApi, sessionId, setTurnState])
+    }, [config, isAuthenticated, resolveTurnIdentities, saveTurnsToApi, sessionId, setTurnState])
 
     const pollNonTerminalImageJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
         const jobs = snapshot.filter(hasNonTerminalImageJob)
@@ -458,10 +485,11 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
         isAuthenticated && token && !Number.isNaN(sessionId) ? sessionId : null,
         {
             onSpeakers: ({ roster, narrator }) => {
-                rosterRef.current = {
-                    map: new Map(roster.map((entry) => [entry.speaker_id, entry])),
-                    narrator: narrator ?? null,
-                }
+                // Live entries win over the seeded cast (fresher name/portrait),
+                // but seeded speakers absent from the frame stay resolvable.
+                const map = seededRosterMap()
+                for (const entry of roster) map.set(entry.speaker_id, entry)
+                rosterRef.current = { map, narrator: narrator ?? null }
                 // Stamp narrator identity so ChatTurn's eyebrow + the live status line
                 // can name the narrator (Game Master / scene-setting).
                 updateStreamingTurn((t) => ({ ...t, narratorIdentity: narrator ?? null }))
@@ -585,6 +613,13 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
         }
     }, [hydrateTurnsFromApi, socketStatus])
 
+    // The parent-seeded turns render before the first hydration, so attach
+    // roster portraits to them once at mount (both callbacks are stable).
+    useEffect(() => {
+        if (!speakerRosterRef.current?.length) return
+        setTurnState(resolveTurnIdentities(turnsRef.current))
+    }, [resolveTurnIdentities, setTurnState])
+
     useEffect(() => {
         const hasImage = turns.some(hasNonTerminalImageJob)
         const hasTts = turns.some(hasNonTerminalTtsJob)
@@ -695,7 +730,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
 
         streamingIdRef.current = aiTurn.id
         rawResponseRef.current = ''
-        rosterRef.current = { map: new Map(), narrator: null }
+        rosterRef.current = { map: seededRosterMap(), narrator: null }
         restoreRef.current = restore ?? null
 
         const streamingTurns = turnsRef.current.map((t) =>
@@ -729,7 +764,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
         armGenerationWatchdog()
     }
 
-    const handleRegenerateResponse = (turnId: string) => {
+    const handleRegenerateResponse = async (turnId: string) => {
         if (!isAuthenticated) {
             openLoginModal()
             return
@@ -787,6 +822,24 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config}: Int
         setTurnState(updatedTurns)
         setIsLoading(true)
         setError(null)
+        // Every generation appends a fresh canonical assistant row, so the
+        // replaced reply (and any canonical turns after it) must be deleted
+        // first — otherwise post-done hydration resurrects the old answer
+        // next to a duplicated user bubble.
+        const replacedIds = [existingAiTurn, ...turns.slice(turnIndex + 1)]
+            .map((turn) => canonicalMessageId(turn))
+            .filter((id): id is number => id !== undefined)
+        try {
+            for (const id of replacedIds) {
+                await config.deleteMessage(sessionId, id)
+            }
+        } catch (err) {
+            console.error('Failed to delete replaced turns before regenerating:', err)
+            setTurnState(turns)
+            setIsLoading(false)
+            setError(t('interaction.center.generateFailed'), true)
+            return
+        }
         saveTurnsToApi(updatedTurns)
         startGeneration(updatedTurns.slice(0, -1), resetAiTurn, restore)
     }

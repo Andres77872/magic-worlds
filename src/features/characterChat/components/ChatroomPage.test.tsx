@@ -151,6 +151,20 @@ describe('ChatroomPage', () => {
         expect(deleteCharacterChat).toHaveBeenCalledWith('chat-1')
     })
 
+    it('shows the group title when deleting a group chat', async () => {
+        render(<ChatroomPage />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra, Sable' }))
+        fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+
+        const dialog = screen.getByRole('dialog', { name: 'Delete chat' })
+        expect(within(dialog).getByText('Delete "Lyra, Sable"? This cannot be undone.')).toBeInTheDocument()
+
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+        expect(deleteCharacterChat).toHaveBeenCalledWith('chat-3')
+    })
+
     it('renders signed-out visitors and gates only new group chat', () => {
         authed = false
         characterChats = []

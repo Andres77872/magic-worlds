@@ -17,6 +17,7 @@ import { characterChatConfig } from '../../interaction/chatSessionConfig'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { InteractionCenterPanel, InteractionTopBar, SidePanelDrawer } from '../../interaction/components'
 import { CallScreen } from '../../call'
+import { chatDisplayTitle } from '@/utils/chatTitle'
 import { CharacterChatSidebar } from './CharacterChatSidebar'
 
 export function CharacterChat() {
@@ -125,9 +126,12 @@ function CharacterChatView({
     onEditCharacter,
 }: CharacterChatViewProps) {
     const { t } = useTranslation()
-    const cast = chat.characters?.length ? chat.characters : chat.character ? [chat.character] : []
+    const cast = useMemo(
+        () => (chat.characters?.length ? chat.characters : chat.character ? [chat.character] : []),
+        [chat.characters, chat.character],
+    )
     const isGroup = chat.kind === 'character_group' || cast.length > 1
-    const chatTitle = chat.title?.trim() || cast.map((character) => character.name).filter(Boolean).join(', ') || t('characterChat.fallbackTitle')
+    const chatTitle = chatDisplayTitle(chat) || t('characterChat.fallbackTitle')
     // Seed from the chat the provider built (greeting + history); the center panel
     // re-hydrates from the server on socket open too.
     const [turns, setTurns] = useState<TurnEntry[]>(chat.turns ?? [])
@@ -137,6 +141,17 @@ function CharacterChatView({
     const chatConfig = useMemo(
         () => characterChatConfig(chatTitle, { group: isGroup }),
         [chatTitle, isGroup],
+    )
+    // Cast identities for segment attribution: persisted turns only keep
+    // speaker_id/speaker_name, so portraits resolve from this roster (segment
+    // speaker_id is the card id on both sides).
+    const speakerRoster = useMemo(
+        () => cast.map((character) => ({
+            speaker_id: character.id,
+            name: character.name,
+            image_url: character.image_url ?? null,
+        })),
+        [cast],
     )
 
     return (
@@ -177,6 +192,7 @@ function CharacterChatView({
                         turns={turns}
                         setTurns={setTurns}
                         config={chatConfig}
+                        speakerRoster={speakerRoster}
                     />
                 </div>
             </div>

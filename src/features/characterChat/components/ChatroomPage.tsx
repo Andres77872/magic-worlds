@@ -15,6 +15,7 @@ import { toResumeSessions, type ResumeSession } from '@/features/landing/compone
 import { buildGalleryModeHash } from '@/features/gallery/galleryLinks'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { isGroupChatsFeatureEnabled } from '@/shared/featureFlags'
+import { chatDisplayTitle } from '@/utils/chatTitle'
 
 interface ActionNotice {
     tone: 'success' | 'error'
@@ -33,7 +34,7 @@ function searchableText(session: ResumeSession): string {
 }
 
 function chatTitle(chat: CharacterChatSession | null, t: TFunction): string {
-    return chat?.character?.name?.trim() || t('characterChat.room.thisChat')
+    return chatDisplayTitle(chat) || t('characterChat.room.thisChat')
 }
 
 export function ChatroomPage() {
