@@ -1,6 +1,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { formatApiTime } from '@/utils/time'
 import { ChatTurn } from './ChatTurn'
+
+// Pass-through spy: ChatTurn calls formatApiTime during render, so its call
+// count doubles as a render counter for the memoization test below.
+vi.mock('@/utils/time', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/utils/time')>()
+    return { ...actual, formatApiTime: vi.fn(actual.formatApiTime) }
+})
 
 vi.mock('../../../infrastructure/api/useAuthenticatedMediaUrl', () => ({
   useAuthenticatedMediaUrl: (url?: string | null) => ({ src: url ?? undefined, loading: false, error: null }),
@@ -208,5 +216,27 @@ Choose carefully.`
 
     expect(screen.getByText(/image generation failed/i)).toBeInTheDocument()
     expect(screen.getByText('The gate opens.')).toBeInTheDocument()
+  })
+})
+
+describe('ChatTurn memoization', () => {
+  it('bails out of re-renders while its props are unchanged (streaming siblings)', () => {
+    const turn = {
+      id: 'ai-memo',
+      type: 'ai' as const,
+      content: 'The gate holds.',
+      timestamp: '2026-06-04T00:00:00',
+    }
+    const { rerender } = render(<ChatTurn {...baseProps} turn={turn} />)
+
+    // Unchanged props (same turn identity) — memo must skip the render.
+    vi.mocked(formatApiTime).mockClear()
+    rerender(<ChatTurn {...baseProps} turn={turn} />)
+    expect(formatApiTime).not.toHaveBeenCalled()
+
+    // A mutated turn (new identity) still re-renders.
+    rerender(<ChatTurn {...baseProps} turn={{ ...turn, content: 'The gate breaks.' }} />)
+    expect(formatApiTime).toHaveBeenCalled()
+    expect(screen.getByText('The gate breaks.')).toBeInTheDocument()
   })
 })

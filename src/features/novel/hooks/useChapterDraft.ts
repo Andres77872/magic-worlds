@@ -16,6 +16,7 @@ import { dateFromApiTimestamp } from '@/utils/time'
 import type { NovelSaveState } from '../utils/novelUtils'
 
 const AUTOSAVE_DELAY_MS = 1200
+const SAVE_RETRY_DELAY_MS = 5000
 
 export interface ChapterDraftApi {
     title: string
@@ -49,9 +50,11 @@ export function useChapterDraft({ storyId, chapter }: { storyId: string | null; 
     const latestRef = useRef({ title: chapter?.title ?? '', body: chapter?.body ?? '', dirty: false })
     const chapterRef = useRef(chapter)
     const storyIdRef = useRef(storyId)
+    const isAuthenticatedRef = useRef(isAuthenticated)
     useEffect(() => {
         chapterRef.current = chapter
         storyIdRef.current = storyId
+        isAuthenticatedRef.current = isAuthenticated
     })
 
     const chapterId = chapter?.id ?? null
@@ -118,6 +121,39 @@ export function useChapterDraft({ storyId, chapter }: { storyId: string | null; 
             if (timerRef.current) window.clearTimeout(timerRef.current)
         }
     }, [body, chapterId, isAuthenticated, save, saveState, suspended, title])
+
+    // Failed saves retry on their own — without this, a network blip leaves the
+    // draft dirty until the user happens to type again (or forever, if they
+    // close the tab believing the last keystrokes were saved).
+    useEffect(() => {
+        if (saveState !== 'error' || suspended || !chapterId || !isAuthenticated) return
+        const timer = window.setTimeout(() => void save(), SAVE_RETRY_DELAY_MS)
+        return () => window.clearTimeout(timer)
+    }, [chapterId, isAuthenticated, save, saveState, suspended])
+
+    // In-app navigation unmounts the editor mid-debounce; fire-and-forget the
+    // tail of typing so it isn't silently dropped.
+    const saveRef = useRef(save)
+    useEffect(() => {
+        saveRef.current = save
+    })
+    useEffect(
+        () => () => {
+            if (latestRef.current.dirty && isAuthenticatedRef.current) void saveRef.current()
+        },
+        [],
+    )
+
+    // Warn before tab close/reload while anything is unsaved (or unsaveable).
+    useEffect(() => {
+        if (saveState !== 'dirty' && saveState !== 'saving' && saveState !== 'error') return
+        const handler = (e: BeforeUnloadEvent) => {
+            e.preventDefault()
+            e.returnValue = ''
+        }
+        window.addEventListener('beforeunload', handler)
+        return () => window.removeEventListener('beforeunload', handler)
+    }, [saveState])
 
     const flush = useCallback(async () => {
         if (timerRef.current) {

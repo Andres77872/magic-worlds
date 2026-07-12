@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { apiService } from '@/infrastructure/api'
 import type { BackgroundTaskOperation, BackgroundTaskPublic, ThemeSongJobPublic } from '@/shared'
 import {
@@ -7,6 +8,7 @@ import {
     BACKGROUND_TASK_FAILED_STATUSES,
     taskFromThemeSongJob,
 } from '@/shared'
+import { Toast, type ToastTone } from '@/ui/primitives'
 import { parseApiTimestamp } from '@/utils/time'
 import { useAuth } from '../hooks/useAuth'
 import { useData } from '../hooks/useData'
@@ -44,13 +46,60 @@ function taskHasAnyStatus(task: BackgroundTaskPublic, statuses: Set<string>): bo
     return statuses.has(task.status)
 }
 
+function taskKey(task: BackgroundTaskPublic): string {
+    return `${task.operation}:${task.task_id}`
+}
+
+// "Clear completed" is client-side only — the backend has no task delete/archive
+// endpoint (DELETE cancels). Dismissed keys persist so cleared tasks stay hidden
+// after the next poll returns them.
+const DISMISSED_TASKS_STORAGE_KEY = 'magic-worlds-tasks-dismissed'
+const DISMISSED_TASKS_CAP = 200
+
+function readDismissedKeys(): Set<string> {
+    try {
+        const raw = localStorage.getItem(DISMISSED_TASKS_STORAGE_KEY)
+        if (!raw) return new Set()
+        const parsed: unknown = JSON.parse(raw)
+        return new Set(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [])
+    } catch {
+        return new Set()
+    }
+}
+
+function persistDismissedKeys(keys: Set<string>) {
+    try {
+        localStorage.setItem(DISMISSED_TASKS_STORAGE_KEY, JSON.stringify([...keys].slice(-DISMISSED_TASKS_CAP)))
+    } catch {
+        // Storage unavailable — the tasks stay hidden for this session only.
+    }
+}
+
+interface TaskNotice {
+    tone: ToastTone
+    title: string
+    message?: string
+}
+
 export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
+    const { t } = useTranslation()
     const { isAuthenticated } = useAuth()
     const { loadData } = useData()
     const [tasks, setTasks] = useState<BackgroundTaskPublic[]>([])
     const [drawerOpen, setDrawerOpen] = useState(false)
+    const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(readDismissedKeys)
+    const [taskNotice, setTaskNotice] = useState<TaskNotice | null>(null)
     const previousStatusesRef = useRef<Map<string, string>>(new Map())
     const refreshInFlightRef = useRef(false)
+    // Read inside refreshTasks (long-lived poll) without churning its identity.
+    const drawerOpenRef = useRef(drawerOpen)
+    useEffect(() => {
+        drawerOpenRef.current = drawerOpen
+    }, [drawerOpen])
+
+    useEffect(() => {
+        persistDismissedKeys(dismissedKeys)
+    }, [dismissedKeys])
 
     const refreshTasks = useCallback(async () => {
         if (!isAuthenticated || refreshInFlightRef.current) return
@@ -68,11 +117,17 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
             const nextTasks = mergeTaskLists(fulfilled.map((item) => item.response.items))
             const previous = previousStatusesRef.current
             let completedActiveTask = false
+            // Tasks that finished (success or failure) since the previous poll.
+            // A missing `before` means this is the first poll after login — those
+            // are old news and must not toast.
+            const transitioned: BackgroundTaskPublic[] = []
             for (const task of nextTasks) {
-                const key = `${task.operation}:${task.task_id}`
+                const key = taskKey(task)
                 const before = previous.get(key)
                 if (before && ACTIVE_STATUS_SET.has(before) && !isActiveTask(task)) {
                     completedActiveTask = true
+                    // A cancel is user-initiated — announcing it back is noise.
+                    if (task.status !== 'canceled') transitioned.push(task)
                 }
                 previous.set(key, task.status)
             }
@@ -80,12 +135,30 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
             if (completedActiveTask) {
                 void loadData({ silent: true })
             }
+            // Announce finished work unless the user is already watching the drawer.
+            if (transitioned.length > 0 && !drawerOpenRef.current) {
+                const failedCount = transitioned.filter((task) => FAILED_STATUS_SET.has(task.status)).length
+                if (transitioned.length === 1) {
+                    const task = transitioned[0]
+                    const failed = FAILED_STATUS_SET.has(task.status)
+                    setTaskNotice({
+                        tone: failed ? 'error' : 'success',
+                        title: failed ? t('tasksDrawer.toast.failedTitle') : t('tasksDrawer.toast.completedTitle'),
+                        message: task.result?.lyrics?.song_title || t('tasksDrawer.fallback.themeSong'),
+                    })
+                } else {
+                    setTaskNotice({
+                        tone: failedCount > 0 ? 'error' : 'success',
+                        title: t('tasksDrawer.toast.multiple', { count: transitioned.length }),
+                    })
+                }
+            }
         } catch {
             // Background task polling is non-critical; the next tick will retry.
         } finally {
             refreshInFlightRef.current = false
         }
-    }, [isAuthenticated, loadData])
+    }, [isAuthenticated, loadData, t])
 
     const registerTask = useCallback((task: BackgroundTaskPublic) => {
         previousStatusesRef.current.set(`${task.operation}:${task.task_id}`, task.status)
@@ -104,6 +177,18 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         registerTask(updated)
     }, [registerTask])
 
+    /** Hide every task currently in the given terminal bucket. */
+    const clearTerminalTasks = useCallback((bucket: 'completed' | 'failed') => {
+        const statuses = bucket === 'completed' ? COMPLETED_STATUS_SET : FAILED_STATUS_SET
+        setDismissedKeys((prev) => {
+            const next = new Set(prev)
+            for (const task of tasks) {
+                if (statuses.has(task.status)) next.add(taskKey(task))
+            }
+            return next
+        })
+    }, [tasks])
+
     useEffect(() => {
         if (!isAuthenticated) {
             previousStatusesRef.current = new Map()
@@ -113,7 +198,11 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         return () => window.clearTimeout(timer)
     }, [isAuthenticated, refreshTasks])
 
-    const visibleTasks = useMemo(() => (isAuthenticated ? tasks : []), [isAuthenticated, tasks])
+    // Hide tasks the user cleared from the panel (client-side dismiss).
+    const visibleTasks = useMemo(
+        () => (isAuthenticated ? tasks.filter((task) => !dismissedKeys.has(taskKey(task))) : []),
+        [dismissedKeys, isAuthenticated, tasks],
+    )
     const activeTasks = useMemo(() => visibleTasks.filter(isActiveTask), [visibleTasks])
     const taskBuckets = useMemo(
         () => ({
@@ -143,7 +232,27 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         registerTask,
         registerThemeSongJob,
         cancelTask,
+        clearTerminalTasks,
     }
 
-    return <BackgroundTasksContext.Provider value={value}>{children}</BackgroundTasksContext.Provider>
+    return (
+        <BackgroundTasksContext.Provider value={value}>
+            {children}
+            <Toast
+                open={taskNotice !== null}
+                tone={taskNotice?.tone ?? 'success'}
+                title={taskNotice?.title ?? ''}
+                message={taskNotice?.message}
+                onClose={() => setTaskNotice(null)}
+                autoCloseMs={6000}
+                action={{
+                    label: t('tasksDrawer.toast.open'),
+                    onClick: () => {
+                        setTaskNotice(null)
+                        setDrawerOpen(true)
+                    },
+                }}
+            />
+        </BackgroundTasksContext.Provider>
+    )
 }

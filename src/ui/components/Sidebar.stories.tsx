@@ -50,6 +50,7 @@ const backgroundTasks: BackgroundTasksValue = {
   registerTask: () => {},
   registerThemeSongJob: () => {},
   cancelTask: async () => {},
+  clearTerminalTasks: () => {},
 }
 
 /** Wrap the rail in real Navigation context + a mocked Auth context. */

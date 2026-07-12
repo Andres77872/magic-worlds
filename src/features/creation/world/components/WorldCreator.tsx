@@ -52,11 +52,13 @@ import {
     readCategoryAttribute,
     useCardDraft,
     useCardEditorRoute,
+    useDirtyPayload,
     useGuidedCard,
     type CardTemplate,
 } from '../../common/engine'
 import { buildCardEditHash } from '@/features/gallery/galleryLinks'
-import { LoadingSpinner } from '@/ui/components'
+import { useUnsavedChangesGuard } from '@/shared/hooks'
+import { ConfirmDialog, LoadingSpinner } from '@/ui/components'
 import { Toast } from '@/ui/primitives/Toast'
 import { CreatorIntro, TemplateGallery } from '../../common/templates'
 import {
@@ -163,9 +165,15 @@ export function WorldCreator() {
         ],
     })
 
-    const nameError = touched && !name.trim() ? t('creation.world.validation.nameRequired') : undefined
-    const placeTypeError = touched && !placeType.trim() ? t('creation.world.validation.placeTypeRequired') : undefined
-    const typeError = touched && !type.trim() ? t('creation.world.validation.genreRequired') : undefined
+    // Per-field blur tracking gives early feedback; submit (`touched`) still
+    // flags every untouched required field at once.
+    const [touchedFields, setTouchedFields] = useState<{ name?: boolean; placeType?: boolean; type?: boolean }>({})
+    const markFieldTouched = (field: 'name' | 'placeType' | 'type') =>
+        setTouchedFields((prev) => (prev[field] ? prev : { ...prev, [field]: true }))
+
+    const nameError = (touched || touchedFields.name) && !name.trim() ? t('creation.world.validation.nameRequired') : undefined
+    const placeTypeError = (touched || touchedFields.placeType) && !placeType.trim() ? t('creation.world.validation.placeTypeRequired') : undefined
+    const typeError = (touched || touchedFields.type) && !type.trim() ? t('creation.world.validation.genreRequired') : undefined
     const selectedPlaceTypeOption = worldPlaceTypeOptionValue(placeType)
 
     const detailKeys = useMemo(
@@ -191,6 +199,8 @@ export function WorldCreator() {
         setThemeSongUrl(card.theme_song_url)
         // The Setting/Place type mirror overrides the place type set above when present.
         guided.hydrateFrom(card, { preserveActive: true })
+        // The hydrated body is the persisted state — re-baseline dirty tracking.
+        markClean()
     }
 
     // Deep-link / refresh: when the URL carries `?card=<id>` but no card is in memory, fetch it and
@@ -220,6 +230,11 @@ export function WorldCreator() {
         theme_song_url: themeSongUrl,
     })
 
+    // Unsaved-changes protection: dirty when the payload drifted from the last
+    // hydrated/saved baseline. Guards in-app navigation and tab close.
+    const { dirty, markClean } = useDirtyPayload(JSON.stringify(buildPayload()))
+    const guard = useUnsavedChangesGuard({ when: dirty })
+
     /**
      * Ensure the card exists on the server and return its id — auto-saving first
      * if needed (theme generation needs a real target id).
@@ -239,13 +254,15 @@ export function WorldCreator() {
             savedIdRef.current = editingWorld.id
             return editingWorld.id
         }
-        const created = await apiService.createWorld(buildPayload())
+        const payload = buildPayload()
+        const created = await apiService.createWorld(payload)
         const saved = toWorld(created as WorldCardResponse)
         if (saved.id) {
             setEditingWorld(saved)
             // Stamp the new id into the URL so a refresh mid-edit restores this card.
             replaceHash(buildCardEditHash('world', saved.id))
         }
+        markClean(JSON.stringify(payload))
         savedIdRef.current = saved.id
         // No loadData() here: a refresh would unmount this creator mid-generation (AppRouter
         // shows a spinner while loading). The new card lands in the gallery on Save.
@@ -331,6 +348,7 @@ export function WorldCreator() {
             if (editingWorld) {
                 // Edit mode: save to the private draft and stay; Publish makes it live + a version.
                 const ok = await draft.saveDraft(payload)
+                if (ok) markClean(JSON.stringify(payload))
                 setDraftToast(
                     ok
                         ? { tone: 'success', message: t('cardVersions.draft.saved') }
@@ -346,6 +364,7 @@ export function WorldCreator() {
                     // Stamp the new id into the URL so a refresh keeps the freshly-created card.
                     replaceHash(buildCardEditHash('world', saved.id))
                 }
+                markClean(JSON.stringify(payload))
                 await loadData({ silent: true })
             }
         } catch (error) {
@@ -390,8 +409,10 @@ export function WorldCreator() {
     }
 
     const handleBack = () => {
-        setEditingWorld(null)
-        goBack('landing')
+        guard.confirm(() => {
+            setEditingWorld(null)
+            goBack('landing')
+        })
     }
 
     /** Back from the form: to the gallery while creating, to the library otherwise. */
@@ -459,6 +480,14 @@ export function WorldCreator() {
                     />
                 </CreatorIntro>
                 {chatbot}
+                <ConfirmDialog
+                    {...guard.dialogProps}
+                    variant="danger"
+                    title={t('common.unsavedChanges.title')}
+                    message={t('common.unsavedChanges.body')}
+                    confirmLabel={t('common.unsavedChanges.leave')}
+                    cancelLabel={t('common.unsavedChanges.stay')}
+                />
             </>
         )
     }
@@ -537,6 +566,7 @@ export function WorldCreator() {
                                 id="world-name"
                                 value={name}
                                 onChange={setName}
+                                onBlur={() => markFieldTouched('name')}
                                 autoFocus
                                 className="text-xl font-medium font-display"
                                 placeholder={firstClass.name ?? t('creation.world.fieldsForm.namePlaceholder')}
@@ -567,6 +597,7 @@ export function WorldCreator() {
                                 id="world-place-type-custom"
                                 value={placeType}
                                 onChange={setPlaceType}
+                                onBlur={() => markFieldTouched('placeType')}
                                 placeholder={t('creation.world.fieldsForm.customPlaceTypePlaceholder')}
                             />
                         </CreatorField>
@@ -583,6 +614,7 @@ export function WorldCreator() {
                             id="world-type"
                             value={type}
                             onChange={setType}
+                            onBlur={() => markFieldTouched('type')}
                             options={genreOptions}
                             placeholder={firstClass.type ?? t('creation.world.fieldsForm.genrePlaceholder')}
                         />
@@ -693,6 +725,14 @@ export function WorldCreator() {
             title={draftToast?.message ?? ''}
             onClose={() => setDraftToast(null)}
             autoCloseMs={3000}
+        />
+        <ConfirmDialog
+            {...guard.dialogProps}
+            variant="danger"
+            title={t('common.unsavedChanges.title')}
+            message={t('common.unsavedChanges.body')}
+            confirmLabel={t('common.unsavedChanges.leave')}
+            cancelLabel={t('common.unsavedChanges.stay')}
         />
         </>
     )

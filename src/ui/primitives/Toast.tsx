@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, CheckCircle2, X } from 'lucide-react'
 import { cx } from './cx'
+import { Button } from './Button'
 import { IconButton } from './IconButton'
 
 export type ToastTone = 'success' | 'error'
@@ -14,6 +15,8 @@ interface ToastProps {
     message?: ReactNode
     onClose: () => void
     autoCloseMs?: number | false
+    /** Optional follow-up action rendered under the text (e.g. "Open tasks"). */
+    action?: { label: string; onClick: () => void }
 }
 
 const TONE: Record<ToastTone, string> = {
@@ -22,15 +25,16 @@ const TONE: Record<ToastTone, string> = {
 }
 
 /** Floating app notice for short-lived action feedback. */
-export function Toast({ open, tone, title, message, onClose, autoCloseMs }: ToastProps) {
+export function Toast({ open, tone, title, message, onClose, autoCloseMs, action }: ToastProps) {
     const { t } = useTranslation()
     const titleId = useId()
 
     useEffect(() => {
-        if (!open || autoCloseMs === false || !autoCloseMs) return
+        // Errors stay until dismissed — auto-close only ever applies to success notices.
+        if (!open || tone === 'error' || autoCloseMs === false || !autoCloseMs) return
         const timer = window.setTimeout(onClose, autoCloseMs)
         return () => window.clearTimeout(timer)
-    }, [autoCloseMs, onClose, open])
+    }, [autoCloseMs, onClose, open, tone])
 
     if (!open || typeof document === 'undefined') return null
 
@@ -65,6 +69,11 @@ export function Toast({ open, tone, title, message, onClose, autoCloseMs }: Toas
                         <p className="mt-0.5 break-words font-ui text-caption leading-relaxed text-parchment-300">
                             {message}
                         </p>
+                    )}
+                    {action && (
+                        <Button variant="ghost" size="sm" className="mt-1.5 -ml-2" onClick={action.onClick}>
+                            {action.label}
+                        </Button>
                     )}
                 </div>
                 <IconButton label={t('ui.toast.dismiss')} size="sm" onClick={onClose}>

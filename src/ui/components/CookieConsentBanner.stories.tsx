@@ -16,6 +16,7 @@ const navStub: NavValue = {
     resourceEdit: null,
     replaceHash: () => {},
     currentHash: '',
+    registerNavigationInterceptor: () => () => {},
 }
 
 // Forget any prior choice on each render so the banner is always visible in the

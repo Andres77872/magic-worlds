@@ -19,6 +19,7 @@ const STATIC_PAGE_HASHES: Array<[PageType, string]> = [
     ['active-adventures', '#/active-adventures'],
     ['community', '#/community'],
     ['admin-voices', '#/admin/voices'],
+    ['admin-agents', '#/admin/agents'],
     ['about', '#/about'],
     ['contact', '#/contact'],
     ['privacy', '#/privacy'],

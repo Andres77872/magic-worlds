@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, cardEdit: mocks.cardEdit, replaceHash: mocks.replaceHash }),
+    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, cardEdit: mocks.cardEdit, replaceHash: mocks.replaceHash, registerNavigationInterceptor: () => () => {} }),
     useData: () => ({
         editingCharacter: mocks.editingCharacter,
         setEditingCharacter: mocks.setEditingCharacter,
@@ -330,6 +330,48 @@ describe('CharacterCreator navigation', () => {
 
         expect(mocks.goBack).not.toHaveBeenCalled()
         expect(screen.getByRole('button', { name: /skip — start with the standard fields/i })).toBeInTheDocument()
+    })
+
+    it('flags a required field on blur, before any submit', () => {
+        render(<CharacterCreator />)
+        fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
+
+        const nameInput = screen.getByPlaceholderText(/lyra emberwind/i)
+        expect(screen.queryByText(/name is required/i)).toBeNull()
+
+        fireEvent.blur(nameInput)
+        expect(screen.getByText(/name is required/i)).toBeInTheDocument()
+
+        fireEvent.change(nameInput, { target: { value: 'Bren' } })
+        expect(screen.queryByText(/name is required/i)).toBeNull()
+
+        // Untouched required fields still get flagged all at once on submit.
+        fireEvent.click(screen.getByRole('button', { name: /^Create Character$/i }))
+        expect(screen.getByText(/race \/ species is required/i)).toBeInTheDocument()
+        expect(mocks.createCharacter).not.toHaveBeenCalled()
+    })
+
+    it('asks before leaving when the form has unsaved changes', () => {
+        mocks.editingCharacter = { id: 'char-1', name: 'Nyra', race: 'moon elf', description: '', triggers: [] }
+        render(<CharacterCreator />)
+
+        fireEvent.change(screen.getByPlaceholderText(/lyra emberwind/i), { target: { value: 'Nyra Renamed' } })
+        fireEvent.click(screen.getByRole('button', { name: /^Back$/i }))
+
+        // Blocked: the confirm dialog is up, nothing navigated yet.
+        expect(mocks.goBack).not.toHaveBeenCalled()
+        expect(screen.getByText('Leave without saving?')).toBeInTheDocument()
+
+        // Stay: dialog closes, still no navigation, edits intact.
+        fireEvent.click(screen.getByRole('button', { name: /keep editing/i }))
+        expect(mocks.goBack).not.toHaveBeenCalled()
+        expect(screen.getByDisplayValue('Nyra Renamed')).toBeInTheDocument()
+
+        // Leave: navigation completes.
+        fireEvent.click(screen.getByRole('button', { name: /^Back$/i }))
+        fireEvent.click(screen.getByRole('button', { name: /^Leave$/i }))
+        expect(mocks.setEditingCharacter).toHaveBeenCalledWith(null)
+        expect(mocks.goBack).toHaveBeenCalledWith('landing')
     })
 })
 

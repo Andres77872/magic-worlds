@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlignVerticalSpaceAround, BookMarked, History, Minimize2, PanelRightOpen, Save } from 'lucide-react'
+import { AlignVerticalSpaceAround, BookMarked, History, Minimize2, PanelRightOpen, RotateCcw, Save } from 'lucide-react'
 import type { Story } from '@/shared'
 import { Button, Eyebrow, Icon, cx } from '@/ui/primitives'
 import { formatSaveState, storySourceLabel, type NovelSaveState } from '../utils/novelUtils'
@@ -111,6 +111,17 @@ export function NovelStudioHeader({
                     >
                         {formatSaveState(saveState, lastSavedAt, t)}
                     </span>
+                    {saveState === 'error' && (
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            iconLeft={<Icon icon={RotateCcw} size={15} />}
+                            onClick={onSave}
+                            disabled={saveDisabled}
+                        >
+                            {t('novelEditor.save.retry')}
+                        </Button>
+                    )}
                     <WordGoalControl words={words} goal={goal} onSetGoal={onSetGoal} />
                     <Button
                         variant={typewriter ? 'secondary' : 'ghost'}

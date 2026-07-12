@@ -165,6 +165,7 @@ export function MediaStudioSection({
     const [direction, setDirection] = useState('')
     const [imgBusy, setImgBusy] = useState(false)
     const [imgBusyKind, setImgBusyKind] = useState<'generate' | 'upload'>('generate')
+    const [imgStage, setImgStage] = useState<ImageJobPublicResponse['status'] | null>(null)
     const [imgError, setImgError] = useState<string | null>(null)
     const [viewerOpen, setViewerOpen] = useState(false)
     const imgAbortRef = useRef<AbortController | null>(null)
@@ -248,12 +249,22 @@ export function MediaStudioSection({
             }
             let job: ImageJobPublicResponse = await apiService.generateCardPortrait(body, { signal: controller.signal })
             if (job.status !== 'completed') {
-                job = await apiService.waitForImageJob(job.job_id, { signal: controller.signal })
+                setImgStage(job.status)
+                job = await apiService.waitForImageJob(job.job_id, {
+                    signal: controller.signal,
+                    onUpdate: (update) => {
+                        if (mountedRef.current) setImgStage(update.status)
+                    },
+                })
             }
             if (!mountedRef.current) return
             const url = job.assets?.[0]?.url
             if (job.status === 'completed' && url) {
                 onImageUrl(url)
+            } else if (job.status === 'pending' || job.status === 'in_progress' || job.status === 'mirroring') {
+                // The local wait deadline passed but the job is still running server-side —
+                // this is "slow", not "failed".
+                setImgError(t('creation.common.media.errors.timeout'))
             } else {
                 setImgError(mediaErrorCopy(job.error ?? { category: job.status }, 'portrait', t))
             }
@@ -265,7 +276,10 @@ export function MediaStudioSection({
                 setImgError(mediaErrorCopy(err, 'portrait', t))
             }
         } finally {
-            if (mountedRef.current) setImgBusy(false)
+            if (mountedRef.current) {
+                setImgBusy(false)
+                setImgStage(null)
+            }
             imgAbortRef.current = null
         }
     }
@@ -426,7 +440,12 @@ export function MediaStudioSection({
           : cardType === 'item'
             ? t('creation.common.media.itemImage')
             : t('creation.common.media.profileImage')
-    const imgBusyLabel = imgBusyKind === 'upload' ? t('creation.common.media.uploading') : t('creation.common.media.generating')
+    const imgBusyLabel =
+        imgBusyKind === 'upload'
+            ? t('creation.common.media.uploading')
+            : imgStage === 'pending' || imgStage === 'in_progress' || imgStage === 'mirroring'
+              ? t(`creation.common.media.stages.${imgStage}`)
+              : t('creation.common.media.generating')
 
     // Rendered once per layout — the hidden picker drives Replace/Upload, the
     // lightbox drives View. Both read the same refs/state as the action buttons.

@@ -155,6 +155,67 @@ describe('useChapterDraft', () => {
         expect(updateStoryChapter).toHaveBeenCalledTimes(1)
     })
 
+    it('auto-retries a failed save without further typing', async () => {
+        updateStoryChapter.mockRejectedValueOnce(new Error('boom'))
+        const { result } = renderHook(() => useChapterDraft({ storyId: 's1', chapter: chapter() }))
+
+        act(() => result.current.onBodyChange('New text.'))
+        await act(async () => {
+            vi.advanceTimersByTime(1200)
+            await Promise.resolve()
+        })
+        expect(result.current.saveState).toBe('error')
+        expect(updateStoryChapter).toHaveBeenCalledTimes(1)
+
+        await act(async () => {
+            vi.advanceTimersByTime(5000)
+            await Promise.resolve()
+        })
+        expect(updateStoryChapter).toHaveBeenCalledTimes(2)
+        expect(updateStoryChapter).toHaveBeenLastCalledWith('s1', 'ch1', {
+            title: 'Chapter 1',
+            body: 'New text.',
+            status: 'draft',
+        })
+        expect(result.current.saveState).toBe('saved')
+    })
+
+    it('flushes a dirty draft when the hook unmounts', () => {
+        const { result, unmount } = renderHook(() => useChapterDraft({ storyId: 's1', chapter: chapter() }))
+
+        act(() => result.current.onBodyChange('Tail of typing.'))
+        expect(updateStoryChapter).not.toHaveBeenCalled()
+
+        unmount()
+
+        expect(updateStoryChapter).toHaveBeenCalledTimes(1)
+        expect(updateStoryChapter).toHaveBeenCalledWith('s1', 'ch1', {
+            title: 'Chapter 1',
+            body: 'Tail of typing.',
+            status: 'draft',
+        })
+    })
+
+    it('blocks tab unload only while unsaved work exists', async () => {
+        const { result } = renderHook(() => useChapterDraft({ storyId: 's1', chapter: chapter() }))
+
+        const cleanEvent = new Event('beforeunload', { cancelable: true })
+        window.dispatchEvent(cleanEvent)
+        expect(cleanEvent.defaultPrevented).toBe(false)
+
+        act(() => result.current.onBodyChange('New text.'))
+        const dirtyEvent = new Event('beforeunload', { cancelable: true })
+        window.dispatchEvent(dirtyEvent)
+        expect(dirtyEvent.defaultPrevented).toBe(true)
+
+        await act(async () => {
+            await result.current.flush()
+        })
+        const savedEvent = new Event('beforeunload', { cancelable: true })
+        window.dispatchEvent(savedEvent)
+        expect(savedEvent.defaultPrevented).toBe(false)
+    })
+
     it('resets the draft when the chapter id changes but not on same-id refetches', () => {
         const first = chapter()
         const { result, rerender } = renderHook(({ ch }) => useChapterDraft({ storyId: 's1', chapter: ch }), {

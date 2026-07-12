@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack }),
+    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, registerNavigationInterceptor: () => () => {} }),
     useData: () => ({
         characters: [],
         worlds: [],

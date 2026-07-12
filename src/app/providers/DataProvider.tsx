@@ -3,7 +3,7 @@
  * Uses API for data persistence instead of localStorage
  */
 
-import { createContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import type {
     Character,
     World,
@@ -325,6 +325,11 @@ export function DataProvider({ children }: DataProviderProps) {
 
     // UI state
     const [loadingState, setLoadingState] = useState<LoadingState>({ isLoading: true })
+    // True once any loadData pass has completed — later auth transitions reload
+    // silently so the mounted page (and its local editor state) survives.
+    const hasLoadedOnceRef = useRef(false)
+    // True between an `auth:expired` event and the next authenticated load.
+    const authExpiredRef = useRef(false)
 
     // Auth state for graceful degradation
     const { isAuthenticated, openLoginModal } = useAuth()
@@ -459,11 +464,10 @@ export function DataProvider({ children }: DataProviderProps) {
             setEditingInProgress(newInProgressAdventure)
             return newInProgressAdventure
         } catch (error) {
+            // Thrown to the caller, which owns the user-facing error surface —
+            // writing it into loadingState.error would double-report it in the
+            // global data-load banner.
             console.error('Failed to start adventure from template:', error)
-            setLoadingState({ 
-                isLoading: false, 
-                error: error instanceof Error ? error.message : 'Failed to start adventure' 
-            })
             throw error
         }
     }
@@ -774,11 +778,8 @@ export function DataProvider({ children }: DataProviderProps) {
             setCharacterChats((prev) => [chat, ...prev.filter((c) => c.id !== chat.id)])
             return chat
         } catch (error) {
+            // Thrown to the caller (persona picker / gallery), which surfaces it.
             console.error('Failed to start character chat:', error)
-            setLoadingState({
-                isLoading: false,
-                error: error instanceof Error ? error.message : 'Failed to start character chat',
-            })
             throw error
         }
     }
@@ -804,11 +805,8 @@ export function DataProvider({ children }: DataProviderProps) {
             setCharacterChats((prev) => [chat, ...prev.filter((existing) => existing.id !== chat.id)])
             return chat
         } catch (error) {
+            // Thrown to the caller (group chat setup), which surfaces it.
             console.error('Failed to start character group chat:', error)
-            setLoadingState({
-                isLoading: false,
-                error: error instanceof Error ? error.message : 'Failed to start character group chat',
-            })
             throw error
         }
     }
@@ -923,10 +921,16 @@ export function DataProvider({ children }: DataProviderProps) {
                 setTemplateAdventures([])
                 setInProgressAdventures([])
                 setLorebooks([])
-                setStories([])
-                setActiveStory(null)
+                // On session expiry (not an explicit logout) the login modal lets the
+                // user re-authenticate in place — keep the open story mounted so a
+                // dirty chapter draft survives and its autosave resumes after re-auth.
+                if (!authExpiredRef.current) {
+                    setStories([])
+                    setActiveStory(null)
+                }
                 setCharacterChats([])
                 if (!silent) setLoadingState({ isLoading: false })
+                hasLoadedOnceRef.current = true
                 return
             }
 
@@ -1019,15 +1023,19 @@ export function DataProvider({ children }: DataProviderProps) {
             if (storiesRes.status === 'fulfilled') setStories(asArray(loadedStories) as Story[])
 
             if (import.meta.env.DEV) console.log('[DataProvider] State updated successfully')
-            // Silent refresh never touches isLoading (would unmount the page); the
-            // lists were already updated in place above.
-            if (!silent) {
-                setLoadingState(
-                    failures.length
-                        ? { isLoading: false, error: 'Some content failed to load — try refreshing.' }
-                        : { isLoading: false }
-                )
-            }
+            // Silent refresh never touches isLoading (would unmount the page), but
+            // it does keep `error` truthful so the data-load banner appears during
+            // an outage and clears once a background refresh succeeds. The bail-out
+            // (returning `prev`) keeps no-change polls render-free.
+            const nextError = failures.length ? 'Some content failed to load — try refreshing.' : undefined
+            setLoadingState((prev) => {
+                if (silent) {
+                    return prev.error === nextError ? prev : { ...prev, error: nextError }
+                }
+                return { isLoading: false, error: nextError }
+            })
+            hasLoadedOnceRef.current = true
+            authExpiredRef.current = false
         } catch (error) {
             // A transient backend outage (5xx, e.g. auth service briefly down →
             // 503) is expected and recovers on its own — log it quietly. The UI
@@ -1084,9 +1092,23 @@ export function DataProvider({ children }: DataProviderProps) {
         }
     }
 
-    // Load data on mount and whenever auth state changes (login / logout).
+    // Distinguish a session expiry from an explicit logout: expiry keeps the
+    // active story mounted (see the unauthenticated branch of loadData) so a
+    // re-login through the modal never destroys in-progress writing.
     useEffect(() => {
-        loadData()
+        const markExpired = () => {
+            authExpiredRef.current = true
+        }
+        window.addEventListener('auth:expired', markExpired)
+        return () => window.removeEventListener('auth:expired', markExpired)
+    }, [])
+
+    // Load data on mount and whenever auth state changes (login / logout).
+    // After the first completed load, auth transitions refresh silently — a
+    // non-silent load flips `isLoading`, which unmounts the current page and
+    // destroys any in-progress editor state (creator forms, chapter drafts).
+    useEffect(() => {
+        loadData({ silent: hasLoadedOnceRef.current })
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated])
     

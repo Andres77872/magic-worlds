@@ -44,6 +44,7 @@ const backgroundTasks: BackgroundTasksValue = {
     cancelTask: async () => {
         throw new Error('not implemented in test')
     },
+    clearTerminalTasks: () => undefined,
 }
 
 const apiStatus: ApiStatusContextValue = { status: 'online', services: [] }

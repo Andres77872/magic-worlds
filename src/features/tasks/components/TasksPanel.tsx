@@ -6,7 +6,7 @@
  * visually and behaviourally identical.
  */
 import { useMemo, useState } from 'react'
-import { AlertCircle, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Clock3, FileAudio, Loader2, Music2, RefreshCw, XCircle } from 'lucide-react'
+import { AlertCircle, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Clock3, FileAudio, Loader2, Music2, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { useBackgroundTasks, useData } from '@/app/hooks'
@@ -164,7 +164,7 @@ function toAdventurePreview(card: Adventure, targetId: string, t: TFunction): At
 
 export function TasksPanel({ dense = false }: { dense?: boolean }) {
     const { t } = useTranslation()
-    const { taskBuckets, refreshTasks, cancelTask } = useBackgroundTasks()
+    const { taskBuckets, refreshTasks, cancelTask, clearTerminalTasks } = useBackgroundTasks()
     const { characters, worlds, items, templateAdventures } = useData()
     const [activeTab, setActiveTab] = useState<TaskTab>('active')
     const [isRefreshing, setIsRefreshing] = useState(false)
@@ -292,6 +292,19 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
                 <span role="status" className="sr-only">
                     {t('tasksDrawer.activeStatus', { count: counts.active })}
                 </span>
+
+                {activeTab !== 'active' && visibleTasks.length > 0 && (
+                    <div className="-mt-1 flex justify-end">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            iconLeft={<Icon icon={Trash2} size={14} />}
+                            onClick={() => clearTerminalTasks(activeTab)}
+                        >
+                            {t(activeTab === 'completed' ? 'tasksDrawer.actions.clearCompleted' : 'tasksDrawer.actions.clearFailed')}
+                        </Button>
+                    </div>
+                )}
 
                 {visibleTasks.length === 0 ? (
                     <EmptyState

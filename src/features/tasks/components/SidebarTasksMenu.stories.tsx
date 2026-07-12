@@ -42,6 +42,7 @@ function tasksValue(buckets: BackgroundTaskBuckets): TasksValue {
         registerTask: () => {},
         registerThemeSongJob: () => {},
         cancelTask: async () => {},
+        clearTerminalTasks: () => {},
     }
 }
 

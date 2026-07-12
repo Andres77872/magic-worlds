@@ -88,3 +88,43 @@ describe('MediaStudioSection image actions', () => {
         expect(onImageUrl).not.toHaveBeenCalled()
     })
 })
+
+describe('MediaStudioSection image generation', () => {
+    const genMock = apiService.generateCardPortrait as unknown as Mock
+    const waitMock = apiService.waitForImageJob as unknown as Mock
+
+    it('shows still-running copy (not a failure) when the wait deadline passes', async () => {
+        genMock.mockResolvedValue({ job_id: 'j1', status: 'pending' })
+        // pollUntilTerminal returns the job as-is when the deadline passes first.
+        waitMock.mockResolvedValue({ job_id: 'j1', status: 'in_progress' })
+        const onImageUrl = vi.fn()
+        renderPanel({ onImageUrl })
+
+        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+
+        expect(await screen.findByText(/taking a while/i)).toBeInTheDocument()
+        expect(onImageUrl).not.toHaveBeenCalled()
+    })
+
+    it('surfaces the live job stage while waiting', async () => {
+        genMock.mockResolvedValue({ job_id: 'j1', status: 'pending' })
+        let resolveWait!: (job: unknown) => void
+        waitMock.mockImplementation(
+            (_id: string, opts: { onUpdate?: (job: unknown) => void }) => {
+                opts.onUpdate?.({ job_id: 'j1', status: 'mirroring' })
+                return new Promise((res) => {
+                    resolveWait = res
+                })
+            },
+        )
+        const onImageUrl = vi.fn()
+        renderPanel({ onImageUrl })
+
+        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+
+        expect(await screen.findByText('Saving image…')).toBeInTheDocument()
+
+        resolveWait({ job_id: 'j1', status: 'completed', assets: [{ url: '/img.png' }] })
+        await waitFor(() => expect(onImageUrl).toHaveBeenCalledWith('/img.png'))
+    })
+})

@@ -39,9 +39,10 @@ import {
     type StudioNavItem,
     type AttributePreset,
 } from '../../common/components'
-import { GuidedSection, UseExampleLink, useCardDraft, useCardEditorRoute, useGuidedCard, type CardTemplate } from '../../common/engine'
+import { GuidedSection, UseExampleLink, useCardDraft, useCardEditorRoute, useDirtyPayload, useGuidedCard, type CardTemplate } from '../../common/engine'
 import { buildCardEditHash } from '@/features/gallery/galleryLinks'
-import { LoadingSpinner } from '@/ui/components'
+import { useUnsavedChangesGuard } from '@/shared/hooks'
+import { ConfirmDialog, LoadingSpinner } from '@/ui/components'
 import { Toast } from '@/ui/primitives/Toast'
 import { CreatorIntro, TemplateGallery } from '../../common/templates'
 import { getItemFields, getItemRarityOptions, getItemSections, getItemTypeOptions } from '../fields'
@@ -131,8 +132,14 @@ export function ItemCreator() {
         entity: editingItem,
     })
 
-    const nameError = touched && !name.trim() ? t('creation.item.validation.nameRequired') : undefined
-    const descriptionError = touched && !description.trim() ? t('creation.item.validation.descriptionRequired') : undefined
+    // Per-field blur tracking gives early feedback; submit (`touched`) still
+    // flags every untouched required field at once.
+    const [touchedFields, setTouchedFields] = useState<{ name?: boolean; description?: boolean }>({})
+    const markFieldTouched = (field: 'name' | 'description') =>
+        setTouchedFields((prev) => (prev[field] ? prev : { ...prev, [field]: true }))
+
+    const nameError = (touched || touchedFields.name) && !name.trim() ? t('creation.item.validation.nameRequired') : undefined
+    const descriptionError = (touched || touchedFields.description) && !description.trim() ? t('creation.item.validation.descriptionRequired') : undefined
 
     const traitKeys = useMemo(
         () => (guided.attributes['traits'] || []).map((row) => row.key.toLowerCase()),
@@ -162,6 +169,8 @@ export function ItemCreator() {
         setImageUrl(card.image_url)
         setThemeSongUrl(card.theme_song_url)
         guided.hydrateFrom(card, { preserveActive: true })
+        // The hydrated body is the persisted state — re-baseline dirty tracking.
+        markClean()
     }
 
     // Deep-link / refresh: when the URL carries `?card=<id>` but no card is in memory, fetch it and
@@ -196,6 +205,11 @@ export function ItemCreator() {
         theme_song_url: themeSongUrl,
     })
 
+    // Unsaved-changes protection: dirty when the payload drifted from the last
+    // hydrated/saved baseline. Guards in-app navigation and tab close.
+    const { dirty, markClean } = useDirtyPayload(JSON.stringify(buildPayload()))
+    const guard = useUnsavedChangesGuard({ when: dirty })
+
     const ensureSaved = async (): Promise<string> => {
         if (!isAuthenticated) {
             openLoginModal()
@@ -211,13 +225,15 @@ export function ItemCreator() {
             savedIdRef.current = editingItem.id
             return editingItem.id
         }
-        const created = await apiService.createItem(buildPayload())
+        const payload = buildPayload()
+        const created = await apiService.createItem(payload)
         const saved = toItem(created as ItemCardResponse)
         if (saved.id) {
             setEditingItem(saved)
             // Stamp the new id into the URL so a refresh mid-edit restores this card.
             replaceHash(buildCardEditHash('item', saved.id))
         }
+        markClean(JSON.stringify(payload))
         savedIdRef.current = saved.id
         return saved.id
     }
@@ -284,6 +300,7 @@ export function ItemCreator() {
             if (editingItem) {
                 // Edit mode: save to the private draft and stay; Publish makes it live + a version.
                 const ok = await draft.saveDraft(payload)
+                if (ok) markClean(JSON.stringify(payload))
                 setDraftToast(
                     ok
                         ? { tone: 'success', message: t('cardVersions.draft.saved') }
@@ -299,6 +316,7 @@ export function ItemCreator() {
                     // Stamp the new id into the URL so a refresh keeps the freshly-created card.
                     replaceHash(buildCardEditHash('item', saved.id))
                 }
+                markClean(JSON.stringify(payload))
                 await loadData({ silent: true })
             }
         } catch (error) {
@@ -341,8 +359,10 @@ export function ItemCreator() {
     }
 
     const handleBack = () => {
-        setEditingItem(null)
-        goBack('landing')
+        guard.confirm(() => {
+            setEditingItem(null)
+            goBack('landing')
+        })
     }
 
     /** Back from the form: to the gallery while creating, to the library otherwise. */
@@ -405,6 +425,14 @@ export function ItemCreator() {
                     />
                 </CreatorIntro>
                 {chatbot}
+                <ConfirmDialog
+                    {...guard.dialogProps}
+                    variant="danger"
+                    title={t('common.unsavedChanges.title')}
+                    message={t('common.unsavedChanges.body')}
+                    confirmLabel={t('common.unsavedChanges.leave')}
+                    cancelLabel={t('common.unsavedChanges.stay')}
+                />
             </>
         )
     }
@@ -483,6 +511,7 @@ export function ItemCreator() {
                                 id="item-name"
                                 value={name}
                                 onChange={setName}
+                                onBlur={() => markFieldTouched('name')}
                                 autoFocus
                                 className="font-display text-xl font-medium"
                                 placeholder={firstClass.name ?? t('creation.item.fieldsForm.namePlaceholder')}
@@ -551,6 +580,7 @@ export function ItemCreator() {
                             id="item-description"
                             value={description}
                             onChange={setDescription}
+                            onBlur={() => markFieldTouched('description')}
                             placeholder={firstClass.description ?? DESCRIPTION_GHOST}
                             rows={6}
                         />
@@ -709,6 +739,14 @@ export function ItemCreator() {
             title={draftToast?.message ?? ''}
             onClose={() => setDraftToast(null)}
             autoCloseMs={3000}
+        />
+        <ConfirmDialog
+            {...guard.dialogProps}
+            variant="danger"
+            title={t('common.unsavedChanges.title')}
+            message={t('common.unsavedChanges.body')}
+            confirmLabel={t('common.unsavedChanges.leave')}
+            cancelLabel={t('common.unsavedChanges.stay')}
         />
         </>
     )

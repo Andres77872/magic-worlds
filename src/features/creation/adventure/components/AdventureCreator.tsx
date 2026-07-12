@@ -44,7 +44,9 @@ import {
     type StudioNavItem,
     type AttributePreset,
 } from '../../common/components'
-import { GuidedSection, UseExampleLink, useGuidedCard, type CardTemplate } from '../../common/engine'
+import { GuidedSection, UseExampleLink, useDirtyPayload, useGuidedCard, type CardTemplate } from '../../common/engine'
+import { useUnsavedChangesGuard } from '@/shared/hooks'
+import { ConfirmDialog } from '@/ui/components'
 import { CreatorIntro, TemplateGallery } from '../../common/templates'
 import { getAdventureFields, getAdventureSections } from '../fields'
 import { ADVENTURE_GALLERY_HEADING_KEY, ADVENTURE_GALLERY_SUBHEADING_KEY, ADVENTURE_TEMPLATES } from '../templates'
@@ -189,27 +191,6 @@ export function AdventureCreator() {
 
     const guided = useGuidedCard({ fields: adventureFields, defaults: defaultCategories, entity: editingTemplate })
 
-    // Harden the edit-mode remap: the useState initializers read the library at
-    // mount, but loadData() is async — on a cold deep-link into edit the library
-    // may still be empty then. Once it resolves, re-derive selections one time
-    // (ref-guarded so it never clobbers the user's later edits).
-    const remappedRef = useRef(false)
-    useEffect(() => {
-        if (remappedRef.current || dataLoading || !editingTemplate) return
-        remappedRef.current = true
-        setSelectedCharacters(
-            (editingTemplate.characters ?? [])
-                .map((embedded) => characters.find((c) => c.name === embedded.name)?.id)
-                .filter((id): id is string => Boolean(id)),
-        )
-        setSelectedPersona(
-            editingTemplate.persona ? characters.find((c) => c.name === editingTemplate.persona?.name)?.id : undefined,
-        )
-        setSelectedWorld(
-            editingTemplate.world ? worlds.find((w) => w.name === editingTemplate.world?.name)?.id : undefined,
-        )
-    }, [dataLoading, editingTemplate, characters, worlds])
-
     // --- Derived, client-side preview projection (no API) ---
     const characterById = useMemo(() => new Map(characters.map((c) => [c.id, c] as const)), [characters])
     const aiCharacters = useMemo(() => characters.filter(isAiCharacterCard), [characters])
@@ -247,7 +228,10 @@ export function AdventureCreator() {
     const objectivesCount = (guided.attributes['objectives'] ?? []).filter((r) => r.key.trim() || r.value.trim()).length
     const derivedTitle = scenario.trim().split('\n')[0].slice(0, 80) || t('creation.adventure.untitledFallback')
 
-    const scenarioError = showErrors && !scenario.trim() ? t('creation.adventure.validation.scenarioRequired') : undefined
+    // Blur on the premise gives early feedback; submit (`showErrors`) still
+    // covers the untouched case.
+    const [scenarioTouched, setScenarioTouched] = useState(false)
+    const scenarioError = (showErrors || scenarioTouched) && !scenario.trim() ? t('creation.adventure.validation.scenarioRequired') : undefined
     const noCast = !dataLoading && previewCast.length === 0 && !previewPersona
 
     const objectiveKeys = useMemo(
@@ -313,6 +297,35 @@ export function AdventureCreator() {
         }
     }
 
+    // Unsaved-changes protection: dirty when the payload drifted from the last
+    // saved baseline. Guards in-app navigation and tab close.
+    const { dirty, markClean } = useDirtyPayload(JSON.stringify(buildPayload()))
+    const guard = useUnsavedChangesGuard({ when: dirty })
+
+    // Harden the edit-mode remap: the useState initializers read the library at
+    // mount, but loadData() is async — on a cold deep-link into edit the library
+    // may still be empty then. Once it resolves, re-derive selections one time
+    // (ref-guarded so it never clobbers the user's later edits).
+    const remappedRef = useRef(false)
+    useEffect(() => {
+        if (remappedRef.current || dataLoading || !editingTemplate) return
+        remappedRef.current = true
+        setSelectedCharacters(
+            (editingTemplate.characters ?? [])
+                .map((embedded) => characters.find((c) => c.name === embedded.name)?.id)
+                .filter((id): id is string => Boolean(id)),
+        )
+        setSelectedPersona(
+            editingTemplate.persona ? characters.find((c) => c.name === editingTemplate.persona?.name)?.id : undefined,
+        )
+        setSelectedWorld(
+            editingTemplate.world ? worlds.find((w) => w.name === editingTemplate.world?.name)?.id : undefined,
+        )
+        // The remap only re-derives what the template already contains — it must
+        // not count as a user edit for the unsaved-changes guard.
+        markClean()
+    }, [dataLoading, editingTemplate, characters, worlds, markClean])
+
     /**
      * Ensure the template exists on the server and return its id — auto-saving
      * first if needed (theme generation needs a real target id).
@@ -327,13 +340,17 @@ export function AdventureCreator() {
             throw new Error(t('creation.adventure.validation.scenarioForTheme'))
         }
         if (editingTemplate) {
-            await apiService.updateAdventureTemplate(editingTemplate.id, buildPayload())
+            const payload = buildPayload()
+            await apiService.updateAdventureTemplate(editingTemplate.id, payload)
+            markClean(JSON.stringify(payload))
             savedIdRef.current = editingTemplate.id
             return editingTemplate.id
         }
-        const created = await apiService.createAdventureTemplate(buildPayload())
+        const payload = buildPayload()
+        const created = await apiService.createAdventureTemplate(payload)
         const saved = toTemplate(created as AdventureTemplateCardResponse)
         if (saved.id) setEditingTemplate(saved)
+        markClean(JSON.stringify(payload))
         savedIdRef.current = saved.id
         // No loadData() here: a refresh would unmount this creator mid-generation (AppRouter
         // shows a spinner while loading). The new card lands in the gallery on Save.
@@ -418,9 +435,12 @@ export function AdventureCreator() {
                 await apiService.createAdventureTemplate(payload)
             }
 
+            markClean(JSON.stringify(payload))
             setEditingTemplate(null)
             await loadData()
-            goBack('landing')
+            // The payload was just persisted — leave without consulting the
+            // guard (its dirty state is computed from the pre-save render).
+            guard.skip(() => goBack('landing'))
         } catch (error) {
             console.error('Failed to save adventure template:', error)
             // Gentle, non-blocking inline message — the form stays put so the
@@ -442,6 +462,8 @@ export function AdventureCreator() {
         setImageUrl(card.image_url)
         setThemeSongUrl(card.theme_song_url)
         guided.hydrateFrom(card, { preserveActive: true })
+        // The assistant card is already persisted server-side — re-baseline.
+        markClean()
         setGeneratedScene(sceneFromResponse(card))
         setEditingTemplate(toTemplate(card))
         savedIdRef.current = card.id || card.uuid || null
@@ -452,8 +474,10 @@ export function AdventureCreator() {
     }
 
     const handleBack = () => {
-        setEditingTemplate(null)
-        goBack('landing')
+        guard.confirm(() => {
+            setEditingTemplate(null)
+            goBack('landing')
+        })
     }
 
     /** Back from the form: to the gallery while creating, to the library otherwise. */
@@ -524,6 +548,14 @@ export function AdventureCreator() {
                     />
                 </CreatorIntro>
                 {chatbot}
+                <ConfirmDialog
+                    {...guard.dialogProps}
+                    variant="danger"
+                    title={t('common.unsavedChanges.title')}
+                    message={t('common.unsavedChanges.body')}
+                    confirmLabel={t('common.unsavedChanges.leave')}
+                    cancelLabel={t('common.unsavedChanges.stay')}
+                />
             </>
         )
     }
@@ -577,6 +609,7 @@ export function AdventureCreator() {
                             id="adventure-scenario"
                             value={scenario}
                             onChange={setScenario}
+                            onBlur={() => setScenarioTouched(true)}
                             rows={5}
                             autoFocus
                             placeholder={firstClass.description ?? PREMISE_GHOST}
@@ -717,6 +750,14 @@ export function AdventureCreator() {
             </form>
         </CreatorStudio>
         {chatbot}
+        <ConfirmDialog
+            {...guard.dialogProps}
+            variant="danger"
+            title={t('common.unsavedChanges.title')}
+            message={t('common.unsavedChanges.body')}
+            confirmLabel={t('common.unsavedChanges.leave')}
+            cancelLabel={t('common.unsavedChanges.stay')}
+        />
         </>
     )
 }

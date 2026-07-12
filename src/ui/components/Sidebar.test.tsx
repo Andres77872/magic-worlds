@@ -53,6 +53,7 @@ const backgroundTasks: BackgroundTasksValue = {
     cancelTask: async () => {
         throw new Error('not implemented in test')
     },
+    clearTerminalTasks: () => undefined,
 }
 
 const dependencyStatus: ApiStatusContextValue = {

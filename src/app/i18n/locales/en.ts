@@ -542,6 +542,12 @@ export const en = {
                 closePanel: 'Close {{label}}',
                 back: 'Back',
                 cancel: 'Cancel',
+                unsavedChanges: {
+                    title: 'Leave without saving?',
+                    body: 'You have unsaved changes. If you leave now they will be lost.',
+                    leave: 'Leave',
+                    stay: 'Keep editing',
+                },
                 close: 'Close',
                 confirm: 'Confirm',
                 copyMessage: 'Copy message',
@@ -1242,6 +1248,12 @@ export const en = {
             appUpdate: {
                 message: 'A new version is available. Reload to update.',
                 reload: 'Reload',
+            },
+            dataLoadBanner: {
+                message: 'Some of your content failed to load.',
+                retry: 'Retry',
+                retrying: 'Retrying…',
+                dismiss: 'Dismiss',
             },
             loading: {
                 default: 'Loading…',
@@ -2064,6 +2076,15 @@ export const en = {
                 actions: {
                     refresh: 'Refresh',
                     cancel: 'Cancel',
+                    clearCompleted: 'Clear completed',
+                    clearFailed: 'Clear failed',
+                },
+                toast: {
+                    completedTitle: 'Theme song ready',
+                    failedTitle: 'Theme song failed',
+                    multiple_one: '{{count}} task finished',
+                    multiple_other: '{{count}} tasks finished',
+                    open: 'Open tasks',
                 },
                 tabs: {
                     active: 'Active',
@@ -2874,6 +2895,11 @@ export const en = {
                         uploading: 'Uploading…',
                         generating: 'Generating…',
                         starting: 'Starting…',
+                        stages: {
+                            pending: 'Queued…',
+                            in_progress: 'Generating…',
+                            mirroring: 'Saving image…',
+                        },
                         artDirectionPlaceholderCompact: 'Add art direction (optional) — mood, palette, setting…',
                         songDirectionPlaceholderCompact: 'Song direction (optional) — tempo, instruments, emotion…',
                         artDirectionLabel: 'Add art direction (optional)',
@@ -4232,6 +4258,7 @@ export const en = {
                     generationTimeout: 'The response timed out. Please try again.',
                     invalidSession: 'This session is no longer valid. Please reload and try again.',
                     narrationFailed: 'Narration failed: {{detail}}',
+                    newMessages: 'New messages',
                     narrationUnavailable: 'Narration is unavailable right now.',
                     reconnecting: 'Connection lost — reconnecting…',
                     resetBody: 'This removes the visible message history for this conversation.',
@@ -4795,6 +4822,7 @@ export const en = {
                     savedAt: 'Saved at {{time}}',
                     unsaved: 'Unsaved changes',
                     failed: 'Save failed',
+                    retry: 'Retry save',
                 },
                 source: {
                     blank: 'Blank',

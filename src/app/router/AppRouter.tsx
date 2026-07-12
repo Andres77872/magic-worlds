@@ -12,6 +12,7 @@ import { AppWarningModal } from '../../ui/components/AppWarningModal'
 import { CookieConsentBanner } from '../../ui/components/CookieConsentBanner'
 import { ServicesDownBanner } from '../../ui/components/ServicesDownBanner'
 import { AppUpdateBanner } from '../../ui/components/AppUpdateBanner'
+import { DataLoadErrorBanner } from '../../ui/components/DataLoadErrorBanner'
 import { SidebarTasksMenu, TasksDrawer } from '../../features/tasks'
 import { CardPreviewModal, useCardPreviewModal } from '../../features/cards'
 import { FloatingWindowsLayer } from '../../features/floatingWindows'
@@ -69,13 +70,6 @@ export function AppRouter() {
         mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
     }, [currentPage])
 
-    // Data loading errors are non-blocking — the landing page handles empty/
-    // missing data gracefully, and DataProvider already logged the underlying
-    // error at the appropriate level. Keep this a quiet, non-alarming note.
-    if (loadingState.error) {
-        console.warn('[AppRouter] Data loading error (non-blocking):', loadingState.error)
-    }
-
     return (
         // `isolate` makes this div a stacking context so the -z-10 ambience
         // paints above bg-ink-800 yet below all content (sidebar included —
@@ -96,6 +90,7 @@ export function AppRouter() {
                 <MobileTopBar onOpenNav={() => setMobileNavOpen(true)} />
                 <ServicesDownBanner />
                 <AppUpdateBanner />
+                <DataLoadErrorBanner />
                 {loadingState.isLoading ? (
                     <div className="flex min-h-full flex-1 items-center justify-center">
                         <LoadingSpinner />

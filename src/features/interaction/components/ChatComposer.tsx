@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { memo, useCallback, useEffect, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Images, ListChecks, RotateCcw, Send, Square, Volume2 } from 'lucide-react'
@@ -45,8 +45,11 @@ interface ChatComposerProps {
  * The textarea is never disabled while streaming — the player can keep writing
  * their next move; only the *send* action is gated (it becomes Stop, and the
  * parent's submit no-ops while loading).
+ *
+ * Memoized: streaming deltas re-render the whole panel; with stable props the
+ * composer skips those renders (typing re-renders it anyway — controlled value).
  */
-export function ChatComposer({
+export const ChatComposer = memo(function ChatComposer({
     value,
     onValueChange,
     onSubmit,
@@ -231,4 +234,4 @@ export function ChatComposer({
             </div>
         </div>
     )
-}
+})

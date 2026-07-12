@@ -41,4 +41,13 @@ describe('Toast', () => {
         act(() => vi.advanceTimersByTime(1))
         expect(onClose).toHaveBeenCalledTimes(1)
     })
+
+    it('never auto-dismisses errors, even when a delay is configured', () => {
+        vi.useFakeTimers()
+        const onClose = vi.fn()
+        render(<Toast open tone="error" title="Save failed" autoCloseMs={3200} onClose={onClose} />)
+
+        act(() => vi.advanceTimersByTime(60_000))
+        expect(onClose).not.toHaveBeenCalled()
+    })
 })

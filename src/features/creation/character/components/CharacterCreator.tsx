@@ -41,9 +41,10 @@ import {
     type StudioNavItem,
     type AttributePreset,
 } from '../../common/components'
-import { GuidedSection, UseExampleLink, useCardDraft, useCardEditorRoute, useGuidedCard, type CardTemplate } from '../../common/engine'
+import { GuidedSection, UseExampleLink, useCardDraft, useCardEditorRoute, useDirtyPayload, useGuidedCard, type CardTemplate } from '../../common/engine'
 import { buildCardEditHash } from '@/features/gallery/galleryLinks'
-import { LoadingSpinner } from '@/ui/components'
+import { useUnsavedChangesGuard } from '@/shared/hooks'
+import { ConfirmDialog, LoadingSpinner } from '@/ui/components'
 import { Toast } from '@/ui/primitives/Toast'
 import { CreatorIntro, TemplateGallery } from '../../common/templates'
 import { getCharacterFields, getCharacterSections, getRaceOptions } from '../fields'
@@ -173,8 +174,14 @@ export function CharacterCreator() {
         role,
     })
 
-    const nameError = touched && !name.trim() ? t('creation.character.validation.nameRequired') : undefined
-    const raceError = touched && !race.trim() ? t('creation.character.validation.raceRequired') : undefined
+    // Per-field blur tracking gives early feedback; submit (`touched`) still
+    // flags every untouched required field at once.
+    const [touchedFields, setTouchedFields] = useState<{ name?: boolean; race?: boolean }>({})
+    const markFieldTouched = (field: 'name' | 'race') =>
+        setTouchedFields((prev) => (prev[field] ? prev : { ...prev, [field]: true }))
+
+    const nameError = (touched || touchedFields.name) && !name.trim() ? t('creation.character.validation.nameRequired') : undefined
+    const raceError = (touched || touchedFields.race) && !race.trim() ? t('creation.character.validation.raceRequired') : undefined
 
     const statKeys = useMemo(
         () => (guided.attributes['stats'] || []).map((row) => row.key.toLowerCase()),
@@ -203,6 +210,8 @@ export function CharacterCreator() {
         setImageUrl(card.image_url)
         setThemeSongUrl(card.theme_song_url)
         guided.hydrateFrom(card, { preserveActive: true })
+        // The hydrated body is the persisted state — re-baseline dirty tracking.
+        markClean()
     }
 
     // Deep-link / refresh: when the URL carries `?card=<id>` but no card is in memory, fetch it and
@@ -238,6 +247,11 @@ export function CharacterCreator() {
         voice: voice ?? null,
     })
 
+    // Unsaved-changes protection: dirty when the payload drifted from the last
+    // hydrated/saved baseline. Guards in-app navigation and tab close.
+    const { dirty, markClean } = useDirtyPayload(JSON.stringify(buildPayload()))
+    const guard = useUnsavedChangesGuard({ when: dirty })
+
     /**
      * Ensure the card exists on the server and return its id — auto-saving first
      * if needed (theme generation needs a real target id). Throws a user-facing
@@ -258,13 +272,15 @@ export function CharacterCreator() {
             savedIdRef.current = editingCharacter.id
             return editingCharacter.id
         }
-        const created = await apiService.createCharacter(buildPayload())
+        const payload = buildPayload()
+        const created = await apiService.createCharacter(payload)
         const saved = toCharacter(created as CharacterCardResponse)
         if (saved.id) {
             setEditingCharacter(saved)
             // Stamp the new id into the URL so a refresh mid-edit restores this card.
             replaceHash(buildCardEditHash('character', saved.id))
         }
+        markClean(JSON.stringify(payload))
         savedIdRef.current = saved.id
         // No loadData() here: a refresh would unmount this creator mid-generation (AppRouter
         // shows a spinner while loading). The new card lands in the gallery on Save.
@@ -346,6 +362,7 @@ export function CharacterCreator() {
                 // Edit mode: save to the private draft and stay in the editor. Publishing (a
                 // separate action) is what makes the changes live and cuts a new version.
                 const ok = await draft.saveDraft(payload)
+                if (ok) markClean(JSON.stringify(payload))
                 setDraftToast(
                     ok
                         ? { tone: 'success', message: t('cardVersions.draft.saved') }
@@ -362,6 +379,7 @@ export function CharacterCreator() {
                     // Stamp the new id into the URL so a refresh keeps the freshly-created card.
                     replaceHash(buildCardEditHash('character', saved.id))
                 }
+                markClean(JSON.stringify(payload))
                 await loadData({ silent: true })
             }
         } catch (error) {
@@ -406,8 +424,10 @@ export function CharacterCreator() {
     }
 
     const handleBack = () => {
-        setEditingCharacter(null)
-        goBack('landing')
+        guard.confirm(() => {
+            setEditingCharacter(null)
+            goBack('landing')
+        })
     }
 
     /** Back from the form: to the gallery while creating, to the library otherwise. */
@@ -485,6 +505,14 @@ export function CharacterCreator() {
                     />
                 </CreatorIntro>
                 {chatbot}
+                <ConfirmDialog
+                    {...guard.dialogProps}
+                    variant="danger"
+                    title={t('common.unsavedChanges.title')}
+                    message={t('common.unsavedChanges.body')}
+                    confirmLabel={t('common.unsavedChanges.leave')}
+                    cancelLabel={t('common.unsavedChanges.stay')}
+                />
             </>
         )
     }
@@ -619,6 +647,7 @@ export function CharacterCreator() {
                             id="character-name"
                             value={name}
                             onChange={setName}
+                            onBlur={() => markFieldTouched('name')}
                             autoFocus
                             className="text-xl font-medium font-display"
                             placeholder={firstClass.name ?? t('creation.character.fieldsForm.namePlaceholder')}
@@ -636,6 +665,7 @@ export function CharacterCreator() {
                             id="character-race"
                             value={race}
                             onChange={setRace}
+                            onBlur={() => markFieldTouched('race')}
                             options={raceOptions}
                             placeholder={firstClass.race ?? t('creation.character.fieldsForm.racePlaceholder')}
                         />
@@ -848,6 +878,14 @@ export function CharacterCreator() {
             title={draftToast?.message ?? ''}
             onClose={() => setDraftToast(null)}
             autoCloseMs={3000}
+        />
+        <ConfirmDialog
+            {...guard.dialogProps}
+            variant="danger"
+            title={t('common.unsavedChanges.title')}
+            message={t('common.unsavedChanges.body')}
+            confirmLabel={t('common.unsavedChanges.leave')}
+            cancelLabel={t('common.unsavedChanges.stay')}
         />
         </>
     )

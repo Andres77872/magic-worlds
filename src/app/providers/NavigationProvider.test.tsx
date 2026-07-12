@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { NavigationProvider } from './NavigationProvider'
@@ -148,5 +149,75 @@ describe('NavigationProvider origin stack', () => {
         fireEvent.click(screen.getByRole('button', { name: /go back/i }))
         expect(screen.getByTestId('page')).toHaveTextContent('gallery-characters')
         expect(window.location.hash).toBe('#/gallery/characters')
+    })
+})
+
+function GuardedProbe() {
+    const { currentPage, setPage, goBack, registerNavigationInterceptor } = useNavigation()
+    const [guarding, setGuarding] = useState(true)
+    const proceedRef = useRef<(() => void) | null>(null)
+
+    useEffect(() => {
+        if (!guarding) return
+        return registerNavigationInterceptor((proceed) => {
+            proceedRef.current = proceed
+            return true
+        })
+    }, [guarding, registerNavigationInterceptor])
+
+    return (
+        <div>
+            <span data-testid="page">{currentPage}</span>
+            <button type="button" onClick={() => setPage('gallery-characters')}>navigate</button>
+            <button type="button" onClick={() => goBack('landing')}>back</button>
+            <button type="button" onClick={() => proceedRef.current?.()}>proceed</button>
+            <button type="button" onClick={() => setGuarding(false)}>disarm</button>
+        </div>
+    )
+}
+
+describe('NavigationProvider interceptors', () => {
+    beforeEach(() => {
+        window.history.replaceState(null, '', '#/')
+    })
+
+    function renderGuarded() {
+        return render(
+            <NavigationProvider>
+                <GuardedProbe />
+            </NavigationProvider>,
+        )
+    }
+
+    it('an interceptor blocks setPage until proceed() is called', () => {
+        renderGuarded()
+
+        fireEvent.click(screen.getByRole('button', { name: 'navigate' }))
+        expect(screen.getByTestId('page')).toHaveTextContent('landing')
+        expect(window.location.hash).toBe('#/')
+
+        fireEvent.click(screen.getByRole('button', { name: 'proceed' }))
+        expect(screen.getByTestId('page')).toHaveTextContent('gallery-characters')
+        expect(window.location.hash).toBe('#/gallery/characters')
+    })
+
+    it('an interceptor blocks goBack the same way', () => {
+        window.history.replaceState(null, '', '#/character')
+        renderGuarded()
+
+        fireEvent.click(screen.getByRole('button', { name: 'back' }))
+        expect(screen.getByTestId('page')).toHaveTextContent('character')
+
+        fireEvent.click(screen.getByRole('button', { name: 'proceed' }))
+        expect(screen.getByTestId('page')).toHaveTextContent('landing')
+    })
+
+    it('unregistering restores normal navigation', () => {
+        renderGuarded()
+
+        fireEvent.click(screen.getByRole('button', { name: 'disarm' }))
+        fireEvent.click(screen.getByRole('button', { name: 'navigate' }))
+
+        expect(screen.getByTestId('page')).toHaveTextContent('gallery-characters')
     })
 })

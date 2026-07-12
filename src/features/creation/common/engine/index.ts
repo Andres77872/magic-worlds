@@ -29,6 +29,7 @@ export {
     type UseCardEditorRouteOptions,
     type UseCardEditorRouteResult,
 } from './useCardEditorRoute'
+export { useDirtyPayload, type DirtyPayloadApi } from './useDirtyPayload'
 export { GuidedFieldRow, type GuidedFieldRowProps } from './GuidedFieldRow'
 export { FieldPalette, type FieldPaletteProps } from './FieldPalette'
 export { GuidedSection, type GuidedSectionProps } from './GuidedSection'

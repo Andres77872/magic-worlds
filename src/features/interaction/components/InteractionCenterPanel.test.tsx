@@ -300,6 +300,159 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.queryByText('Aria: Who goes there?', { selector: '.chat-prose *' })).not.toBeInTheDocument()
     })
 
+    it('defers hydration while a mirror save is in flight and runs it once after the queue drains', async () => {
+        let handlers: { onDone: (frame: Record<string, unknown>) => void } | undefined
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: never) => {
+            handlers = h
+            return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
+        })
+        const loadTurns = vi.fn(async () => [])
+        const releases: Array<() => void> = []
+        const saveTurns = vi.fn<(sessionId: number, turns: TurnEntry[]) => Promise<void>>(
+            () =>
+                new Promise<void>((resolve) => {
+                    releases.push(resolve)
+                }),
+        )
+        renderPanel(makeConfig({ loadTurns, saveTurns }), [])
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(1))
+
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        await waitFor(() => expect(saveTurns).toHaveBeenCalledTimes(1))
+
+        // Finishing the stream queues a save + hydration behind the held save…
+        act(() => {
+            handlers!.onDone({ interrupted: false, userMessageId: 100, assistantMessageId: 999, turnId: 'turn-9' })
+        })
+        // …and a tab refocus while it is still writing must not fetch a stale projection.
+        act(() => {
+            document.dispatchEvent(new Event('visibilitychange'))
+        })
+        expect(loadTurns).toHaveBeenCalledTimes(1)
+
+        await act(async () => {
+            releases[0]()
+        })
+        await waitFor(() => expect(saveTurns).toHaveBeenCalledTimes(2))
+        await act(async () => {
+            releases[1]()
+        })
+
+        // Both parked triggers (post-done + refocus) collapse into one hydration.
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
+        expect(loadTurns).toHaveBeenCalledTimes(2)
+    })
+
+    it('collapses overlapping mirror saves to the newest snapshot', async () => {
+        let handlers: { onDone: (frame: Record<string, unknown>) => void } | undefined
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: never) => {
+            handlers = h
+            return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
+        })
+        const releases: Array<() => void> = []
+        const saveTurns = vi.fn<(sessionId: number, turns: TurnEntry[]) => Promise<void>>(
+            () =>
+                new Promise<void>((resolve) => {
+                    releases.push(resolve)
+                }),
+        )
+        renderPanel(makeConfig({ saveTurns }), [])
+
+        // First send: its user-turn save starts and is held in flight.
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'First message' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        await waitFor(() => expect(saveTurns).toHaveBeenCalledTimes(1))
+
+        // Finish the generation and immediately send again: both snapshots queue
+        // behind the held save and only the newest one may be written.
+        act(() => {
+            handlers!.onDone({ interrupted: false, userMessageId: 100, assistantMessageId: 999, turnId: 'turn-9' })
+        })
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Second message' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        expect(saveTurns).toHaveBeenCalledTimes(1)
+
+        await act(async () => {
+            releases[0]()
+        })
+        await waitFor(() => expect(saveTurns).toHaveBeenCalledTimes(2))
+        const lastSnapshot = saveTurns.mock.calls[1][1] as TurnEntry[]
+        expect(lastSnapshot.some((turn) => turn.content === 'Second message')).toBe(true)
+
+        await act(async () => {
+            releases[1]()
+        })
+        expect(saveTurns).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not yank a reader who scrolled up; offers a jump pill instead', async () => {
+        let handlers: { onDelta: (chunk: string) => void } | undefined
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: never) => {
+            handlers = h
+            return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
+        })
+        const scrollIntoView = vi.fn()
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+        const { container } = renderPanel(makeConfig(), initialTurns)
+
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        await waitFor(() => expect(sendChat).toHaveBeenCalled())
+
+        // Reader scrolls far away from the bottom mid-stream.
+        const scroller = container.querySelector('.overflow-y-auto') as HTMLElement
+        Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 2000 })
+        Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 600 })
+        Object.defineProperty(scroller, 'scrollTop', { configurable: true, value: 0, writable: true })
+        fireEvent.scroll(scroller)
+        scrollIntoView.mockClear()
+
+        act(() => {
+            handlers!.onDelta('The gate creaks open…')
+        })
+
+        expect(scrollIntoView).not.toHaveBeenCalled()
+        const pill = screen.getByRole('button', { name: 'New messages' })
+
+        fireEvent.click(pill)
+        expect(scrollIntoView).toHaveBeenCalledTimes(1)
+        expect(screen.queryByRole('button', { name: 'New messages' })).toBeNull()
+    })
+
+    it('keeps following the stream while the reader is near the bottom', async () => {
+        let handlers: { onDelta: (chunk: string) => void } | undefined
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: never) => {
+            handlers = h
+            return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
+        })
+        const scrollIntoView = vi.fn()
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+        const { container } = renderPanel(makeConfig(), initialTurns)
+
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        await waitFor(() => expect(sendChat).toHaveBeenCalled())
+
+        const scroller = container.querySelector('.overflow-y-auto') as HTMLElement
+        Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 2000 })
+        Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 600 })
+        Object.defineProperty(scroller, 'scrollTop', { configurable: true, value: 1_380, writable: true })
+        fireEvent.scroll(scroller)
+        scrollIntoView.mockClear()
+
+        act(() => {
+            handlers!.onDelta('The gate creaks open…')
+        })
+
+        expect(scrollIntoView).toHaveBeenCalled()
+        expect(screen.queryByRole('button', { name: 'New messages' })).toBeNull()
+    })
+
     it('deletes the replaced canonical reply before regenerating', async () => {
         const sendChat = vi.fn()
         hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() })

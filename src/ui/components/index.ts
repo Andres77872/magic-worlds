@@ -5,6 +5,7 @@
 export { Sidebar } from './Sidebar'
 export { ApiStatusMonitor } from './ApiStatusMonitor'
 export { AppUpdateBanner } from './AppUpdateBanner'
+export { DataLoadErrorBanner } from './DataLoadErrorBanner'
 export { LoadingSpinner } from './LoadingSpinner'
 export { Markdown } from './Markdown'
 export { LoginModal } from './LoginModal'

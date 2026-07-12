@@ -52,6 +52,7 @@ const backgroundTasks: BackgroundTasksValue = {
   registerTask: () => {},
   registerThemeSongJob: () => {},
   cancelTask: async () => {},
+  clearTerminalTasks: () => {},
 }
 
 const withProviders = (auth: AuthValue): Decorator =>

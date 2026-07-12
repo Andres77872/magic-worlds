@@ -552,6 +552,12 @@ export const es = {
                 closePanel: 'Cerrar {{label}}',
                 back: 'Volver',
                 cancel: 'Cancelar',
+                unsavedChanges: {
+                    title: '¿Salir sin guardar?',
+                    body: 'Tienes cambios sin guardar. Si sales ahora se perderán.',
+                    leave: 'Salir',
+                    stay: 'Seguir editando',
+                },
                 close: 'Cerrar',
                 confirm: 'Confirmar',
                 copyMessage: 'Copiar mensaje',
@@ -1252,6 +1258,12 @@ export const es = {
             appUpdate: {
                 message: 'Hay una nueva versión disponible. Recarga para actualizar.',
                 reload: 'Recargar',
+            },
+            dataLoadBanner: {
+                message: 'Parte de tu contenido no se pudo cargar.',
+                retry: 'Reintentar',
+                retrying: 'Reintentando…',
+                dismiss: 'Descartar',
             },
             loading: {
                 default: 'Cargando…',
@@ -2074,6 +2086,15 @@ export const es = {
                 actions: {
                     refresh: 'Actualizar',
                     cancel: 'Cancelar',
+                    clearCompleted: 'Limpiar completadas',
+                    clearFailed: 'Limpiar fallidas',
+                },
+                toast: {
+                    completedTitle: 'Tema musical listo',
+                    failedTitle: 'El tema musical falló',
+                    multiple_one: '{{count}} tarea terminada',
+                    multiple_other: '{{count}} tareas terminadas',
+                    open: 'Abrir tareas',
                 },
                 tabs: {
                     active: 'Activas',
@@ -2884,6 +2905,11 @@ export const es = {
                         uploading: 'Subiendo…',
                         generating: 'Generando…',
                         starting: 'Iniciando…',
+                        stages: {
+                            pending: 'En cola…',
+                            in_progress: 'Generando…',
+                            mirroring: 'Guardando imagen…',
+                        },
                         artDirectionPlaceholderCompact: 'Agrega dirección de arte (opcional) — ambiente, paleta, escenario…',
                         songDirectionPlaceholderCompact: 'Dirección de la canción (opcional) — tempo, instrumentos, emoción…',
                         artDirectionLabel: 'Agregar dirección de arte (opcional)',
@@ -4243,6 +4269,7 @@ export const es = {
                     invalidSession: 'Esta sesión ya no es válida. Recarga e inténtalo de nuevo.',
                     narrationFailed: 'La narración falló: {{detail}}',
                     narrationUnavailable: 'La narración no está disponible en este momento.',
+                    newMessages: 'Mensajes nuevos',
                     reconnecting: 'Conexión perdida — reconectando…',
                     resetBody: 'Esto elimina el historial de mensajes visible de esta conversación.',
                     resetCancel: 'Conservar mensajes',
@@ -4805,6 +4832,7 @@ export const es = {
                     savedAt: 'Guardado a las {{time}}',
                     unsaved: 'Cambios sin guardar',
                     failed: 'No se pudo guardar',
+                    retry: 'Reintentar guardado',
                 },
                 source: {
                     blank: 'En blanco',

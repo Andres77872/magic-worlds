@@ -6,12 +6,28 @@ type MergeableTurnEntry = TurnEntry & {
   narratorIdentity?: ChatNarratorIdentity | null
 }
 
-export function mergeHydratedChatTurns(current: TurnEntry[], hydrated: TurnEntry[]): TurnEntry[] {
+export interface MergeHydratedChatTurnsOptions {
+  /**
+   * Ids of turns edited locally (client mirror only — the backend has no
+   * message-edit endpoint). A matched turn in this set keeps its full local
+   * entry so hydration can't revert the edit to the canonical pre-edit text;
+   * hydration still owns its position in the transcript.
+   */
+  preferLocalIds?: ReadonlySet<string>
+}
+
+export function mergeHydratedChatTurns(
+  current: TurnEntry[],
+  hydrated: TurnEntry[],
+  options: MergeHydratedChatTurnsOptions = {},
+): TurnEntry[] {
   if (hydrated.length === 0) return current
+  const preferLocalIds = options.preferLocalIds
   const matched = new Set<TurnEntry>()
   const merged = hydrated.map((turn) => {
     const existing = findMatchingTurn(current, turn)
     if (existing) matched.add(existing)
+    if (existing && preferLocalIds?.has(existing.id)) return existing
     if (!existing || turn.type !== 'ai') return turn
     const hydratedTurn = turn as MergeableTurnEntry
     const existingTurn = existing as MergeableTurnEntry

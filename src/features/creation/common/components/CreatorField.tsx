@@ -46,6 +46,8 @@ interface InputProps {
     type?: string;
     value: string;
     onChange: (value: string) => void;
+    /** Blur hook — creators use it to mark a required field as touched. */
+    onBlur?: () => void;
     placeholder?: string;
     required?: boolean;
     autoFocus?: boolean;
@@ -59,6 +61,7 @@ export function CreatorInput({
     type = 'text',
     value,
     onChange,
+    onBlur,
     placeholder,
     required,
     autoFocus,
@@ -72,6 +75,7 @@ export function CreatorInput({
             type={type}
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            onBlur={onBlur}
             placeholder={placeholder}
             required={required}
             autoFocus={autoFocus}
@@ -84,6 +88,7 @@ export function CreatorTextarea({
     id,
     value,
     onChange,
+    onBlur,
     placeholder,
     required,
     autoFocus,
@@ -97,6 +102,7 @@ export function CreatorTextarea({
             className={`leading-normal ${className}`}
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            onBlur={onBlur}
             placeholder={placeholder}
             required={required}
             autoFocus={autoFocus}

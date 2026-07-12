@@ -39,6 +39,8 @@ export interface SuggestInputProps {
     disabled?: boolean
     className?: string
     autoFocus?: boolean
+    /** Blur hook on the inner input (e.g. touched-field validation). */
+    onBlur?: () => void
     'aria-label'?: string
 }
 
@@ -62,6 +64,7 @@ export function SuggestInput({
     disabled = false,
     className,
     autoFocus,
+    onBlur,
     'aria-label': ariaLabel,
 }: SuggestInputProps) {
     const { t } = useTranslation()
@@ -202,6 +205,7 @@ export function SuggestInput({
                     setActiveIndex(-1)
                 }}
                 onFocus={openPopup}
+                onBlur={onBlur}
                 onClick={() => {
                     if (!open) openPopup()
                 }}

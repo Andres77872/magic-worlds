@@ -26,7 +26,7 @@ const TYPE_TO_PAGE: Record<GalleryType, PageType> = {
     adventure: 'gallery-adventures',
 }
 
-const PAGE_TO_HASH: Partial<Record<PageType, string>> = {
+const PAGE_TO_HASH: Record<PageType, string> = {
     landing: '#/',
     character: '#/character',
     world: '#/world',
@@ -44,6 +44,7 @@ const PAGE_TO_HASH: Partial<Record<PageType, string>> = {
     billing: '#/billing',
     'voice-studio': '#/voices',
     'admin-voices': '#/admin/voices',
+    'admin-agents': '#/admin/agents',
     'admin-credit-codes': '#/admin/credit-codes',
     docs: '#/docs',
     about: '#/about',

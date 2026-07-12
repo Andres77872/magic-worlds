@@ -6,6 +6,13 @@ import { createContext, useCallback, useEffect, useMemo, useRef, useState, type 
 import type { PageType, NavigationState } from '../../shared'
 import { pageFromHash, pageHash, parseCardEditHash, parseResourceEditHash, type CardEditHashTarget, type ResourceEditHashTarget } from '../../features/gallery/galleryLinks'
 
+/**
+ * Return `true` to intercept the navigation (it is cancelled for now); the
+ * interceptor may later call `proceed` to complete the original navigation
+ * (e.g. after the user confirms an "unsaved changes" dialog).
+ */
+export type NavigationInterceptor = (proceed: () => void) => boolean
+
 interface NavigationContextValue extends NavigationState {
     setPage: (page: PageType, opts?: { hash?: string }) => void
     goBack: (fallback?: PageType) => void
@@ -17,6 +24,12 @@ interface NavigationContextValue extends NavigationState {
     replaceHash: (hash: string) => void
     /** The live `window.location.hash`, kept reactive across setPage/goBack/hashchange/popstate. */
     currentHash: string
+    /**
+     * Register a guard consulted before `setPage`/`goBack` commit. Returns an
+     * unregister function. Browser back/forward (hashchange/popstate) is NOT
+     * intercepted — pair with a `beforeunload` handler for reload/close.
+     */
+    registerNavigationInterceptor: (interceptor: NavigationInterceptor) => () => void
 }
 
 const NavigationContext = createContext<NavigationContextValue | undefined>(undefined)
@@ -72,24 +85,50 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         backStackRef.current = backStack
     }, [backStack])
 
-    const setPage = useCallback((page: PageType, opts?: { hash?: string }) => {
-        const currentEntry = { page: currentPageRef.current, hash: hashForPage(currentPageRef.current) }
-        const nextEntry = { page, hash: hashForPage(page, opts?.hash) }
-        if (!sameEntry(currentEntry, nextEntry)) {
-            setBackStack((stack) => [...stack, currentEntry])
+    const interceptorsRef = useRef(new Set<NavigationInterceptor>())
+
+    const registerNavigationInterceptor = useCallback((interceptor: NavigationInterceptor) => {
+        interceptorsRef.current.add(interceptor)
+        return () => {
+            interceptorsRef.current.delete(interceptor)
         }
-        setCurrentPage(page)
-        writeHash(page, false, opts?.hash)
-        setCurrentHash(nextEntry.hash)
     }, [])
 
-    const goBack = useCallback((fallback: PageType = 'landing') => {
-        const target = backStackRef.current[backStackRef.current.length - 1] ?? { page: fallback, hash: pageHash(fallback) }
-        setBackStack((stack) => stack.slice(0, -1))
-        setCurrentPage(target.page)
-        writeHash(target.page, true, target.hash)
-        setCurrentHash(target.hash)
+    // Consult registered guards; the first one that returns true owns the
+    // navigation and may complete it later via `proceed`.
+    const intercept = useCallback((proceed: () => void): boolean => {
+        for (const interceptor of interceptorsRef.current) {
+            if (interceptor(proceed)) return true
+        }
+        return false
     }, [])
+
+    const setPage = useCallback((page: PageType, opts?: { hash?: string }) => {
+        const commit = () => {
+            const currentEntry = { page: currentPageRef.current, hash: hashForPage(currentPageRef.current) }
+            const nextEntry = { page, hash: hashForPage(page, opts?.hash) }
+            if (!sameEntry(currentEntry, nextEntry)) {
+                setBackStack((stack) => [...stack, currentEntry])
+            }
+            setCurrentPage(page)
+            writeHash(page, false, opts?.hash)
+            setCurrentHash(nextEntry.hash)
+        }
+        if (intercept(commit)) return
+        commit()
+    }, [intercept])
+
+    const goBack = useCallback((fallback: PageType = 'landing') => {
+        const commit = () => {
+            const target = backStackRef.current[backStackRef.current.length - 1] ?? { page: fallback, hash: pageHash(fallback) }
+            setBackStack((stack) => stack.slice(0, -1))
+            setCurrentPage(target.page)
+            writeHash(target.page, true, target.hash)
+            setCurrentHash(target.hash)
+        }
+        if (intercept(commit)) return
+        commit()
+    }, [intercept])
 
     // Rewrite the active page's hash in place (replaceState) without a history push —
     // used to stamp the card id into the URL after a create→edit transition, etc.
@@ -139,7 +178,8 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         resourceEdit,
         replaceHash,
         currentHash,
-    }), [currentPage, backStack, setPage, goBack, cardEdit, resourceEdit, replaceHash, currentHash])
+        registerNavigationInterceptor,
+    }), [currentPage, backStack, setPage, goBack, cardEdit, resourceEdit, replaceHash, currentHash, registerNavigationInterceptor])
 
     return (
         <NavigationContext.Provider value={value}>

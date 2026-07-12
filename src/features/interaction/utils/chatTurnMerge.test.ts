@@ -129,4 +129,33 @@ describe('mergeHydratedChatTurns', () => {
       { kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Who goes there?' },
     ])
   })
+
+  it('keeps the full local entry for locally-edited turns instead of the canonical text', () => {
+    const editedAi: ExtendedTurnEntry = {
+      ...liveAiTurn,
+      content: 'Aria: Stand down, all of you.',
+      segments: undefined,
+    }
+    const editedUser: TurnEntry = { ...userTurn, content: 'Look up' }
+    // Server still holds the pre-edit projection.
+    const hydrated: TurnEntry[] = [userTurn, { ...liveAiTurn, segments: undefined }]
+
+    const next = mergeHydratedChatTurns([editedUser, editedAi], hydrated, {
+      preferLocalIds: new Set(['100', '999']),
+    })
+
+    expect(next[0]).toBe(editedUser)
+    expect(next[1]).toBe(editedAi)
+  })
+
+  it('locally-edited turns still take their position and deletions from hydration', () => {
+    const editedAi: ExtendedTurnEntry = { ...liveAiTurn, content: 'Edited reply.', segments: undefined }
+    // Server deleted the user turn; only the AI turn remains.
+    const next = mergeHydratedChatTurns([userTurn, editedAi], [{ ...liveAiTurn, segments: undefined }], {
+      preferLocalIds: new Set(['999']),
+    })
+
+    expect(next.map((turn) => turn.id)).toEqual(['999'])
+    expect(next[0].content).toBe('Edited reply.')
+  })
 })
