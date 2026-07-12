@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { readWorldPlaceType } from '../shared'
 import { asArray, transformCharacters, transformItems, transformTemplates, transformWorlds } from './cardTransforms'
 
 describe('cardTransforms', () => {
@@ -76,12 +77,12 @@ describe('cardTransforms', () => {
 
     it('maps world place type independently from genre type', () => {
         const [world, fallback] = transformWorlds([
-            { id: 'w1', name: 'Sunspire', placeType: 'city', type: 'fantasy' },
+            { id: 'w1', name: 'Sunspire', category: [{ name: 'Setting', attributes: [{ 'Place type': 'city' }] }], type: 'fantasy' },
             { id: 'w2', name: 'Old Marches', type: 'low magic' },
         ])
-        expect(world.place_type).toBe('city')
+        expect(readWorldPlaceType(world)).toBe('city')
         expect(world.type).toBe('fantasy')
-        expect(fallback.place_type).toBe('world')
+        expect(readWorldPlaceType(fallback)).toBe('world')
     })
 
     it('maps template scenario from description, falling back to name', () => {

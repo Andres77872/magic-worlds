@@ -16,6 +16,7 @@ vi.mock('@/infrastructure/api', () => ({
     apiService: {
         listTasks: vi.fn(),
         cancelTask: vi.fn(),
+        archiveTask: vi.fn(),
     },
 }))
 
@@ -41,13 +42,18 @@ const completedTask = {
 
 /** Phase 1: the task is active. Phase 2+: it has completed. */
 let phase = 1
+let archived = false
 function mockListTasks() {
     vi.mocked(apiService.listTasks).mockImplementation(async (opts) => {
         const statuses = new Set<string>(opts?.statuses ?? [])
         if (phase === 1) {
             return { items: statuses.has('in_progress') ? [baseTask] : [] } as Awaited<ReturnType<typeof apiService.listTasks>>
         }
-        return { items: statuses.has('completed') ? [completedTask] : [] } as Awaited<ReturnType<typeof apiService.listTasks>>
+        return { items: statuses.has('completed') && !archived ? [completedTask] : [] } as Awaited<ReturnType<typeof apiService.listTasks>>
+    })
+    vi.mocked(apiService.archiveTask).mockImplementation(async () => {
+        archived = true
+        return completedTask
     })
 }
 
@@ -58,7 +64,7 @@ function Probe() {
             <span data-testid="visible-count">{ctx?.tasks.length ?? 0}</span>
             <span data-testid="completed-count">{ctx?.taskBuckets.completed.length ?? 0}</span>
             <span data-testid="drawer-open">{String(ctx?.drawerOpen ?? false)}</span>
-            <button onClick={() => ctx?.clearTerminalTasks('completed')}>clear completed</button>
+            <button onClick={() => { void ctx?.clearTerminalTasks('completed').catch(() => undefined) }}>clear completed</button>
         </div>
     )
 }
@@ -77,6 +83,7 @@ describe('BackgroundTasksProvider', () => {
         localStorage.clear()
         vi.useFakeTimers()
         phase = 1
+        archived = false
         mockListTasks()
     })
 
@@ -121,7 +128,7 @@ describe('BackgroundTasksProvider', () => {
         expect(screen.queryByText('Theme song ready')).toBeNull()
     })
 
-    it('clear completed hides the bucket, persists, and survives the next poll', async () => {
+    it('clear completed archives the bucket on the server and survives the next poll', async () => {
         phase = 2
         renderProvider()
         await act(async () => {
@@ -129,14 +136,41 @@ describe('BackgroundTasksProvider', () => {
         })
         expect(screen.getByTestId('completed-count')).toHaveTextContent('1')
 
-        fireEvent.click(screen.getByRole('button', { name: 'clear completed' }))
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'clear completed' }))
+        })
+        expect(apiService.archiveTask).toHaveBeenCalledWith('theme_song', 'task-1')
         expect(screen.getByTestId('completed-count')).toHaveTextContent('0')
-        expect(JSON.parse(localStorage.getItem('magic-worlds-tasks-dismissed') ?? '[]')).toContain('theme_song:task-1')
+        expect(localStorage.getItem('magic-worlds-tasks-dismissed')).toBeNull()
 
         // The next poll returns the same terminal task — it stays hidden.
         await act(async () => {
             await vi.advanceTimersByTimeAsync(30_000)
         })
         expect(screen.getByTestId('completed-count')).toHaveTextContent('0')
+    })
+
+    it('removes successful archives but retains tasks whose archive request failed', async () => {
+        phase = 2
+        const secondTask = { ...completedTask, task_id: 'task-2' }
+        vi.mocked(apiService.listTasks).mockImplementation(async (opts) => ({
+            items: new Set<string>(opts?.statuses ?? []).has('completed') ? [completedTask, secondTask] : [],
+        } as Awaited<ReturnType<typeof apiService.listTasks>>))
+        vi.mocked(apiService.archiveTask).mockImplementation(async (_operation, taskId) => {
+            if (taskId === 'task-2') throw new Error('archive unavailable')
+            return completedTask
+        })
+        renderProvider()
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0)
+        })
+
+        expect(screen.getByTestId('completed-count')).toHaveTextContent('2')
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'clear completed' }))
+        })
+
+        expect(apiService.archiveTask).toHaveBeenCalledTimes(2)
+        expect(screen.getByTestId('completed-count')).toHaveTextContent('1')
     })
 })

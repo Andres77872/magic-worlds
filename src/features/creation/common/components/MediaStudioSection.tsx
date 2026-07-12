@@ -72,8 +72,6 @@ export interface MediaStudioSectionProps {
         description?: string
         /** Race for a character, type for a world. */
         subtype?: string
-        /** Literal place kind for world cards; included in the backend prompt template. */
-        place_type?: string
         category?: AttributeGroups
     }
     /** Current portrait URL (as returned by the backend; may be relative). */
@@ -243,7 +241,6 @@ export function MediaStudioSection({
                 name: template.name.trim(),
                 description: template.description?.trim() || undefined,
                 subtype: template.subtype?.trim() || undefined,
-                place_type: template.place_type?.trim() || undefined,
                 category: template.category,
                 extra_direction: direction.trim() || undefined,
             }

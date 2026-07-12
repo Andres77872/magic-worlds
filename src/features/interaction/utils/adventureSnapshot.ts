@@ -16,7 +16,6 @@ import type {
     SnapshotTemplate,
     World,
 } from '../../../shared'
-import { readWorldPlaceType } from '../../../shared'
 
 /** Locates a card inside the snapshot so edits can be written back to it. */
 export type SnapshotCardRef =
@@ -119,7 +118,6 @@ export function snapshotToWorld(card: SnapshotCard, fallbackId: string): World {
     return {
         id: card.id || card.uuid || fallbackId,
         name: card.name || '',
-        place_type: readWorldPlaceType(card),
         type: card.type || '',
         description: card.description || '',
         details: {},
@@ -185,7 +183,6 @@ export function applySnapshotScenarioEdit(snapshot: AdventureSnapshot, scenario:
 export function libraryCardToSnapshotCard(card: Character | World, kind: 'character' | 'world'): SnapshotCard {
     const base: SnapshotCard = {
         id: card.id,
-        uuid: card.id,
         source_card_id: card.id,
         name: card.name,
         role: kind === 'character' ? ((card as Character).role === 'persona' ? 'persona' : 'character') : undefined,
@@ -197,11 +194,14 @@ export function libraryCardToSnapshotCard(card: Character | World, kind: 'charac
         theme_song_url: card.theme_song_url,
     }
     if (kind === 'world') {
-        base.place_type = readWorldPlaceType(card as World)
         base.type = (card as World).type ?? ''
     } else {
-        base.race = (card as Character).race ?? ''
-        base.voice = snapshotVoice((card as Character).voice)
+        const character = card as Character
+        base.race = character.race ?? ''
+        base.default_persona_id = character.default_persona_id ?? null
+        base.greeting = character.greeting?.trim() || null
+        base.system_instructions = character.system_instructions?.trim() || null
+        base.voice = snapshotVoice(character.voice)
     }
     return base
 }
@@ -246,25 +246,10 @@ export function snapshotSourceIds(snapshot: AdventureSnapshot | null | undefined
     return ids
 }
 
-/** The adventure's snapshot, synthesizing one from its display fields if absent. */
+/** The canonical session contract always carries its cloned-card snapshot. */
 export function ensureAdventureSnapshot(adventure: Adventure): AdventureSnapshot {
-    if (adventure.snapshot) return adventure.snapshot
-    const worlds = adventure.worlds?.length
-        ? adventure.worlds
-        : adventure.world
-          ? [adventure.world]
-          : []
-    return synthesizeSnapshotFromTemplate({
-        id: adventure.id,
-        description: adventure.scenario,
-        triggers: adventure.triggers,
-        persona: (adventure.persona as never) ?? null,
-        characters: (adventure.characters as never) ?? [],
-        world: worlds as never,
-        category: adventure.category,
-        image_url: adventure.image_url,
-        theme_song_url: adventure.theme_song_url,
-    })
+    if (!adventure.snapshot) throw new Error('Adventure session is missing its canonical template snapshot')
+    return adventure.snapshot
 }
 
 /** Coerce a raw session field into a typed snapshot, or null if it isn't one. */
@@ -276,37 +261,50 @@ export function asSnapshot(value: unknown): AdventureSnapshot | null {
     return null
 }
 
-/**
- * Build a client-side snapshot from a template's pieces for legacy sessions that
- * predate server-side cloning. First edit persists it, repairing the session.
- */
-export function synthesizeSnapshotFromTemplate(input: {
-    id?: string
-    name?: string
-    description?: string
-    triggers?: string[]
-    persona?: SnapshotCard | null
-    characters?: SnapshotCard[]
-    world?: SnapshotCard[]
-    category?: SnapshotTemplate['category']
-    image_url?: string
-    theme_song_url?: string
-}): AdventureSnapshot {
+function writableSnapshotCard(card: SnapshotCard, kind: 'character' | 'world'): SnapshotCard {
+    const common: SnapshotCard = {
+        id: card.id,
+        source_card_id: card.source_card_id,
+        source_card_version_id: card.source_card_version_id,
+        source_card_version_number: card.source_card_version_number,
+        name: card.name,
+        alias: typeof card.alias === 'string' ? card.alias : null,
+        description: card.description,
+        category: card.category,
+        triggers: card.triggers,
+        image_url: card.image_url,
+        theme_song_url: card.theme_song_url,
+    }
+    if (kind === 'world') return { ...common, type: card.type }
     return {
-        schema_version: 1,
-        source: 'client_template_fallback',
-        template_card_id: input.id,
+        ...common,
+        role: card.role,
+        is_default_persona: card.is_default_persona,
+        default_persona_id: card.default_persona_id,
+        race: card.race,
+        greeting: card.greeting,
+        system_instructions: card.system_instructions,
+        voice: card.voice,
+    }
+}
+
+/** Strip read-only annotations and obsolete card fields before a strict snapshot PUT. */
+export function writableAdventureSnapshot(snapshot: AdventureSnapshot): AdventureSnapshot {
+    const template = snapshot.template
+    return {
+        ...snapshot,
         template: {
-            id: input.id,
-            name: input.name,
-            description: input.description,
-            triggers: input.triggers ?? [],
-            persona: input.persona ?? null,
-            characters: input.characters ?? [],
-            world: input.world ?? [],
-            category: input.category,
-            image_url: input.image_url,
-            theme_song_url: input.theme_song_url,
+            id: template.id,
+            name: template.name,
+            alias: typeof template.alias === 'string' ? template.alias : null,
+            description: template.description,
+            triggers: template.triggers,
+            persona: template.persona ? writableSnapshotCard(template.persona, 'character') : null,
+            characters: asCards(template.characters).map((card) => writableSnapshotCard(card, 'character')),
+            world: asCards(template.world).map((card) => writableSnapshotCard(card, 'world')),
+            category: template.category,
+            image_url: template.image_url,
+            theme_song_url: template.theme_song_url,
         },
     }
 }

@@ -1,38 +1,44 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Lorebook, LorebookEntry, StoryCardRef } from '@/shared'
+import type { Lorebook, LorebookEntry, StoryCardRef, StoryCardSnapshot } from '@/shared'
 import { clonedEntryIds, lorebookEntrySnapshot, snapshotDescription, snapshotLabel } from './codexUtils'
+
+function snapshot(overrides: Partial<StoryCardSnapshot> = {}): StoryCardSnapshot {
+    return {
+        id: 'card-1',
+        name: 'Aria',
+        description: 'A ranger',
+        story_card_kind: 'character',
+        ...overrides,
+    }
+}
 
 function ref(overrides: Partial<StoryCardRef> = {}): StoryCardRef {
     return {
         id: 'ref-1',
         storyId: 'story-1',
+        chapterId: null,
         kind: 'character',
         cardId: 'card-1',
         source: 'manual',
         enabled: true,
         precedence: 0,
-        snapshot: null,
+        snapshot: snapshot(),
         ...overrides,
     }
 }
 
 describe('snapshotLabel', () => {
-    it('prefers name, then title, then alias, then cardId', () => {
-        expect(snapshotLabel(ref({ snapshot: { name: 'Aria', title: 'The Ranger' } }))).toBe('Aria')
-        expect(snapshotLabel(ref({ snapshot: { title: 'The Ranger' } }))).toBe('The Ranger')
-        expect(snapshotLabel(ref({ snapshot: { alias: 'Shadow' } }))).toBe('Shadow')
-        expect(snapshotLabel(ref({ snapshot: {} }))).toBe('card-1')
-        expect(snapshotLabel(ref())).toBe('card-1')
+    it('prefers name, then alias, then cardId', () => {
+        expect(snapshotLabel(ref({ snapshot: snapshot({ name: 'Aria', alias: 'Shadow' }) }))).toBe('Aria')
+        expect(snapshotLabel(ref({ snapshot: snapshot({ name: null, alias: 'Shadow' }) }))).toBe('Shadow')
+        expect(snapshotLabel(ref({ snapshot: snapshot({ name: null, alias: null }) }))).toBe('card-1')
     })
 })
 
 describe('snapshotDescription', () => {
-    it('falls back description → content → race/type → empty', () => {
-        expect(snapshotDescription(ref({ snapshot: { description: 'A ranger', content: 'lore' } }))).toBe('A ranger')
-        expect(snapshotDescription(ref({ snapshot: { content: 'An oath of mirrors' } }))).toBe('An oath of mirrors')
-        expect(snapshotDescription(ref({ snapshot: { race: 'elf' } }))).toBe('elf')
-        expect(snapshotDescription(ref())).toBe('')
+    it('reads the canonical description', () => {
+        expect(snapshotDescription(ref({ snapshot: snapshot({ description: 'A ranger of the gate' }) }))).toBe('A ranger of the gate')
     })
 })
 
@@ -47,26 +53,33 @@ describe('lorebookEntrySnapshot', () => {
         keys: ['pact', 'mirrors'],
     } as LorebookEntry
 
-    it('clones entry content into both description and content', () => {
-        const snapshot = lorebookEntrySnapshot(lorebook, entry)
-        expect(snapshot.name).toBe('The Glass Pact')
-        expect(snapshot.title).toBe('The Glass Pact')
-        expect(snapshot.description).toBe('An oath sworn on shattered mirrors.')
-        expect(snapshot.content).toBe('An oath sworn on shattered mirrors.')
-        expect(snapshot.keys).toEqual(['pact', 'mirrors'])
-        expect(snapshot.entry_type).toBe('rule')
-        expect(snapshot.source_lorebook_id).toBe('lb-1')
-        expect(snapshot.source_entry_id).toBe('entry-1')
-        expect(snapshot.story_card_kind).toBe('lorebook_entry')
+    it('produces the exact strict StoryCardSnapshot shape', () => {
+        expect(lorebookEntrySnapshot(lorebook, entry)).toEqual({
+            id: 'entry-1',
+            name: 'The Glass Pact',
+            description: 'An oath sworn on shattered mirrors.',
+            source_lorebook_id: 'lb-1',
+            story_card_kind: 'lorebook_entry',
+        })
     })
 })
 
 describe('clonedEntryIds', () => {
-    it('collects source_entry_id values from snapshots', () => {
+    it('collects canonical snapshot ids for lorebook-entry refs only', () => {
         const refs = [
-            ref({ id: 'a', snapshot: { source_entry_id: 'entry-1' } }),
-            ref({ id: 'b', snapshot: { name: 'Aria' } }),
-            ref({ id: 'c', snapshot: { source_entry_id: 'entry-2' } }),
+            ref({
+                id: 'a',
+                kind: 'lorebook_entry',
+                cardId: 'entry-1',
+                snapshot: snapshot({ id: 'entry-1', story_card_kind: 'lorebook_entry', source_lorebook_id: 'lb-1' }),
+            }),
+            ref({ id: 'b' }),
+            ref({
+                id: 'c',
+                kind: 'lorebook_entry',
+                cardId: 'entry-2',
+                snapshot: snapshot({ id: 'entry-2', story_card_kind: 'lorebook_entry', source_lorebook_id: 'lb-1' }),
+            }),
         ]
         expect(clonedEntryIds(refs)).toEqual(new Set(['entry-1', 'entry-2']))
     })

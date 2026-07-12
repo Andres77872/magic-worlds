@@ -9,19 +9,30 @@ vi.mock('@/app/hooks', () => ({
     useData: () => ({ addStoryCardRefs, updateStoryCardRef, deleteStoryCardRef }),
 }))
 
-import type { Lorebook, Story, StoryCardRef } from '@/shared'
+import type { Lorebook, Story, StoryCardRef, StoryCardSnapshot } from '@/shared'
 import { useCodex } from './useCodex'
+
+function snapshot(overrides: Partial<StoryCardSnapshot> = {}): StoryCardSnapshot {
+    return {
+        id: 'card-x',
+        name: 'Aria',
+        description: 'A card.',
+        story_card_kind: 'character',
+        ...overrides,
+    }
+}
 
 function ref(overrides: Partial<StoryCardRef>): StoryCardRef {
     return {
         id: 'ref-x',
         storyId: 's1',
+        chapterId: null,
         kind: 'character',
         cardId: 'card-x',
         source: 'manual',
         enabled: true,
         precedence: 0,
-        snapshot: null,
+        snapshot: snapshot(),
         ...overrides,
     }
 }
@@ -30,15 +41,17 @@ function story(refs: StoryCardRef[]): Story {
     return {
         id: 's1',
         title: 'Glass War',
-        scenes: [],
+        description: null,
+        source: { kind: 'blank', id: null, title: null },
         chapters: [],
         activeCardRefs: refs,
         activeContext: {
             includeSelectedCards: true,
-            includeMentionedCards: true,
             includeLorebooks: true,
-            includeRecentScenes: 2,
+            includeRecentChapters: 2,
             tokenBudget: 6000,
+            styleSource: 'current_chapter',
+            customStyleInstruction: null,
         },
     }
 }
@@ -100,9 +113,15 @@ describe('useCodex', () => {
 
     it('derives entries from story-level refs only, sorted by precedence', () => {
         const refs = [
-            ref({ id: 'a', precedence: 2, snapshot: { name: 'Aria' } }),
-            ref({ id: 'chapter-scoped', chapterId: 'ch1', snapshot: { name: 'Hidden' } }),
-            ref({ id: 'b', precedence: 1, kind: 'world', snapshot: { name: 'Eldoria', description: 'A kingdom' } }),
+            ref({ id: 'a', precedence: 2 }),
+            ref({ id: 'chapter-scoped', chapterId: 'ch1', snapshot: snapshot({ name: 'Hidden' }) }),
+            ref({
+                id: 'b',
+                precedence: 1,
+                kind: 'world',
+                cardId: 'world-1',
+                snapshot: snapshot({ id: 'world-1', name: 'Eldoria', description: 'A kingdom', story_card_kind: 'world' }),
+            }),
         ]
         const { result } = renderHook(() => useCodex({ story: story(refs) }))
 
@@ -116,7 +135,7 @@ describe('useCodex', () => {
     })
 
     it('addCards posts one batch with continuing precedence and no snapshots', async () => {
-        const refs = [ref({ id: 'a', precedence: 4, snapshot: { name: 'Aria' } })]
+        const refs = [ref({ id: 'a', precedence: 4 })]
         const { result } = renderHook(() => useCodex({ story: story(refs) }))
 
         await result.current.addCards([
@@ -148,28 +167,35 @@ describe('useCodex', () => {
             chapterId: null,
         })
         expect(payloads[0].snapshot).toMatchObject({
+            id: 'entry-1',
             name: 'The Glass Pact',
-            title: 'The Glass Pact',
             description: 'An oath sworn on shattered mirrors.',
-            content: 'An oath sworn on shattered mirrors.',
-            keys: ['pact'],
-            entry_type: 'rule',
             source_lorebook_id: 'lb-1',
-            source_entry_id: 'entry-1',
+            story_card_kind: 'lorebook_entry',
         })
         // Disabled source entries clone as disabled codex entries.
         expect(payloads[1]).toMatchObject({ cardId: 'entry-2', enabled: false, precedence: 1 })
     })
 
     it('exposes already-cloned entry ids for the picker', () => {
-        const refs = [ref({ id: 'a', kind: 'lorebook_entry', cardId: 'entry-1', snapshot: { source_entry_id: 'entry-1' } })]
+        const refs = [ref({
+            id: 'a',
+            kind: 'lorebook_entry',
+            cardId: 'entry-1',
+            snapshot: snapshot({
+                id: 'entry-1',
+                name: 'Pact',
+                story_card_kind: 'lorebook_entry',
+                source_lorebook_id: 'lb-1',
+            }),
+        })]
         const { result } = renderHook(() => useCodex({ story: story(refs) }))
 
         expect(result.current.existingEntryIds).toEqual(new Set(['entry-1']))
     })
 
     it('toggleEntry flips enabled via a card-ref PUT', async () => {
-        const refs = [ref({ id: 'a', enabled: true, snapshot: { name: 'Aria' } })]
+        const refs = [ref({ id: 'a', enabled: true })]
         const { result } = renderHook(() => useCodex({ story: story(refs) }))
 
         await result.current.toggleEntry(result.current.entries[0])
@@ -178,34 +204,51 @@ describe('useCodex', () => {
     })
 
     it('saveSnapshot merges into the existing snapshot, preserving card fields', async () => {
-        const refs = [ref({ id: 'a', snapshot: { name: 'Aria', race: 'elf', image_url: '/aria.png' } })]
+        const refs = [ref({ id: 'a', snapshot: snapshot({ race: 'elf' }) })]
         const { result } = renderHook(() => useCodex({ story: story(refs) }))
 
         await result.current.saveSnapshot(result.current.entries[0], { label: 'Aria the Red', description: 'A ranger of the gate.' })
 
         expect(updateStoryCardRef).toHaveBeenCalledWith('s1', 'a', {
             snapshot: {
+                id: 'card-x',
                 name: 'Aria the Red',
-                title: 'Aria the Red',
                 description: 'A ranger of the gate.',
                 race: 'elf',
-                image_url: '/aria.png',
+                story_card_kind: 'character',
             },
         })
     })
 
-    it('saveSnapshot mirrors content for lorebook entries', async () => {
-        const refs = [ref({ id: 'a', kind: 'lorebook_entry', cardId: 'entry-1', snapshot: { name: 'Pact', content: 'old', keys: ['pact'] } })]
+    it('saveSnapshot keeps lorebook entries in the strict snapshot schema', async () => {
+        const refs = [ref({
+            id: 'a',
+            kind: 'lorebook_entry',
+            cardId: 'entry-1',
+            snapshot: snapshot({
+                id: 'entry-1',
+                name: 'Pact',
+                description: 'old',
+                source_lorebook_id: 'lb-1',
+                story_card_kind: 'lorebook_entry',
+            }),
+        })]
         const { result } = renderHook(() => useCodex({ story: story(refs) }))
 
         await result.current.saveSnapshot(result.current.entries[0], { label: 'Pact', description: 'new text' })
 
         const [, , payload] = updateStoryCardRef.mock.calls[0]
-        expect(payload.snapshot).toMatchObject({ description: 'new text', content: 'new text', keys: ['pact'] })
+        expect(payload.snapshot).toEqual({
+            id: 'entry-1',
+            name: 'Pact',
+            description: 'new text',
+            source_lorebook_id: 'lb-1',
+            story_card_kind: 'lorebook_entry',
+        })
     })
 
     it('removeEntry deletes the card ref', async () => {
-        const refs = [ref({ id: 'a', snapshot: { name: 'Aria' } })]
+        const refs = [ref({ id: 'a' })]
         const { result } = renderHook(() => useCodex({ story: story(refs) }))
 
         await result.current.removeEntry(result.current.entries[0])
@@ -215,9 +258,27 @@ describe('useCodex', () => {
 
     it('detectionNames lists only enabled entity names (not lore or disabled)', () => {
         const refs = [
-            ref({ id: 'a', kind: 'character', snapshot: { name: 'Aria' } }),
-            ref({ id: 'b', kind: 'world', enabled: false, precedence: 1, snapshot: { name: 'Eldoria' } }),
-            ref({ id: 'c', kind: 'lorebook_entry', cardId: 'e1', precedence: 2, snapshot: { name: 'Pact', keys: ['pact'] } }),
+            ref({ id: 'a', kind: 'character' }),
+            ref({
+                id: 'b',
+                kind: 'world',
+                cardId: 'world-1',
+                enabled: false,
+                precedence: 1,
+                snapshot: snapshot({ id: 'world-1', name: 'Eldoria', story_card_kind: 'world' }),
+            }),
+            ref({
+                id: 'c',
+                kind: 'lorebook_entry',
+                cardId: 'e1',
+                precedence: 2,
+                snapshot: snapshot({
+                    id: 'e1',
+                    name: 'Pact',
+                    story_card_kind: 'lorebook_entry',
+                    source_lorebook_id: 'lb-1',
+                }),
+            }),
         ]
         const { result } = renderHook(() => useCodex({ story: story(refs) }))
 
@@ -231,24 +292,23 @@ describe('useCodex', () => {
                 kind: 'lorebook_entry',
                 cardId: 'entry-1',
                 enabled: false,
-                snapshot: {
+                snapshot: snapshot({
+                    id: 'entry-1',
                     name: 'The Glass Pact',
-                    content: 'An oath sworn on shattered mirrors.',
-                    keys: ['pact', 'oath'],
-                    entry_type: 'rule',
+                    description: 'An oath sworn on shattered mirrors.',
                     source_lorebook_id: 'lb-1',
-                    source_lorebook_name: 'Twin Courts',
-                    source_entry_id: 'entry-1',
-                },
+                    story_card_kind: 'lorebook_entry',
+                }),
             }),
-            ref({ id: 'c', kind: 'character', precedence: 1, snapshot: { name: 'Aria' } }),
+            ref({ id: 'c', kind: 'character', precedence: 1 }),
         ]
         const { result } = renderHook(() => useCodex({ story: story(refs) }))
 
         expect(result.current.loreEntries).toHaveLength(1)
         const session = result.current.loreEntries[0]
-        expect(session.lorebookName).toBe('Twin Courts')
-        // enabled mirrors the codex ref (disabled here); match options match the chat engine.
-        expect(session.entry).toMatchObject({ keys: ['pact', 'oath'], enabled: false, matchWholeWords: true, caseSensitive: false, regex: false })
+        expect(session.lorebookName).toBe('lb-1')
+        // Canonical snapshots retain the entry name but not the full trigger list,
+        // so the name is the local highlighting fallback.
+        expect(session.entry).toMatchObject({ keys: ['The Glass Pact'], enabled: false, matchWholeWords: true, caseSensitive: false, regex: false })
     })
 })

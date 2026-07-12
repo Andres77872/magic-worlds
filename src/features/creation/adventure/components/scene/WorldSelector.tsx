@@ -5,7 +5,7 @@
 
 import { useTranslation } from 'react-i18next'
 import { Globe } from 'lucide-react'
-import type { World } from '@/shared'
+import { readWorldPlaceType, worldPlaceTypeLabel, type World } from '@/shared'
 import { Icon } from '@/ui/primitives'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { CastMemberCard, NoneOption, SelectorLoading } from './CastMemberCard'
@@ -39,7 +39,7 @@ export function WorldSelector({ worlds, selectedId, onSelect, onCreateWorld, loa
                 <CastMemberCard
                     key={w.id}
                     name={w.name}
-                    race={[w.place_type, w.type].filter(Boolean).join(' / ')}
+                    race={[worldPlaceTypeLabel(readWorldPlaceType(w)), w.type].filter(Boolean).join(' / ')}
                     description={w.description}
                     selected={selectedId === w.id}
                     onToggle={() => onSelect(w.id)}

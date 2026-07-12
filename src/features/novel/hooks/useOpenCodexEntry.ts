@@ -10,8 +10,9 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useFloatingWindows } from '@/app/hooks'
 import { cardWindow, loreEntryWindow } from '@/features/floatingWindows'
-import { snapshotSourceName, snapshotToCardPreview, snapshotToLoreEntry } from '@/features/codex'
+import { snapshotToCardPreview } from '@/features/codex'
 import type { CardPreviewTargetType } from '@/features/cards'
+import { lorebookEntryFromSnapshot } from '../utils/codexUtils'
 import type { CodexEntry } from './useCodex'
 
 const LIBRARY_CARD_KINDS = ['character', 'world', 'item', 'adventure_template']
@@ -25,11 +26,14 @@ export function useOpenCodexEntry(onEdit?: (entry: CodexEntry) => void) {
             const snapshot = entry.ref.snapshot
             const edit = onEdit ? { onEdit: () => onEdit(entry), editLabel: t('floatingWindows.edit') } : {}
             if (entry.kind === 'lorebook_entry') {
-                openWindow(loreEntryWindow(snapshotToLoreEntry(snapshot, entry.ref.cardId), { sourceName: snapshotSourceName(snapshot), ...edit }))
+                openWindow(loreEntryWindow(lorebookEntryFromSnapshot(snapshot, entry.ref.cardId), {
+                    sourceName: snapshot.source_lorebook_id ?? undefined,
+                    ...edit,
+                }))
                 return
             }
             const kind = (LIBRARY_CARD_KINDS.includes(entry.kind) ? entry.kind : 'character') as CardPreviewTargetType
-            openWindow(cardWindow(snapshotToCardPreview(snapshot, kind, entry.ref.cardId), edit))
+            openWindow(cardWindow(snapshotToCardPreview(snapshot as unknown as Record<string, unknown>, kind, entry.ref.cardId), edit))
         },
         [onEdit, openWindow, t],
     )

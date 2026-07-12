@@ -3,9 +3,8 @@
  * gallery (starting frames + empty card), then a two-pane editor of guided
  * scene-setting fields that serialize into the unchanged API payload.
  *
- * `place_type` is dual-written into the `Setting / Place type` category
- * attribute (the backend World model drops the first-class field, so the
- * mirror is what survives round-trips).
+ * Place type is stored canonically in the `Setting / Place type` category
+ * attribute; it is editor state, not a top-level API field.
  */
 
 import type { FormEvent, KeyboardEvent } from 'react'
@@ -99,7 +98,6 @@ function toWorld(card: WorldCardResponse): World {
     return {
         id: card.id || card.uuid || '',
         name: card.name ?? '',
-        place_type: readWorldPlaceType(card),
         type: card.type ?? '',
         description: card.description ?? '',
         details: {},
@@ -110,10 +108,8 @@ function toWorld(card: WorldCardResponse): World {
     }
 }
 
-/** First-class place_type when present, else the Setting/Place type mirror, else the default. */
+/** Place scale lives only in the canonical Setting / Place type category. */
 function initialPlaceType(world: World | null | undefined): string {
-    const direct = world?.place_type
-    if (typeof direct === 'string' && direct.trim()) return direct.trim()
     return readCategoryAttribute(world, PLACE_TYPE_MIRROR.group, PLACE_TYPE_MIRROR.key) ?? DEFAULT_WORLD_PLACE_TYPE
 }
 
@@ -221,7 +217,6 @@ export function WorldCreator() {
     /** Build the create/update payload from current form state. */
     const buildPayload = () => ({
         name,
-        place_type: placeType.trim() || DEFAULT_WORLD_PLACE_TYPE,
         type,
         description,
         triggers,
@@ -279,10 +274,13 @@ export function WorldCreator() {
     const handleImageUrl = (url: string | undefined) => {
         setImageUrl(url)
         const id = savedIdRef.current ?? editingWorld?.id
-        if (id && url) {
+        if (id) {
             // Media is a published-body property persisted immediately (not part of the draft).
-            void apiService.setCardMedia('world', id, { image_url: url }).catch(() => {
-                /* best-effort — the asset still exists; it re-persists on the next media action */
+            void apiService.setCardMedia('world', id, { image_url: url ?? null }).catch(() => {
+                setDraftToast({
+                    tone: 'error',
+                    message: t(url ? 'creation.common.media.errors.imageSaveFailed' : 'creation.common.media.errors.imageRemoveFailed'),
+                })
             })
         }
     }
@@ -300,7 +298,7 @@ export function WorldCreator() {
             // which makes AppRouter unmount the whole creator (discarding in-progress edits)
             // and re-run the theme effect. The gallery refreshes on Save / next navigation.
             void apiService.setCardMedia('world', id, { theme_song_url: url }).catch(() => {
-                /* best-effort — the asset still exists; it re-persists on the next media action */
+                setDraftToast({ tone: 'error', message: t('creation.common.media.errors.themeSaveFailed') })
             })
         }
     }
@@ -315,7 +313,6 @@ export function WorldCreator() {
                 name,
                 description,
                 subtype: type,
-                place_type: placeType.trim() || DEFAULT_WORLD_PLACE_TYPE,
                 category: guided.toCategoryPayload(),
             }}
             imageUrl={imageUrl}

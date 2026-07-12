@@ -13,8 +13,8 @@ export interface BackgroundTasksContextValue {
     registerTask: (task: BackgroundTaskPublic) => void
     registerThemeSongJob: (job: ThemeSongJobPublic) => void
     cancelTask: (operation: BackgroundTaskOperation, taskId: string) => Promise<void>
-    /** Hide all tasks currently in a terminal bucket (client-side dismiss, persisted locally). */
-    clearTerminalTasks: (bucket: 'completed' | 'failed') => void
+    /** Archive all tasks currently in a terminal bucket on the server. */
+    clearTerminalTasks: (bucket: 'completed' | 'failed') => Promise<void>
 }
 
 export const BackgroundTasksContext = createContext<BackgroundTasksContextValue | undefined>(undefined)

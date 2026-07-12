@@ -58,14 +58,13 @@ function startFrame(): Extract<VoiceSocketClientFrame, { type: 'voice_start' }> 
     return {
         type: 'voice_start',
         client_call_id: 'call-1',
-        consent_version: 'voice-v1',
         audio: {
             preferred_encoding: 'audio/wav;codec=pcm_s16le',
             sample_rate: 16000,
             channels: 1,
             vad: { source: 'audio_worklet', aggressiveness: 'balanced' },
         },
-        capabilities: { media_source_mp3: true, audio_worklet: true, media_recorder: true },
+        capabilities: { media_source_mp3: true, audio_worklet: true, media_recorder: false },
     }
 }
 
@@ -124,12 +123,14 @@ describe('VoiceSocket', () => {
         expect(MockWebSocket.instances[0].send).toHaveBeenCalledWith(JSON.stringify({ type: 'voice_ping', voice_session_id: 'voice-1' }))
     })
 
-    it('refreshes once on 4401 and reconnects with voice_resume after a ready session', async () => {
-        configureVoiceSocketAuthRefresh(vi.fn().mockImplementation(async () => {
+    it('fails visibly on 4401 after ready instead of resuming an ended backend session', async () => {
+        const refresh = vi.fn().mockImplementation(async () => {
             localStorage.setItem('magic_worlds:token', 'new-token')
             return 'new-token'
-        }))
-        const socket = new VoiceSocket(7, { onMessage: vi.fn() })
+        })
+        configureVoiceSocketAuthRefresh(refresh)
+        const onMessage = vi.fn()
+        const socket = new VoiceSocket(7, { onMessage })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitMessage({
@@ -139,30 +140,15 @@ describe('VoiceSocket', () => {
             limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 60 },
             upload_url: '/character-chats/7/voice-segments',
         })
-        socket.sendSegmentMeta({
-            type: 'voice_segment_meta',
-            voice_session_id: 'voice-1',
-            seq: 3,
-            started_at_ms: 10,
-            duration_ms: 500,
-            encoding: 'audio/wav;codec=pcm_s16le',
-            sample_rate: 16000,
-            channels: 1,
-            byte_length: 44,
-            audio_sha256: 'a'.repeat(64),
-            vad: { speech_ms: 450, silence_ms: 50, rms: 0.1, peak: 0.2 },
-        })
-
         MockWebSocket.instances[0].emitClose(4401)
         await flushPromises()
-        MockWebSocket.instances[1].emitOpen()
 
-        expect(protocolsOf(MockWebSocket.instances[1])).toEqual(['mw.bearer.v1', 'new-token'])
-        expect(MockWebSocket.instances[1].send).toHaveBeenCalledWith(JSON.stringify({
-            type: 'voice_resume',
-            voice_session_id: 'voice-1',
-            last_segment_seq: 3,
-            last_audio_seq: 0,
+        expect(refresh).not.toHaveBeenCalled()
+        expect(MockWebSocket.instances).toHaveLength(1)
+        expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'voice_error',
+            category: 'auth',
+            fatal: true,
         }))
     })
 
@@ -212,6 +198,31 @@ describe('VoiceSocket', () => {
 
         await vi.advanceTimersByTimeAsync(1)
         expect(MockWebSocket.instances).toHaveLength(2)
+    })
+
+    it('fails visibly on a transient close after ready instead of sending voice_resume', async () => {
+        vi.useFakeTimers()
+        const onMessage = vi.fn()
+        const socket = new VoiceSocket(7, { onMessage })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage({
+            type: 'voice_ready',
+            voice_session_id: 'voice-1',
+            server_time_ms: 1,
+            limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 60 },
+            upload_url: '/character-chats/7/voice-segments',
+        })
+
+        MockWebSocket.instances[0].emitClose(1006)
+        await vi.advanceTimersByTimeAsync(30_000)
+
+        expect(MockWebSocket.instances).toHaveLength(1)
+        expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'voice_error',
+            category: 'internal',
+            fatal: true,
+        }))
     })
 
     it('refuses raw-audio JSON control payloads', () => {

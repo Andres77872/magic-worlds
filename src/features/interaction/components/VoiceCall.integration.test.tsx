@@ -169,7 +169,6 @@ describe('Voice call integration proof', () => {
             error: null,
             voiceSessionId: null,
             start: vi.fn(),
-            sendVad: vi.fn(() => true),
             sendSegmentMeta: vi.fn(() => true),
             bargeIn: vi.fn(() => true),
             end: vi.fn(() => true),
@@ -209,7 +208,8 @@ describe('Voice call integration proof', () => {
 
         await startVoiceCallThroughConsent()
         expect(integration.apiService.saveVoiceConsent).toHaveBeenCalledWith(7)
-        expect(integration.socketApi!.start).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_start', consent_version: 'voice-v1' }))
+        expect(integration.socketApi!.start).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_start' }))
+        expect(vi.mocked(integration.socketApi!.start).mock.calls[0][0]).not.toHaveProperty('consent_version')
 
         act(() => integration.socketHandlers?.onReady?.(readyFrame()))
         act(() => integration.microphoneOptions?.onSegment?.(capturedSegment(1)))
@@ -219,7 +219,7 @@ describe('Voice call integration proof', () => {
             seq: 1,
             audio: expect.any(Blob),
         }), expect.objectContaining({ signal: expect.any(AbortSignal) })))
-        expect(integration.socketApi!.sendSegmentMeta).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_segment_meta', seq: 1 }))
+        expect(integration.socketApi!.sendSegmentMeta).toHaveBeenCalledWith({ type: 'voice_segment_meta' })
 
         act(() => integration.socketHandlers?.onTranscriptFinal?.({ type: 'transcript_final', voice_session_id: 'voice-session-1', seq: 1, turn_id: 'turn-1', text: 'Hello there.' }))
         act(() => integration.socketHandlers?.onTurnStart?.({ type: 'voice_turn_start', voice_session_id: 'voice-session-1', turn_id: 'turn-1', user_message_id: 10, assistant_message_id: 11 }))
@@ -297,7 +297,7 @@ describe('Voice call integration proof', () => {
         expect(screen.getByRole('alert')).toHaveTextContent(/session has expired/i)
 
         unmount()
-        await waitFor(() => expect(integration.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-session-1', reason: 'navigation' }))
+        await waitFor(() => expect(integration.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-session-1', reason: 'user' }))
         expect(integration.playback!.dispose).toHaveBeenCalled()
     })
 
@@ -316,11 +316,10 @@ describe('Voice call integration proof', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Interrupt' }))
 
         expect(integration.playback!.cancel).toHaveBeenCalledWith({ voice_session_id: 'voice-session-1', turn_id: 'turn-1' })
-        expect(integration.socketApi!.bargeIn).toHaveBeenCalledWith(expect.objectContaining({
+        expect(integration.socketApi!.bargeIn).toHaveBeenCalledWith({
             type: 'voice_barge_in',
-            last_heard_audio_seq: 4,
-            reason: 'button',
-        }))
+            reason: 'barge_in',
+        })
 
         act(() => integration.microphoneOptions?.onSegment?.(capturedSegment(2)))
         await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/voice provider could not complete/i))

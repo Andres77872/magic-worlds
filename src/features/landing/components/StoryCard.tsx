@@ -9,7 +9,7 @@ import type { Story } from '@/shared'
 import { Card } from '@/ui/components/lists/Card'
 
 function storyChapters(story: Story) {
-    return story.chapters ?? story.scenes ?? []
+    return story.chapters
 }
 
 function storyWordCount(story: Story): number {
@@ -24,7 +24,7 @@ function storyContextTags(story: Story): string[] {
     return (story.activeCardRefs ?? [])
         .map((ref) => {
             const snapshot = ref.snapshot ?? {}
-            return String(snapshot.name ?? snapshot.title ?? snapshot.alias ?? '').trim()
+            return String(snapshot.name ?? snapshot.alias ?? '').trim()
         })
         .filter(Boolean)
         .slice(0, 3)

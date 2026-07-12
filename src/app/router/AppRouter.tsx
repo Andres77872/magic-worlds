@@ -32,6 +32,7 @@ const ItemCreator = lazy(() => import('../../features/creation/item/components/I
 const AdventureCreator = lazy(() => import('../../features/creation/adventure/components/AdventureCreator').then(m => ({ default: m.AdventureCreator })))
 const AdventureInteraction = lazy(() => import('../../features/interaction/components/AdventureInteraction').then(m => ({ default: m.AdventureInteraction })))
 const ActiveAdventuresPage = lazy(() => import('../../features/interaction/components/ActiveAdventuresPage').then(m => ({ default: m.ActiveAdventuresPage })))
+const NotificationsPage = lazy(() => import('../../features/notifications/components/NotificationsPage').then(m => ({ default: m.NotificationsPage })))
 const CharacterChat = lazy(() => import('../../features/characterChat/components/CharacterChat').then(m => ({ default: m.CharacterChat })))
 const ChatroomPage = lazy(() => import('../../features/characterChat/components/ChatroomPage').then(m => ({ default: m.ChatroomPage })))
 const CallsPage = lazy(() => import('../../features/call/components/CallsPage').then(m => ({ default: m.CallsPage })))
@@ -123,6 +124,7 @@ export function AppRouter() {
                                     {currentPage === 'lorebook' && <LorebookStudio />}
                                     {currentPage === 'story' && <NovelStudio />}
                                     {currentPage === 'active-adventures' && <ActiveAdventuresPage />}
+                                    {currentPage === 'notifications' && <NotificationsPage />}
                                     {currentPage === 'interaction' && <AdventureInteraction />}
                                     {currentPage === 'character-chat' && <CharacterChat />}
                                     {currentPage === 'chatroom' && <ChatroomPage />}

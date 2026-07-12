@@ -27,7 +27,6 @@ export interface CardPortraitRequest {
     /** Race for a character, type for a world/item; ignored for adventure templates. */
     subtype?: string | null
     /** Literal place kind/scale for world cards, e.g. country, continent, city. */
-    place_type?: string | null
     category?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }> | null
     /** Optional extra art direction the user typed in. */
     extra_direction?: string | null

@@ -133,14 +133,14 @@ describe('auth refresh recovery API wrapper', () => {
             .mockResolvedValueOnce(jsonResponse({ success: true, message: 'ok', session_token: 'new-token' }))
             .mockResolvedValueOnce(jsonResponse({ ok: true }))
 
-        await apiService.updateAdventureSession(8, '{"turns":[]}')
+        await apiService.updateAdventureSessionMessage(8, 3, 'Updated narration')
 
         const firstInit = fetchMock.mock.calls[0][1] as RequestInit
         const retryInit = fetchMock.mock.calls[2][1] as RequestInit
-        expect(firstInit.method).toBe('PUT')
-        expect(retryInit.method).toBe('PUT')
-        expect(JSON.parse(String(firstInit.body))).toEqual({ adventure_last_turn: '{"turns":[]}' })
-        expect(JSON.parse(String(retryInit.body))).toEqual({ adventure_last_turn: '{"turns":[]}' })
+        expect(firstInit.method).toBe('PATCH')
+        expect(retryInit.method).toBe('PATCH')
+        expect(JSON.parse(String(firstInit.body))).toEqual({ content: 'Updated narration' })
+        expect(JSON.parse(String(retryInit.body))).toEqual({ content: 'Updated narration' })
         expect(headersOf(retryInit).Authorization).toBe('Bearer new-token')
     })
 
@@ -164,8 +164,25 @@ describe('auth refresh recovery API wrapper', () => {
             .mockResolvedValueOnce(jsonResponse({ detail: 'expired' }, { status: 401 }))
             .mockResolvedValueOnce(jsonResponse({ detail: 'Authentication required.' }, { status: 401 }))
 
-        await expect(apiService.updateAdventureSession(4, 'state'))
+        await expect(apiService.updateAdventureSessionMessage(4, 9, 'Updated'))
             .rejects.toBeInstanceOf(ApiError)
+
+        expect(fetchMock).toHaveBeenCalledTimes(2)
+        expect(fetchCallsFor('/auth/refresh')).toHaveLength(1)
+        expect(expired).toHaveBeenCalledTimes(1)
+        expect(localStorage.getItem('magic_worlds:token')).toBeNull()
+        expect(localStorage.getItem('magic_worlds:user')).toBeNull()
+    })
+
+    it('rejects a protected GET when refresh is terminally denied', async () => {
+        const expired = vi.fn()
+        window.addEventListener('auth:expired', expired)
+        fetchMock
+            .mockResolvedValueOnce(jsonResponse({ detail: 'expired' }, { status: 401 }))
+            .mockResolvedValueOnce(jsonResponse({ detail: 'Authentication required.' }, { status: 401 }))
+
+        await expect(apiService.getAdventureSession(4))
+            .rejects.toMatchObject({ status: 401, message: 'Your session has expired. Please log in again.' })
 
         expect(fetchMock).toHaveBeenCalledTimes(2)
         expect(fetchCallsFor('/auth/refresh')).toHaveLength(1)
@@ -181,7 +198,7 @@ describe('auth refresh recovery API wrapper', () => {
             .mockResolvedValueOnce(jsonResponse({ detail: 'expired' }, { status: 401 }))
             .mockResolvedValueOnce(jsonResponse({ detail: 'Authentication service unavailable' }, { status: 503 }))
 
-        await expect(apiService.updateAdventureSession(4, 'state'))
+        await expect(apiService.updateAdventureSessionMessage(4, 9, 'Updated'))
             .rejects.toMatchObject({ status: 503, message: 'Authentication service unavailable' })
 
         expect(fetchMock).toHaveBeenCalledTimes(2)

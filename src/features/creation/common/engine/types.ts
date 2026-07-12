@@ -79,14 +79,14 @@ export interface CardTemplate {
 }
 
 /**
- * A first-class form value dual-written into a category group so it survives
- * round-trips (e.g. world `place_type`, which the backend model drops).
+ * A form value serialized into its canonical category group (for example,
+ * world place scale in Setting / Place type).
  */
 export interface GuidedMirror {
     group: string
     key: string
     groupDescription?: string
-    /** Current first-class value — serialized into the group when non-empty. */
+    /** Current form value — serialized into the group when non-empty. */
     value: string
     /** Called when hydration finds the mirrored attribute (assistant-apply). */
     onHydrate?: (value: string) => void

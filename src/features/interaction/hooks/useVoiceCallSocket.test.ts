@@ -9,7 +9,6 @@ const socketInstances: Array<{
     basePath: string
     connect: ReturnType<typeof vi.fn>
     close: ReturnType<typeof vi.fn>
-    sendVad: ReturnType<typeof vi.fn>
     sendSegmentMeta: ReturnType<typeof vi.fn>
     sendBargeIn: ReturnType<typeof vi.fn>
     end: ReturnType<typeof vi.fn>
@@ -21,7 +20,6 @@ vi.mock('@/infrastructure/api', () => ({
         readonly basePath: string
         connect = vi.fn()
         close = vi.fn()
-        sendVad = vi.fn(() => true)
         sendSegmentMeta = vi.fn(() => true)
         sendBargeIn = vi.fn(() => true)
         end = vi.fn(() => true)
@@ -39,14 +37,13 @@ function startFrame(): Extract<VoiceSocketClientFrame, { type: 'voice_start' }> 
     return {
         type: 'voice_start',
         client_call_id: 'call-1',
-        consent_version: 'voice-v1',
         audio: {
             preferred_encoding: 'audio/wav;codec=pcm_s16le',
             sample_rate: 16000,
             channels: 1,
             vad: { source: 'audio_worklet', aggressiveness: 'balanced' },
         },
-        capabilities: { media_source_mp3: true, audio_worklet: true, media_recorder: true },
+        capabilities: { media_source_mp3: true, audio_worklet: true, media_recorder: false },
     }
 }
 
@@ -143,16 +140,6 @@ describe('useVoiceCallSocket', () => {
 
         act(() => result.current.sendSegmentMeta({
             type: 'voice_segment_meta',
-            voice_session_id: 'voice-1',
-            seq: 1,
-            started_at_ms: 0,
-            duration_ms: 500,
-            encoding: 'audio/wav;codec=pcm_s16le',
-            sample_rate: 16000,
-            channels: 1,
-            byte_length: 44,
-            audio_sha256: 'a'.repeat(64),
-            vad: { speech_ms: 450, silence_ms: 50, rms: 0.1, peak: 0.2 },
         }))
 
         expect(socketInstances[0].sendSegmentMeta).toHaveBeenCalledTimes(1)

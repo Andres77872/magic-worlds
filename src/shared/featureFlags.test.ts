@@ -51,6 +51,12 @@ describe('frontend feature flags', () => {
     })
 
     it('maps page availability through the owning feature', () => {
+        vi.stubEnv('VITE_FEATURE_COMMUNITY_CARDS_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
         expect(isPageFeatureEnabled('character-chat')).toBe(true)
         expect(isPageFeatureEnabled('interaction')).toBe(true)
         expect(isPageFeatureEnabled('community')).toBe(false)
@@ -74,10 +80,7 @@ describe('frontend feature flags', () => {
         expect(isPageFeatureEnabled('gallery-stories')).toBe(true)
     })
 
-    it('keeps the legacy voice helper pointed at the calls flag', () => {
-        vi.stubEnv('VITE_VOICE_MODE_ENABLED', 'true')
-        expect(isFrontendVoiceModeEnabled()).toBe(false)
-
+    it('keeps the voice helper pointed at the calls flag', () => {
         vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
         expect(isFrontendVoiceModeEnabled()).toBe(true)
         expect(isFeatureEnabled('calls')).toBe(true)

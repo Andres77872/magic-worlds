@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     useData: vi.fn(),
     refreshTasks: vi.fn(),
     cancelTask: vi.fn(),
+    clearTerminalTasks: vi.fn(),
     closeDrawer: vi.fn(),
 }))
 
@@ -86,6 +87,7 @@ function mockDrawerState(buckets: BackgroundTaskBuckets) {
         registerTask: vi.fn(),
         registerThemeSongJob: vi.fn(),
         cancelTask: mocks.cancelTask,
+        clearTerminalTasks: mocks.clearTerminalTasks,
     })
     mocks.useData.mockReturnValue({
         characters: [character],
@@ -178,6 +180,23 @@ describe('TasksDrawer', () => {
         resolveRefresh()
         await waitFor(() => expect(refreshButton).not.toBeDisabled())
         expect(mocks.refreshTasks).toHaveBeenCalledTimes(1)
+    })
+
+    it('disables clear while archiving and surfaces an archive failure', async () => {
+        let rejectClear: (reason?: unknown) => void = () => {}
+        mocks.clearTerminalTasks.mockImplementation(
+            () => new Promise<void>((_resolve, reject) => { rejectClear = reject }),
+        )
+        renderDrawer({ active: [], completed: [task('completed', 'done-1')], failed: [] })
+
+        fireEvent.click(await screen.findByRole('button', { name: /completed\s*1/i }))
+        const clearButton = screen.getByRole('button', { name: 'Clear completed' })
+        fireEvent.click(clearButton)
+        expect(clearButton).toBeDisabled()
+
+        rejectClear(new Error('server unavailable'))
+        expect(await screen.findByRole('alert')).toHaveTextContent('Some tasks could not be cleared. Try again.')
+        expect(clearButton).not.toBeDisabled()
     })
 
     it('shows relative timestamps with the absolute time on hover', async () => {

@@ -69,7 +69,6 @@ export interface WorldCardResponse {
     id: string
     uuid?: string
     name: string
-    place_type?: string
     type?: string
     description?: string
     category?: AiCardCategory[] | null

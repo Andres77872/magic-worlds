@@ -77,7 +77,6 @@ type RefreshFailureShape = {
 }
 
 type VoiceStartFrame = Extract<VoiceSocketClientFrame, { type: 'voice_start' }>
-type VoiceResumeFrame = Extract<VoiceSocketClientFrame, { type: 'voice_resume' }>
 type VoiceBargeInFrame = Extract<VoiceSocketClientFrame, { type: 'voice_barge_in' }>
 
 export type VoiceSocketStatus = 'connecting' | 'open' | 'closed'
@@ -139,8 +138,6 @@ export class VoiceSocket {
     private terminalAuthReported = false
     private startFrame: VoiceStartFrame | null = null
     private voiceSessionId: string | null = null
-    private lastSegmentSeq = 0
-    private lastAudioSeq = 0
     private readonly cancelledTurns = new Set<string>()
     private readonly highestAudioSeqByTurn = new Map<string, number>()
 
@@ -156,23 +153,17 @@ export class VoiceSocket {
         this.openSocket()
     }
 
-    sendVad(frame: Extract<VoiceSocketClientFrame, { type: 'voice_vad' }>): boolean {
-        return this.sendFrame(frame)
-    }
-
     sendSegmentMeta(frame: Extract<VoiceSocketClientFrame, { type: 'voice_segment_meta' }>): boolean {
-        if (frame.seq > this.lastSegmentSeq) this.lastSegmentSeq = frame.seq
         return this.sendFrame(frame)
     }
 
     sendBargeIn(frame: VoiceBargeInFrame): boolean {
-        if (frame.turn_id) this.cancelledTurns.add(turnKey(frame.voice_session_id, frame.turn_id))
         return this.sendFrame(frame)
     }
 
-    end(reason: Extract<VoiceSocketClientFrame, { type: 'voice_end' }>['reason'] = 'user'): boolean {
+    end(): boolean {
         if (!this.voiceSessionId) return false
-        const sent = this.sendFrame({ type: 'voice_end', voice_session_id: this.voiceSessionId, reason })
+        const sent = this.sendFrame({ type: 'voice_end', reason: 'user' })
         this.closedByUser = true
         return sent
     }
@@ -261,7 +252,11 @@ export class VoiceSocket {
             }
 
             if (event.code === 4401) {
-                void this.recoverFromAuthClose()
+                if (this.voiceSessionId) {
+                    this.emitError('auth', 'The voice connection ended after authentication changed. Start a new call.', true)
+                } else {
+                    void this.recoverFromAuthClose()
+                }
                 return
             }
 
@@ -278,22 +273,20 @@ export class VoiceSocket {
             }
 
             if (!this.closedByUser && event.code !== 1000) {
-                this.scheduleReconnect()
+                if (this.voiceSessionId) {
+                    // The backend releases a call when its socket disconnects, so
+                    // post-ready resume would target an already-ended session.
+                    this.emitError('internal', 'The voice connection ended. Start a new call.', true)
+                } else {
+                    this.scheduleReconnect()
+                }
             }
         }
 
         ws.onerror = () => {}
     }
 
-    private buildHandshakeFrame(): VoiceStartFrame | VoiceResumeFrame | null {
-        if (this.voiceSessionId) {
-            return {
-                type: 'voice_resume',
-                voice_session_id: this.voiceSessionId,
-                last_segment_seq: this.lastSegmentSeq,
-                last_audio_seq: this.lastAudioSeq,
-            }
-        }
+    private buildHandshakeFrame(): VoiceStartFrame | null {
         return this.startFrame
     }
 
@@ -338,20 +331,15 @@ export class VoiceSocket {
                 break
             case 'voice_state_snapshot':
                 this.voiceSessionId = message.voice_session_id
-                this.lastSegmentSeq = Math.max(this.lastSegmentSeq, message.last_segment_seq)
-                this.lastAudioSeq = Math.max(this.lastAudioSeq, message.last_audio_seq)
                 break
             case 'voice_segment_ack':
-                if (message.seq > this.lastSegmentSeq) this.lastSegmentSeq = message.seq
                 break
             case 'voice_audio_chunk': {
                 const key = turnKey(message.voice_session_id, message.turn_id)
                 this.highestAudioSeqByTurn.set(key, message.seq)
-                this.lastAudioSeq = Math.max(this.lastAudioSeq, message.seq)
                 break
             }
             case 'voice_audio_final':
-                this.lastAudioSeq = Math.max(this.lastAudioSeq, message.last_seq)
                 break
             case 'voice_cancelled':
                 if (message.turn_id) this.cancelledTurns.add(turnKey(message.voice_session_id, message.turn_id))

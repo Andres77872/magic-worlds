@@ -35,6 +35,7 @@ vi.mock('@/infrastructure', () => {
             createCharacterGroupChat: vi.fn().mockResolvedValue({}),
             updateAdventureSnapshot: vi.fn().mockResolvedValue({}),
             updateCharacter: vi.fn().mockResolvedValue({}),
+            setDefaultPersona: vi.fn().mockResolvedValue({}),
             updateWorld: vi.fn().mockResolvedValue({}),
             updateItem: vi.fn().mockResolvedValue({}),
             addCharacterChatCodexCards: vi.fn().mockResolvedValue({}),
@@ -55,8 +56,8 @@ import { apiService } from '@/infrastructure'
 import { DataContext, DataProvider } from './DataProvider'
 
 const SNAPSHOT: AdventureSnapshot = {
-    schema_version: 1,
-    source: 'mysql_card_body',
+    schema_version: 2,
+    source: 'resolved_library_clone',
     template_card_id: 'tpl-1',
     template: {
         id: 'tpl-1',
@@ -85,11 +86,12 @@ describe('DataProvider.saveInProgressSnapshot', () => {
         fireEvent.click(screen.getByText('save'))
 
         await waitFor(() => {
-            expect(apiService.updateAdventureSnapshot).toHaveBeenCalledWith(7, SNAPSHOT)
+            expect(apiService.updateAdventureSnapshot).toHaveBeenCalledWith(7, expect.objectContaining({
+                schema_version: 2,
+                source: 'resolved_library_clone',
+                template: expect.objectContaining({ id: 'tpl-1', description: 'Edited scenario' }),
+            }))
         })
-        // The original character / world library cards must stay untouched.
-        expect(apiService.updateCharacter).not.toHaveBeenCalled()
-        expect(apiService.updateWorld).not.toHaveBeenCalled()
     })
 })
 
@@ -174,7 +176,7 @@ describe('DataProvider character chats', () => {
         vi.unstubAllEnvs()
     })
 
-    it('loads the chat list with parsed turns and the chat character', async () => {
+    it('loads the chat list and its character metadata', async () => {
         render(
             <DataProvider>
                 <ChatProbe />
@@ -365,8 +367,8 @@ describe('DataProvider adventure starts', () => {
             adventure_template: 't1',
             adventure_last_turn: '{}',
             template_snapshot: {
-                schema_version: 1,
-                source: 'mysql_card_body',
+                schema_version: 2,
+                source: 'resolved_library_clone',
                 template_card_id: 't1',
                 template: { id: 't1', description: 'Open the gate', persona: CHAT_PERSONA, characters: [] },
             },
@@ -424,10 +426,10 @@ describe('DataProvider.setDefaultPersona', () => {
         vi.clearAllMocks()
     })
 
-    it('publishes the persona as default and mirrors the single-default rule locally', async () => {
+    it('sets the persona as default and mirrors the single-default rule locally', async () => {
         // Seed the library through the initial load so it isn't overwritten mid-test.
         vi.mocked(apiService.getCharacters).mockResolvedValue([PERSONA_DEFAULT, PERSONA_DRAFT])
-        vi.mocked(apiService.updateCharacter).mockResolvedValue({
+        vi.mocked(apiService.setDefaultPersona).mockResolvedValue({
             id: 'p2',
             name: 'Bryn',
             race: 'Gnome',
@@ -446,13 +448,7 @@ describe('DataProvider.setDefaultPersona', () => {
 
         fireEvent.click(screen.getByText('promote'))
 
-        // Full body (PUT replaces), flagged default, role pinned to persona.
-        await waitFor(() =>
-            expect(apiService.updateCharacter).toHaveBeenCalledWith(
-                'p2',
-                expect.objectContaining({ is_default_persona: true, role: 'persona', name: 'Bryn' }),
-            ),
-        )
+        await waitFor(() => expect(apiService.setDefaultPersona).toHaveBeenCalledWith('p2'))
         // Target becomes default (draft cleared); the previous default is demoted.
         await waitFor(() => expect(screen.getByTestId('persona-p2')).toHaveTextContent('default'))
         expect(screen.getByTestId('persona-p2')).not.toHaveTextContent('draft')

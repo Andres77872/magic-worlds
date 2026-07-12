@@ -66,8 +66,8 @@ export function CallScreen({ character, sessionId, onSwitchToText }: CallScreenP
         }
     }
 
-    const leave = (reason: 'user' | 'navigation' = 'user') => {
-        void controller.endCall(reason)
+    const leave = () => {
+        void controller.endCall()
         onSwitchToText()
     }
 
@@ -92,9 +92,9 @@ export function CallScreen({ character, sessionId, onSwitchToText }: CallScreenP
             }}
             onMute={controller.mute}
             onUnmute={controller.unmute}
-            onBargeIn={() => controller.bargeIn('button')}
-            onEnd={() => leave('user')}
-            onSwitchToText={() => leave('user')}
+            onBargeIn={() => controller.bargeIn()}
+            onEnd={leave}
+            onSwitchToText={leave}
         />
     )
 }

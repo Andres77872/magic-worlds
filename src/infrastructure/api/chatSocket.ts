@@ -1,5 +1,5 @@
 /**
- * AdventureChatSocket — per-session WebSocket transport for adventure chat.
+ * ChatSocket — per-session WebSocket transport for adventure and character chat.
  *
  * Replaces the old SSE `POST /chat` reader. One socket per adventure carries the
  * full typed envelope (see `ChatSocketServerMessage`): narrative `delta` frames,
@@ -9,8 +9,7 @@
  * `Sec-WebSocket-Protocol` subprotocol since browsers can't set headers on a WS.
  */
 
-import type { ChatMessage } from '../../shared/types/auth.types'
-import type { ChatGenerationOptions, ChatSocketServerMessage } from '../../shared/types/interaction.types'
+import type { ChatSocketServerMessage } from '../../shared/types/interaction.types'
 import { API_BASE_URL } from './baseUrl'
 
 const WS_BEARER_SUBPROTOCOL = 'mw.bearer.v1'
@@ -197,8 +196,12 @@ export class ChatSocket {
     }
 
     /** Request a generation. Queues until the socket is OPEN, (re)connecting if needed. */
-    sendChat(messages: ChatMessage[], options: ChatGenerationOptions = { generateImage: true, suggestActions: true }): void {
-        const frame = JSON.stringify({ type: 'chat', messages, options })
+    sendChat(content: string, requestId?: string): void {
+        const frame = JSON.stringify({
+            type: 'chat',
+            content,
+            ...(requestId ? { request_id: requestId } : {}),
+        })
         const token = getStoredToken()
         if (!token) {
             this.expireAuth()
@@ -493,10 +496,3 @@ export class ChatSocket {
         }, delay)
     }
 }
-
-/**
- * Back-compat alias. The transport is identical for adventures and 1:1 character
- * chats (same typed envelope); only the `basePath` URL segment differs. Existing
- * imports keep using `AdventureChatSocket`; new code may use `ChatSocket`.
- */
-export const AdventureChatSocket = ChatSocket

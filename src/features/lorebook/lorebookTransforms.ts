@@ -20,8 +20,9 @@ import {
     findInvalidLorebookResource,
     lorebookHasResourceContent,
     lorebookResourceActivationEntries,
+    embeddedLorebookResourcesFromMetadata,
     lorebookResourcesFromMetadata,
-    stripHydratedLorebookResourceMetadata,
+    lorebookResourceToApiPayload,
 } from './lorebookResources'
 import { buildKeyRegex } from './loreTriggers'
 
@@ -205,12 +206,16 @@ export function lorebookToApiPayload(lorebook: Lorebook | LorebookDraft | Partia
         description: lorebook.description || null,
         tags: lorebook.tags ?? [],
         enabled: lorebook.enabled ?? true,
-        scan_depth: lorebook.settings?.scanDepth ?? DEFAULT_LOREBOOK_SETTINGS.scanDepth,
-        token_budget: lorebook.settings?.tokenBudget ?? DEFAULT_LOREBOOK_SETTINGS.tokenBudget,
-        recursive_scanning: lorebook.settings?.recursiveScanning ?? DEFAULT_LOREBOOK_SETTINGS.recursiveScanning,
-        match_whole_words: lorebook.settings?.matchWholeWords ?? DEFAULT_LOREBOOK_SETTINGS.matchWholeWords,
-        case_sensitive: lorebook.settings?.caseSensitive ?? DEFAULT_LOREBOOK_SETTINGS.caseSensitive,
-        metadata: stripHydratedLorebookResourceMetadata(lorebook.metadata),
+        settings: {
+            scanDepth: lorebook.settings?.scanDepth ?? DEFAULT_LOREBOOK_SETTINGS.scanDepth,
+            tokenBudget: lorebook.settings?.tokenBudget ?? DEFAULT_LOREBOOK_SETTINGS.tokenBudget,
+            recursiveScanning: lorebook.settings?.recursiveScanning ?? DEFAULT_LOREBOOK_SETTINGS.recursiveScanning,
+            matchWholeWords: lorebook.settings?.matchWholeWords ?? DEFAULT_LOREBOOK_SETTINGS.matchWholeWords,
+            caseSensitive: lorebook.settings?.caseSensitive ?? DEFAULT_LOREBOOK_SETTINGS.caseSensitive,
+        },
+        metadata: {
+            resources: embeddedLorebookResourcesFromMetadata(lorebook.metadata).map(lorebookResourceToApiPayload),
+        },
         entries: 'entries' in lorebook && Array.isArray(lorebook.entries)
             ? lorebook.entries.map(entryToApiPayload)
             : undefined,
@@ -224,34 +229,35 @@ export function entryToApiPayload(entry: Partial<LorebookEntry | LorebookEntryDr
     return {
         ...(id ? { id } : {}),
         title: entry.title ?? '',
-        entry_type: entry.entryType ?? 'other',
+        entryType: entry.entryType ?? 'other',
         content: entry.content ?? '',
         keys: entry.keys ?? [],
-        secondary_keys: entry.secondaryKeys ?? [],
-        selective_logic: entry.selectiveLogic ?? 'any',
+        secondaryKeys: entry.secondaryKeys ?? [],
+        selectiveLogic: entry.selectiveLogic ?? 'any',
         enabled: entry.enabled ?? true,
         constant: entry.constant ?? false,
-        case_sensitive: entry.caseSensitive ?? false,
-        match_whole_words: entry.matchWholeWords ?? true,
+        caseSensitive: entry.caseSensitive ?? false,
+        matchWholeWords: entry.matchWholeWords ?? true,
         regex: entry.regex ?? false,
-        is_secret: entry.isSecret ?? false,
-        reveal_condition: entry.revealCondition || null,
-        insertion_order: entry.insertionOrder ?? 0,
+        isSecret: entry.isSecret ?? false,
+        revealCondition: entry.revealCondition || null,
+        insertionOrder: entry.insertionOrder ?? 0,
         priority: entry.priority ?? 0,
-        insertion_position: entry.insertionPosition ?? 'before_context',
-        token_budget: entry.tokenBudget ?? null,
-        metadata: entry.metadata ?? {},
+        insertionPosition: entry.insertionPosition ?? 'before_context',
+        tokenBudget: entry.tokenBudget ?? null,
     }
 }
 
 export function attachmentToApiPayload(attachment: Partial<LorebookAttachment>): Record<string, unknown> {
     return {
         ...(attachment.id ? { id: attachment.id } : {}),
-        lorebook_id: attachment.lorebookId,
-        target_kind: attachment.targetKind ?? 'global',
-        target_id: attachment.targetId || null,
+        lorebookId: attachment.lorebookId,
+        targetKind: attachment.targetKind ?? 'global',
+        targetId: attachment.targetId || null,
         mode: attachment.mode ?? 'linked',
-        snapshot: attachment.snapshot ? lorebookToApiPayload(attachment.snapshot) : null,
+        snapshot: attachment.snapshot
+            ? { id: attachment.snapshot.id, ...lorebookToApiPayload(attachment.snapshot) }
+            : null,
     }
 }
 

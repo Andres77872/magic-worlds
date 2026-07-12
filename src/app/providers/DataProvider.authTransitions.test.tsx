@@ -39,14 +39,17 @@ import { DataContext, DataProvider } from './DataProvider'
 const STORY = {
     id: 's1',
     title: 'The Hollow Crown',
-    scenes: [],
+    description: null,
+    source: { kind: 'blank' as const, id: null, title: null },
+    chapters: [],
     activeCardRefs: [],
     activeContext: {
         includeSelectedCards: true,
-        includeMentionedCards: true,
         includeLorebooks: true,
-        includeRecentScenes: 1,
+        includeRecentChapters: 1,
         tokenBudget: 1000,
+        styleSource: 'current_chapter' as const,
+        customStyleInstruction: null,
     },
 }
 

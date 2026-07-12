@@ -87,6 +87,7 @@ export function WordGoalControl({ words, goal, onSetGoal }: WordGoalControlProps
                         id="novel-word-goal-input"
                         type="number"
                         min={1}
+                        max={2147483647}
                         value={draft}
                         autoFocus
                         onChange={(event) => setDraft(event.target.value)}

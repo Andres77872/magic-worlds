@@ -21,8 +21,10 @@ function chapter(overrides: Partial<StoryChapter> = {}): StoryChapter {
         body: 'The gate held.',
         order: 0,
         status: 'draft',
+        povCardId: null,
+        locationCardId: null,
         activeCardRefs: [],
-        mentionRefs: [],
+        generationHistory: [],
         ...overrides,
     }
 }

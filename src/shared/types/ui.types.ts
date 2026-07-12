@@ -26,6 +26,7 @@ export type PageType =
     | 'character-chat'
     | 'chatroom'
     | 'active-adventures'
+    | 'notifications'
     | 'calls'
     | 'community'
     | 'shared-card'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { AdventureSnapshot, Character, World } from '../../../shared'
+import { readWorldPlaceType, type AdventureSnapshot, type Character, type SnapshotCard, type World } from '../../../shared'
 import {
     addSnapshotCard,
     adventureFieldsFromSnapshot,
@@ -12,13 +12,14 @@ import {
     removeSnapshotCard,
     setSnapshotPersona,
     snapshotSourceIds,
+    writableAdventureSnapshot,
     worldEntries,
 } from './adventureSnapshot'
 
 function makeSnapshot(): AdventureSnapshot {
     return {
-        schema_version: 1,
-        source: 'mysql_card_body',
+        schema_version: 2,
+        source: 'resolved_library_clone',
         template_card_id: 'tpl-1',
         template: {
             id: 'tpl-1',
@@ -145,11 +146,13 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
     const libWorld: World = {
         id: 'world-9',
         name: 'Sunspire',
-        place_type: 'city',
         type: 'City',
         description: 'A gilded city',
         details: {},
-        category: [{ name: 'Details', attributes: [{ Ruler: 'Council' }] }],
+        category: [
+            { name: 'Setting', attributes: [{ 'Place type': 'city' }] },
+            { name: 'Details', attributes: [{ Ruler: 'Council' }] },
+        ],
         triggers: ['sunspire'],
         image_url: '/generated-images/sunspire.jpeg',
         theme_song_url: '/generated-audio/sunspire.mp3',
@@ -165,7 +168,8 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         expect(snapCard.voice).toEqual({ voice_id: 'English_radiant_girl', speed: 1.05, language_boost: 'English' })
 
         const w = libraryCardToSnapshotCard(libWorld, 'world')
-        expect(w.place_type).toBe('city')
+        expect(w).not.toHaveProperty('place_type')
+        expect(w).not.toHaveProperty('uuid')
         expect(w.type).toBe('City')
         expect(w.source_card_id).toBe('world-9')
     })
@@ -191,7 +195,7 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         expect(fields.persona?.image_url).toBe('/generated-images/lyra.jpeg')
         expect(fields.persona?.theme_song_url).toBe('/generated-audio/lyra.mp3')
         expect(fields.worlds[fields.worlds.length - 1]?.image_url).toBe('/generated-images/sunspire.jpeg')
-        expect(fields.worlds[fields.worlds.length - 1]?.place_type).toBe('city')
+        expect(readWorldPlaceType(fields.worlds[fields.worlds.length - 1])).toBe('city')
     })
 
     it('adds a card immutably and exposes its source id', () => {
@@ -221,5 +225,26 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
 
         const cleared = setSnapshotPersona(original, null)
         expect(personaEntry(cleared)).toBeNull()
+    })
+
+    it('strips read-only and obsolete fields from strict snapshot updates', () => {
+        const original = makeSnapshot()
+        original.template.characters![0] = {
+            ...original.template.characters![0],
+            newer_version_available: true,
+            uuid: 'legacy-c1',
+        }
+        original.template.world![0] = {
+            ...original.template.world![0],
+            newer_version_available: true,
+            place_type: 'city',
+        } as SnapshotCard & { place_type: string }
+
+        const writable = writableAdventureSnapshot(original)
+
+        expect(writable.template.characters![0]).not.toHaveProperty('newer_version_available')
+        expect(writable.template.characters![0]).not.toHaveProperty('uuid')
+        expect(writable.template.world![0]).not.toHaveProperty('newer_version_available')
+        expect(writable.template.world![0]).not.toHaveProperty('place_type')
     })
 })

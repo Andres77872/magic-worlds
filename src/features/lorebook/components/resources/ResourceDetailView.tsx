@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { ArrowLeft, ExternalLink, FileText, Link2, Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeft, FileText, Link2, Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { LorebookResource } from '@/shared'
 import { Badge, Button, Callout, Field, Icon, IconButton, Input, PageHeader, SwitchRow, Tag, Textarea } from '@/ui/primitives'
@@ -57,7 +57,6 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
     const [urlImporting, setUrlImporting] = useState(false)
     const [urlImportError, setUrlImportError] = useState<string | null>(null)
     const [urlImportNotice, setUrlImportNotice] = useState<string | null>(null)
-    const [urlImportFallbackUrl, setUrlImportFallbackUrl] = useState<string | null>(null)
 
     // A different resource opened (id change / cold hydration / create→saved): re-seed the view.
     useEffect(() => {
@@ -68,7 +67,6 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
         setUrlImportValue('')
         setUrlImportError(null)
         setUrlImportNotice(null)
-        setUrlImportFallbackUrl(null)
         // Keyed on the resolved id; `isCreate` flips false once a create is saved.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [resource.id])
@@ -112,7 +110,6 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
     const importUrl = async () => {
         setUrlImportError(null)
         setUrlImportNotice(null)
-        setUrlImportFallbackUrl(null)
         setUrlImporting(true)
         try {
             const result = await importMarkdownFromUrl(urlImportValue)
@@ -134,9 +131,6 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
             setUrlImportNotice(t('lorebookResourcesGallery.urlImport.success'))
         } catch (err) {
             if (err instanceof MarkdownNewImportError) {
-                if (err.code === 'cors' && err.conversionUrl) {
-                    setUrlImportFallbackUrl(err.conversionUrl)
-                }
                 setUrlImportError(urlImportErrorMessage(err))
             } else {
                 setUrlImportError(t('lorebookResourcesGallery.urlImport.errors.failed'))
@@ -145,15 +139,10 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
             setUrlImporting(false)
         }
     }
-    const openMarkdownNewFallback = () => {
-        if (!urlImportFallbackUrl) return
-        window.open(urlImportFallbackUrl, '_blank', 'noopener,noreferrer')
-    }
     const urlImportErrorMessage = (error: MarkdownNewImportError): string => {
         if (error.code === 'invalid-url') return t('lorebookResourcesGallery.urlImport.errors.invalidUrl')
         if (error.code === 'unsupported-url') return t('lorebookResourcesGallery.urlImport.errors.unsupportedUrl')
         if (error.code === 'rate-limited') return t('lorebookResourcesGallery.urlImport.errors.rateLimited')
-        if (error.code === 'cors') return t('lorebookResourcesGallery.urlImport.errors.cors')
         if (error.code === 'empty-response') return t('lorebookResourcesGallery.urlImport.errors.empty')
         return t('lorebookResourcesGallery.urlImport.errors.failed')
     }
@@ -281,7 +270,6 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                                         setUrlImportValue(event.target.value)
                                         setUrlImportError(null)
                                         setUrlImportNotice(null)
-                                        setUrlImportFallbackUrl(null)
                                     }}
                                     onKeyDown={(event) => {
                                         if (event.key === 'Enter') {
@@ -300,17 +288,6 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                             >
                                 {urlImporting ? t('lorebookResourcesGallery.urlImport.importing') : t('lorebookResourcesGallery.urlImport.import')}
                             </Button>
-                            {urlImportFallbackUrl && (
-                                <Button
-                                    variant="secondary"
-                                    type="button"
-                                    iconLeft={<Icon icon={ExternalLink} size={16} />}
-                                    onClick={openMarkdownNewFallback}
-                                    disabled={saving || urlImporting}
-                                >
-                                    {t('lorebookResourcesGallery.urlImport.openMarkdownNew')}
-                                </Button>
-                            )}
                         </div>
                         {urlImportNotice && (
                             <p className="m-0 font-ui text-caption text-verdant-500" role="status">

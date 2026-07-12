@@ -1,13 +1,8 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { MockAudioContext } from '@/test-utils/mockMediaStream'
 import { VoiceVadWorkletSegmenter } from '../audio/voiceVadWorklet'
 import { useMicrophoneCapture } from './useMicrophoneCapture'
-
-async function flushPromises(): Promise<void> {
-    await Promise.resolve()
-    await Promise.resolve()
-}
 
 describe('useMicrophoneCapture', () => {
     it('does not request microphone capture until voice consent is granted', async () => {
@@ -37,34 +32,22 @@ describe('useMicrophoneCapture', () => {
         expect(result.current.error).toContain('denied')
     })
 
-    it('uses MediaRecorder fallback, emits monotonic metadata, and tears down tracks', async () => {
-        const onSegment = vi.fn()
-        const { result } = renderHook(() => useMicrophoneCapture({ consentGranted: true, onSegment, preferWorklet: false }))
+    it('fails closed when the required PCM AudioWorklet path is unavailable', async () => {
+        const original = globalThis.AudioWorkletNode
+        Object.defineProperty(globalThis, 'AudioWorkletNode', { configurable: true, writable: true, value: undefined })
+        const { result } = renderHook(() => useMicrophoneCapture({ consentGranted: true }))
 
         await act(async () => {
-            await expect(result.current.start()).resolves.toBe(true)
+            await expect(result.current.start()).resolves.toBe(false)
         })
 
-        expect(result.current.status).toBe('capturing')
-        expect(result.current.source).toBe('media_recorder')
+        expect(result.current.status).toBe('unsupported')
+        expect(result.current.source).toBeNull()
         const getUserMedia = vi.mocked(navigator.mediaDevices.getUserMedia)
         const stream = await getUserMedia.mock.results[0].value as MediaStream
         const track = stream.getAudioTracks()[0]
-        expect(track.readyState).toBe('live')
-
-        act(() => result.current.stop())
-        await flushPromises()
-
         expect(track.readyState).toBe('ended')
-        await waitFor(() => expect(onSegment).toHaveBeenCalledTimes(1))
-        const segment = onSegment.mock.calls[0][0]
-        expect(segment).toMatchObject({
-            seq: 1,
-            encoding: 'audio/webm;codecs=opus',
-            channels: 1,
-        })
-        expect(segment.audio_sha256).toHaveLength(64)
-        expect(segment.byte_length).toBeGreaterThan(0)
+        Object.defineProperty(globalThis, 'AudioWorkletNode', { configurable: true, writable: true, value: original })
     })
 
     it('resumes a suspended AudioContext so worklet capture is not silently dead', async () => {

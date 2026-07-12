@@ -29,7 +29,7 @@ export function useGenerationHistory({ story }: { story: Story | null }): Genera
     const generations = useMemo(() => {
         const all: HistoryGeneration[] = []
         for (const chapter of chaptersFor(story)) {
-            for (const generation of chapter.generationHistory ?? []) {
+            for (const generation of chapter.generationHistory) {
                 all.push({
                     ...generation,
                     status: patches[generation.id] ?? generation.status,

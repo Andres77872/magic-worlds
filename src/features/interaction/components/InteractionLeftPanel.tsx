@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, AudioLines, Check, Globe, Info, Pencil, Plus, UserCircle, Users, Volume2, X } from 'lucide-react'
-import type { Adventure, AdventureSnapshot, CharacterVoice } from '../../../shared'
+import type { Adventure, AdventureSnapshot, Character, CharacterVoice, World } from '../../../shared'
 import { readWorldPlaceType, worldPlaceTypeLabel } from '../../../shared'
 import { isLorebooksFeatureEnabled, isVoicesFeatureEnabled } from '../../../shared/featureFlags'
 import { Badge, Button, Icon, IconButton, SectionHeader, SwitchRow, Tag, Textarea } from '../../../ui/primitives'
@@ -72,10 +72,10 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
     const usedIds = snapshotSourceIds(snapshot)
     const personaSourceId = persona?.card.source_card_id || persona?.card.id
 
-    const toCandidate = (c: { id: string; name: string; race?: string; place_type?: string; type?: string; description?: string }): AddCandidate => ({
+    const toCandidate = (c: Character | World): AddCandidate => ({
         id: c.id,
         name: c.name,
-        badge: c.race ?? [c.place_type, c.type].filter(Boolean).join(' / '),
+        badge: 'race' in c ? c.race : [worldPlaceTypeLabel(readWorldPlaceType(c)), c.type].filter(Boolean).join(' / '),
         description: c.description,
     })
 

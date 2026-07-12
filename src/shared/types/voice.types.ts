@@ -8,9 +8,9 @@
  * payloads and never through ChatSocket.
  */
 
-export type VoiceAudioEncoding = 'audio/wav;codec=pcm_s16le' | 'audio/webm;codecs=opus'
+export type VoiceAudioEncoding = 'audio/wav;codec=pcm_s16le'
 
-export type VoiceVadSource = 'audio_worklet' | 'media_recorder'
+export type VoiceVadSource = 'audio_worklet'
 
 export type VoiceVadAggressiveness = 'balanced' | 'strict'
 
@@ -95,21 +95,13 @@ export type VoiceSocketClientFrame =
     | {
         type: 'voice_start'
         client_call_id: string
-        consent_version: string
         audio: VoiceAudioPreferences
         capabilities: VoiceClientCapabilities
     }
-    | { type: 'voice_vad'; state: 'speech_start' | 'speech_end' | 'silence'; seq?: number; at_ms: number; rms?: number }
-    | ({ type: 'voice_segment_meta' } & VoiceSegmentMetadata)
-    | { type: 'voice_resume'; voice_session_id: string; last_segment_seq: number; last_audio_seq: number }
-    | {
-        type: 'voice_barge_in'
-        voice_session_id: string
-        turn_id?: string
-        last_heard_audio_seq?: number
-        reason: 'user_speech' | 'button'
-    }
-    | { type: 'voice_end'; voice_session_id: string; reason: 'user' | 'navigation' | 'permission_lost' }
+    | { type: 'voice_segment_meta' }
+    | { type: 'voice_resume'; voice_session_id: string; last_segment_seq: number }
+    | { type: 'voice_barge_in'; reason: 'barge_in' }
+    | { type: 'voice_end'; reason: 'user' }
     | { type: 'voice_ping'; voice_session_id?: string }
 
 export interface VoiceCallLimits {

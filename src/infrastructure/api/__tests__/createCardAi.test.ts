@@ -76,13 +76,11 @@ describe('AI card API methods', () => {
             card_type: 'character',
             card_id: 'char-1',
             title: 'Nyra',
-            current_card: { name: 'Nyra' },
         }, { requestId: 'conv-req' })
         await apiService.sendCardAssistantMessage(7, {
             message: 'Make her older',
             card_type: 'character',
-            current_card: { name: 'Nyra' },
-            request_id: 'turn-req',
+            current_card: { id: 'char-1', name: 'Nyra' },
         }, { requestId: 'turn-req' })
 
         const [conversationUrl, conversationInit] = fetchMock.mock.calls[0] as [string, RequestInit]
@@ -95,7 +93,6 @@ describe('AI card API methods', () => {
             card_type: 'character',
             card_id: 'char-1',
             title: 'Nyra',
-            current_card: { name: 'Nyra' },
         })
 
         const [turnUrl, turnInit] = fetchMock.mock.calls[1] as [string, RequestInit]
@@ -107,8 +104,7 @@ describe('AI card API methods', () => {
         expect(JSON.parse(String(turnInit.body))).toEqual({
             message: 'Make her older',
             card_type: 'character',
-            current_card: { name: 'Nyra' },
-            request_id: 'turn-req',
+            current_card: { id: 'char-1', name: 'Nyra' },
         })
     })
 
@@ -142,8 +138,7 @@ describe('AI card API methods', () => {
         await apiService.streamCardAssistantMessage(7, {
             message: 'Make her older',
             card_type: 'character',
-            current_card: { name: 'Nyra' },
-            request_id: 'turn-req',
+            current_card: { id: 'char-1', name: 'Nyra' },
         }, (event) => {
             events.push(event)
         }, { requestId: 'turn-req' })
@@ -158,8 +153,7 @@ describe('AI card API methods', () => {
         expect(JSON.parse(String(turnInit.body))).toEqual({
             message: 'Make her older',
             card_type: 'character',
-            current_card: { name: 'Nyra' },
-            request_id: 'turn-req',
+            current_card: { id: 'char-1', name: 'Nyra' },
         })
         expect(events).toEqual([
             { type: 'assistant_delta', delta: 'Updated ' },

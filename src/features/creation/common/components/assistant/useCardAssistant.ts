@@ -89,6 +89,24 @@ function isAbortError(error: unknown): boolean {
     return error instanceof Error && error.name === 'AbortError'
 }
 
+/** Current-card input is optional, but when present the backend requires a saved id. */
+function canonicalCurrentCard(
+    card: Record<string, unknown>,
+    cardId: string | null | undefined,
+): Record<string, unknown> | null {
+    if (!cardId) return null
+    const clean = (value: unknown): unknown => {
+        if (Array.isArray(value)) return value.map(clean)
+        if (!value || typeof value !== 'object') return value
+        return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>)
+                .filter(([key]) => key !== 'place_type' && key !== 'placeType')
+                .map(([key, child]) => [key, clean(child)]),
+        )
+    }
+    return { ...(clean(card) as Record<string, unknown>), id: cardId }
+}
+
 export function useCardAssistant<TCard extends CardAssistantCardResponse = CardAssistantCardResponse>({
     cardType,
     cardId,
@@ -239,7 +257,6 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                 card_type: cardType,
                 card_id: cardIdRef.current ?? undefined,
                 title: titleRef.current,
-                current_card: currentCardRef.current,
             },
             { timeoutMs: META_TIMEOUT_MS },
         )
@@ -319,7 +336,11 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
             if (!id) throw new Error('Missing assistant conversation id')
             await apiService.streamCardAssistantMessage(
                 id,
-                { message: text, card_type: cardType, current_card: currentCardRef.current, request_id: requestId },
+                {
+                    message: text,
+                    card_type: cardType,
+                    current_card: canonicalCurrentCard(currentCardRef.current, cardIdRef.current),
+                },
                 (event) => {
                     if (activeRequestRef.current !== requestId) return
                     if (event.type === 'user_message' && event.user_message) {

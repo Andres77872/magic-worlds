@@ -7,11 +7,6 @@ import type { CardActor, CardVisibility } from './cardSharing.types'
 export interface World {
     id: string
     name: string
-    /**
-     * Literal place kind/scale, e.g. world, country, continent, city, or a
-     * user-defined value. Distinct from `type`, which remains genre/style.
-     */
-    place_type?: string
     type: string
     description?: string
     details: Record<string, string>
@@ -41,7 +36,6 @@ export interface WorldDetails {
 
 export interface WorldFormData {
     name: string
-    place_type?: string
     type: string
     description?: string
     details: WorldDetails

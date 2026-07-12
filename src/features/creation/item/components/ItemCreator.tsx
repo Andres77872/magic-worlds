@@ -241,10 +241,13 @@ export function ItemCreator() {
     const handleImageUrl = (url: string | undefined) => {
         setImageUrl(url)
         const id = savedIdRef.current ?? editingItem?.id
-        if (id && url) {
+        if (id) {
             // Media is a published-body property persisted immediately (not part of the draft).
-            void apiService.setCardMedia('item', id, { image_url: url }).catch(() => {
-                /* best-effort — the asset still exists; it re-persists on the next media action */
+            void apiService.setCardMedia('item', id, { image_url: url ?? null }).catch(() => {
+                setDraftToast({
+                    tone: 'error',
+                    message: t(url ? 'creation.common.media.errors.imageSaveFailed' : 'creation.common.media.errors.imageRemoveFailed'),
+                })
             })
         }
     }
@@ -254,7 +257,7 @@ export function ItemCreator() {
         const id = savedIdRef.current ?? editingItem?.id
         if (id && url) {
             void apiService.setCardMedia('item', id, { theme_song_url: url }).catch(() => {
-                /* best-effort — the asset still exists; it re-persists on the next media action */
+                setDraftToast({ tone: 'error', message: t('creation.common.media.errors.themeSaveFailed') })
             })
         }
     }

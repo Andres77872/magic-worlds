@@ -17,6 +17,7 @@ import {
     type AssistantNotice,
     type AssistantStatus,
 } from '@/features/creation/common/components/assistant/useCardAssistant'
+import { lorebookToApiPayload } from '../lorebookTransforms'
 
 const DEFAULT_TIMEOUT_MS = 120_000
 const META_TIMEOUT_MS = 15_000
@@ -74,6 +75,13 @@ function assistantErrorMessage(error: unknown): string {
 function isAbortError(error: unknown): boolean {
     if (typeof DOMException !== 'undefined' && error instanceof DOMException) return error.name === 'AbortError'
     return error instanceof Error && error.name === 'AbortError'
+}
+
+function currentLorebookPayload(value: Record<string, unknown>): Record<string, unknown> {
+    const canonical = lorebookToApiPayload(value as unknown as Lorebook)
+    delete canonical.metadata
+    const id = typeof value.id === 'string' && value.id.trim() ? value.id : undefined
+    return id ? { id, ...canonical } : canonical
 }
 
 export function useLorebookAssistant({
@@ -208,9 +216,8 @@ export function useLorebookAssistant({
     const createConversation = useCallback(async (): Promise<LorebookAssistantConversation> => {
         const response = await apiService.createLorebookAssistantConversation(
             {
-                lorebook_id: lorebookIdRef.current ?? undefined,
+                lorebookId: lorebookIdRef.current ?? undefined,
                 title: titleRef.current,
-                current_lorebook: currentLorebookRef.current,
             },
             { timeoutMs: META_TIMEOUT_MS },
         )
@@ -279,7 +286,7 @@ export function useLorebookAssistant({
             if (!id) throw new Error('Missing assistant conversation id')
             await apiService.streamLorebookAssistantMessage(
                 id,
-                { message: text, current_lorebook: currentLorebookRef.current, request_id: requestId },
+                { message: text, currentLorebook: currentLorebookPayload(currentLorebookRef.current) },
                 (event) => {
                     if (activeRequestRef.current !== requestId) return
                     if (event.type === 'user_message' && event.user_message) {

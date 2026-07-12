@@ -5,10 +5,10 @@ import { LibraryRail } from './LibraryRail'
 import { worldCardProps } from './libraryCards'
 
 const WORLDS = [
-  { id: 'w1', name: 'The Ember Coast', type: 'Region', place_type: 'Coast', triggers: ['storms'], details: {} },
-  { id: 'w2', name: "Vael's End", type: 'Kingdom', place_type: 'Capital', triggers: ['exile'], details: {} },
-  { id: 'w3', name: 'Halcyon Station', type: 'Station', place_type: 'Orbital', triggers: ['isolation'], details: {} },
-  { id: 'w4', name: 'The Hollow Wood', type: 'Forest', place_type: 'Wild', triggers: ['folk'], details: {} },
+  { id: 'w1', name: 'The Ember Coast', type: 'Region', category: [{ name: 'Setting', attributes: [{ 'Place type': 'Coast' }] }], triggers: ['storms'], details: {} },
+  { id: 'w2', name: "Vael's End", type: 'Kingdom', category: [{ name: 'Setting', attributes: [{ 'Place type': 'Capital' }] }], triggers: ['exile'], details: {} },
+  { id: 'w3', name: 'Halcyon Station', type: 'Station', category: [{ name: 'Setting', attributes: [{ 'Place type': 'Orbital' }] }], triggers: ['isolation'], details: {} },
+  { id: 'w4', name: 'The Hollow Wood', type: 'Forest', category: [{ name: 'Setting', attributes: [{ 'Place type': 'Wild' }] }], triggers: ['folk'], details: {} },
 ] as unknown as World[]
 
 const meta = {

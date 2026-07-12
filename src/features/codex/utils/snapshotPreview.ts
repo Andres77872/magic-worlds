@@ -21,7 +21,7 @@ export function snapshotToCardPreview(snapshot: Snapshot, kind: CardPreviewTarge
         type: kind,
         mediaType: mediaTargetType(kind),
         title: snapshotDisplayLabel(snapshot, fallbackId),
-        badge: String(snapshot?.race ?? snapshot?.place_type ?? snapshot?.type ?? cardPreviewTypeLabel(kind)),
+        badge: String(snapshot?.race ?? snapshot?.type ?? cardPreviewTypeLabel(kind)),
         description: snapshotDisplayDescription(snapshot) || undefined,
         imageUrl: typeof snapshot?.image_url === 'string' ? snapshot.image_url : undefined,
         themeSongUrl: typeof snapshot?.theme_song_url === 'string' ? snapshot.theme_song_url : undefined,
@@ -32,13 +32,13 @@ export function snapshotToCardPreview(snapshot: Snapshot, kind: CardPreviewTarge
 
 export function snapshotToLoreEntry(snapshot: Snapshot, fallbackId: string): LorebookEntry {
     return {
-        id: String(snapshot?.source_entry_id ?? snapshot?.id ?? fallbackId),
+        id: String(snapshot?.id ?? fallbackId),
         lorebookId: String(snapshot?.source_lorebook_id ?? ''),
         title: snapshotDisplayLabel(snapshot, fallbackId),
-        entryType: (typeof snapshot?.entry_type === 'string' ? snapshot.entry_type : 'other') as LorebookEntryType,
-        content: String(snapshot?.content ?? snapshot?.description ?? ''),
-        keys: stringArray(snapshot?.keys),
-        secondaryKeys: stringArray(snapshot?.secondary_keys),
+        entryType: 'other' as LorebookEntryType,
+        content: String(snapshot?.description ?? ''),
+        keys: [],
+        secondaryKeys: [],
         selectiveLogic: 'any',
         enabled: true,
         constant: false,
@@ -53,6 +53,6 @@ export function snapshotToLoreEntry(snapshot: Snapshot, fallbackId: string): Lor
 }
 
 /** Source lorebook name stored on a cloned lorebook-entry snapshot, if present. */
-export function snapshotSourceName(snapshot: Snapshot): string | undefined {
-    return typeof snapshot?.source_lorebook_name === 'string' ? snapshot.source_lorebook_name : undefined
+export function snapshotSourceName(_snapshot: Snapshot): string | undefined {
+    return undefined
 }

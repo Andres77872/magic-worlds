@@ -157,12 +157,12 @@ describe('useCardAssistant: send + streaming', () => {
         await waitFor(() => expect(mocks.streamCardAssistantMessage).toHaveBeenCalledTimes(1))
         expect(mocks.createCardAssistantConversation).toHaveBeenCalledTimes(1)
         expect(mocks.createCardAssistantConversation).toHaveBeenCalledWith(
-            expect.objectContaining({ card_type: 'world', title: 'Untitled World', current_card: { name: '' } }),
+            { card_type: 'world', card_id: undefined, title: 'Untitled World' },
             expect.any(Object),
         )
         expect(mocks.streamCardAssistantMessage).toHaveBeenCalledWith(
             2,
-            expect.objectContaining({ message: 'Generate a glass desert', card_type: 'world', request_id: expect.stringMatching(/^mw-card-assistant-/) }),
+            { message: 'Generate a glass desert', card_type: 'world', current_card: null },
             expect.any(Function),
             expect.objectContaining({ requestId: expect.stringMatching(/^mw-card-assistant-/), signal: expect.any(AbortSignal) }),
         )

@@ -123,22 +123,21 @@ describe('CharacterCreator AI generation', () => {
 
         await waitFor(() => expect(mocks.createCardAssistantConversation).toHaveBeenCalledTimes(1))
         expect(mocks.createCardAssistantConversation).toHaveBeenCalledWith(
-            expect.objectContaining({
+            {
                 card_type: 'character',
                 card_id: undefined,
                 title: 'Untitled Character',
-                current_card: expect.objectContaining({ name: '', race: '', description: '' }),
-            }),
+            },
             expect.any(Object),
         )
         await waitFor(() => expect(mocks.streamCardAssistantMessage).toHaveBeenCalledTimes(1))
         expect(mocks.streamCardAssistantMessage).toHaveBeenCalledWith(
             1,
-            expect.objectContaining({
+            {
                 message: 'Generate a moon scout',
-                current_card: expect.objectContaining({ name: '', race: '', description: '' }),
-                request_id: expect.stringMatching(/^mw-card-assistant-/),
-            }),
+                card_type: 'character',
+                current_card: null,
+            },
             expect.any(Function),
             expect.objectContaining({ requestId: expect.stringMatching(/^mw-card-assistant-/) }),
         )

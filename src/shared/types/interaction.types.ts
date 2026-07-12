@@ -33,11 +33,6 @@ export interface TurnMetadata {
     imagePrompt?: string
 }
 
-export interface ChatGenerationOptions {
-    generateImage: boolean
-    suggestActions: boolean
-}
-
 export type ChatResponseSegmentKind = 'narrator' | 'speech' | 'thought'
 
 export interface ChatResponseSegment {
@@ -172,6 +167,20 @@ export interface ChatState {
     error?: string
 }
 
+/** One durable conversation row returned by the canonical `/messages` APIs. */
+export interface CanonicalConversationMessage {
+    message_id: number
+    turn_id: string
+    sequence_no: number
+    role: 'system' | 'user' | 'assistant'
+    status: 'pending' | 'streaming' | 'completed' | 'failed' | 'interrupted'
+    content: string
+    metadata: Record<string, unknown>
+    created_at: string
+    updated_at: string
+    completed_at: string | null
+}
+
 /**
  * WebSocket envelope for adventure chat (replaces the old SSE frames).
  *
@@ -181,7 +190,7 @@ export interface ChatState {
  * ignored. See magic-worlds-api `route_chat.chat_session_ws`.
  */
 export type ChatSocketClientMessage =
-    | { type: 'chat'; messages: { role: 'user' | 'assistant'; content: string }[]; options?: ChatGenerationOptions }
+    | { type: 'chat'; content: string; request_id?: string }
     | { type: 'tts'; assistant_message_id: number; turn_id: string; request_id?: string }
     | { type: 'cancel' }
     | { type: 'ping' }

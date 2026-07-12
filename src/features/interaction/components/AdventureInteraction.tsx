@@ -8,8 +8,6 @@ import type {Adventure, AdventureSnapshot, TurnEntry} from '../../../shared'
 import { useNavigation, useData, useAuth } from '../../../app/hooks'
 import { LoadingSpinner } from '../../../ui/components'
 import { Button } from '@/ui/primitives'
-import { apiService } from '../../../infrastructure/api'
-import { parseTurnState } from '../../../utils/turnState'
 import { adventureChatConfig } from '../chatSessionConfig'
 import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel, InteractionTopBar, SidePanelDrawer} from './index'
 
@@ -61,49 +59,26 @@ export function AdventureInteraction() {
 
         const loadTurns = async () => {
             try {
-                // Get turns from the adventure if available, otherwise load from API
-                if (currentAdventure.turns && currentAdventure.turns.length > 0) {
-                    if (isMounted) {
-                        setTurns(parseTurnState(JSON.stringify({ turns: currentAdventure.turns })));
-                        setIsLoading(false);
-                    }
-                } else {
-                    // Try to load turns from API if the adventure doesn't have them
-                    try {
-                        const sessionId = Number(currentAdventure.id);
-                        if (!isNaN(sessionId)) {
-                            const session = await apiService.getAdventureSession(sessionId);
-                            if (isMounted) {
-                                setTurns(parseTurnState(session.adventure_last_turn));
-                            }
-                        } else {
-                            if (isMounted) {
-                                setTurns([]);
-                            }
-                        }
-                    } catch (error) {
-                        console.error('Failed to load turns from API:', error);
-                        if (isMounted) {
-                            setTurns([]);
-                            setLoadError(t('common.loadError'));
-                        }
-                    } finally {
-                        if (isMounted) {
-                            setIsLoading(false);
-                        }
-                    }
+                const sessionId = Number(currentAdventure.id)
+                if (Number.isNaN(sessionId)) {
+                    throw new Error('Invalid adventure session id')
+                }
+                const canonicalTurns = await chatConfig.loadTurns(sessionId)
+                if (isMounted) {
+                    setTurns(canonicalTurns)
                 }
             } catch (error) {
-                console.error('Error processing adventure turns:', error);
+                console.error('Failed to load adventure messages:', error)
                 if (isMounted) {
-                    setTurns([]);
-                    setLoadError(t('common.loadError'));
-                    setIsLoading(false);
+                    setTurns([])
+                    setLoadError(t('common.loadError'))
                 }
+            } finally {
+                if (isMounted) setIsLoading(false)
             }
         }
 
-        loadTurns();
+        void loadTurns()
 
         return () => {
             isMounted = false
@@ -111,7 +86,7 @@ export function AdventureInteraction() {
         // Keyed on the adventure id: editing the cloned cards swaps currentAdventure
         // for a new object with the same id, and must NOT reload the chat turns.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentAdventure?.id, isAuthenticated, reloadNonce])
+    }, [chatConfig, currentAdventure?.id, isAuthenticated, reloadNonce, t])
 
     const handleBack = () => {
         goBack('landing')

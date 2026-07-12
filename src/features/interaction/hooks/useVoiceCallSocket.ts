@@ -3,7 +3,6 @@ import { VoiceSocket, type VoiceSocketStatus } from '@/infrastructure/api'
 import type { VoiceCallState, VoiceSocketClientFrame, VoiceSocketServerFrame } from '@/shared/types/voice.types'
 
 type VoiceStartFrame = Extract<VoiceSocketClientFrame, { type: 'voice_start' }>
-type VoiceVadFrame = Extract<VoiceSocketClientFrame, { type: 'voice_vad' }>
 type VoiceSegmentMetaFrame = Extract<VoiceSocketClientFrame, { type: 'voice_segment_meta' }>
 type VoiceBargeInFrame = Extract<VoiceSocketClientFrame, { type: 'voice_barge_in' }>
 type VoiceReadyFrame = Extract<VoiceSocketServerFrame, { type: 'voice_ready' }>
@@ -43,10 +42,9 @@ export interface VoiceCallSocketApi {
     error: VoiceErrorFrame | null
     voiceSessionId: string | null
     start: (frame: VoiceStartFrame) => void
-    sendVad: (frame: VoiceVadFrame) => boolean
     sendSegmentMeta: (frame: VoiceSegmentMetaFrame) => boolean
     bargeIn: (frame: VoiceBargeInFrame) => boolean
-    end: (reason?: Extract<VoiceSocketClientFrame, { type: 'voice_end' }>['reason']) => boolean
+    end: () => boolean
     close: () => void
 }
 
@@ -163,20 +161,19 @@ export function useVoiceCallSocket(
         socketRef.current?.connect(frame)
     }, [])
 
-    const sendVad = useCallback((frame: VoiceVadFrame) => socketRef.current?.sendVad(frame) ?? false, [])
     const sendSegmentMeta = useCallback((frame: VoiceSegmentMetaFrame) => socketRef.current?.sendSegmentMeta(frame) ?? false, [])
     const bargeIn = useCallback((frame: VoiceBargeInFrame) => {
         setVoiceState('barge_in')
         return socketRef.current?.sendBargeIn(frame) ?? false
     }, [])
-    const end = useCallback((reason: Extract<VoiceSocketClientFrame, { type: 'voice_end' }>['reason'] = 'user') => {
+    const end = useCallback(() => {
         setVoiceState('ending')
-        return socketRef.current?.end(reason) ?? false
+        return socketRef.current?.end() ?? false
     }, [])
     const close = useCallback(() => {
         socketRef.current?.close()
         setVoiceState('ended')
     }, [])
 
-    return { socketStatus, voiceState, ready, error, voiceSessionId, start, sendVad, sendSegmentMeta, bargeIn, end, close }
+    return { socketStatus, voiceState, ready, error, voiceSessionId, start, sendSegmentMeta, bargeIn, end, close }
 }

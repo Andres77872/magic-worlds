@@ -10,7 +10,7 @@ import type { Story, StoryChapter } from '@/shared'
 export type NovelSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 
 export function chaptersFor(story: Story | null): StoryChapter[] {
-    const chapters = story ? (story.chapters ?? story.scenes ?? []) : []
+    const chapters = story?.chapters ?? []
     return [...chapters].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 }
 
@@ -27,7 +27,7 @@ export function kindLabel(kind: string, t: TFunction): string {
 
 export function storySourceLabel(story: Story, t: TFunction): string {
     const source = story.source
-    if (!source || source.kind === 'blank') return t('novelEditor.source.blank')
+    if (source.kind === 'blank') return t('novelEditor.source.blank')
     return source.title || kindLabel(source.kind, t)
 }
 

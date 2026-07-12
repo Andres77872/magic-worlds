@@ -5,7 +5,7 @@
  * are unit-testable; the page just memoizes `searchDashboard`.
  */
 
-import type { Character, Item, Story, World } from '@/shared'
+import { readWorldPlaceType, type Character, type Item, type Story, type World } from '@/shared'
 import type { ResumeSession } from './resumeModel'
 import type { Scene } from './sceneModel'
 import { sceneMatchesQuery } from './sceneModel'
@@ -60,7 +60,7 @@ export function characterMatchesQuery(character: Character, q: string): boolean 
 }
 
 export function worldMatchesQuery(world: World, q: string): boolean {
-    return matchesAny(q, [world.name, world.type, world.place_type, world.description, ...(world.triggers ?? [])])
+    return matchesAny(q, [world.name, world.type, readWorldPlaceType(world), world.description, ...(world.triggers ?? [])])
 }
 
 export function itemMatchesQuery(item: Item, q: string): boolean {

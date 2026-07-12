@@ -46,33 +46,51 @@ import { NovelGalleryPage } from './NovelGalleryPage'
 
 const ACTIVE_CONTEXT = {
     includeSelectedCards: true,
-    includeMentionedCards: true,
     includeLorebooks: true,
-    includeRecentScenes: 2,
+    includeRecentChapters: 2,
     tokenBudget: 6000,
+    styleSource: 'current_chapter' as const,
+    customStyleInstruction: null,
 }
 
 function chapter(id: string, storyId: string, body: string): StoryChapter {
-    return { id, storyId, title: id, body, order: 0, status: 'draft', activeCardRefs: [], mentionRefs: [] }
+    return {
+        id,
+        storyId,
+        title: id,
+        body,
+        order: 0,
+        status: 'draft',
+        povCardId: null,
+        locationCardId: null,
+        activeCardRefs: [],
+        generationHistory: [],
+    }
 }
 
 const STORIES: Story[] = [
     {
         id: 's1',
         title: 'Glass War',
+        description: null,
         source: { kind: 'character', id: 'c1', title: 'Aria' },
-        scenes: [],
         chapters: [chapter('ch1', 's1', 'The moon cracks over the wall.')],
         activeCardRefs: [
             {
                 id: 'r1',
                 storyId: 's1',
+                chapterId: null,
                 kind: 'character',
                 cardId: 'c1',
                 source: 'source',
                 enabled: true,
                 precedence: 0,
-                snapshot: { name: 'Aria', image_url: '/img/aria.png' },
+                snapshot: {
+                    id: 'c1',
+                    name: 'Aria',
+                    description: 'A ranger.',
+                    story_card_kind: 'character',
+                },
             },
         ],
         activeContext: ACTIVE_CONTEXT,
@@ -80,8 +98,8 @@ const STORIES: Story[] = [
     {
         id: 's2',
         title: 'Moon Court',
-        source: { kind: 'blank' },
-        scenes: [],
+        description: null,
+        source: { kind: 'blank', id: null, title: null },
         chapters: [chapter('ch2', 's2', '')],
         activeCardRefs: [],
         activeContext: ACTIVE_CONTEXT,

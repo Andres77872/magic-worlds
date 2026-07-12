@@ -117,7 +117,7 @@ const PERSONAS = [
 ]
 
 const WORLDS = [
-    { id: 'w1', name: 'Eldoria', place_type: 'kingdom', type: 'high fantasy', triggers: ['castle'] },
+    { id: 'w1', name: 'Eldoria', category: [{ name: 'Setting', attributes: [{ 'Place type': 'kingdom' }] }], type: 'high fantasy', triggers: ['castle'] },
 ]
 
 const ITEMS = [

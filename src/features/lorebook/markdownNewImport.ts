@@ -1,16 +1,14 @@
-const MARKDOWN_NEW_BASE_URL = 'https://markdown.new'
+import { ApiError, apiService } from '@/infrastructure/api'
 
 export type MarkdownNewImportErrorCode =
     | 'invalid-url'
     | 'unsupported-url'
     | 'rate-limited'
     | 'conversion-failed'
-    | 'cors'
     | 'empty-response'
 
 export interface MarkdownNewImportResult {
     sourceUrl: string
-    conversionUrl: string
     markdown: string
     rateLimitRemaining?: string | null
 }
@@ -23,18 +21,16 @@ export interface MarkdownResourceIdentity {
 export class MarkdownNewImportError extends Error {
     code: MarkdownNewImportErrorCode
     status?: number
-    conversionUrl?: string
 
-    constructor(code: MarkdownNewImportErrorCode, message: string, options: { status?: number; conversionUrl?: string } = {}) {
+    constructor(code: MarkdownNewImportErrorCode, message: string, options: { status?: number } = {}) {
         super(message)
         this.name = 'MarkdownNewImportError'
         this.code = code
         this.status = options.status
-        this.conversionUrl = options.conversionUrl
     }
 }
 
-type MarkdownFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+type MarkdownImporter = typeof apiService.importMarkdownUrl
 
 export function normalizeMarkdownImportUrl(input: string): string {
     const trimmed = input.trim()
@@ -61,59 +57,41 @@ export function normalizeMarkdownImportUrl(input: string): string {
     return url.toString()
 }
 
-export function buildMarkdownNewConversionUrl(input: string): string {
-    return `${MARKDOWN_NEW_BASE_URL}/${normalizeMarkdownImportUrl(input)}`
-}
-
-export async function importMarkdownFromUrl(input: string, fetcher: MarkdownFetch = fetch): Promise<MarkdownNewImportResult> {
+export async function importMarkdownFromUrl(
+    input: string,
+    importer: MarkdownImporter = apiService.importMarkdownUrl.bind(apiService),
+): Promise<MarkdownNewImportResult> {
     const sourceUrl = normalizeMarkdownImportUrl(input)
-    const conversionUrl = `${MARKDOWN_NEW_BASE_URL}/${sourceUrl}`
-
-    let response: Response
+    let response: Awaited<ReturnType<MarkdownImporter>>
     try {
-        response = await fetcher(conversionUrl, {
-            method: 'GET',
-            credentials: 'omit',
-            headers: { Accept: 'text/markdown' },
-        })
-    } catch {
-        throw new MarkdownNewImportError(
-            'cors',
-            'The browser could not read the markdown.new response.',
-            { conversionUrl },
-        )
-    }
-
-    if (response.status === 429) {
-        throw new MarkdownNewImportError(
-            'rate-limited',
-            'markdown.new rate limit reached.',
-            { status: response.status, conversionUrl },
-        )
-    }
-
-    if (!response.ok) {
+        response = await importer(sourceUrl)
+    } catch (error) {
+        if (error instanceof ApiError && error.status === 429) {
+            throw new MarkdownNewImportError(
+                'rate-limited',
+                'markdown.new rate limit reached.',
+                { status: error.status },
+            )
+        }
         throw new MarkdownNewImportError(
             'conversion-failed',
-            'markdown.new could not convert that URL.',
-            { status: response.status, conversionUrl },
+            'The server could not convert that URL.',
+            { status: error instanceof ApiError ? error.status : undefined },
         )
     }
 
-    const markdown = (await response.text()).trim()
+    const markdown = response.markdown.trim()
     if (!markdown) {
         throw new MarkdownNewImportError(
             'empty-response',
             'markdown.new returned an empty response.',
-            { status: response.status, conversionUrl },
         )
     }
 
     return {
-        sourceUrl,
-        conversionUrl,
+        sourceUrl: response.source_url,
         markdown,
-        rateLimitRemaining: response.headers.get('x-rate-limit-remaining'),
+        rateLimitRemaining: response.rate_limit_remaining,
     }
 }
 

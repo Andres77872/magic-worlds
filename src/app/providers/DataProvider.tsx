@@ -31,13 +31,12 @@ import {
     isNovelsFeatureEnabled,
 } from '../../shared/featureFlags'
 import { parseApiTimestamp } from '../../utils/time'
-import { parseTurnState } from '../../utils/turnState'
 import { asArray, transformCharacters, transformItems, transformTemplates, transformWorlds } from '../../utils/cardTransforms'
 import { normalizeLorebookList } from '../../features/lorebook/lorebookTransforms'
 import {
     adventureFieldsFromSnapshot,
     asSnapshot,
-    synthesizeSnapshotFromTemplate,
+    writableAdventureSnapshot,
 } from '../../features/interaction/utils/adventureSnapshot'
 import { useAuth } from '../hooks/useAuth'
 
@@ -150,33 +149,15 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | undefined>(undefined)
 
-/**
- * Resolve an adventure's cloned-card snapshot: prefer the server snapshot, else
- * synthesize one from the originating template so legacy sessions still display
- * and edit consistently (the first edit persists the synthesized copy).
- */
-function resolveAdventureSnapshot(rawSnapshot: unknown, template?: Adventure | null): AdventureSnapshot | undefined {
-    const real = asSnapshot(rawSnapshot)
-    if (real) return real
-    if (!template) return undefined
-    return synthesizeSnapshotFromTemplate({
-        id: template.id,
-        description: template.scenario,
-        triggers: template.triggers,
-        persona: (template.persona as never) ?? null,
-        characters: (template.characters as never) ?? [],
-        world: template.world ? [template.world as never] : [],
-        category: template.category,
-        image_url: template.image_url,
-        theme_song_url: template.theme_song_url,
-    })
+/** Resolve the canonical cloned-card snapshot returned with a session. */
+function resolveAdventureSnapshot(rawSnapshot: unknown): AdventureSnapshot | undefined {
+    return asSnapshot(rawSnapshot) ?? undefined
 }
 
 /** Raw adventure-session row as returned by the API (only the fields we read). */
 interface RawAdventureSession {
     adventure_id: number | string
     adventure_template?: string
-    adventure_last_turn?: string | null
     adventure_created_at?: string
     adventure_last_update?: string
     template_snapshot?: unknown
@@ -199,7 +180,8 @@ function buildInProgressAdventure(session: RawAdventureSession, template: Advent
         image_url: snapshot?.template?.image_url ?? template?.image_url,
         theme_song_url: snapshot?.template?.theme_song_url ?? template?.theme_song_url,
         snapshot,
-        turns: parseTurnState(session.adventure_last_turn),
+        // Conversation rows are loaded lazily from the canonical `/messages` API.
+        turns: [],
         status: 'in-progress' as const,
         createdAt: session.adventure_created_at,
         updatedAt: session.adventure_last_update,
@@ -281,7 +263,8 @@ function normalizeCharacterChat(
         persona_id: personaId || undefined,
         persona,
         codexCards: normalizeCharacterChatCodexCards(chat.codex_cards ?? chat.codexCards),
-        turns: parseTurnState(chat.last_turn),
+        // Conversation rows are loaded by the chat surface from `/messages`.
+        turns: [],
         createdAt: chat.created_at,
         updatedAt: chat.updated_at,
     }
@@ -358,25 +341,8 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to set a default persona')
         }
-        // PUT /characters/{id} is a full-replace, so send the complete editable body — anything
-        // omitted would be wiped. The backend clears the previous default for us, and (legacy
-        // publish-in-place) discards any pending draft, so we mirror has_draft:false locally too.
-        const body = {
-            name: persona.name,
-            role: 'persona' as const,
-            is_default_persona: true,
-            race: persona.race,
-            description: persona.description ?? '',
-            greeting: persona.greeting?.trim() || null,
-            system_instructions: persona.system_instructions?.trim() || null,
-            triggers: persona.triggers ?? [],
-            category: persona.category,
-            image_url: persona.image_url ?? null,
-            theme_song_url: persona.theme_song_url ?? null,
-            voice: persona.voice ?? null,
-        }
         try {
-            const updated = await apiService.updateCharacter(persona.id, body)
+            const updated = await apiService.setDefaultPersona(persona.id)
             const [normalized] = transformCharacters([updated])
             setCharacters(prev =>
                 prev.map(character => {
@@ -451,7 +417,7 @@ export function DataProvider({ children }: DataProviderProps) {
 
             // Build the in-progress adventure from the session's own cloned snapshot
             // so edits affect this adventure's copy, never the original template.
-            const snapshot = resolveAdventureSnapshot(session.template_snapshot, template)
+            const snapshot = resolveAdventureSnapshot(session.template_snapshot)
             const newInProgressAdventure: Adventure = {
                 ...template,
                 ...buildInProgressAdventure(session, template, snapshot),
@@ -515,14 +481,16 @@ export function DataProvider({ children }: DataProviderProps) {
             throw new Error('Login required to edit adventure cards')
         }
         // Persist to this adventure's own snapshot — never the library/template card.
-        await apiService.updateAdventureSnapshot(Number(adventureId), snapshot)
+        const writableSnapshot = writableAdventureSnapshot(snapshot)
+        const response = await apiService.updateAdventureSnapshot(Number(adventureId), writableSnapshot)
+        const persistedSnapshot = resolveAdventureSnapshot(response?.template_snapshot) ?? writableSnapshot
 
-        const fields = adventureFieldsFromSnapshot(snapshot)
+        const fields = adventureFieldsFromSnapshot(persistedSnapshot)
         const patch = (adv: Adventure): Adventure =>
             adv.id === adventureId
                 ? {
                       ...adv,
-                      snapshot,
+                      snapshot: persistedSnapshot,
                       scenario: fields.scenario ?? adv.scenario,
                       persona: fields.persona ?? adv.persona,
                       characters: fields.characters,
@@ -625,14 +593,14 @@ export function DataProvider({ children }: DataProviderProps) {
         const updated = await apiService.updateStoryChapter(storyId, chapterId, patch)
         setActiveStory((prev) => {
             if (!prev || prev.id !== storyId) return prev
-            const chapters = (prev.chapters ?? prev.scenes).map((chapter) => (chapter.id === chapterId ? { ...chapter, ...updated } : chapter))
-            return { ...prev, chapters, scenes: chapters }
+            const chapters = (prev.chapters ?? []).map((chapter) => (chapter.id === chapterId ? { ...chapter, ...updated } : chapter))
+            return { ...prev, chapters }
         })
         setStories((prev) =>
             prev.map((story) => {
                 if (story.id !== storyId) return story
-                const chapters = (story.chapters ?? story.scenes).map((chapter) => (chapter.id === chapterId ? { ...chapter, ...updated } : chapter))
-                return { ...story, chapters, scenes: chapters }
+                const chapters = (story.chapters ?? []).map((chapter) => (chapter.id === chapterId ? { ...chapter, ...updated } : chapter))
+                return { ...story, chapters }
             }),
         )
         return updated
@@ -991,11 +959,10 @@ export function DataProvider({ children }: DataProviderProps) {
             const transformedLorebooks = normalizeLorebookList(loadedLorebooks)
 
             // Transform sessions to in-progress adventures. Cards come from the
-            // session's own cloned snapshot (server-side clone), falling back to the
-            // originating template for legacy sessions that predate cloning.
+            // session's own canonical cloned snapshot (server-side clone).
             const transformedInProgress = asArray(loadedSessions).map((session: any) => {
                 const template = transformedTemplates.find((t: { id: string }) => t.id === session.adventure_template)
-                const snapshot = resolveAdventureSnapshot(session.template_snapshot, template)
+                const snapshot = resolveAdventureSnapshot(session.template_snapshot)
                 return buildInProgressAdventure(session, template, snapshot)
             })
 

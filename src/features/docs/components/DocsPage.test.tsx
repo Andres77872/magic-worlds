@@ -139,7 +139,7 @@ describe('DocsPage', () => {
             'New Markdown',
             'Upload',
             'From URL',
-            'markdown.new',
+            'authenticated importer',
             'Attach shared sources to lorebooks',
             'metadata sync',
         ]) {

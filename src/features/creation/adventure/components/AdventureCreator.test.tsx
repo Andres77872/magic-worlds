@@ -95,22 +95,21 @@ describe('AdventureCreator AI generation', () => {
 
         await waitFor(() => expect(mocks.createCardAssistantConversation).toHaveBeenCalledTimes(1))
         expect(mocks.createCardAssistantConversation).toHaveBeenCalledWith(
-            expect.objectContaining({
+            {
                 card_type: 'adventure_template',
                 card_id: undefined,
                 title: 'Untitled Adventure',
-                current_card: expect.objectContaining({ name: 'Untitled Adventure', description: '' }),
-            }),
+            },
             expect.any(Object),
         )
         await waitFor(() => expect(mocks.streamCardAssistantMessage).toHaveBeenCalledTimes(1))
         expect(mocks.streamCardAssistantMessage).toHaveBeenCalledWith(
             3,
-            expect.objectContaining({
+            {
                 message: 'Generate a volcano heist',
-                current_card: expect.objectContaining({ name: 'Untitled Adventure', description: '' }),
-                request_id: expect.stringMatching(/^mw-card-assistant-/),
-            }),
+                card_type: 'adventure_template',
+                current_card: null,
+            },
             expect.any(Function),
             expect.objectContaining({ requestId: expect.stringMatching(/^mw-card-assistant-/) }),
         )
@@ -162,6 +161,20 @@ describe('AdventureCreator cover persistence', () => {
             expect(mocks.updateAdventureTemplate).toHaveBeenCalledWith(
                 'tmpl-1',
                 expect.objectContaining({ image_url: '/generated-images/a.png' }),
+            ),
+        )
+    })
+
+    it('persists removal of the saved cover as null', async () => {
+        mocks.editingTemplate = { ...mocks.editingTemplate, image_url: '/generated-images/old.png' }
+        render(<AdventureCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /remove image/i }))
+
+        await waitFor(() =>
+            expect(mocks.updateAdventureTemplate).toHaveBeenCalledWith(
+                'tmpl-1',
+                expect.objectContaining({ image_url: null }),
             ),
         )
     })

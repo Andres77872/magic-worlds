@@ -37,6 +37,7 @@ const PAGE_TO_HASH: Record<PageType, string> = {
     'character-chat': '#/character-chat',
     chatroom: '#/chatroom',
     'active-adventures': '#/active-adventures',
+    notifications: '#/notifications',
     calls: '#/calls',
     community: '#/community',
     'shared-card': '#/shared',

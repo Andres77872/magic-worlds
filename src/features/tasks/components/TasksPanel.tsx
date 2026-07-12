@@ -19,7 +19,7 @@ import { AudioWavePlayer } from '@/ui/components/audio'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
 import { Card as DomainCard } from '@/ui/components/lists/Card'
-import { Badge, Button, Icon, IconButton, Modal, Tag, cx } from '@/ui/primitives'
+import { Badge, Button, Callout, Icon, IconButton, Modal, Tag, cx } from '@/ui/primitives'
 
 const ACTIVE = new Set(['pending', 'in_progress', 'synthesizing', 'mirroring'])
 const TAB_ORDER = ['active', 'completed', 'failed'] as const
@@ -168,6 +168,8 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
     const { characters, worlds, items, templateAdventures } = useData()
     const [activeTab, setActiveTab] = useState<TaskTab>('active')
     const [isRefreshing, setIsRefreshing] = useState(false)
+    const [isClearing, setIsClearing] = useState(false)
+    const [clearError, setClearError] = useState<string | null>(null)
     const [expandedKey, setExpandedKey] = useState<string | null>(null)
     const [selectedTask, setSelectedTask] = useState<BackgroundTaskPublic | null>(null)
     const [selectedCard, setSelectedCard] = useState<AttachedCardPreview | null>(null)
@@ -249,6 +251,19 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
         }
     }
 
+    const handleClear = async () => {
+        if (activeTab === 'active') return
+        setClearError(null)
+        setIsClearing(true)
+        try {
+            await clearTerminalTasks(activeTab)
+        } catch {
+            setClearError(t('tasksDrawer.errors.clearFailed'))
+        } finally {
+            setIsClearing(false)
+        }
+    }
+
     return (
         <>
             <div className={cx('flex flex-col', dense ? 'gap-2.5' : 'gap-4')}>
@@ -272,6 +287,7 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
                                 onClick={() => {
                                     setActiveTab(tab)
                                     setExpandedKey(null)
+                                    setClearError(null)
                                 }}
                             >
                                 <span>{t(`tasksDrawer.tabs.${tab}`)}</span>
@@ -298,13 +314,16 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
                         <Button
                             variant="ghost"
                             size="sm"
-                            iconLeft={<Icon icon={Trash2} size={14} />}
-                            onClick={() => clearTerminalTasks(activeTab)}
+                            iconLeft={<Icon icon={isClearing ? Loader2 : Trash2} className={isClearing ? 'animate-spin' : undefined} size={14} />}
+                            onClick={() => void handleClear()}
+                            disabled={isClearing}
                         >
                             {t(activeTab === 'completed' ? 'tasksDrawer.actions.clearCompleted' : 'tasksDrawer.actions.clearFailed')}
                         </Button>
                     </div>
                 )}
+
+                {clearError && <Callout tone="danger" role="alert">{clearError}</Callout>}
 
                 {visibleTasks.length === 0 ? (
                     <EmptyState

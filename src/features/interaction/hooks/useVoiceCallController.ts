@@ -9,7 +9,6 @@ import type {
     VoiceSegmentUploadRequest,
     VoiceSocketClientFrame,
     VoiceSocketServerFrame,
-    VoiceVadSource,
 } from '@/shared/types/voice.types'
 import { VoicePlaybackBuffer } from '../audio/voicePlaybackBuffer'
 import type { CapturedVoiceSegment } from '../audio/voiceVadWorklet'
@@ -42,11 +41,9 @@ export interface UseVoiceCallControllerOptions {
     sessionId: number | null
     authKey?: string | null
     consentGranted: boolean
-    consentVersion?: string
     enabled?: boolean
     clientCallId?: string
     autoBargeIn?: boolean
-    preferWorklet?: boolean
     vad?: VoiceVadTuning
     playbackBuffer?: VoicePlaybackBuffer
 }
@@ -69,8 +66,8 @@ export interface VoiceCallControllerApi {
     /** False when the AudioWorklet VAD failed to load and capture degraded to time-sliced. */
     vadActive: boolean
     startCall: () => Promise<boolean>
-    endCall: (reason?: 'user' | 'navigation' | 'permission_lost') => Promise<void>
-    bargeIn: (reason?: 'button' | 'user_speech') => boolean
+    endCall: () => Promise<void>
+    bargeIn: () => boolean
     mute: () => void
     unmute: () => void
 }
@@ -101,12 +98,11 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     const [uploadQueueDepth, setUploadQueueDepth] = useState(0)
     const [elapsedSeconds, setElapsedSeconds] = useState(0)
     const [inputLevel, setInputLevel] = useState(0)
-    const [vadActive, setVadActive] = useState(true)
+    const vadActive = true
 
     const clientCallIdRef = useRef(options.clientCallId ?? createClientCallId())
     const voiceSessionIdRef = useRef<string | null>(null)
     const activeTurnIdRef = useRef<string | null>(null)
-    const lastAudioSeqRef = useRef<number>(0)
     const pendingSegmentsRef = useRef<CapturedVoiceSegment[]>([])
     const inFlightUploadsRef = useRef<Set<AbortController>>(new Set())
     const socketRef = useRef<VoiceCallSocketApi | null>(null)
@@ -200,19 +196,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         }
 
         updateState('uploading_segment')
-        socketRef.current?.sendSegmentMeta({
-            type: 'voice_segment_meta',
-            voice_session_id: currentVoiceSessionId,
-            seq: segment.seq,
-            started_at_ms: segment.started_at_ms,
-            duration_ms: segment.duration_ms,
-            encoding: segment.encoding,
-            sample_rate: segment.sample_rate,
-            channels: segment.channels,
-            byte_length: segment.byte_length,
-            audio_sha256: segment.audio_sha256,
-            vad: segment.vad,
-        })
+        socketRef.current?.sendSegmentMeta({ type: 'voice_segment_meta' })
 
         const controller = new AbortController()
         inFlightUploadsRef.current.add(controller)
@@ -291,14 +275,12 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
 
     const handleAudioChunk = useCallback((frame: VoiceAudioChunkFrame) => {
         activeTurnIdRef.current = frame.turn_id
-        lastAudioSeqRef.current = Math.max(lastAudioSeqRef.current, frame.seq)
         setActiveTurnId(frame.turn_id)
         playbackRef.current?.appendChunk(frame)
         updateState('assistant_speaking')
     }, [updateState])
 
     const handleAudioFinal = useCallback((frame: VoiceAudioFinalFrame) => {
-        lastAudioSeqRef.current = Math.max(lastAudioSeqRef.current, frame.last_seq)
         playbackRef.current?.finalize(frame)
     }, [])
 
@@ -353,10 +335,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
                     playbackRef.current?.cancel({ voice_session_id: currentVoiceSessionId, turn_id: activeTurnIdRef.current ?? undefined })
                     socketRef.current?.bargeIn({
                         type: 'voice_barge_in',
-                        voice_session_id: currentVoiceSessionId,
-                        turn_id: activeTurnIdRef.current ?? undefined,
-                        last_heard_audio_seq: lastAudioSeqRef.current || undefined,
-                        reason: 'user_speech',
+                        reason: 'barge_in',
                     })
                     updateState('barge_in')
                 }
@@ -401,8 +380,6 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         onSegment: handleCapturedSegment,
         onVadState: handleVadState,
         onLevel: setInputLevel,
-        onVadFallback: () => setVadActive(false),
-        preferWorklet: options.preferWorklet,
         vad: options.vad,
     })
     captureRef.current = capture
@@ -443,10 +420,8 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             return false
         }
 
-        let consentVersion = options.consentVersion ?? 'voice-v1'
         try {
             const consent = await apiService.saveVoiceConsent(options.sessionId)
-            consentVersion = consent.consent_version || consentVersion
             setLimits(consent.limits)
         } catch (consentError) {
             console.error('[voice-call][VOICE_CONSENT_REQUIRED] voice consent could not be saved', consentError)
@@ -461,7 +436,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         clientCallIdRef.current = options.clientCallId ?? createClientCallId()
         console.info('[voice-call][CONNECTING] starting voice call', { sessionId: options.sessionId, clientCallId: clientCallIdRef.current })
         updateState('connecting')
-        socketRef.current?.start(buildVoiceStartFrame({ consentVersion, clientCallId: clientCallIdRef.current }))
+        socketRef.current?.start(buildVoiceStartFrame({ clientCallId: clientCallIdRef.current }))
         // If voice_ready never arrives, captured segments queue silently and the call sits
         // on "Connecting/Listening" forever — surface an error instead of waiting endlessly.
         clearReadyTimeout()
@@ -473,13 +448,13 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             updateState('error')
         }, VOICE_READY_TIMEOUT_MS)
         return true
-    }, [clearReadyTimeout, featureEnabled, mapError, options.authKey, options.clientCallId, options.consentGranted, options.consentVersion, options.sessionId, setControllerError, stopLocalResources, updateState])
+    }, [clearReadyTimeout, featureEnabled, mapError, options.authKey, options.clientCallId, options.consentGranted, options.sessionId, setControllerError, stopLocalResources, updateState])
 
-    const endCall = useCallback(async (reason: 'user' | 'navigation' | 'permission_lost' = 'user') => {
+    const endCall = useCallback(async () => {
         updateState('ending')
         const currentSessionId = options.sessionId
         const currentVoiceSessionId = voiceSessionIdRef.current
-        socketRef.current?.end(reason)
+        socketRef.current?.end()
         stopLocalResources({ closeSocket: true })
         voiceSessionIdRef.current = null
         activeTurnIdRef.current = null
@@ -487,7 +462,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         setActiveTurnId(null)
         if (currentSessionId !== null && currentVoiceSessionId) {
             try {
-                await apiService.endVoiceCall(currentSessionId, { voiceSessionId: currentVoiceSessionId, reason })
+                await apiService.endVoiceCall(currentSessionId, { voiceSessionId: currentVoiceSessionId, reason: 'user' })
             } catch {
                 // Local teardown is mandatory even if the backend escape hatch fails.
             }
@@ -495,17 +470,14 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         updateState('ended')
     }, [options.sessionId, stopLocalResources, updateState])
 
-    const bargeIn = useCallback((reason: 'button' | 'user_speech' = 'button'): boolean => {
+    const bargeIn = useCallback((): boolean => {
         const currentVoiceSessionId = voiceSessionIdRef.current
         if (!currentVoiceSessionId) return false
         playbackRef.current?.cancel({ voice_session_id: currentVoiceSessionId, turn_id: activeTurnIdRef.current ?? undefined })
         updateState('barge_in')
         return socketRef.current?.bargeIn({
             type: 'voice_barge_in',
-            voice_session_id: currentVoiceSessionId,
-            turn_id: activeTurnIdRef.current ?? undefined,
-            last_heard_audio_seq: lastAudioSeqRef.current || undefined,
-            reason,
+            reason: 'barge_in',
         }) ?? false
     }, [updateState])
 
@@ -530,7 +502,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             const currentVoiceSessionId = voiceSessionIdRef.current
             stopLocalResources({ closeSocket: true, disposePlayback: true })
             if (currentSessionId !== null && currentVoiceSessionId) {
-                void apiService.endVoiceCall(currentSessionId, { voiceSessionId: currentVoiceSessionId, reason: 'navigation' }).catch(() => undefined)
+                void apiService.endVoiceCall(currentSessionId, { voiceSessionId: currentVoiceSessionId, reason: 'user' }).catch(() => undefined)
             }
         }
     }, [options.sessionId, stopLocalResources])
@@ -558,24 +530,21 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }
 }
 
-function buildVoiceStartFrame({ consentVersion, clientCallId }: { consentVersion: string; clientCallId: string }): VoiceStartFrame {
+function buildVoiceStartFrame({ clientCallId }: { clientCallId: string }): VoiceStartFrame {
     const audioWorklet = canUseAudioWorklet()
-    const mediaRecorder = typeof MediaRecorder !== 'undefined'
-    const vadSource: VoiceVadSource = audioWorklet ? 'audio_worklet' : 'media_recorder'
     return {
         type: 'voice_start',
         client_call_id: clientCallId,
-        consent_version: consentVersion,
         audio: {
-            preferred_encoding: audioWorklet ? 'audio/wav;codec=pcm_s16le' : 'audio/webm;codecs=opus',
+            preferred_encoding: 'audio/wav;codec=pcm_s16le',
             sample_rate: 16000,
             channels: 1,
-            vad: { source: vadSource, aggressiveness: 'balanced' },
+            vad: { source: 'audio_worklet', aggressiveness: 'balanced' },
         },
         capabilities: {
             media_source_mp3: typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported?.('audio/mpeg') === true,
             audio_worklet: audioWorklet,
-            media_recorder: mediaRecorder,
+            media_recorder: false,
         },
     }
 }

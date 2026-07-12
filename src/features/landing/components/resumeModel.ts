@@ -111,15 +111,6 @@ function metaLine(countLabel: string, count: number, stamp: string | undefined, 
     return parts.join(' · ') || 'Ready to continue'
 }
 
-/** First card-ref cover painted into a novel's codex, if any. */
-function storyCover(story: Story): string | undefined {
-    for (const ref of story.activeCardRefs ?? []) {
-        const url = ref.snapshot?.image_url
-        if (typeof url === 'string' && url.trim()) return url
-    }
-    return undefined
-}
-
 function novelMeta(story: Story, now: number): string {
     const chapters = chaptersFor(story)
     const count = chapters.length || 1
@@ -180,7 +171,6 @@ function fromStory(story: Story, now: number): ResumeSession {
         kind: 'novel',
         id: story.id,
         title: meaningful(story.title) || 'Untitled novel',
-        imageUrl: storyCover(story),
         context: undefined,
         snippet: meaningful(story.description) || meaningful(latest?.title) || undefined,
         meta: novelMeta(story, now),

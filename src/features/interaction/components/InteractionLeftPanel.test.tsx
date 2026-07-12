@@ -21,8 +21,8 @@ const ADVENTURE: Adventure = {
     turns: [],
     status: 'in-progress',
     snapshot: {
-        schema_version: 1,
-        source: 'mysql_card_body',
+        schema_version: 2,
+        source: 'resolved_library_clone',
         template_card_id: 'tpl-1',
         template: {
             id: 'tpl-1',

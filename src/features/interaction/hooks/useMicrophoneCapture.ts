@@ -32,9 +32,6 @@ export interface UseMicrophoneCaptureOptions {
     onVadState?: (state: 'speech_start' | 'speech_end' | 'silence', details?: { seq?: number; at_ms: number; rms?: number }) => void
     /** Live input level (0..1), throttled — drives the call meter/waveform. */
     onLevel?: (level: number) => void
-    /** Called once if the AudioWorklet VAD can't load and capture degrades to time-sliced. */
-    onVadFallback?: () => void
-    preferWorklet?: boolean
     aggressiveness?: VoiceVadAggressiveness
     vad?: VoiceVadTuning
 }
@@ -58,22 +55,8 @@ function canUseAudioWorklet(): boolean {
     return Boolean(AudioContextCtor && typeof AudioWorkletNode !== 'undefined')
 }
 
-function canUseMediaRecorder(): boolean {
-    return typeof MediaRecorder !== 'undefined'
-        && (typeof MediaRecorder.isTypeSupported !== 'function' || MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))
-}
-
 function resolveAudioContext(): BrowserAudioContext | undefined {
     return globalThis.AudioContext ?? (globalThis as typeof globalThis & { webkitAudioContext?: BrowserAudioContext }).webkitAudioContext
-}
-
-async function hashBlobSha256(blob: Blob): Promise<string> {
-    const buffer = await blob.arrayBuffer()
-    if (globalThis.crypto?.subtle) {
-        const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer)
-        return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
-    }
-    return `${blob.size.toString(16).padStart(8, '0')}`.repeat(8).slice(0, 64)
 }
 
 /** Default processed capture (browser AEC/NS/AGC). Best for calls when it actually works. */
@@ -92,13 +75,11 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
 
     const mountedRef = useRef(true)
     const streamRef = useRef<MediaStream | null>(null)
-    const recorderRef = useRef<MediaRecorder | null>(null)
     const audioContextRef = useRef<AudioContext | null>(null)
     const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null)
     const workletNodeRef = useRef<AudioWorkletNode | null>(null)
     const segmenterRef = useRef<VoiceVadWorkletSegmenter | null>(null)
     const captureStartedAtRef = useRef(0)
-    const segmentStartedAtRef = useRef(0)
     const nextSeqRef = useRef(1)
     // Liveness watchdog: detects a live-but-silent capture stream and auto-falls back to raw
     // (no AEC/NS/AGC) constraints, then surfaces a visible error if still no signal.
@@ -128,16 +109,6 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
     }, [])
 
     const stop = useCallback(() => {
-        const recorder = recorderRef.current
-        recorderRef.current = null
-        if (recorder && recorder.state !== 'inactive') {
-            try {
-                recorder.stop()
-            } catch {
-                // ignore teardown failures
-            }
-        }
-
         const worklet = workletNodeRef.current
         workletNodeRef.current = null
         if (worklet) {
@@ -170,7 +141,6 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
         stream?.getTracks().forEach((track) => track.stop())
         segmenterRef.current = null
         captureStartedAtRef.current = 0
-        segmentStartedAtRef.current = 0
         if (livenessTimerRef.current) {
             clearTimeout(livenessTimerRef.current)
             livenessTimerRef.current = null
@@ -182,48 +152,6 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
             setStatus('idle')
         }
     }, [])
-
-    const emitMediaRecorderSegment = useCallback(async (blob: Blob) => {
-        if (!blob.size) return
-        const startedAt = segmentStartedAtRef.current || captureStartedAtRef.current || performance.now()
-        const now = performance.now()
-        const durationMs = Math.max(1, Math.round(now - startedAt))
-        segmentStartedAtRef.current = now
-        const segment: CapturedVoiceSegment = {
-            seq: nextSeqRef.current,
-            started_at_ms: Math.max(0, Math.round(startedAt - captureStartedAtRef.current)),
-            duration_ms: durationMs,
-            encoding: 'audio/webm;codecs=opus',
-            sample_rate: 48_000,
-            channels: 1,
-            byte_length: blob.size,
-            audio_sha256: await hashBlobSha256(blob),
-            vad: {
-                speech_ms: durationMs,
-                silence_ms: 0,
-                rms: 0,
-                peak: 0,
-                source: 'media_recorder',
-                aggressiveness: optionsRef.current.aggressiveness ?? 'balanced',
-            },
-            audio: blob,
-        }
-        emitSegment(segment)
-    }, [emitSegment])
-
-    const startMediaRecorder = useCallback((stream: MediaStream): boolean => {
-        if (!canUseMediaRecorder()) return false
-        const mimeType = MediaRecorder.isTypeSupported?.('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
-        const recorder = new MediaRecorder(stream, { mimeType })
-        recorder.ondataavailable = (event) => {
-            if (event.data?.size) void emitMediaRecorderSegment(event.data)
-        }
-        recorderRef.current = recorder
-        recorder.start(4_000)
-        setSource('media_recorder')
-        safeSetStatus('capturing')
-        return true
-    }, [emitMediaRecorderSegment, safeSetStatus])
 
     const startAudioWorklet = useCallback(async (stream: MediaStream): Promise<boolean> => {
         if (!canUseAudioWorklet()) return false
@@ -351,7 +279,6 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
     }, [safeSetError])
 
     const startWithConstraints = useCallback(async (constraints: MediaTrackConstraints): Promise<boolean> => {
-        const currentOptions = optionsRef.current
         stop()
         safeSetStatus('requesting_permission')
         let stream: MediaStream
@@ -377,21 +304,13 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
 
         streamRef.current = stream
         captureStartedAtRef.current = performance.now()
-        segmentStartedAtRef.current = captureStartedAtRef.current
-
         try {
-            if (currentOptions.preferWorklet !== false && await startAudioWorklet(stream)) {
+            if (await startAudioWorklet(stream)) {
                 armLivenessWatchdog()
                 return true
             }
-            // Worklet path unavailable — degrade to time-sliced capture (no VAD). Make it loud.
-            console.warn('[voice-call][VAD_FALLBACK] AudioWorklet VAD unavailable — using time-sliced capture (no voice detection)')
-            currentOptions.onVadFallback?.()
-            if (startMediaRecorder(stream)) return true
         } catch (workletError) {
-            console.warn('[voice-call][VAD_FALLBACK] AudioWorklet VAD failed to load — using time-sliced capture', workletError)
-            currentOptions.onVadFallback?.()
-            if (startMediaRecorder(stream)) return true
+            console.warn('[voice-call][WORKLET_REQUIRED] AudioWorklet VAD failed to load', workletError)
         }
 
         stream.getTracks().forEach((track) => track.stop())
@@ -399,7 +318,7 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
         safeSetStatus('unsupported')
         safeSetError('This browser does not support the required voice capture path.')
         return false
-    }, [armLivenessWatchdog, safeSetError, safeSetStatus, startAudioWorklet, startMediaRecorder, stop])
+    }, [armLivenessWatchdog, safeSetError, safeSetStatus, startAudioWorklet, stop])
 
     useEffect(() => {
         startWithConstraintsRef.current = startWithConstraints

@@ -8,14 +8,16 @@ const story: Story = {
     id: 's1',
     title: 'The Hollow Crown',
     description: 'A story.',
-    scenes: [],
+    source: { kind: 'blank', id: null, title: null },
+    chapters: [],
     activeCardRefs: [],
     activeContext: {
         includeSelectedCards: true,
-        includeMentionedCards: true,
         includeLorebooks: true,
-        includeRecentScenes: 1,
+        includeRecentChapters: 1,
         tokenBudget: 1000,
+        styleSource: 'current_chapter',
+        customStyleInstruction: null,
     },
 }
 

@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useTranslation} from 'react-i18next'
-import type {ChatGenerationOptions, ChatMessage, ChatNarratorIdentity, ChatResponseSegment, ChatSpeakerRosterEntry, ForwardOption, TurnEntry} from '../../../shared'
+import type {ChatNarratorIdentity, ChatResponseSegment, ChatSpeakerRosterEntry, ForwardOption, TurnEntry} from '../../../shared'
 import {apiService, type ImageJobPublicResponse, type TtsJobPublicResponse} from '../../../infrastructure/api'
 import {useAuth} from '../../../app/hooks'
 import {ArrowDown, Loader2, RotateCcw, Sparkles} from 'lucide-react'
@@ -31,7 +31,7 @@ interface InteractionCenterPanelProps {
     sessionId: number
     turns: TurnEntry[]
     setTurns: (turns: TurnEntry[]) => void
-    /** Mode-specific wiring (load/save endpoints, copy, forward options, basePath). */
+    /** Mode-specific wiring (canonical history endpoints, copy, forward options, basePath). */
     config: ChatSessionConfig
     /**
      * Known AI cast for the session (speaker_id = card id). Persisted segments only
@@ -98,10 +98,6 @@ const TTS_PENDING_WATCHDOG_MS = 15_000
 // "Stop" forever. Every streaming frame re-arms the timer, so it only measures
 // silence — the window sits above the backend's 120s agent-graph timeout.
 const GENERATION_WATCHDOG_MS = 130_000
-const DEFAULT_CHAT_GENERATION_OPTIONS: ChatGenerationOptions = {
-    generateImage: true,
-    suggestActions: true,
-}
 // Stable request key per (assistantMessageId, turnId), stored server-side for
 // tracing. Dedupe itself is content-hash based on the server (an in-flight or
 // completed job for the same turn + text + voice is reused).
@@ -117,18 +113,6 @@ function canonicalMessageId(turn?: TurnEntry | null): number | undefined {
         return turn.assistantMessageId
     }
     return undefined
-}
-
-function readChatGenerationOptions(key: string): ChatGenerationOptions {
-    try {
-        const parsed = JSON.parse(localStorage.getItem(key) || 'null') as Partial<ChatGenerationOptions> | null
-        return {
-            generateImage: typeof parsed?.generateImage === 'boolean' ? parsed.generateImage : DEFAULT_CHAT_GENERATION_OPTIONS.generateImage,
-            suggestActions: typeof parsed?.suggestActions === 'boolean' ? parsed.suggestActions : DEFAULT_CHAT_GENERATION_OPTIONS.suggestActions,
-        }
-    } catch {
-        return DEFAULT_CHAT_GENERATION_OPTIONS
-    }
 }
 
 export function InteractionCenterPanel({sessionId, turns, setTurns, config, speakerRoster}: InteractionCenterPanelProps) {
@@ -172,18 +156,6 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             return false
         }
     })
-    const chatGenerationOptionsKey = `mw:chat-options:${config.kind}:${sessionId}`
-    const [chatGenerationOptionsState, setChatGenerationOptionsState] = useState<{
-        key: string
-        options: ChatGenerationOptions
-    }>(() => ({
-        key: chatGenerationOptionsKey,
-        options: readChatGenerationOptions(chatGenerationOptionsKey),
-    }))
-    const chatGenerationOptions = chatGenerationOptionsState.key === chatGenerationOptionsKey
-        ? chatGenerationOptionsState.options
-        : DEFAULT_CHAT_GENERATION_OPTIONS
-
     // Refs let the long-lived socket callbacks read the latest turns and target
     // the in-flight AI turn without being recreated every render.
     const turnsRef = useRef<TurnEntry[]>(turns)
@@ -206,11 +178,6 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         narrator: null,
     })
     const restoreRef = useRef<TurnRestore | null>(null)
-    // Ids of turns edited locally this session. The backend has no message-edit
-    // endpoint (edits only reach the client mirror), so hydration keeps these
-    // turns local instead of reverting them to the canonical pre-edit text.
-    // After a full page reload the server copy wins again — known limitation.
-    const locallyEditedIdsRef = useRef<Set<string>>(new Set())
     // Read by the long-lived socket `onDone` callback (which fires from a WS event,
     // not a render) so it always sees the latest toggle value.
     const autoNarrateRef = useRef(autoNarrate)
@@ -222,37 +189,8 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             // ignore storage failures (private mode / quota)
         }
     }, [autoNarrate, autoNarrateKey])
-    useEffect(() => {
-        setChatGenerationOptionsState({
-            key: chatGenerationOptionsKey,
-            options: readChatGenerationOptions(chatGenerationOptionsKey),
-        })
-    }, [chatGenerationOptionsKey])
-    useEffect(() => {
-        if (chatGenerationOptionsState.key !== chatGenerationOptionsKey) return
-        try {
-            localStorage.setItem(chatGenerationOptionsKey, JSON.stringify(chatGenerationOptionsState.options))
-        } catch {
-            // ignore storage failures (private mode / quota)
-        }
-    }, [chatGenerationOptionsKey, chatGenerationOptionsState])
-    const updateChatGenerationOptions = useCallback((mutate: (options: ChatGenerationOptions) => ChatGenerationOptions) => {
-        setChatGenerationOptionsState((current) => {
-            const currentOptions = current.key === chatGenerationOptionsKey
-                ? current.options
-                : readChatGenerationOptions(chatGenerationOptionsKey)
-            return { key: chatGenerationOptionsKey, options: mutate(currentOptions) }
-        })
-    }, [chatGenerationOptionsKey])
-
     // Stable composer-toolbar callbacks (memoized ChatComposer props).
     const handleToggleAutoNarrate = useCallback(() => setAutoNarrate((on) => !on), [])
-    const handleToggleGenerateImage = useCallback(() => {
-        updateChatGenerationOptions((options) => ({ ...options, generateImage: !options.generateImage }))
-    }, [updateChatGenerationOptions])
-    const handleToggleSuggestActions = useCallback(() => {
-        updateChatGenerationOptions((options) => ({ ...options, suggestActions: !options.suggestActions }))
-    }, [updateChatGenerationOptions])
     // "Stop" is only armed a frame after loading begins. React 19 commits the Send
     // click's setIsLoading synchronously, swapping Send → Stop under the cursor, so
     // without this the same click would land on Stop and cancel the turn it just
@@ -276,11 +214,6 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         turnsRef.current = turns
     }, [turns])
 
-    // Local-edit tracking is per session.
-    useEffect(() => {
-        locallyEditedIdsRef.current = new Set()
-    }, [sessionId])
-
     useEffect(() => {
         if (!isLoading) {
             stopArmedRef.current = false
@@ -291,52 +224,6 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         })
         return () => cancelAnimationFrame(id)
     }, [isLoading])
-
-    // Persist the client turn mirror via the mode-specific endpoint.
-    const persistTurnsToApi = useCallback(async (turnsToSave: TurnEntry[]) => {
-        if (!Number.isNaN(sessionId)) {
-            await config.saveTurns(sessionId, turnsToSave)
-        }
-    }, [config, sessionId])
-
-    // Serialize mirror saves: the PUT is last-arrival-wins server-side, so two
-    // overlapping requests from rapid UI mutations could land out of order and
-    // persist a stale snapshot. One save runs at a time; bursts collapse to the
-    // newest snapshot. Never rejects (mirror persistence is best-effort).
-    const pendingSaveTurnsRef = useRef<TurnEntry[] | null>(null)
-    const saveInFlightRef = useRef<Promise<void> | null>(null)
-    // A hydration requested mid-save runs once after the queue drains, so its
-    // GET→merge→PUT cycle never works from a projection that predates the save.
-    const hydrateQueuedRef = useRef(false)
-    const hydrateAfterSavesRef = useRef<() => void>(() => {})
-
-    const saveTurnsToApi = useCallback((turnsToSave: TurnEntry[]): Promise<void> => {
-        pendingSaveTurnsRef.current = turnsToSave
-        if (saveInFlightRef.current) return saveInFlightRef.current
-        const drain = (async () => {
-            try {
-                while (pendingSaveTurnsRef.current) {
-                    const snapshot = pendingSaveTurnsRef.current
-                    pendingSaveTurnsRef.current = null
-                    try {
-                        await persistTurnsToApi(snapshot)
-                    } catch (err) {
-                        console.error('Failed to save turns to API:', err)
-                    }
-                }
-            } finally {
-                // Runs before the drain promise settles, so no new call can
-                // observe a settled promise while the in-flight flag is still set.
-                saveInFlightRef.current = null
-                if (hydrateQueuedRef.current) {
-                    hydrateQueuedRef.current = false
-                    hydrateAfterSavesRef.current()
-                }
-            }
-        })()
-        saveInFlightRef.current = drain
-        return drain
-    }, [persistTurnsToApi])
 
     const setTurnState = useCallback((next: TurnEntry[]) => {
         turnsRef.current = next
@@ -401,16 +288,13 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             : turnsRef.current
         if (id) {
             setTurnState(next)
-            saveTurnsToApi(next).catch((err) =>
-                console.error('Failed to save failed turns:', err)
-            )
         }
         streamingIdRef.current = null
         rawResponseRef.current = ''
         restoreRef.current = null
         setIsLoading(false)
         setError(message, true)
-    }, [clearGenerationWatchdog, saveTurnsToApi, setError, setTurnState])
+    }, [clearGenerationWatchdog, setError, setTurnState])
 
     const armGenerationWatchdog = useCallback(() => {
         clearGenerationWatchdog()
@@ -442,43 +326,23 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         // contain the streaming turn yet, so applying it would orphan
         // streamingIdRef and silently drop the rest of the generation.
         if (streamingIdRef.current) return
-        // A mirror save is still being written: the projection we'd GET may
-        // predate it, and the PUT this hydration issues would persist stale
-        // content back over it. Defer until the save queue drains.
-        if (saveInFlightRef.current) {
-            hydrateQueuedRef.current = true
-            return
-        }
         try {
             const hydrated = await config.loadTurns(sessionId)
             // A generation may have started while the projection was loading
             // (rapid follow-up send) — that projection is stale; drop it.
             if (streamingIdRef.current) return
-            if (hydrated.length > 0) {
-                // Hydration owns ordering/deletions, while the live stream may
-                // temporarily be the only source with parsed response segments.
-                // Turns the user edited locally stay local: the canonical server
-                // copy still holds the pre-edit text (no message-edit endpoint),
-                // and re-applying it would undo the edit on every tab switch.
-                const textMerged = mergeHydratedChatTurns(turnsRef.current, hydrated, {
-                    preferLocalIds: locallyEditedIdsRef.current,
-                })
-                // Fold image then TTS state in; both apply terminal-precedence merges
-                // so a staler projection can't clobber live socket state.
-                const imageMerged = mergeHydratedImageTurns(turnsRef.current, textMerged)
-                const next = resolveTurnIdentities(mergeHydratedTtsTurns(imageMerged, textMerged))
-                setTurnState(next)
-                void saveTurnsToApi(next)
-            }
+            // Hydration owns ordering/deletions, while the live stream may
+            // temporarily be the only source with parsed response segments.
+            const textMerged = mergeHydratedChatTurns(turnsRef.current, hydrated)
+            // Fold image then TTS state in; both apply terminal-precedence merges
+            // so a staler response can't clobber live socket state.
+            const imageMerged = mergeHydratedImageTurns(turnsRef.current, textMerged)
+            const next = resolveTurnIdentities(mergeHydratedTtsTurns(imageMerged, textMerged))
+            setTurnState(next)
         } catch (err) {
             console.warn('Failed to hydrate chat media state:', err)
         }
-    }, [config, isAuthenticated, resolveTurnIdentities, saveTurnsToApi, sessionId, setTurnState])
-
-    // Deferred-hydration hook-up: the save queue calls whatever is current here.
-    useEffect(() => {
-        hydrateAfterSavesRef.current = () => void hydrateTurnsFromApi()
-    }, [hydrateTurnsFromApi])
+    }, [config, isAuthenticated, resolveTurnIdentities, sessionId, setTurnState])
 
     const pollNonTerminalImageJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
         const jobs = snapshot.filter(hasNonTerminalImageJob)
@@ -489,22 +353,20 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                 const next = upsertImageJobResult(turnsRef.current, result)
                 if (next !== turnsRef.current) {
                     setTurnState(next)
-                    void saveTurnsToApi(next)
                 }
             } catch (err) {
                 console.warn('Failed to poll image job:', err)
             }
         }
-    }, [saveTurnsToApi, setTurnState])
+    }, [setTurnState])
 
     const applyImageFrame = useCallback((frame: Parameters<typeof upsertChatImageFrame>[1]) => {
         const next = upsertChatImageFrame(turnsRef.current, frame)
         if (next !== turnsRef.current) {
             setTurnState(next)
-            void saveTurnsToApi(next)
             void pollNonTerminalImageJobs(next)
         }
-    }, [pollNonTerminalImageJobs, saveTurnsToApi, setTurnState])
+    }, [pollNonTerminalImageJobs, setTurnState])
 
     const pollNonTerminalTtsJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
         const jobs = snapshot.filter(hasNonTerminalTtsJob)
@@ -516,14 +378,13 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                     const next = upsertTtsJobResult(turnsRef.current, result)
                     if (next !== turnsRef.current) {
                         setTurnState(next)
-                        void saveTurnsToApi(next)
                     }
                 } catch (err) {
                     console.warn('Failed to poll tts job:', err)
                 }
             }
         }
-    }, [saveTurnsToApi, setTurnState])
+    }, [setTurnState])
 
     const applyTtsFrame = useCallback((frame: Parameters<typeof upsertChatTtsFrame>[1]) => {
         if (frame.assistant_message_id) {
@@ -541,10 +402,9 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         const next = upsertChatTtsFrame(turnsRef.current, frame)
         if (next !== turnsRef.current) {
             setTurnState(next)
-            void saveTurnsToApi(next)
             void pollNonTerminalTtsJobs(next)
         }
-    }, [pollNonTerminalTtsJobs, saveTurnsToApi, setTurnState, t])
+    }, [pollNonTerminalTtsJobs, setTurnState, t])
 
     // The conversation + all turn metadata stream over one per-session WebSocket.
     // Gate the connection behind auth (and a valid session id).
@@ -631,9 +491,6 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                 rawResponseRef.current = ''
                 restoreRef.current = null
                 setIsLoading(false)
-                saveTurnsToApi(next).catch((err) =>
-                    console.error('Failed to save turns:', err)
-                )
                 void hydrateTurnsFromApi()
                 void pollNonTerminalImageJobs(next)
                 // Auto-narrate: request TTS for the just-finished GM turn. The audio
@@ -848,15 +705,14 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         )
         setTurnState(streamingTurns)
 
-        // Send only user/assistant history. Private GM/system prompt construction
-        // and provider config are owned server-side by magic-worlds-api.
-        const messages: ChatMessage[] = history
-            .filter((t) => t.type === 'user' || t.type === 'ai')
-            .map((t) => ({
-                role: t.type === 'user' ? ('user' as const) : ('assistant' as const),
-                content: t.content,
-            }))
-        sendChat(messages, chatGenerationOptions)
+        // The server owns the durable history and prompt construction. A chat
+        // request therefore carries only the latest user input.
+        const content = [...history].reverse().find((turn) => turn.type === 'user')?.content.trim()
+        if (!content) {
+            failStreamingTurn(t('interaction.center.generateFailed'))
+            return
+        }
+        sendChat(content)
         armGenerationWatchdog()
     }
 
@@ -946,9 +802,8 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             setError(t('interaction.center.generateFailed'), true)
             return
         }
-        saveTurnsToApi(updatedTurns)
         startGenerationRef.current(updatedTurns.slice(0, -1), resetAiTurn, restore)
-    }, [config, isAuthenticated, openLoginModal, saveTurnsToApi, sessionId, setError, setTurnState, t])
+    }, [config, isAuthenticated, openLoginModal, sessionId, setError, setTurnState, t])
 
     const handleDeleteTurn = useCallback((turnId: string) => {
         if (isMutatingTurns) return
@@ -975,8 +830,6 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             if (messageId) {
                 const canonicalTurns = await config.deleteMessage(sessionId, messageId)
                 setTurnState(canonicalTurns)
-            } else {
-                await persistTurnsToApi(updatedTurns)
             }
         } catch (error) {
             console.error('Failed to delete turn:', error)
@@ -999,25 +852,27 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
     const handleCancelDeleteTurn = useCallback(() => setPendingDeleteTurn(null), [])
 
     const handleEditTurn = useCallback(async (turnId: string, newContent: string) => {
+        const previousTurns = turnsRef.current
+        const updatedTurns = turnsRef.current.map((turn) => {
+            if (turn.id !== turnId) return turn
+            const edited = { ...turn, content: newContent, timestamp: new Date().toISOString() }
+            // Drop media generated from the prior assistant text so stale assets
+            // are never replayed while the canonical edit is in flight.
+            return turn.type === 'ai' ? { ...edited, segments: undefined, ...RESET_IMAGE_FIELDS, ...RESET_TTS_FIELDS } : edited
+        })
+        setTurnState(updatedTurns)
+        const target = previousTurns.find((turn) => turn.id === turnId)
+        const messageId = canonicalMessageId(target)
+        if (!messageId) return
         try {
-            const updatedTurns = turnsRef.current.map((turn) => {
-                if (turn.id !== turnId) return turn
-                const edited = { ...turn, content: newContent, timestamp: new Date().toISOString() }
-                // An edited AI turn keeps neither narration nor scene image — both
-                // were generated from the previous text. (Note: edits only update
-                // the client mirror, so re-requesting narration still reads the
-                // server-persisted original text; at minimum stale audio must not
-                // replay against the new text.)
-                return turn.type === 'ai' ? { ...edited, segments: undefined, ...RESET_IMAGE_FIELDS, ...RESET_TTS_FIELDS } : edited
-            })
-            locallyEditedIdsRef.current.add(turnId)
-            setTurnState(updatedTurns)
-            await saveTurnsToApi(updatedTurns)
+            const canonicalTurns = await config.updateMessage(sessionId, messageId, newContent)
+            setTurnState(canonicalTurns)
         } catch (error) {
             console.error('Failed to edit turn:', error)
+            setTurnState(previousTurns)
             setError(t('interaction.center.editFailed'))
         }
-    }, [saveTurnsToApi, setError, setTurnState, t])
+    }, [config, sessionId, setError, setTurnState, t])
 
     const handleGenerateResponse = () => {
         if (!canGenerateResponse) return
@@ -1040,7 +895,6 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         setTurnState(newTurns)
         setIsLoading(true)
         setError(null)
-        saveTurnsToApi(newTurns)
         startGeneration(newTurns.slice(0, -1), aiTurn)
     }
 
@@ -1100,7 +954,6 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         setInput('')
         setIsLoading(true)
         setError(null)
-        saveTurnsToApi(newTurns)
         startGeneration(newTurns.slice(0, -1), aiTurn)
     }
 
@@ -1237,10 +1090,6 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                     isMutating={isMutatingTurns}
                     autoNarrate={autoNarrate}
                     onToggleAutoNarrate={handleToggleAutoNarrate}
-                    generateImage={chatGenerationOptions.generateImage}
-                    onToggleGenerateImage={handleToggleGenerateImage}
-                    suggestActions={chatGenerationOptions.suggestActions}
-                    onToggleSuggestActions={handleToggleSuggestActions}
                     onReset={handleReset}
                     canReset={turns.length > 0}
                     placeholder={config.copy.placeholder}

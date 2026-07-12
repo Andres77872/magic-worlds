@@ -205,8 +205,16 @@ describe('lorebook transforms', () => {
 
         expect(issues.some((issue) => issue.code === 'empty_book')).toBe(false)
         expect(payload.metadata).toEqual({
-            resources: [completedResource({ id: 'embedded-resource' })],
-            ownerNote: 'keep me',
+            resources: [{
+                id: 'embedded-resource',
+                title: 'Glass archive',
+                description: 'Source notes for the glass court.',
+                fileName: 'glass-archive.md',
+                fileType: 'md',
+                content: 'The mirror oath binds court names.',
+                contentLength: 36,
+                triggers: ['glass archive'],
+            }],
         })
     })
 

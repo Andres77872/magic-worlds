@@ -15,9 +15,9 @@ import type { SnapshotCard, VersionableCardType } from '../../../shared'
 import { useCardUsage } from '@/shared/hooks/useCardUsage'
 import {
     CUSTOM_WORLD_PLACE_TYPE,
-    DEFAULT_WORLD_PLACE_TYPE,
     WORLD_PLACE_TYPE_OPTIONS,
     readWorldPlaceType,
+    withWorldPlaceType,
     worldPlaceTypeLabel,
     worldPlaceTypeOptionValue,
 } from '../../../shared'
@@ -399,17 +399,19 @@ function CardEditForm({
         if (!readyRef.current) return
         setTouched(true)
         if (!name.trim() || (isWorld && !placeType.trim())) return
+        const category = toCategoryPayload(attrs.categories, attrs.attributes)
         const updated: SnapshotCard = {
             ...card,
             name: name.trim(),
             description: description.trim(),
             triggers,
-            category: toCategoryPayload(attrs.categories, attrs.attributes),
+            category: isWorld
+                ? withWorldPlaceType(category, placeType, t('creation.world.placeTypeMirror'))
+                : category,
             image_url: imageUrl,
             theme_song_url: themeSongUrl,
         }
         if (isWorld) {
-            updated.place_type = placeType.trim() || DEFAULT_WORLD_PLACE_TYPE
             updated.type = badgeValue.trim()
         } else {
             updated.race = badgeValue.trim()
@@ -504,7 +506,6 @@ function CardEditForm({
                         name,
                         description,
                         subtype: badgeValue,
-                        place_type: isWorld ? placeType.trim() || DEFAULT_WORLD_PLACE_TYPE : undefined,
                         category: toCategoryPayload(attrs.categories, attrs.attributes),
                     }}
                     imageUrl={imageUrl}

@@ -89,9 +89,9 @@ describe('WorldCreator AI generation', () => {
             card: {
                 id: 'world-1',
                 name: 'Glass',
-                place_type: 'country',
                 type: 'desert',
                 description: 'An endless sea of fused sand.',
+                category: [{ name: 'Setting', description: 'Place scale.', attributes: [{ 'Place type': 'country' }] }],
                 triggers: ['glass', 'desert'],
             },
         }
@@ -111,22 +111,21 @@ describe('WorldCreator AI generation', () => {
 
         await waitFor(() => expect(mocks.createCardAssistantConversation).toHaveBeenCalledTimes(1))
         expect(mocks.createCardAssistantConversation).toHaveBeenCalledWith(
-            expect.objectContaining({
+            {
                 card_type: 'world',
                 card_id: undefined,
                 title: 'Untitled World',
-                current_card: expect.objectContaining({ name: '', place_type: 'world', type: '', description: '' }),
-            }),
+            },
             expect.any(Object),
         )
         await waitFor(() => expect(mocks.streamCardAssistantMessage).toHaveBeenCalledTimes(1))
         expect(mocks.streamCardAssistantMessage).toHaveBeenCalledWith(
             2,
-            expect.objectContaining({
+            {
                 message: 'Generate a glass desert',
-                current_card: expect.objectContaining({ name: '', place_type: 'world', type: '', description: '' }),
-                request_id: expect.stringMatching(/^mw-card-assistant-/),
-            }),
+                card_type: 'world',
+                current_card: null,
+            },
             expect.any(Function),
             expect.objectContaining({ requestId: expect.stringMatching(/^mw-card-assistant-/) }),
         )
@@ -138,8 +137,9 @@ describe('WorldCreator AI generation', () => {
 
         // …switches into edit mode for the already-persisted card…
         expect(mocks.setEditingWorld).toHaveBeenCalledWith(
-            expect.objectContaining({ id: 'world-1', name: 'Glass', place_type: 'country', type: 'desert' }),
+            expect.objectContaining({ id: 'world-1', name: 'Glass', type: 'desert' }),
         )
+        expect(mocks.setEditingWorld.mock.calls[0][0]).not.toHaveProperty('place_type')
         // …refreshes the library in the background, and does NOT navigate away.
         await waitFor(() => expect(mocks.loadData).toHaveBeenCalledTimes(1))
         expect(mocks.setPage).not.toHaveBeenCalledWith('landing')
@@ -183,8 +183,10 @@ describe('WorldCreator portrait persistence', () => {
                 expect.objectContaining({
                     card_type: 'world',
                     name: 'Glass',
-                    place_type: 'world',
                     subtype: 'desert',
+                    category: expect.arrayContaining([
+                        expect.objectContaining({ name: 'Setting' }),
+                    ]),
                 }),
                 expect.any(Object),
             ),
@@ -198,6 +200,24 @@ describe('WorldCreator portrait persistence', () => {
                 expect.objectContaining({ image_url: '/generated-images/w.png' }),
             ),
         )
+    })
+
+    it('surfaces a card-link failure instead of swallowing it', async () => {
+        mocks.setCardMedia.mockRejectedValueOnce(new Error('write failed'))
+        render(<WorldCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /generate setting image/i }))
+
+        expect(await screen.findByText(/image was created, but linking it to this card failed/i)).toBeInTheDocument()
+    })
+
+    it('persists removal of the saved card image as null', async () => {
+        mocks.editingWorld = { ...mocks.editingWorld, image_url: '/generated-images/old.png' }
+        render(<WorldCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /remove image/i }))
+
+        await waitFor(() => expect(mocks.setCardMedia).toHaveBeenCalledWith('world', 'world-1', { image_url: null }))
     })
 })
 
@@ -269,12 +289,11 @@ describe('WorldCreator place type payloads', () => {
         expect(mocks.createWorld).toHaveBeenCalledWith(
             expect.objectContaining({
                 name: 'Glass Province',
-                place_type: 'province',
                 type: 'Mystery',
             }),
         )
-        // place_type is also dual-written into the Setting category so it
-        // survives the backend (which drops the first-class field).
+        expect(mocks.createWorld.mock.calls[0][0]).not.toHaveProperty('place_type')
+        // The canonical Setting category is the sole persistence location.
         const payload = mocks.createWorld.mock.calls[0][0]
         const setting = payload.category.find((c: { name: string }) => c.name === 'Setting')
         expect(setting?.attributes).toContainEqual({ 'Place type': 'province' })

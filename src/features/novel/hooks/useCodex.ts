@@ -7,10 +7,16 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useData } from '@/app/hooks'
-import { snapshotSourceName, snapshotToLoreEntry } from '@/features/codex'
 import type { SessionLoreEntry } from '@/features/lorebook/loreTriggers'
-import type { Lorebook, Story, StoryCardKind, StoryCardRef } from '@/shared'
-import { KIND_META, clonedEntryIds, lorebookEntrySnapshot, snapshotDescription, snapshotLabel } from '../utils/codexUtils'
+import type { Lorebook, Story, StoryCardKind, StoryCardRef, StoryCardSnapshot } from '@/shared'
+import {
+    KIND_META,
+    clonedEntryIds,
+    lorebookEntryFromSnapshot,
+    lorebookEntrySnapshot,
+    snapshotDescription,
+    snapshotLabel,
+} from '../utils/codexUtils'
 
 /** Kinds whose names are highlighted inline in the manuscript (ember). */
 const DETECTABLE_NAME_KINDS = new Set<StoryCardKind>(['character', 'world', 'item', 'adventure_template'])
@@ -161,14 +167,12 @@ export function useCodex({ story }: { story: Story | null }): CodexApi {
     const saveSnapshot = useCallback(
         async (entry: CodexEntry, patch: { label: string; description: string }) => {
             if (!storyId) return
-            // Merge, never replace: card snapshots keep race/category/image_url.
-            const snapshot: Record<string, unknown> = {
-                ...(entry.ref.snapshot ?? {}),
+            // Merge, never replace: card snapshots keep canonical race/category/source pins.
+            const snapshot: StoryCardSnapshot = {
+                ...entry.ref.snapshot,
                 name: patch.label,
-                title: patch.label,
                 description: patch.description,
             }
-            if (entry.kind === 'lorebook_entry' || entry.kind === 'lorebook') snapshot.content = patch.description
             await track(updateStoryCardRef(storyId, entry.id, { snapshot }))
         },
         [storyId, track, updateStoryCardRef],
@@ -203,8 +207,15 @@ export function useCodex({ story }: { story: Story | null }): CodexApi {
             refs
                 .filter((ref) => ref.kind === 'lorebook_entry')
                 .map((ref) => {
-                    const entry = { ...snapshotToLoreEntry(ref.snapshot, ref.cardId), enabled: ref.enabled }
-                    return { entry, lorebookId: entry.lorebookId, lorebookName: snapshotSourceName(ref.snapshot) ?? '' }
+                    const entry = {
+                        ...lorebookEntryFromSnapshot(ref.snapshot, ref.cardId),
+                        enabled: ref.enabled,
+                    }
+                    return {
+                        entry,
+                        lorebookId: entry.lorebookId,
+                        lorebookName: ref.snapshot.source_lorebook_id ?? '',
+                    }
                 }),
         [refs],
     )

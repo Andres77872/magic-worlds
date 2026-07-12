@@ -6,9 +6,16 @@
  * ~700-line engine stays single-sourced.
  */
 
-import type { TurnEntry } from '../../shared'
+import type {
+    CanonicalConversationMessage,
+    ChatImageAsset,
+    ChatImageError,
+    ChatResponseSegment,
+    ChatTtsSegmentClip,
+    ForwardOption,
+    TurnEntry,
+} from '../../shared'
 import { apiService } from '../../infrastructure/api'
-import { parseTurnState } from '../../utils/turnState'
 
 export type SessionKind = 'adventure' | 'character'
 
@@ -34,11 +41,11 @@ export interface ChatSessionConfig {
     basePath: string
     /** Load + normalize the conversation turns for a session id. */
     loadTurns: (sessionId: number) => Promise<TurnEntry[]>
-    /** Persist the client's turn mirror for a session id. */
-    saveTurns: (sessionId: number, turns: TurnEntry[]) => Promise<void>
-    /** Delete one canonical message and return the server-projected turns. */
+    /** Update one canonical message, then return the authoritative history. */
+    updateMessage: (sessionId: number, messageId: number, content: string) => Promise<TurnEntry[]>
+    /** Delete one canonical message, then return the authoritative history. */
     deleteMessage: (sessionId: number, messageId: number) => Promise<TurnEntry[]>
-    /** Clear all canonical messages and return the server-projected turns. */
+    /** Clear all canonical messages, then return the authoritative history. */
     clearMessages: (sessionId: number) => Promise<TurnEntry[]>
     /** Label shown on AI turns ("Game Master" or the character's name). */
     aiLabel: string
@@ -51,24 +58,87 @@ export interface ChatSessionConfig {
     copy: ChatSessionCopy
 }
 
+function record(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : {}
+}
+
+/** Project durable conversation rows into the view model consumed by the chat UI. */
+export function canonicalMessagesToTurns(messages: CanonicalConversationMessage[]): TurnEntry[] {
+    return [...messages]
+        .sort((left, right) => left.sequence_no - right.sequence_no)
+        .map((message) => {
+            const metadata = record(message.metadata)
+            const turnMetadata = record(metadata.turn_metadata)
+            const imageJob = record(metadata.image_job)
+            const imageAssets = Array.isArray(metadata.image_assets)
+                ? metadata.image_assets as ChatImageAsset[]
+                : undefined
+            const ttsSegmentsValue = record(metadata.tts_segments)
+            const ttsSegments = Object.values(ttsSegmentsValue)
+                .filter((value): value is ChatTtsSegmentClip => Boolean(value && typeof value === 'object'))
+                .sort((left, right) => left.segment_index - right.segment_index)
+            const segments = Array.isArray(metadata.response_segments)
+                ? metadata.response_segments as ChatResponseSegment[]
+                : undefined
+            const displayText = typeof metadata.response_display_text === 'string'
+                ? metadata.response_display_text.trim()
+                : ''
+            const forwardOptions = Array.isArray(turnMetadata.forwardOptions)
+                ? turnMetadata.forwardOptions as ForwardOption[]
+                : undefined
+            const imagePrompt = typeof turnMetadata.imagePrompt === 'string'
+                ? turnMetadata.imagePrompt
+                : undefined
+
+            return {
+                id: String(message.message_id),
+                type: message.role === 'assistant' ? 'ai' : message.role,
+                content: displayText || message.content,
+                timestamp: message.completed_at ?? message.updated_at ?? message.created_at,
+                metadata,
+                isStreaming: message.status === 'pending' || message.status === 'streaming',
+                turnId: message.turn_id,
+                ...(message.role === 'assistant' ? { assistantMessageId: message.message_id } : {}),
+                ...(segments?.length ? { segments } : {}),
+                ...(forwardOptions?.length ? { forwardOptions } : {}),
+                ...(imagePrompt ? { imagePrompt } : {}),
+                ...(typeof imageJob.job_id === 'string' ? { imageJobId: imageJob.job_id } : {}),
+                ...(typeof metadata.image_job_status === 'string' ? { imageStatus: metadata.image_job_status as TurnEntry['imageStatus'] } : {}),
+                ...(typeof imageJob.status_url === 'string' ? { imageStatusUrl: imageJob.status_url } : {}),
+                ...(typeof imageJob.result_url === 'string' ? { imageResultUrl: imageJob.result_url } : {}),
+                ...(imageAssets?.length ? { imageAssets, imageUrl: imageAssets[0]?.url } : {}),
+                ...(metadata.image_job_error && typeof metadata.image_job_error === 'object'
+                    ? { imageError: metadata.image_job_error as ChatImageError }
+                    : {}),
+                ...(ttsSegments.length ? { ttsSegments } : {}),
+            } satisfies TurnEntry & { forwardOptions?: ForwardOption[] }
+        })
+}
+
 export function adventureChatConfig(): ChatSessionConfig {
     return {
         kind: 'adventure',
         basePath: 'adventure-sessions',
         loadTurns: async (sessionId) => {
-            const session = await apiService.getAdventureSession(sessionId)
-            return parseTurnState(session.adventure_last_turn)
+            const history = await apiService.getAdventureSessionMessages(sessionId)
+            return canonicalMessagesToTurns(history.messages)
         },
-        saveTurns: async (sessionId, turns) => {
-            await apiService.updateAdventureSession(sessionId, JSON.stringify({ turns }))
+        updateMessage: async (sessionId, messageId, content) => {
+            await apiService.updateAdventureSessionMessage(sessionId, messageId, content)
+            const history = await apiService.getAdventureSessionMessages(sessionId)
+            return canonicalMessagesToTurns(history.messages)
         },
         deleteMessage: async (sessionId, messageId) => {
-            const session = await apiService.deleteAdventureSessionMessage(sessionId, messageId)
-            return parseTurnState(session.adventure_last_turn)
+            await apiService.deleteAdventureSessionMessage(sessionId, messageId)
+            const history = await apiService.getAdventureSessionMessages(sessionId)
+            return canonicalMessagesToTurns(history.messages)
         },
         clearMessages: async (sessionId) => {
-            const session = await apiService.clearAdventureSessionMessages(sessionId)
-            return parseTurnState(session.adventure_last_turn)
+            await apiService.clearAdventureSessionMessages(sessionId)
+            const history = await apiService.getAdventureSessionMessages(sessionId)
+            return canonicalMessagesToTurns(history.messages)
         },
         aiLabel: 'Game Master',
         showForwardOptions: true,
@@ -94,19 +164,23 @@ export function characterChatConfig(characterName: string, opts?: { group?: bool
         kind: 'character',
         basePath: 'character-chats',
         loadTurns: async (sessionId) => {
-            const session = await apiService.getCharacterChat(sessionId)
-            return parseTurnState(session.last_turn)
+            const history = await apiService.getCharacterChatMessages(sessionId)
+            return canonicalMessagesToTurns(history.messages)
         },
-        saveTurns: async (sessionId, turns) => {
-            await apiService.updateCharacterChat(sessionId, JSON.stringify({ turns }))
+        updateMessage: async (sessionId, messageId, content) => {
+            await apiService.updateCharacterChatMessage(sessionId, messageId, content)
+            const history = await apiService.getCharacterChatMessages(sessionId)
+            return canonicalMessagesToTurns(history.messages)
         },
         deleteMessage: async (sessionId, messageId) => {
-            const session = await apiService.deleteCharacterChatMessage(sessionId, messageId)
-            return parseTurnState(session.last_turn)
+            await apiService.deleteCharacterChatMessage(sessionId, messageId)
+            const history = await apiService.getCharacterChatMessages(sessionId)
+            return canonicalMessagesToTurns(history.messages)
         },
         clearMessages: async (sessionId) => {
-            const session = await apiService.clearCharacterChatMessages(sessionId)
-            return parseTurnState(session.last_turn)
+            await apiService.clearCharacterChatMessages(sessionId)
+            const history = await apiService.getCharacterChatMessages(sessionId)
+            return canonicalMessagesToTurns(history.messages)
         },
         aiLabel: name,
         showForwardOptions: true,

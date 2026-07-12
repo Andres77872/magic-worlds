@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AdventureChatSocket, configureChatSocketAuthRefresh } from './chatSocket'
-import type { ChatMessage } from '@/shared/types/auth.types'
+import { ChatSocket, configureChatSocketAuthRefresh } from './chatSocket'
 
 type Protocols = string | string[] | undefined
 
@@ -59,7 +58,7 @@ function jwtWithExp(exp: number): string {
     return `${encode({ alg: 'none' })}.${encode({ exp })}.signature`
 }
 
-describe('AdventureChatSocket auth recovery', () => {
+describe('ChatSocket auth recovery', () => {
     beforeEach(() => {
         vi.useRealTimers()
         vi.clearAllMocks()
@@ -88,7 +87,7 @@ describe('AdventureChatSocket auth recovery', () => {
             return 'new-token'
         }))
 
-        const socket = new AdventureChatSocket(3, { onMessage })
+        const socket = new ChatSocket(3, { onMessage })
         socket.connect()
         expect(protocolsOf(MockWebSocket.instances[0])).toEqual(['mw.bearer.v1', 'old-token'])
 
@@ -111,7 +110,7 @@ describe('AdventureChatSocket auth recovery', () => {
         window.addEventListener('auth:expired', expired)
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new AdventureChatSocket(3, { onMessage })
+        const socket = new ChatSocket(3, { onMessage })
         socket.connect()
         MockWebSocket.instances[0].emitClose(4401)
         await flushPromises()
@@ -137,7 +136,7 @@ describe('AdventureChatSocket auth recovery', () => {
         window.addEventListener('auth:expired', expired)
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new AdventureChatSocket(3, { onMessage })
+        const socket = new ChatSocket(3, { onMessage })
         socket.connect()
         MockWebSocket.instances[0].emitClose(4401)
         await flushPromises()
@@ -160,7 +159,7 @@ describe('AdventureChatSocket auth recovery', () => {
         window.addEventListener('auth:expired', expired)
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new AdventureChatSocket(3, { onMessage })
+        const socket = new ChatSocket(3, { onMessage })
         socket.connect()
         MockWebSocket.instances[0].emitClose(4401)
         await flushPromises()
@@ -196,7 +195,7 @@ describe('AdventureChatSocket auth recovery', () => {
         window.addEventListener('auth:expired', expired)
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new AdventureChatSocket(3, { onMessage })
+        const socket = new ChatSocket(3, { onMessage })
         socket.connect()
         MockWebSocket.instances[0].emitClose(4401)
         await flushPromises()
@@ -212,7 +211,7 @@ describe('AdventureChatSocket auth recovery', () => {
             return 'new-token'
         }))
 
-        const socket = new AdventureChatSocket(3, { onMessage: vi.fn() })
+        const socket = new ChatSocket(3, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitClose(4401)
         await flushPromises()
@@ -234,11 +233,11 @@ describe('AdventureChatSocket auth recovery', () => {
         })
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new AdventureChatSocket(7, { onMessage: vi.fn() })
+        const socket = new ChatSocket(7, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
 
-        socket.sendChat([{ role: 'user', content: 'hello' } satisfies ChatMessage])
+        socket.sendChat('hello')
         await flushPromises()
 
         expect(refresh).toHaveBeenCalledTimes(1)
@@ -250,8 +249,7 @@ describe('AdventureChatSocket auth recovery', () => {
 
         expect(JSON.parse(String(MockWebSocket.instances[1].send.mock.calls[0][0]))).toEqual({
             type: 'chat',
-            messages: [{ role: 'user', content: 'hello' }],
-            options: { generateImage: true, suggestActions: true },
+            content: 'hello',
         })
     })
 
@@ -263,18 +261,17 @@ describe('AdventureChatSocket auth recovery', () => {
         localStorage.setItem('magic_worlds:token', token)
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new AdventureChatSocket(7, { onMessage: vi.fn() })
+        const socket = new ChatSocket(7, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
 
-        socket.sendChat([{ role: 'user', content: 'hello' } satisfies ChatMessage])
+        socket.sendChat('hello')
 
         expect(refresh).not.toHaveBeenCalled()
         expect(MockWebSocket.instances).toHaveLength(1)
         expect(JSON.parse(String(MockWebSocket.instances[0].send.mock.calls[0][0]))).toEqual({
             type: 'chat',
-            messages: [{ role: 'user', content: 'hello' }],
-            options: { generateImage: true, suggestActions: true },
+            content: 'hello',
         })
     })
 
@@ -289,11 +286,11 @@ describe('AdventureChatSocket auth recovery', () => {
         window.addEventListener('auth:expired', expired)
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new AdventureChatSocket(7, { onMessage })
+        const socket = new ChatSocket(7, { onMessage })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
 
-        socket.sendChat([{ role: 'user', content: 'hello' } satisfies ChatMessage])
+        socket.sendChat('hello')
         await flushPromises()
 
         expect(refresh).toHaveBeenCalledTimes(1)
@@ -305,14 +302,14 @@ describe('AdventureChatSocket auth recovery', () => {
 
     it('keeps character text chat on /ws with text-only control frame types', async () => {
         vi.useFakeTimers()
-        const socket = new AdventureChatSocket(7, { onMessage: vi.fn() }, 'character-chats')
+        const socket = new ChatSocket(7, { onMessage: vi.fn() }, 'character-chats')
         socket.connect()
 
         expect(MockWebSocket.instances[0].url).toContain('/character-chats/7/ws')
         expect(MockWebSocket.instances[0].url).not.toContain('/ws-voice')
 
         MockWebSocket.instances[0].emitOpen()
-        socket.sendChat([{ role: 'user', content: 'hello' } satisfies ChatMessage])
+        socket.sendChat('hello')
         socket.sendTts(101, 'turn-1', 'tts-request-1')
         socket.cancel()
         await vi.advanceTimersByTimeAsync(25_000)
@@ -321,8 +318,7 @@ describe('AdventureChatSocket auth recovery', () => {
         expect(frames.map((frame) => frame.type)).toEqual(['chat', 'tts', 'cancel', 'ping'])
         expect(frames[0]).toEqual({
             type: 'chat',
-            messages: [{ role: 'user', content: 'hello' }],
-            options: { generateImage: true, suggestActions: true },
+            content: 'hello',
         })
         expect(JSON.stringify(frames)).not.toContain('raw_audio')
         expect(JSON.stringify(frames)).not.toContain('audio_b64')
@@ -332,7 +328,7 @@ describe('AdventureChatSocket auth recovery', () => {
     it('treats a 4403 origin rejection as terminal instead of reconnecting', async () => {
         vi.useFakeTimers()
         const onMessage = vi.fn()
-        const socket = new AdventureChatSocket(3, { onMessage })
+        const socket = new ChatSocket(3, { onMessage })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitClose(4403)
@@ -347,7 +343,7 @@ describe('AdventureChatSocket auth recovery', () => {
 
     it('tears down and reconnects a half-open socket that stops answering pings', async () => {
         vi.useFakeTimers()
-        const socket = new AdventureChatSocket(3, { onMessage: vi.fn() })
+        const socket = new ChatSocket(3, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
 
@@ -364,7 +360,7 @@ describe('AdventureChatSocket auth recovery', () => {
 
     it('keeps a quiet socket alive while pong frames arrive', async () => {
         vi.useFakeTimers()
-        const socket = new AdventureChatSocket(3, { onMessage: vi.fn() })
+        const socket = new ChatSocket(3, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
 
@@ -377,20 +373,17 @@ describe('AdventureChatSocket auth recovery', () => {
         expect(MockWebSocket.instances[0].close).not.toHaveBeenCalled()
     })
 
-    it('serializes explicit chat generation options', () => {
-        const socket = new AdventureChatSocket(7, { onMessage: vi.fn() })
+    it('serializes an optional request id', () => {
+        const socket = new ChatSocket(7, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
 
-        socket.sendChat(
-            [{ role: 'user', content: 'hello' } satisfies ChatMessage],
-            { generateImage: false, suggestActions: false },
-        )
+        socket.sendChat('hello', 'request-7')
 
         expect(JSON.parse(String(MockWebSocket.instances[0].send.mock.calls[0][0]))).toEqual({
             type: 'chat',
-            messages: [{ role: 'user', content: 'hello' }],
-            options: { generateImage: false, suggestActions: false },
+            content: 'hello',
+            request_id: 'request-7',
         })
     })
 })

@@ -21,21 +21,32 @@ vi.mock('@/infrastructure/api', () => ({
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
 }))
 
-import type { Story, StoryCardRef } from '@/shared'
+import type { Story, StoryCardRef, StoryCardSnapshot } from '@/shared'
 import { apiService } from '@/infrastructure/api'
 import { useCodex } from '../../hooks/useCodex'
 import { CodexPanel } from './CodexPanel'
+
+function snapshot(overrides: Partial<StoryCardSnapshot> = {}): StoryCardSnapshot {
+    return {
+        id: 'card-x',
+        name: 'Aria',
+        description: 'A card.',
+        story_card_kind: 'character',
+        ...overrides,
+    }
+}
 
 function ref(overrides: Partial<StoryCardRef>): StoryCardRef {
     return {
         id: 'ref-x',
         storyId: 's1',
+        chapterId: null,
         kind: 'character',
         cardId: 'card-x',
         source: 'manual',
         enabled: true,
         precedence: 0,
-        snapshot: null,
+        snapshot: snapshot(),
         ...overrides,
     }
 }
@@ -44,15 +55,17 @@ function story(refs: StoryCardRef[]): Story {
     return {
         id: 's1',
         title: 'Glass War',
-        scenes: [],
+        description: null,
+        source: { kind: 'blank', id: null, title: null },
         chapters: [],
         activeCardRefs: refs,
         activeContext: {
             includeSelectedCards: true,
-            includeMentionedCards: true,
             includeLorebooks: true,
-            includeRecentScenes: 2,
+            includeRecentChapters: 2,
             tokenBudget: 6000,
+            styleSource: 'current_chapter',
+            customStyleInstruction: null,
         },
     }
 }
@@ -85,8 +98,14 @@ describe('CodexPanel', () => {
         rerender(
             <Harness
                 refs={[
-                    ref({ id: 'a', snapshot: { name: 'Aria' } }),
-                    ref({ id: 'b', kind: 'world', cardId: 'w1', precedence: 1, snapshot: { name: 'Eldoria' } }),
+                    ref({ id: 'a' }),
+                    ref({
+                        id: 'b',
+                        kind: 'world',
+                        cardId: 'w1',
+                        precedence: 1,
+                        snapshot: snapshot({ id: 'w1', name: 'Eldoria', story_card_kind: 'world' }),
+                    }),
                 ]}
             />,
         )
@@ -97,7 +116,7 @@ describe('CodexPanel', () => {
     })
 
     it('toggles an entry through its switch', async () => {
-        render(<Harness refs={[ref({ id: 'a', snapshot: { name: 'Aria' } })]} />)
+        render(<Harness refs={[ref({ id: 'a' })]} />)
 
         fireEvent.click(screen.getByRole('switch', { name: 'Disable Aria' }))
 
@@ -105,7 +124,7 @@ describe('CodexPanel', () => {
     })
 
     it('removes an entry only after the confirm dialog', async () => {
-        render(<Harness refs={[ref({ id: 'a', snapshot: { name: 'Aria' } })]} />)
+        render(<Harness refs={[ref({ id: 'a' })]} />)
 
         fireEvent.click(screen.getByRole('button', { name: 'Remove Aria' }))
         const dialog = await screen.findByRole('dialog')
@@ -119,7 +138,7 @@ describe('CodexPanel', () => {
     })
 
     it('edits a snapshot through the entry drawer', async () => {
-        render(<Harness refs={[ref({ id: 'a', snapshot: { name: 'Aria', race: 'elf' } })]} />)
+        render(<Harness refs={[ref({ id: 'a', snapshot: snapshot({ race: 'elf' }) })]} />)
 
         // The title now opens a preview window; the pencil opens the editor drawer.
         fireEvent.click(screen.getByRole('button', { name: 'Edit Aria' }))
@@ -130,7 +149,13 @@ describe('CodexPanel', () => {
 
         await waitFor(() =>
             expect(updateStoryCardRef).toHaveBeenCalledWith('s1', 'a', {
-                snapshot: { name: 'Aria the Red', title: 'Aria the Red', description: 'A ranger.', race: 'elf' },
+                snapshot: {
+                    id: 'card-x',
+                    name: 'Aria the Red',
+                    description: 'A ranger.',
+                    race: 'elf',
+                    story_card_kind: 'character',
+                },
             }),
         )
     })
@@ -154,11 +179,13 @@ describe('CodexPanel', () => {
         expect(payloads[0]).toMatchObject({
             kind: 'lorebook_entry',
             cardId: 'entry-1',
-            snapshot: expect.objectContaining({
+            snapshot: {
+                id: 'entry-1',
                 name: 'The Glass Pact',
-                content: 'An oath sworn on shattered mirrors.',
+                description: 'An oath sworn on shattered mirrors.',
                 source_lorebook_id: 'lb-1',
-            }),
+                story_card_kind: 'lorebook_entry',
+            },
         })
     })
 })

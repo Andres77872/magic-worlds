@@ -5,7 +5,7 @@
  */
 
 import type { Story } from '@/shared'
-import { apiService, resolveMediaUrl } from '@/infrastructure/api'
+import { apiService } from '@/infrastructure/api'
 import type { TFunction } from 'i18next'
 import { chaptersFor, wordCount } from './utils/novelUtils'
 
@@ -19,26 +19,15 @@ export interface NovelGalleryItem {
     source: Story
 }
 
-/** Cover art: the first codex snapshot that carries an image. */
-function coverFromRefs(story: Story): string | undefined {
-    for (const ref of story.activeCardRefs ?? []) {
-        const imageUrl = ref.snapshot?.image_url
-        if (typeof imageUrl === 'string' && imageUrl) return resolveMediaUrl(imageUrl)
-    }
-    return undefined
-}
-
 function sourceLabelFor(story: Story, t: TFunction): string {
     const source = story.source
-    if (!source || source.kind === 'blank') return t('novelGallery.source.blank')
+    if (source.kind === 'blank') return t('novelGallery.source.blank')
     if (source.title) return source.title
     if (source.kind === 'character') return t('novelGallery.source.character')
     if (source.kind === 'world') return t('novelGallery.source.world')
     if (source.kind === 'item') return t('novelGallery.source.item')
     if (source.kind === 'adventure_template') return t('novelGallery.source.adventure')
     if (source.kind === 'adventure_session') return t('novelGallery.source.adventureSession')
-    if (source.kind === 'character_chat') return t('novelGallery.source.characterChat')
-    if (source.kind === 'lorebook') return t('novelGallery.source.lorebook')
     return t('novelGallery.source.blank')
 }
 
@@ -55,7 +44,7 @@ export function novelItems(raw: unknown, t: TFunction): NovelGalleryItem[] {
                 t('novelGallery.tags.chapter', { count: chapters.length }),
                 t('novelGallery.tags.words', { count: words.toLocaleString() }),
             ],
-            imageUrl: coverFromRefs(story),
+            imageUrl: undefined,
             source: story,
         }
     })

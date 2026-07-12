@@ -87,7 +87,6 @@ function toWorld(w: WorldCardResponse): World {
     return {
         id: w.id || w.uuid || w.name || '',
         name: w.name ?? '',
-        place_type: readWorldPlaceType(w),
         type: w.type ?? '',
         description: w.description ?? '',
         details: {},
@@ -282,7 +281,6 @@ export function AdventureCreator() {
                 ? [{
                       source_card_id: selectedWorldObj.id,
                       name: selectedWorldObj.name,
-                      place_type: selectedWorldObj.place_type,
                       type: selectedWorldObj.type,
                       description: selectedWorldObj.description ?? '',
                       category: selectedWorldObj.category ?? [],
@@ -367,11 +365,11 @@ export function AdventureCreator() {
     const handleImageUrl = (url: string | undefined) => {
         setImageUrl(url)
         const id = savedIdRef.current ?? editingTemplate?.id
-        if (id && url) {
+        if (id) {
             void apiService
-                .updateAdventureTemplate(id, { ...buildPayload(), image_url: url })
+                .updateAdventureTemplate(id, { ...buildPayload(), image_url: url ?? null })
                 .catch(() => {
-                    /* best-effort — the asset still exists; Save re-persists the link */
+                    setSaveError(t(url ? 'creation.common.media.errors.imageSaveFailed' : 'creation.common.media.errors.imageRemoveFailed'))
                 })
         }
     }
@@ -391,7 +389,7 @@ export function AdventureCreator() {
             void apiService
                 .updateAdventureTemplate(id, { ...buildPayload(), theme_song_url: url })
                 .catch(() => {
-                    /* best-effort — the asset still exists; Save re-persists the link */
+                    setSaveError(t('creation.common.media.errors.themeSaveFailed'))
                 })
         }
     }

@@ -1,11 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/app/i18n'
+import { apiService } from '@/infrastructure/api'
 import type { LorebookResource } from '@/shared'
 import { LOREBOOK_RESOURCE_MAX_CHARS, newLorebookResource } from '../../lorebookResources'
 import { ResourceDetailView } from './ResourceDetailView'
-
-const fetchMock = vi.fn()
 
 function completedResource(overrides: Partial<LorebookResource> = {}): LorebookResource {
     return {
@@ -45,8 +44,7 @@ function completedResource(overrides: Partial<LorebookResource> = {}): LorebookR
 describe('ResourceDetailView', () => {
     beforeEach(async () => {
         await i18n.changeLanguage('en')
-        fetchMock.mockReset()
-        vi.stubGlobal('fetch', fetchMock)
+        vi.restoreAllMocks()
     })
 
     it('keeps the resource file type in sync when the filename extension changes', async () => {
@@ -119,7 +117,11 @@ describe('ResourceDetailView', () => {
             '',
             'Converted source notes.',
         ].join('\n')
-        fetchMock.mockResolvedValue(new Response(markdown))
+        const importMarkdownUrl = vi.spyOn(apiService, 'importMarkdownUrl').mockResolvedValue({
+            source_url: 'https://example.com/',
+            markdown,
+            rate_limit_remaining: '499',
+        })
 
         render(
             <ResourceDetailView
@@ -138,10 +140,7 @@ describe('ResourceDetailView', () => {
 
         await waitFor(() => expect(screen.getByRole('textbox', { name: 'Content' })).toHaveValue(markdown))
 
-        expect(fetchMock).toHaveBeenCalledWith('https://markdown.new/https://example.com/', expect.objectContaining({
-            method: 'GET',
-            credentials: 'omit',
-        }))
+        expect(importMarkdownUrl).toHaveBeenCalledWith('https://example.com/')
         expect(screen.getByLabelText('Title')).toHaveValue('Example Domain')
         expect(screen.getByLabelText('File name')).toHaveValue('example-domain.md')
         expect(screen.getByText('Markdown imported.')).toBeInTheDocument()
@@ -163,7 +162,10 @@ describe('ResourceDetailView', () => {
 
     it('replaces existing resource content without overwriting title or filename', async () => {
         const onSave = vi.fn(async () => false)
-        fetchMock.mockResolvedValue(new Response('# Imported source\n\nNew court notes.'))
+        vi.spyOn(apiService, 'importMarkdownUrl').mockResolvedValue({
+            source_url: 'https://example.com/archive',
+            markdown: '# Imported source\n\nNew court notes.',
+        })
 
         render(
             <ResourceDetailView
@@ -198,8 +200,8 @@ describe('ResourceDetailView', () => {
         )
     })
 
-    it('shows the markdown.new fallback when browser access blocks direct import', async () => {
-        fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
+    it('shows a sanitized failure when the server cannot convert the URL', async () => {
+        vi.spyOn(apiService, 'importMarkdownUrl').mockRejectedValue(new Error('private upstream detail'))
 
         render(
             <ResourceDetailView
@@ -217,15 +219,18 @@ describe('ResourceDetailView', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Import Markdown' }))
 
         await waitFor(() => {
-            expect(screen.getByText('Automatic import is blocked by browser access rules. Open markdown.new, copy the Markdown, and paste it below.')).toBeInTheDocument()
+            expect(screen.getByText('Could not convert that URL with markdown.new.')).toBeInTheDocument()
         })
-        expect(screen.getByRole('button', { name: 'Open markdown.new' })).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Open markdown.new' })).not.toBeInTheDocument()
         fireEvent.click(screen.getByRole('button', { name: 'Write' }))
         expect(screen.getByRole('textbox', { name: 'Content' })).toHaveValue('')
     })
 
     it('blocks save when imported markdown exceeds the resource size limit', async () => {
-        fetchMock.mockResolvedValue(new Response(`Title: Example Domain\n\n${'A'.repeat(LOREBOOK_RESOURCE_MAX_CHARS)}`))
+        vi.spyOn(apiService, 'importMarkdownUrl').mockResolvedValue({
+            source_url: 'https://example.com/',
+            markdown: `Title: Example Domain\n\n${'A'.repeat(LOREBOOK_RESOURCE_MAX_CHARS)}`,
+        })
 
         render(
             <ResourceDetailView

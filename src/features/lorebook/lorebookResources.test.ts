@@ -148,8 +148,11 @@ describe('lorebook resource utilities', () => {
             metadata,
             entries: [],
         }).metadata).toEqual({
-            ownerNote: 'keep me',
-            resources: [embeddedResource],
+            resources: [{
+                ...embeddedResource,
+                description: null,
+                contentLength: embeddedResource.content.length,
+            }],
         })
     })
 

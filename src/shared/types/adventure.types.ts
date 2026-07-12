@@ -58,9 +58,8 @@ export interface SnapshotCard {
     is_default_persona?: boolean
     alias?: string | null
     description?: string
-    /** Characters carry `race`, worlds carry `type` plus optional `place_type`. */
+    /** Characters carry `race`; worlds carry genre/style in `type`. */
     race?: string
-    place_type?: string
     type?: string
     triggers?: string[]
     /** API attribute groups (name + description + key/value attributes). */

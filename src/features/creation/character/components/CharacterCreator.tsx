@@ -297,11 +297,14 @@ export function CharacterCreator() {
     const handleImageUrl = (url: string | undefined) => {
         setImageUrl(url)
         const id = savedIdRef.current ?? editingCharacter?.id
-        if (id && url) {
+        if (id) {
             // Media is a published-body property persisted immediately (not part of the draft),
             // so the portrait shows in the gallery without a publish and never stages authored text.
-            void apiService.setCardMedia('character', id, { image_url: url }).catch(() => {
-                /* best-effort — the asset still exists; it re-persists on the next media action */
+            void apiService.setCardMedia('character', id, { image_url: url ?? null }).catch(() => {
+                setDraftToast({
+                    tone: 'error',
+                    message: t(url ? 'creation.common.media.errors.imageSaveFailed' : 'creation.common.media.errors.imageRemoveFailed'),
+                })
             })
         }
     }
@@ -319,7 +322,7 @@ export function CharacterCreator() {
             // which makes AppRouter unmount the whole creator (discarding in-progress edits)
             // and re-run the theme effect. The gallery refreshes on Save / next navigation.
             void apiService.setCardMedia('character', id, { theme_song_url: url }).catch(() => {
-                /* best-effort — the asset still exists; it re-persists on the next media action */
+                setDraftToast({ tone: 'error', message: t('creation.common.media.errors.themeSaveFailed') })
             })
         }
     }

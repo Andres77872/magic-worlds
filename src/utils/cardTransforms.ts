@@ -7,12 +7,10 @@
 import type { Adventure, Character, Item, World } from '../shared'
 import type { CardActor, CardVisibility } from '../shared'
 import type { CharacterVoice } from '../shared/types/voicePreset.types'
-import { readWorldPlaceType } from '../shared'
 
 /**
- * List endpoints return arrays, but a non-array can slip through (e.g. terminal
- * auth expiry degrades a GET to `{}`); guard so `.map` never throws and callers
- * render an empty state.
+ * Guard list transforms at the boundary so malformed responses never reach
+ * component `.map` calls.
  */
 export const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
 
@@ -27,8 +25,6 @@ interface RawCardRow {
     is_default_persona?: boolean
     default_persona_id?: string | null
     race?: string
-    place_type?: string
-    placeType?: string
     type?: string
     rarity?: string | null
     effects?: string[]
@@ -109,7 +105,6 @@ export function transformWorlds(raw: unknown): World[] {
     return (asArray(raw) as RawCardRow[]).map((world) => ({
         id: (world.id || world.uuid) as string,
         name: world.name as string,
-        place_type: readWorldPlaceType(world),
         type: world.type || '',
         description: world.description || '',
         details: {},

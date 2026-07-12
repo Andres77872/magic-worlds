@@ -4,7 +4,7 @@
  */
 
 import { BookMarked, Camera, Gem, Globe, ScrollText, Swords, Users, type LucideIcon } from 'lucide-react'
-import type { CardMediaTargetType, Lorebook, LorebookEntry, StoryCardKind, StoryCardRef } from '@/shared'
+import type { CardMediaTargetType, Lorebook, LorebookEntry, StoryCardKind, StoryCardRef, StoryCardSnapshot } from '@/shared'
 
 export type CodexLibraryCardKind = Extract<StoryCardKind, CardMediaTargetType>
 
@@ -44,12 +44,14 @@ export const KIND_META: CodexKindMeta[] = [
     { kind: 'snapshot_card', labelKey: 'novelEditor.codexKind.snapshot', pluralKey: 'novelEditor.codexKind.snapshots' },
 ]
 
-export function snapshotDisplayLabel(snapshot: Record<string, unknown> | null | undefined, fallback: string): string {
-    return String(snapshot?.name ?? snapshot?.title ?? snapshot?.alias ?? fallback)
+type SnapshotLike = StoryCardSnapshot | Record<string, unknown>
+
+export function snapshotDisplayLabel(snapshot: SnapshotLike | null | undefined, fallback: string): string {
+    return String(snapshot?.name ?? snapshot?.alias ?? fallback)
 }
 
-export function snapshotDisplayDescription(snapshot: Record<string, unknown> | null | undefined): string {
-    return String(snapshot?.description ?? snapshot?.content ?? snapshot?.race ?? snapshot?.type ?? '').trim()
+export function snapshotDisplayDescription(snapshot: SnapshotLike | null | undefined): string {
+    return String(snapshot?.description ?? snapshot?.race ?? snapshot?.type ?? '').trim()
 }
 
 export function snapshotLabel(ref: StoryCardRef): string {
@@ -65,17 +67,12 @@ export function snapshotDescription(ref: StoryCardRef): string {
  * stores this verbatim (it cannot resolve entry ids itself) and its prompt
  * builder reads `description`/`content`, so both carry the entry text.
  */
-export function lorebookEntrySnapshot(lorebook: Lorebook, entry: LorebookEntry): Record<string, unknown> {
+export function lorebookEntrySnapshot(lorebook: Lorebook, entry: LorebookEntry): StoryCardSnapshot {
     return {
+        id: entry.id,
         name: entry.title,
-        title: entry.title,
         description: entry.content,
-        content: entry.content,
-        keys: entry.keys,
-        entry_type: entry.entryType,
         source_lorebook_id: lorebook.id,
-        source_lorebook_name: lorebook.name,
-        source_entry_id: entry.id,
         story_card_kind: 'lorebook_entry',
     }
 }
@@ -84,8 +81,7 @@ export function lorebookEntrySnapshot(lorebook: Lorebook, entry: LorebookEntry):
 export function clonedEntryIds(refs: StoryCardRef[]): Set<string> {
     const ids = new Set<string>()
     for (const ref of refs) {
-        const sourceEntryId = ref.snapshot?.source_entry_id
-        if (typeof sourceEntryId === 'string' && sourceEntryId) ids.add(sourceEntryId)
+        if (ref.kind === 'lorebook_entry' && ref.snapshot.id) ids.add(ref.snapshot.id)
     }
     return ids
 }

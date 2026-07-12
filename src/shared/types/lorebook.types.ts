@@ -171,7 +171,6 @@ export interface LoreActivationResult {
 export interface LoreActivationPreviewRequest {
     targetKind: LorebookTargetKind
     targetId?: string
-    mode: 'adventure' | 'character_chat' | 'continue' | 'regenerate' | 'background'
     messages: LoreActivationPreviewMessage[]
     includePromptPreview?: boolean
     overrides?: {

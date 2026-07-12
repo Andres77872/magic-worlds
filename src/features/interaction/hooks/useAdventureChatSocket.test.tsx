@@ -13,7 +13,7 @@ const socketInstances: Array<{
 }> = []
 
 vi.mock('../../../infrastructure/api', () => ({
-  AdventureChatSocket: class {
+  ChatSocket: class {
     readonly sessionId: number
     connect = vi.fn()
     close = vi.fn()
@@ -147,7 +147,7 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
 
     expect(socketInstances).toHaveLength(1)
     expect(socketInstances[0].close).not.toHaveBeenCalled()
-    result.current.sendChat([{ role: 'user', content: 'still flows on the same socket' }])
+    result.current.sendChat('still flows on the same socket')
     expect(socketInstances[0].sendChat).toHaveBeenCalledTimes(1)
 
     unmount()
@@ -174,24 +174,21 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
   it('stays disconnected when text chat is disabled for voice mode', () => {
     const { result } = renderHook(() => useAdventureChatSocket(null, {}))
 
-    result.current.sendChat([{ role: 'user', content: 'this must not leave over ChatSocket' }])
+    result.current.sendChat('this must not leave over ChatSocket')
     result.current.sendTts(101, 'turn-1')
     result.current.cancel()
 
     expect(socketInstances).toHaveLength(0)
   })
 
-  it('passes chat generation options to the socket', () => {
+  it('passes canonical chat content and request id to the socket', () => {
     const { result } = renderHook(() => useAdventureChatSocket(7, {}))
 
-    result.current.sendChat(
-      [{ role: 'user', content: 'Look around' }],
-      { generateImage: false, suggestActions: false },
-    )
+    result.current.sendChat('Look around', 'request-7')
 
     expect(socketInstances[0].sendChat).toHaveBeenCalledWith(
-      [{ role: 'user', content: 'Look around' }],
-      { generateImage: false, suggestActions: false },
+      'Look around',
+      'request-7',
     )
   })
 

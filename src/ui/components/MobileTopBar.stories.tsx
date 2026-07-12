@@ -50,7 +50,7 @@ const noTasks: BackgroundTasksValue = {
   registerTask: () => {},
   registerThemeSongJob: () => {},
   cancelTask: async () => {},
-  clearTerminalTasks: () => {},
+  clearTerminalTasks: async () => {},
 }
 
 /** Wrap the bar in real Navigation context + mocked Auth / background-tasks context. */

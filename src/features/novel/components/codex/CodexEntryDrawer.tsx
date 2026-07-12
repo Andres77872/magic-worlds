@@ -32,9 +32,8 @@ export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDra
 
     const meta = entry ? KIND_META.find((item) => item.kind === entry.kind) : null
     const metaLabel = meta ? t(meta.labelKey) : null
-    const keys = Array.isArray(entry?.ref.snapshot?.keys) ? (entry.ref.snapshot.keys as unknown[]).map(String) : []
-    const sourceLorebookName =
-        typeof entry?.ref.snapshot?.source_lorebook_name === 'string' ? entry.ref.snapshot.source_lorebook_name : null
+    const keys = entry?.kind === 'lorebook_entry' && entry.label ? [entry.label] : []
+    const sourceLorebookName = entry?.ref.snapshot.source_lorebook_id ?? null
 
     const submit = async () => {
         if (!entry) return

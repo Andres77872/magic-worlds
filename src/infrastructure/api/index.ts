@@ -88,7 +88,7 @@ import {
 import { makeRequestId } from '../../utils/uuid'
 import { configureChatSocketAuthRefresh } from './chatSocket'
 import { configureVoiceSocketAuthRefresh } from './voiceSocket'
-import type { ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from '../../shared/types/interaction.types'
+import type { CanonicalConversationMessage, ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from '../../shared/types/interaction.types'
 import type { VoiceCallLimits, VoiceCallListResponse, VoiceCallTranscriptResponse, VoiceSegmentUploadRequest, VoiceSegmentUploadResponse } from '../../shared/types/voice.types'
 import type { AdventureSnapshot } from '../../shared/types/adventure.types'
 import type {
@@ -158,6 +158,12 @@ import type {
     BackgroundTaskState,
 } from '../../shared/types/task.types'
 import type {
+    NotificationListResponse,
+    NotificationReadAllResponse,
+    NotificationUnreadCountResponse,
+    UserNotification,
+} from '../../shared/types/notification.types'
+import type {
     Story,
     StoryCardRef,
     StoryChapter,
@@ -170,7 +176,13 @@ import type {
 export interface AdventureSessionMessagesResponse {
     adventure_id: number
     version: number
-    messages: Array<Record<string, unknown>>
+    messages: CanonicalConversationMessage[]
+}
+
+export interface CharacterChatMessagesResponse {
+    chat_id: number
+    version: number
+    messages: CanonicalConversationMessage[]
 }
 
 export interface ImageJobPublicResponse {
@@ -394,7 +406,7 @@ class ApiService {
                     response = await fetch(url, this.withAuthorization(config, nextToken))
                 } catch (error) {
                     if (this.isTerminalAuthError(error)) {
-                        return this.terminalAuthResult<T>(config, parseAsJson)
+                        return this.terminalAuthResult()
                     }
                     throw error
                 }
@@ -500,15 +512,10 @@ class ApiService {
         }
     }
 
-    private terminalAuthResult<T>(config: RequestInit, parseAsJson: boolean): T {
-        // Safe reads degrade gracefully to an empty response. Mutations
-        // (POST/PUT/DELETE) must NOT silently resolve — otherwise a
-        // create/update during an expired session looks successful while
-        // nothing was persisted. Throw so the caller surfaces the error.
-        const method = (config.method ?? 'GET').toString().toUpperCase()
-        if (method === 'GET') {
-            return (parseAsJson ? {} : '') as T
-        }
+    private terminalAuthResult(): never {
+        // A terminal refresh failure must reject every request, including GETs.
+        // Returning a fabricated empty value here violates the caller's response
+        // type and can overwrite real state just as the auth-expired event fires.
         throw new ApiError(401, 'Your session has expired. Please log in again.')
     }
 
@@ -1119,6 +1126,52 @@ class ApiService {
         })
     }
 
+    async listNotifications(params: {
+        unreadOnly?: boolean
+        category?: string
+        limit?: number
+        offset?: number
+    } = {}): Promise<NotificationListResponse> {
+        const token = this.getStoredToken()
+        const query = new URLSearchParams({
+            unread_only: String(params.unreadOnly ?? false),
+            limit: String(params.limit ?? 50),
+            offset: String(params.offset ?? 0),
+        })
+        if (params.category?.trim()) query.set('category', params.category.trim())
+        return this.authenticatedRequest<NotificationListResponse>(`/notifications?${query.toString()}`, token, {
+            method: 'GET',
+        })
+    }
+
+    async getNotificationUnreadCount(): Promise<NotificationUnreadCountResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<NotificationUnreadCountResponse>('/notifications/unread-count', token, {
+            method: 'GET',
+        })
+    }
+
+    async markNotificationRead(notificationId: number): Promise<UserNotification> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<UserNotification>(`/notifications/${notificationId}/read`, token, {
+            method: 'PATCH',
+        })
+    }
+
+    async markAllNotificationsRead(): Promise<NotificationReadAllResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<NotificationReadAllResponse>('/notifications/read-all', token, {
+            method: 'POST',
+        })
+    }
+
+    async dismissNotification(notificationId: number): Promise<void> {
+        const token = this.getStoredToken()
+        await this.authenticatedRequest(`/notifications/${notificationId}`, token, {
+            method: 'DELETE',
+        })
+    }
+
     async listAdminVoices(voiceType: AdminVoiceQueryType = 'all'): Promise<AdminVoiceListResponse> {
         this.assertVoicesEnabled()
         const token = this.getStoredToken()
@@ -1565,17 +1618,11 @@ class ApiService {
         return result
     }
 
-    /**
-     * Update an existing character
-     */
-    async updateCharacter(characterId: string, characterData: any): Promise<any> {
+    /** Select one owned persona as the account default. */
+    async setDefaultPersona(characterId: string): Promise<CharacterCardResponse> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/characters/${characterId}`, token, {
+        return this.authenticatedRequest<CharacterCardResponse>(`/characters/${encodeURIComponent(characterId)}/default-persona`, token, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: characterData
         })
     }
 
@@ -1862,20 +1909,6 @@ class ApiService {
     }
 
     /**
-     * Update an existing world
-     */
-    async updateWorld(worldId: string, worldData: any): Promise<any> {
-        const token = this.getStoredToken()
-        return this.authenticatedRequest(`/worlds/${worldId}`, token, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: worldData
-        })
-    }
-
-    /**
      * Create a new item/object
      */
     async createItem(itemData: any): Promise<any> {
@@ -1904,61 +1937,49 @@ class ApiService {
         return result
     }
 
-    /**
-     * Update an existing item/object
-     */
-    async updateItem(itemId: string, itemData: any): Promise<any> {
-        const token = this.getStoredToken()
-        return this.authenticatedRequest(`/items/${itemId}`, token, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: itemData
-        })
-    }
-
     /** Build the shared list query string; `q` searches name/alias/triggers server-side. */
     private listQuery(skip: number, limit: number, q?: string): string {
         const term = q?.trim()
         return `?skip=${skip}&limit=${limit}${term ? `&q=${encodeURIComponent(term)}` : ''}`
     }
 
-    private lorebookEntryPayload(entry: Partial<LorebookEntry | LorebookEntryDraft> | Record<string, unknown>): Record<string, unknown> {
-        if ('entry_type' in entry || 'secondary_keys' in entry) return entry as Record<string, unknown>
+    private lorebookEntryPayload(
+        entry: Partial<LorebookEntry | LorebookEntryDraft> | Record<string, unknown>,
+        options: { includeId?: boolean } = {},
+    ): Record<string, unknown> {
         const item = entry as Partial<LorebookEntry | LorebookEntryDraft>
-        const id = 'id' in item && typeof item.id === 'string' && !item.id.startsWith('draft-entry-') ? item.id : undefined
+        const id = options.includeId && 'id' in item && typeof item.id === 'string' && !item.id.startsWith('draft-entry-')
+            ? item.id
+            : undefined
         return {
             ...(id ? { id } : {}),
             title: item.title ?? '',
-            entry_type: item.entryType ?? 'other',
+            entryType: item.entryType ?? 'other',
             content: item.content ?? '',
             keys: item.keys ?? [],
-            secondary_keys: item.secondaryKeys ?? [],
-            selective_logic: item.selectiveLogic ?? 'any',
+            secondaryKeys: item.secondaryKeys ?? [],
+            selectiveLogic: item.selectiveLogic ?? 'any',
             enabled: item.enabled ?? true,
             constant: item.constant ?? false,
-            case_sensitive: item.caseSensitive ?? false,
-            match_whole_words: item.matchWholeWords ?? true,
+            caseSensitive: item.caseSensitive ?? false,
+            matchWholeWords: item.matchWholeWords ?? true,
             regex: item.regex ?? false,
-            is_secret: item.isSecret ?? false,
-            reveal_condition: item.revealCondition || null,
-            insertion_order: item.insertionOrder ?? 0,
+            isSecret: item.isSecret ?? false,
+            revealCondition: item.revealCondition || null,
+            insertionOrder: item.insertionOrder ?? 0,
             priority: item.priority ?? 0,
-            insertion_position: item.insertionPosition ?? 'before_context',
-            token_budget: item.tokenBudget ?? null,
-            metadata: item.metadata ?? {},
+            insertionPosition: item.insertionPosition ?? 'before_context',
+            tokenBudget: item.tokenBudget ?? null,
         }
     }
 
     private lorebookAttachmentPayload(attachment: Partial<LorebookAttachment> | Record<string, unknown>): Record<string, unknown> {
-        if ('lorebook_id' in attachment || 'target_kind' in attachment) return attachment as Record<string, unknown>
         const item = attachment as Partial<LorebookAttachment>
         return {
             ...(item.id ? { id: item.id } : {}),
-            lorebook_id: item.lorebookId,
-            target_kind: item.targetKind ?? 'global',
-            target_id: item.targetId || null,
+            lorebookId: item.lorebookId,
+            targetKind: item.targetKind ?? 'global',
+            targetId: item.targetId || null,
             mode: item.mode ?? 'linked',
             snapshot: item.snapshot ?? null,
         }
@@ -2249,7 +2270,7 @@ class ApiService {
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries`, token, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: this.lorebookEntryPayload(entry) as unknown as BodyInit,
+            body: this.lorebookEntryPayload(entry, { includeId: true }) as unknown as BodyInit,
         })
     }
 
@@ -2275,8 +2296,8 @@ class ApiService {
         this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         const params = new URLSearchParams()
-        if (targetKind) params.set('target_kind', targetKind)
-        if (targetId) params.set('target_id', targetId)
+        if (targetKind) params.set('targetKind', targetKind)
+        if (targetId) params.set('targetId', targetId)
         const suffix = params.toString() ? `?${params.toString()}` : ''
         return this.authenticatedRequest<LorebookAttachment[]>(`/lorebook-attachments${suffix}`, token, {
             method: 'GET',
@@ -2368,7 +2389,7 @@ class ApiService {
     async createStoryChapter(storyId: string, chapter: Partial<StoryChapter> | Record<string, unknown>): Promise<StoryChapter> {
         this.assertNovelsEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest<StoryChapter>(`/stories/${encodeURIComponent(storyId)}/scenes`, token, {
+        return this.authenticatedRequest<StoryChapter>(`/stories/${encodeURIComponent(storyId)}/chapters`, token, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: chapter as unknown as BodyInit,
@@ -2378,7 +2399,7 @@ class ApiService {
     async updateStoryChapter(storyId: string, chapterId: string, chapter: Partial<StoryChapter> | Record<string, unknown>): Promise<StoryChapter> {
         this.assertNovelsEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest<StoryChapter>(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(chapterId)}`, token, {
+        return this.authenticatedRequest<StoryChapter>(`/stories/${encodeURIComponent(storyId)}/chapters/${encodeURIComponent(chapterId)}`, token, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: chapter as unknown as BodyInit,
@@ -2388,7 +2409,7 @@ class ApiService {
     async deleteStoryChapter(storyId: string, chapterId: string): Promise<void> {
         this.assertNovelsEnabled()
         const token = this.getStoredToken()
-        await this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(chapterId)}`, token, {
+        await this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/chapters/${encodeURIComponent(chapterId)}`, token, {
             method: 'DELETE',
         })
     }
@@ -2434,14 +2455,14 @@ class ApiService {
     async generateStory(storyId: string, request: StoryGenerateRequest): Promise<StoryGenerateResponse> {
         this.assertNovelsEnabled()
         const token = this.getStoredToken()
-        const requestId = request.requestId || this.createClientId('mw-story-generate')
+        const requestId = this.createClientId('mw-story-generate')
         return this.authenticatedRequest<StoryGenerateResponse>(`/stories/${encodeURIComponent(storyId)}/generate`, token, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Request-Id': requestId,
             },
-            body: { ...request, requestId } as unknown as BodyInit,
+            body: request as unknown as BodyInit,
         })
     }
 
@@ -2522,7 +2543,6 @@ class ApiService {
             card_type: CardAssistantCardType
             card_id?: string | null
             title?: string | null
-            current_card?: Record<string, unknown> | null
         },
         options: CardAssistantRequestOptions = {},
     ): Promise<CardAssistantConversationResponse> {
@@ -2579,18 +2599,17 @@ class ApiService {
         conversationId: number,
         body: {
             message: string
-            card_type?: CardAssistantCardType
+            card_type: CardAssistantCardType
             current_card?: Record<string, unknown> | null
-            request_id?: string
         },
         options: CardAssistantRequestOptions = {},
     ): Promise<CardAssistantTurnResponse> {
         const token = this.getStoredToken()
-        const requestId = options.requestId || body.request_id || this.createClientId('mw-card-assistant-turn')
+        const requestId = options.requestId || this.createClientId('mw-card-assistant-turn')
         return this.authenticatedRequest<CardAssistantTurnResponse>(`/card-assistant/conversations/${conversationId}/messages`, token, {
             method: 'POST',
             headers: this.cardAssistantHeaders({ ...options, requestId }),
-            body: { ...body, request_id: requestId } as unknown as BodyInit,
+            body: body as unknown as BodyInit,
             ...this.cardAssistantRequestOptions(options),
         })
     }
@@ -2599,18 +2618,17 @@ class ApiService {
         conversationId: number,
         body: {
             message: string
-            card_type?: CardAssistantCardType
+            card_type: CardAssistantCardType
             current_card?: Record<string, unknown> | null
-            request_id?: string
         },
         onEvent: (event: CardAssistantStreamEvent) => void,
         options: CardAssistantRequestOptions = {},
     ): Promise<void> {
         const token = this.getStoredToken()
-        const requestId = options.requestId || body.request_id || this.createClientId('mw-card-assistant-turn')
+        const requestId = options.requestId || this.createClientId('mw-card-assistant-turn')
         const endpoint = `/card-assistant/conversations/${conversationId}/messages/stream`
         const url = `${this.baseUrl}${endpoint}`
-        const payload = JSON.stringify({ ...body, request_id: requestId })
+        const payload = JSON.stringify(body)
 
         let didTimeout = false
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined
@@ -2673,9 +2691,8 @@ class ApiService {
 
     async createLorebookAssistantConversation(
         body: {
-            lorebook_id?: string | null
+            lorebookId?: string | null
             title?: string | null
-            current_lorebook?: Record<string, unknown> | null
         },
         options: LorebookAssistantRequestOptions = {},
     ): Promise<LorebookAssistantConversationResponse> {
@@ -2696,7 +2713,7 @@ class ApiService {
         this.assertLorebooksEnabled()
         const token = this.getStoredToken()
         const params = new URLSearchParams()
-        if (lorebookId) params.set('lorebook_id', lorebookId)
+        if (lorebookId) params.set('lorebookId', lorebookId)
         const suffix = params.toString() ? `?${params.toString()}` : ''
         return this.authenticatedRequest<LorebookAssistantConversationListResponse>(`/lorebook-assistant/conversations${suffix}`, token, {
             method: 'GET',
@@ -2735,18 +2752,17 @@ class ApiService {
         conversationId: number,
         body: {
             message: string
-            current_lorebook?: Record<string, unknown> | null
-            request_id?: string
+            currentLorebook?: Record<string, unknown> | null
         },
         options: LorebookAssistantRequestOptions = {},
     ): Promise<LorebookAssistantTurnResponse> {
         this.assertLorebooksEnabled()
         const token = this.getStoredToken()
-        const requestId = options.requestId || body.request_id || this.createClientId('mw-lorebook-assistant-turn')
+        const requestId = options.requestId || this.createClientId('mw-lorebook-assistant-turn')
         return this.authenticatedRequest<LorebookAssistantTurnResponse>(`/lorebook-assistant/conversations/${conversationId}/messages`, token, {
             method: 'POST',
             headers: this.lorebookAssistantHeaders({ ...options, requestId }),
-            body: { ...body, request_id: requestId } as unknown as BodyInit,
+            body: body as unknown as BodyInit,
             ...this.lorebookAssistantRequestOptions(options),
         })
     }
@@ -2755,18 +2771,17 @@ class ApiService {
         conversationId: number,
         body: {
             message: string
-            current_lorebook?: Record<string, unknown> | null
-            request_id?: string
+            currentLorebook?: Record<string, unknown> | null
         },
         onEvent: (event: LorebookAssistantStreamEvent) => void,
         options: LorebookAssistantRequestOptions = {},
     ): Promise<void> {
         this.assertLorebooksEnabled()
         const token = this.getStoredToken()
-        const requestId = options.requestId || body.request_id || this.createClientId('mw-lorebook-assistant-turn')
+        const requestId = options.requestId || this.createClientId('mw-lorebook-assistant-turn')
         const endpoint = `/lorebook-assistant/conversations/${conversationId}/messages/stream`
         const url = `${this.baseUrl}${endpoint}`
-        const payload = JSON.stringify({ ...body, request_id: requestId })
+        const payload = JSON.stringify(body)
 
         let didTimeout = false
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined
@@ -2944,8 +2959,38 @@ class ApiService {
 
     async getAdventureSessionMessages(sessionId: number): Promise<AdventureSessionMessagesResponse> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/adventure-sessions/${sessionId}/messages`, token, {
-            method: 'GET'
+        const limit = 200
+        let beforeSequence: number | undefined
+        let response: AdventureSessionMessagesResponse | null = null
+        let messages: CanonicalConversationMessage[] = []
+        while (true) {
+            const query = new URLSearchParams({ limit: String(limit) })
+            if (beforeSequence !== undefined) query.set('before_sequence', String(beforeSequence))
+            const page = await this.authenticatedRequest<AdventureSessionMessagesResponse>(
+                `/adventure-sessions/${sessionId}/messages?${query.toString()}`,
+                token,
+                { method: 'GET' },
+            )
+            response ??= page
+            messages = [...page.messages, ...messages]
+            if (page.messages.length < limit) break
+            const nextBefore = page.messages[0]?.sequence_no
+            if (typeof nextBefore !== 'number' || nextBefore < 1 || nextBefore >= (beforeSequence ?? Number.POSITIVE_INFINITY)) break
+            beforeSequence = nextBefore
+        }
+        return { ...(response as AdventureSessionMessagesResponse), messages }
+    }
+
+    async updateAdventureSessionMessage(
+        sessionId: number,
+        messageId: number,
+        content: string,
+    ): Promise<CanonicalConversationMessage> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/adventure-sessions/${sessionId}/messages/${messageId}`, token, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: { content } as unknown as BodyInit,
         })
     }
 
@@ -3020,7 +3065,7 @@ class ApiService {
 
     async endVoiceCall(
         sessionId: number,
-        body: { voiceSessionId?: string | null; reason?: 'user' | 'navigation' | 'permission_lost' | string } = {},
+        body: { voiceSessionId: string; reason?: 'user' },
         options: { signal?: AbortSignal } = {},
     ): Promise<VoiceEndResponse> {
         this.assertCallsEnabled()
@@ -3028,8 +3073,8 @@ class ApiService {
         return this.authenticatedRequest<VoiceEndResponse>(`/character-chats/${sessionId}/voice-end`, token, {
             method: 'POST',
             body: {
-                voice_session_id: body.voiceSessionId ?? null,
-                reason: body.reason ?? 'user',
+                voice_session_id: body.voiceSessionId,
+                reason: 'user',
             } as unknown as BodyInit,
             signal: options.signal,
         })
@@ -3350,6 +3395,20 @@ class ApiService {
         return this.authenticatedRequest(`/tasks/${encodeURIComponent(operation)}/${encodeURIComponent(taskId)}`, token, { method: 'DELETE' })
     }
 
+    async archiveTask(operation: BackgroundTaskOperation, taskId: string): Promise<BackgroundTaskPublic> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/tasks/${encodeURIComponent(operation)}/${encodeURIComponent(taskId)}/archive`, token, { method: 'POST' })
+    }
+
+    async importMarkdownUrl(sourceUrl: string): Promise<{ source_url: string; markdown: string; rate_limit_remaining?: string | null }> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest('/imports/markdown', token, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { url: sourceUrl } as unknown as BodyInit,
+        })
+    }
+
     /**
      * Create a new adventure session
      */
@@ -3365,20 +3424,6 @@ class ApiService {
     }
 
     /**
-     * Update an adventure session's game state
-     */
-    async updateAdventureSession(sessionId: number, adventureLastTurn: string): Promise<any> {
-        const token = this.getStoredToken()
-        return this.authenticatedRequest(`/adventure-sessions/${sessionId}`, token, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: { adventure_last_turn: adventureLastTurn } as unknown as BodyInit
-        })
-    }
-
-    /**
      * Persist edits to an adventure's cloned cards (persona/cast/world/scenario).
      * Writes only to this session's own snapshot — the original template and
      * library cards are never touched. The chat AI reads its context from here.
@@ -3390,7 +3435,11 @@ class ApiService {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: { template_snapshot: snapshot } as unknown as BodyInit
+            body: {
+                template: snapshot.template,
+                narrator_voice: snapshot.narrator_voice ?? null,
+                narrate_thoughts: snapshot.narrate_thoughts ?? false,
+            } as unknown as BodyInit
         })
     }
 
@@ -3440,12 +3489,36 @@ class ApiService {
         })
     }
 
-    /** Fetch a character chat (with its projected `last_turn`). */
+    /** Fetch character-chat session metadata. Conversation rows live under `/messages`. */
     async getCharacterChat(chatId: number): Promise<any> {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/character-chats/${chatId}`, token, {
             method: 'GET'
         })
+    }
+
+    async getCharacterChatMessages(chatId: number): Promise<CharacterChatMessagesResponse> {
+        const token = this.getStoredToken()
+        const limit = 200
+        let beforeSequence: number | undefined
+        let response: CharacterChatMessagesResponse | null = null
+        let messages: CanonicalConversationMessage[] = []
+        while (true) {
+            const query = new URLSearchParams({ limit: String(limit) })
+            if (beforeSequence !== undefined) query.set('before_sequence', String(beforeSequence))
+            const page = await this.authenticatedRequest<CharacterChatMessagesResponse>(
+                `/character-chats/${chatId}/messages?${query.toString()}`,
+                token,
+                { method: 'GET' },
+            )
+            response ??= page
+            messages = [...page.messages, ...messages]
+            if (page.messages.length < limit) break
+            const nextBefore = page.messages[0]?.sequence_no
+            if (typeof nextBefore !== 'number' || nextBefore < 1 || nextBefore >= (beforeSequence ?? Number.POSITIVE_INFINITY)) break
+            beforeSequence = nextBefore
+        }
+        return { ...(response as CharacterChatMessagesResponse), messages }
     }
 
     async getCharacterChatCodexCards(chatId: number): Promise<any> {
@@ -3489,23 +3562,23 @@ class ApiService {
         })
     }
 
+    async updateCharacterChatMessage(
+        chatId: number,
+        messageId: number,
+        content: string,
+    ): Promise<CanonicalConversationMessage> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}/messages/${messageId}`, token, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: { content } as unknown as BodyInit,
+        })
+    }
+
     async clearCharacterChatMessages(chatId: number): Promise<any> {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/character-chats/${chatId}/messages`, token, {
             method: 'DELETE'
-        })
-    }
-
-    /**
-     * Persist the client's turn mirror for a character chat. Belt-and-suspenders:
-     * the server already records every turn, so this only refreshes the legacy cache.
-     */
-    async updateCharacterChat(chatId: number, lastTurn: string): Promise<any> {
-        const token = this.getStoredToken()
-        return this.authenticatedRequest(`/character-chats/${chatId}`, token, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: { last_turn: lastTurn } as unknown as BodyInit
         })
     }
 
@@ -3551,7 +3624,7 @@ export const refreshAccessToken = (oldToken?: string): Promise<string> => apiSer
 export type { ApiService }
 
 export { isProtectedMediaUrl, isPublicMediaUrl, resolveMediaUrl } from './mediaUrl'
-export { ChatSocket, AdventureChatSocket, configureChatSocketAuthRefresh } from './chatSocket'
+export { ChatSocket, configureChatSocketAuthRefresh } from './chatSocket'
 export type { ChatSocketStatus, ChatSocketHandlers } from './chatSocket'
 export { VoiceSocket, configureVoiceSocketAuthRefresh } from './voiceSocket'
 export type { VoiceSocketStatus, VoiceSocketHandlers } from './voiceSocket'

@@ -13,13 +13,52 @@ export const WORLD_PLACE_TYPE_OPTIONS = [
     { value: 'plane', label: 'Plane' },
 ] as const
 
-export function readWorldPlaceType(card?: { place_type?: unknown; placeType?: unknown } | null): string {
-    const value = typeof card?.place_type === 'string'
-        ? card.place_type
-        : typeof card?.placeType === 'string'
-          ? card.placeType
-          : DEFAULT_WORLD_PLACE_TYPE
-    return value.trim() || DEFAULT_WORLD_PLACE_TYPE
+export interface WorldCategory {
+    name: string
+    description?: string
+    attributes?: Array<Record<string, string>>
+}
+
+interface WorldPlaceTypeSource {
+    category?: WorldCategory[] | null
+}
+
+/** Read the canonical Setting / Place type category attribute. */
+export function readWorldPlaceType(card?: WorldPlaceTypeSource | null): string {
+    const setting = card?.category?.find((group) => group.name?.trim().toLowerCase() === 'setting')
+    for (const attributes of setting?.attributes ?? []) {
+        const match = Object.entries(attributes).find(([key]) => key.trim().toLowerCase() === 'place type')
+        if (typeof match?.[1] === 'string' && match[1].trim()) return match[1].trim()
+    }
+    return DEFAULT_WORLD_PLACE_TYPE
+}
+
+/** Persist place scale in the canonical Setting / Place type category field. */
+export function withWorldPlaceType(
+    category: WorldCategory[] | undefined,
+    placeType: string,
+    description = 'The kind of place this setting describes.',
+): WorldCategory[] {
+    const value = placeType.trim() || DEFAULT_WORLD_PLACE_TYPE
+    const groups = (category ?? []).map((group) => ({
+        ...group,
+        attributes: group.attributes?.map((attributes) => ({ ...attributes })),
+    }))
+    const index = groups.findIndex((group) => group.name?.trim().toLowerCase() === 'setting')
+    const setting = index >= 0 ? groups[index] : { name: 'Setting', description, attributes: [] }
+    const attributes = setting.attributes ?? []
+    let replaced = false
+    const nextAttributes = attributes.map((row) => {
+        const key = Object.keys(row).find((candidate) => candidate.trim().toLowerCase() === 'place type')
+        if (!key) return row
+        replaced = true
+        return { ...row, [key]: value }
+    })
+    if (!replaced) nextAttributes.unshift({ 'Place type': value })
+    const nextSetting = { ...setting, description: setting.description || description, attributes: nextAttributes }
+    if (index >= 0) groups[index] = nextSetting
+    else groups.unshift(nextSetting)
+    return groups
 }
 
 export function worldPlaceTypeOptionValue(placeType: string): string {

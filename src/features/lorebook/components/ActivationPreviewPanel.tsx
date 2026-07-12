@@ -43,7 +43,6 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
         try {
             const result = await apiService.previewLoreActivation({
                 targetKind: 'global',
-                mode: 'continue',
                 messages: [{ role: 'user', content: sample }],
                 includePromptPreview: true,
                 overrides: { lorebooks: [previewLorebook] },

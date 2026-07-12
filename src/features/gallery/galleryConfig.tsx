@@ -5,7 +5,7 @@
  */
 
 import { Gem, Globe, Swords, UserCircle, Users, type LucideIcon } from 'lucide-react'
-import type { Adventure, CardActor, CardVisibility, Character, Item, PageType, SharedCardResource, ShareableCardType, World } from '@/shared'
+import { readWorldPlaceType, worldPlaceTypeLabel, type Adventure, type CardActor, type CardVisibility, type Character, type Item, type PageType, type SharedCardResource, type ShareableCardType, type World } from '@/shared'
 import { apiService, resolveMediaUrl } from '@/infrastructure/api'
 import { effectiveName } from '@/utils/displayName'
 import { transformCharacters, transformItems, transformTemplates, transformWorlds } from '../../utils/cardTransforms'
@@ -108,7 +108,7 @@ const worldItems = (raw: unknown): GalleryItem[] =>
     transformWorlds(raw).map((world) => ({
         id: world.id,
         title: world.name,
-        badge: [world.place_type, world.type].filter(Boolean).join(' / ') || undefined,
+        badge: [worldPlaceTypeLabel(readWorldPlaceType(world)), world.type].filter(Boolean).join(' / ') || undefined,
         description: world.description || undefined,
         tags: world.triggers ?? [],
         imageUrl: resolveMediaUrl(world.image_url),

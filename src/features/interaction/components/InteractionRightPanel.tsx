@@ -1,7 +1,6 @@
 /**
- * Adventure-mode right panel — the turn-by-turn log of the session. Progress is
- * persisted automatically after every turn (see saveTurnsToApi in the center
- * panel), so there is no manual save affordance.
+ * Adventure-mode right panel — the turn-by-turn log of the session. The backend
+ * conversation ledger is authoritative, so there is no manual save affordance.
  */
 import type { TurnEntry } from '../../../shared'
 import { History } from 'lucide-react'

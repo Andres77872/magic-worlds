@@ -11,7 +11,7 @@ import { MessageSquareQuote } from 'lucide-react'
 import { useAuth, useData } from '@/app/hooks'
 import { CodexCardPickerDrawer } from '@/features/codex'
 import type { StoryContextSettings, StoryGeneration } from '@/shared'
-import { Drawer, Icon, cx } from '@/ui/primitives'
+import { Drawer, Icon, Toast, cx } from '@/ui/primitives'
 import { NovelEditor } from '../editor/NovelEditor'
 import type { InlineAIRequest, NovelEditorHandle } from '../editor/types'
 import { useChapterDraft } from '../hooks/useChapterDraft'
@@ -28,11 +28,11 @@ import { NovelStudioHeader } from './NovelStudioHeader'
 
 const DEFAULT_CONTEXT_SETTINGS: StoryContextSettings = {
     includeSelectedCards: true,
-    includeMentionedCards: true,
     includeLorebooks: true,
-    includeRecentScenes: 2,
+    includeRecentChapters: 2,
     tokenBudget: 6000,
     styleSource: 'whole_story',
+    customStyleInstruction: null,
 }
 
 export function NovelStudio() {
@@ -45,13 +45,14 @@ export function NovelStudio() {
     const draft = useChapterDraft({ storyId: story?.id ?? null, chapter: studio.activeChapter })
     const codex = useCodex({ story })
     const history = useGenerationHistory({ story })
-    const wordGoal = useWordGoal(story?.id ?? null, studio.activeChapter?.id ?? null)
+    const wordGoal = useWordGoal(story?.id ?? null, studio.activeChapter)
 
     const editorHandleRef = useRef<NovelEditorHandle | null>(null)
     const [critique, setCritique] = useState<StoryGeneration | null>(null)
     const [suggestionActive, setSuggestionActive] = useState(false)
     const [cardPickerOpen, setCardPickerOpen] = useState(false)
     const [cardPickerQuery, setCardPickerQuery] = useState('')
+    const [wordGoalSaveFailed, setWordGoalSaveFailed] = useState(false)
 
     const requireAuth = useCallback(() => {
         if (isAuthenticated) return true
@@ -96,7 +97,7 @@ export function NovelStudio() {
         if (!requireAuth()) throw new Error(t('novelEditor.studio.loginRequired'))
         if (!activeChapter) throw new Error(t('novelEditor.studio.noChapter'))
         return generateStoryCandidate(story.id, {
-            sceneId: activeChapter.id,
+            chapterId: activeChapter.id,
             command: request.command,
             instruction: request.instruction,
             selection: request.selection,
@@ -112,7 +113,13 @@ export function NovelStudio() {
                 lastSavedAt={draft.lastSavedAt}
                 words={wordCount(draft.body)}
                 goal={wordGoal.goal}
-                onSetGoal={wordGoal.setGoal}
+                onSetGoal={(goal) => {
+                    if (!requireAuth()) return
+                    setWordGoalSaveFailed(false)
+                    void wordGoal.setGoal(goal).then((saved) => {
+                        if (!saved) setWordGoalSaveFailed(true)
+                    })
+                }}
                 focusMode={studio.focusMode}
                 codexOpen={studio.codexOpen}
                 typewriter={studio.typewriter}
@@ -226,6 +233,13 @@ export function NovelStudio() {
                     {critique?.output}
                 </p>
             </Drawer>
+            <Toast
+                open={wordGoalSaveFailed}
+                tone="error"
+                title={t('novelEditor.header.goalSaveFailed')}
+                message={t('novelEditor.header.goalSaveFailedBody')}
+                onClose={() => setWordGoalSaveFailed(false)}
+            />
         </div>
     )
 }

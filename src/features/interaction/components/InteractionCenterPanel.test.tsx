@@ -37,7 +37,7 @@ function makeConfig(overrides: Partial<ChatSessionConfig> = {}): ChatSessionConf
         kind: 'adventure',
         basePath: 'adventure-sessions',
         loadTurns: vi.fn(async () => []),
-        saveTurns: vi.fn(async () => {}),
+        updateMessage: vi.fn(async () => initialTurns),
         deleteMessage: vi.fn(async (_sessionId, messageId) => initialTurns.filter((turn) => turn.id !== String(messageId))),
         clearMessages: vi.fn(async () => []),
         aiLabel: 'Game Master',
@@ -109,15 +109,13 @@ describe('InteractionCenterPanel message deletion', () => {
 
     it('deletes canonical messages through the session config and adopts the server projection', async () => {
         const deleteMessage = vi.fn(async () => [initialTurns[1]])
-        const saveTurns = vi.fn(async (_sessionId: number, _turns: TurnEntry[]) => {})
-        const config = makeConfig({ deleteMessage, saveTurns })
+        const config = makeConfig({ deleteMessage })
 
         renderPanel(config)
         fireEvent.click(screen.getAllByLabelText('Delete message')[0])
         fireEvent.click(within(screen.getByRole('dialog', { name: 'Delete message?' })).getByRole('button', { name: 'Delete' }))
 
         await waitFor(() => expect(deleteMessage).toHaveBeenCalledWith(7, 100))
-        expect(saveTurns).not.toHaveBeenCalled()
         expect(screen.queryByText('Open the door')).not.toBeInTheDocument()
         expect(screen.getByText('The door opens.')).toBeInTheDocument()
     })
@@ -162,7 +160,22 @@ describe('InteractionCenterPanel message deletion', () => {
             return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
         })
 
-        renderPanel(makeConfig(), [])
+        const loadTurns = vi.fn()
+            .mockResolvedValueOnce([])
+            .mockResolvedValue([
+                { id: '100', type: 'user', content: 'Look around', timestamp: '', turnId: 'turn-9' },
+                {
+                    id: '999',
+                    type: 'ai',
+                    content: 'Aria: Who goes there?',
+                    timestamp: '',
+                    assistantMessageId: 999,
+                    turnId: 'turn-9',
+                    segments: [{ kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Who goes there?' }],
+                },
+            ])
+        renderPanel(makeConfig({ loadTurns }), [])
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(1))
 
         // Start a generation so there is a streaming AI turn to paint into.
         fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
@@ -192,7 +205,8 @@ describe('InteractionCenterPanel message deletion', () => {
             handlers!.onDone({ interrupted: false, assistantMessageId: 999, turnId: 'turn-9' })
         })
 
-        expect(await screen.findByText('Who goes there?')).toBeInTheDocument()
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
+        expect(screen.getByText('Aria: Who goes there?', { selector: '.sr-only' })).toBeInTheDocument()
         // Live status line is gone once streaming ends.
         expect(screen.queryByText('Aria is speaking…')).not.toBeInTheDocument()
     })
@@ -218,12 +232,7 @@ describe('InteractionCenterPanel message deletion', () => {
         const loadTurns = vi.fn()
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce(hydratedPlainTurns)
-        const savedTurns: TurnEntry[][] = []
-        const saveTurns = vi.fn(async (_sessionId: number, turnsToSave: TurnEntry[]) => {
-            savedTurns.push(turnsToSave)
-        })
-
-        renderPanel(makeConfig({ loadTurns, saveTurns }), [])
+        renderPanel(makeConfig({ loadTurns }), [])
         await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(1))
 
         fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
@@ -247,7 +256,6 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.getByText('Aria')).toBeInTheDocument()
         expect(screen.getByText('Who goes there?')).toBeInTheDocument()
         expect(screen.queryByText('Aria: Who goes there?', { selector: '.chat-prose *' })).not.toBeInTheDocument()
-        expect(savedTurns.some((turns) => turns.some((turn) => turn.id === '999' && turn.segments?.length))).toBe(true)
     })
 
     it('keeps live structured dialog after done when no authoritative segments frame arrives', async () => {
@@ -298,94 +306,6 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.getByText('Who goes there?')).toBeInTheDocument()
         expect(screen.queryByText('Aria is speaking…')).not.toBeInTheDocument()
         expect(screen.queryByText('Aria: Who goes there?', { selector: '.chat-prose *' })).not.toBeInTheDocument()
-    })
-
-    it('defers hydration while a mirror save is in flight and runs it once after the queue drains', async () => {
-        let handlers: { onDone: (frame: Record<string, unknown>) => void } | undefined
-        const sendChat = vi.fn()
-        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: never) => {
-            handlers = h
-            return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
-        })
-        const loadTurns = vi.fn(async () => [])
-        const releases: Array<() => void> = []
-        const saveTurns = vi.fn<(sessionId: number, turns: TurnEntry[]) => Promise<void>>(
-            () =>
-                new Promise<void>((resolve) => {
-                    releases.push(resolve)
-                }),
-        )
-        renderPanel(makeConfig({ loadTurns, saveTurns }), [])
-        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(1))
-
-        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
-        fireEvent.click(screen.getByLabelText('Send message'))
-        await waitFor(() => expect(saveTurns).toHaveBeenCalledTimes(1))
-
-        // Finishing the stream queues a save + hydration behind the held save…
-        act(() => {
-            handlers!.onDone({ interrupted: false, userMessageId: 100, assistantMessageId: 999, turnId: 'turn-9' })
-        })
-        // …and a tab refocus while it is still writing must not fetch a stale projection.
-        act(() => {
-            document.dispatchEvent(new Event('visibilitychange'))
-        })
-        expect(loadTurns).toHaveBeenCalledTimes(1)
-
-        await act(async () => {
-            releases[0]()
-        })
-        await waitFor(() => expect(saveTurns).toHaveBeenCalledTimes(2))
-        await act(async () => {
-            releases[1]()
-        })
-
-        // Both parked triggers (post-done + refocus) collapse into one hydration.
-        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
-        expect(loadTurns).toHaveBeenCalledTimes(2)
-    })
-
-    it('collapses overlapping mirror saves to the newest snapshot', async () => {
-        let handlers: { onDone: (frame: Record<string, unknown>) => void } | undefined
-        const sendChat = vi.fn()
-        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: never) => {
-            handlers = h
-            return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
-        })
-        const releases: Array<() => void> = []
-        const saveTurns = vi.fn<(sessionId: number, turns: TurnEntry[]) => Promise<void>>(
-            () =>
-                new Promise<void>((resolve) => {
-                    releases.push(resolve)
-                }),
-        )
-        renderPanel(makeConfig({ saveTurns }), [])
-
-        // First send: its user-turn save starts and is held in flight.
-        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'First message' } })
-        fireEvent.click(screen.getByLabelText('Send message'))
-        await waitFor(() => expect(saveTurns).toHaveBeenCalledTimes(1))
-
-        // Finish the generation and immediately send again: both snapshots queue
-        // behind the held save and only the newest one may be written.
-        act(() => {
-            handlers!.onDone({ interrupted: false, userMessageId: 100, assistantMessageId: 999, turnId: 'turn-9' })
-        })
-        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Second message' } })
-        fireEvent.click(screen.getByLabelText('Send message'))
-        expect(saveTurns).toHaveBeenCalledTimes(1)
-
-        await act(async () => {
-            releases[0]()
-        })
-        await waitFor(() => expect(saveTurns).toHaveBeenCalledTimes(2))
-        const lastSnapshot = saveTurns.mock.calls[1][1] as TurnEntry[]
-        expect(lastSnapshot.some((turn) => turn.content === 'Second message')).toBe(true)
-
-        await act(async () => {
-            releases[1]()
-        })
-        expect(saveTurns).toHaveBeenCalledTimes(2)
     })
 
     it('does not yank a reader who scrolled up; offers a jump pill instead', async () => {
@@ -464,10 +384,7 @@ describe('InteractionCenterPanel message deletion', () => {
 
         // The old canonical assistant row goes first, or hydration resurrects it.
         await waitFor(() => expect(deleteMessage).toHaveBeenCalledWith(7, 101))
-        await waitFor(() => expect(sendChat).toHaveBeenCalledWith(
-            [{ role: 'user', content: 'Open the door' }],
-            expect.anything(),
-        ))
+        await waitFor(() => expect(sendChat).toHaveBeenCalledWith('Open the door'))
     })
 
     it('restores the previous reply and skips generation when the pre-regenerate delete fails', async () => {
@@ -591,7 +508,7 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.getByText(/conjuring the scene/i)).toBeInTheDocument()
     })
 
-    it('defaults generation toggles on and sends them with chat frames', async () => {
+    it('removes obsolete per-frame generation toggles and sends canonical chat content', async () => {
         const sendChat = vi.fn()
         hookMocks.useAdventureChatSocket.mockReturnValue({
             status: 'open',
@@ -602,91 +519,13 @@ describe('InteractionCenterPanel message deletion', () => {
 
         renderPanel(makeConfig(), [])
 
-        expect(screen.getByRole('button', { name: 'Generated images on' })).toHaveAttribute('aria-pressed', 'true')
-        expect(screen.getByRole('button', { name: 'Suggested actions on' })).toHaveAttribute('aria-pressed', 'true')
+        expect(screen.queryByRole('button', { name: /generated images/i })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /suggested actions/i })).not.toBeInTheDocument()
 
         fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
         fireEvent.click(screen.getByLabelText('Send message'))
 
         await waitFor(() => expect(sendChat).toHaveBeenCalled())
-        expect(sendChat).toHaveBeenCalledWith(
-            [{ role: 'user', content: 'Look around' }],
-            { generateImage: true, suggestActions: true },
-        )
-    })
-
-    it('persists generation toggles per chat kind and session id', async () => {
-        const sendChat = vi.fn()
-        hookMocks.useAdventureChatSocket.mockReturnValue({
-            status: 'open',
-            sendChat,
-            sendTts: vi.fn(),
-            cancel: vi.fn(),
-        })
-
-        const view = renderPanel(makeConfig(), [])
-
-        fireEvent.click(screen.getByRole('button', { name: 'Generated images on' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Suggested actions on' }))
-
-        await waitFor(() => {
-            expect(localStorage.getItem('mw:chat-options:adventure:7')).toBe(JSON.stringify({
-                generateImage: false,
-                suggestActions: false,
-            }))
-        })
-
-        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Wait quietly' } })
-        fireEvent.click(screen.getByLabelText('Send message'))
-
-        await waitFor(() =>
-            expect(sendChat).toHaveBeenCalledWith(
-                [{ role: 'user', content: 'Wait quietly' }],
-                { generateImage: false, suggestActions: false },
-            ),
-        )
-
-        view.unmount()
-        const secondView = renderPanel(makeConfig(), [], 8)
-        expect(screen.getByRole('button', { name: 'Generated images on' })).toHaveAttribute('aria-pressed', 'true')
-        expect(screen.getByRole('button', { name: 'Suggested actions on' })).toHaveAttribute('aria-pressed', 'true')
-
-        secondView.unmount()
-        renderPanel(makeConfig({ kind: 'character', basePath: 'character-chats' }), [], 7)
-        expect(screen.getByRole('button', { name: 'Generated images on' })).toHaveAttribute('aria-pressed', 'true')
-        expect(screen.getByRole('button', { name: 'Suggested actions on' })).toHaveAttribute('aria-pressed', 'true')
-    })
-
-    it('does not hide existing images or suggested actions when generation toggles are off', () => {
-        const config = makeConfig({
-            kind: 'character',
-            basePath: 'character-chats',
-            aiLabel: 'Lyra',
-            showForwardOptions: true,
-            showImages: true,
-        })
-        const seed: TurnEntry[] = [
-            {
-                id: '201',
-                type: 'ai',
-                content: 'The mirror catches candlelight.',
-                timestamp: '2026-06-04T00:00:01',
-                assistantMessageId: 201,
-                turnId: 'turn-char-1',
-                forwardOptions: [{ label: 'Ask about the mirror', message: 'What do you see in the mirror?' }],
-                imagePrompt: 'A candlelit mirror in a fantasy parlor.',
-                imageStatus: 'in_progress',
-                imageJobId: 'img-char-1',
-            } as TurnEntry,
-        ]
-
-        renderPanel(config, seed)
-
-        fireEvent.click(screen.getByRole('button', { name: 'Generated images on' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Suggested actions on' }))
-
-        expect(screen.getByText('Suggested Actions')).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: /ask about the mirror/i })).toBeInTheDocument()
-        expect(screen.getByText(/conjuring the scene/i)).toBeInTheDocument()
+        expect(sendChat).toHaveBeenCalledWith('Look around')
     })
 })

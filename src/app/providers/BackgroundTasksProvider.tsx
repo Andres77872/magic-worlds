@@ -50,31 +50,6 @@ function taskKey(task: BackgroundTaskPublic): string {
     return `${task.operation}:${task.task_id}`
 }
 
-// "Clear completed" is client-side only — the backend has no task delete/archive
-// endpoint (DELETE cancels). Dismissed keys persist so cleared tasks stay hidden
-// after the next poll returns them.
-const DISMISSED_TASKS_STORAGE_KEY = 'magic-worlds-tasks-dismissed'
-const DISMISSED_TASKS_CAP = 200
-
-function readDismissedKeys(): Set<string> {
-    try {
-        const raw = localStorage.getItem(DISMISSED_TASKS_STORAGE_KEY)
-        if (!raw) return new Set()
-        const parsed: unknown = JSON.parse(raw)
-        return new Set(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [])
-    } catch {
-        return new Set()
-    }
-}
-
-function persistDismissedKeys(keys: Set<string>) {
-    try {
-        localStorage.setItem(DISMISSED_TASKS_STORAGE_KEY, JSON.stringify([...keys].slice(-DISMISSED_TASKS_CAP)))
-    } catch {
-        // Storage unavailable — the tasks stay hidden for this session only.
-    }
-}
-
 interface TaskNotice {
     tone: ToastTone
     title: string
@@ -87,7 +62,6 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     const { loadData } = useData()
     const [tasks, setTasks] = useState<BackgroundTaskPublic[]>([])
     const [drawerOpen, setDrawerOpen] = useState(false)
-    const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(readDismissedKeys)
     const [taskNotice, setTaskNotice] = useState<TaskNotice | null>(null)
     const previousStatusesRef = useRef<Map<string, string>>(new Map())
     const refreshInFlightRef = useRef(false)
@@ -96,10 +70,6 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         drawerOpenRef.current = drawerOpen
     }, [drawerOpen])
-
-    useEffect(() => {
-        persistDismissedKeys(dismissedKeys)
-    }, [dismissedKeys])
 
     const refreshTasks = useCallback(async () => {
         if (!isAuthenticated || refreshInFlightRef.current) return
@@ -177,16 +147,24 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         registerTask(updated)
     }, [registerTask])
 
-    /** Hide every task currently in the given terminal bucket. */
-    const clearTerminalTasks = useCallback((bucket: 'completed' | 'failed') => {
+    /** Persistently archive every task currently in the given terminal bucket. */
+    const clearTerminalTasks = useCallback(async (bucket: 'completed' | 'failed') => {
         const statuses = bucket === 'completed' ? COMPLETED_STATUS_SET : FAILED_STATUS_SET
-        setDismissedKeys((prev) => {
-            const next = new Set(prev)
-            for (const task of tasks) {
-                if (statuses.has(task.status)) next.add(taskKey(task))
-            }
-            return next
-        })
+        const terminalTasks = tasks.filter((task) => statuses.has(task.status))
+        if (terminalTasks.length === 0) return
+        const results = await Promise.allSettled(
+            terminalTasks.map((task) => apiService.archiveTask(task.operation, task.task_id)),
+        )
+        const archived = new Set(
+            terminalTasks
+                .filter((_task, index) => results[index].status === 'fulfilled')
+                .map(taskKey),
+        )
+        setTasks((current) => current.filter((task) => !archived.has(taskKey(task))))
+        for (const key of archived) previousStatusesRef.current.delete(key)
+        if (results.some((result) => result.status === 'rejected')) {
+            throw new Error('One or more background tasks could not be archived.')
+        }
     }, [tasks])
 
     useEffect(() => {
@@ -198,11 +176,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         return () => window.clearTimeout(timer)
     }, [isAuthenticated, refreshTasks])
 
-    // Hide tasks the user cleared from the panel (client-side dismiss).
-    const visibleTasks = useMemo(
-        () => (isAuthenticated ? tasks.filter((task) => !dismissedKeys.has(taskKey(task))) : []),
-        [dismissedKeys, isAuthenticated, tasks],
-    )
+    const visibleTasks = useMemo(() => (isAuthenticated ? tasks : []), [isAuthenticated, tasks])
     const activeTasks = useMemo(() => visibleTasks.filter(isActiveTask), [visibleTasks])
     const taskBuckets = useMemo(
         () => ({

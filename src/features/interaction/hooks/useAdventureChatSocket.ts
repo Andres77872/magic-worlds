@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChatMessage } from '../../../shared/types/auth.types'
-import type { ChatGenerationOptions, ChatSocketServerMessage, ForwardOption } from '../../../shared'
-import { AdventureChatSocket, type ChatSocketStatus } from '../../../infrastructure/api'
+import type { ChatSocketServerMessage, ForwardOption } from '../../../shared'
+import { ChatSocket, type ChatSocketStatus } from '../../../infrastructure/api'
 
 export interface AdventureChatHandlers {
     /** Transient speaker roster + narrator identity, sent once before the first delta. */
@@ -26,7 +25,7 @@ export interface AdventureChatHandlers {
 
 export interface AdventureChatSocketApi {
     status: ChatSocketStatus
-    sendChat: (messages: ChatMessage[], options?: ChatGenerationOptions) => void
+    sendChat: (content: string, requestId?: string) => void
     sendTts: (assistantMessageId: number, turnId: string, requestId?: string) => void
     cancel: () => void
 }
@@ -48,7 +47,7 @@ export function useAdventureChatSocket(
         handlersRef.current = handlers
     })
 
-    const socketRef = useRef<InstanceType<typeof AdventureChatSocket> | null>(null)
+    const socketRef = useRef<ChatSocket | null>(null)
     const [status, setStatus] = useState<ChatSocketStatus>('closed')
 
     // Only auth *availability* gates the socket. The token value itself must not
@@ -64,7 +63,7 @@ export function useAdventureChatSocket(
             return
         }
 
-        const socket = new AdventureChatSocket(sessionId, {
+        const socket = new ChatSocket(sessionId, {
             onStatusChange: setStatus,
             onMessage: (message: ChatSocketServerMessage) => {
                 const current = handlersRef.current
@@ -127,7 +126,7 @@ export function useAdventureChatSocket(
         // basePath in deps so switching session kinds tears down + reconnects cleanly.
     }, [sessionId, authDisabled, basePath])
 
-    const sendChat = (messages: ChatMessage[], options?: ChatGenerationOptions) => socketRef.current?.sendChat(messages, options)
+    const sendChat = (content: string, requestId?: string) => socketRef.current?.sendChat(content, requestId)
     const sendTts = (assistantMessageId: number, turnId: string, requestId?: string) =>
         socketRef.current?.sendTts(assistantMessageId, turnId, requestId)
     const cancel = () => socketRef.current?.cancel()

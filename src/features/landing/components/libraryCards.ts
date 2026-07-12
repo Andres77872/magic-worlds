@@ -5,14 +5,14 @@
  * dashboard and the galleries present identical cards.
  */
 
-import type { Character, Item, World } from '@/shared'
+import { readWorldPlaceType, worldPlaceTypeLabel, type Character, type Item, type World } from '@/shared'
 import { resolveMediaUrl } from '@/infrastructure/api'
 import type { Scene } from './sceneModel'
 
 export interface LibraryCardProps {
     title: string
     badge?: string
-    /** Mono "where" label above the name (adventures/scenes only). */
+    /** Mono "where" label above the name (adventure templates only). */
     eyebrow?: string
     /** One-line narrative hook shown under the name. */
     description?: string
@@ -50,7 +50,7 @@ export function personaCardProps(character: Character): LibraryCardProps {
 export function worldCardProps(world: World): LibraryCardProps {
     return {
         title: world.name,
-        badge: [world.place_type, world.type].filter(Boolean).join(' / ') || undefined,
+        badge: [worldPlaceTypeLabel(readWorldPlaceType(world)), world.type].filter(Boolean).join(' / ') || undefined,
         description: world.description || undefined,
         tags: world.triggers ?? [],
         imageUrl: resolveMediaUrl(world.image_url),

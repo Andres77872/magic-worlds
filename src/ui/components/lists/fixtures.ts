@@ -15,7 +15,7 @@ export const worlds: World[] = [
   {
     id: 'w1',
     name: 'The Sunken Library',
-    place_type: 'landmark',
+    category: [{ name: 'Setting', description: 'Place scale.', attributes: [{ 'Place type': 'landmark' }] }],
     type: 'fantasy',
     details: {},
     description: 'A drowned archive where every book remembers being read, and the ink still whispers to those who listen.',
@@ -23,7 +23,7 @@ export const worlds: World[] = [
   {
     id: 'w2',
     name: 'Neon Bastion',
-    place_type: 'city',
+    category: [{ name: 'Setting', description: 'Place scale.', attributes: [{ 'Place type': 'city' }] }],
     type: 'sci-fi',
     details: {},
     description: 'A vertical city lit by ten thousand signs, where the rain never stops and neither do the deals.',
@@ -31,7 +31,7 @@ export const worlds: World[] = [
   {
     id: 'w3',
     name: 'Hollowmoor',
-    place_type: 'settlement',
+    category: [{ name: 'Setting', description: 'Place scale.', attributes: [{ 'Place type': 'settlement' }] }],
     type: 'mystery',
     details: {},
     description: 'A fog-locked village where the dead leave letters and nobody asks who delivers them.',

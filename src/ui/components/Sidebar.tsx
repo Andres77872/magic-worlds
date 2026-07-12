@@ -14,6 +14,7 @@ import {
     AudioLines,
     BookOpen,
     BookOpenText,
+    Bell,
     CirclePlay,
     ChevronDown,
     ChevronLeft,
@@ -67,6 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
             { page: 'chatroom', labelKey: 'sidebar.nav.chatroom', icon: MessageCircle },
             { page: 'active-adventures', labelKey: 'sidebar.nav.activeAdventures', icon: CirclePlay },
+            { page: 'notifications', labelKey: 'sidebar.nav.notifications', icon: Bell },
             { page: 'gallery-stories', labelKey: 'sidebar.nav.stories', icon: BookOpenText },
             { page: 'calls', labelKey: 'sidebar.nav.calls', icon: Phone },
         ],

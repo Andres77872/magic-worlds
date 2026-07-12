@@ -18,34 +18,48 @@ const t = ((key: string, options?: { time?: string }) =>
     key === 'novelEditor.save.savedAt' ? `Saved ${options?.time ?? ''}` : (COPY[key] ?? key)) as unknown as TFunction
 
 function chapter(id: string, order: number): StoryChapter {
-    return { id, storyId: 'story-1', title: id, body: '', order, status: 'draft', activeCardRefs: [], mentionRefs: [] }
+    return {
+        id,
+        storyId: 'story-1',
+        title: id,
+        body: '',
+        order,
+        status: 'draft',
+        povCardId: null,
+        locationCardId: null,
+        activeCardRefs: [],
+        generationHistory: [],
+    }
 }
 
 function story(overrides: Partial<Story> = {}): Story {
     return {
         id: 'story-1',
         title: 'Glass War',
-        scenes: [],
+        description: null,
+        source: { kind: 'blank', id: null, title: null },
+        chapters: [],
         activeCardRefs: [],
         activeContext: {
             includeSelectedCards: true,
-            includeMentionedCards: true,
             includeLorebooks: true,
-            includeRecentScenes: 2,
+            includeRecentChapters: 2,
             tokenBudget: 6000,
+            styleSource: 'current_chapter',
+            customStyleInstruction: null,
         },
         ...overrides,
     }
 }
 
 describe('chaptersFor', () => {
-    it('returns chapters sorted by order, preferring chapters over scenes', () => {
-        const result = chaptersFor(story({ chapters: [chapter('b', 2), chapter('a', 1)], scenes: [chapter('x', 0)] }))
+    it('returns canonical chapters sorted by order', () => {
+        const result = chaptersFor(story({ chapters: [chapter('b', 2), chapter('a', 1)] }))
         expect(result.map((item) => item.id)).toEqual(['a', 'b'])
     })
 
-    it('falls back to scenes and handles null story', () => {
-        expect(chaptersFor(story({ scenes: [chapter('x', 0)] })).map((item) => item.id)).toEqual(['x'])
+    it('handles an empty or null story', () => {
+        expect(chaptersFor(story()).map((item) => item.id)).toEqual([])
         expect(chaptersFor(null)).toEqual([])
     })
 })
@@ -60,8 +74,8 @@ describe('wordCount', () => {
 describe('storySourceLabel', () => {
     it('labels blank, titled, and kind-only sources', () => {
         expect(storySourceLabel(story(), t)).toBe('Blank')
-        expect(storySourceLabel(story({ source: { kind: 'character', title: 'Aria' } }), t)).toBe('Aria')
-        expect(storySourceLabel(story({ source: { kind: 'adventure_template' } }), t)).toBe('Adventure')
+        expect(storySourceLabel(story({ source: { kind: 'character', id: 'char-1', title: 'Aria' } }), t)).toBe('Aria')
+        expect(storySourceLabel(story({ source: { kind: 'adventure_template', id: 'adv-1', title: null } }), t)).toBe('Adventure')
     })
 })
 

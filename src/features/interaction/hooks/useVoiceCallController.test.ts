@@ -94,7 +94,6 @@ describe('useVoiceCallController', () => {
             error: null,
             voiceSessionId: null,
             start: vi.fn(),
-            sendVad: vi.fn(() => true),
             sendSegmentMeta: vi.fn(() => true),
             bargeIn: vi.fn(() => true),
             end: vi.fn(() => true),
@@ -139,7 +138,6 @@ describe('useVoiceCallController', () => {
         expect(mocks.socketApi!.start).toHaveBeenCalledWith(expect.objectContaining({
             type: 'voice_start',
             client_call_id: 'call-1',
-            consent_version: 'voice-v1',
         }))
         expect(vi.mocked(mocks.socketApi!.start).mock.calls[0][0]).not.toHaveProperty('audio_blob')
         expect(result.current.state).toBe('connecting')
@@ -149,10 +147,10 @@ describe('useVoiceCallController', () => {
         expect(result.current.voiceSessionId).toBe('voice-1')
 
         await act(async () => {
-            await result.current.endCall('user')
+            await result.current.endCall()
         })
 
-        expect(mocks.socketApi!.end).toHaveBeenCalledWith('user')
+        expect(mocks.socketApi!.end).toHaveBeenCalledWith()
         expect(mocks.microphoneApi!.stop).toHaveBeenCalled()
         expect(mocks.playback!.cancel).toHaveBeenCalled()
         expect(mocks.socketApi!.close).toHaveBeenCalled()
@@ -184,11 +182,7 @@ describe('useVoiceCallController', () => {
         act(() => mocks.socketHandlers?.onReady?.(readyFrame()))
 
         await waitFor(() => expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(1))
-        expect(mocks.socketApi!.sendSegmentMeta).toHaveBeenCalledWith(expect.objectContaining({
-            type: 'voice_segment_meta',
-            voice_session_id: 'voice-1',
-            seq: 1,
-        }))
+        expect(mocks.socketApi!.sendSegmentMeta).toHaveBeenCalledWith({ type: 'voice_segment_meta' })
         expect(vi.mocked(mocks.socketApi!.sendSegmentMeta).mock.calls[0][0]).not.toHaveProperty('audio')
         expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledWith(7, expect.objectContaining({
             voice_session_id: 'voice-1',
@@ -232,21 +226,15 @@ describe('useVoiceCallController', () => {
         act(() => mocks.socketHandlers?.onAudioChunk?.({ type: 'voice_audio_chunk', voice_session_id: 'voice-1', turn_id: 'turn-1', seq: 3, content_type: 'audio/mpeg', sample_rate: 32000, channels: 1, data_b64: 'AA==', is_final: false }))
 
         act(() => {
-            expect(result.current.bargeIn('button')).toBe(true)
+            expect(result.current.bargeIn()).toBe(true)
         })
         expect(mocks.playback!.cancel).toHaveBeenCalledWith({ voice_session_id: 'voice-1', turn_id: 'turn-1' })
-        expect(mocks.socketApi!.bargeIn).toHaveBeenCalledWith(expect.objectContaining({
-            type: 'voice_barge_in',
-            voice_session_id: 'voice-1',
-            turn_id: 'turn-1',
-            last_heard_audio_seq: 3,
-            reason: 'button',
-        }))
+        expect(mocks.socketApi!.bargeIn).toHaveBeenCalledWith({ type: 'voice_barge_in', reason: 'barge_in' })
 
         vi.mocked(mocks.socketApi!.bargeIn).mockClear()
         act(() => mocks.socketHandlers?.onAudioChunk?.({ type: 'voice_audio_chunk', voice_session_id: 'voice-1', turn_id: 'turn-2', seq: 4, content_type: 'audio/mpeg', sample_rate: 32000, channels: 1, data_b64: 'AQ==', is_final: false }))
         act(() => mocks.microphoneOptions?.onVadState?.('speech_start', { at_ms: 500, rms: 0.2 }))
-        expect(mocks.socketApi!.bargeIn).toHaveBeenCalledWith(expect.objectContaining({ reason: 'user_speech' }))
+        expect(mocks.socketApi!.bargeIn).toHaveBeenCalledWith({ type: 'voice_barge_in', reason: 'barge_in' })
     })
 
     it('surfaces quota/provider errors and tears down terminal calls', () => {
@@ -271,7 +259,7 @@ describe('useVoiceCallController', () => {
         expect(mocks.socketApi!.close).toHaveBeenCalled()
 
         unmount()
-        await waitFor(() => expect(mocks.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-1', reason: 'navigation' }))
+        await waitFor(() => expect(mocks.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-1', reason: 'user' }))
         expect(mocks.playback!.dispose).toHaveBeenCalled()
     })
 })
