@@ -91,7 +91,7 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                                         tone="danger"
                                         label={t('lorebookStudio.entryTable.deleteEntry', { title: entry.title || t('lorebookStudio.entryTable.entryFallback') })}
                                         onClick={() => onDelete(entry.id)}
-                                        className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                                        className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 pointer-coarse:opacity-100"
                                     >
                                         <Icon icon={Trash2} size={14} />
                                     </IconButton>

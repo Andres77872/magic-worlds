@@ -79,7 +79,7 @@ export interface CardTemplate {
 }
 
 /**
- * A form value serialized into its canonical category group (for example,
+ * A form value serialized into its stored category group (for example,
  * world place scale in Setting / Place type).
  */
 export interface GuidedMirror {

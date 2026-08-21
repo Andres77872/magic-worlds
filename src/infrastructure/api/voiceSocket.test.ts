@@ -123,6 +123,60 @@ describe('VoiceSocket', () => {
         expect(MockWebSocket.instances[0].send).toHaveBeenCalledWith(JSON.stringify({ type: 'voice_ping', voice_session_id: 'voice-1' }))
     })
 
+    it('ends an established call once after two missed heartbeat windows', async () => {
+        vi.useFakeTimers()
+        const onMessage = vi.fn()
+        const onStatusChange = vi.fn()
+        const socket = new VoiceSocket(7, { onMessage, onStatusChange })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage({
+            type: 'voice_ready',
+            voice_session_id: 'voice-1',
+            server_time_ms: 1,
+            limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 60 },
+            upload_url: '/character-chats/7/voice-segments',
+        })
+
+        await vi.advanceTimersByTimeAsync(50_000)
+        await vi.advanceTimersByTimeAsync(50_000)
+
+        expect(MockWebSocket.instances[0].close).toHaveBeenCalledTimes(1)
+        expect(onStatusChange).toHaveBeenLastCalledWith('closed')
+        expect(onMessage).toHaveBeenCalledTimes(2)
+        expect(onMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+            type: 'voice_error',
+            fatal: true,
+            message: 'The voice connection ended. Start a new call.',
+        }))
+    })
+
+    it('resets the liveness deadline on every valid inbound frame', async () => {
+        vi.useFakeTimers()
+        const socket = new VoiceSocket(7, { onMessage: vi.fn() })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage({
+            type: 'voice_ready',
+            voice_session_id: 'voice-1',
+            server_time_ms: 1,
+            limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 60 },
+            upload_url: '/character-chats/7/voice-segments',
+        })
+
+        await vi.advanceTimersByTimeAsync(49_000)
+        MockWebSocket.instances[0].emitMessage({
+            type: 'voice_pong',
+            voice_session_id: 'voice-1',
+            server_time_ms: 49_000,
+        })
+        await vi.advanceTimersByTimeAsync(49_000)
+        expect(MockWebSocket.instances[0].close).not.toHaveBeenCalled()
+
+        await vi.advanceTimersByTimeAsync(2_000)
+        expect(MockWebSocket.instances[0].close).toHaveBeenCalledTimes(1)
+    })
+
     it('fails visibly on 4401 after ready instead of resuming an ended backend session', async () => {
         const refresh = vi.fn().mockImplementation(async () => {
             localStorage.setItem('magic_worlds:token', 'new-token')

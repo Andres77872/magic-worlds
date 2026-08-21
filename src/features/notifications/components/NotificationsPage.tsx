@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Bell, CheckCheck, CircleAlert, CircleCheck, Info, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
 import { useBackgroundTasks, useNavigation } from '@/app/hooks'
@@ -23,6 +23,8 @@ const severityTone = {
     error: 'danger',
 } as const satisfies Record<NotificationSeverity, 'neutral' | 'live' | 'ember' | 'danger'>
 
+const NOTIFICATION_PAGE_SIZE = 20
+
 export function NotificationsPage() {
     const { t } = useTranslation()
     const { setPage } = useNavigation()
@@ -35,25 +37,67 @@ export function NotificationsPage() {
     const [pendingIds, setPendingIds] = useState<Set<number>>(() => new Set())
     const [markingAll, setMarkingAll] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [hasMore, setHasMore] = useState(false)
+    const [loadingMore, setLoadingMore] = useState(false)
+
+    // Only the newest load may commit. `load` runs from the unreadOnly effect AND
+    // straight from the Refresh button, so toggling the filter while a request is
+    // in flight could let the slower, earlier response repaint the list with the
+    // wrong filter — and leave `hasMore` describing a page nobody is looking at.
+    const loadSeqRef = useRef(0)
 
     const load = useCallback(async (quiet = false) => {
+        const seq = ++loadSeqRef.current
         if (quiet) setRefreshing(true)
         else setLoading(true)
         setError(null)
         try {
             const [response, unread] = await Promise.all([
-                apiService.listNotifications({ unreadOnly, limit: 100 }),
+                apiService.listNotifications({ unreadOnly, limit: NOTIFICATION_PAGE_SIZE, offset: 0 }),
                 apiService.getNotificationUnreadCount(),
             ])
+            if (seq !== loadSeqRef.current) return
             setItems(response.items)
+            setHasMore(response.items.length === response.limit)
             setUnreadCount(unread.unread_count)
         } catch (cause) {
+            if (seq !== loadSeqRef.current) return
             setError(cause instanceof ApiError ? cause.message : t('sidebar.notifications.errors.load'))
         } finally {
-            setLoading(false)
-            setRefreshing(false)
+            if (seq === loadSeqRef.current) {
+                setLoading(false)
+                setRefreshing(false)
+            }
         }
     }, [t, unreadOnly])
+
+    const loadMore = async () => {
+        if (!hasMore || loadingMore) return
+        // Take a ticket without incrementing: appending a page must not invalidate
+        // an in-flight refresh, but a refresh started meanwhile must invalidate
+        // this append — otherwise its rows land in a list filtered differently.
+        const seq = loadSeqRef.current
+        setLoadingMore(true)
+        setError(null)
+        try {
+            const response = await apiService.listNotifications({
+                unreadOnly,
+                limit: NOTIFICATION_PAGE_SIZE,
+                offset: items.length,
+            })
+            if (seq !== loadSeqRef.current) return
+            setItems((current) => {
+                const seen = new Set(current.map((item) => item.notification_id))
+                return [...current, ...response.items.filter((item) => !seen.has(item.notification_id))]
+            })
+            setHasMore(response.items.length === response.limit)
+        } catch (cause) {
+            if (seq !== loadSeqRef.current) return
+            setError(cause instanceof ApiError ? cause.message : t('sidebar.notifications.errors.load'))
+        } finally {
+            setLoadingMore(false)
+        }
+    }
 
     useEffect(() => {
         void load()
@@ -217,6 +261,11 @@ export function NotificationsPage() {
                             </Card>
                         )
                     })}
+                    {hasMore && (
+                        <Button variant="secondary" disabled={loadingMore} onClick={() => void loadMore()}>
+                            {loadingMore ? t('sidebar.notifications.loadingMore') : t('sidebar.notifications.loadMore')}
+                        </Button>
+                    )}
                 </div>
             )}
         </div>

@@ -181,7 +181,7 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
     expect(socketInstances).toHaveLength(0)
   })
 
-  it('passes canonical chat content and request id to the socket', () => {
+  it('passes stored chat content and request id to the socket', () => {
     const { result } = renderHook(() => useAdventureChatSocket(7, {}))
 
     result.current.sendChat('Look around', 'request-7')

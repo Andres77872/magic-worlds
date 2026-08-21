@@ -16,21 +16,12 @@ import { buildGalleryModeHash } from '@/features/gallery/galleryLinks'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { isGroupChatsFeatureEnabled } from '@/shared/featureFlags'
 import { chatDisplayTitle } from '@/utils/chatTitle'
+import { searchableText } from '@/features/landing/components/resumeModel'
 
 interface ActionNotice {
     tone: 'success' | 'error'
     title: string
     message?: string
-}
-
-function searchableText(session: ResumeSession): string {
-    return [
-        session.title,
-        session.context,
-        session.playingAs,
-        session.snippet,
-        session.meta,
-    ].filter(Boolean).join(' ').toLowerCase()
 }
 
 function chatTitle(chat: CharacterChatSession | null, t: TFunction): string {
@@ -46,6 +37,7 @@ export function ChatroomPage() {
         resumeCharacterChat,
         deleteCharacterChat,
         loadData,
+        loadingState,
     } = useData()
     const [query, setQuery] = useState('')
     const [pendingDelete, setPendingDelete] = useState<CharacterChatSession | null>(null)
@@ -130,7 +122,7 @@ export function ChatroomPage() {
         </Button>
     ) : (
         <Button
-            variant="arcane"
+            variant="primary"
             size="sm"
             iconLeft={<Icon icon={Users} size={15} />}
             onClick={() => setPage('gallery-characters')}
@@ -212,6 +204,14 @@ export function ChatroomPage() {
                         />
                     ))}
                 </div>
+            ) : loadingState.error && !hasQuery ? (
+                // An empty list during a load failure is a misleading "false empty" —
+                // show an error with a retry instead of "no chats yet".
+                <EmptyState
+                    icon={<Icon icon={MessageCircle} size={44} />}
+                    message={t('common.loadError')}
+                    button={{ label: t('common.tryAgain'), onClick: () => void loadData() }}
+                />
             ) : (
                 <EmptyState
                     icon={<Icon icon={MessageCircle} size={44} />}

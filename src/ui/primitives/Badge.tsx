@@ -5,7 +5,7 @@
 import type { HTMLAttributes, ReactNode } from 'react'
 import { cx } from './cx'
 
-export type BadgeTone = 'ember' | 'arcane' | 'live' | 'danger' | 'nsfw' | 'neutral' | 'glass'
+export type BadgeTone = 'ember' | 'arcane' | 'live' | 'warning' | 'danger' | 'nsfw' | 'neutral' | 'glass'
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
     tone?: BadgeTone
@@ -16,10 +16,11 @@ const TONE: Record<BadgeTone, string> = {
     ember: 'bg-ember-500/15 text-ember-300',
     arcane: 'bg-arcane-500/15 text-arcane-300',
     live: 'bg-verdant-500/15 text-verdant-500',
+    warning: 'bg-amber-500/15 text-amber-500',
     danger: 'bg-blood-500/15 text-blood-300',
     nsfw: 'bg-blood-500/15 text-blood-300',
     neutral: 'bg-ink-600 text-parchment-200',
-    glass: 'bg-ink-900/60 text-arcane-300 backdrop-blur',
+    glass: 'bg-ink-900/60 text-parchment-100 backdrop-blur',
 }
 
 export function Badge({ tone = 'ember', icon, className, children, ...rest }: BadgeProps) {

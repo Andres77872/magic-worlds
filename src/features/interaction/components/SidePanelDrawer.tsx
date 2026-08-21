@@ -1,8 +1,9 @@
-import { useEffect, type ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { cx, IconButton, useIsDesktop } from '../../../ui/primitives'
+import { useDismissableLayer, useScrimDismiss } from '../../../ui/primitives/useDismissableLayer'
 
 interface SidePanelDrawerProps {
     side: 'left' | 'right'
@@ -29,20 +30,13 @@ export function SidePanelDrawer({ side, open, onClose, label, children }: SidePa
     const { t } = useTranslation()
     const isDesktop = useIsDesktop()
 
-    // Escape-to-close + body scroll-lock while the mobile drawer is open.
-    useEffect(() => {
-        if (isDesktop || !open) return
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose()
-        }
-        document.addEventListener('keydown', onKey)
-        const prevOverflow = document.body.style.overflow
-        document.body.style.overflow = 'hidden'
-        return () => {
-            document.removeEventListener('keydown', onKey)
-            document.body.style.overflow = prevOverflow
-        }
-    }, [open, isDesktop, onClose])
+    // Escape-to-close, scroll-lock, focus-trap and focus-restore while the mobile
+    // sheet is open — shared with Modal/Drawer so stacked layers behave (only the
+    // frontmost one answers Escape, and the scroll lock is ref-counted).
+    const panelRef = useRef<HTMLDivElement>(null)
+    const sheetOpen = !isDesktop && open
+    useDismissableLayer({ open: sheetOpen, onClose, panelRef, label: `side-panel-${side}` })
+    const scrim = useScrimDismiss(onClose)
 
     if (isDesktop) {
         return (
@@ -72,15 +66,19 @@ export function SidePanelDrawer({ side, open, onClose, label, children }: SidePa
                     'absolute inset-0 bg-ink-900/60 backdrop-blur-sm transition-opacity duration-200',
                     open ? 'opacity-100' : 'opacity-0',
                 )}
-                onClick={onClose}
+                {...scrim}
                 aria-hidden
             />
             <div
+                ref={panelRef}
                 role="dialog"
-                aria-modal="true"
+                aria-modal={open || undefined}
                 aria-label={label}
+                aria-hidden={!open || undefined}
+                inert={!open}
+                tabIndex={-1}
                 className={cx(
-                    'relative flex h-full w-[320px] max-w-[85%] flex-col bg-ink-900 shadow-xl transition-transform duration-200 ease-out',
+                    'relative flex h-full w-[320px] max-w-[85%] flex-col bg-ink-900 shadow-xl outline-none transition-transform duration-200 ease-out',
                     side === 'left' ? 'border-r border-parchment-50/[.08]' : 'border-l border-parchment-50/[.08]',
                     open ? 'translate-x-0' : closed,
                 )}

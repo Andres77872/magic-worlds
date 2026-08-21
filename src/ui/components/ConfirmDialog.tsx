@@ -14,7 +14,7 @@ interface ConfirmDialogProps {
     icon?: React.ReactNode
     confirmLabel?: string
     cancelLabel?: string
-    variant?: 'primary' | 'danger' | 'warning'
+    variant?: 'primary' | 'danger'
     isProcessing?: boolean
     processingLabel?: string
 }
@@ -33,7 +33,6 @@ export function ConfirmDialog({
     processingLabel,
 }: ConfirmDialogProps) {
     const { t } = useTranslation()
-    const confirmKind = variant === 'danger' ? 'danger' : 'primary'
     const resolvedConfirmLabel = confirmLabel ?? t('common.confirm')
     const resolvedCancelLabel = cancelLabel ?? t('common.cancel')
     const resolvedProcessingLabel = processingLabel ?? t('common.processing')
@@ -53,7 +52,7 @@ export function ConfirmDialog({
                     <Button variant="secondary" onClick={requestCancel} disabled={isProcessing}>
                         {resolvedCancelLabel}
                     </Button>
-                    <Button variant={confirmKind} onClick={onConfirm} disabled={isProcessing}>
+                    <Button variant={variant} onClick={onConfirm} disabled={isProcessing}>
                         {isProcessing ? resolvedProcessingLabel : resolvedConfirmLabel}
                     </Button>
                 </>

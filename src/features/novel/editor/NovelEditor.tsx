@@ -105,6 +105,10 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
     const [findOpen, setFindOpen] = useState(false)
     const [phase, setPhaseState] = useState<InlineAIPhase>('idle')
     const phaseRef = useRef<InlineAIPhase>('idle')
+    // Last markdown handed to onBodyChange — lets the idle transition re-emit
+    // exactly once when gated edits (typing while a request was pending)
+    // changed the doc without ever reaching the draft.
+    const lastEmittedRef = useRef<string | null>(null)
 
     // --- menu bridges (extensions are memoized once; everything dynamic goes through refs) ---
     const [slashMenu, setSlashMenu] = useState<MenuState<SlashItem> | null>(null)
@@ -150,6 +154,23 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                     phaseRef.current = nextPhase
                     setPhaseState(nextPhase)
                     propsRef.current.onSuggestionPhaseChange?.(nextPhase)
+                    // Body emission is gated while a request/suggestion is alive,
+                    // so edits made during those phases (typing while the muse is
+                    // conjuring, then cancelling) never reached the draft. When
+                    // the lifecycle returns to idle without a doc change of its
+                    // own (cancel has none), re-emit if the doc drifted. Deferred:
+                    // phase flips inside command execution, before dispatch lands.
+                    if (nextPhase === 'idle') {
+                        window.queueMicrotask(() => {
+                            const target = editorRef.current
+                            if (!target || target.isDestroyed || phaseRef.current !== 'idle') return
+                            const markdown = target.getMarkdown()
+                            if (lastEmittedRef.current !== null && markdown !== lastEmittedRef.current) {
+                                lastEmittedRef.current = markdown
+                                propsRef.current.onBodyChange(markdown)
+                            }
+                        })
+                    }
                 },
                 onImplicitAccept: () => aiHandlersRef.current.implicitAccept(),
                 onEscape: (escapePhase) => aiHandlersRef.current.escape(escapePhase),
@@ -207,12 +228,23 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                 class: 'story-editor-prose',
             },
         },
+        onCreate: ({ editor: created }) => {
+            // Baseline for the idle re-emit comparison: getMarkdown() may
+            // normalize initialBody, and that normalization alone must never
+            // mark the draft dirty.
+            lastEmittedRef.current = created.getMarkdown()
+        },
         onUpdate: ({ editor: next }) => {
             const currentPhase = phaseRef.current
             // Suggestion text must never reach the draft; prompting queries are
             // transient and self-heal when the range is deleted.
             if (currentPhase === 'pending' || currentPhase === 'revealing' || currentPhase === 'reviewing') return
-            propsRef.current.onBodyChange(next.getMarkdown())
+            const markdown = next.getMarkdown()
+            // Doc changes that don't change the serialized body (mark removal
+            // on accept/reject) must not dirty the draft for a no-op save.
+            if (markdown === lastEmittedRef.current) return
+            lastEmittedRef.current = markdown
+            propsRef.current.onBodyChange(markdown)
         },
     })
     const editorRef = useRef(editor)
@@ -429,62 +461,68 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
 
     return (
         <>
-            <div
-                ref={containerRef}
-                className={cx(
-                    'story-editor-shell relative flex min-h-[480px] flex-1 flex-col overflow-auto rounded-md border border-parchment-50/10 bg-ink-900/45 transition focus-within:border-ember-500/60',
-                    armed && 'is-armed',
-                )}
-                data-focus={props.focusMode ? 'true' : undefined}
-                data-typewriter={props.typewriter ? 'true' : undefined}
-                data-testid="novel-editor"
-                onKeyDown={(event) => {
-                    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
-                        event.preventDefault()
-                        setFindOpen(true)
-                    }
-                }}
-            >
-                {editor && (
-                    <EditorBubbleMenu
-                        editor={editor}
-                        phase={phase}
-                        onSelectionCommand={handleSelectionCommand}
-                        onAddToCodex={props.onAddToCodex ? handleAddToCodex : undefined}
-                    />
-                )}
-                {editor && findOpen && (
-                    <FindReplacePanel
-                        editor={editor}
-                        disabled={phase !== 'idle'}
-                        onClose={() => {
-                            setFindOpen(false)
-                            editorRef.current?.commands.focus()
-                        }}
-                    />
-                )}
-                <EditorContent editor={editor} className="flex min-h-0 flex-1 flex-col" />
-                {slashMenu && (
-                    <SlashCommandMenu
-                        items={slashMenu.items}
-                        selectedIndex={slashIndex}
-                        anchor={slashMenu.anchor}
-                        onHover={setSlashIndex}
-                        onSelect={(item) => slashMenu.command(item)}
-                    />
-                )}
-                {mentionMenu && (
-                    <MentionMenu
-                        items={mentionMenu.items}
-                        selectedIndex={mentionIndex}
-                        anchor={mentionMenu.anchor}
-                        onHover={setMentionIndex}
-                        onSelect={(item) => mentionMenu.command(item)}
-                    />
-                )}
-                {phase === 'reviewing' && pillAnchor && (
-                    <AiSuggestionPill anchor={pillAnchor} onAccept={() => void inlineAI.accept()} onReject={() => void inlineAI.reject()} />
-                )}
+            {/* The shell is the editor's scrollport, so anything `absolute` inside it
+                is placed against the scrolled content, not the visible area. The Find
+                panel therefore lives in this non-scrolling wrapper and stays pinned
+                while findNext() scrolls matches into view. */}
+            <div className="relative flex min-h-0 flex-1 flex-col">
+                <div
+                    ref={containerRef}
+                    className={cx(
+                        'story-editor-shell relative flex min-h-[480px] flex-1 flex-col overflow-auto rounded-md border border-parchment-50/10 bg-ink-900/45 transition focus-within:border-ember-500/60',
+                        armed && 'is-armed',
+                    )}
+                    data-focus={props.focusMode ? 'true' : undefined}
+                    data-typewriter={props.typewriter ? 'true' : undefined}
+                    data-testid="novel-editor"
+                    onKeyDown={(event) => {
+                        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+                            event.preventDefault()
+                            setFindOpen(true)
+                        }
+                    }}
+                >
+                    {editor && (
+                        <EditorBubbleMenu
+                            editor={editor}
+                            phase={phase}
+                            onSelectionCommand={handleSelectionCommand}
+                            onAddToCodex={props.onAddToCodex ? handleAddToCodex : undefined}
+                        />
+                    )}
+                    <EditorContent editor={editor} className="flex min-h-0 flex-1 flex-col" />
+                    {slashMenu && (
+                        <SlashCommandMenu
+                            items={slashMenu.items}
+                            selectedIndex={slashIndex}
+                            anchor={slashMenu.anchor}
+                            onHover={setSlashIndex}
+                            onSelect={(item) => slashMenu.command(item)}
+                        />
+                    )}
+                    {mentionMenu && (
+                        <MentionMenu
+                            items={mentionMenu.items}
+                            selectedIndex={mentionIndex}
+                            anchor={mentionMenu.anchor}
+                            onHover={setMentionIndex}
+                            onSelect={(item) => mentionMenu.command(item)}
+                        />
+                    )}
+                    {phase === 'reviewing' && pillAnchor && (
+                        <AiSuggestionPill anchor={pillAnchor} onAccept={() => void inlineAI.accept()} onReject={() => void inlineAI.reject()} />
+                    )}
+                </div>
+            {editor && findOpen && (
+                <FindReplacePanel
+                    editor={editor}
+                    disabled={phase !== 'idle'}
+                    onClose={() => {
+                        setFindOpen(false)
+                        editorRef.current?.commands.focus()
+                    }}
+                />
+            )}
             </div>
             <Toast
                 open={Boolean(inlineAI.error)}

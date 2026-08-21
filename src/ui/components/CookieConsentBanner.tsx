@@ -8,12 +8,13 @@
  * reserved for the future and controls nothing today, so declining never
  * breaks a current feature.
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, Cookie } from 'lucide-react'
 import { useNavigation } from '@/app/hooks/useNavigation'
 import { useCookieConsent } from '@/app/hooks/useCookieConsent'
 import { Button, Icon, Modal, SwitchRow } from '../primitives'
+import { setBottomChromeHeight } from '../primitives/bottomChrome'
 
 export function CookieConsentBanner() {
     const {
@@ -53,10 +54,35 @@ interface CookieBannerProps {
 function CookieBanner({ onAcceptAll, onAcceptEssential, onCustomize }: CookieBannerProps) {
     const { t } = useTranslation()
     const { setPage } = useNavigation()
+    const bannerRef = useRef<HTMLDivElement>(null)
+
+    // The banner owns the whole bottom band; publish its height so the playlist
+    // dock rides above it. Below `sm` the dock is a full-width bar at the same
+    // offset, and being the higher layer it used to cover the consent buttons
+    // outright — leaving the prompt impossible to dismiss on a phone.
+    useEffect(() => {
+        const element = bannerRef.current
+        if (!element) return undefined
+        const publish = () => setBottomChromeHeight('banner', element.getBoundingClientRect().height)
+        publish()
+        const observer = new ResizeObserver(publish)
+        observer.observe(element)
+        return () => {
+            observer.disconnect()
+            setBottomChromeHeight('banner', null)
+        }
+    }, [])
+
     return (
-        // z-[40]: above page content + the playlist dock (z-[45] is bottom-right
-        // only), below modals (z-50) so a preferences dialog covers it cleanly.
-        <div role="region" aria-label={t('cookieConsent.title')} className="fixed inset-x-0 bottom-0 z-[40] px-4 pb-4 sm:px-6 sm:pb-6">
+        // z-[40]: above page content, below modals (z-50) so a preferences dialog
+        // covers it cleanly. The playlist dock is a body portal and so always
+        // paints above this; it clears the banner by height instead (see above).
+        <div
+            ref={bannerRef}
+            role="region"
+            aria-label={t('cookieConsent.title')}
+            className="fixed inset-x-0 bottom-0 z-[40] px-4 pb-4 sm:px-6 sm:pb-6"
+        >
             <div className="mx-auto flex max-w-[940px] flex-col gap-4 rounded-2xl border border-parchment-50/10 bg-ink-700/95 p-5 shadow-lg backdrop-blur-sm sm:flex-row sm:items-center sm:gap-5">
                 <span
                     aria-hidden

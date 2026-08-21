@@ -48,7 +48,7 @@ function PortraitActions({
 }) {
     const { t } = useTranslation()
     return (
-        <div className="absolute inset-0 flex items-start justify-end gap-1 rounded-xl bg-gradient-to-b from-ink-900/60 via-transparent to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        <div className="absolute inset-0 flex items-start justify-end gap-1 rounded-xl bg-gradient-to-b from-ink-900/60 via-transparent to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100">
             <IconButton label={t('creation.common.media.viewImage')} size="sm" onClick={onView} disabled={disabled}>
                 <Eye size={16} strokeWidth={1.75} />
             </IconButton>
@@ -290,6 +290,15 @@ export function MediaStudioSection({
     const [themeJobId, setThemeJobId] = useState<string | null>(null)
     const themeAbortRef = useRef<AbortController | null>(null)
 
+    // Stop the job pollers on unmount. Flipping `mountedRef` only silences the
+    // state writes — it does not end waitForImageJob's 2.5s request loop, so
+    // leaving a creator mid-generation kept polling for up to three minutes.
+    // Declared after both refs so the compiler still sees them as mutable.
+    useEffect(() => () => {
+        imgAbortRef.current?.abort()
+        themeAbortRef.current?.abort()
+    }, [])
+
     // Surface the latest completed theme for an already-saved card.
     useEffect(() => {
         if (!themeTargetId) return
@@ -474,7 +483,7 @@ export function MediaStudioSection({
                     {imageControls}
                     <div className="flex items-center gap-2">
                         <Icon icon={ImagePlus} size={15} className="text-arcane-300" />
-                        <span className="font-ui text-[11px] font-semibold uppercase tracking-[0.12em] text-parchment-300">{imageLabel}</span>
+                        <Eyebrow tone="muted">{imageLabel}</Eyebrow>
                     </div>
                     {resolvedImage && (
                         <div className="group relative">
@@ -524,7 +533,7 @@ export function MediaStudioSection({
                                 <button
                                     type="button"
                                     onClick={() => openHistory('images')}
-                                    className="inline-flex items-center gap-1 text-[11px] text-arcane-300 underline-offset-2 transition-colors hover:text-arcane-200 hover:underline"
+                                    className="inline-flex items-center gap-1 text-[11px] text-arcane-300 underline-offset-2 transition-colors hover:text-arcane-300 hover:underline"
                                 >
                                     <Icon icon={History} size={12} /> {t('creation.common.media.browseGallery')}
                                 </button>
@@ -539,7 +548,7 @@ export function MediaStudioSection({
                 <div className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-2">
                         <Icon icon={Music2} size={15} className="text-arcane-300" />
-                        <span className="font-ui text-[11px] font-semibold uppercase tracking-[0.12em] text-parchment-300">{t('creation.common.media.musicTheme')}</span>
+                        <Eyebrow tone="muted">{t('creation.common.media.musicTheme')}</Eyebrow>
                     </div>
                     {resolvedTheme && (
                         <AudioWavePlayer
@@ -593,7 +602,7 @@ export function MediaStudioSection({
                     <button
                         type="button"
                         onClick={() => openHistory('themes')}
-                        className="inline-flex items-center justify-center gap-1 self-center text-[11px] text-arcane-300 underline-offset-2 transition-colors hover:text-arcane-200 hover:underline"
+                        className="inline-flex items-center justify-center gap-1 self-center text-[11px] text-arcane-300 underline-offset-2 transition-colors hover:text-arcane-300 hover:underline"
                     >
                         <Icon icon={History} size={12} /> {t('creation.common.media.browseThemes')}
                     </button>

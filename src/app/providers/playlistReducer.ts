@@ -24,6 +24,7 @@ export interface PlaylistQueueState {
 }
 
 export type PlaylistAction =
+    | { type: 'RESTORE'; state: PlaylistQueueState }
     | { type: 'PLAY_NOW'; track: PlaylistTrack }
     | { type: 'ENQUEUE'; track: PlaylistTrack }
     | { type: 'PLAY_AT'; index: number }
@@ -69,6 +70,8 @@ function replaceTrack(queue: PlaylistTrack[], index: number, track: PlaylistTrac
 
 export function playlistReducer(state: PlaylistQueueState, action: PlaylistAction): PlaylistQueueState {
     switch (action.type) {
+        case 'RESTORE':
+            return action.state
         case 'PLAY_NOW': {
             // The same-track toggle short-circuits in the provider; here the
             // track is either queued elsewhere (jump) or new (insert after the

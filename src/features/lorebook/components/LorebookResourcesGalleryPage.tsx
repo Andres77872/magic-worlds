@@ -6,7 +6,7 @@ import { apiService, type LorebookResourceMetadataSaveOptions } from '@/infrastr
 import type { LorebookResource } from '@/shared'
 import { buildResourceHash } from '@/features/gallery/galleryLinks'
 import { ConfirmDialog } from '@/ui/components'
-import { Button, Callout, Icon, IconButton, PageHeader, controlClass } from '@/ui/primitives'
+import { Button, Callout, Icon, IconButton, IconTile, PageHeader, controlClass } from '@/ui/primitives'
 import {
     LOREBOOK_RESOURCE_ACCEPT,
     LOREBOOK_RESOURCE_MAX_CHARS,
@@ -203,7 +203,7 @@ export function LorebookResourcesGalleryPage() {
                     <PageHeader
                         eyebrow={t('lorebookResourcesGallery.header.eyebrow')}
                         title={t('lorebookResourcesGallery.header.title')}
-                        icon={<span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-arcane-500/15 text-arcane-300"><Icon icon={FileText} size={22} /></span>}
+                        icon={<IconTile icon={FileText} tone="arcane" size="md" />}
                         size="lg"
                         subtitle={t('lorebookResourcesGallery.header.subtitle')}
                         actions={
@@ -250,7 +250,7 @@ export function LorebookResourcesGalleryPage() {
                                 <Button variant="secondary" iconLeft={<Icon icon={Link2} size={16} />} onClick={() => createManual('md')} disabled={saving}>
                                     {t('lorebookResourcesGallery.actions.fromUrl')}
                                 </Button>
-                                <Button variant="arcane" iconLeft={<Icon icon={Upload} size={16} />} onClick={() => requireAuth(() => fileInputRef.current?.click())} disabled={saving}>
+                                <Button variant="primary" iconLeft={<Icon icon={Upload} size={16} />} onClick={() => requireAuth(() => fileInputRef.current?.click())} disabled={saving}>
                                     {saving ? t('common.saving') : t('lorebookResourcesGallery.actions.upload')}
                                 </Button>
                             </div>

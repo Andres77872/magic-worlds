@@ -36,10 +36,14 @@ export function LoreTriggerMark({ match, children, className }: LoreTriggerMarkP
     }
 
     return (
+        // A plain <span>: naming is prohibited on the implicit `generic` role, so an
+        // aria-label here exposed nothing while reading as "this is labelled". The
+        // hint lives on `title` for pointer users; keyboard access to the entry is
+        // the SessionLorebookPanel list, not the inline word — narrative prose
+        // should not turn every matched keyword into a tab stop.
         <span
             className={cx('lore-trigger', className)}
             title={t('loreTrigger.openHint', { name: match.lorebookName })}
-            aria-label={t('loreTrigger.ariaLabel', { keyword: match.keyword, name: match.lorebookName })}
             data-lore-entry={match.entry.id}
             onClick={handleClick}
         >

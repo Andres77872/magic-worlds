@@ -150,6 +150,7 @@ beforeEach(() => {
     vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
     vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
     vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
+    vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
 })
 
 afterEach(() => {
@@ -176,6 +177,22 @@ describe('LandingPage (returning dashboard)', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Open chatroom' }))
         expect(setPage).toHaveBeenCalledWith('chatroom')
+    })
+
+    it('hides the adventure rail and begin zone when the adventures feature is off', () => {
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        render(<LandingPage />)
+
+        expect(screen.queryByTestId('active-adventures')).toBeNull()
+        expect(screen.queryByTestId('begin-zone')).toBeNull()
+        // The carousel's "Begin something new" CTA scrolls to the begin zone,
+        // so it must disappear along with its target.
+        expect(screen.getByTestId('hero-session-gallery')).toBeTruthy()
+        expect(screen.queryByRole('button', { name: 'Begin something new' })).toBeNull()
+        // The rest of the dashboard still renders.
+        expect(screen.getByTestId('create-band')).toBeTruthy()
+        expect(screen.getByTestId('active-chats')).toBeTruthy()
+        expect(screen.getByTestId('active-novels')).toBeTruthy()
     })
 
     it('uses the begin-mode hero when the user has no resumable threads', () => {

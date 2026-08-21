@@ -12,14 +12,13 @@
  * `pause` event syncs `isPlaying` back to the dock.
  */
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
-import { getAudioBlob, getAudioPeaks } from '@/ui/components/audio/audioData'
+import { useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
+import { clearAudioDataCaches, getAudioBlob, getAudioPeaks } from '@/ui/components/audio/audioData'
 import { claimAudioFocus, releaseAudioFocus } from '@/ui/components/audio/audioFocus'
 import {
     AudioPlaylistContext,
     type AudioPlaylistContextValue,
-    type PlaylistTrack,
-} from './audioPlaylistContext'
+    type PlaylistTrack, type PlaylistErrorCode } from './audioPlaylistContext'
 import {
     PLAYLIST_STORAGE_KEY,
     playlistReducer,
@@ -27,6 +26,7 @@ import {
     serializePlaylist,
     type PlaylistQueueState,
 } from './playlistReducer'
+import { AuthContext } from './AuthProvider'
 
 interface AudioPlaylistProviderProps {
     children: ReactNode
@@ -70,12 +70,23 @@ function serializeAudioPrefs(prefs: PlaylistAudioPrefs): string {
 }
 
 export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) {
+    // Storybook mounts this provider in isolation, so the auth context is
+    // intentionally optional here.
+    const auth = useContext(AuthContext)
+    // Key on `userHash`, NOT `accountKey`: accountKey carries an in-memory sequence
+    // that restarts at 0 each page load and increments on every sign-in, so a queue
+    // saved after logging in landed on `...:1` and the next reload looked for
+    // `...:0` and restored nothing. `userHash` is the same slot across reloads.
+    // accountKey/authEpoch still drive the reset-and-restore effect below.
+    const accountStorageKey = auth?.userHash
+        ? `${PLAYLIST_STORAGE_KEY}:user:${auth.userHash}`
+        : PLAYLIST_STORAGE_KEY
     const [state, dispatch] = useReducer(playlistReducer, null, () =>
-        restorePlaylistState(localStorage.getItem(PLAYLIST_STORAGE_KEY)),
+        restorePlaylistState(localStorage.getItem(accountStorageKey)),
     )
     const [isPlaying, setIsPlaying] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
-    const [error, setError] = useState<string | null>(null)
+    const [error, setError] = useState<PlaylistErrorCode | null>(null)
     const [currentTime, setCurrentTime] = useState(0)
     const [metaDuration, setMetaDuration] = useState<number | null>(null)
     const [peaks, setPeaks] = useState<number[] | null>(null)
@@ -98,6 +109,9 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
     const lastAudibleVolumeRef = useRef(audioPrefs.volume > 0 ? audioPrefs.volume : DEFAULT_RESTORED_VOLUME)
 
     const stateRef = useRef(state)
+    /** The owner the switch effect below has adopted. The persist effect only
+     *  writes once its own view of the owner matches this. */
+    const adoptedOwnerRef = useRef({ key: accountStorageKey, phase: auth?.sessionPhase })
     useEffect(() => {
         stateRef.current = state
     }, [state])
@@ -149,7 +163,7 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
         el.addEventListener('error', () => {
             setIsPlaying(false)
             setLoading(false)
-            setError('Playback failed. Try again.')
+            setError('playbackFailed')
             // Drop the loaded marker so the next toggle retries from scratch.
             loadedTrackIdRef.current = null
             failuresRef.current += 1
@@ -244,9 +258,43 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
 
     // Persist the queue and position — never play state or progress.
     useEffect(() => {
-        if (state.queue.length === 0) localStorage.removeItem(PLAYLIST_STORAGE_KEY)
-        else localStorage.setItem(PLAYLIST_STORAGE_KEY, serializePlaylist(state))
-    }, [state])
+        // Both the key and the phase change a render before `state` does, and this
+        // effect is declared before the switch effect below — so on any ownership
+        // edge it would run first and stamp the OUTGOING queue onto the INCOMING
+        // owner's slot (removing it outright when the previous session was empty),
+        // leaving the restore that follows nothing to find. The switch effect owns
+        // the first write for a new owner; wait until it has adopted this one.
+        const adopted = adoptedOwnerRef.current
+        if (adopted.key !== accountStorageKey || adopted.phase !== auth?.sessionPhase) return
+        // An expired session clears the queue in memory (playback stops, the dock
+        // hides) but must NOT mirror that clear to storage — `expire()` keeps the
+        // user hash precisely because the same person is expected back.
+        if (auth?.sessionPhase === 'expired') return
+        if (state.queue.length === 0) localStorage.removeItem(accountStorageKey)
+        else localStorage.setItem(accountStorageKey, serializePlaylist(state))
+    }, [accountStorageKey, auth?.sessionPhase, state])
+
+    useEffect(() => {
+        if (!auth) return
+        const previousKey = adoptedOwnerRef.current.key
+        adoptedOwnerRef.current = { key: accountStorageKey, phase: auth.sessionPhase }
+        resetElement()
+        clearAudioDataCaches()
+
+        if (auth.sessionPhase === 'authenticated') {
+            dispatch({ type: 'RESTORE', state: restorePlaylistState(localStorage.getItem(accountStorageKey)) })
+        } else if (auth.sessionPhase === 'expired') {
+            // Not an ownership change: `expire()` keeps userHash precisely so the
+            // same person can reauthenticate into their session. Stop playback and
+            // clear the in-memory queue, but keep the stored one for their return.
+            dispatch({ type: 'CLEAR' })
+        } else {
+            // logging_out / signed_out — ownership really is gone, so is the queue.
+            localStorage.removeItem(previousKey)
+            localStorage.removeItem(accountStorageKey)
+            dispatch({ type: 'CLEAR' })
+        }
+    }, [accountStorageKey, auth?.authEpoch, auth?.sessionPhase, resetElement])
 
     useEffect(() => {
         const el = audioRef.current

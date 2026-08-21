@@ -25,6 +25,7 @@ import type {
 } from '../../shared'
 import { apiService, ApiError } from '../../infrastructure'
 import {
+    isAdventuresFeatureEnabled,
     isCallsFeatureEnabled,
     isGroupChatsFeatureEnabled,
     isLorebooksFeatureEnabled,
@@ -149,7 +150,7 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | undefined>(undefined)
 
-/** Resolve the canonical cloned-card snapshot returned with a session. */
+/** Resolve the stored cloned-card snapshot returned with a session. */
 function resolveAdventureSnapshot(rawSnapshot: unknown): AdventureSnapshot | undefined {
     return asSnapshot(rawSnapshot) ?? undefined
 }
@@ -180,7 +181,7 @@ function buildInProgressAdventure(session: RawAdventureSession, template: Advent
         image_url: snapshot?.template?.image_url ?? template?.image_url,
         theme_song_url: snapshot?.template?.theme_song_url ?? template?.theme_song_url,
         snapshot,
-        // Conversation rows are loaded lazily from the canonical `/messages` API.
+        // Conversation rows are loaded lazily from the stored `/messages` API.
         turns: [],
         status: 'in-progress' as const,
         createdAt: session.adventure_created_at,
@@ -196,6 +197,47 @@ function disabledFeatureError(feature: string): Error {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+const LIBRARY_PAGE_SIZE = 100
+
+function libraryItemKey(item: unknown, index: number): string {
+    if (isRecord(item)) {
+        for (const field of ['id', 'card_id', 'character_id', 'world_id', 'item_id', 'adventure_template_id', 'lorebook_id', 'story_id']) {
+            const value = item[field]
+            if (typeof value === 'string' || typeof value === 'number') return `${field}:${value}`
+        }
+    }
+    try {
+        return `value:${JSON.stringify(item)}`
+    } catch {
+        return `index:${index}`
+    }
+}
+
+/**
+ * Consume an offset-based library defensively. A later-page failure rejects the
+ * whole load so callers retain their previous resource state.
+ */
+async function loadAllLibraryPages(fetchPage: (skip: number, limit: number) => Promise<unknown>): Promise<unknown[]> {
+    const items: unknown[] = []
+    const seen = new Set<string>()
+    let skip = 0
+    while (true) {
+        const page = asArray(await fetchPage(skip, LIBRARY_PAGE_SIZE))
+        if (page.length === 0) break
+        let added = 0
+        for (const [index, item] of page.entries()) {
+            const key = libraryItemKey(item, skip + index)
+            if (seen.has(key)) continue
+            seen.add(key)
+            items.push(item)
+            added += 1
+        }
+        if (page.length < LIBRARY_PAGE_SIZE || added === 0) break
+        skip += page.length
+    }
+    return items
 }
 
 function normalizeCharacterChatCodexCards(raw: unknown): CharacterChatCodexCard[] {
@@ -312,10 +354,29 @@ export function DataProvider({ children }: DataProviderProps) {
     // silently so the mounted page (and its local editor state) survives.
     const hasLoadedOnceRef = useRef(false)
     // True between an `auth:expired` event and the next authenticated load.
-    const authExpiredRef = useRef(false)
-
     // Auth state for graceful degradation
-    const { isAuthenticated, openLoginModal } = useAuth()
+    const auth = useAuth()
+    const { isAuthenticated, openLoginModal } = auth
+    const authEpoch = auth.authEpoch ?? Number(isAuthenticated)
+    const accountKey = auth.accountKey ?? (isAuthenticated ? 'legacy-authenticated' : 'legacy-signed-out')
+    const sessionPhase = auth.sessionPhase ?? (isAuthenticated ? 'authenticated' : 'signed_out')
+    const authOwnerRef = useRef({ authEpoch, accountKey, sessionPhase })
+    authOwnerRef.current = { authEpoch, accountKey, sessionPhase }
+    const activeStoryOwnerRef = useRef<string | null>(null)
+    const authExpiredEventRef = useRef(false)
+    const expiredAccountKeyRef = useRef<string | null>(null)
+
+    const setOwnedActiveStory: typeof setActiveStory = (next) => {
+        setActiveStory((current) => {
+            const resolved = typeof next === 'function' ? next(current) : next
+            activeStoryOwnerRef.current = resolved && isAuthenticated ? accountKey : null
+            return resolved
+        })
+    }
+
+    useEffect(() => {
+        if (activeStory && isAuthenticated) activeStoryOwnerRef.current = accountKey
+    }, [accountKey, activeStory, isAuthenticated])
 
     // Character actions
     const editCharacter = (character: Character) => {
@@ -403,6 +464,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
     
     const startTemplate = async (template: Adventure, persona: Character): Promise<Adventure> => {
+        if (!isAdventuresFeatureEnabled()) throw disabledFeatureError('Adventures')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to start adventures')
@@ -439,6 +501,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
     
     const deleteTemplate = async (index: number) => {
+        if (!isAdventuresFeatureEnabled()) throw disabledFeatureError('Adventures')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to delete adventure templates')
@@ -456,6 +519,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const deleteTemplateById = async (id: string) => {
+        if (!isAdventuresFeatureEnabled()) throw disabledFeatureError('Adventures')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to delete adventure templates')
@@ -476,6 +540,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const saveInProgressSnapshot = async (adventureId: string, snapshot: AdventureSnapshot) => {
+        if (!isAdventuresFeatureEnabled()) throw disabledFeatureError('Adventures')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to edit adventure cards')
@@ -522,9 +587,28 @@ export function DataProvider({ children }: DataProviderProps) {
         }
     }
 
+    // A story refetch that was issued before a chapter save completed returns a
+    // pre-save body; applying it verbatim would roll the chapter back and a
+    // later chapter switch would re-seed the editor from stale text. Chapter
+    // updatedAt is server-stamped on every save, so keep whichever copy is
+    // fresher (ref lists and generation history always come from the refetch).
+    const mergeFreshChapters = (incoming: Story, current: Story | null | undefined): Story => {
+        if (!current || current.id !== incoming.id || !current.chapters?.length) return incoming
+        const localById = new Map(current.chapters.map((chapter) => [chapter.id, chapter]))
+        const chapters = (incoming.chapters ?? []).map((chapter) => {
+            const local = localById.get(chapter.id)
+            if (!local?.updatedAt || !chapter.updatedAt || local.updatedAt <= chapter.updatedAt) return chapter
+            return { ...local, activeCardRefs: chapter.activeCardRefs, generationHistory: chapter.generationHistory }
+        })
+        return { ...incoming, chapters }
+    }
+
     const upsertStory = (story: Story) => {
-        setStories((prev) => [story, ...prev.filter((item) => item.id !== story.id)])
-        setActiveStory((prev) => (prev && prev.id === story.id ? story : prev))
+        setStories((prev) => {
+            const merged = mergeFreshChapters(story, prev.find((item) => item.id === story.id))
+            return [merged, ...prev.filter((item) => item.id !== story.id)]
+        })
+        setActiveStory((prev) => (prev && prev.id === story.id ? mergeFreshChapters(story, prev) : prev))
     }
 
     const createStory = async (story: StoryCreateRequest): Promise<Story> => {
@@ -857,6 +941,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const deleteInProgress = async (index: number) => {
+        if (!isAdventuresFeatureEnabled()) throw disabledFeatureError('Adventures')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to delete adventures')
@@ -879,6 +964,9 @@ export function DataProvider({ children }: DataProviderProps) {
     // media persisted by the creators) without the unmount/flicker/loop.
     const loadData = async (opts?: { silent?: boolean }) => {
         const silent = opts?.silent ?? false
+        const loadOwner = { authEpoch, accountKey }
+        const ownerIsCurrent = () => authOwnerRef.current.authEpoch === loadOwner.authEpoch
+            && authOwnerRef.current.accountKey === loadOwner.accountKey
         try {
             // If not authenticated, skip API calls entirely — render empty state gracefully
             if (!isAuthenticated) {
@@ -892,11 +980,25 @@ export function DataProvider({ children }: DataProviderProps) {
                 // On session expiry (not an explicit logout) the login modal lets the
                 // user re-authenticate in place — keep the open story mounted so a
                 // dirty chapter draft survives and its autosave resumes after re-auth.
-                if (!authExpiredRef.current) {
+                const preserveOwnedStory = (sessionPhase === 'expired' || authExpiredEventRef.current)
+                    && activeStoryOwnerRef.current === (expiredAccountKeyRef.current ?? accountKey)
+                    && activeStory !== null
+                if (preserveOwnedStory) {
+                    setStories(activeStory ? [activeStory] : [])
+                } else {
                     setStories([])
                     setActiveStory(null)
+                    activeStoryOwnerRef.current = null
                 }
                 setCharacterChats([])
+                setActiveCharacterChat(null)
+                setActiveCharacterChatMode('text')
+                setEditingCharacter(null)
+                setEditingWorld(null)
+                setEditingItem(null)
+                setEditingTemplate(null)
+                setEditingInProgress(null)
+                setEditingLorebook(null)
                 if (!silent) setLoadingState({ isLoading: false })
                 hasLoadedOnceRef.current = true
                 return
@@ -911,15 +1013,22 @@ export function DataProvider({ children }: DataProviderProps) {
             // below — so e.g. freshly generated media (theme/portrait) stayed
             // invisible until a later all-success refresh.
             const [charsRes, worldsRes, itemsRes, templatesRes, sessionsRes, chatsRes, lorebooksRes, storiesRes] = await Promise.allSettled([
-                apiService.getCharacters(),
-                apiService.getWorlds(),
-                apiService.getItems(),
-                apiService.getAdventureTemplates(),
-                apiService.getAdventureSessions(),
+                loadAllLibraryPages((skip, limit) => apiService.getCharacters(skip, limit)),
+                loadAllLibraryPages((skip, limit) => apiService.getWorlds(skip, limit)),
+                loadAllLibraryPages((skip, limit) => apiService.getItems(skip, limit)),
+                isAdventuresFeatureEnabled()
+                    ? loadAllLibraryPages((skip, limit) => apiService.getAdventureTemplates(skip, limit))
+                    : Promise.resolve([]),
+                isAdventuresFeatureEnabled() ? apiService.getAdventureSessions() : Promise.resolve([]),
                 apiService.getCharacterChats(),
-                isLorebooksFeatureEnabled() ? apiService.getLorebooks() : Promise.resolve([]),
-                isNovelsFeatureEnabled() ? apiService.getStories() : Promise.resolve([]),
+                isLorebooksFeatureEnabled()
+                    ? loadAllLibraryPages((skip, limit) => apiService.getLorebooks(skip, limit))
+                    : Promise.resolve([]),
+                isNovelsFeatureEnabled()
+                    ? loadAllLibraryPages((skip, limit) => apiService.getStories(skip, limit))
+                    : Promise.resolve([]),
             ])
+            if (!ownerIsCurrent()) return
 
             const loadedCharacters = charsRes.status === 'fulfilled' ? charsRes.value : []
             const loadedWorlds = worldsRes.status === 'fulfilled' ? worldsRes.value : []
@@ -959,7 +1068,7 @@ export function DataProvider({ children }: DataProviderProps) {
             const transformedLorebooks = normalizeLorebookList(loadedLorebooks)
 
             // Transform sessions to in-progress adventures. Cards come from the
-            // session's own canonical cloned snapshot (server-side clone).
+            // session's own stored cloned snapshot (server-side clone).
             const transformedInProgress = asArray(loadedSessions).map((session: any) => {
                 const template = transformedTemplates.find((t: { id: string }) => t.id === session.adventure_template)
                 const snapshot = resolveAdventureSnapshot(session.template_snapshot)
@@ -1002,8 +1111,10 @@ export function DataProvider({ children }: DataProviderProps) {
                 return { isLoading: false, error: nextError }
             })
             hasLoadedOnceRef.current = true
-            authExpiredRef.current = false
+            authExpiredEventRef.current = false
+            expiredAccountKeyRef.current = null
         } catch (error) {
+            if (!ownerIsCurrent()) return
             // A transient backend outage (5xx, e.g. auth service briefly down →
             // 503) is expected and recovers on its own — log it quietly. The UI
             // stays non-blocking and renders empty states regardless.
@@ -1019,6 +1130,15 @@ export function DataProvider({ children }: DataProviderProps) {
             }
         }
     }
+
+    useEffect(() => {
+        const markExpired = () => {
+            authExpiredEventRef.current = true
+            expiredAccountKeyRef.current = accountKey
+        }
+        window.addEventListener('auth:expired', markExpired)
+        return () => window.removeEventListener('auth:expired', markExpired)
+    }, [accountKey])
 
     // Wipe every piece of the user's content in one atomic server call, then
     // reset local caches. The account itself is preserved (see DELETE /user/data).
@@ -1059,17 +1179,6 @@ export function DataProvider({ children }: DataProviderProps) {
         }
     }
 
-    // Distinguish a session expiry from an explicit logout: expiry keeps the
-    // active story mounted (see the unauthenticated branch of loadData) so a
-    // re-login through the modal never destroys in-progress writing.
-    useEffect(() => {
-        const markExpired = () => {
-            authExpiredRef.current = true
-        }
-        window.addEventListener('auth:expired', markExpired)
-        return () => window.removeEventListener('auth:expired', markExpired)
-    }, [])
-
     // Load data on mount and whenever auth state changes (login / logout).
     // After the first completed load, auth transitions refresh silently — a
     // non-silent load flips `isLoading`, which unmounts the current page and
@@ -1077,7 +1186,7 @@ export function DataProvider({ children }: DataProviderProps) {
     useEffect(() => {
         loadData({ silent: hasLoadedOnceRef.current })
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAuthenticated])
+    }, [authEpoch])
     
     // Extract isLoading and error from loadingState
     const { isLoading = false, error = null } = loadingState
@@ -1131,7 +1240,7 @@ export function DataProvider({ children }: DataProviderProps) {
         stories,
         setStories,
         activeStory,
-        setActiveStory,
+        setActiveStory: setOwnedActiveStory,
         createStory,
         openStory,
         updateStory,

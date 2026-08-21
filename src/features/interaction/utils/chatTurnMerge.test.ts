@@ -130,7 +130,7 @@ describe('mergeHydratedChatTurns', () => {
     ])
   })
 
-  it('keeps the full local entry for locally-edited turns instead of the canonical text', () => {
+  it('keeps the full local entry for locally-edited turns instead of the stored text', () => {
     const editedAi: ExtendedTurnEntry = {
       ...liveAiTurn,
       content: 'Aria: Stand down, all of you.',

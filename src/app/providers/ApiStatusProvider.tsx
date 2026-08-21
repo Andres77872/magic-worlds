@@ -28,7 +28,8 @@ export function ApiStatusProvider({
         let isInFlight = false
         let controller: AbortController | null = null
         let offlineChecks = 0
-        const toApiStatus = (status: string): ApiStatus => status === 'ok' ? 'online' : 'offline'
+        const toApiStatus = (status: string): ApiStatus =>
+            status === 'ok' ? 'online' : status === 'degraded' ? 'degraded' : 'offline'
 
         const updateStatus = (nextValue: Omit<ApiStatusContextValue, 'showServicesDownBanner'>) => {
             if (nextValue.status === 'offline') {

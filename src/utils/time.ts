@@ -68,6 +68,24 @@ export function formatApiDateTime(value?: string | null, options?: Intl.DateTime
 }
 
 /**
+ * "Mar 4 · 7:30 PM" — the shared history/gallery timestamp. Locale-aware, unlike
+ * the four private copies this replaces (they all passed `undefined`, so the
+ * drawers ignored the app's language setting). Returns '' for missing input.
+ */
+export function formatWhen(value?: string | null, options?: { year?: boolean }): string {
+    const date = dateFromApiTimestamp(value)
+    if (!date) return ''
+    const locale = resolveIntlLocale()
+    const day = date.toLocaleDateString(locale, {
+        month: 'short',
+        day: 'numeric',
+        ...(options?.year ? { year: 'numeric' } : {}),
+    })
+    const time = date.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
+    return `${day} · ${time}`
+}
+
+/**
  * Format an ISO timestamp relative to `now` ("2m ago", "in 3h"). Timestamps
  * within 45 seconds of `now` collapse to the locale's "now". Returns '' for
  * missing or unparseable input. `now` is injectable for deterministic tests.

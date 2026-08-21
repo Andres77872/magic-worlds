@@ -15,7 +15,7 @@ import { apiService } from '@/infrastructure/api'
 import { VersionHistoryDrawer } from '@/features/creation/common/components'
 import { CardGrid, GalleryCard, GalleryCardSkeleton, PersonaPickerDialog, type CardOption } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
-import { Badge, Button, Chip, controlClass, Eyebrow, Icon, IconButton, IconTile, PageHeader, SectionHeader, Toast } from '@/ui/primitives'
+import { Badge, Button, Callout, Chip, controlClass, Eyebrow, Icon, IconButton, IconTile, PageHeader, SectionHeader, Toast } from '@/ui/primitives'
 import { defaultPersonaForCharacter, isPersonaCard } from '@/utils/characterRoles'
 import { downloadBlob, safeFilename } from '@/utils/download'
 import { useStartCall } from '@/features/call'
@@ -33,6 +33,8 @@ import { cardGridDensity, cardGridLayout, galleryCardView } from '../galleryView
 import { GalleryViewToggle } from './GalleryViewToggle'
 import { useCardImport, useGalleryCardPreview } from '../hooks/useCardImport'
 import { CardImportOverlays } from './CardImportOverlays'
+import { writeClipboardText } from '@/ui/components/common/clipboard'
+import { errorMessage } from '@/utils/errors'
 
 export interface GalleryPageProps {
     type: GalleryType
@@ -78,27 +80,7 @@ function scrollToGalleryCard(id: string): void {
     card?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 }
 
-async function writeClipboardText(text: string): Promise<void> {
-    if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-        return
-    }
 
-    const textarea = document.createElement('textarea')
-    textarea.value = text
-    textarea.setAttribute('readonly', '')
-    textarea.style.position = 'fixed'
-    textarea.style.opacity = '0'
-    document.body.appendChild(textarea)
-    textarea.select()
-    const copied = document.execCommand('copy')
-    textarea.remove()
-    if (!copied) throw new Error('Clipboard copy failed')
-}
-
-function startErrorCopy(error: unknown, fallback: string): string {
-    return error instanceof Error && error.message.trim() ? error.message : fallback
-}
 
 export function GalleryPage({ type }: GalleryPageProps) {
     const { t } = useTranslation()
@@ -393,7 +375,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                     setActionNotice({
                         tone: 'error',
                         title: t('gallery.action.startChatFailed'),
-                        message: startErrorCopy(error, t('gallery.action.tryAgain')),
+                        message: errorMessage(error, t('gallery.action.tryAgain')),
                     })
                 })
                 .finally(() => {
@@ -506,7 +488,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
             setActionNotice({
                 tone: 'error',
                 title: t('gallery.action.publicFailed'),
-                message: startErrorCopy(error, t('gallery.action.tryAgain')),
+                message: errorMessage(error, t('gallery.action.tryAgain')),
             })
         } finally {
             setSharingId(null)
@@ -550,7 +532,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
             setActionNotice({
                 tone: 'error',
                 title: t('gallery.action.duplicateFailed'),
-                message: startErrorCopy(error, t('gallery.action.tryAgain')),
+                message: errorMessage(error, t('gallery.action.tryAgain')),
             })
         } finally {
             setDuplicatingId(null)
@@ -612,14 +594,17 @@ export function GalleryPage({ type }: GalleryPageProps) {
         const options: CardOption[] = []
         const writeFromCard = () =>
             requireAuth(() => {
+                // Non-blank story sources require a stored non-empty title
+                // (DB check constraint) — never pass a blank card name through.
+                const sourceTitle = item.title.trim() || t('novelGallery.create.untitledFallback')
                 const source =
                     item.galleryType === 'character' || item.galleryType === 'persona'
-                        ? { kind: 'character' as const, id: item.id, title: item.title }
+                        ? { kind: 'character' as const, id: item.id, title: sourceTitle }
                         : item.galleryType === 'world'
-                          ? { kind: 'world' as const, id: item.id, title: item.title }
+                          ? { kind: 'world' as const, id: item.id, title: sourceTitle }
                           : item.galleryType === 'item'
-                            ? { kind: 'item' as const, id: item.id, title: item.title }
-                            : { kind: 'adventure_template' as const, id: item.id, title: item.title }
+                            ? { kind: 'item' as const, id: item.id, title: sourceTitle }
+                            : { kind: 'adventure_template' as const, id: item.id, title: sourceTitle }
                 const cardRefKind =
                     item.galleryType === 'adventure'
                         ? 'adventure_template'
@@ -779,7 +764,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 : pending.kind === 'group-chat'
                   ? t('gallery.action.startGroupFailedBody')
                   : t('gallery.action.startChatFailedBody')
-            setPersonaPickError(startErrorCopy(error, fallback))
+            setPersonaPickError(errorMessage(error, fallback))
         } finally {
             setIsPersonaPickConfirming(false)
         }
@@ -942,7 +927,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
             />
 
             {groupSelectionMode && type === 'character' && !isPublicView && (
-                <div className="sticky top-3 z-[10] flex flex-col gap-3 rounded-lg border border-ember-500/25 bg-ink-700/95 px-4 py-3 shadow-lg backdrop-blur md:flex-row md:items-center md:justify-between">
+                <div className="sticky top-17 z-[10] flex flex-col gap-3 rounded-lg border border-ember-500/25 bg-ink-700/95 px-4 py-3 shadow-lg backdrop-blur md:flex-row md:items-center md:justify-between lg:top-3">
                     <div className="min-w-0">
                         <p className="font-ui text-sm font-semibold text-parchment-50">
                             {t('gallery.selectedCount', { count: Object.keys(selectedGroupItems).length })}
@@ -969,15 +954,17 @@ export function GalleryPage({ type }: GalleryPageProps) {
             )}
 
             {gallery.error && (
-                <div
-                    className="flex items-center justify-between gap-4 rounded-lg border border-blood-500/30 bg-blood-500/10 px-4 py-3 font-ui text-sm text-parchment-200"
+                <Callout
+                    tone="danger"
                     role="alert"
+                    action={
+                        <Button variant="secondary" size="sm" onClick={gallery.refresh}>
+                            {t('gallery.retry')}
+                        </Button>
+                    }
                 >
-                    <span>{gallery.error}</span>
-                    <Button variant="secondary" size="sm" onClick={gallery.refresh}>
-                        {t('gallery.retry')}
-                    </Button>
-                </div>
+                    {gallery.error}
+                </Callout>
             )}
 
             <Toast
@@ -1236,7 +1223,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                         : ''
                 }
                 confirmLabel={t('gallery.personas.setDefaultDraftConfirm')}
-                variant="warning"
+                variant="primary"
                 onConfirm={() => void confirmSetDefault()}
                 onCancel={() => setPendingDefault(null)}
             />
@@ -1278,6 +1265,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 cardType={versionableCardType() ?? 'character'}
                 cardId={versionTarget?.id}
                 cardName={versionTarget?.title ?? ''}
+                hasDraft={Boolean(versionTarget?.hasDraft)}
                 onEdit={() => {
                     const target = versionTarget
                     if (!target) return

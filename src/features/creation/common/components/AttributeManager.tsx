@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus } from 'lucide-react';
+import { Plus, type LucideIcon } from 'lucide-react';
 import { Button, Icon, SectionHeader } from '@/ui/primitives';
 import type { AttributeCategory } from '../../../../ui/components/common/AttributeList';
 import { AttributeList } from '../../../../ui/components/common/AttributeList';
@@ -13,7 +13,7 @@ import { CategoryForm } from './CategoryForm';
 export interface AttributeManagerProps {
     title: string;
     subtitle?: string;
-    icon?: string;
+    icon?: LucideIcon;
     categories: AttributeCategory[];
     attributes: Record<string, { key: string; value: string }[]>;
     onAddCategory: (name: string, description: string) => void;
@@ -58,7 +58,7 @@ export function AttributeManager({
                 <SectionHeader
                     title={
                         <span className="flex items-center gap-2">
-                            {icon && <span className="text-xl">{icon}</span>}
+                            {icon && <Icon icon={icon} size={20} className="text-parchment-400" />}
                             {title}
                         </span>
                     }

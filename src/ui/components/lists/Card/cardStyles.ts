@@ -16,4 +16,4 @@ export const SELECTED_CARD_CLASS = 'border-ember-500/55 ring-1 ring-ember-500/40
  * hover), hidden on desktop until the card is hovered or focus moves inside it.
  */
 export const CARD_ACTION_REVEAL_CLASS =
-    'opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100'
+    'opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 sm:pointer-coarse:opacity-100'

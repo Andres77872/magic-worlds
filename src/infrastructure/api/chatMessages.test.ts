@@ -22,7 +22,7 @@ describe('chat message API methods', () => {
         vi.unstubAllGlobals()
     })
 
-    it('deletes and clears adventure messages through canonical endpoints', async () => {
+    it('deletes and clears adventure messages through stored endpoints', async () => {
         fetchMock
             .mockResolvedValueOnce(jsonResponse({ adventure_last_turn: '{"turns":[]}' }))
             .mockResolvedValueOnce(jsonResponse({ adventure_last_turn: '{"turns":[]}' }))
@@ -40,7 +40,7 @@ describe('chat message API methods', () => {
         expect(init.method).toBe('DELETE')
     })
 
-    it('deletes and clears character chat messages through canonical endpoints', async () => {
+    it('deletes and clears character chat messages through stored endpoints', async () => {
         fetchMock
             .mockResolvedValueOnce(jsonResponse({ last_turn: '{"turns":[]}' }))
             .mockResolvedValueOnce(jsonResponse({ last_turn: '{"turns":[]}' }))

@@ -87,13 +87,7 @@ export function HeroScene({
                         style={media.loading ? undefined : { background: gradientFor(seed) }}
                     />
                 )}
-                <div
-                    className="absolute inset-0"
-                    style={{
-                        background:
-                            'linear-gradient(95deg, rgba(14,12,20,.92) 0%, rgba(14,12,20,.62) 46%, rgba(14,12,20,.10) 100%)',
-                    }}
-                />
+                <div className="absolute inset-0 bg-gradient-to-r from-ink-900/92 via-ink-900/62 to-ink-900/10" />
                 <div
                     className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-b from-transparent to-ink-900/50"
                 />

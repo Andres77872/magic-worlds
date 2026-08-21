@@ -78,10 +78,10 @@ function isAbortError(error: unknown): boolean {
 }
 
 function currentLorebookPayload(value: Record<string, unknown>): Record<string, unknown> {
-    const canonical = lorebookToApiPayload(value as unknown as Lorebook)
-    delete canonical.metadata
+    const stored = lorebookToApiPayload(value as unknown as Lorebook)
+    delete stored.metadata
     const id = typeof value.id === 'string' && value.id.trim() ? value.id : undefined
-    return id ? { id, ...canonical } : canonical
+    return id ? { id, ...stored } : stored
 }
 
 export function useLorebookAssistant({

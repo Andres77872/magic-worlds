@@ -11,6 +11,7 @@
 
 import type { ChatSocketServerMessage } from '../../shared/types/interaction.types'
 import { API_BASE_URL } from './baseUrl'
+import { authSession, type AuthSessionSnapshot } from './authSession'
 
 const WS_BEARER_SUBPROTOCOL = 'mw.bearer.v1'
 const HEARTBEAT_MS = 25_000
@@ -91,6 +92,7 @@ export class ChatSocket {
     private closedByUser = false
     private authRecoveryAttempted = false
     private terminalAuthReported = false
+    private socketOwner: Pick<AuthSessionSnapshot, 'authEpoch' | 'accountKey' | 'userHash'> | null = null
     // Timestamp of the last inbound frame (any type); drives the liveness check.
     private lastFrameAt = 0
     // A chat frame requested before the socket is OPEN; flushed on connect.
@@ -110,6 +112,7 @@ export class ChatSocket {
             this.setStatus('closed')
             return
         }
+        this.socketOwner = authSession.getSnapshot()
 
         this.setStatus('connecting')
         const url = `${toWsUrl(API_BASE_URL)}/${this.basePath}/${this.sessionId}/ws`
@@ -127,6 +130,10 @@ export class ChatSocket {
 
         ws.onopen = () => {
             if (this.ws !== ws) return
+            if (!this.isSocketOwnerCurrent()) {
+                this.retireCurrentSocketForAuthRefresh()
+                return
+            }
             this.reconnectAttempts = 0
             this.lastFrameAt = Date.now()
             this.setStatus('open')
@@ -150,7 +157,10 @@ export class ChatSocket {
 
         ws.onmessage = (event) => {
             if (this.ws !== ws) return
-            this.lastFrameAt = Date.now()
+            if (!this.isSocketOwnerCurrent()) {
+                this.retireCurrentSocketForAuthRefresh()
+                return
+            }
             let message: ChatSocketServerMessage
             try {
                 message = JSON.parse(event.data)
@@ -158,6 +168,13 @@ export class ChatSocket {
                 return
             }
             if (message && typeof (message as { type?: unknown }).type === 'string') {
+                this.lastFrameAt = Date.now()
+                if (message.type === 'ready') {
+                    // Only a server-authenticated ready frame proves the recovered
+                    // socket is healthy. A mere TCP/WebSocket open is insufficient.
+                    this.authRecoveryAttempted = false
+                    this.terminalAuthReported = false
+                }
                 this.handlers.onMessage(message)
             }
         }
@@ -169,6 +186,7 @@ export class ChatSocket {
             this.setStatus('closed')
 
             if (event.code === 4401) {
+                if (!this.isSocketOwnerCurrent()) return
                 void this.recoverFromAuthClose()
                 return
             }
@@ -332,7 +350,6 @@ export class ChatSocket {
 
         try {
             await refreshAccessTokenForSocket()
-            this.authRecoveryAttempted = false
         } catch (error) {
             if (this.pendingChat === expectedFrame) {
                 this.pendingChat = null
@@ -352,6 +369,7 @@ export class ChatSocket {
 
     private async recoverFromAuthClose(): Promise<void> {
         if (this.closedByUser) return
+        if (!this.isSocketOwnerCurrent()) return
         if (!refreshAccessTokenForSocket) {
             this.expireAuth()
             return
@@ -434,7 +452,7 @@ export class ChatSocket {
         const hadReadableAuthState = Boolean(
             localStorage.getItem('magic_worlds:token') || localStorage.getItem('magic_worlds:user')
         )
-        localStorage.removeItem('magic_worlds:token')
+        authSession.expire()
         localStorage.removeItem('magic_worlds:user')
         if (hadReadableAuthState) {
             window.dispatchEvent(new CustomEvent('auth:expired'))
@@ -444,6 +462,10 @@ export class ChatSocket {
             message: 'Your session has expired. Please log in again.',
             category: 'auth',
         })
+    }
+
+    private isSocketOwnerCurrent(): boolean {
+        return this.socketOwner !== null && authSession.isCurrent(this.socketOwner)
     }
 
     get isOpen(): boolean {

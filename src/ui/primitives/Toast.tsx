@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, X } from 'lucide-react'
 import { cx } from './cx'
 import { Button } from './Button'
 import { IconButton } from './IconButton'
+import { useBottomChromeInset } from './bottomChrome'
 
 export type ToastTone = 'success' | 'error'
 
@@ -28,6 +29,9 @@ const TONE: Record<ToastTone, string> = {
 export function Toast({ open, tone, title, message, onClose, autoCloseMs, action }: ToastProps) {
     const { t } = useTranslation()
     const titleId = useId()
+    // Clear any persistent bottom-right chrome (the playlist dock, a creator's
+    // assistant launcher) so a notice never lands on live controls.
+    const inset = useBottomChromeInset('toast')
 
     useEffect(() => {
         // Errors stay until dismissed — auto-close only ever applies to success notices.
@@ -42,7 +46,10 @@ export function Toast({ open, tone, title, message, onClose, autoCloseMs, action
     const Icon = isError ? AlertTriangle : CheckCircle2
 
     return createPortal(
-        <div className="pointer-events-none fixed inset-x-4 bottom-4 z-[110] flex justify-center sm:inset-x-auto sm:right-5 sm:bottom-5">
+        <div
+            className="pointer-events-none fixed inset-x-4 bottom-4 z-[110] flex justify-center sm:inset-x-auto sm:right-5 sm:bottom-5"
+            style={inset ? { transform: `translateY(-${inset}px)` } : undefined}
+        >
             <div
                 role={isError ? 'alert' : 'status'}
                 aria-live={isError ? 'assertive' : 'polite'}

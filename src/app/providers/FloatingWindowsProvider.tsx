@@ -5,13 +5,15 @@
  * element is topmost. Opening an item that's already open focuses (and refreshes)
  * it instead of stacking a duplicate, and the list is capped (see the reducer).
  */
-import { useCallback, useMemo, useReducer, type ReactNode } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react'
 import { generateUUID } from '@/utils/uuid'
 import type { FloatingWindowInput } from '@/features/floatingWindows/floatingWindow.types'
 import { FloatingWindowsContext, type FloatingWindowsContextValue } from './floatingWindowsContext'
 import { floatingWindowsReducer } from './floatingWindowsReducer'
+import { AuthContext } from './AuthProvider'
 
 export function FloatingWindowsProvider({ children }: { children: ReactNode }) {
+    const auth = useContext(AuthContext)
     const [windows, dispatch] = useReducer(floatingWindowsReducer, [])
 
     const openWindow = useCallback((input: FloatingWindowInput) => {
@@ -20,6 +22,10 @@ export function FloatingWindowsProvider({ children }: { children: ReactNode }) {
     const closeWindow = useCallback((id: string) => dispatch({ type: 'CLOSE', id }), [])
     const focusWindow = useCallback((id: string) => dispatch({ type: 'FOCUS', id }), [])
     const closeAll = useCallback(() => dispatch({ type: 'CLOSE_ALL' }), [])
+
+    useEffect(() => {
+        if (auth) dispatch({ type: 'CLOSE_ALL' })
+    }, [auth?.authEpoch])
 
     const value = useMemo<FloatingWindowsContextValue>(
         () => ({ windows, openWindow, closeWindow, closeAll, focusWindow }),

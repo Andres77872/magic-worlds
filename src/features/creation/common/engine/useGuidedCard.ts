@@ -38,7 +38,7 @@ interface UseGuidedCardOptions {
     entity?: EntityWithCategory | null
     /** Current role for `roles`/`defaultActive` filtering (character creator). */
     role?: string
-    /** Form values serialized into canonical category groups. */
+    /** Form values serialized into stored category groups. */
     mirrors?: GuidedMirror[]
 }
 
@@ -76,7 +76,7 @@ export interface GuidedCardApi {
 
 const bindingKey = (group: string, key: string) => `${group.toLowerCase()}\0${key.toLowerCase()}`
 
-/** Read one canonical category attribute from an entity. */
+/** Read one stored category attribute from an entity. */
 export function readCategoryAttribute(
     entity: EntityWithCategory | null | undefined,
     group: string,

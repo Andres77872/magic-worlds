@@ -17,7 +17,7 @@ describe('Story chapter API', () => {
         vi.unstubAllEnvs()
     })
 
-    it.each([2400, null])('persists the canonical nullable wordGoal value %s', async (wordGoal) => {
+    it.each([2400, null])('persists the stored nullable wordGoal value %s', async (wordGoal) => {
         fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ id: 'chapter-1', wordGoal }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },

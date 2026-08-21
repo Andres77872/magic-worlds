@@ -19,12 +19,17 @@ const baseAuth: AuthValue = {
   projects: [],
   isLoading: false,
   error: null,
+  sessionPhase: 'signed_out',
+  authEpoch: 0,
+  accountKey: 'storybook',
+  userHash: null,
   isLoginModalOpen: false,
   login: async () => false,
   register: async () => false,
   loginWithGoogle: async () => {},
   completeGoogleLogin: async () => false,
-  logout: () => {},
+  logout: async () => {},
+  continueSignedOut: () => {},
   updateUser: () => {},
   clearError: () => {},
   openLoginModal: () => {},
@@ -53,6 +58,8 @@ const backgroundTasks: BackgroundTasksValue = {
   registerThemeSongJob: () => {},
   cancelTask: async () => {},
   clearTerminalTasks: async () => {},
+  terminalHasMore: { completed: false, failed: false },
+  loadMoreTerminalTasks: async () => {},
 }
 
 const withProviders = (auth: AuthValue): Decorator =>

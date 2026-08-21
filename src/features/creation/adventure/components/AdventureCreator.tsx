@@ -23,7 +23,7 @@ import type {
 } from '@/shared/types/aiCard.types'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
 import { Map as MapIcon } from 'lucide-react'
-import { Badge, Button, Icon } from '@/ui/primitives'
+import { Badge, Button, Eyebrow, Icon } from '@/ui/primitives'
 import { isAiCharacterCard, personaCandidates } from '@/utils/characterRoles'
 import {
     CreatorStudio,
@@ -387,7 +387,7 @@ export function AdventureCreator() {
             // which makes AppRouter unmount the whole creator (discarding in-progress edits)
             // and re-run the theme effect. The gallery refreshes on Save / next navigation.
             void apiService
-                .updateAdventureTemplate(id, { ...buildPayload(), theme_song_url: url })
+                .updateAdventureTemplate(id, { ...buildPayload(), theme_song_url: url ?? null })
                 .catch(() => {
                     setSaveError(t('creation.common.media.errors.themeSaveFailed'))
                 })
@@ -695,9 +695,7 @@ export function AdventureCreator() {
                     footer={
                         <>
                             <div className="flex flex-col gap-2.5">
-                                <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
-                                    {t('creation.adventure.quickAddObjectives')}
-                                </span>
+                                <Eyebrow tone="muted">{t('creation.adventure.quickAddObjectives')}</Eyebrow>
                                 <SuggestedAttributes
                                     presets={OBJECTIVE_PRESETS}
                                     existingKeys={objectiveKeys}
@@ -708,7 +706,6 @@ export function AdventureCreator() {
                             </div>
                             <AttributeManager
                                 title={t('creation.adventure.objectiveGroups')}
-                                icon="*"
                                 categories={guided.categories}
                                 attributes={guided.attributes}
                                 onAddCategory={guided.addCategory}

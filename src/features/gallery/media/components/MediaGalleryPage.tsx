@@ -8,8 +8,8 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData } from '@/app/hooks'
-import { apiService, resolveMediaUrl } from '@/infrastructure/api'
-import { Button, PageHeader } from '@/ui/primitives'
+import { ApiError, apiService, resolveMediaUrl } from '@/infrastructure/api'
+import { Button, Callout, PageHeader } from '@/ui/primitives'
 import { ImageLightbox } from '@/ui/primitives'
 import { CardGrid } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
@@ -48,8 +48,12 @@ export function MediaGalleryPage() {
             if (target.kind === 'image') await apiService.deleteImageAsset(target.id)
             else await apiService.deleteThemeSongAsset(target.id)
             gallery.removeItem(target.id)
-        } catch {
-            setActionError(t(target.kind === 'image' ? 'mediaGallery.deleteDialog.imageFailed' : 'mediaGallery.deleteDialog.themeFailed'))
+        } catch (error) {
+            setActionError(
+                error instanceof ApiError && error.code === 'asset_in_use'
+                    ? error.message
+                    : t(target.kind === 'image' ? 'mediaGallery.deleteDialog.imageFailed' : 'mediaGallery.deleteDialog.themeFailed'),
+            )
         } finally {
             setDeletingId(null)
         }
@@ -99,22 +103,24 @@ export function MediaGalleryPage() {
             />
 
             {error && (
-                <div
-                    className="flex items-center justify-between gap-4 rounded-lg border border-blood-500/30 bg-blood-500/10 px-4 py-3 font-ui text-sm text-parchment-200"
+                <Callout
+                    tone="danger"
                     role="alert"
+                    action={
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                                setActionError(null)
+                                if (gallery.error) gallery.refresh()
+                            }}
+                        >
+                            {gallery.error ? t('mediaGallery.actions.retry') : t('mediaGallery.actions.dismiss')}
+                        </Button>
+                    }
                 >
-                    <span>{error}</span>
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                            setActionError(null)
-                            if (gallery.error) gallery.refresh()
-                        }}
-                    >
-                        {gallery.error ? t('mediaGallery.actions.retry') : t('mediaGallery.actions.dismiss')}
-                    </Button>
-                </div>
+                    {error}
+                </Callout>
             )}
 
             <CardGrid

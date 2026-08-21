@@ -9,7 +9,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Eye, ImageOff, Trash2 } from 'lucide-react'
 import { AuthenticatedImage, Badge, cx, IconButton } from '@/ui/primitives'
-import { formatWhen, type CardRef, type MediaImageItem } from '../mediaGalleryTypes'
+import { type CardRef, type MediaImageItem } from '../mediaGalleryTypes'
+import { formatWhen } from '@/utils/time'
 
 export interface MediaImageTileProps {
     item: MediaImageItem
@@ -65,7 +66,7 @@ export function MediaImageTile({ item, deleting = false, onView, onDelete, onFil
                         alt={imageLabel}
                         loading="lazy"
                         onError={() => setImageFailed(true)}
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        className="h-full w-full object-cover transition-transform group-hover:scale-[1.03]"
                     />
                 )}
             </button>
@@ -108,8 +109,8 @@ export function MediaImageTile({ item, deleting = false, onView, onDelete, onFil
                 </Badge>
             )}
 
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-ink-900/85 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                <span className="font-mono text-[10px] text-parchment-300">{formatWhen(item.createdAt)}</span>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-ink-900/85 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100">
+                <span className="font-mono text-micro text-parchment-300">{formatWhen(item.createdAt)}</span>
                 <div className="pointer-events-auto flex items-center gap-1">
                     <IconButton label={t('mediaGallery.tile.viewFullSize')} size="sm" onClick={onView}>
                         <Eye size={15} strokeWidth={1.75} />

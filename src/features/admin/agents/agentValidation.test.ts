@@ -21,6 +21,7 @@ function newForm() {
     const form = blankForm()
     form.displayName = 'My Generator'
     form.slug = 'my_generator'
+    form.sourceWorkflowKey = 'character_generation'
     form.editable.model = 'gpt-4o'
     return form
 }
@@ -38,21 +39,20 @@ describe('agentValidation', () => {
     })
 
     it('accepts a valid new custom agent', () => {
-        expect(validateAgentForm(newForm(), { isNew: true, isBuiltin: false }, t)).toEqual({})
+        expect(validateAgentForm(newForm(), { isNew: true, schemaModel: null }, t)).toEqual({})
     })
 
     it('requires the input token in the prompt template', () => {
         const form = newForm()
         form.editable.prompt_template = 'no token here'
-        const errors = validateAgentForm(form, { isNew: true, isBuiltin: false }, t)
+        const errors = validateAgentForm(form, { isNew: true, schemaModel: null }, t)
         expect(errors.prompt_template).toContain(INPUT_TOKEN)
     })
 
-    it('rejects reserved workflow keys for new agents', () => {
+    it('accepts a slug that matches a built-in key because custom_ namespacing prevents a collision', () => {
         const form = newForm()
         form.slug = 'story_writer'
-        const errors = validateAgentForm(form, { isNew: true, isBuiltin: false }, t)
-        expect(errors.slug).toMatch(/reserved/i)
+        expect(validateAgentForm(form, { isNew: true, schemaModel: null }, t).slug).toBeUndefined()
     })
 
     it('flags numeric ranges', () => {
@@ -60,24 +60,27 @@ describe('agentValidation', () => {
         form.editable.temperature = 3
         form.editable.max_tokens = 0
         form.editable.top_p = 2
-        const errors = validateAgentForm(form, { isNew: true, isBuiltin: false }, t)
+        const errors = validateAgentForm(form, { isNew: true, schemaModel: null }, t)
         expect(errors.temperature).toBeDefined()
         expect(errors.max_tokens).toBeDefined()
         expect(errors.top_p).toBeDefined()
     })
 
-    it('builds a create request, never sending strict_card_schema for custom agents', () => {
+    it('builds the exact detached-copy create request', () => {
         const form = newForm()
         const request = toCreateRequest(form)
-        expect(request.slug).toBe('my_generator')
-        expect(request.output_mode).toBe('json_object')
-        expect(request).not.toHaveProperty('json_output')
+        expect(request).toEqual({
+            display_name: 'My Generator',
+            slug: 'my_generator',
+            source_workflow_key: 'character_generation',
+        })
     })
 
     it('omits output_mode for built-in updates and includes it for custom', () => {
         const detail: AgentDetail = {
             workflow_key: 'character_generation',
             kind: 'builtin_card',
+            storage: 'file',
             display_name: 'Character generator',
             output_mode: 'strict_card_schema',
             schema_model: 'Character',
@@ -106,5 +109,21 @@ describe('agentValidation', () => {
         const builtinForm = formFromDetail(detail)
         expect(toUpdateRequest(builtinForm, true)).not.toHaveProperty('output_mode')
         expect(toUpdateRequest(newForm(), false).output_mode).toBe('json_object')
+    })
+
+    it('accepts returned strict schemas on database copies and enforces string maxima', () => {
+        const form = newForm()
+        form.outputMode = 'strict_card_schema'
+        expect(validateAgentForm(form, { isNew: false, schemaModel: 'Character' }, t).outputMode).toBeUndefined()
+
+        form.displayName = 'x'.repeat(129)
+        form.editable.system_message = 'x'.repeat(20001)
+        form.editable.prompt_template = `${INPUT_TOKEN}${'x'.repeat(40000)}`
+        form.editable.model = 'x'.repeat(256)
+        const errors = validateAgentForm(form, { isNew: true, schemaModel: 'Character' }, t)
+        expect(errors.displayName).toBeDefined()
+        expect(errors.system_message).toBeDefined()
+        expect(errors.prompt_template).toBeDefined()
+        expect(errors.model).toBeDefined()
     })
 })

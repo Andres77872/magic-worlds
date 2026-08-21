@@ -29,6 +29,10 @@ interface BaseVoice {
     voice_name: string | null
 }
 
+const PRESET_NAME_LIMIT = 255
+const PRESET_DESCRIPTION_LIMIT = 2_000
+const PRESET_PREVIEW_LIMIT = 400
+
 export function PresetEditor({ open, mode, source, systemVoices, loadingVoices, onClose, onSaved, notify }: PresetEditorProps) {
     const { t } = useTranslation()
     const [name, setName] = useState('')
@@ -70,10 +74,13 @@ export function PresetEditor({ open, mode, source, systemVoices, loadingVoices, 
         /* eslint-enable react-hooks/set-state-in-effect */
     }, [open, mode, source, t])
 
-    const canSave = name.trim().length > 0 && !!baseVoice?.voice_id && !saving
+    const nameOverLimit = name.trim().length > PRESET_NAME_LIMIT
+    const descriptionOverLimit = description.length > PRESET_DESCRIPTION_LIMIT
+    const previewOverLimit = previewText.length > PRESET_PREVIEW_LIMIT
+    const canSave = name.trim().length > 0 && !!baseVoice?.voice_id && !nameOverLimit && !descriptionOverLimit && !saving
 
     const handlePreview = () => {
-        if (!baseVoice?.voice_id) return
+        if (!baseVoice?.voice_id || !previewText.trim() || previewOverLimit) return
         void runPreview({
             voice_id: baseVoice.voice_id,
             text: previewText,
@@ -146,11 +153,15 @@ export function PresetEditor({ open, mode, source, systemVoices, loadingVoices, 
             <div className="flex flex-col gap-5">
                 {error && <p className="rounded-md border border-blood-500/30 bg-blood-500/10 px-3 py-2 font-ui text-sm text-parchment-200">{error}</p>}
 
-                <Field label={t('voices.editor.nameLabel')}>
-                    <Input value={name} onChange={(event) => setName(event.target.value)} placeholder={t('voices.editor.namePlaceholder')} />
+                <Field label={t('voices.editor.nameLabel')} error={nameOverLimit ? 'Name must be 255 characters or fewer.' : undefined}>
+                    <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={PRESET_NAME_LIMIT} placeholder={t('voices.editor.namePlaceholder')} />
                 </Field>
-                <Field label={t('voices.editor.descriptionLabel')} helper={t('voices.editor.descriptionHelper')}>
-                    <Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder={t('voices.editor.descriptionPlaceholder')} />
+                <Field
+                    label={t('voices.editor.descriptionLabel')}
+                    error={descriptionOverLimit ? 'Description must be 2,000 characters or fewer.' : undefined}
+                    helper={t('voices.editor.descriptionHelper')}
+                >
+                    <Textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={PRESET_DESCRIPTION_LIMIT} placeholder={t('voices.editor.descriptionPlaceholder')} />
                 </Field>
 
                 <Field label={t('voices.editor.baseVoiceLabel')} helper={t('voices.editor.baseVoiceHelper')}>
@@ -180,14 +191,17 @@ export function PresetEditor({ open, mode, source, systemVoices, loadingVoices, 
                 <PresetRecipeControls recipe={recipe} onChange={(patch) => setRecipe((current) => ({ ...current, ...patch }))} />
 
                 <div className="flex flex-col gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-800/40 p-4">
-                    <Field label={t('voices.editor.previewLineLabel')}>
-                        <Textarea value={previewText} onChange={(event) => setPreviewText(event.target.value)} placeholder={DEFAULT_PREVIEW_TEXT} />
+                    <Field
+                        label={t('voices.editor.previewLineLabel')}
+                        error={previewOverLimit ? 'Preview must be 400 characters or fewer.' : undefined}
+                    >
+                        <Textarea value={previewText} onChange={(event) => setPreviewText(event.target.value)} maxLength={PRESET_PREVIEW_LIMIT} placeholder={DEFAULT_PREVIEW_TEXT} />
                     </Field>
                     <div className="flex items-center justify-between gap-3">
                         <Button
                             variant="secondary"
                             size="sm"
-                            disabled={!baseVoice?.voice_id || previewing}
+                            disabled={!baseVoice?.voice_id || !previewText.trim() || previewOverLimit || previewing}
                             iconLeft={<Icon icon={previewing ? Loader2 : Play} size={14} className={previewing ? 'animate-spin' : undefined} />}
                             onClick={handlePreview}
                         >

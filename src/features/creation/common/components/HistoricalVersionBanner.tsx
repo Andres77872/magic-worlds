@@ -17,9 +17,9 @@ export interface HistoricalVersionBannerProps {
 export function HistoricalVersionBanner({ versionNumber, onRestore, busy = false }: HistoricalVersionBannerProps) {
     const { t } = useTranslation()
     return (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-arcane-500/55 bg-arcane-500/10 px-3.5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ember-500/55 bg-ember-500/10 px-3.5 py-3">
             <div className="flex min-w-0 items-start gap-2.5">
-                <Icon icon={History} size={18} className="mt-0.5 shrink-0 text-arcane-300" />
+                <Icon icon={History} size={18} className="mt-0.5 shrink-0 text-ember-300" />
                 <div className="min-w-0">
                     <p className="font-ui text-sm font-semibold text-parchment-100">
                         {t('cardVersions.historical.banner', { number: versionNumber })}
@@ -27,7 +27,7 @@ export function HistoricalVersionBanner({ versionNumber, onRestore, busy = false
                     <p className="font-narrative text-xs text-parchment-400">{t('cardVersions.historical.bannerHint')}</p>
                 </div>
             </div>
-            <Button variant="arcane" size="sm" onClick={onRestore} disabled={busy}>
+            <Button variant="primary" size="sm" onClick={onRestore} disabled={busy}>
                 {t('cardVersions.historical.restoreToEdit')}
             </Button>
         </div>

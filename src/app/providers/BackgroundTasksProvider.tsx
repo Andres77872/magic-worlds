@@ -17,6 +17,7 @@ import { BackgroundTasksContext, type BackgroundTasksContextValue } from './back
 const ACTIVE_STATUS_SET = new Set<string>(BACKGROUND_TASK_ACTIVE_STATUSES)
 const COMPLETED_STATUS_SET = new Set<string>(BACKGROUND_TASK_COMPLETED_STATUSES)
 const FAILED_STATUS_SET = new Set<string>(BACKGROUND_TASK_FAILED_STATUSES)
+const TASK_PAGE_SIZE = 20
 
 function isActiveTask(task: BackgroundTaskPublic): boolean {
     return ACTIVE_STATUS_SET.has(task.status)
@@ -58,15 +59,26 @@ interface TaskNotice {
 
 export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     const { t } = useTranslation()
-    const { isAuthenticated } = useAuth()
+    const { isAuthenticated, authEpoch = Number(isAuthenticated), accountKey = 'legacy' } = useAuth()
     const { loadData } = useData()
     const [tasks, setTasks] = useState<BackgroundTaskPublic[]>([])
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [taskNotice, setTaskNotice] = useState<TaskNotice | null>(null)
+    const [terminalPages, setTerminalPages] = useState<Record<'completed' | 'failed', number>>({ completed: 1, failed: 1 })
+    const [terminalHasMore, setTerminalHasMore] = useState<Record<'completed' | 'failed', boolean>>({ completed: false, failed: false })
     const previousStatusesRef = useRef<Map<string, string>>(new Map())
     const refreshInFlightRef = useRef(false)
     // Read inside refreshTasks (long-lived poll) without churning its identity.
+    // `loadData` is a fresh closure on every DataProvider render; depending on it
+    // directly made refreshTasks unstable, which restarted both poll effects (and
+    // fired an extra immediate listTasks) on every unrelated data change.
+    const loadDataRef = useRef(loadData)
     const drawerOpenRef = useRef(drawerOpen)
+    const authOwnerRef = useRef({ authEpoch, accountKey })
+    authOwnerRef.current = { authEpoch, accountKey }
+    useEffect(() => {
+        loadDataRef.current = loadData
+    }, [loadData])
     useEffect(() => {
         drawerOpenRef.current = drawerOpen
     }, [drawerOpen])
@@ -75,14 +87,57 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         if (!isAuthenticated || refreshInFlightRef.current) return
         refreshInFlightRef.current = true
         try {
+            const owner = { authEpoch, accountKey }
+            const fetchPages = async (
+                state: 'active' | 'terminal',
+                statuses: BackgroundTaskPublic['status'][],
+                pages?: number,
+            ) => {
+                const items: BackgroundTaskPublic[] = []
+                const seen = new Set<string>()
+                let offset = 0
+                let page = 0
+                let hasMore = false
+                while (pages === undefined || page < pages) {
+                    const response = await apiService.listTasks({
+                        state,
+                        operation: 'theme_song',
+                        statuses,
+                        limit: TASK_PAGE_SIZE,
+                        offset,
+                    })
+                    const fresh = response.items.filter((task) => {
+                        const key = taskKey(task)
+                        if (seen.has(key)) return false
+                        seen.add(key)
+                        return true
+                    })
+                    items.push(...fresh)
+                    page += 1
+                    hasMore = response.next_offset != null
+                    if (!hasMore || response.items.length === 0 || fresh.length === 0) break
+                    offset = response.next_offset!
+                }
+                return { items, hasMore }
+            }
             const groups = [
-                { statuses: BACKGROUND_TASK_ACTIVE_STATUSES, request: apiService.listTasks({ state: 'active', operation: 'theme_song', statuses: BACKGROUND_TASK_ACTIVE_STATUSES, limit: 20 }) },
-                { statuses: BACKGROUND_TASK_COMPLETED_STATUSES, request: apiService.listTasks({ state: 'terminal', operation: 'theme_song', statuses: BACKGROUND_TASK_COMPLETED_STATUSES, limit: 20 }) },
-                { statuses: BACKGROUND_TASK_FAILED_STATUSES, request: apiService.listTasks({ state: 'terminal', operation: 'theme_song', statuses: BACKGROUND_TASK_FAILED_STATUSES, limit: 20 }) },
+                { bucket: 'active' as const, statuses: BACKGROUND_TASK_ACTIVE_STATUSES, request: fetchPages('active', BACKGROUND_TASK_ACTIVE_STATUSES) },
+                { bucket: 'completed' as const, statuses: BACKGROUND_TASK_COMPLETED_STATUSES, request: fetchPages('terminal', BACKGROUND_TASK_COMPLETED_STATUSES, terminalPages.completed) },
+                { bucket: 'failed' as const, statuses: BACKGROUND_TASK_FAILED_STATUSES, request: fetchPages('terminal', BACKGROUND_TASK_FAILED_STATUSES, terminalPages.failed) },
             ]
             const results = await Promise.allSettled(groups.map((group) => group.request))
-            const fulfilled = results.flatMap((result, index) => result.status === 'fulfilled' ? [{ response: result.value, statuses: groups[index].statuses }] : [])
+            if (authOwnerRef.current.authEpoch !== owner.authEpoch || authOwnerRef.current.accountKey !== owner.accountKey) return
+            const fulfilled = results.flatMap((result, index) => result.status === 'fulfilled'
+                ? [{ response: result.value, statuses: groups[index].statuses, bucket: groups[index].bucket }]
+                : [])
             if (fulfilled.length === 0) return
+            setTerminalHasMore((current) => {
+                const next = { ...current }
+                for (const result of fulfilled) {
+                    if (result.bucket !== 'active') next[result.bucket] = result.response.hasMore
+                }
+                return next
+            })
             const refreshedStatuses = new Set(fulfilled.flatMap((item) => item.statuses))
             const nextTasks = mergeTaskLists(fulfilled.map((item) => item.response.items))
             const previous = previousStatusesRef.current
@@ -103,7 +158,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
             }
             setTasks((prev) => mergeTaskLists([nextTasks, prev.filter((task) => !taskHasAnyStatus(task, refreshedStatuses))]))
             if (completedActiveTask) {
-                void loadData({ silent: true })
+                void loadDataRef.current({ silent: true })
             }
             // Announce finished work unless the user is already watching the drawer.
             if (transitioned.length > 0 && !drawerOpenRef.current) {
@@ -114,7 +169,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                     setTaskNotice({
                         tone: failed ? 'error' : 'success',
                         title: failed ? t('tasksDrawer.toast.failedTitle') : t('tasksDrawer.toast.completedTitle'),
-                        message: task.result?.lyrics?.song_title || t('tasksDrawer.fallback.themeSong'),
+                        message: task.title || task.target.display_name || t('tasksDrawer.fallback.themeSong'),
                     })
                 } else {
                     setTaskNotice({
@@ -128,7 +183,12 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         } finally {
             refreshInFlightRef.current = false
         }
-    }, [isAuthenticated, loadData, t])
+    }, [accountKey, authEpoch, isAuthenticated, t, terminalPages])
+
+    const loadMoreTerminalTasks = useCallback(async (bucket: 'completed' | 'failed') => {
+        if (!terminalHasMore[bucket]) return
+        setTerminalPages((current) => ({ ...current, [bucket]: current[bucket] + 1 }))
+    }, [terminalHasMore])
 
     const registerTask = useCallback((task: BackgroundTaskPublic) => {
         previousStatusesRef.current.set(`${task.operation}:${task.task_id}`, task.status)
@@ -147,31 +207,54 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         registerTask(updated)
     }, [registerTask])
 
-    /** Persistently archive every task currently in the given terminal bucket. */
+    /** Persistently archive the entire server bucket, including pages not loaded in the drawer. */
     const clearTerminalTasks = useCallback(async (bucket: 'completed' | 'failed') => {
         const statuses = bucket === 'completed' ? COMPLETED_STATUS_SET : FAILED_STATUS_SET
-        const terminalTasks = tasks.filter((task) => statuses.has(task.status))
-        if (terminalTasks.length === 0) return
-        const results = await Promise.allSettled(
-            terminalTasks.map((task) => apiService.archiveTask(task.operation, task.task_id)),
-        )
-        const archived = new Set(
-            terminalTasks
-                .filter((_task, index) => results[index].status === 'fulfilled')
-                .map(taskKey),
-        )
+        const archived = new Set<string>()
+        const attempted = new Set<string>()
+        let failed = false
+        while (true) {
+            const response = await apiService.listTasks({
+                state: 'terminal',
+                operation: 'theme_song',
+                statuses: [...statuses] as BackgroundTaskPublic['status'][],
+                limit: TASK_PAGE_SIZE,
+                offset: 0,
+            })
+            if (response.items.length === 0) break
+            const freshItems = response.items.filter((task) => !attempted.has(taskKey(task)))
+            if (freshItems.length === 0) {
+                failed = true
+                break
+            }
+            freshItems.forEach((task) => attempted.add(taskKey(task)))
+            const results = await Promise.allSettled(freshItems.map((task) => apiService.archiveTask(task.operation, task.task_id)))
+            freshItems.forEach((task, index) => {
+                if (results[index].status === 'fulfilled') archived.add(taskKey(task))
+                else failed = true
+            })
+            if (failed) break
+        }
         setTasks((current) => current.filter((task) => !archived.has(taskKey(task))))
         for (const key of archived) previousStatusesRef.current.delete(key)
-        if (results.some((result) => result.status === 'rejected')) {
-            throw new Error('One or more background tasks could not be archived.')
-        }
-    }, [tasks])
+        setTerminalPages((current) => ({ ...current, [bucket]: 1 }))
+        setTerminalHasMore((current) => ({ ...current, [bucket]: false }))
+        if (failed) throw new Error('One or more background tasks could not be archived.')
+    }, [])
+
+    // Reset on logout. Keyed on auth alone so these writes cannot feed back into
+    // refreshTasks' identity and re-arm this effect (terminalPages is a dep of
+    // refreshTasks, which the poll effect below depends on).
+    useEffect(() => {
+        if (isAuthenticated) return
+        previousStatusesRef.current = new Map()
+        setTasks([])
+        setTerminalPages({ completed: 1, failed: 1 })
+        setTerminalHasMore({ completed: false, failed: false })
+    }, [isAuthenticated])
 
     useEffect(() => {
-        if (!isAuthenticated) {
-            previousStatusesRef.current = new Map()
-            return
-        }
+        if (!isAuthenticated) return
         const timer = window.setTimeout(() => void refreshTasks(), 0)
         return () => window.clearTimeout(timer)
     }, [isAuthenticated, refreshTasks])
@@ -207,6 +290,8 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         registerThemeSongJob,
         cancelTask,
         clearTerminalTasks,
+        terminalHasMore,
+        loadMoreTerminalTasks,
     }
 
     return (

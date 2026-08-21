@@ -14,15 +14,6 @@ import type {
 /** The parser injection token the prompt template must contain. */
 export const INPUT_TOKEN = '{{handle_parser_input_0}}'
 
-/** Built-in workflow keys cannot be reused by custom agents. */
-export const RESERVED_WORKFLOW_KEYS = new Set([
-    'character_generation',
-    'world_generation',
-    'item_generation',
-    'adventure_template_generation',
-    'story_writer',
-])
-
 /** json_output is a function of the output mode (markdown → false, else true). */
 export function deriveJsonOutput(mode: AgentOutputMode): boolean {
     return mode !== 'markdown'
@@ -41,6 +32,7 @@ export function slugifyWorkflowKey(name: string): string {
 export interface AgentForm {
     displayName: string
     slug: string
+    sourceWorkflowKey: string
     outputMode: AgentOutputMode
     editable: AgentEditableEcho
 }
@@ -62,13 +54,25 @@ export function blankEditable(): AgentEditableEcho {
 }
 
 export function blankForm(): AgentForm {
-    return { displayName: '', slug: '', outputMode: 'json_object', editable: blankEditable() }
+    return { displayName: '', slug: '', sourceWorkflowKey: '', outputMode: 'json_object', editable: blankEditable() }
 }
 
 export function formFromDetail(detail: AgentDetail): AgentForm {
     return {
         displayName: detail.display_name,
         slug: detail.workflow_key,
+        sourceWorkflowKey: detail.workflow_key,
+        outputMode: detail.output_mode,
+        editable: { ...detail.draft },
+    }
+}
+
+export function copyFormFromDetail(detail: AgentDetail): AgentForm {
+    const displayName = `${detail.display_name} copy`
+    return {
+        displayName,
+        slug: slugifyWorkflowKey(displayName),
+        sourceWorkflowKey: detail.workflow_key,
         outputMode: detail.output_mode,
         editable: { ...detail.draft },
     }
@@ -80,12 +84,12 @@ function inRange(value: number, min: number, max: number): boolean {
 
 export interface ValidateOptions {
     isNew: boolean
-    isBuiltin: boolean
+    schemaModel: string | null
 }
 
 export function validateAgentForm(
     form: AgentForm,
-    { isNew, isBuiltin }: ValidateOptions,
+    { isNew, schemaModel }: ValidateOptions,
     t: TFunction,
 ): Record<string, string> {
     const errors: Record<string, string> = {}
@@ -93,27 +97,29 @@ export function validateAgentForm(
 
     if (isNew) {
         if (!form.displayName.trim()) errors.displayName = t('admin.agents.validation.nameRequired')
+        else if (form.displayName.trim().length > 128) errors.displayName = t('admin.agents.validation.nameTooLong')
         const slug = form.slug.trim()
         if (!slug) {
             errors.slug = t('admin.agents.validation.keyRequired')
         } else if (!/^[a-z][a-z0-9_]{2,40}$/.test(slug)) {
             errors.slug = t('admin.agents.validation.keyFormat')
-        } else if (RESERVED_WORKFLOW_KEYS.has(slug)) {
-            errors.slug = t('admin.agents.validation.keyReserved')
         }
+        if (!form.sourceWorkflowKey) errors.sourceWorkflowKey = t('admin.agents.validation.sourceRequired')
     }
 
-    if (!isNew && isBuiltin && form.outputMode === 'strict_card_schema') {
-        // Built-in cards stay strict; nothing to validate here.
-    } else if (form.outputMode === 'strict_card_schema' && !isBuiltin) {
+    if (form.outputMode === 'strict_card_schema' && !schemaModel) {
         errors.outputMode = t('admin.agents.validation.strictSchemaCustom')
     }
 
     if (!e.system_message.trim()) errors.system_message = t('admin.agents.validation.systemMessageRequired')
+    else if (e.system_message.length > 20000) errors.system_message = t('admin.agents.validation.systemMessageTooLong')
     if (!e.prompt_template.includes(INPUT_TOKEN)) {
         errors.prompt_template = t('admin.agents.validation.inputTokenRequired', { token: INPUT_TOKEN })
+    } else if (e.prompt_template.length > 40000) {
+        errors.prompt_template = t('admin.agents.validation.promptTooLong')
     }
     if (!e.model.trim()) errors.model = t('admin.agents.validation.modelRequired')
+    else if (e.model.trim().length > 255) errors.model = t('admin.agents.validation.modelTooLong')
 
     if (!inRange(e.temperature, 0, 2)) errors.temperature = t('admin.agents.validation.temperatureRange')
     if (e.top_p !== null && !inRange(e.top_p, 0, 1)) errors.top_p = t('admin.agents.validation.topPRange')
@@ -143,18 +149,15 @@ function editablePayload(e: AgentEditableEcho) {
 }
 
 export function toCreateRequest(form: AgentForm): AgentCreateRequest {
-    const mode = form.outputMode === 'strict_card_schema' ? 'json_object' : form.outputMode
     return {
-        ...editablePayload(form.editable),
         display_name: form.displayName.trim(),
         slug: form.slug.trim(),
-        output_mode: mode,
+        source_workflow_key: form.sourceWorkflowKey,
     }
 }
 
-export function toUpdateRequest(form: AgentForm, isBuiltin: boolean): AgentUpdateDraftRequest {
+export function toUpdateRequest(form: AgentForm, isImmutable: boolean): AgentUpdateDraftRequest {
     const payload: AgentUpdateDraftRequest = editablePayload(form.editable)
-    // Built-ins keep their output mode fixed; only custom agents send it.
-    if (!isBuiltin) payload.output_mode = form.outputMode
+    if (!isImmutable) payload.output_mode = form.outputMode
     return payload
 }

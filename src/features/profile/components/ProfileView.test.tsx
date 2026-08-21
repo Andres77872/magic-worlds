@@ -28,7 +28,7 @@ const membership: Membership = {
     plan_code: 'free',
     display_name: 'Free',
     credits: { period: 'daily', max: 50, used: 4, remaining: 46, usage_date: '2026-06-10' },
-    payg: { balance: 4 },
+    payg: { balance: 4, free_balance: 4, billed_balance: 0 },
     total_available_credits: 50,
     limits: {
         chat_interaction: { daily_limit: 20, used_today: 2, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
@@ -44,11 +44,13 @@ const membership: Membership = {
         credits_used: 35,
         included_credits_used: 31,
         payg_credits_used: 4,
+        payg_free_credits_used: 4,
+        payg_billed_credits_used: 0,
         operations: {
-            chat_interaction: { used: 20, credits_used: 20, included_credits_used: 20, payg_credits_used: 0 },
-            image_generation: { used: 14, credits_used: 14, included_credits_used: 10, payg_credits_used: 4 },
-            card_image_generation: { used: 0, credits_used: 0, included_credits_used: 0, payg_credits_used: 0 },
-            voice_call: { used: 1, credits_used: 1, included_credits_used: 1, payg_credits_used: 0, billable_seconds: 9 },
+            chat_interaction: { used: 20, credits_used: 20, included_credits_used: 20, payg_credits_used: 0, payg_free_credits_used: 0, payg_billed_credits_used: 0 },
+            image_generation: { used: 14, credits_used: 14, included_credits_used: 10, payg_credits_used: 4, payg_free_credits_used: 4, payg_billed_credits_used: 0 },
+            card_image_generation: { used: 0, credits_used: 0, included_credits_used: 0, payg_credits_used: 0, payg_free_credits_used: 0, payg_billed_credits_used: 0 },
+            voice_call: { used: 1, credits_used: 1, included_credits_used: 1, payg_credits_used: 0, payg_free_credits_used: 0, payg_billed_credits_used: 0, billable_seconds: 9 },
         },
     },
     profile_cards: {
@@ -114,6 +116,8 @@ const membership: Membership = {
         ],
         payg: {
             balance: 4,
+            free_balance: 4,
+            billed_balance: 0,
             credit_cost: 1,
             covered_operations: ['chat_interaction', 'image_generation', 'card_image_generation', 'voice_call'],
             non_expiring: true,
@@ -132,7 +136,6 @@ const profile: UserProfile = {
     user_hash: 'usr-profile',
     username: 'Lyra',
     user_type: 'consumer',
-    user_usage: 50,
     membership,
     card_counts: { character: 2, world: 1, item: 6, adventure_template: 3 },
 }
@@ -209,23 +212,6 @@ describe('ProfileView membership section', () => {
 
         rerender(<ProfileView profile={profile} onLogout={noop} onDeleteAllData={deleteAll} billingEnabled />)
         expect(screen.getByRole('button', { name: 'Plans & credits' })).toBeInTheDocument()
-    })
-
-    it('falls back to a legacy credits card when membership cards are absent', () => {
-        render(
-            <ProfileView
-                profile={{ ...profile, user_usage: 1000, membership: undefined }}
-                onLogout={noop}
-                onDeleteAllData={deleteAll}
-            />,
-        )
-
-        expect(screen.getByRole('heading', { name: 'Membership' })).toBeInTheDocument()
-        expect(screen.getByText('1,000')).toBeInTheDocument()
-        expect(screen.getByText(/Detailed membership tiers will appear here/i)).toBeInTheDocument()
-        expect(screen.queryByRole('heading', { name: 'Plus' })).not.toBeInTheDocument()
-        expect(screen.queryByRole('heading', { name: 'Usage monitor' })).not.toBeInTheDocument()
-        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
     })
 
     it('renders daily usage when the monthly rollout field is absent', () => {

@@ -21,6 +21,12 @@ const servicesWithOutage: ApiDependencyService[] = services.map((service) =>
         : service,
 )
 
+const servicesWithDegradation: ApiDependencyService[] = services.map((service) =>
+    service.id === 'image'
+        ? { ...service, status: 'degraded', message: 'Provider latency is elevated; generation may take longer.' }
+        : service,
+)
+
 const CHECKED_AT = '2026-06-15T05:29:03.000Z'
 
 // The popover is anchored bottom-left of the rail button and grows up/right, so
@@ -68,6 +74,10 @@ export const AllOnline: Story = {}
 
 export const DependencyOffline: Story = {
     args: { status: 'offline', services: servicesWithOutage },
+}
+
+export const DependencyDegraded: Story = {
+    args: { status: 'online', services: servicesWithDegradation },
 }
 
 export const Checking: Story = {

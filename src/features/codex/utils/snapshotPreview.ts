@@ -52,7 +52,3 @@ export function snapshotToLoreEntry(snapshot: Snapshot, fallbackId: string): Lor
     }
 }
 
-/** Source lorebook name stored on a cloned lorebook-entry snapshot, if present. */
-export function snapshotSourceName(_snapshot: Snapshot): string | undefined {
-    return undefined
-}

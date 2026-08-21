@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { cx } from './cx'
 import { IconButton } from './IconButton'
-import { useDismissableLayer } from './useDismissableLayer'
+import { useDismissableLayer, useScrimDismiss } from './useDismissableLayer'
 
 export type ModalSize = 'sm' | 'md' | 'lg'
 
@@ -46,7 +46,8 @@ export function Modal({
     const { t } = useTranslation()
     const titleId = useId()
     const panelRef = useRef<HTMLDivElement>(null)
-    useDismissableLayer({ open, onClose, panelRef })
+    useDismissableLayer({ open, onClose, panelRef, label: 'modal' })
+    const scrim = useScrimDismiss(onClose)
 
     if (!open) return null
     // Portal to <body> so the fixed overlay escapes any ancestor CSS transform /
@@ -54,7 +55,7 @@ export function Modal({
     return createPortal(
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-sm"
-            onClick={onClose}
+            {...scrim}
         >
             <div
                 ref={panelRef}
@@ -67,7 +68,6 @@ export function Modal({
                     MAX[size],
                     className,
                 )}
-                onClick={(e) => e.stopPropagation()}
             >
                 {(title || showClose) && (
                     <div className="flex items-center justify-between border-b border-parchment-50/10 px-6 py-4">

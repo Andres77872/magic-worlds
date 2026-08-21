@@ -1,12 +1,12 @@
 /**
  * Reverie button — variants: primary (ember), secondary (outline), ghost,
- * arcane (AI), danger. Sizes sm/md/lg. `variant` is the design-system term for
+ * arcane (AI), danger, danger-ghost (quiet destructive). Sizes sm/md/lg. `variant` is the design-system term for
  * action emphasis (accent-coloured decor uses `tone` instead).
  */
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { cx } from './cx'
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'arcane' | 'danger'
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'arcane' | 'danger' | 'danger-ghost'
 export type ButtonSize = 'sm' | 'md' | 'lg'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -28,6 +28,13 @@ const VARIANT: Record<ButtonVariant, string> = {
         'bg-arcane-500/15 text-arcane-300 border border-arcane-500/40 hover:bg-arcane-500/25 hover:shadow-glow-arcane active:scale-[.98]',
     danger:
         'bg-blood-500 text-fg border border-transparent hover:brightness-110 active:scale-[.98]',
+    // Quiet destructive action — a filled danger button is too loud for a drawer
+    // footer or a row action. Mirrors IconButton's `danger` tone. Use this rather
+    // than adding text-blood-* on top of `ghost`: cx() is a plain join with no
+    // tailwind-merge, so the variant's own text colour wins on source order and
+    // the override silently does nothing.
+    'danger-ghost':
+        'bg-transparent text-blood-300 border border-transparent hover:text-blood-500 hover:bg-blood-500/10',
 }
 
 const SIZE: Record<ButtonSize, string> = {

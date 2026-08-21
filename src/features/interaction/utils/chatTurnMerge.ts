@@ -10,7 +10,7 @@ export interface MergeHydratedChatTurnsOptions {
   /**
    * Ids of turns edited locally (client mirror only — the backend has no
    * message-edit endpoint). A matched turn in this set keeps its full local
-   * entry so hydration can't revert the edit to the canonical pre-edit text;
+   * entry so hydration can't revert the edit to the stored pre-edit text;
    * hydration still owns its position in the transcript.
    */
   preferLocalIds?: ReadonlySet<string>

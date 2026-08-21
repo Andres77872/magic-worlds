@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth, useData } from '@/app/hooks'
+import { ApiError } from '@/infrastructure/api'
 import type { StoryChapter } from '@/shared'
 import { dateFromApiTimestamp } from '@/utils/time'
 import type { NovelSaveState } from '../utils/novelUtils'
@@ -28,9 +29,14 @@ export interface ChapterDraftApi {
     /** Pause autosave while an AI suggestion is alive in the editor. */
     suspended: boolean
     setSuspended: (value: boolean) => void
-    saveNow: () => Promise<void>
-    /** Cancel the timer, await any in-flight save, then save if still dirty. */
-    flush: () => Promise<void>
+    saveNow: () => Promise<boolean>
+    /**
+     * Cancel the timer, await any in-flight save, then save if still dirty.
+     * Resolves false when the draft could not be persisted — callers that are
+     * about to discard the draft (chapter switch) or need the backend to see
+     * the current body (AI generation) must not proceed on false.
+     */
+    flush: () => Promise<boolean>
 }
 
 export function useChapterDraft({ storyId, chapter }: { storyId: string | null; chapter: StoryChapter | null }): ChapterDraftApi {
@@ -45,6 +51,9 @@ export function useChapterDraft({ storyId, chapter }: { storyId: string | null; 
 
     const timerRef = useRef<number | null>(null)
     const saveInFlightRef = useRef<Promise<void> | null>(null)
+    // A 4xx (e.g. validation) will fail identically on every retry — only
+    // network/server errors are worth re-attempting automatically.
+    const retryableRef = useRef(true)
     // Mirrors kept current via effect so flush()/save() (which run from
     // timers and event handlers) never read stale closures.
     const latestRef = useRef({ title: chapter?.title ?? '', body: chapter?.body ?? '', dirty: false })
@@ -81,21 +90,26 @@ export function useChapterDraft({ storyId, chapter }: { storyId: string | null; 
         setSaveState('dirty')
     }, [])
 
-    const save = useCallback(async () => {
+    const save = useCallback(async (): Promise<boolean> => {
         const target = chapterRef.current
         const targetStoryId = storyIdRef.current
-        if (!target || !targetStoryId) return
+        if (!target || !targetStoryId) return false
         if (!isAuthenticated) {
             openLoginModal()
-            return
+            return false
         }
         const snapshot = { title: latestRef.current.title, body: latestRef.current.body }
         latestRef.current.dirty = false
         setSaveState('saving')
+        // The backend rejects blank/untrimmed titles (stored-text rule); a
+        // blank title must not 422 the whole save, so it is simply not updated.
+        // `status` is deliberately not sent: the PUT only touches provided
+        // fields, and echoing the loaded status could clobber a transition
+        // made in another tab.
+        const trimmedTitle = snapshot.title.trim()
         const promise = updateStoryChapter(targetStoryId, target.id, {
-            title: snapshot.title,
+            ...(trimmedTitle ? { title: trimmedTitle } : {}),
             body: snapshot.body,
-            status: target.status,
         }).then(() => undefined)
         saveInFlightRef.current = promise
         try {
@@ -103,10 +117,13 @@ export function useChapterDraft({ storyId, chapter }: { storyId: string | null; 
             // Keystrokes that landed mid-save keep the draft dirty.
             setSaveState(latestRef.current.dirty ? 'dirty' : 'saved')
             setLastSavedAt(new Date())
+            return true
         } catch (error) {
             console.error('Failed to save chapter:', error)
+            retryableRef.current = !(error instanceof ApiError) || error.status >= 500 || error.status === 408 || error.status === 429
             latestRef.current.dirty = true
             setSaveState('error')
+            return false
         } finally {
             if (saveInFlightRef.current === promise) saveInFlightRef.current = null
         }
@@ -124,9 +141,10 @@ export function useChapterDraft({ storyId, chapter }: { storyId: string | null; 
 
     // Failed saves retry on their own — without this, a network blip leaves the
     // draft dirty until the user happens to type again (or forever, if they
-    // close the tab believing the last keystrokes were saved).
+    // close the tab believing the last keystrokes were saved). Permanent
+    // rejections (4xx) don't loop; the header's explicit Retry still works.
     useEffect(() => {
-        if (saveState !== 'error' || suspended || !chapterId || !isAuthenticated) return
+        if (saveState !== 'error' || suspended || !chapterId || !isAuthenticated || !retryableRef.current) return
         const timer = window.setTimeout(() => void save(), SAVE_RETRY_DELAY_MS)
         return () => window.clearTimeout(timer)
     }, [chapterId, isAuthenticated, save, saveState, suspended])
@@ -155,7 +173,7 @@ export function useChapterDraft({ storyId, chapter }: { storyId: string | null; 
         return () => window.removeEventListener('beforeunload', handler)
     }, [saveState])
 
-    const flush = useCallback(async () => {
+    const flush = useCallback(async (): Promise<boolean> => {
         if (timerRef.current) {
             window.clearTimeout(timerRef.current)
             timerRef.current = null
@@ -167,7 +185,8 @@ export function useChapterDraft({ storyId, chapter }: { storyId: string | null; 
                 // save() already recorded the error state.
             }
         }
-        if (latestRef.current.dirty) await save()
+        if (latestRef.current.dirty) return save()
+        return true
     }, [save])
 
     return {

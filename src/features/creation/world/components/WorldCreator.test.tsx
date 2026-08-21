@@ -293,7 +293,7 @@ describe('WorldCreator place type payloads', () => {
             }),
         )
         expect(mocks.createWorld.mock.calls[0][0]).not.toHaveProperty('place_type')
-        // The canonical Setting category is the sole persistence location.
+        // The stored Setting category is the sole persistence location.
         const payload = mocks.createWorld.mock.calls[0][0]
         const setting = payload.category.find((c: { name: string }) => c.name === 'Setting')
         expect(setting?.attributes).toContainEqual({ 'Place type': 'province' })

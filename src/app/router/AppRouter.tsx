@@ -18,9 +18,10 @@ import { CardPreviewModal, useCardPreviewModal } from '../../features/cards'
 import { FloatingWindowsLayer } from '../../features/floatingWindows'
 import { LoadingSpinner } from '../../ui/components/LoadingSpinner'
 import { PlaylistDock } from '../../ui/components/audio/PlaylistDock'
-import { GlowBackdrop } from '../../ui/primitives'
+import { GlowBackdrop, cx } from '../../ui/primitives'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { isPageFeatureEnabled } from '../../shared/featureFlags'
+import { StoryReauthenticationGate } from './StoryReauthenticationGate'
 
 // Routes are code-split: each is its own chunk, loaded on demand. Import the LEAF
 // module (not the feature barrel) so a heavy sibling (e.g. NovelStudio's TipTap)
@@ -59,9 +60,17 @@ const AdminCreditCodesPage = lazy(() => import('../../features/admin/creditCodes
 const NotFoundPage = lazy(() => import('../../features/errorPages/components/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
 
 export function AppRouter() {
-    const { currentPage } = useNavigation()
+    const { currentPage, setPage } = useNavigation()
     const { loadingState } = useData()
-    const { isLoginModalOpen, closeLoginModal } = useAuth()
+    const {
+        isLoginModalOpen,
+        closeLoginModal,
+        openLoginModal,
+        continueSignedOut,
+        sessionPhase,
+        authEpoch,
+        accountKey,
+    } = useAuth()
     const cardPreview = useCardPreviewModal()
     const mainRef = useRef<HTMLElement>(null)
     const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -81,7 +90,7 @@ export function AppRouter() {
                 it never crops at a section edge. */}
             <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
                 <div className="app-stone absolute inset-0" />
-                <GlowBackdrop variant="page" animated />
+                <GlowBackdrop variant="page" />
             </div>
             <Sidebar
                 className="hidden lg:flex"
@@ -99,7 +108,7 @@ export function AppRouter() {
                 ) : (
                     // Keyed on the page so a crash resets when the user navigates
                     // away; scoped to <main> so the sidebar/nav/modals survive it.
-                    <ErrorBoundary scope="page" inline key={currentPage}>
+                    <ErrorBoundary scope="page" inline key={currentPage === 'story' ? `story:${accountKey}` : `${currentPage}:${authEpoch}`}>
                         <Suspense fallback={<div className="flex min-h-full flex-1 items-center justify-center"><LoadingSpinner /></div>}>
                             {!pageEnabled ? (
                                 <NotFoundPage />
@@ -122,7 +131,33 @@ export function AppRouter() {
                                     {currentPage === 'item' && <ItemCreator />}
                                     {currentPage === 'adventure' && <AdventureCreator />}
                                     {currentPage === 'lorebook' && <LorebookStudio />}
-                                    {currentPage === 'story' && <NovelStudio />}
+                                    {currentPage === 'story' && (
+                                        // Every wrapper must propagate the stretched height: the
+                                        // studio fills the viewport via flex, and an auto-height
+                                        // div here would collapse it to its min content height.
+                                        <div className="relative flex min-h-full flex-1 flex-col">
+                                            <div
+                                                key={accountKey}
+                                                inert={sessionPhase === 'expired'}
+                                                aria-hidden={sessionPhase === 'expired' || undefined}
+                                                className={cx(
+                                                    'flex min-h-0 flex-1 flex-col',
+                                                    sessionPhase === 'expired' && 'invisible pointer-events-none select-none',
+                                                )}
+                                            >
+                                                <NovelStudio />
+                                            </div>
+                                            {sessionPhase === 'expired' && (
+                                                <StoryReauthenticationGate
+                                                    onLogin={openLoginModal}
+                                                    onContinueSignedOut={() => {
+                                                        continueSignedOut()
+                                                        setPage('landing')
+                                                    }}
+                                                />
+                                            )}
+                                        </div>
+                                    )}
                                     {currentPage === 'active-adventures' && <ActiveAdventuresPage />}
                                     {currentPage === 'notifications' && <NotificationsPage />}
                                     {currentPage === 'interaction' && <AdventureInteraction />}
@@ -160,17 +195,19 @@ export function AppRouter() {
             />
             <AppWarningModal />
             <CookieConsentBanner />
-            <TasksDrawer />
-            <PlaylistDock onOpenCard={cardPreview.openCardPreview} />
-            <CardPreviewModal
-                target={cardPreview.target}
-                card={cardPreview.card}
-                loading={cardPreview.loading}
-                error={cardPreview.error}
-                onClose={cardPreview.closeCardPreview}
-                showUsage
-            />
-            <FloatingWindowsLayer />
+            <div key={`private-overlays:${authEpoch}`}>
+                <TasksDrawer />
+                <PlaylistDock onOpenCard={cardPreview.openCardPreview} />
+                <CardPreviewModal
+                    target={cardPreview.target}
+                    card={cardPreview.card}
+                    loading={cardPreview.loading}
+                    error={cardPreview.error}
+                    onClose={cardPreview.closeCardPreview}
+                    showUsage
+                />
+                <FloatingWindowsLayer />
+            </div>
         </div>
     )
 }

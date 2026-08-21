@@ -56,10 +56,10 @@ export function WordGoalControl({ words, goal, onSetGoal }: WordGoalControlProps
 
     return (
         <div ref={wrapRef} className="relative">
-            <button
-                type="button"
+            <Button
+                variant="ghost"
+                size="sm"
                 onClick={openEditor}
-                className="flex items-center gap-1.5 font-ui text-xs text-parchment-400 transition-colors hover:text-parchment-200"
                 data-testid="novel-word-goal"
                 aria-label={t('novelEditor.header.goalAria')}
             >
@@ -74,13 +74,13 @@ export function WordGoalControl({ words, goal, onSetGoal }: WordGoalControlProps
                 ) : (
                     <span>{t('novelEditor.header.words', { count: words, formatted: words.toLocaleString() })}</span>
                 )}
-            </button>
+            </Button>
             {open && (
                 <div
                     className="absolute right-0 top-[calc(100%+6px)] z-40 w-[220px] rounded-lg border border-parchment-50/10 bg-ink-700 p-3 shadow-xl"
                     data-testid="novel-word-goal-popover"
                 >
-                    <label htmlFor="novel-word-goal-input" className="mb-1.5 block font-ui text-[11px] uppercase tracking-[0.14em] text-parchment-400">
+                    <label htmlFor="novel-word-goal-input" className="mb-1.5 block font-ui text-meta uppercase tracking-[0.14em] text-parchment-400">
                         {t('novelEditor.header.goalLabel')}
                     </label>
                     <input

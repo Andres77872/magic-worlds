@@ -29,6 +29,11 @@ const API_STATUS_VIEW: Record<ApiStatus, { labelKey: string; className: string; 
         className: 'text-verdant-500 bg-verdant-500/10',
         dotClassName: 'bg-verdant-500',
     },
+    degraded: {
+        labelKey: 'sidebar.api.degraded',
+        className: 'text-amber-500 bg-amber-500/10',
+        dotClassName: 'bg-amber-500',
+    },
     offline: {
         labelKey: 'sidebar.api.offline',
         className: 'text-blood-500 bg-blood-500/10',
@@ -38,16 +43,21 @@ const API_STATUS_VIEW: Record<ApiStatus, { labelKey: string; className: string; 
 
 const STATUS_BADGE_TONE: Record<ApiStatus, BadgeTone> = {
     online: 'live',
+    degraded: 'warning',
     offline: 'danger',
     checking: 'neutral',
 }
 
 function serviceStatusLabel(status: string, t: TFunction) {
-    return status === 'ok' ? t('sidebar.service.online') : t('sidebar.service.offline')
+    return status === 'ok'
+        ? t('sidebar.service.online')
+        : status === 'degraded'
+          ? t('sidebar.service.degraded')
+          : t('sidebar.service.offline')
 }
 
 function serviceStatusTone(status: string): BadgeTone {
-    return status === 'ok' ? 'live' : 'danger'
+    return status === 'ok' ? 'live' : status === 'degraded' ? 'warning' : 'danger'
 }
 
 function formatCheckedAt(checkedAt: string | undefined, t: TFunction, locale: string) {
@@ -59,7 +69,14 @@ function formatCheckedAt(checkedAt: string | undefined, t: TFunction, locale: st
 function countOfflineServices(services: ApiDependencyService[]): number {
     return services.reduce((total, service) => {
         const children = service.components ?? []
-        return total + (service.status === 'ok' ? 0 : 1) + countOfflineServices(children)
+        return total + (service.status === 'offline' ? 1 : 0) + countOfflineServices(children)
+    }, 0)
+}
+
+function countDegradedServices(services: ApiDependencyService[]): number {
+    return services.reduce((total, service) => {
+        const children = service.components ?? []
+        return total + (service.status === 'degraded' ? 1 : 0) + countDegradedServices(children)
     }, 0)
 }
 
@@ -76,6 +93,7 @@ function HealthDependencyRow({
 }) {
     const children = service.components ?? []
     const ok = service.status === 'ok'
+    const degraded = service.status === 'degraded'
     const latency = typeof service.latency_ms === 'number' ? `${service.latency_ms}ms` : null
     return (
         <div className={cx(depth > 0 && 'pl-3')}>
@@ -85,7 +103,7 @@ function HealthDependencyRow({
                         aria-hidden="true"
                         className={cx(
                             'mt-1 h-2 w-2 shrink-0 rounded-full',
-                            ok ? 'bg-verdant-500' : 'bg-blood-500',
+                            ok ? 'bg-verdant-500' : degraded ? 'bg-amber-500' : 'bg-blood-500',
                             checking && 'animate-pulse',
                         )}
                     />
@@ -136,11 +154,14 @@ export function ApiStatusMonitor({ status, services = [], checkedAt, collapsed =
     const [entered, setEntered] = useState(false)
     const containerRef = useRef<HTMLDivElement>(null)
     const offlineCount = countOfflineServices(services)
+    const degradedCount = countDegradedServices(services)
     const dependencySummary =
         services.length === 0
             ? t('sidebar.api.unavailable')
             : offlineCount > 0
               ? t('sidebar.api.offlineSummary', { count: offlineCount })
+              : degradedCount > 0
+                ? t('sidebar.api.degradedSummary', { count: degradedCount })
               : t('sidebar.api.allOnline')
 
     // Dismiss on outside pointer-down or Escape (anchored popover, not a modal).
@@ -224,7 +245,7 @@ export function ApiStatusMonitor({ status, services = [], checkedAt, collapsed =
                         <Badge tone={STATUS_BADGE_TONE[status]} className="shrink-0">
                             {status === 'checking'
                                 ? t('sidebar.api.checkingShort')
-                                : serviceStatusLabel(status === 'online' ? 'ok' : 'offline', t)}
+                                : serviceStatusLabel(status === 'online' ? 'ok' : status, t)}
                         </Badge>
                     </div>
                     <div className="flex-1 overflow-y-auto p-3">

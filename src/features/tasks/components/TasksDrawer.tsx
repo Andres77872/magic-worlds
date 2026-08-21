@@ -19,8 +19,8 @@ export function TasksDrawer() {
             open={drawerOpen}
             onClose={closeDrawer}
             size="md"
-            icon={<Icon icon={Music2} size={18} className="text-arcane-300" />}
-            eyebrow={<Eyebrow tone="arcane">{t('tasksDrawer.eyebrow')}</Eyebrow>}
+            icon={<Icon icon={Music2} size={18} className="text-ember-400" />}
+            eyebrow={<Eyebrow tone="ember">{t('tasksDrawer.eyebrow')}</Eyebrow>}
             title={t('tasksDrawer.title')}
         >
             <TasksPanel />

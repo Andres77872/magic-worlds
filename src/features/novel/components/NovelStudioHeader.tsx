@@ -87,7 +87,7 @@ export function NovelStudioHeader({
                         onBlur={commitTitle}
                         onKeyDown={blurOnEnter}
                         aria-label={t('novelEditor.header.titleLabel')}
-                        className="m-0 w-full max-w-[34ch] border-none bg-transparent p-0 font-display text-[28px] font-semibold tracking-tight text-parchment-50 outline-none placeholder:text-parchment-500"
+                        className="m-0 w-full max-w-[34ch] border-none bg-transparent p-0 font-display text-h3 font-semibold tracking-tight text-parchment-50 outline-none placeholder:text-parchment-500"
                         placeholder={t('novelEditor.header.untitled')}
                         data-testid="novel-title-input"
                     />
@@ -97,7 +97,7 @@ export function NovelStudioHeader({
                         onBlur={commitDescription}
                         onKeyDown={blurOnEnter}
                         aria-label={t('novelEditor.header.descriptionLabel')}
-                        className="m-0 w-full max-w-[60ch] border-none bg-transparent p-0 font-narrative text-[15px] text-parchment-300 outline-none placeholder:text-parchment-500"
+                        className="m-0 w-full max-w-[60ch] border-none bg-transparent p-0 font-narrative text-body text-parchment-300 outline-none placeholder:text-parchment-500"
                         placeholder={t('novelEditor.header.descriptionPlaceholder')}
                     />
                 </div>

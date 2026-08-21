@@ -31,7 +31,7 @@ export function AiSuggestionPill({ anchor, onAccept, onReject }: AiSuggestionPil
             >
                 <Icon icon={Check} size={13} />
                 {t('novelEditor.suggestion.keep')}
-                <kbd className="font-mono text-[10px] opacity-70">Tab</kbd>
+                <kbd className="font-mono text-micro opacity-70">Tab</kbd>
             </PillButton>
             <PillButton
                 className="text-parchment-300 hover:bg-parchment-50/[.08] hover:text-parchment-100"
@@ -40,7 +40,7 @@ export function AiSuggestionPill({ anchor, onAccept, onReject }: AiSuggestionPil
             >
                 <Icon icon={X} size={13} />
                 {t('novelEditor.suggestion.discard')}
-                <kbd className="font-mono text-[10px] opacity-70">Esc</kbd>
+                <kbd className="font-mono text-micro opacity-70">Esc</kbd>
             </PillButton>
         </div>
     )

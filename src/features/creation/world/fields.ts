@@ -12,7 +12,7 @@ import type { SelectOption } from '@/ui/primitives'
 import { CUSTOM_WORLD_PLACE_TYPE, WORLD_PLACE_TYPE_OPTIONS } from '@/shared'
 import type { CardFieldDefinition, GuidedSectionDefinition } from '../common/engine'
 
-/** The canonical Setting / Place type category binding. The `group`/`key` are
+/** The stored Setting / Place type category binding. The `group`/`key` are
  * saved-card data; the description resolves through `t`. */
 export const PLACE_TYPE_MIRROR = {
     group: 'Setting',

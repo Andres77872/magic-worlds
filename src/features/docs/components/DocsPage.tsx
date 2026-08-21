@@ -31,6 +31,7 @@ import {
 import { useAuth, useNavigation } from '@/app/hooks'
 import { docsHeroArt } from '@/assets/marketing'
 import type { PageType } from '@/shared'
+import { isPageFeatureEnabled } from '@/shared/featureFlags'
 import {
     Badge,
     Button,
@@ -50,6 +51,7 @@ import {
     sectionSearchText,
     type GuideItem,
 } from './docsContent'
+import { scrollBehavior } from '@/utils/motion'
 
 function activateOnKey(handler: () => void) {
     return (event: KeyboardEvent<HTMLDivElement>) => {
@@ -60,15 +62,11 @@ function activateOnKey(handler: () => void) {
     }
 }
 
-function prefersReducedMotion() {
-    return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-}
-
 function scrollDocsSectionIntoView(id: string) {
     const target = document.getElementById(id)
     if (!target) return
 
-    const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth'
+    const behavior = scrollBehavior()
     const scroller = document.querySelector<HTMLElement>('[data-app-main]')
     if (!scroller) {
         target.scrollIntoView({ behavior, block: 'start' })
@@ -86,7 +84,7 @@ function scrollDocsSectionIntoView(id: string) {
 function scrollNavButtonInlineIntoView(nav: HTMLElement | null, button: HTMLButtonElement | null) {
     if (!nav || !button || nav.scrollWidth <= nav.clientWidth) return
 
-    const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth'
+    const behavior = scrollBehavior()
     const navRect = nav.getBoundingClientRect()
     const buttonRect = button.getBoundingClientRect()
     const overflowLeft = buttonRect.left - navRect.left
@@ -225,10 +223,10 @@ export function DocsPage() {
                             icon={<IconTile icon={Info} tone="arcane" size="md" />}
                             actions={
                                 <div className="flex flex-wrap gap-2">
-                                    {docs.primaryActions.map((action) => (
+                                    {docs.primaryActions.filter((action) => isPageFeatureEnabled(action.page)).map((action, index) => (
                                         <Button
                                             key={action.page}
-                                            variant={action.page === 'adventure' ? 'primary' : 'secondary'}
+                                            variant={action.page === 'adventure' || (index === 0 && !isPageFeatureEnabled('adventure')) ? 'primary' : 'secondary'}
                                             size="sm"
                                             iconLeft={<Icon icon={action.icon} size={15} />}
                                             onClick={() => goToPage(action.page, action.gated)}
@@ -347,7 +345,7 @@ export function DocsPage() {
                         >
                             <SectionHeader icon={Compass} title={docs.mapHeadings.primaryWorkspaces} />
                             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                {docs.mapItems.map((item) => (
+                                {docs.mapItems.filter((item) => isPageFeatureEnabled(item.page)).map((item) => (
                                     <MapPanel
                                         key={item.title}
                                         icon={item.icon}
@@ -563,7 +561,7 @@ export function DocsPage() {
                             art={getSection('best-practices').art}
                             hidden={isHidden('best-practices')}
                         >
-                            <Callout label={docs.callout.bestPracticesLabel} icon={ShieldCheck}>
+                            <LabeledCallout label={docs.callout.bestPracticesLabel} icon={ShieldCheck}>
                                 <ul className="m-0 grid list-none gap-3 p-0">
                                     {docs.bestPractices.map((practice) => (
                                         <li key={practice} className="flex gap-3">
@@ -576,7 +574,7 @@ export function DocsPage() {
                                         </li>
                                     ))}
                                 </ul>
-                            </Callout>
+                            </LabeledCallout>
                         </GuideSection>
                     </main>
                 </div>
@@ -634,7 +632,7 @@ function GuideSection({
     )
 }
 
-function Callout({
+function LabeledCallout({
     label,
     icon,
     tone = 'ember',

@@ -88,7 +88,15 @@ import {
 import { makeRequestId } from '../../utils/uuid'
 import { configureChatSocketAuthRefresh } from './chatSocket'
 import { configureVoiceSocketAuthRefresh } from './voiceSocket'
-import type { CanonicalConversationMessage, ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from '../../shared/types/interaction.types'
+import { authSession, type AuthSessionSnapshot } from './authSession'
+import {
+    serializeActivationPreview,
+    serializeLorebookAttachment,
+    serializeLorebookDraft,
+    serializeLorebookEntry,
+    serializeLorebookResource,
+} from './lorebookWire'
+import type { StoredConversationMessage, ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from '../../shared/types/interaction.types'
 import type { VoiceCallLimits, VoiceCallListResponse, VoiceCallTranscriptResponse, VoiceSegmentUploadRequest, VoiceSegmentUploadResponse } from '../../shared/types/voice.types'
 import type { AdventureSnapshot } from '../../shared/types/adventure.types'
 import type {
@@ -110,8 +118,6 @@ import type {
 } from '../../shared/types/lorebook.types'
 import type {
     AdventureTemplateCardResponse,
-    AiCardErrorEnvelope,
-    AiCardPublicError,
     AiCardRequestOptions,
     CardAssistantConversationListResponse,
     CardAssistantConversationResponse,
@@ -176,13 +182,13 @@ import type {
 export interface AdventureSessionMessagesResponse {
     adventure_id: number
     version: number
-    messages: CanonicalConversationMessage[]
+    messages: StoredConversationMessage[]
 }
 
 export interface CharacterChatMessagesResponse {
     chat_id: number
     version: number
-    messages: CanonicalConversationMessage[]
+    messages: StoredConversationMessage[]
 }
 
 export interface ImageJobPublicResponse {
@@ -207,7 +213,7 @@ export interface ApiHealthResponse {
     status: string
 }
 
-export type ApiDependencyStatus = 'ok' | 'offline'
+export type ApiDependencyStatus = 'ok' | 'degraded' | 'offline'
 
 export interface ApiDependencyService {
     id: string
@@ -219,7 +225,7 @@ export interface ApiDependencyService {
 }
 
 export interface ApiDependencyHealthResponse {
-    status: 'ok' | 'offline' | string
+    status: 'ok' | 'degraded' | 'offline' | string
     checked_at?: string
     services: ApiDependencyService[]
 }
@@ -294,12 +300,83 @@ interface ParsedApiError {
     details?: Record<string, unknown>
 }
 
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : undefined
+}
+
+function validationMessage(value: unknown): string | undefined {
+    if (!Array.isArray(value) || value.length === 0) return undefined
+    const first = recordValue(value[0])
+    if (!first || typeof first.msg !== 'string') return undefined
+    const location = Array.isArray(first.loc)
+        ? first.loc.filter((part): part is string | number => typeof part === 'string' || typeof part === 'number')
+            .filter((part) => part !== 'body')
+            .join('.')
+        : ''
+    return location ? `${location}: ${first.msg}` : first.msg
+}
+
+function nestedErrorRecord(body: Record<string, unknown>): Record<string, unknown> {
+    return recordValue(body.error) ?? recordValue(body.detail) ?? body
+}
+
+export function normalizeApiErrorBody(
+    value: unknown,
+    defaults: Pick<ParsedApiError, 'requestId' | 'retryAfterSeconds'> = {},
+): ParsedApiError | null {
+    const body = recordValue(value)
+    if (!body) return null
+    const validation = validationMessage(body.detail)
+    if (validation) {
+        return {
+            message: validation,
+            ...defaults,
+            details: { validation: body.detail },
+        }
+    }
+
+    const nested = nestedErrorRecord(body)
+    const deeper = nestedErrorRecord(nested)
+    const stringDetail = typeof body.detail === 'string' ? body.detail : undefined
+    const message = stringDetail
+        ?? (typeof nested.message === 'string' ? nested.message : undefined)
+        ?? (typeof nested.detail === 'string' ? nested.detail : undefined)
+        ?? (typeof deeper.message === 'string' ? deeper.message : undefined)
+        ?? (typeof deeper.detail === 'string' ? deeper.detail : undefined)
+        ?? (typeof body.message === 'string' ? body.message : undefined)
+    if (!message) return null
+
+    const metadata = deeper === nested ? nested : { ...nested, ...deeper }
+    const numberValue = (candidate: unknown) => typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : undefined
+    const booleanValue = (candidate: unknown) => typeof candidate === 'boolean' ? candidate : undefined
+    return {
+        message,
+        category: typeof metadata.category === 'string' ? metadata.category : undefined,
+        code: typeof metadata.code === 'string' ? metadata.code : undefined,
+        requestId: typeof metadata.request_id === 'string'
+            ? metadata.request_id
+            : typeof body.request_id === 'string'
+              ? body.request_id
+              : defaults.requestId,
+        retryable: booleanValue(metadata.retryable),
+        retryAfterSeconds: numberValue(metadata.retry_after_seconds) ?? defaults.retryAfterSeconds,
+        action: typeof metadata.action === 'string' ? metadata.action : undefined,
+        details: recordValue(body.detail) ?? recordValue(body.error),
+    }
+}
+
 type ApiRequestOptions = RequestInit & {
     timeoutMs?: number
     rejectAccepted?: boolean
 }
 
 type HeaderRecord = Record<string, string>
+
+type AuthRequestOwner = Pick<AuthSessionSnapshot, 'authEpoch' | 'accountKey' | 'userHash'> & {
+    token: string
+}
 
 export interface LorebookResourceMetadataSaveOptions {
     extractMetadata?: boolean
@@ -392,18 +469,35 @@ class ApiService {
             signal
         }
         const skipAuthRecovery = isAuthEndpoint || this.isAuthLifecycleEndpoint(endpoint)
+        const initiatingToken = this.authorizationToken(config.headers)
+        const owner = initiatingToken && !skipAuthRecovery
+            ? { ...authSession.getSnapshot(), token: initiatingToken }
+            : null
 
         try {
             let response = await fetch(url, config)
-            if (timeoutHandle) clearTimeout(timeoutHandle)
+            this.assertCurrentOwner(owner)
 
             // Session-expiry handling applies ONLY to already-authenticated
             // requests — never to login/register, whose 401/400/422 responses
             // must surface to the user as the real error message.
             if (response.status === 401 && !skipAuthRecovery) {
+                const rotatedToken = this.getStoredToken()
+                if (rotatedToken && rotatedToken !== initiatingToken) {
+                    this.assertCurrentOwner(owner)
+                    response = await fetch(url, this.withAuthorization(config, rotatedToken))
+                    this.assertCurrentOwner(owner)
+                }
                 try {
-                    const nextToken = await this.refreshAccessToken(this.getStoredToken())
-                    response = await fetch(url, this.withAuthorization(config, nextToken))
+                    if (response.status === 401) {
+                        const nextToken = await this.waitForSignal(
+                            this.refreshAccessToken(rotatedToken || initiatingToken),
+                            signal,
+                        )
+                        this.assertCurrentOwner(owner)
+                        response = await fetch(url, this.withAuthorization(config, nextToken))
+                        this.assertCurrentOwner(owner)
+                    }
                 } catch (error) {
                     if (this.isTerminalAuthError(error)) {
                         return this.terminalAuthResult()
@@ -448,14 +542,18 @@ class ApiService {
                 // 204 No Content (e.g. asset deletes) and other empty bodies have no
                 // JSON to parse — calling response.json() on them throws. Treat as success.
                 if (response.status === 204 || response.headers.get('content-length') === '0') {
+                    this.assertCurrentOwner(owner)
                     return undefined as T
                 }
-                return await response.json()
+                const parsed = await response.json()
+                this.assertCurrentOwner(owner)
+                return parsed
             } else {
-                return await response.text() as T
+                const parsed = await response.text() as T
+                this.assertCurrentOwner(owner)
+                return parsed
             }
         } catch (error) {
-            if (timeoutHandle) clearTimeout(timeoutHandle)
             if (didTimeout && error instanceof DOMException && error.name === 'AbortError') {
                 throw new ApiError(0, 'Local wait timed out. The server may still finish and save the card; retrying uses the same key to avoid duplicates.', {
                     category: 'timeout',
@@ -470,6 +568,8 @@ class ApiService {
                 console.warn(`API request error for ${endpoint}:`, error)
             }
             throw error
+        } finally {
+            if (timeoutHandle) clearTimeout(timeoutHandle)
         }
     }
 
@@ -512,6 +612,58 @@ class ApiService {
         }
     }
 
+    /**
+     * Keep the initiating request's deadline authoritative while a process-wide
+     * refresh continues for other callers. Aborting one request must not cancel
+     * the shared refresh, but it must stop that request from waiting or replaying.
+     */
+    private async waitForSignal<T>(operation: Promise<T>, signal?: AbortSignal | null): Promise<T> {
+        if (!signal) return operation
+        if (signal.aborted) {
+            throw signal.reason instanceof DOMException
+                ? signal.reason
+                : new DOMException('Request aborted', 'AbortError')
+        }
+        return new Promise<T>((resolve, reject) => {
+            const abort = () => {
+                cleanup()
+                reject(signal.reason instanceof DOMException
+                    ? signal.reason
+                    : new DOMException('Request aborted', 'AbortError'))
+            }
+            const cleanup = () => signal.removeEventListener('abort', abort)
+            signal.addEventListener('abort', abort, { once: true })
+            operation.then(
+                (value) => {
+                    cleanup()
+                    resolve(value)
+                },
+                (error) => {
+                    cleanup()
+                    reject(error)
+                },
+            )
+        })
+    }
+
+    private authorizationToken(headers?: HeadersInit): string {
+        const record = this.toHeaderRecord(headers)
+        const entry = Object.entries(record).find(([key]) => key.toLowerCase() === 'authorization')
+        const value = entry?.[1] ?? ''
+        return value.replace(/^Bearer\s+/i, '').trim()
+    }
+
+    private assertCurrentOwner(owner: AuthRequestOwner | null): void {
+        if (!owner) return
+        if (!authSession.isCurrent(owner)) {
+            throw new ApiError(401, 'Authentication changed while this request was in progress.', {
+                category: 'authentication_changed',
+                code: 'auth_epoch_changed',
+                retryable: false,
+            })
+        }
+    }
+
     private terminalAuthResult(): never {
         // A terminal refresh failure must reject every request, including GETs.
         // Returning a fabricated empty value here violates the caller's response
@@ -520,7 +672,7 @@ class ApiService {
     }
 
     private expireAuth(): void {
-        localStorage.removeItem(TOKEN_STORAGE_KEY)
+        authSession.expire()
         localStorage.removeItem(USER_STORAGE_KEY)
         window.dispatchEvent(new CustomEvent('auth:expired'))
     }
@@ -545,6 +697,7 @@ class ApiService {
     }
 
     private async performRefresh(oldToken: string = this.getStoredToken()): Promise<string> {
+        const owner = { ...authSession.getSnapshot(), token: oldToken }
         const headers: HeaderRecord = {
             'Accept': 'application/json',
         }
@@ -577,7 +730,8 @@ class ApiService {
             })
         }
 
-        localStorage.setItem(TOKEN_STORAGE_KEY, nextToken)
+        this.assertCurrentOwner(owner)
+        authSession.rotateToken(nextToken, body.user?.user_hash)
         if (body.user) {
             localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(body.user))
         }
@@ -587,6 +741,8 @@ class ApiService {
     }
 
     async refreshAccessToken(oldToken: string = this.getStoredToken()): Promise<string> {
+        const rotatedToken = this.getStoredToken()
+        if (rotatedToken && oldToken && rotatedToken !== oldToken) return rotatedToken
         if (!refreshInFlight) {
             refreshInFlight = this.performRefresh(oldToken).finally(() => {
                 refreshInFlight = null
@@ -607,43 +763,11 @@ class ApiService {
         const retryAfterSeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : undefined
         try {
             const body = await response.clone().json()
-            if (body && typeof body === 'object') {
-                const envelope = body as Partial<AiCardErrorEnvelope>
-                const publicError = envelope.error as AiCardPublicError | undefined
-                const detail = envelope.detail
-                const voiceError = detail && typeof detail === 'object'
-                    ? detail as { type?: unknown; category?: unknown; message?: unknown; detail?: unknown; retry_after_seconds?: unknown; fatal?: unknown }
-                    : null
-                const structuredDetail = detail && typeof detail === 'object' && !Array.isArray(detail)
-                    ? detail as Record<string, unknown>
-                    : undefined
-                const message =
-                    typeof detail === 'string'
-                        ? detail
-                        : voiceError?.type === 'voice_error' && typeof voiceError.message === 'string'
-                          ? voiceError.message
-                        : typeof voiceError?.detail === 'string'
-                          ? voiceError.detail
-                        : publicError?.message
-                          ? String(publicError.message)
-                          : typeof (body as { message?: unknown }).message === 'string'
-                            ? String((body as { message: string }).message)
-                            : undefined
-                if (message) {
-                    return {
-                        message,
-                        category: typeof voiceError?.category === 'string' ? voiceError.category : publicError?.category,
-                        code: publicError?.code,
-                        requestId: publicError?.request_id || envelope.request_id || requestIdHeader,
-                        retryable: publicError?.retryable,
-                        retryAfterSeconds: typeof voiceError?.retry_after_seconds === 'number'
-                            ? voiceError.retry_after_seconds
-                            : publicError?.retry_after_seconds ?? (Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined),
-                        action: publicError?.action,
-                        details: structuredDetail,
-                    }
-                }
-            }
+            const normalized = normalizeApiErrorBody(body, {
+                requestId: requestIdHeader,
+                retryAfterSeconds: Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined,
+            })
+            if (normalized) return normalized
         } catch {
             // Body is not JSON — fall through to text.
         }
@@ -683,22 +807,37 @@ class ApiService {
             },
         })
 
-        let response = await fetchOnce(this.getStoredToken())
+        const token = this.getStoredToken()
+        const owner = { ...authSession.getSnapshot(), token }
+        let response = await fetchOnce(token)
+        this.assertCurrentOwner(owner)
         if (response.status === 401) {
-            const nextToken = await this.refreshAccessToken(this.getStoredToken())
-            response = await fetchOnce(nextToken)
+            const rotatedToken = this.getStoredToken()
+            if (rotatedToken && rotatedToken !== token) {
+                response = await fetchOnce(rotatedToken)
+                this.assertCurrentOwner(owner)
+            }
+            if (response.status === 401) {
+                const nextToken = await this.refreshAccessToken(rotatedToken || token)
+                this.assertCurrentOwner(owner)
+                response = await fetchOnce(nextToken)
+                this.assertCurrentOwner(owner)
+            }
         }
         if (!response.ok) {
             const parsed = await this.extractError(response)
             throw new ApiError(response.status, parsed.message || errorMessage, parsed)
         }
-        return response.blob()
+        const blob = await response.blob()
+        this.assertCurrentOwner(owner)
+        return blob
     }
 
     /**
      * Login via the API proxy
      */
     async login(credentials: LoginCredentials): Promise<LoginResponse> {
+        await authSession.waitForLogout()
         return this.request<LoginResponse>('/auth/login', {
             method: 'POST',
             credentials: 'include',
@@ -710,6 +849,7 @@ class ApiService {
      * Register via the API proxy
      */
     async register(data: RegisterData): Promise<RegisterResponse> {
+        await authSession.waitForLogout()
         return this.request<RegisterResponse>('/auth/register', {
             method: 'POST',
             credentials: 'include',
@@ -721,6 +861,7 @@ class ApiService {
      * Platform login via the API proxy. The BFF sets the HttpOnly refresh cookie.
      */
     async platformLogin(credentials: LoginCredentials): Promise<LoginResponse> {
+        await authSession.waitForLogout()
         return this.request<LoginResponse>('/auth/platform/login', {
             method: 'POST',
             credentials: 'include',
@@ -733,11 +874,21 @@ class ApiService {
      */
     async logout(): Promise<{ success?: boolean; message?: string }> {
         const token = this.getStoredToken()
-        return this.request<{ success?: boolean; message?: string }>('/auth/logout', {
-            method: 'POST',
-            credentials: 'include',
-            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        }, true, true)
+        const refresh = refreshInFlight
+        authSession.beginLogout()
+        const operation = (async () => {
+            try {
+                if (refresh) await refresh.catch(() => undefined)
+                return await this.request<{ success?: boolean; message?: string }>('/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                }, true, true)
+            } finally {
+                authSession.finishLogout()
+            }
+        })()
+        return authSession.retainLogout(operation)
     }
 
     /**
@@ -780,6 +931,7 @@ class ApiService {
      * the sanitized auth body (access token + user), the same shape as /auth/login.
      */
     async exchangeGoogleReturn(code: string): Promise<LoginResponse> {
+        await authSession.waitForLogout()
         return this.request<LoginResponse>('/auth/google/exchange', {
             method: 'POST',
             credentials: 'include',
@@ -976,6 +1128,7 @@ class ApiService {
     private async readCardAssistantStream(
         response: Response,
         onEvent: (event: CardAssistantStreamEvent) => void,
+        assertOwner: () => void = () => undefined,
     ): Promise<void> {
         if (!response.body) {
             throw new ApiError(502, 'Card assistant stream returned no response body.', {
@@ -990,6 +1143,7 @@ class ApiService {
         const decoder = new TextDecoder()
         let buffer = ''
         const flushFrame = (frame: string) => {
+            assertOwner()
             const event = this.parseAssistantStreamFrame<CardAssistantStreamEvent>(frame)
             if (event) onEvent(event)
         }
@@ -998,6 +1152,7 @@ class ApiService {
             while (true) {
                 const { value, done } = await reader.read()
                 if (done) break
+                assertOwner()
                 buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
                 let separator = buffer.indexOf('\n\n')
                 while (separator >= 0) {
@@ -1009,6 +1164,7 @@ class ApiService {
             }
             buffer += decoder.decode().replace(/\r\n/g, '\n')
             if (buffer.trim()) flushFrame(buffer)
+            assertOwner()
         } finally {
             reader.releaseLock()
         }
@@ -1017,6 +1173,7 @@ class ApiService {
     private async readLorebookAssistantStream(
         response: Response,
         onEvent: (event: LorebookAssistantStreamEvent) => void,
+        assertOwner: () => void = () => undefined,
     ): Promise<void> {
         if (!response.body) {
             throw new ApiError(502, 'Lorebook assistant stream returned no response body.', {
@@ -1031,6 +1188,7 @@ class ApiService {
         const decoder = new TextDecoder()
         let buffer = ''
         const flushFrame = (frame: string) => {
+            assertOwner()
             const event = this.parseAssistantStreamFrame<LorebookAssistantStreamEvent>(frame)
             if (event) onEvent(event)
         }
@@ -1039,6 +1197,7 @@ class ApiService {
             while (true) {
                 const { value, done } = await reader.read()
                 if (done) break
+                assertOwner()
                 buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
                 let separator = buffer.indexOf('\n\n')
                 while (separator >= 0) {
@@ -1050,6 +1209,7 @@ class ApiService {
             }
             buffer += decoder.decode().replace(/\r\n/g, '\n')
             if (buffer.trim()) flushFrame(buffer)
+            assertOwner()
         } finally {
             reader.releaseLock()
         }
@@ -1943,48 +2103,6 @@ class ApiService {
         return `?skip=${skip}&limit=${limit}${term ? `&q=${encodeURIComponent(term)}` : ''}`
     }
 
-    private lorebookEntryPayload(
-        entry: Partial<LorebookEntry | LorebookEntryDraft> | Record<string, unknown>,
-        options: { includeId?: boolean } = {},
-    ): Record<string, unknown> {
-        const item = entry as Partial<LorebookEntry | LorebookEntryDraft>
-        const id = options.includeId && 'id' in item && typeof item.id === 'string' && !item.id.startsWith('draft-entry-')
-            ? item.id
-            : undefined
-        return {
-            ...(id ? { id } : {}),
-            title: item.title ?? '',
-            entryType: item.entryType ?? 'other',
-            content: item.content ?? '',
-            keys: item.keys ?? [],
-            secondaryKeys: item.secondaryKeys ?? [],
-            selectiveLogic: item.selectiveLogic ?? 'any',
-            enabled: item.enabled ?? true,
-            constant: item.constant ?? false,
-            caseSensitive: item.caseSensitive ?? false,
-            matchWholeWords: item.matchWholeWords ?? true,
-            regex: item.regex ?? false,
-            isSecret: item.isSecret ?? false,
-            revealCondition: item.revealCondition || null,
-            insertionOrder: item.insertionOrder ?? 0,
-            priority: item.priority ?? 0,
-            insertionPosition: item.insertionPosition ?? 'before_context',
-            tokenBudget: item.tokenBudget ?? null,
-        }
-    }
-
-    private lorebookAttachmentPayload(attachment: Partial<LorebookAttachment> | Record<string, unknown>): Record<string, unknown> {
-        const item = attachment as Partial<LorebookAttachment>
-        return {
-            ...(item.id ? { id: item.id } : {}),
-            lorebookId: item.lorebookId,
-            targetKind: item.targetKind ?? 'global',
-            targetId: item.targetId || null,
-            mode: item.mode ?? 'linked',
-            snapshot: item.snapshot ?? null,
-        }
-    }
-
     private lorebookResourceMetadataHeaders(options: LorebookResourceMetadataSaveOptions = {}): Record<string, string> {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' }
         if (options.extractMetadata || options.requestId || options.idempotencyKey) {
@@ -1997,29 +2115,6 @@ class ApiService {
 
     private extractMetadataQuery(shouldExtract?: boolean): string {
         return shouldExtract ? '?extractMetadata=true' : ''
-    }
-
-    private lorebookResourcePayload(resource: Partial<LorebookResource> | Record<string, unknown>): Record<string, unknown> {
-        if ('fileName' in resource || 'file_name' in resource) {
-            const item = resource as Partial<LorebookResource> & Record<string, unknown>
-            return {
-                ...(typeof item.id === 'string' ? { id: item.id } : {}),
-                title: typeof item.title === 'string' ? item.title : '',
-                description: typeof item.description === 'string' && item.description.trim() ? item.description : null,
-                triggers: Array.isArray(item.triggers) ? item.triggers : [],
-                fileName: typeof item.fileName === 'string' ? item.fileName : typeof item.file_name === 'string' ? item.file_name : 'resource.txt',
-                fileType: item.fileType === 'md' || item.fileType === 'txt' ? item.fileType : item.file_type === 'md' || item.file_type === 'txt' ? item.file_type : 'txt',
-                content: typeof item.content === 'string' ? item.content : '',
-                contentLength: typeof item.contentLength === 'number'
-                    ? item.contentLength
-                    : typeof item.content_length === 'number'
-                      ? item.content_length
-                      : typeof item.content === 'string'
-                        ? item.content.length
-                        : 0,
-            }
-        }
-        return resource as Record<string, unknown>
     }
 
     private sharedCardListQuery(
@@ -2163,7 +2258,7 @@ class ApiService {
         return this.authenticatedRequest(`/lorebooks${this.extractMetadataQuery(options.extractMetadata)}`, token, {
             method: 'POST',
             headers: this.lorebookResourceMetadataHeaders(options),
-            body: lorebook as unknown as BodyInit,
+            body: serializeLorebookDraft(lorebook as LorebookDraft & Record<string, unknown>) as unknown as BodyInit,
         })
     }
 
@@ -2173,7 +2268,7 @@ class ApiService {
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}${this.extractMetadataQuery(options.extractMetadata)}`, token, {
             method: 'PUT',
             headers: this.lorebookResourceMetadataHeaders(options),
-            body: lorebook as unknown as BodyInit,
+            body: serializeLorebookDraft(lorebook as LorebookDraft & Record<string, unknown>) as unknown as BodyInit,
         })
     }
 
@@ -2207,7 +2302,7 @@ class ApiService {
         return this.authenticatedRequest(`/lorebook-resources${this.extractMetadataQuery(options.extractMetadata)}`, token, {
             method: 'POST',
             headers: this.lorebookResourceMetadataHeaders(options),
-            body: this.lorebookResourcePayload(resource) as unknown as BodyInit,
+            body: serializeLorebookResource(resource as Partial<LorebookResource> & Record<string, unknown>, { includeIdentity: true }) as unknown as BodyInit,
         })
     }
 
@@ -2217,7 +2312,7 @@ class ApiService {
         return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}${this.extractMetadataQuery(options.extractMetadata)}`, token, {
             method: 'PUT',
             headers: this.lorebookResourceMetadataHeaders(options),
-            body: this.lorebookResourcePayload(resource) as unknown as BodyInit,
+            body: serializeLorebookResource(resource as Partial<LorebookResource> & Record<string, unknown>, { includeIdentity: false }) as unknown as BodyInit,
         })
     }
 
@@ -2270,7 +2365,7 @@ class ApiService {
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries`, token, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: this.lorebookEntryPayload(entry, { includeId: true }) as unknown as BodyInit,
+            body: serializeLorebookEntry(entry as Partial<LorebookEntry> & Record<string, unknown>, { includeIdentity: false }) as unknown as BodyInit,
         })
     }
 
@@ -2280,7 +2375,7 @@ class ApiService {
         return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}/entries/${encodeURIComponent(entryId)}`, token, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: this.lorebookEntryPayload(entry) as unknown as BodyInit,
+            body: serializeLorebookEntry(entry as Partial<LorebookEntry> & Record<string, unknown>, { includeIdentity: false }) as unknown as BodyInit,
         })
     }
 
@@ -2310,7 +2405,7 @@ class ApiService {
         return this.authenticatedRequest<LorebookAttachment>('/lorebook-attachments', token, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: this.lorebookAttachmentPayload(attachment) as unknown as BodyInit,
+            body: serializeLorebookAttachment(attachment as Partial<LorebookAttachment> & Record<string, unknown>) as unknown as BodyInit,
         })
     }
 
@@ -2328,7 +2423,7 @@ class ApiService {
         return this.authenticatedRequest<{ issues: LorebookIssue[] }>('/lorebooks/validate', token, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: lorebook as unknown as BodyInit,
+            body: serializeLorebookDraft(lorebook as Lorebook & Record<string, unknown>, { includeIdentity: true }) as unknown as BodyInit,
         })
     }
 
@@ -2338,7 +2433,7 @@ class ApiService {
         return this.authenticatedRequest<LoreActivationPreviewResponse>('/lorebooks/activation-preview', token, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: request as unknown as BodyInit,
+            body: serializeActivationPreview(request) as unknown as BodyInit,
         })
     }
 
@@ -2629,6 +2724,7 @@ class ApiService {
         const endpoint = `/card-assistant/conversations/${conversationId}/messages/stream`
         const url = `${this.baseUrl}${endpoint}`
         const payload = JSON.stringify(body)
+        const owner = { ...authSession.getSnapshot(), token }
 
         let didTimeout = false
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined
@@ -2662,15 +2758,28 @@ class ApiService {
 
         try {
             let response = await fetch(url, config)
+            this.assertCurrentOwner(owner)
             if (response.status === 401) {
-                const nextToken = await this.refreshAccessToken(token)
-                response = await fetch(url, this.withAuthorization(config, nextToken))
+                const rotatedToken = this.getStoredToken()
+                if (rotatedToken && rotatedToken !== token) {
+                    response = await fetch(url, this.withAuthorization(config, rotatedToken))
+                    this.assertCurrentOwner(owner)
+                }
+                if (response.status === 401) {
+                    const nextToken = await this.waitForSignal(
+                        this.refreshAccessToken(rotatedToken || token),
+                        signal,
+                    )
+                    this.assertCurrentOwner(owner)
+                    response = await fetch(url, this.withAuthorization(config, nextToken))
+                    this.assertCurrentOwner(owner)
+                }
             }
             if (!response.ok) {
                 const parsed = await this.extractError(response)
                 throw new ApiError(response.status, parsed.message, parsed)
             }
-            await this.readCardAssistantStream(response, onEvent)
+            await this.readCardAssistantStream(response, onEvent, () => this.assertCurrentOwner(owner))
         } catch (error) {
             if (didTimeout && error instanceof DOMException && error.name === 'AbortError') {
                 throw new ApiError(0, 'Local wait timed out. The assistant may still finish and save the conversation.', {
@@ -2782,6 +2891,7 @@ class ApiService {
         const endpoint = `/lorebook-assistant/conversations/${conversationId}/messages/stream`
         const url = `${this.baseUrl}${endpoint}`
         const payload = JSON.stringify(body)
+        const owner = { ...authSession.getSnapshot(), token }
 
         let didTimeout = false
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined
@@ -2815,15 +2925,28 @@ class ApiService {
 
         try {
             let response = await fetch(url, config)
+            this.assertCurrentOwner(owner)
             if (response.status === 401) {
-                const nextToken = await this.refreshAccessToken(token)
-                response = await fetch(url, this.withAuthorization(config, nextToken))
+                const rotatedToken = this.getStoredToken()
+                if (rotatedToken && rotatedToken !== token) {
+                    response = await fetch(url, this.withAuthorization(config, rotatedToken))
+                    this.assertCurrentOwner(owner)
+                }
+                if (response.status === 401) {
+                    const nextToken = await this.waitForSignal(
+                        this.refreshAccessToken(rotatedToken || token),
+                        signal,
+                    )
+                    this.assertCurrentOwner(owner)
+                    response = await fetch(url, this.withAuthorization(config, nextToken))
+                    this.assertCurrentOwner(owner)
+                }
             }
             if (!response.ok) {
                 const parsed = await this.extractError(response)
                 throw new ApiError(response.status, parsed.message, parsed)
             }
-            await this.readLorebookAssistantStream(response, onEvent)
+            await this.readLorebookAssistantStream(response, onEvent, () => this.assertCurrentOwner(owner))
         } catch (error) {
             if (didTimeout && error instanceof DOMException && error.name === 'AbortError') {
                 throw new ApiError(0, 'Local wait timed out. The assistant may still finish and save the conversation.', {
@@ -2962,7 +3085,7 @@ class ApiService {
         const limit = 200
         let beforeSequence: number | undefined
         let response: AdventureSessionMessagesResponse | null = null
-        let messages: CanonicalConversationMessage[] = []
+        let messages: StoredConversationMessage[] = []
         while (true) {
             const query = new URLSearchParams({ limit: String(limit) })
             if (beforeSequence !== undefined) query.set('before_sequence', String(beforeSequence))
@@ -2985,7 +3108,7 @@ class ApiService {
         sessionId: number,
         messageId: number,
         content: string,
-    ): Promise<CanonicalConversationMessage> {
+    ): Promise<StoredConversationMessage> {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-sessions/${sessionId}/messages/${messageId}`, token, {
             method: 'PATCH',
@@ -3123,10 +3246,22 @@ class ApiService {
                 ...(token && isSameOrigin ? { 'Authorization': `Bearer ${token}` } : {}),
             },
         })
-        let response = await fetchOnce(this.getStoredToken())
+        const token = this.getStoredToken()
+        const owner = isSameOrigin ? { ...authSession.getSnapshot(), token } : null
+        let response = await fetchOnce(token)
+        this.assertCurrentOwner(owner)
         if (isSameOrigin && response.status === 401) {
-            const nextToken = await this.refreshAccessToken(this.getStoredToken())
-            response = await fetchOnce(nextToken)
+            const rotatedToken = this.getStoredToken()
+            if (rotatedToken && rotatedToken !== token) {
+                response = await fetchOnce(rotatedToken)
+                this.assertCurrentOwner(owner)
+            }
+            if (response.status === 401) {
+                const nextToken = await this.refreshAccessToken(rotatedToken || token)
+                this.assertCurrentOwner(owner)
+                response = await fetchOnce(nextToken)
+                this.assertCurrentOwner(owner)
+            }
         }
         if (!response.ok) {
             throw new ApiError(response.status, 'Protected media could not be loaded.', {
@@ -3134,7 +3269,9 @@ class ApiService {
                 retryable: response.status >= 500,
             })
         }
-        return response.blob()
+        const blob = await response.blob()
+        this.assertCurrentOwner(owner)
+        return blob
     }
 
     /** Poll a chat TTS job until it reaches a terminal status (or the deadline). */
@@ -3502,7 +3639,7 @@ class ApiService {
         const limit = 200
         let beforeSequence: number | undefined
         let response: CharacterChatMessagesResponse | null = null
-        let messages: CanonicalConversationMessage[] = []
+        let messages: StoredConversationMessage[] = []
         while (true) {
             const query = new URLSearchParams({ limit: String(limit) })
             if (beforeSequence !== undefined) query.set('before_sequence', String(beforeSequence))
@@ -3566,7 +3703,7 @@ class ApiService {
         chatId: number,
         messageId: number,
         content: string,
-    ): Promise<CanonicalConversationMessage> {
+    ): Promise<StoredConversationMessage> {
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/character-chats/${chatId}/messages/${messageId}`, token, {
             method: 'PATCH',

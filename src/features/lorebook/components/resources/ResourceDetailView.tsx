@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ArrowLeft, FileText, Link2, Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { LorebookResource } from '@/shared'
-import { Badge, Button, Callout, Field, Icon, IconButton, Input, PageHeader, SwitchRow, Tag, Textarea } from '@/ui/primitives'
+import { Badge, Button, Callout, Field, Icon, IconButton, IconTile, Input, PageHeader, SwitchRow, Tag, Textarea } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
 import { formatApiDateTime } from '@/utils/time'
 import {
@@ -23,7 +23,7 @@ import { Stat } from './Stat'
 import { statusTone } from './resourceStatus'
 
 interface ResourceDetailViewProps {
-    /** The canonical resource (a fresh draft when creating). */
+    /** The stored resource (a fresh draft when creating). */
     resource: LorebookResource
     /** True while creating a brand-new resource (`?resource=new`). */
     isCreate: boolean
@@ -166,7 +166,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                 <PageHeader
                     eyebrow={t(isCreate ? 'lorebookResourcesGallery.editor.createEyebrow' : 'lorebookResourcesGallery.editor.editEyebrow')}
                     title={headTitle}
-                    icon={<span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-arcane-500/15 text-arcane-300"><Icon icon={FileText} size={22} /></span>}
+                    icon={<IconTile icon={FileText} tone="arcane" size="md" />}
                     actions={
                         <>
                             <Button variant="ghost" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack}>
@@ -280,7 +280,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                                 />
                             </Field>
                             <Button
-                                variant="arcane"
+                                variant="primary"
                                 type="button"
                                 iconLeft={<Icon icon={urlImporting ? Loader2 : Link2} className={urlImporting ? 'animate-spin' : undefined} size={16} />}
                                 onClick={() => void importUrl()}

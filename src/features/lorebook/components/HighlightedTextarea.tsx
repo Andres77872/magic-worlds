@@ -18,7 +18,7 @@ import { useOpenLoreEntry } from '../hooks/useOpenLoreEntry'
 
 // Typography/box classes shared by the textarea and the backdrop — they MUST match
 // exactly or the underlines drift off the glyphs. (Mirrors ChatComposer's textarea.)
-const BOX = 'block max-h-[160px] min-h-[44px] w-full px-4 pb-1.5 pt-3 font-narrative text-[15px] leading-relaxed'
+const BOX = 'block max-h-[160px] min-h-[44px] w-full px-4 pb-1.5 pt-3 font-narrative text-body leading-relaxed'
 
 interface HighlightedTextareaProps {
     value: string

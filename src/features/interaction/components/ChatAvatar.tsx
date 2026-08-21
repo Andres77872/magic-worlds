@@ -14,7 +14,7 @@ export function ChatAvatar({ isUser }: ChatAvatarProps) {
             name={t('interaction.avatar.playerName')}
             size={36}
             ring="ember"
-            gradient="linear-gradient(135deg, rgba(232,162,74,.28), rgba(232,162,74,.08))"
+            gradient="linear-gradient(135deg, color-mix(in srgb, var(--color-ember-500) 28%, transparent), color-mix(in srgb, var(--color-ember-500) 8%, transparent))"
         />
     ) : (
         // Game Master (AI) — arcane ring

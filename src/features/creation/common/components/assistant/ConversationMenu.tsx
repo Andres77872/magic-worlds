@@ -136,7 +136,7 @@ export function ConversationMenu({ conversations, activeId, disabled, onSelect, 
                                             label={t('creation.common.assistant.deleteConversation', { title })}
                                             size="sm"
                                             tone="danger"
-                                            className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+                                            className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
                                             onClick={() => setConfirmId(id)}
                                         >
                                             <Trash2 size={14} />

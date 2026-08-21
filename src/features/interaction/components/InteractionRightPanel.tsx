@@ -15,10 +15,6 @@ interface InteractionRightPanelProps {
 export function InteractionRightPanel({ turns = [] }: InteractionRightPanelProps) {
     const { t } = useTranslation()
 
-    const truncateText = (text: string, maxLength: number = 50): string => {
-        return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text
-    }
-
     const formatTime = (timestamp: string): string => {
         return formatApiTime(timestamp)
     }
@@ -53,7 +49,7 @@ export function InteractionRightPanel({ turns = [] }: InteractionRightPanelProps
                                     {turn.type === 'user' ? t('interaction.logPanel.you') : t('interaction.logPanel.gm')}
                                 </span>
                             </div>
-                            <div className="text-[13px] text-parchment-200">{truncateText(turn.content)}</div>
+                            <div className="line-clamp-2 min-w-0 text-[13px] text-parchment-200">{turn.content}</div>
                         </div>
                     ))
                 )}

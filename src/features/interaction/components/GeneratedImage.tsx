@@ -34,7 +34,7 @@ const FAILED_STATUSES: ImageLifecycleStatus[] = ['failed', 'canceled', 'invalid'
 function ImageError({ detail }: { detail?: string }) {
     const { t } = useTranslation()
     return (
-        <div className="mt-3 rounded-xl border border-blood-500/25 bg-blood-500/10 px-4 py-3 text-[13px] text-blood-200">
+        <div className="mt-3 rounded-xl border border-blood-500/25 bg-blood-500/10 px-4 py-3 text-[13px] text-blood-300">
             {detail || t('interaction.image.failed')}
         </div>
     )

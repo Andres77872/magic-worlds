@@ -4,8 +4,10 @@
  * card creators and the lorebook studio can never drift apart.
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { MessageCircle } from 'lucide-react'
 import { cx } from '@/ui/primitives'
+import { setBottomChromeHeight, useBottomChromeInset } from '@/ui/primitives/bottomChrome'
 import { AssistantDragContext, type AssistantDragContextValue } from './assistantDragContext'
 
 interface AssistantPosition {
@@ -48,12 +50,17 @@ function samePosition(a: AssistantPosition, b: AssistantPosition): boolean {
     return Math.round(a.x) === Math.round(b.x) && Math.round(a.y) === Math.round(b.y)
 }
 
-function clampPosition(position: AssistantPosition, size: AssistantSize): AssistantPosition {
+function clampPosition(
+    position: AssistantPosition,
+    size: AssistantSize,
+    /** Height of persistent bottom-right chrome the panel must not be parked under. */
+    bottomInset = 0,
+): AssistantPosition {
     if (typeof window === 'undefined') return position
     const minX = VIEWPORT_PADDING
     const minY = VIEWPORT_PADDING
     const maxX = Math.max(minX, window.innerWidth - size.width - VIEWPORT_PADDING)
-    const maxY = Math.max(minY, window.innerHeight - size.height - VIEWPORT_PADDING)
+    const maxY = Math.max(minY, window.innerHeight - size.height - VIEWPORT_PADDING - bottomInset)
     return {
         x: Math.min(Math.max(position.x, minX), maxX),
         y: Math.min(Math.max(position.y, minY), maxY),
@@ -81,6 +88,7 @@ interface AssistantShellProps {
 
 export function AssistantShell({ open, onOpen, fabLabel, dialogLabel, children }: AssistantShellProps) {
     const storageKey = positionStorageKey(dialogLabel)
+    const launcherInset = useBottomChromeInset('launcher')
     const [position, setPosition] = useState<AssistantPosition | null>(() => readPosition(storageKey))
     const [dragging, setDragging] = useState(false)
     const panelRef = useRef<HTMLElement>(null)
@@ -97,10 +105,37 @@ export function AssistantShell({ open, onOpen, fabLabel, dialogLabel, children }
         positionRef.current = position
     }, [position])
 
+    // Drag handlers are plain functions re-created each render; read the inset
+    // through a ref so clamping always uses the live dock height.
+    const insetRef = useRef(launcherInset)
+    useEffect(() => {
+        insetRef.current = launcherInset
+    }, [launcherInset])
+
+    // Publish the launcher's own height so the toast stacks above it instead of
+    // burying it. Retracted while the panel is open (the launcher is gone) and on
+    // unmount, so a creator the user has left contributes nothing to the stack.
+    const launcherRef = useRef<HTMLButtonElement>(null)
+    useEffect(() => {
+        const element = launcherRef.current
+        if (open || !element) {
+            setBottomChromeHeight('launcher', null)
+            return undefined
+        }
+        const publish = () => setBottomChromeHeight('launcher', element.getBoundingClientRect().height)
+        publish()
+        const observer = new ResizeObserver(publish)
+        observer.observe(element)
+        return () => {
+            observer.disconnect()
+            setBottomChromeHeight('launcher', null)
+        }
+    }, [open])
+
     const clampCurrentPosition = useCallback(() => {
         const current = positionRef.current
         if (!current) return
-        const next = clampPosition(current, panelSizeFrom(panelRef.current))
+        const next = clampPosition(current, panelSizeFrom(panelRef.current), insetRef.current)
         if (samePosition(current, next)) return
         positionRef.current = next
         setPosition(next)
@@ -128,7 +163,7 @@ export function AssistantShell({ open, onOpen, fabLabel, dialogLabel, children }
         e.stopPropagation()
         const size = { width: rect.width || DEFAULT_PANEL_SIZE.width, height: rect.height || DEFAULT_PANEL_SIZE.height }
         const origin = positionRef.current ?? { x: rect.left, y: rect.top }
-        const nextOrigin = clampPosition(origin, size)
+        const nextOrigin = clampPosition(origin, size, insetRef.current)
         positionRef.current = nextOrigin
         setPosition(nextOrigin)
         setDragging(true)
@@ -152,6 +187,7 @@ export function AssistantShell({ open, onOpen, fabLabel, dialogLabel, children }
                 y: drag.origin.y + e.clientY - drag.startY,
             },
             drag.size,
+            insetRef.current,
         )
         positionRef.current = next
         setPosition(next)
@@ -183,7 +219,7 @@ export function AssistantShell({ open, onOpen, fabLabel, dialogLabel, children }
         e.stopPropagation()
         const size = { width: rect.width || DEFAULT_PANEL_SIZE.width, height: rect.height || DEFAULT_PANEL_SIZE.height }
         const origin = positionRef.current ?? { x: rect.left, y: rect.top }
-        const next = clampPosition({ x: origin.x + move.x, y: origin.y + move.y }, size)
+        const next = clampPosition({ x: origin.x + move.x, y: origin.y + move.y }, size, insetRef.current)
         positionRef.current = next
         setPosition(next)
         savePosition(storageKey, next)
@@ -193,10 +229,15 @@ export function AssistantShell({ open, onOpen, fabLabel, dialogLabel, children }
         return (
             <button
                 type="button"
+                ref={launcherRef}
                 onClick={onOpen}
-                title={dialogLabel}
+                title={fabLabel}
                 aria-label={fabLabel}
-                className="fixed bottom-5 right-5 z-50 grid h-14 w-14 cursor-pointer place-items-center rounded-full bg-ember-500 text-on-ember shadow-lg transition-all hover:bg-ember-400 hover:shadow-glow-ember active:scale-[.98]"
+                // z-[44]: page chrome, below the playlist dock (z-[45]) and well
+                // below the modal rung — a launcher must never outrank a dialog.
+                // `launcherInset` lifts it clear of the docked player.
+                style={launcherInset ? { transform: `translateY(-${launcherInset}px)` } : undefined}
+                className="fixed bottom-5 right-5 z-[44] grid h-14 w-14 cursor-pointer place-items-center rounded-full bg-ember-500 text-on-ember shadow-lg transition-colors hover:bg-ember-400 hover:shadow-glow-ember active:scale-[.98]"
             >
                 <MessageCircle size={24} />
             </button>
@@ -204,7 +245,12 @@ export function AssistantShell({ open, onOpen, fabLabel, dialogLabel, children }
     }
 
     const customPosition = position !== null
-    const panelStyle: CSSProperties | undefined = customPosition ? { left: position.x, top: position.y } : undefined
+    const panelStyle: CSSProperties | undefined = customPosition
+        ? { left: position.x, top: position.y }
+        : {
+              bottom: `calc(1.25rem + ${launcherInset}px)`,
+              height: `min(640px, calc(100dvh - 2.5rem - ${launcherInset}px))`,
+          }
     const dragContext: AssistantDragContextValue = {
         dragging,
         dragHandleProps: {
@@ -216,7 +262,10 @@ export function AssistantShell({ open, onOpen, fabLabel, dialogLabel, children }
         },
     }
 
-    return (
+    // Portal to <body>. Rendered in place, the panel's z-50 lives inside the app
+    // shell's `isolate` stacking context, so the body-portalled playlist dock
+    // (z-[45]) painted over its composer no matter how high the number went.
+    return createPortal(
         <AssistantDragContext.Provider value={dragContext}>
             <section
                 ref={panelRef}
@@ -224,13 +273,14 @@ export function AssistantShell({ open, onOpen, fabLabel, dialogLabel, children }
                 aria-label={dialogLabel}
                 style={panelStyle}
                 className={cx(
-                    'fixed z-50 flex h-[min(640px,calc(100vh-2.5rem))] w-[min(420px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-800 shadow-xl',
-                    customPosition ? 'left-0 top-0' : 'bottom-5 right-5',
+                    'fixed z-50 flex w-[min(420px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-800 shadow-xl',
+                    customPosition ? 'left-0 top-0 h-[min(640px,calc(100dvh-2.5rem))]' : 'right-5',
                     dragging && 'select-none border-ember-500/45 shadow-card-hover',
                 )}
             >
                 {children}
             </section>
-        </AssistantDragContext.Provider>
+        </AssistantDragContext.Provider>,
+        document.body,
     )
 }

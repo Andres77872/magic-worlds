@@ -114,8 +114,8 @@ export function TemplateList({
                                 {t('templateList.characters', { characters: characterNames })}
                             </p>
                             {template.turns && template.turns.length > 0 && (
-                                <div className="mt-2 border-t border-dashed border-parchment-50/10 pt-2 font-narrative text-sm italic text-parchment-400">
-                                    {template.turns[0].content.substring(0, 100)}...
+                                <div className="mt-2 line-clamp-2 border-t border-dashed border-parchment-50/10 pt-2 font-narrative text-sm italic text-parchment-400">
+                                    {template.turns[0].content}
                                 </div>
                             )}
                             {isDeleting && (

@@ -13,7 +13,7 @@ const meta = {
     docs: { description: { component: 'Confirmation dialog composed from the Modal primitive. `variant="danger"` turns the confirm button blood-red for destructive actions.' } },
   },
   argTypes: {
-    variant: { control: 'inline-radio', options: ['primary', 'danger', 'warning'] },
+    variant: { control: 'inline-radio', options: ['primary', 'danger'] },
     confirmLabel: { control: 'text' },
     cancelLabel: { control: 'text' },
     isProcessing: { control: 'boolean' },

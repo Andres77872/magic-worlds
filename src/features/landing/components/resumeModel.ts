@@ -192,19 +192,6 @@ function recencyCompare(aTime: number, aIndex: number, bTime: number, bIndex: nu
     return bIndex - aIndex
 }
 
-/**
- * Sort any in-memory list newest-first by an injected timestamp accessor, with
- * the same untimestamped-keeps-array-order fallback as the resume merge. Shared
- * by the dashboard's per-type continue rails.
- */
-export function sortByRecency<T>(items: T[], getStamp: (item: T) => string | null | undefined): T[] {
-    return items
-        .map((item, index) => ({ item, index }))
-        .sort((a, b) =>
-            recencyCompare(parseApiTimestamp(getStamp(a.item)), a.index, parseApiTimestamp(getStamp(b.item)), b.index),
-        )
-        .map((entry) => entry.item)
-}
 
 /**
  * Merge + sort sessions, newest first. `stories` is optional so the chat-only
@@ -224,4 +211,19 @@ export function toResumeSessions(
     ]
     entries.sort((a, b) => recencyCompare(a.session.updatedAtMs, a.index, b.session.updatedAtMs, b.index))
     return entries.map((entry) => entry.session)
+}
+
+/**
+ * The haystack a session list filters against. Shared so the adventures and
+ * chatrooms lists stay searchable by the same fields — a new field added here
+ * reaches both, instead of one page silently not finding it.
+ */
+export function searchableText(session: ResumeSession): string {
+    return [
+        session.title,
+        session.context,
+        session.playingAs,
+        session.snippet,
+        session.meta,
+    ].filter(Boolean).join(' ').toLowerCase()
 }

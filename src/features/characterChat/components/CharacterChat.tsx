@@ -80,7 +80,6 @@ export function CharacterChat() {
             <CallScreen
                 key={`${activeCharacterChat.id}:voice`}
                 character={activeCast[0]}
-                persona={activeCharacterChat.persona}
                 sessionId={Number(activeCharacterChat.id)}
                 onSwitchToText={() => handleSetMode('text')}
             />
@@ -155,7 +154,7 @@ function CharacterChatView({
     )
 
     return (
-        <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-ink-800 lg:flex-row">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-ink-800 lg:flex-row">
             <InteractionTopBar
                 title={chatTitle}
                 mode="chat"

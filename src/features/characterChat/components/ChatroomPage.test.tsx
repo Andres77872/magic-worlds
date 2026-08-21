@@ -52,6 +52,7 @@ vi.mock('@/app/hooks', () => ({
         resumeCharacterChat,
         deleteCharacterChat,
         loadData,
+        loadingState: { isLoading: false, error: null },
     }),
 }))
 

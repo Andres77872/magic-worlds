@@ -155,7 +155,7 @@ function ChatSegments({ segments }: { segments: ChatResponseSegment[] }) {
                         className={cx(
                             'w-full rounded-lg border px-3 py-2',
                             isThought
-                                ? 'border-arcane-500/25 bg-arcane-500/10 text-arcane-100'
+                                ? 'border-arcane-500/25 bg-arcane-500/10 text-arcane-300'
                                 : 'border-parchment-50/10 bg-ink-700/70 text-parchment-100',
                         )}
                     >
@@ -165,7 +165,11 @@ function ChatSegments({ segments }: { segments: ChatResponseSegment[] }) {
                                 src={segment.image_url ?? undefined}
                                 size={24}
                                 ring={isThought ? 'arcane' : 'none'}
-                                status={isThought ? 'think' : segment.streaming ? 'live' : 'none'}
+                                // Only the segment being generated pulses. `animate-think`
+                                // is an infinite box-shadow keyframe (a blur re-raster every
+                                // frame); gating on isThought alone left one running per
+                                // thought in the whole log, on-screen or not.
+                                status={segment.streaming ? (isThought ? 'think' : 'live') : 'none'}
                             />
                             <Eyebrow tone={isThought ? 'arcane' : 'ember'} className="text-[10px] tracking-[0.12em]">
                                 {isThought ? t('interaction.chat.speakerThinks', { name: speakerName }) : speakerName}
@@ -225,7 +229,7 @@ export const ChatMessage = memo(function ChatMessage({ content, isUser, isStream
     if (isUser) {
         // Player turn — ember candlelit bubble (plain text + inline lore marks)
         return (
-            <div className="inline-block rounded-2xl rounded-br-[4px] border border-ember-500/30 bg-ember-500/[.14] px-4 py-3 font-ui text-[15px] leading-relaxed text-parchment-50 whitespace-pre-wrap">
+            <div className="inline-block rounded-2xl rounded-br-xs border border-ember-500/30 bg-ember-500/[.14] px-4 py-3 font-ui text-[15px] leading-relaxed text-parchment-50 whitespace-pre-wrap">
                 {renderWithTriggers(content, loreMatcher ?? null)}
             </div>
         )

@@ -59,7 +59,6 @@ describe('VersionHistoryDrawer', () => {
             latest_version_id: null,
             latest_version_number: 0,
             versions: [],
-            has_draft: true,
         })
         vi.spyOn(apiService, 'getCardUsage').mockResolvedValue({ sessions: 0, stories: 0 })
         const onEdit = vi.fn()
@@ -71,6 +70,7 @@ describe('VersionHistoryDrawer', () => {
                 cardType="character"
                 cardId="vhd-3"
                 cardName="Lyra"
+                hasDraft
                 onEdit={onEdit}
             />,
         )

@@ -1,4 +1,5 @@
 import type { Lorebook, LorebookEntry, LorebookResource, LorebookResourceExtraction, LorebookResourceSnippet } from '@/shared'
+import { serializeLorebookResource } from '@/infrastructure/api/lorebookWire'
 import { makeRequestId } from '@/utils/uuid'
 
 export const LOREBOOK_RESOURCE_MAX_CHARS = 80_000
@@ -166,16 +167,7 @@ export function invalidateLorebookResourceExtraction(resource: LorebookResource,
 }
 
 export function lorebookResourceToApiPayload(resource: LorebookResource): Record<string, unknown> {
-    return {
-        id: resource.id,
-        title: resource.title,
-        description: resource.description || null,
-        triggers: resource.triggers,
-        fileName: resource.fileName,
-        fileType: resource.fileType,
-        content: resource.content,
-        contentLength: resource.contentLength ?? resource.content.length,
-    }
+    return serializeLorebookResource(resource as LorebookResource & Record<string, unknown>, { includeIdentity: true })
 }
 
 export function lorebookResourcesFromMetadata(metadata: Record<string, unknown> | undefined): LorebookResource[] {

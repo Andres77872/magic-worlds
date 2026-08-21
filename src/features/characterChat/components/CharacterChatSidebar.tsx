@@ -80,10 +80,10 @@ export function CharacterChatSidebar({
 
                 <div className="flex flex-col gap-4 px-5 py-5">
                     <div className="flex flex-col gap-1.5">
-                        <Eyebrow tone="arcane" className="text-[11px] tracking-[0.16em]">
+                        <Eyebrow tone="arcane" className="text-meta">
                             {isGroup ? t('characterChat.sidebar.groupChat') : t('characterChat.sidebar.chattingWith')}
                         </Eyebrow>
-                        <h2 className="font-display text-[22px] font-semibold leading-tight text-parchment-50">
+                        <h2 className="font-display text-h3 font-semibold leading-tight text-parchment-50">
                             {heading}
                         </h2>
                         {!isGroup && lead?.race && (
@@ -95,16 +95,16 @@ export function CharacterChatSidebar({
 
                     {persona && (
                         <div className="rounded-lg border border-ember-500/25 bg-ember-500/10 px-4 py-3">
-                            <Eyebrow tone="ember" className="mb-1 text-[10px] tracking-[0.16em]">
+                            <Eyebrow tone="ember" className="mb-1 text-micro">
                                 {t('characterChat.sidebar.youAre')}
                             </Eyebrow>
-                            <p className="font-display text-[16px] font-semibold text-parchment-50">{persona.name}</p>
+                            <p className="font-display text-body font-semibold text-parchment-50">{persona.name}</p>
                             {persona.race && <p className="mt-0.5 font-narrative text-xs text-parchment-400">{persona.race}</p>}
                         </div>
                     )}
 
                     {(hasCodexControls || (sessionId && lorebooksEnabled)) && (
-                        <div className="flex flex-col divide-y divide-parchment-50/[.08] rounded-lg border border-parchment-50/10 bg-ink-800 px-4 py-3">
+                        <div className="flex flex-col divide-y divide-parchment-50/10 rounded-lg border border-parchment-50/10 bg-ink-800 px-4 py-3">
                             {onAddCodexCards && onToggleCodexCard && onRemoveCodexCard && (
                                 <CharacterChatCodexPanel
                                     cards={codexCards}
@@ -133,7 +133,7 @@ export function CharacterChatSidebar({
                                         />
                                         <div className="min-w-0 flex-1">
                                             <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                                <p className="min-w-0 truncate font-display text-[16px] font-semibold text-parchment-50">{member.name}</p>
+                                                <p className="min-w-0 truncate font-display text-body font-semibold text-parchment-50">{member.name}</p>
                                                 {member.race && <Tag>{member.race}</Tag>}
                                             </div>
                                             {member.greeting && (
@@ -162,17 +162,17 @@ export function CharacterChatSidebar({
                         </div>
                     ) : lead?.greeting && (
                         <div className="rounded-lg border border-parchment-50/10 bg-ink-800 px-4 py-3">
-                            <Eyebrow tone="ember" className="mb-1 text-[10px] tracking-[0.16em]">
+                            <Eyebrow tone="ember" className="mb-1 text-micro">
                                 {t('characterChat.sidebar.openingLine')}
                             </Eyebrow>
-                            <p className="font-narrative text-[15px] italic leading-relaxed text-parchment-200">
+                            <p className="font-narrative text-body italic leading-relaxed text-parchment-200">
                                 “{lead.greeting}”
                             </p>
                         </div>
                     )}
 
                     {!isGroup && lead?.description && (
-                        <p className="font-narrative text-[15px] leading-relaxed text-parchment-200">
+                        <p className="font-narrative text-body leading-relaxed text-parchment-200">
                             {lead.description}
                         </p>
                     )}

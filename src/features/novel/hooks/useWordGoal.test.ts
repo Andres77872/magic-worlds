@@ -39,7 +39,7 @@ describe('useWordGoal', () => {
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
     })
 
-    it('hydrates from the canonical chapter without reading a stale browser value', () => {
+    it('hydrates from the stored chapter without reading a stale browser value', () => {
         window.localStorage.setItem('magic_worlds:novel:wordGoal:s1:c1', '900')
         const { result } = renderHook(() => useWordGoal('s1', chapter({ wordGoal: 1500 })))
 
@@ -47,7 +47,7 @@ describe('useWordGoal', () => {
         expect(updateStoryChapter).not.toHaveBeenCalled()
     })
 
-    it('persists and clears through the canonical chapter update', async () => {
+    it('persists and clears through the stored chapter update', async () => {
         const { result } = renderHook(() => useWordGoal('s1', chapter()))
 
         await act(async () => expect(await result.current.setGoal(2000)).toBe(true))

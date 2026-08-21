@@ -12,6 +12,7 @@ import type { LucideIcon } from 'lucide-react'
 import { BookOpenText, Feather, Gem, Globe, Infinity as InfinityIcon, ScrollText, Swords, Users, UsersRound } from 'lucide-react'
 import type { FeatureArtKey } from '@/assets/marketing'
 import {
+    isAdventuresFeatureEnabled,
     isLorebooksFeatureEnabled,
     isNovelsFeatureEnabled,
     isVoicesFeatureEnabled,
@@ -110,6 +111,7 @@ export const CREATE_ACTIONS: CreateAction[] = [
 export function isCreateActionEnabled(action: CreateAction): boolean {
     if (action.key === 'novel') return isNovelsFeatureEnabled()
     if (action.key === 'lorebook') return isLorebooksFeatureEnabled()
+    if (action.key === 'adventure') return isAdventuresFeatureEnabled()
     return true
 }
 
@@ -140,6 +142,7 @@ export function isFeatureGalleryItemEnabled(item: FeatureGalleryItem): boolean {
     if (item.key === 'novel') return isNovelsFeatureEnabled()
     if (item.key === 'lorebook') return isLorebooksFeatureEnabled()
     if (item.key === 'voice') return isVoicesFeatureEnabled()
+    if (item.key === 'adventure') return isAdventuresFeatureEnabled()
     return true
 }
 

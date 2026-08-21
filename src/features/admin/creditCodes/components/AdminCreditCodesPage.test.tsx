@@ -79,7 +79,6 @@ describe('AdminCreditCodesPage', () => {
                 membership_usage_days: 2,
                 membership_operation_usage_days: 3,
                 ai_card_quota_days: 4,
-                seeded_user_memberships: 1,
             },
             monthly: null,
             membership: null,
@@ -227,7 +226,6 @@ describe('AdminCreditCodesPage', () => {
             expect(resetMembershipQuotas).toHaveBeenCalledWith({ target: 'all', periods: ['daily'], reason: null })
         })
         expect(await screen.findByText(/Daily rows: 2 usage \/ 3 operation \/ 4 AI-card/)).toBeInTheDocument()
-        expect(screen.getByText('Seeded memberships: 1')).toBeInTheDocument()
     })
 
     it('resets quotas for one user by user hash', async () => {
@@ -241,7 +239,6 @@ describe('AdminCreditCodesPage', () => {
                 membership_usage_days: 1,
                 membership_operation_usage_days: 1,
                 ai_card_quota_days: 1,
-                seeded_user_memberships: 0,
             },
             monthly: { reset_id: 42, effective_month: '2026-06', reset_at: '2026-06-19T12:00:00Z' },
             membership: {

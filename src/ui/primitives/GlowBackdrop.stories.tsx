@@ -11,7 +11,6 @@ const meta = {
   },
   argTypes: {
     variant: { control: 'inline-radio', options: ['hero', 'center', 'header', 'page'] },
-    animated: { control: 'boolean', description: 'Page variant only: breathe the two blobs on independent long periods.' },
   },
   args: { variant: 'hero' },
   render: (args) => (
@@ -46,17 +45,17 @@ export const Page: Story = {
 }
 
 /** The full app-shell background: static stone grain (`.app-stone`) underneath
- *  the breathing candlelight (`animated` page variant) — exactly how AppRouter
- *  composes them. The breathing is slow and subtle by design; reduced motion
- *  freezes it. */
+ *  the ambient candlelight (`page` variant) — exactly how AppRouter composes
+ *  them. Both layers are static: the ambience comes from the gradients, not
+ *  from motion. */
 export const AppShell: Story = {
-  args: { variant: 'page', animated: true },
+  args: { variant: 'page' },
   render: (args) => (
     <div className="relative flex h-screen w-full items-center justify-center overflow-hidden">
       <div className="app-stone absolute inset-0" />
       <GlowBackdrop {...args} />
       <span className="relative font-display text-h3 font-semibold text-parchment-50">
-        stone + breathing candlelight
+        stone + candlelight
       </span>
     </div>
   ),

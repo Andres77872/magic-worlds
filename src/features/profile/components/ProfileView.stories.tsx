@@ -14,7 +14,7 @@ export const membership: Membership = {
         remaining: 42,
         usage_date: '2026-06-10',
     },
-    payg: { balance: 12 },
+    payg: { balance: 12, free_balance: 12, billed_balance: 0 },
     total_available_credits: 54,
     limits: {
         chat_interaction: { daily_limit: 20, used_today: 3, max_in_flight: 1, in_flight: 0, credit_cost: 1 },
@@ -33,14 +33,16 @@ export const membership: Membership = {
         credits_used: 53,
         included_credits_used: 45,
         payg_credits_used: 8,
+        payg_free_credits_used: 8,
+        payg_billed_credits_used: 0,
         operations: {
-            chat_interaction: { used: 24, credits_used: 24, included_credits_used: 24, payg_credits_used: 0 },
-            ai_card_generation: { used: 6, credits_used: 6, included_credits_used: 6, payg_credits_used: 0 },
-            image_generation: { used: 9, credits_used: 9, included_credits_used: 6, payg_credits_used: 3 },
-            card_image_generation: { used: 4, credits_used: 4, included_credits_used: 3, payg_credits_used: 1 },
-            theme_song_generation: { used: 2, credits_used: 2, included_credits_used: 0, payg_credits_used: 2 },
-            tts_generation: { used: 5, credits_used: 5, included_credits_used: 4, payg_credits_used: 1 },
-            voice_call: { used: 3, credits_used: 3, included_credits_used: 2, payg_credits_used: 1, billable_seconds: 27 },
+            chat_interaction: { used: 24, credits_used: 24, included_credits_used: 24, payg_credits_used: 0, payg_free_credits_used: 0, payg_billed_credits_used: 0 },
+            ai_card_generation: { used: 6, credits_used: 6, included_credits_used: 6, payg_credits_used: 0, payg_free_credits_used: 0, payg_billed_credits_used: 0 },
+            image_generation: { used: 9, credits_used: 9, included_credits_used: 6, payg_credits_used: 3, payg_free_credits_used: 3, payg_billed_credits_used: 0 },
+            card_image_generation: { used: 4, credits_used: 4, included_credits_used: 3, payg_credits_used: 1, payg_free_credits_used: 1, payg_billed_credits_used: 0 },
+            theme_song_generation: { used: 2, credits_used: 2, included_credits_used: 0, payg_credits_used: 2, payg_free_credits_used: 2, payg_billed_credits_used: 0 },
+            tts_generation: { used: 5, credits_used: 5, included_credits_used: 4, payg_credits_used: 1, payg_free_credits_used: 1, payg_billed_credits_used: 0 },
+            voice_call: { used: 3, credits_used: 3, included_credits_used: 2, payg_credits_used: 1, payg_free_credits_used: 1, payg_billed_credits_used: 0, billable_seconds: 27 },
         },
     },
     profile_cards: {
@@ -115,6 +117,8 @@ export const membership: Membership = {
         ],
         payg: {
             balance: 12,
+            free_balance: 12,
+            billed_balance: 0,
             credit_cost: 1,
             covered_operations: ['chat_interaction', 'ai_card_generation', 'image_generation', 'card_image_generation', 'theme_song_generation', 'tts_generation', 'voice_call'],
             non_expiring: true,
@@ -135,7 +139,6 @@ export const baseProfile: UserProfile = {
     // No display name set → the hero falls back to the username.
     display_name: null,
     user_type: 'consumer',
-    user_usage: 54,
     membership,
     card_counts: { character: 7, world: 3, item: 6, adventure_template: 5 },
 }
@@ -202,16 +205,17 @@ export const Root: Story = {
             ...baseProfile,
             username: 'Root',
             user_type: 'root',
-            user_usage: 554,
             membership: {
                 ...membership,
-                payg: { balance: 512 },
+                payg: { balance: 512, free_balance: 512, billed_balance: 0 },
                 total_available_credits: 554,
                 profile_cards: {
                     ...membership.profile_cards!,
                     payg: {
                         ...membership.profile_cards!.payg,
                         balance: 512,
+                        free_balance: 512,
+                        billed_balance: 0,
                         highlights: ['512 credits available', '1 credit per action', 'Reference only'],
                     },
                 },
@@ -225,21 +229,22 @@ export const FreshAccount: Story = {
         profile: {
             ...baseProfile,
             username: 'Newcomer',
-            user_usage: 50,
             membership: {
                 ...membership,
                 credits: { ...membership.credits, used: 0, remaining: 50 },
-                payg: { balance: 0 },
+                payg: { balance: 0, free_balance: 0, billed_balance: 0 },
                 total_available_credits: 50,
                 monthly_usage: {
                     ...membership.monthly_usage!,
                     credits_used: 0,
                     included_credits_used: 0,
                     payg_credits_used: 0,
+                    payg_free_credits_used: 0,
+                    payg_billed_credits_used: 0,
                     operations: Object.fromEntries(
                         Object.keys(membership.monthly_usage!.operations).map((operation) => [
                             operation,
-                            { used: 0, credits_used: 0, included_credits_used: 0, payg_credits_used: 0 },
+                            { used: 0, credits_used: 0, included_credits_used: 0, payg_credits_used: 0, payg_free_credits_used: 0, payg_billed_credits_used: 0 },
                         ]),
                     ),
                 },
@@ -268,6 +273,8 @@ export const FreshAccount: Story = {
                     payg: {
                         ...membership.profile_cards!.payg,
                         balance: 0,
+                        free_balance: 0,
+                        billed_balance: 0,
                         highlights: ['0 credits available', '1 credit per action', 'Reference only'],
                     },
                 },
@@ -284,7 +291,6 @@ export const HeavyUsage: Story = {
         profile: {
             ...baseProfile,
             username: 'Nightowl',
-            user_usage: 15,
             membership: {
                 ...membership,
                 credits: { ...membership.credits, used: 47, remaining: 3 },
@@ -301,14 +307,16 @@ export const HeavyUsage: Story = {
                     credits_used: 154,
                     included_credits_used: 101,
                     payg_credits_used: 53,
+                    payg_free_credits_used: 53,
+                    payg_billed_credits_used: 0,
                     operations: {
-                        chat_interaction: { used: 72, credits_used: 72, included_credits_used: 52, payg_credits_used: 20 },
-                        ai_card_generation: { used: 16, credits_used: 16, included_credits_used: 12, payg_credits_used: 4 },
-                        image_generation: { used: 29, credits_used: 29, included_credits_used: 18, payg_credits_used: 11 },
-                        card_image_generation: { used: 9, credits_used: 9, included_credits_used: 4, payg_credits_used: 5 },
-                        theme_song_generation: { used: 8, credits_used: 8, included_credits_used: 4, payg_credits_used: 4 },
-                        tts_generation: { used: 11, credits_used: 11, included_credits_used: 6, payg_credits_used: 5 },
-                        voice_call: { used: 9, credits_used: 9, included_credits_used: 5, payg_credits_used: 4, billable_seconds: 82 },
+                        chat_interaction: { used: 72, credits_used: 72, included_credits_used: 52, payg_credits_used: 20, payg_free_credits_used: 20, payg_billed_credits_used: 0 },
+                        ai_card_generation: { used: 16, credits_used: 16, included_credits_used: 12, payg_credits_used: 4, payg_free_credits_used: 4, payg_billed_credits_used: 0 },
+                        image_generation: { used: 29, credits_used: 29, included_credits_used: 18, payg_credits_used: 11, payg_free_credits_used: 11, payg_billed_credits_used: 0 },
+                        card_image_generation: { used: 9, credits_used: 9, included_credits_used: 4, payg_credits_used: 5, payg_free_credits_used: 5, payg_billed_credits_used: 0 },
+                        theme_song_generation: { used: 8, credits_used: 8, included_credits_used: 4, payg_credits_used: 4, payg_free_credits_used: 4, payg_billed_credits_used: 0 },
+                        tts_generation: { used: 11, credits_used: 11, included_credits_used: 6, payg_credits_used: 5, payg_free_credits_used: 5, payg_billed_credits_used: 0 },
+                        voice_call: { used: 9, credits_used: 9, included_credits_used: 5, payg_credits_used: 4, payg_free_credits_used: 4, payg_billed_credits_used: 0, billable_seconds: 82 },
                     },
                 },
             },
@@ -329,17 +337,6 @@ export const NoMonthlyUsage: Story = {
     },
 }
 
-export const LegacyProfileResponse: Story = {
-    args: {
-        profile: {
-            user_hash: baseProfile.user_hash,
-            username: 'Legacy',
-            user_type: 'consumer',
-            user_usage: 1000,
-            card_counts: baseProfile.card_counts,
-        },
-    },
-}
 
 /** The Usage section — daily quota meters plus the month-to-date breakdown. */
 export const UsageTab: Story = { args: { initialTab: 'usage' } }

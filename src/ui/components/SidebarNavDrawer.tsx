@@ -10,10 +10,11 @@
  * the viewport crosses back to the docked breakpoint so no overlay is stranded.
  */
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { useNavigation } from '../../app/hooks'
 import { cx, useIsDesktop } from '../primitives'
-import { useDismissableLayer } from '../primitives/useDismissableLayer'
+import { useDismissableLayer, useScrimDismiss } from '../primitives/useDismissableLayer'
 import { SidebarShell } from './Sidebar'
 
 const TRANSITION_MS = 220
@@ -24,6 +25,7 @@ interface SidebarNavDrawerProps {
 }
 
 export function SidebarNavDrawer({ open, onClose }: SidebarNavDrawerProps) {
+    const { t } = useTranslation()
     const { currentPage } = useNavigation()
     const isDesktop = useIsDesktop()
     // Keep the panel mounted through the exit animation, then unmount.
@@ -58,9 +60,12 @@ export function SidebarNavDrawer({ open, onClose }: SidebarNavDrawerProps) {
     }, [isDesktop, open, onClose])
 
     // Escape-to-close, body scroll-lock, focus-trap and focus restoration.
-    useDismissableLayer({ open, onClose, panelRef })
+    useDismissableLayer({ open, onClose, panelRef, label: 'nav-drawer' })
+    const scrim = useScrimDismiss(onClose)
 
-    if (!mounted) return null
+    // See Drawer: `mounted` lags `open`, and the panel must exist in the commit
+    // that opens the layer for the initial focus to land.
+    if (!open && !mounted) return null
 
     return createPortal(
         <div className="fixed inset-0 z-50 flex justify-start lg:hidden">
@@ -69,12 +74,13 @@ export function SidebarNavDrawer({ open, onClose }: SidebarNavDrawerProps) {
                     'absolute inset-0 bg-ink-900/60 backdrop-blur-sm transition-opacity duration-200',
                     entered ? 'opacity-100' : 'opacity-0',
                 )}
-                onClick={onClose}
+                {...scrim}
             />
             <div
                 ref={panelRef}
                 role="dialog"
                 aria-modal="true"
+                aria-label={t('sidebar.navDrawer')}
                 tabIndex={-1}
                 className={cx(
                     'relative flex h-full w-[300px] max-w-[85vw] flex-col border-r border-parchment-50/[.08] bg-ink-900 shadow-xl outline-none transition-transform duration-200 ease-out',

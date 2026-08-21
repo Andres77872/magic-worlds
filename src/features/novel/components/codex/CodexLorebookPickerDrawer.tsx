@@ -7,11 +7,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, BookMarked, Check, Loader2, Search } from 'lucide-react'
+import { ArrowLeft, BookMarked, Loader2, Search } from 'lucide-react'
 import type { Lorebook } from '@/shared'
 import { apiService } from '@/infrastructure/api'
 import { normalizeLorebookList } from '@/features/lorebook/lorebookTransforms'
-import { Badge, Button, Drawer, Icon, IconButton, Tag, cx } from '@/ui/primitives'
+import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card'
+import { Badge, Button, Drawer, Icon, IconButton, SelectionCheck, Tag, cx } from '@/ui/primitives'
 
 const SEARCH_DEBOUNCE_MS = 300
 const LOREBOOK_LIMIT = 24
@@ -199,22 +200,12 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                                             inCodex
                                                 ? 'cursor-default border-parchment-50/[.06] opacity-55'
                                                 : isSelected
-                                                  ? 'cursor-pointer border-arcane-500/45 bg-arcane-500/10'
+                                                  ? `cursor-pointer ${SELECTED_CARD_CLASS}`
                                                   : 'cursor-pointer border-parchment-50/10 hover:border-parchment-50/25 hover:bg-parchment-50/[.04]',
                                         )}
                                         data-testid="codex-lorebook-entry"
                                     >
-                                        <span
-                                            aria-hidden="true"
-                                            className={cx(
-                                                'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors',
-                                                isSelected
-                                                    ? 'border-arcane-500 bg-arcane-500 text-ink-900'
-                                                    : 'border-parchment-50/25 text-transparent',
-                                            )}
-                                        >
-                                            <Icon icon={Check} size={13} />
-                                        </span>
+                                        <SelectionCheck selected={isSelected} className="mt-0.5" />
                                         <span className="min-w-0 flex-1">
                                             <span className="flex items-center gap-2">
                                                 <span className="truncate font-ui text-sm font-semibold text-parchment-100">

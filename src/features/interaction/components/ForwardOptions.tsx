@@ -40,7 +40,7 @@ export function ForwardOptions({ options, onOptionClick }: ForwardOptionsProps) 
                             size={15}
                             strokeWidth={1.75}
                             aria-hidden
-                            className="shrink-0 text-arcane-300 opacity-0 transition-opacity group-hover:opacity-100"
+                            className="shrink-0 text-arcane-300 opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100"
                         />
                     </button>
                 ))}

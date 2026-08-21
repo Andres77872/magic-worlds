@@ -74,6 +74,11 @@ function Saver() {
 describe('DataProvider.saveInProgressSnapshot', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
+    })
+
+    afterEach(() => {
+        vi.unstubAllEnvs()
     })
 
     it('persists to the adventure snapshot endpoint, never the library card endpoints', async () => {
@@ -362,6 +367,7 @@ function AdventureProbe() {
 describe('DataProvider adventure starts', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
         vi.mocked(apiService.createAdventureSession).mockResolvedValue({
             adventure_id: 11,
             adventure_template: 't1',
@@ -373,6 +379,10 @@ describe('DataProvider adventure starts', () => {
                 template: { id: 't1', description: 'Open the gate', persona: CHAT_PERSONA, characters: [] },
             },
         })
+    })
+
+    afterEach(() => {
+        vi.unstubAllEnvs()
     })
 
     it('starts an adventure session with the selected persona id', async () => {

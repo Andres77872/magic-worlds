@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+    isAdventuresFeatureEnabled,
     isCallsFeatureEnabled,
     isCommunityCardsFeatureEnabled,
     isFeatureEnabled,
@@ -25,6 +26,7 @@ describe('frontend feature flags', () => {
             ['VITE_FEATURE_CALLS_ENABLED', isCallsFeatureEnabled],
             ['VITE_FEATURE_NOVELS_ENABLED', isNovelsFeatureEnabled],
             ['VITE_FEATURE_GROUP_CHATS_ENABLED', isGroupChatsFeatureEnabled],
+            ['VITE_FEATURE_ADVENTURES_ENABLED', isAdventuresFeatureEnabled],
         ] as const
 
         for (const [envName, read] of cases) {
@@ -57,8 +59,12 @@ describe('frontend feature flags', () => {
         vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
         vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'false')
         vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
         expect(isPageFeatureEnabled('character-chat')).toBe(true)
-        expect(isPageFeatureEnabled('interaction')).toBe(true)
+        expect(isPageFeatureEnabled('adventure')).toBe(false)
+        expect(isPageFeatureEnabled('gallery-adventures')).toBe(false)
+        expect(isPageFeatureEnabled('active-adventures')).toBe(false)
+        expect(isPageFeatureEnabled('interaction')).toBe(false)
         expect(isPageFeatureEnabled('community')).toBe(false)
         expect(isPageFeatureEnabled('gallery-lorebooks')).toBe(false)
         expect(isPageFeatureEnabled('gallery-resources')).toBe(false)
@@ -72,12 +78,17 @@ describe('frontend feature flags', () => {
         vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
         vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
         vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
 
         expect(isPageFeatureEnabled('community')).toBe(true)
         expect(isPageFeatureEnabled('gallery-lorebooks')).toBe(true)
         expect(isPageFeatureEnabled('voice-studio')).toBe(true)
         expect(isPageFeatureEnabled('calls')).toBe(true)
         expect(isPageFeatureEnabled('gallery-stories')).toBe(true)
+        expect(isPageFeatureEnabled('adventure')).toBe(true)
+        expect(isPageFeatureEnabled('gallery-adventures')).toBe(true)
+        expect(isPageFeatureEnabled('active-adventures')).toBe(true)
+        expect(isPageFeatureEnabled('interaction')).toBe(true)
     })
 
     it('keeps the voice helper pointed at the calls flag', () => {

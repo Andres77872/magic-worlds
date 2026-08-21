@@ -4,13 +4,42 @@ import type { UserProfile } from '@/shared'
 import { apiService } from '@/infrastructure/api'
 import { DisplayNameEditor } from './DisplayNameEditor'
 
+const membership: UserProfile['membership'] = {
+    plan_code: 'free',
+    display_name: 'Free',
+    credits: { period: 'daily', max: 50, used: 0, remaining: 50, usage_date: '2026-07-25' },
+    payg: { balance: 0, free_balance: 0, billed_balance: 0 },
+    total_available_credits: 50,
+    limits: {},
+    monthly_usage: null,
+    profile_cards: {
+        current_plan_code: 'free',
+        tiers: [],
+        payg: {
+            balance: 0,
+            free_balance: 0,
+            billed_balance: 0,
+            credit_cost: 1,
+            covered_operations: [],
+            non_expiring: true,
+            available: false,
+            reference_only: true,
+            badge: 'PAYG',
+            description: '',
+            highlights: [],
+            visual: { tone: 'payg', icon: 'coins' },
+            action: { state: 'reference_only', label: 'Reference only', enabled: false },
+        },
+    },
+}
+
 function profileWith(displayName: string | null): UserProfile {
     return {
         user_hash: 'usr-1',
         username: 'lyra',
         display_name: displayName,
         user_type: 'consumer',
-        user_usage: 0,
+        membership,
         card_counts: { character: 0, world: 0, adventure_template: 0, item: 0 },
     }
 }

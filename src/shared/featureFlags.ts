@@ -8,6 +8,7 @@ export type FrontendFeatureFlag =
     | 'calls'
     | 'novels'
     | 'groupChats'
+    | 'adventures'
 
 function envFlag(name: string): boolean {
     return import.meta.env[name] === 'true'
@@ -41,6 +42,10 @@ export function isGroupChatsFeatureEnabled(): boolean {
     return envFlag('VITE_FEATURE_GROUP_CHATS_ENABLED')
 }
 
+export function isAdventuresFeatureEnabled(): boolean {
+    return envFlag('VITE_FEATURE_ADVENTURES_ENABLED')
+}
+
 export function isFeatureEnabled(feature: FrontendFeatureFlag): boolean {
     switch (feature) {
         case 'communityCards':
@@ -57,6 +62,8 @@ export function isFeatureEnabled(feature: FrontendFeatureFlag): boolean {
             return isNovelsFeatureEnabled()
         case 'groupChats':
             return isGroupChatsFeatureEnabled()
+        case 'adventures':
+            return isAdventuresFeatureEnabled()
     }
 }
 
@@ -78,6 +85,11 @@ export function isPageFeatureEnabled(page: PageType): boolean {
         case 'story':
         case 'gallery-stories':
             return isNovelsFeatureEnabled()
+        case 'adventure':
+        case 'gallery-adventures':
+        case 'active-adventures':
+        case 'interaction':
+            return isAdventuresFeatureEnabled()
         default:
             return true
     }

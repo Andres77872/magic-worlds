@@ -22,14 +22,17 @@ function task(
         status_url: `/tasks/theme_song/${id}`,
         result_url: `/theme-songs/jobs/${id}/result`,
         cancel_url: status === 'pending' ? `/tasks/theme_song/${id}` : null,
-        result: status === 'completed' ? { assets: [], lyrics: { song_title: songTitle ?? 'Aurora hymn' } } : null,
+        result: status === 'completed' ? { assets: [], lyrics: { source: 'optimizer' } } : null,
         error: status === 'failed' ? { category: 'timeout', detail: 'Theme song generation timed out.' } : null,
         created_at: '2026-06-07T10:00:00',
         updated_at: '2026-06-07T10:05:00',
     }
 }
 
-function tasksValue(buckets: BackgroundTaskBuckets): TasksValue {
+function tasksValue(
+    buckets: BackgroundTaskBuckets,
+    terminalHasMore: TasksValue['terminalHasMore'] = { completed: false, failed: false },
+): TasksValue {
     return {
         tasks: [...buckets.active, ...buckets.completed, ...buckets.failed],
         taskBuckets: buckets,
@@ -43,6 +46,8 @@ function tasksValue(buckets: BackgroundTaskBuckets): TasksValue {
         registerThemeSongJob: () => {},
         cancelTask: async () => {},
         clearTerminalTasks: async () => {},
+        terminalHasMore,
+        loadMoreTerminalTasks: async () => {},
     }
 }
 
@@ -50,11 +55,14 @@ function tasksValue(buckets: BackgroundTaskBuckets): TasksValue {
 // provider surface is irrelevant to this view, so a minimal stub stands in.
 const data = { characters: [], worlds: [], items: [], templateAdventures: [] } as unknown as DataValue
 
-const withTasks = (buckets: BackgroundTaskBuckets): Decorator =>
+const withTasks = (
+    buckets: BackgroundTaskBuckets,
+    terminalHasMore?: TasksValue['terminalHasMore'],
+): Decorator =>
     function Provided(Story) {
         return (
             <DataContext.Provider value={data}>
-                <BackgroundTasksContext.Provider value={tasksValue(buckets)}>
+                <BackgroundTasksContext.Provider value={tasksValue(buckets, terminalHasMore)}>
                     <div style={{ display: 'flex', minHeight: 540, alignItems: 'flex-end', gap: '1rem' }}>
                         <div style={{ width: 56 }}>
                             <Story />
@@ -115,6 +123,25 @@ export const Mixed: Story = {
             failed: [task('failed', '4'), task('canceled', '5')],
         }),
     ],
+}
+
+export const TerminalPagination: Story = {
+    decorators: [
+        withTasks(
+            {
+                active: [],
+                completed: [task('completed', '2', 'Whisperwind theme'), task('completed', '3', 'Sunken keep')],
+                failed: [],
+            },
+            { completed: true, failed: false },
+        ),
+    ],
+    play: async ({ canvasElement }) => {
+        const completedTab = Array.from(canvasElement.querySelectorAll('button')).find(
+            (button) => button.textContent?.includes('Completed'),
+        )
+        completedTab?.click()
+    },
 }
 
 export const Collapsed: Story = {

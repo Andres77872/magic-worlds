@@ -18,8 +18,9 @@ const meta = {
   argTypes: {
     variant: {
       control: 'inline-radio',
-      options: ['primary', 'secondary', 'ghost', 'arcane', 'danger'],
-      description: 'Action emphasis. `primary` = ember hero · `arcane` = AI/magic · `danger` = destructive.',
+      options: ['primary', 'secondary', 'ghost', 'arcane', 'danger', 'danger-ghost'],
+      description:
+        'Action emphasis. `primary` = ember hero · `arcane` = AI/magic · `danger` = destructive · `danger-ghost` = quiet destructive (row and footer actions).',
     },
     size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] },
     full: { control: 'boolean', description: 'Stretch to fill the container width.' },
@@ -63,6 +64,11 @@ export const Danger: Story = {
   args: { variant: 'danger', children: 'Delete scene', iconLeft: <Trash2 size={16} strokeWidth={1.75} /> },
 }
 
+/** A destructive action that should not shout — drawer footers, row actions. */
+export const DangerGhost: Story = {
+  args: { variant: 'danger-ghost', children: 'Remove card', iconLeft: <Trash2 size={16} strokeWidth={1.75} /> },
+}
+
 export const WithIcons: Story = {
   args: {
     children: 'Begin',
@@ -88,6 +94,7 @@ export const AllKinds: Story = {
       <Button variant="ghost">Ghost</Button>
       <Button variant="arcane">Arcane</Button>
       <Button variant="danger">Danger</Button>
+      <Button variant="danger-ghost">Danger ghost</Button>
     </div>
   ),
 }

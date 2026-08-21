@@ -54,7 +54,7 @@ function task(status: BackgroundTaskPublic['status'], id: string, targetName = '
                       duration_ms: 94_000,
                       output_format: 'mp3',
                   }],
-                  lyrics: { song_title: 'Moonlit Card' },
+                  lyrics: { source: 'optimizer' },
               }
             : null,
         error: status === 'failed' ? { category: 'timeout', detail: 'Theme song generation timed out.' } : null,
@@ -88,6 +88,8 @@ function mockDrawerState(buckets: BackgroundTaskBuckets) {
         registerThemeSongJob: vi.fn(),
         cancelTask: mocks.cancelTask,
         clearTerminalTasks: mocks.clearTerminalTasks,
+        terminalHasMore: { completed: false, failed: false },
+        loadMoreTerminalTasks: vi.fn(),
     })
     mocks.useData.mockReturnValue({
         characters: [character],
@@ -130,7 +132,7 @@ describe('TasksDrawer', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /completed\s*1/i }))
         expect(screen.getByText('Ready')).toBeInTheDocument()
-        expect(screen.getByText('Moonlit Card theme')).toBeInTheDocument()
+        expect(screen.getByText('Card One theme')).toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: /failed\s*2/i }))
         expect(screen.getAllByText('Failed').length).toBeGreaterThan(0)
@@ -235,6 +237,6 @@ describe('TasksDrawer', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /Completadas\s*1/i }))
         expect(screen.getByText('Listo')).toBeInTheDocument()
-        expect(screen.getByText('Tema de Moonlit Card')).toBeInTheDocument()
+        expect(screen.getByText('Tema de Card One')).toBeInTheDocument()
     })
 })

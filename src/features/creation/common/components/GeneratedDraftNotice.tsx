@@ -19,7 +19,7 @@ export function GeneratedDraftNotice({ noun }: GeneratedDraftNoticeProps) {
     return (
         <div
             role="status"
-            className="flex items-center gap-2 rounded-lg border border-arcane-500/30 bg-arcane-500/[.08] px-3 py-2 text-xs text-arcane-100"
+            className="flex items-center gap-2 rounded-lg border border-arcane-500/30 bg-arcane-500/[.08] px-3 py-2 text-xs text-arcane-300"
         >
             <Icon icon={CheckCircle2} size={14} className="shrink-0 text-arcane-300" />
             <span>

@@ -132,12 +132,21 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
         }
     }
 
+    // A radio, not a tab: both modes render the SAME form below (register just adds
+    // a confirm-password field), so there is no tabpanel to point at. Roving
+    // tabIndex + arrow keys match SegmentedControl.
     const modeTab = (key: AuthMode, label: string) => (
         <button
             type="button"
-            role="tab"
-            aria-selected={mode === key}
+            role="radio"
+            aria-checked={mode === key}
+            tabIndex={mode === key ? 0 : -1}
             onClick={() => switchMode(key)}
+            onKeyDown={(event) => {
+                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                event.preventDefault()
+                switchMode(key === 'login' ? 'register' : 'login')
+            }}
             className={cx(
                 'rounded-md px-3 py-2 font-ui text-sm font-semibold transition-colors',
                 mode === key
@@ -226,7 +235,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
             <div className="flex flex-col gap-5">
                 <div>
                     <div
-                        role="tablist"
+                        role="radiogroup"
                         aria-label={t('auth.modeLabel')}
                         className="grid grid-cols-2 gap-1 rounded-lg border border-parchment-50/10 bg-ink-800 p-1"
                     >

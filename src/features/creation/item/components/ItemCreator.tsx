@@ -15,7 +15,7 @@ import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService, ApiError } from '@/infrastructure/api'
 import type { ItemCardResponse } from '@/shared/types/aiCard.types'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
-import { Button, Icon, SuggestInput } from '@/ui/primitives'
+import { Button, Eyebrow, Icon, SuggestInput } from '@/ui/primitives'
 import {
     CreatorStudio,
     StudioSection,
@@ -256,7 +256,7 @@ export function ItemCreator() {
         setThemeSongUrl(url)
         const id = savedIdRef.current ?? editingItem?.id
         if (id && url) {
-            void apiService.setCardMedia('item', id, { theme_song_url: url }).catch(() => {
+            void apiService.setCardMedia('item', id, { theme_song_url: url ?? null }).catch(() => {
                 setDraftToast({ tone: 'error', message: t('creation.common.media.errors.themeSaveFailed') })
             })
         }
@@ -687,9 +687,7 @@ export function ItemCreator() {
                     description={sectionById['traits'].description}
                 >
                     <div className="flex flex-col gap-2.5">
-                        <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
-                            {t('creation.item.quickAddTraits')}
-                        </span>
+                        <Eyebrow tone="muted">{t('creation.item.quickAddTraits')}</Eyebrow>
                         <SuggestedAttributes
                             presets={TRAIT_PRESETS}
                             existingKeys={traitKeys}
@@ -699,7 +697,6 @@ export function ItemCreator() {
 
                     <AttributeManager
                         title={t('creation.item.traitGroups')}
-                        icon="*"
                         categories={guided.categories}
                         attributes={guided.attributes}
                         onAddCategory={guided.addCategory}

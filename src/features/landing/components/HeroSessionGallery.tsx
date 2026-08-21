@@ -12,13 +12,15 @@ import { useTranslation } from 'react-i18next'
 import { useAuthenticatedMediaUrl } from '@/infrastructure/api/useAuthenticatedMediaUrl'
 import { Badge, Button, Eyebrow, Icon, IconButton, cx, gradientFor } from '@/ui/primitives'
 import { RESUME_KIND_META, type ResumeSession } from './resumeModel'
+import { scrollBehavior } from '@/utils/motion'
 
 const MAX_HERO_SESSIONS = 10
 
 export interface HeroSessionGalleryProps {
     sessions: ResumeSession[]
     onOpen: (session: ResumeSession) => void
-    onBeginNew: () => void
+    /** Scroll to the begin zone. Only provided when adventures are enabled. */
+    onBeginNew?: () => void
 }
 
 export function HeroSessionGallery({ sessions, onOpen, onBeginNew }: HeroSessionGalleryProps) {
@@ -44,7 +46,7 @@ export function HeroSessionGallery({ sessions, onOpen, onBeginNew }: HeroSession
         const clamped = Math.max(0, Math.min(index, slideCount - 1))
         scroller.scrollTo({
             left: clamped * slideStep(scroller),
-            behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+            behavior: scrollBehavior(),
         })
     }
 
@@ -144,7 +146,7 @@ interface HeroSessionSlideProps {
     /** Active slide ± 1 — only these fetch their authed artwork. */
     eager: boolean
     onOpen: () => void
-    onBeginNew: () => void
+    onBeginNew?: () => void
 }
 
 function HeroSessionSlide({ session, eager, onOpen, onBeginNew }: HeroSessionSlideProps) {
@@ -189,17 +191,8 @@ function HeroSessionSlide({ session, eager, onOpen, onBeginNew }: HeroSessionSli
                         style={media.loading ? undefined : { background: gradientFor(session.title) }}
                     />
                 )}
-                <div
-                    className="absolute inset-0"
-                    style={{
-                        background:
-                            'linear-gradient(95deg, rgba(14,12,20,.94) 0%, rgba(14,12,20,.66) 48%, rgba(14,12,20,.12) 100%)',
-                    }}
-                />
-                <div
-                    className="absolute inset-x-0 bottom-0 h-28"
-                    style={{ background: 'linear-gradient(180deg, transparent, rgba(14,12,20,.55))' }}
-                />
+                <div className="absolute inset-0 bg-gradient-to-r from-ink-900/94 via-ink-900/66 to-ink-900/12" />
+                <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-b from-transparent to-ink-900/55" />
                 {!hasImage && !media.loading && (
                     <span
                         className="absolute right-2 top-1/2 -translate-y-1/2 select-none font-display font-semibold leading-none text-parchment-50/10 sm:right-10"
@@ -250,9 +243,11 @@ function HeroSessionSlide({ session, eager, onOpen, onBeginNew }: HeroSessionSli
                     >
                         {actionLabel}
                     </Button>
-                    <Button variant="secondary" onClick={onBeginNew}>
-                        {t('landing.heroGallery.beginNew')}
-                    </Button>
+                    {onBeginNew && (
+                        <Button variant="secondary" onClick={onBeginNew}>
+                            {t('landing.heroGallery.beginNew')}
+                        </Button>
+                    )}
                 </div>
             </div>
         </article>
@@ -265,8 +260,4 @@ function slideStep(scroller: HTMLElement): number {
     const second = scroller.children.item(1) as HTMLElement | null
     if (first && second) return second.offsetLeft - first.offsetLeft
     return scroller.clientWidth
-}
-
-function prefersReducedMotion() {
-    return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }

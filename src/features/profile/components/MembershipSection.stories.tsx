@@ -11,7 +11,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Membership tier cards from `GET /user/me` — the current plan plus reference-only previews (Plus/Pro) and the non-expiring PAYG credit card. Falls back to a simple legacy credits card when the profile has no `membership.profile_cards` block.',
+          'Membership tier cards from the stored `GET /user/me` payload — the current plan, reference-only previews, and PAYG balances.',
       },
     },
   },
@@ -33,9 +33,4 @@ export const Default: Story = {}
  */
 export const BillingEnabled: Story = {
   args: { billingEnabled: true },
-}
-
-/** Legacy account without the membership block — the simple credits card. */
-export const LegacyCredits: Story = {
-  args: { profile: { ...baseProfile, membership: undefined } },
 }

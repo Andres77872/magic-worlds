@@ -14,7 +14,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
   {
     label: 'Ink — the dark canvas',
     note: 'Depth comes from lightening surfaces, not heavy shadows. ink-800 is the default canvas.',
-    tokens: ['--color-ink-900', '--color-ink-800', '--color-ink-700', '--color-ink-600', '--color-ink-500'],
+    tokens: ['--color-ink-900', '--color-ink-800', '--color-ink-700', '--color-ink-600', '--color-ink-500', '--color-gradient-base'],
   },
   {
     label: 'Parchment — warm foreground',
@@ -31,12 +31,12 @@ export const COLOR_GROUPS: ColorGroup[] = [
   {
     label: 'Ember — primary accent (candlelight gold)',
     note: 'The single hero accent: primary actions, active states, the player’s own voice, focus rings, the logo flame.',
-    tokens: ['--color-ember-300', '--color-ember-400', '--color-ember-500', '--color-ember-600', '--color-ember-700'],
+    tokens: ['--color-ember-200', '--color-ember-300', '--color-ember-400', '--color-ember-500', '--color-ember-600', '--color-ember-700'],
   },
   {
     label: 'Arcane — AI / magic',
     note: 'Marks the AI side: the character’s avatar ring and the “thinking” shimmer. Used sparingly so it stays special.',
-    tokens: ['--color-arcane-300', '--color-arcane-400', '--color-arcane-500', '--color-arcane-600', '--color-arcane-700'],
+    tokens: ['--color-arcane-200', '--color-arcane-300', '--color-arcane-400', '--color-arcane-500', '--color-arcane-600', '--color-arcane-700'],
   },
   {
     label: 'Semantic',

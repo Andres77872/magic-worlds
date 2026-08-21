@@ -63,6 +63,7 @@ function Probe() {
     return (
         <div>
             <span data-testid="stories-count">{ctx?.stories.length ?? 0}</span>
+            <button type="button" onClick={() => ctx?.setActiveStory(STORY)}>Open story</button>
             <span data-testid="loading-log">{loadingLog.some((v, i) => v && i > 0 && !loadingLog[i - 1]) ? 'respun' : 'stable'}</span>
             <span data-testid="is-loading">{String(ctx?.isLoading ?? false)}</span>
         </div>
@@ -118,9 +119,12 @@ describe('DataProvider auth transitions', () => {
         await waitFor(() => expect(screen.getByTestId('stories-count')).toHaveTextContent('1'))
     })
 
-    it('keeps the open story library on session expiry', async () => {
+    it('keeps only the owner-tagged active story on session expiry', async () => {
         const view = renderProvider()
         await waitFor(() => expect(screen.getByTestId('stories-count')).toHaveTextContent('1'))
+        act(() => {
+            screen.getByRole('button', { name: 'Open story' }).click()
+        })
 
         act(() => {
             window.dispatchEvent(new CustomEvent('auth:expired'))

@@ -15,6 +15,11 @@
  *            `fixed inset-0` wrapper (AppRouter) so the candlelight belongs to
  *            the app background instead of scrolling — and cropping — with a
  *            section container
+ *
+ * The glows are static. An earlier `animated` page variant breathed the two
+ * blobs on 16s/22s loops; it composited two full-viewport layers forever, on
+ * every route, for motion no one could perceive. Ambience comes from the
+ * gradients themselves now.
  */
 import { cx } from './cx'
 
@@ -30,12 +35,9 @@ const PAGE_ARCANE = 'var(--glow-arcane-page)'
 interface GlowBackdropProps {
     variant?: GlowVariant
     className?: string
-    /** App-shell only: breathe the two `page` blobs on independent long periods
-     *  for an organic candlelight. No effect on other variants. */
-    animated?: boolean
 }
 
-export function GlowBackdrop({ variant = 'hero', className, animated = false }: GlowBackdropProps) {
+export function GlowBackdrop({ variant = 'hero', className }: GlowBackdropProps) {
     return (
         <div aria-hidden className={cx('pointer-events-none absolute inset-0 overflow-hidden', className)}>
             {variant === 'hero' && (
@@ -75,17 +77,11 @@ export function GlowBackdrop({ variant = 'hero', className, animated = false }: 
                         fixed layer. */}
                     <div
                         className="absolute inset-0"
-                        style={{
-                            background: `radial-gradient(120% 110% at 0% 0%, ${PAGE_EMBER}, transparent 68%)`,
-                            animation: animated ? 'var(--animate-candle-a)' : undefined,
-                        }}
+                        style={{ background: `radial-gradient(120% 110% at 0% 0%, ${PAGE_EMBER}, transparent 68%)` }}
                     />
                     <div
                         className="absolute inset-0"
-                        style={{
-                            background: `radial-gradient(120% 110% at 100% 100%, ${PAGE_ARCANE}, transparent 68%)`,
-                            animation: animated ? 'var(--animate-candle-b)' : undefined,
-                        }}
+                        style={{ background: `radial-gradient(120% 110% at 100% 100%, ${PAGE_ARCANE}, transparent 68%)` }}
                     />
                 </>
             )}

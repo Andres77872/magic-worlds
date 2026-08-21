@@ -4,7 +4,7 @@ import { Loader2, Play, Sparkles } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
 import type { LoreActivationPreviewResponse, Lorebook } from '@/shared'
 import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
-import { Badge, Button, Field, Icon, Textarea } from '@/ui/primitives'
+import { Badge, Button, Callout, Field, Icon, Textarea } from '@/ui/primitives'
 import { lorebookResourceStats, lorebookResourcesFromMetadata, withoutLorebookResourceMetadata } from '../lorebookResources'
 import { previewLocally } from '../lorebookTransforms'
 
@@ -13,16 +13,14 @@ interface ActivationPreviewPanelProps {
     saved: boolean
 }
 
-const DEFAULT_SAMPLE = 'I ask Mira about the Glass Market and show her the silver confession ring.'
-
 export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPreviewPanelProps) {
     const { t } = useTranslation()
     const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
     const previewLorebook = useMemo(() => (
         resourceFeaturesEnabled ? lorebook : withoutLorebookResourceMetadata(lorebook)
     ), [lorebook, resourceFeaturesEnabled])
-    const [sample, setSample] = useState(DEFAULT_SAMPLE)
-    const [preview, setPreview] = useState<LoreActivationPreviewResponse>(() => previewLocally(previewLorebook, DEFAULT_SAMPLE))
+    const [sample, setSample] = useState('')
+    const [preview, setPreview] = useState<LoreActivationPreviewResponse>(() => previewLocally(previewLorebook, ''))
     const [loading, setLoading] = useState(false)
     const [source, setSource] = useState<'backend' | 'local'>('local')
     const [error, setError] = useState<string | null>(null)
@@ -80,7 +78,7 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
             </Field>
 
             <Button
-                variant="arcane"
+                variant="primary"
                 iconLeft={loading ? <Loader2 size={16} className="animate-spin" /> : <Icon icon={Play} size={16} />}
                 onClick={runPreview}
                 disabled={loading || !sample.trim()}
@@ -89,15 +87,15 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
             </Button>
 
             {error && (
-                <div className="rounded-lg border border-ember-500/25 bg-ember-500/10 px-4 py-3 font-ui text-sm text-parchment-200">
+                <Callout tone="danger" role="alert">
                     {error}
-                </div>
+                </Callout>
             )}
 
             {resourceStats && resourceStats.pending > 0 && (
-                <div className="rounded-lg border border-arcane-500/25 bg-arcane-500/10 px-4 py-3 font-ui text-sm text-parchment-200">
+                <Callout tone="info">
                     {t('lorebookStudio.activationPreview.pendingResources', { count: resourceStats.pending })}
-                </div>
+                </Callout>
             )}
 
             <div className="grid gap-3 sm:grid-cols-3">
@@ -151,13 +149,12 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
             </div>
 
             {preview.promptPreview && (
-                <div className="rounded-lg border border-arcane-500/20 bg-arcane-500/10 p-4">
-                    <div className="mb-2 inline-flex items-center gap-2 font-ui text-sm font-semibold text-arcane-300">
-                        <Icon icon={Sparkles} size={15} />
+                <Callout tone="info" icon={<Icon icon={Sparkles} size={15} />}>
+                    <div className="mb-2 font-ui text-sm font-semibold text-arcane-300">
                         {t('lorebookStudio.activationPreview.promptPreview')}
                     </div>
                     <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-parchment-200">{preview.promptPreview}</pre>
-                </div>
+                </Callout>
             )}
         </div>
     )

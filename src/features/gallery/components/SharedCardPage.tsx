@@ -3,40 +3,23 @@ import { useTranslation } from 'react-i18next'
 import { Import, Link2, Loader2, Sparkles } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
 import type { SharedCardResource } from '@/shared'
+import { isAdventuresFeatureEnabled } from '@/shared/featureFlags'
 import { GalleryCard } from '@/ui/components'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
-import { Badge, Button, Card, Icon, PageHeader, Toast } from '@/ui/primitives'
+import { Badge, Button, Card, Eyebrow, Icon, PageHeader, Toast } from '@/ui/primitives'
 import { publicItems, type GalleryItem, type GalleryType } from '../galleryConfig'
 import { buildSharedCardUrl, parseSharedCardToken } from '../galleryLinks'
 import { useCardImport, useGalleryCardPreview, type ImportSource } from '../hooks/useCardImport'
 import { CardImportOverlays } from './CardImportOverlays'
+import { writeClipboardText } from '@/ui/components/common/clipboard'
+import { errorMessage } from '@/utils/errors'
 
 function playlistCardType(type: GalleryType) {
     return type === 'adventure' ? 'adventure_template' : type === 'persona' ? 'character' : type
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-    return error instanceof Error && error.message.trim() ? error.message : fallback
-}
 
-async function writeClipboardText(text: string): Promise<void> {
-    if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-        return
-    }
-
-    const textarea = document.createElement('textarea')
-    textarea.value = text
-    textarea.setAttribute('readonly', '')
-    textarea.style.position = 'fixed'
-    textarea.style.opacity = '0'
-    document.body.appendChild(textarea)
-    textarea.select()
-    const copied = document.execCommand('copy')
-    textarea.remove()
-    if (!copied) throw new Error('Clipboard copy failed')
-}
 
 export function SharedCardPage() {
     const { t } = useTranslation()
@@ -99,7 +82,10 @@ export function SharedCardPage() {
 
     if (loading) return <LoadingSpinner message={t('gallery.shared.loading')} />
 
-    if (error || !item || !resource) {
+    // A shared adventure card would import something the user can never open
+    // while adventures are off — treat the link as unavailable instead.
+    const adventureBlocked = item?.galleryType === 'adventure' && !isAdventuresFeatureEnabled()
+    if (error || !item || !resource || adventureBlocked) {
         return (
             <div className="mx-auto flex w-full max-w-[960px] px-5 py-10 sm:px-8">
                 <EmptyState
@@ -197,17 +183,17 @@ export function SharedCardPage() {
                         </div>
                         {item.originalCreatorName && (
                             <div>
-                                <p className="font-ui text-[12px] uppercase tracking-[0.14em] text-parchment-400">{t('gallery.shared.creator')}</p>
+                                <Eyebrow tone="muted" className="block">{t('gallery.shared.creator')}</Eyebrow>
                                 <p className="mt-1 font-ui text-sm font-semibold text-parchment-100">{item.originalCreatorName}</p>
                             </div>
                         )}
                         <div>
-                            <p className="font-ui text-[12px] uppercase tracking-[0.14em] text-parchment-400">{t('gallery.shared.cardType')}</p>
+                            <Eyebrow tone="muted" className="block">{t('gallery.shared.cardType')}</Eyebrow>
                             <p className="mt-1 font-ui text-sm font-semibold text-parchment-100">
                                 {t(`gallery.type.${item.galleryType}.singular`)}
                             </p>
                         </div>
-                        <div className="border-t border-parchment-50/[.08] pt-4">
+                        <div className="border-t border-line-faint pt-4">
                             <Button
                                 variant="secondary"
                                 size="sm"

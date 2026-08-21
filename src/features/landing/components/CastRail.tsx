@@ -95,7 +95,7 @@ export function CastRail({ cast, onChat, onCall, onEdit, onDelete, onViewAll }: 
                             footer={
                                 <div className="flex gap-2">
                                     <Button
-                                        variant="primary"
+                                        variant="arcane"
                                         size="sm"
                                         className="min-w-0 flex-1"
                                         iconLeft={<Icon icon={MessageCircle} size={15} />}

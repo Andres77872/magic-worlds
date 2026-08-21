@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Editor } from '@tiptap/core'
 import type { StoryGeneration, StoryGenerationCommand } from '@/shared'
 import type { InlineAIPhase } from '../types'
@@ -27,7 +28,8 @@ export interface InlineAISubmitOptions {
 }
 
 export interface InlineAICallbacks {
-    onRequestSaveFlush: () => Promise<void>
+    /** Persist the draft; resolves false when the body could not be saved. */
+    onRequestSaveFlush: () => Promise<boolean>
     onGenerate: (request: {
         command: StoryGenerationCommand
         instruction?: string
@@ -54,11 +56,14 @@ export interface InlineAIApi {
 }
 
 export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks): InlineAIApi {
+    const { t } = useTranslation()
     const editorRef = useRef(editor)
     const callbacksRef = useRef(callbacks)
+    const tRef = useRef(t)
     useEffect(() => {
         editorRef.current = editor
         callbacksRef.current = callbacks
+        tRef.current = t
     })
 
     const [error, setError] = useState<string | null>(null)
@@ -178,7 +183,17 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
 
             const token = ++tokenRef.current
             try {
-                await callbacksRef.current.onRequestSaveFlush()
+                // The backend generates from the *stored* chapter body — if the
+                // draft cannot be persisted, generating would work from stale
+                // text, so bail out instead.
+                const saved = await callbacksRef.current.onRequestSaveFlush()
+                if (!saved) {
+                    if (token === tokenRef.current) {
+                        editorRef.current?.commands.aiCancelPending()
+                        setError(tRef.current('novelEditor.editor.flushFailed'))
+                    }
+                    return
+                }
                 const generation = await callbacksRef.current.onGenerate({
                     command,
                     instruction: instruction?.trim() || undefined,
@@ -197,7 +212,7 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
                 }
                 if (!generation.output.trim()) {
                     target.commands.aiCancelPending()
-                    setError('The muse returned nothing — try rephrasing the instruction.')
+                    setError(tRef.current('novelEditor.editor.emptyGeneration'))
                     return
                 }
                 generationRef.current = generation
@@ -206,7 +221,7 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
             } catch (generateError) {
                 if (token === tokenRef.current) {
                     editorRef.current?.commands.aiCancelPending()
-                    setError(generateError instanceof Error ? generateError.message : 'Generation failed — try again.')
+                    setError(generateError instanceof Error ? generateError.message : tRef.current('novelEditor.editor.generationFailed'))
                 }
             }
         },

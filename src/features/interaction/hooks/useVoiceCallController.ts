@@ -346,17 +346,19 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }, [options.autoBargeIn, updateState])
 
     const handleCapturedSegment = useCallback((segment: CapturedVoiceSegment) => {
-        // TEMP: client metrics use the SAME formula the server VAD checks, so this shows
-        // exactly which gate fails (server needs rms>=0.012, peak>=0.025, dur>=250ms).
-        console.info('[voice-call][SEG]', {
-            rms: segment.vad.rms,
-            peak: segment.vad.peak,
-            speech_ms: segment.vad.speech_ms,
-            silence_ms: segment.vad.silence_ms,
-            duration_ms: segment.duration_ms,
-            bytes: segment.byte_length,
-            source: segment.vad.source,
-        })
+        if (import.meta.env.DEV) {
+            // Client metrics use the SAME formula the server VAD checks, so this shows
+            // exactly which gate fails (server needs rms>=0.012, peak>=0.025, dur>=250ms).
+            console.info('[voice-call][SEG]', {
+                rms: segment.vad.rms,
+                peak: segment.vad.peak,
+                speech_ms: segment.vad.speech_ms,
+                silence_ms: segment.vad.silence_ms,
+                duration_ms: segment.duration_ms,
+                bytes: segment.byte_length,
+                source: segment.vad.source,
+            })
+        }
         void uploadSegment(segment)
     }, [uploadSegment])
 

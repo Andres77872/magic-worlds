@@ -136,11 +136,10 @@ export function AdventureCardDrawer({ open, entry, onClose, onSave, onRemove }: 
             <div className="flex w-full items-center justify-between gap-3">
                 {onRemove ? (
                     <Button
-                        variant="ghost"
+                        variant="danger-ghost"
                         iconLeft={<Icon icon={Trash2} size={16} />}
                         onClick={handleRemove}
                         disabled={removing}
-                        className="text-blood-400 hover:text-blood-500"
                     >
                         {removing ? t('interaction.cardDrawer.removing') : removeLabel}
                     </Button>

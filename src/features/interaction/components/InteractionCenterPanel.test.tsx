@@ -107,7 +107,7 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.getByText('Open the door')).toBeInTheDocument()
     })
 
-    it('deletes canonical messages through the session config and adopts the server projection', async () => {
+    it('deletes stored messages through the session config and adopts the server projection', async () => {
         const deleteMessage = vi.fn(async () => [initialTurns[1]])
         const config = makeConfig({ deleteMessage })
 
@@ -120,7 +120,7 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.getByText('The door opens.')).toBeInTheDocument()
     })
 
-    it('rolls back the local removal when canonical delete fails', async () => {
+    it('rolls back the local removal when stored delete fails', async () => {
         const deleteMessage = vi.fn(async () => {
             throw new Error('conflict')
         })
@@ -135,7 +135,7 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.getByText('The door opens.')).toBeInTheDocument()
     })
 
-    it('clears messages through the canonical clear endpoint', async () => {
+    it('clears messages through the stored clear endpoint', async () => {
         const clearMessages = vi.fn(async () => [])
         const config = makeConfig({ clearMessages })
 
@@ -373,7 +373,7 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.queryByRole('button', { name: 'New messages' })).toBeNull()
     })
 
-    it('deletes the replaced canonical reply before regenerating', async () => {
+    it('deletes the replaced stored reply before regenerating', async () => {
         const sendChat = vi.fn()
         hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
         const deleteMessage = vi.fn(async () => [initialTurns[0]])
@@ -382,7 +382,7 @@ describe('InteractionCenterPanel message deletion', () => {
         renderPanel(config)
         fireEvent.click(screen.getByLabelText('Regenerate'))
 
-        // The old canonical assistant row goes first, or hydration resurrects it.
+        // The old stored assistant row goes first, or hydration resurrects it.
         await waitFor(() => expect(deleteMessage).toHaveBeenCalledWith(7, 101))
         await waitFor(() => expect(sendChat).toHaveBeenCalledWith('Open the door'))
     })
@@ -508,7 +508,7 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.getByText(/conjuring the scene/i)).toBeInTheDocument()
     })
 
-    it('removes obsolete per-frame generation toggles and sends canonical chat content', async () => {
+    it('removes obsolete per-frame generation toggles and sends stored chat content', async () => {
         const sendChat = vi.fn()
         hookMocks.useAdventureChatSocket.mockReturnValue({
             status: 'open',

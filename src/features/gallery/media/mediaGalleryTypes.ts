@@ -8,7 +8,7 @@
 import type { CardMediaTargetType, ImageJobPublic, ThemeSongJobPublic } from '@/shared'
 import type { TFunction } from 'i18next'
 import { resolveMediaUrl } from '@/infrastructure/api'
-import { dateFromApiTimestamp } from '@/utils/time'
+import { formatWhen } from '@/utils/time'
 
 export type MediaTypeFilter = 'all' | 'images' | 'themes'
 export type CardTypeFilter = CardMediaTargetType | 'all'
@@ -52,21 +52,13 @@ export interface MediaThemeItem extends MediaItemBase {
     /** Resolved (absolute) audio URL. */
     url: string
     title: string
-    styleTags: string[]
     durationMs?: number | null
     /** Download extension. */
-    outputFormat: 'mp3' | 'wav'
+    outputFormat: 'mp3'
 }
 
 export type MediaGalleryItem = MediaImageItem | MediaThemeItem
 
-export function formatWhen(iso?: string): string {
-    const dateValue = dateFromApiTimestamp(iso)
-    if (!dateValue) return ''
-    const date = dateValue.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-    const time = dateValue.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-    return `${date} · ${time}`
-}
 
 export function formatDuration(ms?: number | null): string {
     if (!ms || ms <= 0) return ''
@@ -113,10 +105,9 @@ export function themeJobToItem(job: ThemeSongJobPublic): MediaThemeItem | null {
         createdAt: job.created_at,
         card: { type: job.target.type, id: job.target.id, name: job.target.display_name ?? undefined },
         url,
-        title: job.lyrics?.song_title?.trim() || `Theme · ${formatWhen(job.created_at)}`,
-        styleTags: job.lyrics?.style_tags ?? [],
+        title: job.target.display_name?.trim() || `Theme · ${formatWhen(job.created_at)}`,
         durationMs: asset.duration_ms,
-        outputFormat: asset.output_format ?? (asset.content_type.includes('wav') ? 'wav' : 'mp3'),
+        outputFormat: 'mp3',
     }
 }
 

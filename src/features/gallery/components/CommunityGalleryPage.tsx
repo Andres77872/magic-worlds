@@ -5,6 +5,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useNavigation } from '@/app/hooks'
 import { CardGrid, GalleryCard, GalleryCardSkeleton } from '@/ui/components'
 import { Button, Icon, PageHeader, SectionHeader, Toast } from '@/ui/primitives'
+import { isAdventuresFeatureEnabled } from '@/shared/featureFlags'
 import { buildGalleryViewHash, galleryPageForType } from '../galleryLinks'
 import { publicConfigFor, type GalleryItem, type GalleryType } from '../galleryConfig'
 import { useCardGallery } from '../hooks/useCardGallery'
@@ -52,7 +53,7 @@ export function CommunityGalleryPage() {
             />
 
             <div className="flex flex-col gap-9">
-                {COMMUNITY_SECTIONS.map((section) => (
+                {COMMUNITY_SECTIONS.filter((section) => section.type !== 'adventure' || isAdventuresFeatureEnabled()).map((section) => (
                     <CommunityGallerySection
                         key={section.type}
                         section={section}

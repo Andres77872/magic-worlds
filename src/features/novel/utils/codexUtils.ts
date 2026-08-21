@@ -25,7 +25,7 @@ export function lorebookEntrySnapshot(lorebook: Lorebook, entry: LorebookEntry):
     }
 }
 
-/** Lorebook-entry snapshots use their canonical `id` as the source entry identity. */
+/** Lorebook-entry snapshots use their stored `id` as the source entry identity. */
 export function clonedEntryIds(refs: StoryCardRef[]): Set<string> {
     return new Set(
         refs
@@ -35,7 +35,7 @@ export function clonedEntryIds(refs: StoryCardRef[]): Set<string> {
     )
 }
 
-/** Rebuild the editor's lightweight trigger model from the canonical snapshot. */
+/** Rebuild the editor's lightweight trigger model from the stored snapshot. */
 export function lorebookEntryFromSnapshot(snapshot: StoryCardSnapshot, fallbackId: string): LorebookEntry {
     const entry = snapshotToLoreEntry(snapshot as unknown as Record<string, unknown>, fallbackId)
     const fallbackKey = snapshot.name ?? snapshot.alias ?? fallbackId

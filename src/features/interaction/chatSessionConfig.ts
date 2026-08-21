@@ -7,7 +7,7 @@
  */
 
 import type {
-    CanonicalConversationMessage,
+    StoredConversationMessage,
     ChatImageAsset,
     ChatImageError,
     ChatResponseSegment,
@@ -41,11 +41,11 @@ export interface ChatSessionConfig {
     basePath: string
     /** Load + normalize the conversation turns for a session id. */
     loadTurns: (sessionId: number) => Promise<TurnEntry[]>
-    /** Update one canonical message, then return the authoritative history. */
+    /** Update one stored message, then return the authoritative history. */
     updateMessage: (sessionId: number, messageId: number, content: string) => Promise<TurnEntry[]>
-    /** Delete one canonical message, then return the authoritative history. */
+    /** Delete one stored message, then return the authoritative history. */
     deleteMessage: (sessionId: number, messageId: number) => Promise<TurnEntry[]>
-    /** Clear all canonical messages, then return the authoritative history. */
+    /** Clear all stored messages, then return the authoritative history. */
     clearMessages: (sessionId: number) => Promise<TurnEntry[]>
     /** Label shown on AI turns ("Game Master" or the character's name). */
     aiLabel: string
@@ -65,7 +65,7 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 /** Project durable conversation rows into the view model consumed by the chat UI. */
-export function canonicalMessagesToTurns(messages: CanonicalConversationMessage[]): TurnEntry[] {
+export function storedMessagesToTurns(messages: StoredConversationMessage[]): TurnEntry[] {
     return [...messages]
         .sort((left, right) => left.sequence_no - right.sequence_no)
         .map((message) => {
@@ -123,22 +123,22 @@ export function adventureChatConfig(): ChatSessionConfig {
         basePath: 'adventure-sessions',
         loadTurns: async (sessionId) => {
             const history = await apiService.getAdventureSessionMessages(sessionId)
-            return canonicalMessagesToTurns(history.messages)
+            return storedMessagesToTurns(history.messages)
         },
         updateMessage: async (sessionId, messageId, content) => {
             await apiService.updateAdventureSessionMessage(sessionId, messageId, content)
             const history = await apiService.getAdventureSessionMessages(sessionId)
-            return canonicalMessagesToTurns(history.messages)
+            return storedMessagesToTurns(history.messages)
         },
         deleteMessage: async (sessionId, messageId) => {
             await apiService.deleteAdventureSessionMessage(sessionId, messageId)
             const history = await apiService.getAdventureSessionMessages(sessionId)
-            return canonicalMessagesToTurns(history.messages)
+            return storedMessagesToTurns(history.messages)
         },
         clearMessages: async (sessionId) => {
             await apiService.clearAdventureSessionMessages(sessionId)
             const history = await apiService.getAdventureSessionMessages(sessionId)
-            return canonicalMessagesToTurns(history.messages)
+            return storedMessagesToTurns(history.messages)
         },
         aiLabel: 'Game Master',
         showForwardOptions: true,
@@ -165,22 +165,22 @@ export function characterChatConfig(characterName: string, opts?: { group?: bool
         basePath: 'character-chats',
         loadTurns: async (sessionId) => {
             const history = await apiService.getCharacterChatMessages(sessionId)
-            return canonicalMessagesToTurns(history.messages)
+            return storedMessagesToTurns(history.messages)
         },
         updateMessage: async (sessionId, messageId, content) => {
             await apiService.updateCharacterChatMessage(sessionId, messageId, content)
             const history = await apiService.getCharacterChatMessages(sessionId)
-            return canonicalMessagesToTurns(history.messages)
+            return storedMessagesToTurns(history.messages)
         },
         deleteMessage: async (sessionId, messageId) => {
             await apiService.deleteCharacterChatMessage(sessionId, messageId)
             const history = await apiService.getCharacterChatMessages(sessionId)
-            return canonicalMessagesToTurns(history.messages)
+            return storedMessagesToTurns(history.messages)
         },
         clearMessages: async (sessionId) => {
             await apiService.clearCharacterChatMessages(sessionId)
             const history = await apiService.getCharacterChatMessages(sessionId)
-            return canonicalMessagesToTurns(history.messages)
+            return storedMessagesToTurns(history.messages)
         },
         aiLabel: name,
         showForwardOptions: true,

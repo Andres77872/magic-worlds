@@ -1,4 +1,4 @@
-/** Persist a per-chapter word target through the canonical Story chapter API. */
+/** Persist a per-chapter word target through the stored Story chapter API. */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth, useData } from '@/app/hooks'
@@ -40,7 +40,7 @@ function removeLegacyGoal(key: string | null): void {
 
 export interface WordGoalApi {
     goal: number | null
-    /** Resolves true only when the canonical chapter update succeeds. */
+    /** Resolves true only when the stored chapter update succeeds. */
     setGoal: (goal: number | null) => Promise<boolean>
 }
 

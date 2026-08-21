@@ -58,7 +58,7 @@ export function BubbleAiMenu({ items, onSelect, onClose }: BubbleAiMenuProps) {
             className="absolute right-0 top-[calc(100%+6px)] z-40 w-[280px] overflow-hidden rounded-lg border border-arcane-500/30 bg-ink-700 shadow-xl"
             data-testid="bubble-ai-menu"
         >
-            <p className="m-0 border-b border-parchment-50/[.06] px-3 py-1.5 font-ui text-[11px] uppercase tracking-[0.14em] text-arcane-300">
+            <p className="m-0 border-b border-parchment-50/[.06] px-3 py-1.5 font-ui text-meta uppercase tracking-[0.14em] text-arcane-300">
                 {t('novelEditor.bubbleMenu.askMuse')}
             </p>
             <ul className="m-0 flex list-none flex-col p-1">

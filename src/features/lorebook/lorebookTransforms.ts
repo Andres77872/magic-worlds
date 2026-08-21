@@ -20,11 +20,14 @@ import {
     findInvalidLorebookResource,
     lorebookHasResourceContent,
     lorebookResourceActivationEntries,
-    embeddedLorebookResourcesFromMetadata,
     lorebookResourcesFromMetadata,
-    lorebookResourceToApiPayload,
 } from './lorebookResources'
 import { buildKeyRegex } from './loreTriggers'
+import {
+    serializeLorebookAttachment,
+    serializeLorebookDraft,
+    serializeLorebookEntry,
+} from '@/infrastructure/api/lorebookWire'
 
 type Raw = Record<string, unknown>
 
@@ -201,64 +204,15 @@ export function normalizeLorebookList(raw: unknown): Lorebook[] {
 }
 
 export function lorebookToApiPayload(lorebook: Lorebook | LorebookDraft | Partial<LorebookDraft>): Record<string, unknown> {
-    return {
-        name: lorebook.name,
-        description: lorebook.description || null,
-        tags: lorebook.tags ?? [],
-        enabled: lorebook.enabled ?? true,
-        settings: {
-            scanDepth: lorebook.settings?.scanDepth ?? DEFAULT_LOREBOOK_SETTINGS.scanDepth,
-            tokenBudget: lorebook.settings?.tokenBudget ?? DEFAULT_LOREBOOK_SETTINGS.tokenBudget,
-            recursiveScanning: lorebook.settings?.recursiveScanning ?? DEFAULT_LOREBOOK_SETTINGS.recursiveScanning,
-            matchWholeWords: lorebook.settings?.matchWholeWords ?? DEFAULT_LOREBOOK_SETTINGS.matchWholeWords,
-            caseSensitive: lorebook.settings?.caseSensitive ?? DEFAULT_LOREBOOK_SETTINGS.caseSensitive,
-        },
-        metadata: {
-            resources: embeddedLorebookResourcesFromMetadata(lorebook.metadata).map(lorebookResourceToApiPayload),
-        },
-        entries: 'entries' in lorebook && Array.isArray(lorebook.entries)
-            ? lorebook.entries.map(entryToApiPayload)
-            : undefined,
-    }
+    return serializeLorebookDraft(lorebook as (Lorebook | LorebookDraft) & Record<string, unknown>)
 }
 
 export function entryToApiPayload(entry: Partial<LorebookEntry | LorebookEntryDraft>): Record<string, unknown> {
-    const id = 'id' in entry && typeof entry.id === 'string' && !entry.id.startsWith('draft-entry-')
-        ? entry.id
-        : undefined
-    return {
-        ...(id ? { id } : {}),
-        title: entry.title ?? '',
-        entryType: entry.entryType ?? 'other',
-        content: entry.content ?? '',
-        keys: entry.keys ?? [],
-        secondaryKeys: entry.secondaryKeys ?? [],
-        selectiveLogic: entry.selectiveLogic ?? 'any',
-        enabled: entry.enabled ?? true,
-        constant: entry.constant ?? false,
-        caseSensitive: entry.caseSensitive ?? false,
-        matchWholeWords: entry.matchWholeWords ?? true,
-        regex: entry.regex ?? false,
-        isSecret: entry.isSecret ?? false,
-        revealCondition: entry.revealCondition || null,
-        insertionOrder: entry.insertionOrder ?? 0,
-        priority: entry.priority ?? 0,
-        insertionPosition: entry.insertionPosition ?? 'before_context',
-        tokenBudget: entry.tokenBudget ?? null,
-    }
+    return serializeLorebookEntry(entry as Partial<LorebookEntry> & Record<string, unknown>, { includeIdentity: true })
 }
 
 export function attachmentToApiPayload(attachment: Partial<LorebookAttachment>): Record<string, unknown> {
-    return {
-        ...(attachment.id ? { id: attachment.id } : {}),
-        lorebookId: attachment.lorebookId,
-        targetKind: attachment.targetKind ?? 'global',
-        targetId: attachment.targetId || null,
-        mode: attachment.mode ?? 'linked',
-        snapshot: attachment.snapshot
-            ? { id: attachment.snapshot.id, ...lorebookToApiPayload(attachment.snapshot) }
-            : null,
-    }
+    return serializeLorebookAttachment(attachment as Partial<LorebookAttachment> & Record<string, unknown>)
 }
 
 export function estimateTokens(text: string): number {

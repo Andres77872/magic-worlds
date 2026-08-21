@@ -45,6 +45,7 @@ import {
 import { usePlaylist } from '@/app/hooks'
 import type { PlaylistLoopMode, PlaylistTrack } from '@/app/providers/audioPlaylistContext'
 import { AuthenticatedImage, Button, cx, Eyebrow, Icon, IconButton } from '@/ui/primitives'
+import { setBottomChromeHeight, useBottomChromeInset } from '@/ui/primitives/bottomChrome'
 import { pseudoPeaks } from './audioData'
 import { downloadThemeSong } from './downloadThemeSong'
 import { formatSeconds } from './formatSeconds'
@@ -148,6 +149,32 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
     useEffect(() => {
         positionRef.current = position
     }, [position])
+
+    // Publish the docked height so the toast and the creator assistant's
+    // launcher stack above the player instead of landing on its controls. A
+    // dragged dock has left the corner, so it withdraws from the stack.
+    const parkedInCorner = position === null && playlist.queue.length > 0 && Boolean(playlist.currentTrack)
+    // Ride above the consent banner: below `sm` the dock is a full-width bar at
+    // the same offset as the banner, and being a body portal it always wins the
+    // paint — which used to bury the consent buttons.
+    const dockInset = useBottomChromeInset('dock')
+    // `playlist.error` is a code, not copy — resolve it here so it follows a language switch.
+    const playbackError = playlist.error ? t(`playlist.errors.${playlist.error}`) : null
+    useEffect(() => {
+        const element = dockRef.current
+        if (!parkedInCorner || !element) {
+            setBottomChromeHeight('dock', null)
+            return undefined
+        }
+        const publish = () => setBottomChromeHeight('dock', element.getBoundingClientRect().height)
+        publish()
+        const observer = new ResizeObserver(publish)
+        observer.observe(element)
+        return () => {
+            observer.disconnect()
+            setBottomChromeHeight('dock', null)
+        }
+    }, [parkedInCorner])
 
     const clampCurrentPosition = useCallback(() => {
         const current = positionRef.current
@@ -325,7 +352,9 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
     const customPosition = position !== null
     const wrapperStyle: CSSProperties | undefined = customPosition
         ? { left: position.x, top: position.y, width: 'min(calc(100vw - 2rem), 26rem)' }
-        : undefined
+        : dockInset
+          ? { transform: `translateY(-${dockInset}px)` }
+          : undefined
 
     const openCurrentCard = () => {
         if (!onOpenCard || !currentTrack.cardType || !currentTrack.cardId) return
@@ -411,7 +440,10 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                 aria-label={t('playlist.nowPlaying')}
                 className={cx(
                     'pointer-events-auto relative flex w-full max-w-[min(calc(100vw-2rem),26rem)] flex-col rounded-lg border bg-ink-800/95 ring-1 ring-ink-900/60 backdrop-blur-md',
-                    'transition-all motion-reduce:transition-none',
+                    // Only the accent changes animate: this element is dragged and
+                    // resized, and `transition-all` made every geometry change chase
+                    // the pointer a frame behind.
+                    'transition-[border-color,box-shadow] motion-reduce:transition-none',
                     playlist.isPlaying ? 'border-ember-500/40 shadow-glow-ember' : 'border-parchment-50/10 shadow-xl',
                     dragging && 'select-none border-ember-500/55 shadow-card-hover',
                 )}
@@ -582,7 +614,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                           : t('playlist.playTrackNamed', { title: currentTrack.title })
                                 }
                                 aria-pressed={playlist.isPlaying}
-                                title={playlist.error ?? (playlist.isPlaying ? t('playlist.pause') : t('playlist.play'))}
+                                title={playbackError ?? (playlist.isPlaying ? t('playlist.pause') : t('playlist.play'))}
                                 disabled={playlist.isLoading}
                                 onClick={playlist.toggle}
                                 className={cx(
@@ -770,7 +802,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                         </span>
                     </div>
                     {playlist.error && (
-                        <p className="pl-10 font-mono text-micro text-blood-500">{playlist.error}</p>
+                        <p className="pl-10 font-mono text-micro text-blood-500">{playbackError}</p>
                     )}
                 </div>
             </section>

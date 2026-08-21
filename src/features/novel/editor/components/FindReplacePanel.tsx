@@ -10,7 +10,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Editor } from '@tiptap/core'
 import { CaseSensitive, ChevronDown, ChevronUp, X } from 'lucide-react'
-import { Icon, IconButton, cx } from '@/ui/primitives'
+import { Button, Icon, IconButton } from '@/ui/primitives'
 import { SEARCH_PLUGIN_KEY } from '../extensions/searchReplace'
 
 interface FindReplacePanelProps {
@@ -68,7 +68,7 @@ export function FindReplacePanel({ editor, disabled, onClose }: FindReplacePanel
 
     return (
         <div
-            className="absolute right-3 top-3 z-40 w-[320px] rounded-lg border border-parchment-50/10 bg-ink-800/95 p-2.5 shadow-xl backdrop-blur"
+            className="absolute right-3 top-3 z-40 w-[min(320px,calc(100%-1.5rem))] rounded-lg border border-parchment-50/10 bg-ink-800/95 p-2.5 shadow-xl backdrop-blur"
             data-testid="find-replace-panel"
             role="search"
             aria-label={t('novelEditor.find.title')}
@@ -114,32 +114,26 @@ export function FindReplacePanel({ editor, disabled, onClose }: FindReplacePanel
                     className="min-w-0 flex-1 rounded-md border border-parchment-50/10 bg-ink-900 px-2.5 py-1.5 font-ui text-sm text-parchment-50 outline-none focus:border-ember-500"
                     data-testid="replace-input"
                 />
-                <button
-                    type="button"
+                <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => editor.commands.replaceCurrent(replace)}
                     disabled={disabled || total === 0}
-                    className={cx(
-                        'shrink-0 rounded-md px-2.5 py-1.5 font-ui text-xs font-semibold transition-colors',
-                        disabled || total === 0 ? 'cursor-not-allowed text-parchment-500' : 'text-parchment-100 hover:bg-ink-600/70',
-                    )}
                     data-testid="replace-one"
                 >
                     {t('novelEditor.find.replace')}
-                </button>
-                <button
-                    type="button"
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => editor.commands.replaceAll(replace)}
                     disabled={disabled || total === 0}
-                    className={cx(
-                        'shrink-0 rounded-md px-2.5 py-1.5 font-ui text-xs font-semibold transition-colors',
-                        disabled || total === 0 ? 'cursor-not-allowed text-parchment-500' : 'text-ember-300 hover:bg-ember-500/15',
-                    )}
                     data-testid="replace-all"
                 >
                     {t('novelEditor.find.replaceAll')}
-                </button>
+                </Button>
             </div>
-            {disabled && <p className="m-0 mt-1.5 px-0.5 font-ui text-[11px] text-arcane-300">{t('novelEditor.find.suggestionActive')}</p>}
+            {disabled && <p className="m-0 mt-1.5 px-0.5 font-ui text-meta text-arcane-300">{t('novelEditor.find.suggestionActive')}</p>}
         </div>
     )
 }

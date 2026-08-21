@@ -50,7 +50,7 @@ describe('NotificationsPage', () => {
         serverUnreadCount = 1
         vi.mocked(apiService.listNotifications).mockImplementation(async () => ({
             items: listedItems,
-            limit: 100,
+            limit: 20,
             offset: 0,
         }))
         vi.mocked(apiService.getNotificationUnreadCount).mockImplementation(async () => ({
@@ -64,15 +64,38 @@ describe('NotificationsPage', () => {
         vi.mocked(apiService.dismissNotification).mockResolvedValue(undefined)
     })
 
-    it('loads the canonical list and unread-count endpoints', async () => {
+    it('loads the stored list and unread-count endpoints', async () => {
         serverUnreadCount = 7
 
         render(<NotificationsPage />)
 
         expect(await screen.findByText('Portrait ready')).toBeInTheDocument()
-        expect(apiService.listNotifications).toHaveBeenCalledWith({ unreadOnly: false, limit: 100 })
+        expect(apiService.listNotifications).toHaveBeenCalledWith({ unreadOnly: false, limit: 20, offset: 0 })
         expect(apiService.getNotificationUnreadCount).toHaveBeenCalledTimes(1)
         expect(screen.getByText('7 unread')).toBeInTheDocument()
+    })
+
+    it('loads the next notification page on demand', async () => {
+        const firstPage = Array.from({ length: 20 }, (_, index) =>
+            notification({ notification_id: index + 1, title: `Notice ${index + 1}` }),
+        )
+        vi.mocked(apiService.listNotifications)
+            .mockResolvedValueOnce({ items: firstPage, limit: 20, offset: 0 })
+            .mockResolvedValueOnce({
+                items: [notification({ notification_id: 21, title: 'Notice 21' })],
+                limit: 20,
+                offset: 20,
+            })
+
+        render(<NotificationsPage />)
+        fireEvent.click(await screen.findByRole('button', { name: 'Load more' }))
+
+        expect(await screen.findByText('Notice 21')).toBeInTheDocument()
+        expect(apiService.listNotifications).toHaveBeenLastCalledWith({
+            unreadOnly: false,
+            limit: 20,
+            offset: 20,
+        })
     })
 
     it('marks one notification read and removes it from the unread-only view', async () => {
@@ -80,7 +103,7 @@ describe('NotificationsPage', () => {
         expect(await screen.findByText('Portrait ready')).toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: 'Unread only' }))
-        await waitFor(() => expect(apiService.listNotifications).toHaveBeenLastCalledWith({ unreadOnly: true, limit: 100 }))
+        await waitFor(() => expect(apiService.listNotifications).toHaveBeenLastCalledWith({ unreadOnly: true, limit: 20, offset: 0 }))
         fireEvent.click(screen.getByRole('button', { name: 'Mark read' }))
 
         await waitFor(() => expect(apiService.markNotificationRead).toHaveBeenCalledWith(1))

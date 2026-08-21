@@ -20,9 +20,8 @@ import { NovelCreateModal } from '@/features/novel/components/NovelCreateModal'
 import { PersonaPickerDialog } from '@/ui/components'
 import { useStartCall } from '@/features/call'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
-import { isLorebooksFeatureEnabled, isNovelsFeatureEnabled } from '@/shared/featureFlags'
+import { isAdventuresFeatureEnabled, isLorebooksFeatureEnabled, isNovelsFeatureEnabled } from '@/shared/featureFlags'
 import { chatDisplayTitle } from '@/utils/chatTitle'
-import { Button } from '@/ui/primitives'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { LandingLoading } from './LandingLoading'
 import { GreetingHeader } from './GreetingHeader'
@@ -52,6 +51,8 @@ import { itemCardProps, worldCardProps } from './libraryCards'
 import { type CreateAction } from './landingContent'
 import { useDashboardModel } from '../hooks/useDashboardModel'
 import { defaultPersonaForCharacter } from '@/utils/characterRoles'
+import { scrollBehavior } from '@/utils/motion'
+import { errorMessage } from '@/utils/errors'
 
 const GALLERY_PAGE_BY_GROUP: Partial<Record<DashboardSearchGroup['key'], PageType>> = {
     adventures: 'gallery-adventures',
@@ -64,9 +65,8 @@ const GALLERY_PAGE_BY_GROUP: Partial<Record<DashboardSearchGroup['key'], PageTyp
 
 const BEGIN_ZONE_ID = 'begin-zone'
 
-function startErrorCopy(error: unknown, fallback: string): string {
-    return error instanceof Error && error.message.trim() ? error.message : fallback
-}
+const EMPTY_ADVENTURES: Adventure[] = []
+
 
 export function LandingPage() {
     const { t } = useTranslation()
@@ -106,7 +106,6 @@ export function LandingPage() {
         setEditingLorebook,
         deleteLorebook,
         loadData,
-        loadingState,
     } = useData()
 
     const {
@@ -153,6 +152,7 @@ export function LandingPage() {
     const voiceEnabled = isFrontendVoiceModeEnabled()
     const lorebooksEnabled = isLorebooksFeatureEnabled()
     const novelsEnabled = isNovelsFeatureEnabled()
+    const adventuresEnabled = isAdventuresFeatureEnabled()
     const callControls = useStartCall()
 
     // Every action that mutates or starts requires auth — open the modal if not.
@@ -165,10 +165,15 @@ export function LandingPage() {
     }
 
     const handleTemplateStart = (t: Adventure) => requireAuth(() => {
+        if (!adventuresEnabled) return
         setPersonaPickError(null)
         setPersonaPick({ kind: 'adventure', template: t })
     })
-    const handleTemplateEdit = (t: Adventure) => requireAuth(() => { editTemplate(t); setPage('adventure') })
+    const handleTemplateEdit = (t: Adventure) => requireAuth(() => {
+        if (!adventuresEnabled) return
+        editTemplate(t)
+        setPage('adventure')
+    })
     const handleCharacterEdit = (c: Character) => requireAuth(() => { editCharacter(c); setPage('character') })
     const handleCharacterChat = (c: Character) => requireAuth(() => {
         const persona = defaultPersonaForCharacter(c, characters)
@@ -181,7 +186,7 @@ export function LandingPage() {
                 .catch((error) => {
                     console.error('Failed to start character chat:', error)
                     setPersonaPick({ kind: 'chat', character: c })
-                    setPersonaPickError(startErrorCopy(error, t('landing.persona.startChatError')))
+                    setPersonaPickError(errorMessage(error, t('landing.persona.startChatError')))
                 })
                 .finally(() => setIsPersonaPickConfirming(false))
             return
@@ -205,6 +210,7 @@ export function LandingPage() {
 
     const openSession = (session: ResumeSession) => requireAuth(() => {
         if (session.kind === 'adventure') {
+            if (!adventuresEnabled) return
             editInProgress(session.source as Adventure)
             setPage('interaction')
         } else if (session.kind === 'chat') {
@@ -217,7 +223,11 @@ export function LandingPage() {
         }
     })
 
-    const createAdventure = () => requireAuth(() => { setEditingTemplate(null); setPage('adventure') })
+    const createAdventure = () => requireAuth(() => {
+        if (!adventuresEnabled) return
+        setEditingTemplate(null)
+        setPage('adventure')
+    })
     const createCharacter = () => requireAuth(() => { setEditingCharacter(null); setPage('character') })
     const createWorld = () => requireAuth(() => { setEditingWorld(null); setPage('world') })
     const createItem = () => requireAuth(() => { setEditingItem(null); setPage('item') })
@@ -292,7 +302,8 @@ export function LandingPage() {
         }
     }
 
-    const scenes = useMemo(() => templateAdventures.map(toScene), [templateAdventures])
+    const visibleTemplates = adventuresEnabled ? templateAdventures : EMPTY_ADVENTURES
+    const scenes = useMemo(() => visibleTemplates.map(toScene), [visibleTemplates])
     const genres = useMemo(() => genresFromScenes(scenes), [scenes])
     // Chips scope the Begin zone only; the search field sweeps everything.
     const chipFiltered = useMemo(
@@ -318,8 +329,8 @@ export function LandingPage() {
 
     // Content-based mode: an authenticated-but-empty account still gets the
     // welcoming front-door (it doubles as the empty state).
-    const hasScenes = templateAdventures.length > 0
-    const hasContent = hasScenes || inProgressAdventures.length > 0 || characters.length > 0 || worlds.length > 0 || items.length > 0 || characterChats.length > 0 || (novelsEnabled && stories.length > 0) || (lorebooksEnabled && lorebooks.length > 0)
+    const hasScenes = visibleTemplates.length > 0
+    const hasContent = hasScenes || (adventuresEnabled && inProgressAdventures.length > 0) || characters.length > 0 || worlds.length > 0 || items.length > 0 || characterChats.length > 0 || (novelsEnabled && stories.length > 0) || (lorebooksEnabled && lorebooks.length > 0)
     const mode: 'guest' | 'returning' = isAuthenticated && hasContent ? 'returning' : 'guest'
 
     const closePersonaPick = () => {
@@ -347,23 +358,20 @@ export function LandingPage() {
             const fallback = pending.kind === 'adventure'
                 ? t('landing.persona.beginAdventureError')
                 : t('landing.persona.startChatError')
-            setPersonaPickError(startErrorCopy(error, fallback))
+            setPersonaPickError(errorMessage(error, fallback))
         } finally {
             setIsPersonaPickConfirming(false)
         }
     }
 
-    const prefersReducedMotion = () =>
-        typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-
     const scrollToShowcase = () => {
-        showcaseRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' })
+        showcaseRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
     }
     // By id, not ref: the hero captures this callback, and a ref read inside it
     // would trip the React Compiler's render-safety analysis on the hero object.
     const scrollToBegin = () => {
         document.getElementById(BEGIN_ZONE_ID)?.scrollIntoView({
-            behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+            behavior: scrollBehavior(),
             block: 'start',
         })
     }
@@ -374,10 +382,15 @@ export function LandingPage() {
 
     // ---------- GUEST: marketing front-door ----------
     if (mode === 'guest') {
-        const heroPrimary: HeroCta = isAuthenticated
-            ? { label: t('landing.hero.authedPrimary'), icon: Wand2, onClick: createAdventure }
-            : { label: t('landing.hero.guestPrimary'), icon: Feather, onClick: createAdventure }
-        const heroSecondary: HeroCta = isAuthenticated
+        // With adventures off, the character creator is the front door: it takes
+        // over the hero primary, the showcase "try" action and the closing CTA.
+        const primaryCta = adventuresEnabled ? createAdventure : createCharacter
+        const heroPrimary: HeroCta = !adventuresEnabled
+            ? { label: t('landing.hero.authedSecondary'), icon: Users, onClick: createCharacter }
+            : isAuthenticated
+                ? { label: t('landing.hero.authedPrimary'), icon: Wand2, onClick: createAdventure }
+                : { label: t('landing.hero.guestPrimary'), icon: Feather, onClick: createAdventure }
+        const heroSecondary: HeroCta = isAuthenticated && adventuresEnabled
             ? { label: t('landing.hero.authedSecondary'), icon: Users, onClick: createCharacter }
             : { label: t('landing.hero.guestSecondary'), iconRight: ArrowRight, onClick: scrollToShowcase }
         const accessCopy = isAuthenticated
@@ -402,9 +415,12 @@ export function LandingPage() {
                 />
                 <FeatureGallery />
                 <HowItWorksSection />
-                <TwoWaysToPlay />
-                <ShowcaseWorlds sectionRef={showcaseRef} onTry={createAdventure} />
-                <ClosingCTA onAction={createAdventure} />
+                {adventuresEnabled && <TwoWaysToPlay />}
+                <ShowcaseWorlds sectionRef={showcaseRef} onTry={primaryCta} />
+                <ClosingCTA
+                    onAction={primaryCta}
+                    actionLabel={adventuresEnabled ? undefined : t('landing.hero.authedSecondary')}
+                />
                 <LandingFooter onNavigate={setPage} />
             </div>
         )
@@ -441,14 +457,8 @@ export function LandingPage() {
 
     return (
         <div className="flex w-full flex-col">
-            {/* Non-blocking notice when the initial load partially failed: the page
-                still renders whatever loaded, with a retry. */}
-            {loadingState.error && (
-                <div className="mx-auto mt-4 flex w-full max-w-[1240px] items-center justify-between gap-3 rounded-md border border-blood-500/30 bg-blood-500/10 px-4 py-3 text-[14px] text-blood-500 sm:px-8">
-                    <span>{t('common.loadError')}</span>
-                    <Button variant="secondary" size="sm" onClick={() => void loadData()}>{t('common.tryAgain')}</Button>
-                </div>
-            )}
+            {/* Load failures surface via the global DataLoadErrorBanner (AppRouter);
+                the page still renders whatever loaded. */}
             {/* ZONE 1 — hero: greeting + global search + the cinematic opener.
                 Ambient candlelight comes from the app shell (AppRouter), not a
                 section-scoped glow, so it never crops at this boundary. */}
@@ -462,7 +472,11 @@ export function LandingPage() {
                         />
                     </div>
                     {!search.active && resumeSessions.length > 0 && (
-                        <HeroSessionGallery sessions={resumeSessions} onOpen={openSession} onBeginNew={scrollToBegin} />
+                        <HeroSessionGallery
+                            sessions={resumeSessions}
+                            onOpen={openSession}
+                            onBeginNew={adventuresEnabled ? scrollToBegin : undefined}
+                        />
                     )}
                     {!search.active && hero && <HeroScene {...hero} />}
                 </div>
@@ -481,7 +495,7 @@ export function LandingPage() {
                         onEditWorld={handleWorldEdit}
                         onEditItem={handleItemEdit}
                         onOpenStory={handleStoryOpen}
-                        onCreateAdventure={createAdventure}
+                        onCreateAdventure={adventuresEnabled ? createAdventure : undefined}
                         onViewGallery={(key) => {
                             const page = GALLERY_PAGE_BY_GROUP[key]
                             if (page) setPage(page)
@@ -494,24 +508,26 @@ export function LandingPage() {
                     <CreateBand onAction={handleCreate} />
 
                     {/* 3 — continue active adventures */}
-                    <ContinueRail
-                        title={t('landing.continue.adventures')}
-                        icon={Swords}
-                        tone="ember"
-                        items={activeAdventureSessions}
-                        total={counts.adventures}
-                        getItemKey={(session) => session.id}
-                        onViewAll={() => setPage('gallery-adventures')}
-                        data-testid="active-adventures"
-                        renderCard={(session) => (
-                            <ContinueCard
-                                session={session}
-                                onContinue={() => openSession(session)}
-                                onDelete={() => setPendingSessionDelete(session.source as Adventure)}
-                                deleting={deletingId === session.id}
-                            />
-                        )}
-                    />
+                    {adventuresEnabled && (
+                        <ContinueRail
+                            title={t('landing.continue.adventures')}
+                            icon={Swords}
+                            tone="ember"
+                            items={activeAdventureSessions}
+                            total={counts.adventures}
+                            getItemKey={(session) => session.id}
+                            onViewAll={() => setPage('gallery-adventures')}
+                            data-testid="active-adventures"
+                            renderCard={(session) => (
+                                <ContinueCard
+                                    session={session}
+                                    onContinue={() => openSession(session)}
+                                    onDelete={() => setPendingSessionDelete(session.source as Adventure)}
+                                    deleting={deletingId === session.id}
+                                />
+                            )}
+                        />
+                    )}
 
                     {/* 4 — pick up a conversation (1:1 + group) */}
                     <ContinueRail
@@ -550,20 +566,22 @@ export function LandingPage() {
                     )}
 
                     {/* 6 — start a new adventure */}
-                    <div id={BEGIN_ZONE_ID}>
-                        <BeginZone
-                            scenes={gridScenes}
-                            totalCount={templateAdventures.length}
-                            genres={genres}
-                            filter={filter}
-                            onFilterChange={setFilter}
-                            onBegin={handleTemplateStart}
-                            onEdit={handleTemplateEdit}
-                            onDelete={setPendingDelete}
-                            onViewAll={() => setPage('gallery-adventures')}
-                            onCreate={createAdventure}
-                        />
-                    </div>
+                    {adventuresEnabled && (
+                        <div id={BEGIN_ZONE_ID}>
+                            <BeginZone
+                                scenes={gridScenes}
+                                totalCount={visibleTemplates.length}
+                                genres={genres}
+                                filter={filter}
+                                onFilterChange={setFilter}
+                                onBegin={handleTemplateStart}
+                                onEdit={handleTemplateEdit}
+                                onDelete={setPendingDelete}
+                                onViewAll={() => setPage('gallery-adventures')}
+                                onCreate={createAdventure}
+                            />
+                        </div>
+                    )}
 
                     {/* 7 — your cast (1:1 chat entry point) */}
                     {aiCharacters.length > 0 && (
@@ -633,33 +651,37 @@ export function LandingPage() {
                 />
             )}
 
-            <ConfirmDialog
-                visible={pendingDelete !== null}
-                title={t('landing.delete.adventureTitle')}
-                message={
-                    pendingDelete
-                        ? t('landing.delete.adventureMessage', { name: pendingDelete.scenario?.slice(0, 80) || t('landing.delete.thisAdventure') })
-                        : ''
-                }
-                confirmLabel={t('gallery.delete')}
-                variant="danger"
-                onConfirm={confirmTemplateDelete}
-                onCancel={() => setPendingDelete(null)}
-            />
+            {adventuresEnabled && (
+                <ConfirmDialog
+                    visible={pendingDelete !== null}
+                    title={t('landing.delete.adventureTitle')}
+                    message={
+                        pendingDelete
+                            ? t('landing.delete.adventureMessage', { name: pendingDelete.scenario?.slice(0, 80) || t('landing.delete.thisAdventure') })
+                            : ''
+                    }
+                    confirmLabel={t('gallery.delete')}
+                    variant="danger"
+                    onConfirm={confirmTemplateDelete}
+                    onCancel={() => setPendingDelete(null)}
+                />
+            )}
 
-            <ConfirmDialog
-                visible={pendingSessionDelete !== null}
-                title={t('landing.delete.inProgressTitle')}
-                message={
-                    pendingSessionDelete
-                        ? t('landing.delete.adventureMessage', { name: pendingSessionDelete.scenario?.slice(0, 80) || t('landing.delete.thisAdventure') })
-                        : ''
-                }
-                confirmLabel={t('gallery.delete')}
-                variant="danger"
-                onConfirm={() => void confirmSessionDelete()}
-                onCancel={() => setPendingSessionDelete(null)}
-            />
+            {adventuresEnabled && (
+                <ConfirmDialog
+                    visible={pendingSessionDelete !== null}
+                    title={t('landing.delete.inProgressTitle')}
+                    message={
+                        pendingSessionDelete
+                            ? t('landing.delete.adventureMessage', { name: pendingSessionDelete.scenario?.slice(0, 80) || t('landing.delete.thisAdventure') })
+                            : ''
+                    }
+                    confirmLabel={t('gallery.delete')}
+                    variant="danger"
+                    onConfirm={() => void confirmSessionDelete()}
+                    onCancel={() => setPendingSessionDelete(null)}
+                />
+            )}
 
             <ConfirmDialog
                 visible={pendingChatDelete !== null}

@@ -90,7 +90,7 @@ function isAbortError(error: unknown): boolean {
 }
 
 /** Current-card input is optional, but when present the backend requires a saved id. */
-function canonicalCurrentCard(
+function normalizedCurrentCard(
     card: Record<string, unknown>,
     cardId: string | null | undefined,
 ): Record<string, unknown> | null {
@@ -339,7 +339,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                 {
                     message: text,
                     card_type: cardType,
-                    current_card: canonicalCurrentCard(currentCardRef.current, cardIdRef.current),
+                    current_card: normalizedCurrentCard(currentCardRef.current, cardIdRef.current),
                 },
                 (event) => {
                     if (activeRequestRef.current !== requestId) return

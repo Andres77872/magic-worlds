@@ -6,6 +6,16 @@ import { i18n } from '@/app/i18n'
 
 const openLoginModal = vi.fn()
 let authed = true
+const MockApiError = vi.hoisted(() => class extends Error {
+    status: number
+    code?: string
+
+    constructor(status: number, message: string, metadata: { code?: string } = {}) {
+        super(message)
+        this.status = status
+        this.code = metadata.code
+    }
+})
 
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: authed, openLoginModal }),
@@ -45,6 +55,7 @@ vi.mock('@/app/hooks/usePlaylist', () => ({
 }))
 
 vi.mock('@/infrastructure/api', () => ({
+    ApiError: MockApiError,
     apiService: {
         listImageJobs: vi.fn(),
         listUserThemeSongs: vi.fn(),
@@ -60,7 +71,7 @@ vi.mock('@/infrastructure/api', () => ({
 }))
 
 import type { ImageJobPublic, ThemeSongJobPublic } from '@/shared'
-import { apiService } from '@/infrastructure/api'
+import { ApiError, apiService } from '@/infrastructure/api'
 import { clearAudioDataCaches } from '@/ui/components/audio'
 import { MediaGalleryPage } from './MediaGalleryPage'
 
@@ -87,7 +98,7 @@ const THEME_JOB: ThemeSongJobPublic = {
     model_alias: 'music_2_6',
     status_url: '',
     result_url: '',
-    lyrics: { song_title: 'Ember Hymn', style_tags: ['epic', 'choral'] },
+    lyrics: { source: 'optimizer' },
     assets: [
         {
             asset_id: 'theme-1',
@@ -95,6 +106,7 @@ const THEME_JOB: ThemeSongJobPublic = {
             content_type: 'audio/mpeg',
             file_size_bytes: 1,
             duration_ms: 95_000,
+            output_format: 'mp3',
         },
     ],
     created_at: '2026-06-10T09:00:00',
@@ -132,7 +144,7 @@ describe('MediaGalleryPage', () => {
 
         expect(await screen.findByTestId('media-image-tile')).toBeInTheDocument()
         expect(screen.getByTestId('media-theme-card')).toBeInTheDocument()
-        expect(screen.getByText('Ember Hymn')).toBeInTheDocument()
+        expect(screen.getAllByText('Rivendell')).toHaveLength(2)
         expect(screen.getByText('1:35')).toBeInTheDocument()
 
         const grid = screen.getByTestId('card-grid-list')
@@ -196,6 +208,20 @@ describe('MediaGalleryPage', () => {
         expect(screen.getByTestId('media-theme-card')).toBeInTheDocument()
     })
 
+    it('keeps a referenced asset visible when deletion returns asset_in_use', async () => {
+        vi.mocked(apiService.deleteImageAsset).mockRejectedValueOnce(
+            new ApiError(409, 'This asset is still referenced by a card version.', { code: 'asset_in_use' }),
+        )
+        render(<MediaGalleryPage />)
+        await screen.findByTestId('media-image-tile')
+
+        fireEvent.click(screen.getByRole('button', { name: i18n.t('mediaGallery.tile.deleteImage') }))
+        fireEvent.click(screen.getByRole('button', { name: i18n.t('mediaGallery.actions.delete') }))
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('This asset is still referenced by a card version.')
+        expect(screen.getByTestId('media-image-tile')).toBeInTheDocument()
+    })
+
     it('downloads a theme as a file named after the song', async () => {
         render(<MediaGalleryPage />)
         await screen.findByTestId('media-theme-card')
@@ -227,7 +253,7 @@ describe('MediaGalleryPage', () => {
 
             await waitFor(() => expect(click).toHaveBeenCalledTimes(1))
             expect(fetchMock).toHaveBeenCalledWith('/generated-audio/1.mp3')
-            expect(downloadName).toBe('Ember-Hymn.mp3')
+            expect(downloadName).toBe('Rivendell.mp3')
             expect(revokeObjectURL).toHaveBeenCalledWith('blob:dl')
         } finally {
             click.mockRestore()

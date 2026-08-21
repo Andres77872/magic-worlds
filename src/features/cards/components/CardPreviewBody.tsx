@@ -131,9 +131,7 @@ export function CardPreviewBody({
             {target && (
                 <div className="mt-3 flex flex-wrap gap-2">
                     <Tag>{localizedCardPreviewTypeLabel(target.type, t)}</Tag>
-                    <span className="inline-flex items-center rounded-full bg-ink-600 px-2.5 py-[3px] font-mono text-[11px] text-parchment-200">
-                        {target.id}
-                    </span>
+                    <Tag className="font-mono">{target.id}</Tag>
                 </div>
             )}
         </div>

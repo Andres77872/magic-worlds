@@ -50,7 +50,7 @@ import { EmptyState } from '@/ui/components/common/EmptyState'
 import {
     INPUT_TOKEN,
     type AgentForm,
-    blankForm,
+    copyFormFromDetail,
     deriveJsonOutput,
     formFromDetail,
     slugifyWorkflowKey,
@@ -95,10 +95,10 @@ export function AdminAgentsPage() {
     const [rollingBack, setRollingBack] = useState(false)
 
     const isNew = selectedKey === NEW_KEY
-    const isBuiltin = detail?.is_system ?? false
+    const isImmutable = !isNew && detail?.storage === 'file'
     const errors = useMemo(
-        () => (form ? validateAgentForm(form, { isNew, isBuiltin }, t) : {}),
-        [form, isNew, isBuiltin, t],
+        () => (form ? validateAgentForm(form, { isNew, schemaModel: detail?.schema_model ?? null }, t) : {}),
+        [form, isNew, detail?.schema_model, t],
     )
     const hasErrors = Object.keys(errors).length > 0
     const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(baseline), [form, baseline])
@@ -147,14 +147,30 @@ export function AdminAgentsPage() {
         [applyDetail],
     )
 
-    const startNew = useCallback(() => {
-        setError(null)
-        setDetail(null)
-        setSelectedKey(NEW_KEY)
-        const fresh = blankForm()
-        setForm(fresh)
-        setBaseline(fresh)
-    }, [])
+    const startCopy = useCallback(
+        async (sourceKey?: string) => {
+            const key = sourceKey ?? detail?.workflow_key ?? agents[0]?.workflow_key
+            if (!key) {
+                setError('Load an agent before creating a custom copy.')
+                return
+            }
+            setError(null)
+            setLoadingDetail(true)
+            try {
+                const source = detail?.workflow_key === key ? detail : await apiService.getAgent(key)
+                const fresh = copyFormFromDetail(source)
+                setDetail(source)
+                setSelectedKey(NEW_KEY)
+                setForm(fresh)
+                setBaseline(fresh)
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Could not load the source agent.')
+            } finally {
+                setLoadingDetail(false)
+            }
+        },
+        [agents, detail],
+    )
 
     const patchEditable = useCallback((changes: Partial<AgentForm['editable']>) => {
         setForm((current) => (current ? { ...current, editable: { ...current.editable, ...changes } } : current))
@@ -176,7 +192,7 @@ export function AdminAgentsPage() {
         try {
             const next = isNew
                 ? await apiService.createAgent(toCreateRequest(form))
-                : await apiService.updateAgentDraft(detail!.workflow_key, toUpdateRequest(form, isBuiltin))
+                : await apiService.updateAgentDraft(detail!.workflow_key, toUpdateRequest(form, isImmutable))
             applyDetail(next)
             await refreshAgents()
             setToast({ tone: 'success', title: isNew ? 'Agent created' : 'Draft saved', message: next.display_name })
@@ -294,9 +310,9 @@ export function AdminAgentsPage() {
                             variant="secondary"
                             size="sm"
                             iconLeft={<Icon icon={Plus} size={15} />}
-                            onClick={startNew}
+                            onClick={() => void startCopy()}
                         >
-                            New agent
+                            Create custom copy
                         </Button>
                         <Button
                             variant="secondary"
@@ -330,7 +346,7 @@ export function AdminAgentsPage() {
                     loading={loadingList}
                     selectedKey={selectedKey}
                     onSelect={(key) => void selectAgent(key)}
-                    onNew={startNew}
+                    onNew={() => void startCopy()}
                     onDelete={setPendingDelete}
                 />
 
@@ -341,7 +357,12 @@ export function AdminAgentsPage() {
                         models={models}
                         errors={errors}
                         isNew={isNew}
-                        isBuiltin={isBuiltin}
+                        isImmutable={isImmutable}
+                        sourceOptions={agents.map((agent) => ({
+                            value: agent.workflow_key,
+                            label: agent.display_name,
+                            description: agent.storage === 'file' ? 'Built-in file agent' : 'Custom database agent',
+                        }))}
                         dirty={dirty}
                         loading={loadingDetail}
                         saving={saving}
@@ -354,6 +375,8 @@ export function AdminAgentsPage() {
                             setForm((c) => (c ? { ...c, displayName: value } : c))
                         }
                         onSlug={(value) => setForm((c) => (c ? { ...c, slug: value } : c))}
+                        onSource={(value) => void startCopy(value)}
+                        onCreateCopy={() => void startCopy(detail?.workflow_key)}
                         onPublish={() => void publish()}
                         onVersions={() => void openVersions()}
                         onDelete={() => detail && setPendingDelete(detail)}
@@ -366,8 +389,8 @@ export function AdminAgentsPage() {
                             <EmptyState
                                 icon={<Icon icon={Bot} size={40} />}
                                 message="Select an agent"
-                                secondaryText="Pick a generation agent to edit, or create a new custom one."
-                                button={{ label: 'New agent', onClick: startNew }}
+                                secondaryText="Pick a generation agent to inspect, or create a detached custom copy."
+                                button={{ label: 'Create custom copy', onClick: () => void startCopy() }}
                             />
                         </div>
                     </Card>
@@ -396,11 +419,11 @@ export function AdminAgentsPage() {
                 title="Roll back agent"
                 message={
                     pendingRollback
-                        ? `Point production at version ${pendingRollback.version_number}? This takes effect immediately.`
+                        ? `Restore custom version ${pendingRollback.version_number} as this agent’s current version? Built-in production agents are unaffected.`
                         : ''
                 }
                 confirmLabel="Roll back"
-                variant="warning"
+                variant="primary"
                 isProcessing={rollingBack}
                 onConfirm={() => void confirmRollback()}
                 onCancel={() => setPendingRollback(null)}
@@ -466,7 +489,7 @@ function AgentList({
                     right={<Badge tone={loading ? 'neutral' : 'glass'}>{loading ? 'Loading' : `${agents.length}`}</Badge>}
                 />
                 <Button variant="secondary" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={onNew}>
-                    New custom agent
+                    Create custom copy
                 </Button>
                 <div className="flex flex-col gap-2">
                     {agents.length === 0 && !loading && (
@@ -474,47 +497,48 @@ function AgentList({
                             No agents yet.
                         </p>
                     )}
+                    {/* Row container is a <div>, not a <button>: the delete control is a
+                        real <button> and nesting one inside another is invalid HTML —
+                        assistive tech folds the inner control into the row's name and
+                        never exposes it as a separate action. Select and delete are
+                        siblings in a two-column grid instead. */}
                     {agents.map((agent) => (
-                        <button
+                        <div
                             key={agent.workflow_key}
-                            type="button"
-                            onClick={() => onSelect(agent.workflow_key)}
                             className={cx(
-                                'flex w-full flex-col gap-1.5 rounded-lg border px-3.5 py-3 text-left transition-colors',
+                                'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-lg border px-3.5 py-3 transition-colors',
                                 selectedKey === agent.workflow_key
                                     ? 'border-ember-500/50 bg-ember-500/10'
                                     : 'border-parchment-50/[.08] bg-ink-800/70 hover:border-parchment-50/20',
                             )}
                         >
-                            <div className="flex items-center justify-between gap-2">
+                            <button
+                                type="button"
+                                onClick={() => onSelect(agent.workflow_key)}
+                                aria-pressed={selectedKey === agent.workflow_key}
+                                className="flex min-w-0 flex-col gap-1.5 rounded-xs text-left"
+                            >
                                 <span className="min-w-0 truncate font-ui text-sm font-semibold text-parchment-50">
                                     {agent.display_name}
                                 </span>
-                                {agent.is_system ? (
-                                    <Badge tone="neutral" icon={<Icon icon={Lock} size={10} />}>
-                                        Built-in
-                                    </Badge>
-                                ) : (
-                                    <IconButton
-                                        label={`Delete ${agent.display_name}`}
-                                        size="sm"
-                                        onClick={(event) => {
-                                            event.stopPropagation()
-                                            onDelete(agent)
-                                        }}
-                                    >
-                                        <Icon icon={Trash2} size={14} />
-                                    </IconButton>
-                                )}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                                <Chip>{OUTPUT_MODE_LABEL[agent.output_mode]}</Chip>
-                                {agent.has_unpublished_draft && agent.has_published && (
-                                    <Badge tone="ember">Draft</Badge>
-                                )}
-                                {!agent.has_published && <Badge tone="ember">Unpublished</Badge>}
-                            </div>
-                        </button>
+                                <span className="flex flex-wrap items-center gap-1.5">
+                                    <Badge tone="glass">{OUTPUT_MODE_LABEL[agent.output_mode]}</Badge>
+                                    {agent.has_unpublished_draft && agent.has_published && (
+                                        <Badge tone="ember">Draft</Badge>
+                                    )}
+                                    {!agent.has_published && <Badge tone="ember">Unpublished</Badge>}
+                                </span>
+                            </button>
+                            {agent.storage === 'file' ? (
+                                <Badge tone="neutral" icon={<Icon icon={Lock} size={10} />}>
+                                    File
+                                </Badge>
+                            ) : (
+                                <IconButton label={`Delete ${agent.display_name}`} size="sm" onClick={() => onDelete(agent)}>
+                                    <Icon icon={Trash2} size={14} />
+                                </IconButton>
+                            )}
+                        </div>
                     ))}
                 </div>
             </div>
@@ -528,7 +552,8 @@ interface EditorProps {
     models: AgentModelOption[]
     errors: Record<string, string>
     isNew: boolean
-    isBuiltin: boolean
+    isImmutable: boolean
+    sourceOptions: SelectOption[]
     dirty: boolean
     loading: boolean
     saving: boolean
@@ -539,6 +564,8 @@ interface EditorProps {
     onOutputMode: (mode: AgentOutputMode) => void
     onDisplayName: (value: string) => void
     onSlug: (value: string) => void
+    onSource: (value: string) => void
+    onCreateCopy: () => void
     onPublish: () => void
     onVersions: () => void
     onDelete: () => void
@@ -553,7 +580,8 @@ function AgentEditor(props: EditorProps) {
         models,
         errors,
         isNew,
-        isBuiltin,
+        isImmutable,
+        sourceOptions,
         dirty,
         saving,
         publishing,
@@ -563,11 +591,14 @@ function AgentEditor(props: EditorProps) {
         onOutputMode,
         onDisplayName,
         onSlug,
+        onSource,
+        onCreateCopy,
         onPublish,
         onVersions,
         onDelete,
     } = props
     const e = form.editable
+    const readOnly = isNew || isImmutable
 
     const modelOptions = useMemo<SelectOption[]>(() => {
         const opts: SelectOption[] = [
@@ -586,9 +617,12 @@ function AgentEditor(props: EditorProps) {
         return opts
     }, [models, e.model])
 
-    const outputModeOptions: SelectOption[] = isBuiltin
+    const outputModeOptions: SelectOption[] = isImmutable || isNew
         ? [{ value: form.outputMode, label: OUTPUT_MODE_LABEL[form.outputMode] }]
         : [
+              ...(detail?.schema_model
+                  ? [{ value: 'strict_card_schema', label: 'Strict card schema', description: 'Validate against the copied card schema' }]
+                  : []),
               { value: 'json_object', label: 'JSON object', description: 'Model returns one JSON object' },
               { value: 'markdown', label: 'Markdown', description: 'Model returns free-form text' },
           ]
@@ -598,15 +632,26 @@ function AgentEditor(props: EditorProps) {
             <Card>
                 <div className="flex flex-col gap-5 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                        <SectionHeader icon={Bot} title={isNew ? 'New agent' : form.displayName} tone="arcane" />
+                        <SectionHeader icon={Bot} title={isNew ? 'Create custom copy' : form.displayName} tone="arcane" />
                         <div className="flex items-center gap-2">{statusBadge(detail, isNew, dirty)}</div>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
+                        {isNew && (
+                            <Field label="Copy from" error={errors.sourceWorkflowKey} helper="The new agent starts as a detached copy of this source.">
+                                <Select
+                                    options={sourceOptions}
+                                    value={form.sourceWorkflowKey}
+                                    onChange={onSource}
+                                    aria-label="Copy from"
+                                />
+                            </Field>
+                        )}
                         <Field label="Name" error={errors.displayName}>
                             <Input
                                 value={form.displayName}
                                 disabled={!isNew}
+                                maxLength={128}
                                 onChange={(event) => onDisplayName(event.target.value)}
                                 onBlur={() => {
                                     if (isNew && !form.slug.trim() && form.displayName.trim()) {
@@ -624,6 +669,7 @@ function AgentEditor(props: EditorProps) {
                             <Input
                                 value={form.slug}
                                 disabled={!isNew}
+                                maxLength={40}
                                 onChange={(event) => onSlug(slugifyWorkflowKey(event.target.value))}
                                 placeholder="my_generator"
                             />
@@ -636,7 +682,7 @@ function AgentEditor(props: EditorProps) {
                                 options={outputModeOptions}
                                 value={form.outputMode}
                                 onChange={(value) => onOutputMode(value as AgentOutputMode)}
-                                disabled={isBuiltin}
+                                disabled={readOnly}
                                 aria-label="Output mode"
                             />
                         </Field>
@@ -647,6 +693,7 @@ function AgentEditor(props: EditorProps) {
                                 onChange={(value) => onPatch({ model: value })}
                                 placeholder="Select a model"
                                 aria-label="Model"
+                                disabled={readOnly}
                             />
                         </Field>
                     </div>
@@ -660,6 +707,8 @@ function AgentEditor(props: EditorProps) {
                         <Textarea
                             value={e.system_message}
                             onChange={(event) => onPatch({ system_message: event.target.value })}
+                            maxLength={20000}
+                            disabled={readOnly}
                             rows={4}
                             placeholder="You generate Magic Worlds content cards..."
                         />
@@ -668,6 +717,7 @@ function AgentEditor(props: EditorProps) {
                         value={e.prompt_template}
                         error={errors.prompt_template}
                         onChange={(value) => onPatch({ prompt_template: value })}
+                        disabled={readOnly}
                     />
                 </div>
             </Card>
@@ -684,6 +734,7 @@ function AgentEditor(props: EditorProps) {
                             max={2}
                             step={0.05}
                             onChange={(value) => onPatch({ temperature: value ?? 0 })}
+                            disabled={readOnly}
                         />
                         <NumberField
                             label="Top-p"
@@ -694,6 +745,7 @@ function AgentEditor(props: EditorProps) {
                             step={0.05}
                             allowEmpty
                             onChange={(value) => onPatch({ top_p: value })}
+                            disabled={readOnly}
                         />
                         <NumberField
                             label="Max tokens"
@@ -703,6 +755,7 @@ function AgentEditor(props: EditorProps) {
                             max={32000}
                             step={1}
                             onChange={(value) => onPatch({ max_tokens: value ?? 0 })}
+                            disabled={readOnly}
                         />
                     </div>
                     <SwitchRow
@@ -727,6 +780,7 @@ function AgentEditor(props: EditorProps) {
                             max={64}
                             step={1}
                             onChange={(value) => onPatch({ max_messages: value ?? 0 })}
+                            disabled={readOnly}
                         />
                         <NumberField
                             label="Max input tokens"
@@ -736,6 +790,7 @@ function AgentEditor(props: EditorProps) {
                             max={200000}
                             step={256}
                             onChange={(value) => onPatch({ max_input_tokens: value ?? 0 })}
+                            disabled={readOnly}
                         />
                         <Field label="Truncation">
                             <Select
@@ -746,15 +801,26 @@ function AgentEditor(props: EditorProps) {
                                 value={e.truncation_strategy}
                                 onChange={(value) => onPatch({ truncation_strategy: value as 'tail' | 'token_budget' })}
                                 aria-label="Truncation strategy"
+                                disabled={readOnly}
                             />
                         </Field>
+                        <NumberField
+                            label="Timeout (seconds)"
+                            value={e.timeout}
+                            error={errors.timeout}
+                            min={1}
+                            max={600}
+                            step={1}
+                            onChange={(value) => onPatch({ timeout: value ?? 0 })}
+                            disabled={readOnly}
+                        />
                     </div>
                 </div>
             </Card>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex gap-2">
-                    {!isNew && !isBuiltin && (
+                    {!isNew && !isImmutable && (
                         <Button
                             variant="danger"
                             size="sm"
@@ -767,35 +833,46 @@ function AgentEditor(props: EditorProps) {
                     )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        type="button"
-                        iconLeft={<Icon icon={History} size={14} />}
-                        onClick={onVersions}
-                        disabled={isNew}
-                    >
-                        Versions
-                    </Button>
-                    <Button
-                        type="submit"
-                        variant="secondary"
-                        size="sm"
-                        iconLeft={<Icon icon={saving ? Loader2 : Save} size={14} className={saving ? 'animate-spin' : undefined} />}
-                        disabled={!canSave || saving || (!dirty && !isNew)}
-                    >
-                        {isNew ? 'Create' : 'Save draft'}
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="primary"
-                        size="sm"
-                        iconLeft={<Icon icon={publishing ? Loader2 : Rocket} size={14} className={publishing ? 'animate-spin' : undefined} />}
-                        onClick={onPublish}
-                        disabled={isNew || publishing || !canSave}
-                    >
-                        Publish
-                    </Button>
+                    {isImmutable ? (
+                        <Button type="button" variant="primary" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={onCreateCopy}>
+                            Create custom copy
+                        </Button>
+                    ) : (
+                        <>
+                            {!isNew && (
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    type="button"
+                                    iconLeft={<Icon icon={History} size={14} />}
+                                    onClick={onVersions}
+                                >
+                                    Versions
+                                </Button>
+                            )}
+                            <Button
+                                type="submit"
+                                variant="secondary"
+                                size="sm"
+                                iconLeft={<Icon icon={saving ? Loader2 : Save} size={14} className={saving ? 'animate-spin' : undefined} />}
+                                disabled={!canSave || saving || (!dirty && !isNew)}
+                            >
+                                {isNew ? 'Create copy' : 'Save draft'}
+                            </Button>
+                            {!isNew && (
+                                <Button
+                                    type="button"
+                                    variant="primary"
+                                    size="sm"
+                                    iconLeft={<Icon icon={publishing ? Loader2 : Rocket} size={14} className={publishing ? 'animate-spin' : undefined} />}
+                                    onClick={onPublish}
+                                    disabled={publishing || !canSave}
+                                >
+                                    Publish custom version
+                                </Button>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -808,10 +885,12 @@ function PromptTemplateField({
     value,
     error,
     onChange,
+    disabled = false,
 }: {
     value: string
     error?: string
     onChange: (value: string) => void
+    disabled?: boolean
 }) {
     const ref = useRef<HTMLTextAreaElement>(null)
     const fieldId = 'agent-prompt-template'
@@ -842,6 +921,7 @@ function PromptTemplateField({
                     <button
                         type="button"
                         onClick={insertToken}
+                        disabled={disabled}
                         className="inline-flex items-center gap-1 rounded-md border border-parchment-50/15 px-2 py-1 text-[11px] font-semibold text-parchment-100 transition-colors hover:border-ember-500/60"
                     >
                         <Icon icon={Plus} size={11} /> Insert input token
@@ -856,6 +936,8 @@ function PromptTemplateField({
                 id={fieldId}
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
+                disabled={disabled}
+                maxLength={40000}
                 rows={8}
                 aria-invalid={error ? true : undefined}
                 className={cx(controlClass, 'min-h-[120px] resize-y')}
@@ -873,6 +955,7 @@ function NumberField({
     max,
     step,
     allowEmpty = false,
+    disabled = false,
     onChange,
 }: {
     label: string
@@ -882,6 +965,7 @@ function NumberField({
     max: number
     step: number
     allowEmpty?: boolean
+    disabled?: boolean
     onChange: (value: number | null) => void
 }) {
     return (
@@ -892,6 +976,7 @@ function NumberField({
                 min={min}
                 max={max}
                 step={step}
+                disabled={disabled}
                 onChange={(event) => {
                     const raw = event.target.value
                     if (raw === '' && allowEmpty) {

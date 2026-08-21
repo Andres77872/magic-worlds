@@ -188,7 +188,7 @@ export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPan
                                 value={reason}
                                 onChange={(event) => setReason(event.target.value)}
                                 placeholder={t('admin.creditCodes.quotaReset.reasonPlaceholder')}
-                                maxLength={500}
+                                maxLength={255}
                                 disabled={resetting}
                                 className="min-h-[84px]"
                             />
@@ -252,9 +252,6 @@ function QuotaResetResult({ result }: { result: QuotaResetResponse | null }) {
                             operations: result.daily.membership_operation_usage_days,
                             aiCards: result.daily.ai_card_quota_days,
                         })}
-                        <span className="mt-1 block text-parchment-300">
-                            {t('admin.creditCodes.quotaReset.seeded', { count: result.daily.seeded_user_memberships })}
-                        </span>
                     </ResultLine>
                 )}
                 {result.monthly && (

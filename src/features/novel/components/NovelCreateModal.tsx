@@ -49,9 +49,11 @@ export function NovelCreateModal({ open, creating, onClose, onCreate }: NovelCre
             description: description.trim() || undefined,
             source:
                 sourceMode === 'card' && sourceCard
-                    ? { kind: sourceCard.type, id: sourceCard.id, title: sourceCard.name ?? null }
+                    ? // Non-blank sources need a stored non-empty title — the DB
+                      // check constraint rejects null/blank ones outright.
+                      { kind: sourceCard.type, id: sourceCard.id, title: sourceCard.name?.trim() || t('novelGallery.create.untitledFallback') }
                     : { kind: 'blank' },
-            chapters: [{ title: 'Chapter 1', body: '', status: 'draft', order: 0 }],
+            chapters: [{ title: t('novelGallery.create.firstChapterTitle'), body: '', status: 'draft', order: 0 }],
         })
     }
 

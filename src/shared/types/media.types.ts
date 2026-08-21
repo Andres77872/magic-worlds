@@ -59,22 +59,19 @@ export type ThemeSongJobStatus =
 export interface ThemeSongAssetPublic {
     asset_id: string
     url: string
-    content_type: 'audio/mpeg' | 'audio/mp3' | 'audio/wav' | 'audio/wave' | 'audio/x-wav'
+    content_type: 'audio/mpeg'
     file_size_bytes: number
     duration_ms?: number | null
     sample_rate?: number | null
     channels?: number | null
     bitrate?: number | null
-    output_format?: 'mp3' | 'wav'
+    output_format: 'mp3'
 }
 
 export interface ThemeSongLyricsPublic {
-    source?: 'user' | 'generated' | 'optimizer' | 'unavailable' | null
-    song_title?: string | null
-    style_tags?: string[]
+    source: 'user' | 'optimizer'
     lyrics_sha256?: string | null
     lyrics_length_chars?: number | null
-    lyrics?: string | null
 }
 
 export interface ThemeSongTargetRef {

@@ -17,7 +17,7 @@ function props(overrides: Partial<NovelEditorProps> = {}): NovelEditorProps {
         initialBody: '',
         codexEntries: [],
         onBodyChange: vi.fn(),
-        onRequestSaveFlush: vi.fn(async () => {}),
+        onRequestSaveFlush: vi.fn(async () => true),
         onGenerate: vi.fn(),
         onAcceptGeneration: vi.fn(async () => {}),
         onDiscardGeneration: vi.fn(async () => {}),

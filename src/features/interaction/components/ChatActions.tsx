@@ -170,15 +170,30 @@ export function ChatActions({
     const hideMutatingActions = Boolean(isEditing || isStreaming || actionsDisabled)
     const canCopy = !isEditing && !isStreaming && messageContent !== undefined && messageContent.length > 0
 
-    const popoverAnchor = (() => {
-        if (!confirmingDelete || typeof window === 'undefined') return null
-        const rect = deleteButtonRef.current?.getBoundingClientRect()
-        if (!rect) return null
-        return {
-            left: rect.right - POPOVER_WIDTH,
-            top: rect.bottom + POPOVER_GAP,
+    // Viewport coordinates, so they have to be re-measured while the transcript
+    // scrolls — the log is its own scroller and a streaming reply autoscrolls it.
+    // Measured once at render, the confirm popover froze in place while its
+    // trigger slid away, asking the reader to confirm next to another message.
+    const [popoverAnchor, setPopoverAnchor] = useState<PopoverAnchor | null>(null)
+    useLayoutEffect(() => {
+        if (!confirmingDelete) {
+            setPopoverAnchor(null)
+            return undefined
         }
-    })()
+        const measure = () => {
+            const rect = deleteButtonRef.current?.getBoundingClientRect()
+            if (!rect) return
+            setPopoverAnchor({ left: rect.right - POPOVER_WIDTH, top: rect.bottom + POPOVER_GAP })
+        }
+        measure()
+        // `true` — the transcript scroller is an ancestor, and scroll does not bubble.
+        window.addEventListener('scroll', measure, true)
+        window.addEventListener('resize', measure)
+        return () => {
+            window.removeEventListener('scroll', measure, true)
+            window.removeEventListener('resize', measure)
+        }
+    }, [confirmingDelete])
 
     return (
         <div className="flex items-center gap-0.5">

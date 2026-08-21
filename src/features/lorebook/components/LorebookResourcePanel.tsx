@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, FilePlus2, FileText, Library, Link2, Plus, Sparkles, Trash2, Upload } from 'lucide-react'
 import type { LorebookResource } from '@/shared'
-import { Badge, Button, Card, Field, Icon, IconButton, Input, SwitchRow, Tag, Textarea, cx } from '@/ui/primitives'
+import { Badge, Button, Callout, Card, Field, Icon, IconButton, Input, SwitchRow, Tag, Textarea, cx } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
 import {
     LOREBOOK_RESOURCE_ACCEPT,
@@ -177,7 +177,7 @@ export function LorebookResourcePanel({
                     <Button variant="secondary" size="sm" iconLeft={<Icon icon={FilePlus2} size={15} />} onClick={() => addManualResource('md')} disabled={saving || !canAdd}>
                         {t('lorebookStudio.resources.newMarkdown')}
                     </Button>
-                    <Button variant="arcane" size="sm" iconLeft={<Icon icon={Upload} size={15} />} onClick={() => inputRef.current?.click()} disabled={saving || !canAdd}>
+                    <Button variant="primary" size="sm" iconLeft={<Icon icon={Upload} size={15} />} onClick={() => inputRef.current?.click()} disabled={saving || !canAdd}>
                         {t('lorebookStudio.resources.upload')}
                     </Button>
                 </div>
@@ -199,11 +199,11 @@ export function LorebookResourcePanel({
                         disabled={saving}
                     />
                     {extractMetadataOnSave && (
-                        <div className="rounded-lg border border-ember-500/30 bg-ember-500/10 px-4 py-3 font-ui text-sm text-parchment-200" role="note">
+                        <Callout tone="warning" role="note">
                             {pendingExtractionCount > 0
                                 ? t('lorebookStudio.resources.extractOnSave.warning', { count: pendingExtractionCount })
                                 : t('lorebookStudio.resources.extractOnSave.noPending')}
-                        </div>
+                        </Callout>
                     )}
                 </div>
             )}
@@ -266,7 +266,7 @@ export function LorebookResourcePanel({
                     </div>
                     <div className="flex flex-wrap justify-center gap-2">
                         <Button variant="secondary" size="sm" onClick={() => addManualResource('txt')}>{t('lorebookStudio.resources.newText')}</Button>
-                        <Button variant="arcane" size="sm" onClick={() => inputRef.current?.click()}>{t('lorebookStudio.resources.upload')}</Button>
+                        <Button variant="primary" size="sm" onClick={() => inputRef.current?.click()}>{t('lorebookStudio.resources.upload')}</Button>
                     </div>
                 </div>
             ) : (
@@ -390,9 +390,9 @@ export function LorebookResourcePanel({
                                         </Field>
 
                                         {triggerOverLimit && (
-                                            <div className="rounded-lg border border-blood-500/30 bg-blood-500/10 px-4 py-3 font-ui text-sm text-parchment-200" role="alert">
+                                            <Callout tone="danger" role="alert">
                                                 {t('lorebookStudio.resources.errors.triggers', { name: resource.fileName, count: LOREBOOK_RESOURCE_MAX_TRIGGERS })}
-                                            </div>
+                                            </Callout>
                                         )}
 
                                         {resource.extractionStatus === 'completed' && resource.extraction && (

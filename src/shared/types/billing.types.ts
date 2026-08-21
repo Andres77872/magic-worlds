@@ -66,7 +66,6 @@ export interface QuotaResetDailyCounts {
     membership_usage_days: number
     membership_operation_usage_days: number
     ai_card_quota_days: number
-    seeded_user_memberships: number
 }
 
 export interface QuotaResetMonthlyResult {

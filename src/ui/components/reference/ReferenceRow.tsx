@@ -74,7 +74,7 @@ export function ReferenceRow({
             {(hoverReveal || trailing) && (
                 <div className="flex shrink-0 items-center gap-1">
                     {hoverReveal && (
-                        <span className="flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                        <span className="flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100">
                             {hoverReveal}
                         </span>
                     )}

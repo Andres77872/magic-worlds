@@ -4,6 +4,7 @@ import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { ApiError, apiService } from '@/infrastructure/api'
 import { buildGalleryCardHash, galleryPageForType } from '../galleryLinks'
 import type { GalleryItem, GalleryType } from '../galleryConfig'
+import { errorMessage } from '@/utils/errors'
 
 export interface ImportActionNotice {
     tone: 'success' | 'error'
@@ -28,9 +29,6 @@ function sourceKey(source: ImportSource): string {
     return `${source.item.backendType}:${source.item.id}`
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-    return error instanceof Error && error.message.trim() ? error.message : fallback
-}
 
 /**
  * Single owner of the community/shared card IMPORT workflow, reused by the

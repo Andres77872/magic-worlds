@@ -91,7 +91,7 @@ function attachedCardLabel(task: BackgroundTaskPublic, t: TFunction): string {
 }
 
 function taskTitle(task: BackgroundTaskPublic, t: TFunction): string {
-    return task.result?.lyrics?.song_title || t('tasksDrawer.fallback.themeSong')
+    return task.title || task.target.display_name || t('tasksDrawer.fallback.themeSong')
 }
 
 function tabTasks(buckets: BackgroundTaskBuckets, tab: TaskTab): BackgroundTaskPublic[] {
@@ -164,11 +164,19 @@ function toAdventurePreview(card: Adventure, targetId: string, t: TFunction): At
 
 export function TasksPanel({ dense = false }: { dense?: boolean }) {
     const { t } = useTranslation()
-    const { taskBuckets, refreshTasks, cancelTask, clearTerminalTasks } = useBackgroundTasks()
+    const {
+        taskBuckets,
+        refreshTasks,
+        cancelTask,
+        clearTerminalTasks,
+        terminalHasMore,
+        loadMoreTerminalTasks,
+    } = useBackgroundTasks()
     const { characters, worlds, items, templateAdventures } = useData()
     const [activeTab, setActiveTab] = useState<TaskTab>('active')
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [isClearing, setIsClearing] = useState(false)
+    const [isLoadingMore, setIsLoadingMore] = useState(false)
     const [clearError, setClearError] = useState<string | null>(null)
     const [expandedKey, setExpandedKey] = useState<string | null>(null)
     const [selectedTask, setSelectedTask] = useState<BackgroundTaskPublic | null>(null)
@@ -264,6 +272,16 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
         }
     }
 
+    const handleLoadMore = async () => {
+        if (activeTab === 'active') return
+        setIsLoadingMore(true)
+        try {
+            await loadMoreTerminalTasks(activeTab)
+        } finally {
+            setIsLoadingMore(false)
+        }
+    }
+
     return (
         <>
             <div className={cx('flex flex-col', dense ? 'gap-2.5' : 'gap-4')}>
@@ -281,7 +299,7 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
                                 className={cx(
                                     'flex min-h-9 items-center justify-center gap-1.5 rounded-md px-2 font-ui text-xs font-semibold transition-colors',
                                     activeTab === tab
-                                        ? 'bg-arcane-500/20 text-parchment-50 ring-1 ring-inset ring-arcane-500/40'
+                                        ? 'bg-ember-500/20 text-parchment-50 ring-1 ring-inset ring-ember-500/40'
                                         : 'text-parchment-400 hover:bg-parchment-50/[.05] hover:text-parchment-100',
                                 )}
                                 onClick={() => {
@@ -291,7 +309,7 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
                                 }}
                             >
                                 <span>{t(`tasksDrawer.tabs.${tab}`)}</span>
-                                <Badge tone={tab === 'failed' && counts[tab] > 0 ? 'nsfw' : tab === 'active' && counts[tab] > 0 ? 'arcane' : 'neutral'}>
+                                <Badge tone={tab === 'failed' && counts[tab] > 0 ? 'nsfw' : tab === 'active' && counts[tab] > 0 ? 'ember' : 'neutral'}>
                                     {counts[tab]}
                                 </Badge>
                             </button>
@@ -347,6 +365,17 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
                                 />
                             )
                         })}
+                        {activeTab !== 'active' && terminalHasMore[activeTab] && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                disabled={isLoadingMore}
+                                iconLeft={<Icon icon={isLoadingMore ? Loader2 : RefreshCw} size={14} className={isLoadingMore ? 'animate-spin' : undefined} />}
+                                onClick={() => void handleLoadMore()}
+                            >
+                                Load more
+                            </Button>
+                        )}
                     </div>
                 )}
             </div>
@@ -421,7 +450,7 @@ function TaskRow({
 
             {isWorking && (
                 <div aria-hidden="true" className="mx-3 h-1 overflow-hidden rounded-full bg-ink-900/60">
-                    <div className="h-full w-full animate-shimmer bg-[linear-gradient(100deg,transparent_30%,rgba(143,111,227,0.45)_50%,transparent_70%)] bg-no-repeat [background-size:200%_100%]" />
+                    <div className="shimmer-arcane h-full w-full" />
                 </div>
             )}
 

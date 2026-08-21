@@ -246,9 +246,9 @@ export function snapshotSourceIds(snapshot: AdventureSnapshot | null | undefined
     return ids
 }
 
-/** The canonical session contract always carries its cloned-card snapshot. */
+/** The stored session contract always carries its cloned-card snapshot. */
 export function ensureAdventureSnapshot(adventure: Adventure): AdventureSnapshot {
-    if (!adventure.snapshot) throw new Error('Adventure session is missing its canonical template snapshot')
+    if (!adventure.snapshot) throw new Error('Adventure session is missing its stored template snapshot')
     return adventure.snapshot
 }
 

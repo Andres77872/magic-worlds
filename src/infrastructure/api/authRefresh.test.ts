@@ -1,6 +1,7 @@
 import { waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, apiService } from './index'
+import { authSession } from './authSession'
 
 const fetchMock = vi.fn()
 
@@ -236,6 +237,125 @@ describe('auth refresh recovery API wrapper', () => {
         expect(protectedCalls).toHaveLength(6)
         expect(protectedCalls.slice(3).map(([, init]) => headersOf(init).Authorization))
             .toEqual(['Bearer new-token', 'Bearer new-token', 'Bearer new-token'])
+    })
+
+    it('retries once with an already-rotated token without starting another refresh', async () => {
+        fetchMock.mockImplementation((_url: string, init: RequestInit) => {
+            if (headersOf(init).Authorization === 'Bearer old-token') {
+                localStorage.setItem('magic_worlds:token', 'rotated-token')
+                return Promise.resolve(jsonResponse({ detail: 'expired' }, { status: 401 }))
+            }
+            return Promise.resolve(jsonResponse({ id: 3, name: 'Recovered session' }))
+        })
+
+        await expect(apiService.getAdventureSession(3)).resolves.toMatchObject({ id: 3 })
+
+        expect(fetchCallsFor('/auth/refresh')).toHaveLength(0)
+        expect(fetchMock).toHaveBeenCalledTimes(2)
+        expect(headersOf(fetchMock.mock.calls[1][1] as RequestInit).Authorization).toBe('Bearer rotated-token')
+    })
+
+    it('never replays an old-account mutation after the auth owner changes', async () => {
+        let resolveMutation: (response: Response) => void = () => undefined
+        const pendingMutation = new Promise<Response>((resolve) => {
+            resolveMutation = resolve
+        })
+        authSession.authenticate('account-a', 'old-token')
+        localStorage.setItem('magic_worlds:user', JSON.stringify({ user_hash: 'account-a', username: 'a' }))
+        fetchMock.mockReturnValueOnce(pendingMutation)
+
+        const mutation = apiService.updateAdventureSessionMessage(4, 9, 'Account A edit')
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+        authSession.beginLogout()
+        authSession.finishLogout()
+        authSession.authenticate('account-b', 'account-b-token')
+        resolveMutation(jsonResponse({ detail: 'expired' }, { status: 401 }))
+
+        await expect(mutation).rejects.toMatchObject({
+            status: 401,
+            code: 'auth_epoch_changed',
+        })
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+        expect(fetchCallsFor('/auth/refresh')).toHaveLength(0)
+        authSession.continueSignedOut()
+    })
+
+    it('orders refresh, logout, and quick login without persisting stale refresh completion', async () => {
+        let resolveRefresh: (response: Response) => void = () => undefined
+        const refreshResponse = new Promise<Response>((resolve) => {
+            resolveRefresh = resolve
+        })
+        const refreshed = vi.fn()
+        window.addEventListener('auth:refreshed', refreshed)
+        authSession.authenticate('account-a', 'old-token')
+        localStorage.setItem('magic_worlds:user', JSON.stringify({ user_hash: 'account-a', username: 'a' }))
+        const timeline: string[] = []
+        fetchMock.mockImplementation((url: string) => {
+            if (url.endsWith('/auth/refresh')) {
+                timeline.push('refresh')
+                return refreshResponse
+            }
+            if (url.endsWith('/auth/logout')) {
+                timeline.push('logout')
+                return Promise.resolve(jsonResponse({ success: true }))
+            }
+            if (url.endsWith('/auth/login')) {
+                timeline.push('login')
+                return Promise.resolve(jsonResponse({
+                    success: true,
+                    access_token: 'account-b-token',
+                    user: { user_hash: 'account-b', username: 'b' },
+                }))
+            }
+            return Promise.resolve(jsonResponse({ detail: 'expired' }, { status: 401 }))
+        })
+
+        const mutation = apiService.updateAdventureSessionMessage(4, 9, 'Account A edit')
+        await waitFor(() => expect(fetchCallsFor('/auth/refresh')).toHaveLength(1))
+        const logout = apiService.logout()
+        const login = apiService.login({ username: 'b', password: 'pw' })
+        expect(timeline).toEqual(['refresh'])
+
+        resolveRefresh(jsonResponse({
+            success: true,
+            access_token: 'stale-account-a-token',
+            user: { user_hash: 'account-a', username: 'a' },
+        }))
+
+        await expect(mutation).rejects.toBeInstanceOf(ApiError)
+        await logout
+        await expect(login).resolves.toMatchObject({ success: true })
+        expect(timeline).toEqual(['refresh', 'logout', 'login'])
+        expect(localStorage.getItem('magic_worlds:token')).not.toBe('stale-account-a-token')
+        expect(refreshed).not.toHaveBeenCalled()
+        window.removeEventListener('auth:refreshed', refreshed)
+        authSession.continueSignedOut()
+    })
+
+    it('keeps the request timeout active while a shared refresh is still pending', async () => {
+        vi.useFakeTimers()
+        let resolveRefresh: (response: Response) => void = () => undefined
+        const refreshResponse = new Promise<Response>((resolve) => {
+            resolveRefresh = resolve
+        })
+        fetchMock
+            .mockResolvedValueOnce(jsonResponse({ detail: 'expired' }, { status: 401 }))
+            .mockReturnValueOnce(refreshResponse)
+
+        const caught = apiService.createCharacterAI('Generate safely', {
+            requestId: 'req-refresh-timeout',
+            idempotencyKey: 'idem-refresh-timeout',
+            timeoutMs: 10,
+        }).catch((error) => error)
+        await vi.advanceTimersByTimeAsync(11)
+
+        await expect(caught).resolves.toMatchObject({
+            status: 0,
+            category: 'timeout',
+            code: 'ai_card_client_timeout',
+        })
+        resolveRefresh(jsonResponse({ detail: 'Authentication service unavailable' }, { status: 503 }))
+        await vi.runAllTimersAsync()
     })
 
     it('uses credentialed requests for register, platform login, and logout lifecycle calls', async () => {

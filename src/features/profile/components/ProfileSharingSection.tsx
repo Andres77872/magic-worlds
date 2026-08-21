@@ -14,6 +14,7 @@ import { Badge, Button, Card, Chip, Icon, SectionHeader, Toast } from '@/ui/prim
 import { publicItems } from '@/features/gallery/galleryConfig'
 import { buildSharedCardUrl } from '@/features/gallery/galleryLinks'
 import type { ProfileSharedCardsState } from '../hooks/useProfileSharedCards'
+import { writeClipboardText } from '@/ui/components/common/clipboard'
 
 interface ProfileSharingNotice {
     tone: 'success' | 'error'
@@ -23,23 +24,6 @@ interface ProfileSharingNotice {
 
 type SharingTab = 'public' | 'links'
 
-async function writeClipboardText(text: string): Promise<void> {
-    if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-        return
-    }
-
-    const textarea = document.createElement('textarea')
-    textarea.value = text
-    textarea.setAttribute('readonly', '')
-    textarea.style.position = 'fixed'
-    textarea.style.opacity = '0'
-    document.body.appendChild(textarea)
-    textarea.select()
-    const copied = document.execCommand('copy')
-    textarea.remove()
-    if (!copied) throw new Error('Clipboard copy failed')
-}
 
 function sharedCardItem(resource: SharedCardResource) {
     return publicItems(resource)[0] ?? null

@@ -8,9 +8,11 @@
 
 import type { VoiceErrorCategory, VoiceSocketClientFrame, VoiceSocketServerFrame } from '../../shared/types/voice.types'
 import { API_BASE_URL } from './baseUrl'
+import { authSession, type AuthSessionSnapshot } from './authSession'
 
 const WS_BEARER_SUBPROTOCOL = 'mw.bearer.v1'
 const HEARTBEAT_MS = 25_000
+const LIVENESS_TIMEOUT_MS = HEARTBEAT_MS * 2
 const MAX_RECONNECT_MS = 30_000
 
 /** Stable, greppable code for a voice error category — mirrors the backend `VOICE_<CATEGORY>`. */
@@ -136,6 +138,9 @@ export class VoiceSocket {
     private closedByUser = false
     private authRecoveryAttempted = false
     private terminalAuthReported = false
+    private livenessFatalReported = false
+    private lastFrameAt = 0
+    private socketOwner: Pick<AuthSessionSnapshot, 'authEpoch' | 'accountKey' | 'userHash'> | null = null
     private startFrame: VoiceStartFrame | null = null
     private voiceSessionId: string | null = null
     private readonly cancelledTurns = new Set<string>()
@@ -211,6 +216,7 @@ export class VoiceSocket {
             this.setStatus('closed')
             return
         }
+        this.socketOwner = authSession.getSnapshot()
 
         this.setStatus('connecting')
         const url = `${toWsUrl(API_BASE_URL)}/${this.basePath}/${this.sessionId}/ws-voice`
@@ -227,7 +233,12 @@ export class VoiceSocket {
 
         ws.onopen = () => {
             if (this.ws !== ws) return
+            if (!this.isSocketOwnerCurrent()) {
+                this.retireSocket()
+                return
+            }
             this.reconnectAttempts = 0
+            this.lastFrameAt = Date.now()
             this.setStatus('open')
             this.startHeartbeat()
             const handshake = this.buildHandshakeFrame()
@@ -236,6 +247,10 @@ export class VoiceSocket {
 
         ws.onmessage = (event) => {
             if (this.ws !== ws) return
+            if (!this.isSocketOwnerCurrent()) {
+                this.retireSocket()
+                return
+            }
             this.handleIncoming(event.data)
         }
 
@@ -252,6 +267,7 @@ export class VoiceSocket {
             }
 
             if (event.code === 4401) {
+                if (!this.isSocketOwnerCurrent()) return
                 if (this.voiceSessionId) {
                     this.emitError('auth', 'The voice connection ended after authentication changed. Start a new call.', true)
                 } else {
@@ -301,6 +317,7 @@ export class VoiceSocket {
         if (!isRecord(parsed) || typeof parsed.type !== 'string' || !SERVER_FRAME_TYPES.has(parsed.type)) return
 
         const message = parsed as VoiceSocketServerFrame
+        this.lastFrameAt = Date.now()
         if (this.shouldDropStaleFrame(message)) return
         this.trackServerFrame(message)
         if (message.type === 'voice_error') {
@@ -328,6 +345,8 @@ export class VoiceSocket {
         switch (message.type) {
             case 'voice_ready':
                 this.voiceSessionId = message.voice_session_id
+                this.authRecoveryAttempted = false
+                this.livenessFatalReported = false
                 break
             case 'voice_state_snapshot':
                 this.voiceSessionId = message.voice_session_id
@@ -357,6 +376,7 @@ export class VoiceSocket {
 
     private async recoverFromAuthClose(): Promise<void> {
         if (this.closedByUser) return
+        if (!this.isSocketOwnerCurrent()) return
         if (!refreshAccessTokenForVoiceSocket) {
             this.expireAuth()
             return
@@ -425,7 +445,7 @@ export class VoiceSocket {
         const hadReadableAuthState = Boolean(
             localStorage.getItem('magic_worlds:token') || localStorage.getItem('magic_worlds:user')
         )
-        localStorage.removeItem('magic_worlds:token')
+        authSession.expire()
         localStorage.removeItem('magic_worlds:user')
         if (hadReadableAuthState) window.dispatchEvent(new CustomEvent('auth:expired'))
         this.emitError('auth', 'Your session has expired. Please log in again.', true)
@@ -444,8 +464,40 @@ export class VoiceSocket {
     private startHeartbeat(): void {
         this.stopHeartbeat()
         this.heartbeat = setInterval(() => {
-            if (this.isOpen) this.ping()
+            if (!this.isOpen) return
+            if (Date.now() - this.lastFrameAt >= LIVENESS_TIMEOUT_MS) {
+                const established = Boolean(this.voiceSessionId)
+                this.retireSocket()
+                if (established) {
+                    this.closedByUser = true
+                    if (!this.livenessFatalReported) {
+                        this.livenessFatalReported = true
+                        this.emitError('internal', 'The voice connection ended. Start a new call.', true)
+                    }
+                } else if (!this.closedByUser) {
+                    this.scheduleReconnect()
+                }
+                return
+            }
+            this.ping()
         }, HEARTBEAT_MS)
+    }
+
+    private retireSocket(): void {
+        this.stopHeartbeat()
+        const ws = this.ws
+        this.detach(ws)
+        try {
+            ws?.close()
+        } catch {
+            // ignore
+        }
+        this.ws = null
+        this.setStatus('closed')
+    }
+
+    private isSocketOwnerCurrent(): boolean {
+        return this.socketOwner !== null && authSession.isCurrent(this.socketOwner)
     }
 
     private stopHeartbeat(): void {

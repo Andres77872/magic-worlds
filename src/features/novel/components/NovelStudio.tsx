@@ -5,12 +5,14 @@
  * useGenerationHistory); the inline AI lifecycle lives inside NovelEditor.
  */
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MessageSquareQuote } from 'lucide-react'
 import { useAuth, useData } from '@/app/hooks'
 import { CodexCardPickerDrawer } from '@/features/codex'
-import type { StoryContextSettings, StoryGeneration } from '@/shared'
+import type { StoryGeneration } from '@/shared'
+import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
+import { Markdown } from '@/ui/components/Markdown'
 import { Drawer, Icon, Toast, cx } from '@/ui/primitives'
 import { NovelEditor } from '../editor/NovelEditor'
 import type { InlineAIRequest, NovelEditorHandle } from '../editor/types'
@@ -25,15 +27,6 @@ import { CodexPanel } from './codex/CodexPanel'
 import { NovelChapterRail } from './NovelChapterRail'
 import { NovelGenerationHistoryDrawer } from './NovelGenerationHistoryDrawer'
 import { NovelStudioHeader } from './NovelStudioHeader'
-
-const DEFAULT_CONTEXT_SETTINGS: StoryContextSettings = {
-    includeSelectedCards: true,
-    includeLorebooks: true,
-    includeRecentChapters: 2,
-    tokenBudget: 6000,
-    styleSource: 'whole_story',
-    customStyleInstruction: null,
-}
 
 export function NovelStudio() {
     const { t } = useTranslation()
@@ -53,6 +46,9 @@ export function NovelStudio() {
     const [cardPickerOpen, setCardPickerOpen] = useState(false)
     const [cardPickerQuery, setCardPickerQuery] = useState('')
     const [wordGoalSaveFailed, setWordGoalSaveFailed] = useState(false)
+    // Set when a chapter switch/add could not persist the current draft —
+    // the user must explicitly choose to discard before we move away.
+    const [pendingDiscard, setPendingDiscard] = useState<(() => void) | null>(null)
 
     const requireAuth = useCallback(() => {
         if (isAuthenticated) return true
@@ -70,22 +66,45 @@ export function NovelStudio() {
         [requireAuth],
     )
 
+    // Ctrl/Cmd+S saves the draft instead of opening the browser dialog.
+    const saveNow = draft.saveNow
+    useEffect(() => {
+        const handler = (event: KeyboardEvent) => {
+            if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
+            if (event.key.toLowerCase() !== 's') return
+            event.preventDefault()
+            if (suggestionActive) return
+            if (requireAuth()) void saveNow()
+        }
+        window.addEventListener('keydown', handler)
+        return () => window.removeEventListener('keydown', handler)
+    }, [requireAuth, saveNow, suggestionActive])
+
     if (!story) return null
     const activeChapter = studio.activeChapter
 
-    const resolveSuggestionAndFlush = async () => {
+    /** Resolve any live suggestion, then persist. Resolves false when the draft could not be saved. */
+    const resolveSuggestionAndFlush = async (): Promise<boolean> => {
         await editorHandleRef.current?.resolveSuggestion('reject')
-        await draft.flush()
+        return draft.flush()
+    }
+
+    const guardedLeave = (action: () => void) => {
+        void resolveSuggestionAndFlush().then((clean) => {
+            if (clean) action()
+            // Leaving now would silently drop the unsaved draft — ask first.
+            else setPendingDiscard(() => action)
+        })
     }
 
     const handleSelectChapter = (id: string) => {
         if (id === activeChapter?.id) return
-        void resolveSuggestionAndFlush().then(() => studio.selectChapter(id))
+        guardedLeave(() => studio.selectChapter(id))
     }
 
     const handleAddChapter = () => {
         if (!requireAuth()) return
-        void resolveSuggestionAndFlush().then(() => studio.addChapter())
+        guardedLeave(() => void studio.addChapter())
     }
 
     const handleDeleteChapter = (id: string) => {
@@ -96,17 +115,22 @@ export function NovelStudio() {
     const handleGenerate = async (request: InlineAIRequest): Promise<StoryGeneration> => {
         if (!requireAuth()) throw new Error(t('novelEditor.studio.loginRequired'))
         if (!activeChapter) throw new Error(t('novelEditor.studio.noChapter'))
-        return generateStoryCandidate(story.id, {
+        // No contextSettings override: the backend resolves the story's stored
+        // activeContext itself, so sending a copy is pure duplication.
+        const generation = await generateStoryCandidate(story.id, {
             chapterId: activeChapter.id,
             command: request.command,
             instruction: request.instruction,
             selection: request.selection,
-            contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, ...(story.activeContext ?? {}) },
         })
+        // The story payload only refreshes on accept — record locally so the
+        // history drawer shows this generation even if it gets rejected.
+        history.record(generation, activeChapter.title)
+        return generation
     }
 
     return (
-        <div className="flex min-h-full w-full flex-col">
+        <div className="flex min-h-full w-full flex-1 flex-col">
             <NovelStudioHeader
                 story={story}
                 saveState={draft.saveState}
@@ -195,7 +219,9 @@ export function NovelStudio() {
                             onSuggestionPhaseChange={(phase) => {
                                 const active = phase === 'pending' || phase === 'revealing' || phase === 'reviewing'
                                 setSuggestionActive(active)
-                                draft.setSuspended(active)
+                                // Suspend autosave for 'prompting' too: a half-typed
+                                // "/instruction" must never be persisted as body text.
+                                draft.setSuspended(phase !== 'idle')
                             }}
                         />
                     )}
@@ -229,9 +255,7 @@ export function NovelStudio() {
                 icon={<Icon icon={MessageSquareQuote} size={18} />}
                 size="lg"
             >
-                <p className="m-0 whitespace-pre-wrap font-narrative text-[15px] leading-7 text-parchment-100">
-                    {critique?.output}
-                </p>
+                {critique && <Markdown content={critique.output} />}
             </Drawer>
             <Toast
                 open={wordGoalSaveFailed}
@@ -239,6 +263,18 @@ export function NovelStudio() {
                 title={t('novelEditor.header.goalSaveFailed')}
                 message={t('novelEditor.header.goalSaveFailedBody')}
                 onClose={() => setWordGoalSaveFailed(false)}
+            />
+            <ConfirmDialog
+                visible={pendingDiscard !== null}
+                title={t('novelEditor.studio.discardTitle')}
+                message={t('novelEditor.studio.discardMessage')}
+                confirmLabel={t('novelEditor.studio.discardConfirm')}
+                variant="danger"
+                onConfirm={() => {
+                    pendingDiscard?.()
+                    setPendingDiscard(null)
+                }}
+                onCancel={() => setPendingDiscard(null)}
             />
         </div>
     )

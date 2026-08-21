@@ -170,7 +170,7 @@ export interface LoreActivationResult {
 
 export interface LoreActivationPreviewRequest {
     targetKind: LorebookTargetKind
-    targetId?: string
+    targetId?: string | null
     messages: LoreActivationPreviewMessage[]
     includePromptPreview?: boolean
     overrides?: {
@@ -184,12 +184,12 @@ export interface LoreActivationPreviewRequest {
 
 export interface LoreActivationPreviewResponse {
     targetKind: LorebookTargetKind
-    targetId?: string
+    targetId?: string | null
     activeAttachments: LorebookAttachment[]
     results: LoreActivationResult[]
     totalEstimatedTokens: number
     tokenBudget: number
-    promptPreview?: string
+    promptPreview?: string | null
     issues: LorebookIssue[]
 }
 

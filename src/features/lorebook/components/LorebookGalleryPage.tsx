@@ -3,7 +3,7 @@ import { BookOpen, Library, Pencil, Plus, Search, Trash2, X, Loader2 } from 'luc
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { CardGrid, ConfirmDialog, type CardOption } from '@/ui/components'
-import { Button, controlClass, Icon, IconButton, PageHeader } from '@/ui/primitives'
+import { Button, controlClass, Icon, IconButton, IconTile, PageHeader } from '@/ui/primitives'
 import type { Lorebook } from '@/shared'
 import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { useLorebookGallery } from '../hooks/useLorebookGallery'
@@ -102,7 +102,7 @@ export function LorebookGalleryPage() {
             <PageHeader
                 eyebrow={t('lorebookGallery.header.eyebrow')}
                 title={t('lorebookGallery.header.title')}
-                icon={<span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-arcane-500/15 text-arcane-300"><Icon icon={BookOpen} size={22} /></span>}
+                icon={<IconTile icon={BookOpen} tone="arcane" size="md" />}
                 size="lg"
                 subtitle={t('lorebookGallery.header.subtitle')}
                 actions={

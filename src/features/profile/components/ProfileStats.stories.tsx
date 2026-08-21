@@ -29,8 +29,7 @@ export const FreshAccount: Story = {
     args: {
         profile: {
             ...baseProfile,
-            user_usage: 0,
-            membership: undefined,
+            membership: { ...baseProfile.membership, total_available_credits: 0 },
             card_counts: { character: 0, world: 0, item: 0, adventure_template: 0 },
         },
     },

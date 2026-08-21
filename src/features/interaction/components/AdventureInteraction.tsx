@@ -63,9 +63,9 @@ export function AdventureInteraction() {
                 if (Number.isNaN(sessionId)) {
                     throw new Error('Invalid adventure session id')
                 }
-                const canonicalTurns = await chatConfig.loadTurns(sessionId)
+                const storedTurns = await chatConfig.loadTurns(sessionId)
                 if (isMounted) {
-                    setTurns(canonicalTurns)
+                    setTurns(storedTurns)
                 }
             } catch (error) {
                 console.error('Failed to load adventure messages:', error)
@@ -118,7 +118,7 @@ export function AdventureInteraction() {
 
     if (loadError) {
         return (
-            <div className="flex h-full flex-col items-center justify-center gap-4 bg-ink-800 p-8 text-center">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 bg-ink-800 p-8 text-center">
                 <p className="max-w-md font-narrative text-[16px] leading-relaxed text-parchment-300">{loadError}</p>
                 <Button variant="primary" onClick={handleRetryLoad}>{t('common.tryAgain')}</Button>
             </div>
@@ -128,7 +128,7 @@ export function AdventureInteraction() {
     const title = currentAdventure.snapshot?.template?.name?.trim() || t('interaction.adventureFallbackTitle')
 
     return (
-        <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-ink-800 lg:flex-row">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-ink-800 lg:flex-row">
             <InteractionTopBar
                 title={title}
                 mode="adventure"

@@ -19,6 +19,8 @@
   --color-ink-700: #1b1726;
   --color-ink-600: #251f31;
   --color-ink-500: #322b41;
+  /* Base endpoint for generated portrait gradients (image-less fallbacks) */
+  --color-gradient-base: #160f24;
   /* Parchment — warm foreground */
   --color-parchment-50: #f6efe2;
   --color-parchment-100: #e7ddcb;
@@ -26,13 +28,16 @@
   --color-parchment-300: #9a9184;
   --color-parchment-400: #6e6a78;
   --color-parchment-500: #4c4858;
-  /* Ember — primary accent (candlelight gold) */
+  /* Ember — primary accent (candlelight gold).
+     -200 is the hover step: components rest on -300 and brighten to -200. */
+  --color-ember-200: #fadfb4;
   --color-ember-300: #f6cc8c;
   --color-ember-400: #f2b968;
   --color-ember-500: #e8a24a;
   --color-ember-600: #ce8431;
   --color-ember-700: #a0641f;
-  /* Arcane — secondary accent (AI / magic) */
+  /* Arcane — secondary accent (AI / magic). -200 is the hover step. */
+  --color-arcane-200: #dbd0f8;
   --color-arcane-300: #c3b0f2;
   --color-arcane-400: #a98eec;
   --color-arcane-500: #8f6fe3;
@@ -74,10 +79,6 @@
   --default-transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   --animate-think: think 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
   --animate-shimmer: shimmer 1.6s linear infinite;
-  /* App-shell candlelight: two glow blobs breathe on different long periods so
-     the ambience feels organic, never synchronized. Transform + opacity only. */
-  --animate-candle-a: candle-a 16s var(--ease-in-out) infinite alternate;
-  --animate-candle-b: candle-b 22s var(--ease-in-out) infinite alternate;
   /* Live call waveform: bars gently bounce while the character speaks (no client-side
      audio analysis). Transform only. */
   --animate-call-wave: call-wave 0.9s var(--ease-in-out) infinite alternate;
@@ -107,7 +108,7 @@
   --text-meta--line-height: 1.3;
   --text-micro: 10px;
   --text-micro--line-height: 1.2;
-  /* prose heading sizes shared by chat-prose + the story editor */
+  /* prose heading sizes — consumed by .chat-prose below */
   --text-prose-h1: 30px;
   --text-prose-h2: 26px;
   --text-prose-h3: 22px;
@@ -129,11 +130,6 @@
   --color-line: color-mix(in srgb, var(--color-parchment-50) 12%, transparent); /* hairline border */
   --color-line-faint: color-mix(in srgb, var(--color-parchment-50) 8%, transparent);
   --color-line-strong: color-mix(in srgb, var(--color-parchment-50) 22%, transparent);
-
-  /* ---------- aspect ratios → aspect-* ---------- */
-  --aspect-portrait: 3 / 4;
-  --aspect-square: 1 / 1;
-  --aspect-wide: 16 / 9;
 
   /* ---------- candlelit focus + stronger glows → shadow-* ---------- */
   --shadow-input-focus: 0 0 0 1px var(--color-ember-500),
@@ -209,32 +205,6 @@
   }
   100% {
     background-position: -200% 0;
-  }
-}
-
-/* App-shell candlelight breathing. The two ambient glow blobs (GlowBackdrop
-   variant="page", AppRouter) drift + scale on independent long periods so the
-   warmth feels alive without ever reading as "motion". Composited (transform +
-   opacity only) — no per-frame repaint. Reduced motion (handled globally below)
-   freezes both at their neutral `from` state. */
-@keyframes candle-a {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-    opacity: 0.9;
-  }
-  to {
-    transform: translate3d(6px, -4px, 0) scale(1.05);
-    opacity: 1;
-  }
-}
-@keyframes candle-b {
-  from {
-    transform: translate3d(0, 0, 0) scale(1.04);
-    opacity: 1;
-  }
-  to {
-    transform: translate3d(-5px, 5px, 0) scale(1);
-    opacity: 0.88;
   }
 }
 
@@ -377,13 +347,6 @@
     box-shadow: inset 0 0 60px -22px rgba(0, 0, 0, 0.7);
   }
 
-  /* Hairline accent glow along the top edge — modal/drawer headers, focused wells. */
-  .glow-edge {
-    box-shadow:
-      0 1px 0 0 color-mix(in srgb, var(--color-ember-500) 20%, transparent),
-      0 10px 26px -18px color-mix(in srgb, var(--color-ember-500) 40%, transparent);
-  }
-
   /* Animated placeholder shown over a generated scene image until its bytes
      paint. A soft arcane highlight sweeps across the dark ink canvas. Reduced
      motion (handled globally above) freezes it to a static tint. */
@@ -456,9 +419,9 @@
   .chat-prose .markdown-h1:first-child,
   .chat-prose .markdown-h2:first-child,
   .chat-prose .markdown-h3:first-child { margin-top: 0; }
-  .chat-prose .markdown-h1 { font-size: 30px; }
-  .chat-prose .markdown-h2 { font-size: 26px; }
-  .chat-prose .markdown-h3 { font-size: 22px; }
+  .chat-prose .markdown-h1 { font-size: var(--text-prose-h1); }
+  .chat-prose .markdown-h2 { font-size: var(--text-prose-h2); }
+  .chat-prose .markdown-h3 { font-size: var(--text-prose-h3); }
   .chat-prose .markdown-list { margin: 0.5rem 0; padding-left: 1.5rem; list-style: disc; }
   .chat-prose .markdown-list-ordered { list-style: decimal; }
   .chat-prose .markdown-list-item { margin: 0.25rem 0; }

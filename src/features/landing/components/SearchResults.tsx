@@ -42,7 +42,8 @@ export interface SearchResultsProps {
     onEditWorld: (world: World) => void
     onEditItem: (item: Item) => void
     onOpenStory: (story: Story) => void
-    onCreateAdventure: () => void
+    /** Create an adventure from the empty state. Only provided when adventures are enabled. */
+    onCreateAdventure?: () => void
     /** Navigate to the gallery backing a group ("View all in gallery"). */
     onViewGallery: (key: DashboardSearchGroup['key']) => void
 }
@@ -73,9 +74,11 @@ export function SearchResults({
                     <Button variant="secondary" size="sm" onClick={onClear}>
                         {t('gallery.clearSearch')}
                     </Button>
-                    <Button variant="primary" size="sm" iconLeft={<Icon icon={Wand2} size={15} />} onClick={onCreateAdventure}>
-                        {t('landing.search.forgeAdventure')}
-                    </Button>
+                    {onCreateAdventure && (
+                        <Button variant="primary" size="sm" iconLeft={<Icon icon={Wand2} size={15} />} onClick={onCreateAdventure}>
+                            {t('landing.search.forgeAdventure')}
+                        </Button>
+                    )}
                 </div>
             </EmptyState>
         )
@@ -177,7 +180,7 @@ function renderGroup(group: DashboardSearchGroup, t: TFunction, handlers: GroupH
                         t('landing.rail.editAria', { name: character.name }),
                         <div className="flex gap-2">
                             <Button
-                                variant="primary"
+                                variant="arcane"
                                 size="sm"
                                 className="min-w-0 flex-1"
                                 iconLeft={<Icon icon={MessageCircle} size={15} />}

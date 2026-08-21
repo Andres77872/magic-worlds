@@ -50,8 +50,12 @@ export interface NovelEditorProps {
     typewriter?: boolean
     /** Markdown after each user edit. Never fired while a suggestion is alive. */
     onBodyChange: (markdown: string) => void
-    /** Persist the current body immediately; awaited before generating and after accepting. */
-    onRequestSaveFlush: () => Promise<void>
+    /**
+     * Persist the current body immediately; awaited before generating and after
+     * accepting. Resolves false when the body could not be saved — generation
+     * is aborted in that case so the muse never works from a stale manuscript.
+     */
+    onRequestSaveFlush: () => Promise<boolean>
     onGenerate: (request: InlineAIRequest) => Promise<StoryGeneration>
     onAcceptGeneration: (generationId: string) => Promise<void>
     onDiscardGeneration: (generationId: string) => Promise<void>

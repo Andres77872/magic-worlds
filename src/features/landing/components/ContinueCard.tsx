@@ -102,7 +102,7 @@ export function ContinueCard({ session, onContinue, onDelete, deleting = false }
                 </div>
                 {cardOptions.length > 0 && (
                     <div
-                        className="absolute right-2 top-2 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
+                        className="absolute right-2 top-2 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 sm:pointer-coarse:opacity-100"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <CardOptions options={cardOptions} aria-label={t('galleryCard.actions', { title: session.title })} />

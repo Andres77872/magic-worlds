@@ -61,7 +61,7 @@ export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, o
                                     size="sm"
                                     tone="danger"
                                     onClick={() => setPendingDelete(chapter)}
-                                    className="absolute right-1.5 top-1.5 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                                    className="absolute right-1.5 top-1.5 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
                                 >
                                     <Icon icon={Trash2} size={14} />
                                 </IconButton>

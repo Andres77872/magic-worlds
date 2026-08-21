@@ -16,13 +16,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Check, Download, Eye, ImageOff, Loader2, Music2, Trash2 } from 'lucide-react'
+import { Check, Download, Eye, ImageOff, Loader2, Music2, Trash2, Unlink } from 'lucide-react'
 import type { CardMediaTargetType, ImageJobPublic, ThemeSongJobPublic } from '@/shared'
-import { apiService, resolveMediaUrl } from '@/infrastructure/api'
-import { AuthenticatedImage, Button, cx, Drawer, Eyebrow, Icon, IconButton, ImageLightbox, Tag } from '@/ui/primitives'
+import { ApiError, apiService, resolveMediaUrl } from '@/infrastructure/api'
+import { AuthenticatedImage, Button, cx, Drawer, Eyebrow, Icon, IconButton, ImageLightbox, TabPanel, Tabs } from '@/ui/primitives'
 import { AudioWavePlayer, getAudioBlob } from '@/ui/components/audio'
 import { downloadBlob, safeFilename } from '../../../../utils/download'
-import { dateFromApiTimestamp } from '../../../../utils/time'
+import { formatWhen } from '@/utils/time'
 
 type HistoryTab = 'images' | 'themes'
 
@@ -57,13 +57,6 @@ function sameUrl(a?: string, b?: string): boolean {
     return a === b || resolveMediaUrl(a) === resolveMediaUrl(b)
 }
 
-function formatWhen(iso?: string): string {
-    const d = dateFromApiTimestamp(iso)
-    if (!d) return ''
-    const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-    return `${date} · ${time}`
-}
 
 function flattenImages(items: ImageJobPublic[]): GalleryImage[] {
     const out: GalleryImage[] = []
@@ -169,9 +162,10 @@ export function MediaHistoryDrawer({
         try {
             await apiService.deleteImageAsset(img.assetId)
             setImages((prev) => prev.filter((i) => i.assetId !== img.assetId))
-            if (sameUrl(currentImageUrl, img.url)) onSelectImage(undefined)
-        } catch {
-            setImgError(t('creation.common.mediaHistory.errors.deleteImage'))
+        } catch (error) {
+            setImgError(error instanceof ApiError && error.code === 'asset_in_use'
+                ? error.message
+                : t('creation.common.mediaHistory.errors.deleteImage'))
         }
     }
 
@@ -181,9 +175,10 @@ export function MediaHistoryDrawer({
         try {
             await apiService.deleteThemeSongAsset(asset.asset_id)
             setThemes((prev) => prev.filter((j) => j.job_id !== job.job_id))
-            if (sameUrl(currentThemeSongUrl, asset.url)) onSelectTheme(undefined)
-        } catch {
-            setThemeError(t('creation.common.mediaHistory.errors.deleteTheme'))
+        } catch (error) {
+            setThemeError(error instanceof ApiError && error.code === 'asset_in_use'
+                ? error.message
+                : t('creation.common.mediaHistory.errors.deleteTheme'))
         }
     }
 
@@ -197,29 +192,14 @@ export function MediaHistoryDrawer({
         try {
             // Same cache the in-row player/waveform uses — no refetch after a play.
             const blob = await getAudioBlob(url)
-            const title = job.lyrics?.song_title?.trim() || 'theme'
-            downloadBlob(blob, `${safeFilename(title, 'theme')}.${asset.output_format ?? 'mp3'}`)
+            const title = job.target.display_name?.trim() || cardName || 'theme'
+            downloadBlob(blob, `${safeFilename(title, 'theme')}.mp3`)
         } catch {
             setThemeError(t('creation.common.mediaHistory.errors.downloadTheme'))
         } finally {
             setDownloadingThemeId(null)
         }
     }
-
-    const tabBtn = (key: HistoryTab, label: string, count: number) => (
-        <button
-            type="button"
-            onClick={() => onTabChange(key)}
-            className={cx(
-                'relative px-1 pb-2 font-ui text-sm font-semibold transition-colors',
-                tab === key ? 'text-parchment-50' : 'text-parchment-400 hover:text-parchment-200',
-            )}
-        >
-            {label}
-            {count > 0 && <span className="ml-1.5 text-xs text-parchment-500">{count}</span>}
-            {tab === key && <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-arcane-400" />}
-        </button>
-    )
 
     const imageLabel = cardType === 'adventure_template'
         ? t('creation.common.mediaHistory.imageLabel.cover')
@@ -249,12 +229,27 @@ export function MediaHistoryDrawer({
         >
             <ImageLightbox open={Boolean(lightboxUrl)} src={lightboxUrl} alt={cardName} onClose={() => setLightboxUrl(undefined)} />
 
-            <div className="mb-4 flex items-center gap-5 border-b border-parchment-50/10">
-                {tabBtn('images', t('creation.common.mediaHistory.tabImages'), images.length)}
-                {tabBtn('themes', t('creation.common.mediaHistory.tabThemes'), themes.length)}
-            </div>
+            <Tabs
+                options={[
+                    {
+                        value: 'images',
+                        label: t('creation.common.mediaHistory.tabImages'),
+                        trailing: images.length > 0 ? <span className="text-xs text-parchment-500">{images.length}</span> : undefined,
+                    },
+                    {
+                        value: 'themes',
+                        label: t('creation.common.mediaHistory.tabThemes'),
+                        trailing: themes.length > 0 ? <span className="text-xs text-parchment-500">{themes.length}</span> : undefined,
+                    },
+                ]}
+                value={tab}
+                onChange={onTabChange}
+                idBase="media-history"
+                aria-label={t('creation.common.mediaHistory.title')}
+                className="mb-4"
+            />
 
-            {tab === 'images' ? (
+            <TabPanel value="images" idBase="media-history" active={tab} mountOnEnter>
                 <section className="flex flex-col gap-4">
                     <p className="font-narrative text-xs leading-snug text-parchment-400">
                         <Trans
@@ -291,7 +286,7 @@ export function MediaHistoryDrawer({
                                                 <Check size={11} strokeWidth={2.5} /> {t('creation.common.mediaHistory.current')}
                                             </span>
                                         )}
-                                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-ink-900/85 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-ink-900/85 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100">
                                             <span className="font-ui text-[10px] text-parchment-300">{formatWhen(img.createdAt)}</span>
                                             <div className="flex items-center gap-1">
                                                 <IconButton label={t('creation.common.mediaHistory.viewFullSize')} size="sm" onClick={() => setLightboxUrl(resolved)}>
@@ -306,6 +301,11 @@ export function MediaHistoryDrawer({
                                                 >
                                                     <Check size={15} strokeWidth={1.75} />
                                                 </IconButton>
+                                                {current && (
+                                                    <IconButton label="Remove from card" size="sm" onClick={() => onSelectImage(undefined)}>
+                                                        <Unlink size={15} strokeWidth={1.75} />
+                                                    </IconButton>
+                                                )}
                                                 <IconButton label={t('creation.common.mediaHistory.deleteImage')} size="sm" tone="danger" onClick={() => void handleDeleteImage(img)}>
                                                     <Trash2 size={15} strokeWidth={1.75} />
                                                 </IconButton>
@@ -324,7 +324,8 @@ export function MediaHistoryDrawer({
                         </Button>
                     )}
                 </section>
-            ) : (
+            </TabPanel>
+            <TabPanel value="themes" idBase="media-history" active={tab} mountOnEnter>
                 <section className="flex flex-col gap-4">
                     {!themeTargetId ? (
                         <EmptyState
@@ -355,8 +356,7 @@ export function MediaHistoryDrawer({
                                         const asset = firstThemeAsset(job)
                                         if (!asset) return null
                                         const current = sameUrl(currentThemeSongUrl, asset.url)
-                                        const title = job.lyrics?.song_title?.trim() || t('creation.common.mediaHistory.themeTitleFallback', { when: formatWhen(job.created_at) })
-                                        const tags = job.lyrics?.style_tags ?? []
+                                        const title = job.target.display_name?.trim() || cardName || t('creation.common.mediaHistory.themeTitleFallback', { when: formatWhen(job.created_at) })
                                         return (
                                             <li
                                                 key={job.job_id}
@@ -372,9 +372,14 @@ export function MediaHistoryDrawer({
                                                     </div>
                                                     <div className="flex shrink-0 items-center gap-1.5">
                                                         {current ? (
-                                                            <span className="inline-flex items-center gap-1 rounded-full bg-arcane-500/90 px-2 py-0.5 font-ui text-[10px] font-semibold uppercase tracking-wide text-parchment-50">
-                                                                <Check size={11} strokeWidth={2.5} /> {t('creation.common.mediaHistory.current')}
-                                                            </span>
+                                                            <>
+                                                                <span className="inline-flex items-center gap-1 rounded-full bg-arcane-500/90 px-2 py-0.5 font-ui text-[10px] font-semibold uppercase tracking-wide text-parchment-50">
+                                                                    <Check size={11} strokeWidth={2.5} /> {t('creation.common.mediaHistory.current')}
+                                                                </span>
+                                                                <Button variant="secondary" size="sm" onClick={() => onSelectTheme(undefined)} iconLeft={<Icon icon={Unlink} size={14} />}>
+                                                                    Remove from card
+                                                                </Button>
+                                                            </>
                                                         ) : (
                                                             <Button
                                                                 variant="arcane"
@@ -402,13 +407,6 @@ export function MediaHistoryDrawer({
                                                         </IconButton>
                                                     </div>
                                                 </div>
-                                                {tags.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        {tags.slice(0, 6).map((t) => (
-                                                            <Tag key={t}>{t}</Tag>
-                                                        ))}
-                                                    </div>
-                                                )}
                                                 <AudioWavePlayer
                                                     src={resolveMediaUrl(asset.url)!}
                                                     title={title}
@@ -436,7 +434,7 @@ export function MediaHistoryDrawer({
                         </>
                     )}
                 </section>
-            )}
+            </TabPanel>
         </Drawer>
     )
 }

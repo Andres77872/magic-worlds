@@ -6,7 +6,7 @@ export type StorySourceKind =
     | 'adventure_template'
     | 'adventure_session'
 
-/** Canonical source returned on a hydrated story. */
+/** Stored source returned on a hydrated story. */
 export interface StorySource {
     kind: StorySourceKind
     id: string | null

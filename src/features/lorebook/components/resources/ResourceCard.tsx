@@ -30,7 +30,7 @@ export function ResourceCard({ resource, deleting, onOpen, onDelete }: ResourceC
                 type="button"
                 onClick={onOpen}
                 aria-label={t('lorebookResourcesGallery.card.openAria', { name })}
-                className="absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-none"
+                className="absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ember-500/60"
             />
             <div className="pointer-events-none flex min-h-[112px] flex-col justify-between border-b border-parchment-50/[.08] bg-gradient-to-br from-arcane-500/15 via-arcane-500/10 to-ink-900/40 p-4">
                 <div className="flex items-start justify-between gap-3">

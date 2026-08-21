@@ -49,6 +49,7 @@ describe('useDashboardModel', () => {
         vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
         vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
         vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
     })
 
     afterEach(() => {
@@ -73,5 +74,14 @@ describe('useDashboardModel', () => {
         expect(result.current.searchSessions).toHaveLength(24)
         expect(result.current.searchSessions.every((s) => s.kind !== 'novel')).toBe(true)
         expect(result.current.counts.novels).toBe(12)
+    })
+
+    it('empties adventure sessions and counts when the adventures feature is off', () => {
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        const { result } = renderHook(() => useDashboardModel())
+        expect(result.current.activeAdventureSessions).toHaveLength(0)
+        expect(result.current.counts.adventures).toBe(0)
+        expect(result.current.resumeSessions.every((s) => s.kind !== 'adventure')).toBe(true)
+        expect(result.current.searchSessions.every((s) => s.kind !== 'adventure')).toBe(true)
     })
 })

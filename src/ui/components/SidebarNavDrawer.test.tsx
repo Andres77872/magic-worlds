@@ -18,12 +18,17 @@ const baseAuth: AuthValue = {
     projects: [],
     isLoading: false,
     error: null,
+    sessionPhase: 'signed_out',
+    authEpoch: 0,
+    accountKey: 'test',
+    userHash: null,
     isLoginModalOpen: false,
     login: async () => false,
     register: async () => false,
     loginWithGoogle: async () => undefined,
     completeGoogleLogin: async () => false,
-    logout: () => undefined,
+    logout: async () => undefined,
+    continueSignedOut: () => undefined,
     updateUser: () => undefined,
     clearError: () => undefined,
     openLoginModal: () => undefined,
@@ -45,6 +50,8 @@ const backgroundTasks: BackgroundTasksValue = {
         throw new Error('not implemented in test')
     },
     clearTerminalTasks: async () => undefined,
+    terminalHasMore: { completed: false, failed: false },
+    loadMoreTerminalTasks: async () => undefined,
 }
 
 const apiStatus: ApiStatusContextValue = { status: 'online', services: [] }

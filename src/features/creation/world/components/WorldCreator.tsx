@@ -3,13 +3,14 @@
  * gallery (starting frames + empty card), then a two-pane editor of guided
  * scene-setting fields that serialize into the unchanged API payload.
  *
- * Place type is stored canonically in the `Setting / Place type` category
+ * Place type is stored exactly in the `Setting / Place type` category
  * attribute; it is editor state, not a top-level API field.
  */
 
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Globe, Sparkles } from 'lucide-react'
 import type { World } from '@/shared'
 import {
     CUSTOM_WORLD_PLACE_TYPE,
@@ -22,7 +23,7 @@ import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService, ApiError } from '@/infrastructure/api'
 import type { WorldCardResponse } from '@/shared/types/aiCard.types'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
-import { Button, Select, SuggestInput } from '@/ui/primitives'
+import { Button, Eyebrow, Icon, Select, SuggestInput } from '@/ui/primitives'
 import {
     CreatorStudio,
     StudioSection,
@@ -108,7 +109,7 @@ function toWorld(card: WorldCardResponse): World {
     }
 }
 
-/** Place scale lives only in the canonical Setting / Place type category. */
+/** Place scale lives only in the stored Setting / Place type category. */
 function initialPlaceType(world: World | null | undefined): string {
     return readCategoryAttribute(world, PLACE_TYPE_MIRROR.group, PLACE_TYPE_MIRROR.key) ?? DEFAULT_WORLD_PLACE_TYPE
 }
@@ -297,7 +298,7 @@ export function WorldCreator() {
             // Persist the link only — do NOT loadData() here. A refresh flips isLoading,
             // which makes AppRouter unmount the whole creator (discarding in-progress edits)
             // and re-run the theme effect. The gallery refreshes on Save / next navigation.
-            void apiService.setCardMedia('world', id, { theme_song_url: url }).catch(() => {
+            void apiService.setCardMedia('world', id, { theme_song_url: url ?? null }).catch(() => {
                 setDraftToast({ tone: 'error', message: t('creation.common.media.errors.themeSaveFailed') })
             })
         }
@@ -465,7 +466,7 @@ export function WorldCreator() {
     if (template === undefined && !editingWorld && !routeHasId) {
         return (
             <>
-                <CreatorIntro title={t('creation.world.createTitle')} icon="✨" onBack={handleBack}>
+                <CreatorIntro title={t('creation.world.createTitle')} icon={<Icon icon={Sparkles} size={28} />} onBack={handleBack}>
                     <TemplateGallery
                         templates={WORLD_TEMPLATES}
                         fields={worldFields}
@@ -493,7 +494,7 @@ export function WorldCreator() {
         <>
         <CreatorStudio
             title={editingWorld ? t('creation.world.editTitle') : t('creation.world.createTitle')}
-            icon="✨"
+            icon={<Icon icon={Sparkles} size={28} />}
             onBack={handleStudioBack}
             isLoading={isSubmitting}
             nav={<StudioSectionNav items={navItems} />}
@@ -667,9 +668,7 @@ export function WorldCreator() {
                     description={sectionById['details'].description}
                 >
                     <div className="flex flex-col gap-2.5">
-                        <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
-                            {t('creation.world.quickAddDetails')}
-                        </span>
+                        <Eyebrow tone="muted">{t('creation.world.quickAddDetails')}</Eyebrow>
                         <SuggestedAttributes
                             presets={DETAIL_PRESETS}
                             existingKeys={detailKeys}
@@ -679,7 +678,7 @@ export function WorldCreator() {
 
                     <AttributeManager
                         title={t('creation.world.detailGroups')}
-                        icon="🌍"
+                        icon={Globe}
                         categories={guided.categories}
                         attributes={guided.attributes}
                         onAddCategory={guided.addCategory}

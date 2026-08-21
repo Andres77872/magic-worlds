@@ -53,7 +53,7 @@ function story(overrides: Partial<Story> = {}): Story {
 }
 
 describe('chaptersFor', () => {
-    it('returns canonical chapters sorted by order', () => {
+    it('returns stored chapters sorted by order', () => {
         const result = chaptersFor(story({ chapters: [chapter('b', 2), chapter('a', 1)] }))
         expect(result.map((item) => item.id)).toEqual(['a', 'b'])
     })
@@ -68,6 +68,11 @@ describe('wordCount', () => {
     it('counts words across whitespace', () => {
         expect(wordCount('  the moon\ncracks  over the wall ')).toBe(6)
         expect(wordCount('')).toBe(0)
+    })
+
+    it('ignores bare markdown syntax tokens', () => {
+        expect(wordCount('## The Fall\n\n---\n\n*Ash* fell — softly.')).toBe(5)
+        expect(wordCount('---')).toBe(0)
     })
 })
 

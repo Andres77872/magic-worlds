@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EyeOff, KeyRound, Route, ScrollText, Settings2, SlidersHorizontal } from 'lucide-react'
 import type { LorebookEntry, LorebookEntryType, LorebookInsertionPosition, LorebookSelectiveLogic } from '@/shared'
-import { Button, Field, Icon, Input, Select, SwitchRow, Textarea, type SelectOption } from '@/ui/primitives'
+import { Button, Callout, Field, Icon, Input, Select, SwitchRow, Textarea, type SelectOption } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
 import { estimateTokens } from '../lorebookTransforms'
 import { ENTRY_TYPE_OPTIONS, INSERTION_POSITION_OPTIONS, SELECTIVE_LOGIC_OPTIONS } from '../lorebookCopy'
@@ -173,12 +173,9 @@ export function LoreEntryEditor({ entry, onChange, onDelete }: LoreEntryEditorPr
                 </div>
             </div>
 
-            <div className="rounded-lg border border-arcane-500/20 bg-arcane-500/10 px-4 py-3 font-ui text-sm text-parchment-200">
-                <span className="inline-flex items-center gap-2">
-                    <Icon icon={Settings2} size={15} className="text-arcane-300" />
-                    {t('lorebookStudio.entryEditor.placement.note')}
-                </span>
-            </div>
+            <Callout tone="info" icon={<Icon icon={Settings2} size={15} />}>
+                {t('lorebookStudio.entryEditor.placement.note')}
+            </Callout>
         </div>
     )
 }

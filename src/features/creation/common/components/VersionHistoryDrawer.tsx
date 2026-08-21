@@ -17,7 +17,7 @@ import { apiService } from '@/infrastructure/api'
 import { Badge, Button, cx, Drawer, Eyebrow } from '@/ui/primitives'
 import { CardUsageLine } from '@/ui/components/common/CardUsageLine'
 import { EmptyState } from '@/ui/components/common/EmptyState'
-import { dateFromApiTimestamp } from '../../../../utils/time'
+import { formatWhen } from '@/utils/time'
 
 export interface VersionHistoryDrawerProps {
     open: boolean
@@ -27,23 +27,17 @@ export interface VersionHistoryDrawerProps {
     cardId?: string
     /** Card display name — used in the header. */
     cardName: string
+    /** Draft state comes from the gallery card; the version-list contract has no draft fields. */
+    hasDraft?: boolean
     /** Open the editor for this card (where draft/publish/restore are managed). */
     onEdit?: () => void
 }
 
-function formatWhen(iso?: string | null): string {
-    const d = dateFromApiTimestamp(iso ?? undefined)
-    if (!d) return ''
-    const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-    return `${date} · ${time}`
-}
 
-export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName, onEdit }: VersionHistoryDrawerProps) {
+export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName, hasDraft = false, onEdit }: VersionHistoryDrawerProps) {
     const { t } = useTranslation()
     const [versions, setVersions] = useState<CardVersion[]>([])
     const [latest, setLatest] = useState(0)
-    const [hasDraft, setHasDraft] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     // How widely this card is used — shown so the impact of publishing changes is clear.
@@ -57,7 +51,6 @@ export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName
             const res = await apiService.listCardVersions(cardType, cardId)
             setVersions(res.versions ?? [])
             setLatest(res.latest_version_number ?? 0)
-            setHasDraft(Boolean(res.has_draft))
         } catch {
             setError(t('cardVersions.errors.load'))
         } finally {
@@ -74,7 +67,7 @@ export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName
             open={open}
             onClose={onClose}
             size="lg"
-            eyebrow={<Eyebrow tone="arcane">{t('cardVersions.drawer.eyebrow')}</Eyebrow>}
+            eyebrow={<Eyebrow tone="ember">{t('cardVersions.drawer.eyebrow')}</Eyebrow>}
             title={t('cardVersions.history.title')}
             footer={
                 <>
@@ -137,7 +130,7 @@ export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName
                                         {isLatest && <Badge tone="live">{t('cardVersions.history.latest')}</Badge>}
                                     </div>
                                     {v.label && <p className="truncate font-narrative text-xs text-parchment-300">{v.label}</p>}
-                                    <p className="font-ui text-[11px] text-parchment-500">{formatWhen(v.created_at)}</p>
+                                    <p className="font-ui text-[11px] text-parchment-500">{formatWhen(v.created_at, { year: true })}</p>
                                 </div>
                             </li>
                         )

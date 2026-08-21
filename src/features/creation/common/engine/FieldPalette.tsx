@@ -5,7 +5,7 @@
  */
 import { useTranslation } from 'react-i18next'
 import { Plus } from 'lucide-react'
-import { Chip, Icon } from '@/ui/primitives'
+import { Chip, Eyebrow, Icon } from '@/ui/primitives'
 import type { CardFieldDefinition } from './types'
 
 export interface FieldPaletteProps {
@@ -19,9 +19,7 @@ export function FieldPalette({ fields, onAdd, label }: FieldPaletteProps) {
     if (fields.length === 0) return null
     return (
         <div className="flex flex-col gap-2">
-            <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
-                {label ?? t('creation.common.fieldPalette.addLabel')}
-            </span>
+            <Eyebrow tone="muted">{label ?? t('creation.common.fieldPalette.addLabel')}</Eyebrow>
             <div className="flex flex-wrap gap-2">
                 {fields.map((field) => (
                     <Chip

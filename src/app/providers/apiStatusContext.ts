@@ -1,7 +1,7 @@
 import { createContext } from 'react'
 import type { ApiDependencyService } from '@/infrastructure/api'
 
-export type ApiStatus = 'checking' | 'online' | 'offline'
+export type ApiStatus = 'checking' | 'online' | 'degraded' | 'offline'
 
 export interface ApiStatusContextValue {
     status: ApiStatus

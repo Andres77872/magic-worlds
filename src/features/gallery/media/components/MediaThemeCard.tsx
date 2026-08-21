@@ -10,10 +10,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, Loader2, Trash2 } from 'lucide-react'
-import { Badge, cx, IconButton, Tag } from '@/ui/primitives'
+import { Badge, cx, IconButton } from '@/ui/primitives'
 import { AudioWavePlayer, getAudioBlob } from '@/ui/components/audio'
 import { downloadBlob, safeFilename } from '../../../../utils/download'
-import { formatWhen, type CardRef, type MediaThemeItem } from '../mediaGalleryTypes'
+import { type CardRef, type MediaThemeItem } from '../mediaGalleryTypes'
+import { formatWhen } from '@/utils/time'
 
 export interface MediaThemeCardProps {
     item: MediaThemeItem
@@ -61,7 +62,7 @@ export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, o
         >
             {/* Subtle arcane wash so audio reads differently from images. */}
             <div
-                className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(143,111,227,0.12),transparent_60%)]"
+                className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,var(--glow-arcane-faint),transparent_60%)]"
                 aria-hidden="true"
             />
 
@@ -85,14 +86,7 @@ export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, o
                 <h3 className="line-clamp-2 font-display text-base font-semibold leading-snug text-parchment-50">
                     {item.title}
                 </h3>
-                <span className="font-mono text-[10px] text-parchment-500">{formatWhen(item.createdAt)}</span>
-                {item.styleTags.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5 overflow-hidden">
-                        {item.styleTags.slice(0, 4).map((tag) => (
-                            <Tag key={tag}>{tag}</Tag>
-                        ))}
-                    </div>
-                )}
+                <span className="font-mono text-micro text-parchment-500">{formatWhen(item.createdAt)}</span>
             </div>
 
             <div className="relative mt-2 flex items-center justify-between gap-2">
@@ -131,7 +125,7 @@ export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, o
                     className={cx(
                         'flex items-center gap-1 transition-opacity',
                         // An active card keeps its actions visible; idle ones reveal on hover/focus.
-                        playing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+                        playing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100',
                     )}
                 >
                     <IconButton

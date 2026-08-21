@@ -84,7 +84,7 @@ export function CardPreviewModal({
             onClose={onClose}
             size="lg"
             title={t('cardPreview.title')}
-            icon={<Icon icon={BookOpen} size={18} className="text-arcane-300" />}
+            icon={<Icon icon={BookOpen} size={18} className="text-ember-400" />}
             closeLabel={t('common.close')}
             footer={footer}
         >

@@ -23,6 +23,9 @@ export interface PlaylistTrack {
 
 export type PlaylistLoopMode = 'off' | 'track' | 'queue'
 
+/** Machine-readable playback failures; see `AudioPlaylistContextValue.error`. */
+export type PlaylistErrorCode = 'playbackFailed'
+
 export interface AudioPlaylistContextValue {
     queue: PlaylistTrack[]
     /** -1 when the queue is empty. */
@@ -32,8 +35,13 @@ export interface AudioPlaylistContextValue {
     isPlaying: boolean
     /** True while the current track's bytes are being fetched. */
     isLoading: boolean
-    /** Playback error for the current track, if any. */
-    error: string | null
+    /**
+     * Playback failure for the current track, if any. A CODE, not a message:
+     * translating in the provider would freeze the copy at error time and it
+     * would not follow a language switch. Resolve with
+     * `t('playlist.errors.<code>')` at the render site.
+     */
+    error: PlaylistErrorCode | null
     /** Seconds, `timeupdate`-driven. */
     currentTime: number
     /** Seconds from metadata, else the track's known duration, else null. */

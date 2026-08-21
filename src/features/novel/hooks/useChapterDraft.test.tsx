@@ -10,6 +10,7 @@ vi.mock('@/app/hooks', () => ({
     useData: () => ({ updateStoryChapter }),
 }))
 
+import { ApiError } from '@/infrastructure/api'
 import type { StoryChapter } from '@/shared'
 import { useChapterDraft } from './useChapterDraft'
 
@@ -59,9 +60,29 @@ describe('useChapterDraft', () => {
         expect(updateStoryChapter).toHaveBeenCalledWith('s1', 'ch1', {
             title: 'Chapter 1',
             body: 'The gate held. Then it shattered.',
-            status: 'draft',
         })
         expect(result.current.saveState).toBe('saved')
+    })
+
+    it('trims the title and omits a blank one so the save is never rejected as non-stored', async () => {
+        const { result } = renderHook(() => useChapterDraft({ storyId: 's1', chapter: chapter() }))
+
+        act(() => result.current.setTitle('  Chapter One  '))
+        await act(async () => {
+            await result.current.saveNow()
+        })
+        expect(updateStoryChapter).toHaveBeenLastCalledWith('s1', 'ch1', {
+            title: 'Chapter One',
+            body: 'The gate held.',
+        })
+
+        act(() => result.current.setTitle('   '))
+        await act(async () => {
+            await result.current.saveNow()
+        })
+        expect(updateStoryChapter).toHaveBeenLastCalledWith('s1', 'ch1', {
+            body: 'The gate held.',
+        })
     })
 
     it('flush() saves immediately while dirty and resolves clean', async () => {
@@ -93,7 +114,7 @@ describe('useChapterDraft', () => {
         const { result } = renderHook(() => useChapterDraft({ storyId: 's1', chapter: chapter() }))
 
         act(() => result.current.onBodyChange('New text.'))
-        let savePromise: Promise<void> = Promise.resolve()
+        let savePromise: Promise<boolean> = Promise.resolve(false)
         act(() => {
             savePromise = result.current.saveNow()
         })
@@ -177,9 +198,41 @@ describe('useChapterDraft', () => {
         expect(updateStoryChapter).toHaveBeenLastCalledWith('s1', 'ch1', {
             title: 'Chapter 1',
             body: 'New text.',
-            status: 'draft',
         })
         expect(result.current.saveState).toBe('saved')
+    })
+
+    it('does not auto-retry a permanent 4xx rejection', async () => {
+        updateStoryChapter.mockRejectedValueOnce(new ApiError(422, 'title must be stored'))
+        const { result } = renderHook(() => useChapterDraft({ storyId: 's1', chapter: chapter() }))
+
+        act(() => result.current.onBodyChange('New text.'))
+        await act(async () => {
+            vi.advanceTimersByTime(1200)
+            await Promise.resolve()
+        })
+        expect(result.current.saveState).toBe('error')
+        expect(updateStoryChapter).toHaveBeenCalledTimes(1)
+
+        await act(async () => {
+            vi.advanceTimersByTime(20000)
+            await Promise.resolve()
+        })
+        expect(updateStoryChapter).toHaveBeenCalledTimes(1)
+    })
+
+    it('flush() reports failure so callers can guard destructive follow-ups', async () => {
+        updateStoryChapter.mockRejectedValueOnce(new Error('boom'))
+        updateStoryChapter.mockRejectedValueOnce(new Error('boom'))
+        const { result } = renderHook(() => useChapterDraft({ storyId: 's1', chapter: chapter() }))
+
+        act(() => result.current.onBodyChange('New text.'))
+        let clean: boolean | null = null
+        await act(async () => {
+            clean = await result.current.flush()
+        })
+        expect(clean).toBe(false)
+        expect(result.current.saveState).toBe('error')
     })
 
     it('flushes a dirty draft when the hook unmounts', () => {
@@ -194,7 +247,6 @@ describe('useChapterDraft', () => {
         expect(updateStoryChapter).toHaveBeenCalledWith('s1', 'ch1', {
             title: 'Chapter 1',
             body: 'Tail of typing.',
-            status: 'draft',
         })
     })
 

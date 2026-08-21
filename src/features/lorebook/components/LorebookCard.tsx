@@ -78,7 +78,7 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
                 </span>
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <div className="flex min-w-0 items-center gap-2">
-                        <h3 className="m-0 min-w-0 truncate font-display text-[17px] font-semibold leading-tight text-parchment-50" title={lorebook.name}>
+                        <h3 className="m-0 min-w-0 truncate font-display text-narrative font-semibold leading-tight text-parchment-50" title={lorebook.name}>
                             {lorebook.name}
                         </h3>
                         <Badge tone={lorebook.enabled ? 'live' : 'neutral'} className="hidden shrink-0 sm:inline-flex">

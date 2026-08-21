@@ -71,7 +71,7 @@ export function SlashCommandMenu({ items, selectedIndex, anchor, onHover, onSele
                                 <li
                                     aria-hidden="true"
                                     className={cx(
-                                        'm-0 px-2.5 pb-1 pt-1.5 font-ui text-[11px] uppercase tracking-[0.14em]',
+                                        'm-0 px-2.5 pb-1 pt-1.5 font-ui text-meta uppercase tracking-[0.14em]',
                                         arcane ? 'text-arcane-300' : 'text-ember-300',
                                     )}
                                 >

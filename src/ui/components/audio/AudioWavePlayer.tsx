@@ -71,7 +71,9 @@ export function AudioWavePlayer({
     const isCurrent = playlist.currentTrack?.id === src
     const isPlaying = isCurrent && playlist.isPlaying
     const isLoading = isCurrent && playlist.isLoading
-    const error = isCurrent ? playlist.error : null
+    const errorCode = isCurrent ? playlist.error : null
+    // A code, not copy — see AudioPlaylistContextValue.error.
+    const error = errorCode ? t(`playlist.errors.${errorCode}`) : null
     const currentTime = isCurrent ? playlist.currentTime : 0
     const fallbackDuration = durationMs && durationMs > 0 ? durationMs / 1000 : null
     const duration = (isCurrent ? playlist.duration : null) ?? fallbackDuration

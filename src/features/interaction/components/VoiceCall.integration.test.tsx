@@ -101,7 +101,6 @@ function renderVoicePanel() {
     return render(
         <CallScreen
             character={CHARACTERS[0]}
-            persona={CHATS[0].persona}
             sessionId={7}
             onSwitchToText={vi.fn()}
         />,

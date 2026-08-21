@@ -34,6 +34,7 @@ export interface AgentPublishedEcho extends AgentEditableEcho {
 export interface AgentSummary {
     workflow_key: string
     kind: string
+    storage: 'file' | 'database'
     display_name: string
     output_mode: AgentOutputMode
     schema_model: string | null
@@ -77,10 +78,10 @@ export interface AgentModelsResponse {
     models: AgentModelOption[]
 }
 
-export interface AgentCreateRequest extends AgentEditable {
+export interface AgentCreateRequest {
     display_name: string
     slug: string
-    output_mode: Exclude<AgentOutputMode, 'strict_card_schema'>
+    source_workflow_key: string
 }
 
 export interface AgentUpdateDraftRequest extends AgentEditable {

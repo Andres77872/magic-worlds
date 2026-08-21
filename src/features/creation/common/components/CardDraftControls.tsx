@@ -116,7 +116,7 @@ export function CardDraftControls({
                 </Badge>
             )}
             <Button
-                variant="arcane"
+                variant="primary"
                 onClick={() => setPublishOpen(true)}
                 disabled={disabled || busy || !hasDraft}
             >

@@ -12,6 +12,7 @@
  */
 
 import { useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 import { cx, Eyebrow, Icon } from '@/ui/primitives'
 
@@ -31,6 +32,7 @@ export interface StudioPreviewDockProps {
 }
 
 function PreviewBody({ children, busy, notice }: Pick<StudioPreviewDockProps, 'children' | 'busy' | 'notice'>) {
+    const { t } = useTranslation()
     return (
         <div className="flex flex-col gap-3">
             {notice}
@@ -38,9 +40,9 @@ function PreviewBody({ children, busy, notice }: Pick<StudioPreviewDockProps, 'c
                 <div className={cx('transition-opacity duration-300', busy && 'opacity-50')}>{children}</div>
                 {busy && (
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-ink-900/30 backdrop-blur-[1px]">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-arcane-500/40 bg-ink-800/90 px-3 py-1.5 text-xs font-semibold text-arcane-200 shadow-lg">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-arcane-500/40 bg-ink-800/90 px-3 py-1.5 text-xs font-semibold text-arcane-300 shadow-lg">
                             <Icon icon={Sparkles} size={14} className="animate-pulse text-arcane-300" />
-                            Generating…
+                            {t('creation.common.media.generating')}
                         </span>
                     </div>
                 )}

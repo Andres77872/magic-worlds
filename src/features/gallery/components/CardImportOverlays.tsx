@@ -58,7 +58,7 @@ export function CardImportOverlays({
             />
             <ConfirmDialog
                 visible={Boolean(pendingConfirm)}
-                variant="warning"
+                variant="primary"
                 icon={<Icon icon={AlertTriangle} size={18} />}
                 title={t('gallery.confirmImport.title')}
                 message={t('gallery.confirmImport.message', { title: pendingConfirm?.title ?? '' })}

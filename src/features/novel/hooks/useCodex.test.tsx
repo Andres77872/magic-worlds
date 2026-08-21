@@ -307,7 +307,7 @@ describe('useCodex', () => {
         expect(result.current.loreEntries).toHaveLength(1)
         const session = result.current.loreEntries[0]
         expect(session.lorebookName).toBe('lb-1')
-        // Canonical snapshots retain the entry name but not the full trigger list,
+        // Stored snapshots retain the entry name but not the full trigger list,
         // so the name is the local highlighting fallback.
         expect(session.entry).toMatchObject({ keys: ['The Glass Pact'], enabled: false, matchWholeWords: true, caseSensitive: false, regex: false })
     })

@@ -43,7 +43,7 @@ function themeJob(id: string, createdAt: string): ThemeSongJobPublic {
         model_alias: 'music_2_6',
         status_url: '',
         result_url: '',
-        lyrics: { song_title: `Song ${id}`, style_tags: ['epic'] },
+        lyrics: { source: 'optimizer' },
         assets: [
             {
                 asset_id: `theme-${id}`,
@@ -51,6 +51,7 @@ function themeJob(id: string, createdAt: string): ThemeSongJobPublic {
                 content_type: 'audio/mpeg',
                 file_size_bytes: 1,
                 duration_ms: 61_000,
+                output_format: 'mp3',
             },
         ],
         created_at: createdAt,

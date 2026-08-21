@@ -167,8 +167,8 @@ export interface ChatState {
     error?: string
 }
 
-/** One durable conversation row returned by the canonical `/messages` APIs. */
-export interface CanonicalConversationMessage {
+/** One durable conversation row returned by the stored `/messages` APIs. */
+export interface StoredConversationMessage {
     message_id: number
     turn_id: string
     sequence_no: number

@@ -16,6 +16,9 @@ interface VoiceDesignFormProps {
     onSendToLab: (voiceId: string) => void
 }
 
+const DESIGN_PROMPT_LIMIT = 2_000
+const DESIGN_VOICE_ID_LIMIT = 128
+
 export function VoiceDesignForm({ onCreated, notify, setError, onSendToLab }: VoiceDesignFormProps) {
     const { t } = useTranslation()
     const [prompt, setPrompt] = useState(DEFAULT_PROMPT)
@@ -25,7 +28,14 @@ export function VoiceDesignForm({ onCreated, notify, setError, onSendToLab }: Vo
     const [designed, setDesigned] = useState<AdminVoiceDesignResponse | null>(null)
 
     const previewOverLimit = previewText.length > PREVIEW_TEXT_LIMIT
-    const canDesign = prompt.trim().length > 0 && previewText.trim().length > 0 && !previewOverLimit && !designing
+    const promptOverLimit = prompt.length > DESIGN_PROMPT_LIMIT
+    const voiceIdOverLimit = customVoiceId.trim().length > DESIGN_VOICE_ID_LIMIT
+    const canDesign = prompt.trim().length > 0
+        && previewText.trim().length > 0
+        && !previewOverLimit
+        && !promptOverLimit
+        && !voiceIdOverLimit
+        && !designing
     const audioSrc = useEphemeralAudioUrl(designed?.trial_audio)
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -55,11 +65,13 @@ export function VoiceDesignForm({ onCreated, notify, setError, onSendToLab }: Vo
         <form className="flex flex-col gap-5" onSubmit={(event) => void handleSubmit(event)}>
             <Field
                 label={t('admin.voices.design.descriptionLabel')}
+                error={promptOverLimit ? `Description must be ${DESIGN_PROMPT_LIMIT.toLocaleString()} characters or fewer.` : undefined}
                 helper={t('admin.voices.design.descriptionHelper')}
             >
                 <Textarea
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
+                    maxLength={DESIGN_PROMPT_LIMIT}
                     placeholder={t('admin.voices.design.descriptionPlaceholder')}
                 />
             </Field>
@@ -71,13 +83,19 @@ export function VoiceDesignForm({ onCreated, notify, setError, onSendToLab }: Vo
                 <Textarea
                     value={previewText}
                     onChange={(event) => setPreviewText(event.target.value)}
+                    maxLength={PREVIEW_TEXT_LIMIT}
                     placeholder={t('admin.voices.design.previewPlaceholder')}
                 />
             </Field>
-            <Field label={t('admin.voices.design.customIdLabel')} helper={t('admin.voices.design.customIdHelper')}>
+            <Field
+                label={t('admin.voices.design.customIdLabel')}
+                error={voiceIdOverLimit ? `Voice ID must be ${DESIGN_VOICE_ID_LIMIT} characters or fewer.` : undefined}
+                helper={t('admin.voices.design.customIdHelper')}
+            >
                 <Input
                     value={customVoiceId}
                     onChange={(event) => setCustomVoiceId(event.target.value)}
+                    maxLength={DESIGN_VOICE_ID_LIMIT}
                     placeholder="ttv-voice-custom-id"
                 />
             </Field>

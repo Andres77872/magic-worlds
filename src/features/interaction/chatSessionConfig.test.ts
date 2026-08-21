@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { CanonicalConversationMessage } from '../../shared'
-import { canonicalMessagesToTurns } from './chatSessionConfig'
+import type { StoredConversationMessage } from '../../shared'
+import { storedMessagesToTurns } from './chatSessionConfig'
 
-function message(overrides: Partial<CanonicalConversationMessage>): CanonicalConversationMessage {
+function message(overrides: Partial<StoredConversationMessage>): StoredConversationMessage {
     return {
         message_id: 1,
         turn_id: 'turn-1',
@@ -18,9 +18,9 @@ function message(overrides: Partial<CanonicalConversationMessage>): CanonicalCon
     }
 }
 
-describe('canonicalMessagesToTurns', () => {
-    it('orders canonical rows and projects assistant metadata', () => {
-        const turns = canonicalMessagesToTurns([
+describe('storedMessagesToTurns', () => {
+    it('orders stored rows and projects assistant metadata', () => {
+        const turns = storedMessagesToTurns([
             message({
                 message_id: 2,
                 sequence_no: 2,
@@ -66,7 +66,7 @@ describe('canonicalMessagesToTurns', () => {
     })
 
     it('marks only pending and streaming rows as streaming', () => {
-        const turns = canonicalMessagesToTurns([
+        const turns = storedMessagesToTurns([
             message({ message_id: 1, sequence_no: 1, status: 'pending' }),
             message({ message_id: 2, sequence_no: 2, status: 'interrupted' }),
         ])

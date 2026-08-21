@@ -37,7 +37,8 @@ export function SynthLabPanel({ voiceId, onVoiceIdChange, notify, setError }: Sy
     const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
     const testOverLimit = text.length > TEST_TEXT_LIMIT
-    const canTest = voiceId.trim().length > 0 && text.trim().length > 0 && !testOverLimit && !testing
+    const voiceIdOverLimit = voiceId.trim().length > 256
+    const canTest = voiceId.trim().length > 0 && text.trim().length > 0 && !testOverLimit && !voiceIdOverLimit && !testing
     const audioSrc = useEphemeralAudioUrl(tested?.audio_hex, tested?.content_type || 'audio/mpeg')
 
     const rememberTextarea = (event: SyntheticEvent<HTMLTextAreaElement>) => {
@@ -102,10 +103,15 @@ export function SynthLabPanel({ voiceId, onVoiceIdChange, notify, setError }: Sy
                     tone="ember"
                     right={tested ? <Badge tone="ember">Ephemeral</Badge> : undefined}
                 />
-                <Field label="Voice ID" helper="Use Test on any library row or paste a system, cloned, or designed voice ID.">
+                <Field
+                    label="Voice ID"
+                    error={voiceIdOverLimit ? 'Voice ID must be 256 characters or fewer.' : undefined}
+                    helper="Use Test on any library row or paste a system, cloned, or designed voice ID."
+                >
                     <Input
                         value={voiceId}
                         onChange={(event) => onVoiceIdChange(event.target.value)}
+                        maxLength={256}
                         placeholder="English_expressive_narrator"
                     />
                 </Field>
@@ -116,6 +122,7 @@ export function SynthLabPanel({ voiceId, onVoiceIdChange, notify, setError }: Sy
                 >
                     <Textarea
                         value={text}
+                        maxLength={TEST_TEXT_LIMIT}
                         onChange={(event) => {
                             rememberTextarea(event)
                             setText(event.target.value)

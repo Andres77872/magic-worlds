@@ -15,7 +15,9 @@ export function chaptersFor(story: Story | null): StoryChapter[] {
 }
 
 export function wordCount(text: string): number {
-    return text.split(/\s+/).filter(Boolean).length
+    // The body is markdown: bare syntax tokens ("##", "---", "*") are not
+    // words, so only tokens carrying at least one letter or digit count.
+    return text.split(/\s+/).filter((token) => /[\p{L}\p{N}]/u.test(token)).length
 }
 
 export function kindLabel(kind: string, t: TFunction): string {

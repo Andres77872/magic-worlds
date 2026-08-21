@@ -45,7 +45,7 @@ export interface CharacterChatSession {
     persona?: Character
     /** Persistent library-card snapshots attached to this chat's private model context. */
     codexCards?: CharacterChatCodexCard[]
-    /** Conversation turns (greeting + canonical message history). */
+    /** Conversation turns (greeting + stored message history). */
     turns?: TurnEntry[]
     createdAt?: string
     updatedAt?: string

@@ -21,7 +21,7 @@ import { apiService } from '@/infrastructure/api'
 import { Badge, Button, cx, Drawer, Eyebrow } from '@/ui/primitives'
 import { CardUsageLine } from '@/ui/components/common/CardUsageLine'
 import { EmptyState } from '@/ui/components/common/EmptyState'
-import { dateFromApiTimestamp } from '../../../../utils/time'
+import { formatWhen } from '@/utils/time'
 
 export interface CardHistoryDrawerProps {
     open: boolean
@@ -46,13 +46,6 @@ export interface CardHistoryDrawerProps {
     reloadToken?: number
 }
 
-function formatWhen(iso?: string | null): string {
-    const d = dateFromApiTimestamp(iso ?? undefined)
-    if (!d) return ''
-    const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-    return `${date} · ${time}`
-}
 
 export function CardHistoryDrawer({
     open,
@@ -99,7 +92,7 @@ export function CardHistoryDrawer({
             open={open}
             onClose={onClose}
             size="lg"
-            eyebrow={<Eyebrow tone="arcane">{t('cardVersions.drawer.eyebrow')}</Eyebrow>}
+            eyebrow={<Eyebrow tone="ember">{t('cardVersions.drawer.eyebrow')}</Eyebrow>}
             title={t('cardVersions.history.title')}
             footer={
                 <Button variant="secondary" onClick={onClose}>
@@ -129,7 +122,7 @@ export function CardHistoryDrawer({
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                         <Button
-                            variant="arcane"
+                            variant="primary"
                             size="sm"
                             iconLeft={<Upload size={14} strokeWidth={1.75} />}
                             onClick={onPublish}
@@ -180,7 +173,7 @@ export function CardHistoryDrawer({
                                         {isLatest && <Badge tone="live">{t('cardVersions.history.latest')}</Badge>}
                                     </div>
                                     {v.label && <p className="truncate font-narrative text-xs text-parchment-300">{v.label}</p>}
-                                    <p className="font-ui text-[11px] text-parchment-500">{formatWhen(v.created_at)}</p>
+                                    <p className="font-ui text-[11px] text-parchment-500">{formatWhen(v.created_at, { year: true })}</p>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-1">
                                     <Button

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, AudioLines, Check, Globe, Info, Pencil, Plus, UserCircle, Users, Volume2, X } from 'lucide-react'
 import type { Adventure, AdventureSnapshot, Character, CharacterVoice, World } from '../../../shared'
@@ -342,6 +342,7 @@ function ScenarioSection({
     const [draft, setDraft] = useState(scenario)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const scenarioErrorId = useId()
 
     const startEdit = () => {
         setDraft(scenario)
@@ -378,8 +379,23 @@ function ScenarioSection({
             />
             {editing ? (
                 <div className="flex flex-col gap-2">
-                    <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={5} autoFocus />
-                    {error && <p className="font-ui text-[12px] text-blood-500">{error}</p>}
+                    {/* No <Field> wrapper here: SectionHeader above already prints a
+                        visible "Scenario" heading, so an aria-label carries the name
+                        without duplicating it on screen. */}
+                    <Textarea
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        rows={5}
+                        autoFocus
+                        aria-label={t('interaction.scenario.title')}
+                        aria-describedby={error ? scenarioErrorId : undefined}
+                        aria-invalid={error ? true : undefined}
+                    />
+                    {error && (
+                        <p id={scenarioErrorId} className="font-ui text-[12px] text-blood-500">
+                            {error}
+                        </p>
+                    )}
                     <div className="flex justify-end gap-2">
                         <Button
                             variant="ghost"

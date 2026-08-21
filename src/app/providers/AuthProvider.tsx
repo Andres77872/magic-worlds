@@ -5,14 +5,22 @@
 import { createContext, useEffect, useMemo, useState, useCallback, type ReactNode } from 'react'
 import type { AuthState, BrowserAuthResponse, LoginCredentials, RegisterData, User, Project } from '../../shared'
 import { apiService } from '../../infrastructure'
+import { authSession, type AuthSessionPhase } from '../../infrastructure/api/authSession'
 import { i18n } from '@/app/i18n'
 
 interface AuthContextValue extends AuthState {
+    sessionPhase: AuthSessionPhase
+    authEpoch: number
+    /** Ownership token — changes on every sign-in/out. Use to reset per-session state. */
+    accountKey: string
+    /** Stable per-user id, unchanged across reloads. Use to key persisted state. */
+    userHash: string | null
     login: (credentials: LoginCredentials) => Promise<boolean>
     register: (data: RegisterData) => Promise<boolean>
     loginWithGoogle: (rememberMe?: boolean) => Promise<void>
     completeGoogleLogin: (code: string) => Promise<boolean>
-    logout: () => void
+    logout: () => Promise<void>
+    continueSignedOut: () => void
     /** Merge a partial update into the signed-in user and persist it. No-op when signed out. */
     updateUser: (patch: Partial<User>) => void
     clearError: () => void
@@ -37,6 +45,7 @@ function selectAccessToken(data: BrowserAuthResponse | AuthRefreshedDetail): str
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
+    const initialSession = authSession.getSnapshot()
     const [isAuthenticated, setIsAuthenticated] = useState(false)
     const [user, setUser] = useState<User | null>(null)
     const [token, setToken] = useState<string | null>(null)
@@ -44,6 +53,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
+    const [sessionPhase, setSessionPhase] = useState<AuthSessionPhase>(initialSession.sessionPhase)
+    const [authEpoch, setAuthEpoch] = useState(initialSession.authEpoch)
+    const [accountKey, setAccountKey] = useState(initialSession.accountKey)
+    const [userHash, setUserHash] = useState(initialSession.userHash)
 
     const clearAuthState = useCallback(() => {
         setToken(null)
@@ -72,12 +85,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
     }, [])
 
+    useEffect(() => authSession.subscribe((next) => {
+        setSessionPhase(next.sessionPhase)
+        setAuthEpoch(next.authEpoch)
+        setAccountKey(next.accountKey)
+        setUserHash(next.userHash)
+    }), [])
+
     // Listen for terminal auth expiry events. The API layer emits this only after
     // refresh itself is denied, not for every protected endpoint 401.
     useEffect(() => {
         const handleAuthExpired = () => {
+            authSession.expire()
             clearAuthState()
-            localStorage.removeItem(TOKEN_STORAGE_KEY)
             localStorage.removeItem(USER_STORAGE_KEY)
             setError(i18n.t('auth.errors.sessionExpired'))
             setIsLoginModalOpen(true)
@@ -95,6 +115,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
             const detail = (event as CustomEvent<AuthRefreshedDetail>).detail
             const nextToken = detail ? selectAccessToken(detail) : ''
             if (!nextToken) return
+            const nextUserHash = detail.user?.user_hash ?? user?.user_hash ?? null
+            try {
+                authSession.rotateToken(nextToken, nextUserHash)
+            } catch {
+                return
+            }
 
             setToken(nextToken)
             setIsAuthenticated(true)
@@ -112,6 +138,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         window.addEventListener('auth:refreshed', handleAuthRefreshed)
         return () => window.removeEventListener('auth:refreshed', handleAuthRefreshed)
+    }, [user?.user_hash])
+
+    const applyAuthenticatedResponse = useCallback((data: BrowserAuthResponse): boolean => {
+        const nextToken = selectAccessToken(data)
+        if (!data.success || !nextToken || !data.user) return false
+
+        authSession.authenticate(data.user.user_hash, nextToken)
+        setToken(nextToken)
+        setUser(data.user)
+        setProjects(data.accessible_projects || [])
+        setIsAuthenticated(true)
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.user))
+        return true
     }, [])
 
     const login = useCallback(async (credentials: LoginCredentials): Promise<boolean> => {
@@ -120,19 +159,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         try {
             const data = await apiService.login(credentials)
-            const nextToken = selectAccessToken(data)
-
-            if (data.success && nextToken && data.user) {
-                // Save auth data
-                setToken(nextToken)
-                setUser(data.user)
-                setProjects(data.accessible_projects || [])
-                setIsAuthenticated(true)
-
-                // Persist to localStorage
-                localStorage.setItem(TOKEN_STORAGE_KEY, nextToken)
-                localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.user))
-
+            if (applyAuthenticatedResponse(data)) {
                 return true
             } else {
                 setError(data.message || i18n.t('auth.errors.loginFailed'))
@@ -149,7 +176,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } finally {
             setIsLoading(false)
         }
-    }, [])
+    }, [applyAuthenticatedResponse])
 
     const register = useCallback(async (data: RegisterData): Promise<boolean> => {
         setIsLoading(true)
@@ -162,17 +189,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // api.auth) do not. If we got one, use it; otherwise auto-login with
             // the same credentials so the user ends up authenticated with a
             // valid Bearer token instead of a tokenless "authenticated" state.
-            const tokenFromRegister = selectAccessToken(response)
-
-            if (tokenFromRegister) {
-                setToken(tokenFromRegister)
-                if (response.user) setUser(response.user)
-                setProjects(response.accessible_projects || [])
-                setIsAuthenticated(true)
-                localStorage.setItem(TOKEN_STORAGE_KEY, tokenFromRegister)
-                if (response.user) {
-                    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.user))
-                }
+            if (applyAuthenticatedResponse(response)) {
                 return true
             }
 
@@ -194,7 +211,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } finally {
             setIsLoading(false)
         }
-    }, [login])
+    }, [applyAuthenticatedResponse, login])
 
     // Step 1 of "Continue with Google": mint a provider-init token, then navigate
     // the browser top-level to the BFF start-shim (→ Google). This call ends by
@@ -228,14 +245,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         try {
             const data = await apiService.exchangeGoogleReturn(code)
             const nextToken = selectAccessToken(data)
-
-            if (data.success && nextToken && data.user) {
-                setToken(nextToken)
-                setUser(data.user)
-                setProjects(data.accessible_projects || [])
-                setIsAuthenticated(true)
-                localStorage.setItem(TOKEN_STORAGE_KEY, nextToken)
-                localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.user))
+            if (applyAuthenticatedResponse(data)) {
                 window.dispatchEvent(new CustomEvent<AuthRefreshedDetail>('auth:refreshed', { detail: { ...data, token: nextToken } }))
                 return true
             }
@@ -252,21 +262,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } finally {
             setIsLoading(false)
         }
-    }, [])
+    }, [applyAuthenticatedResponse])
 
-    const logout = useCallback(() => {
-        // Fire-and-forget: call API logout, then clear local state
-        apiService.logout().catch(err => {
-            // Logout API call is fire-and-forget — ignore failures
-            console.warn('Logout API call failed (non-critical):', err)
-        })
-
+    const logout = useCallback(async (): Promise<void> => {
+        const request = apiService.logout()
+        // beginLogout happens synchronously inside apiService.logout, before its
+        // first await, so stale work is already invalid when local UI is cleared.
         clearAuthState()
         setError(null)
+        setIsLoginModalOpen(false)
+        try {
+            await request
+        } catch (err) {
+            // Local logout remains authoritative when the server is unavailable.
+            console.warn('Logout API call failed (non-critical):', err)
+        }
+    }, [clearAuthState])
 
-        // Clear localStorage
-        localStorage.removeItem(TOKEN_STORAGE_KEY)
-        localStorage.removeItem(USER_STORAGE_KEY)
+    const continueSignedOut = useCallback(() => {
+        authSession.continueSignedOut()
+        clearAuthState()
+        setError(null)
+        setIsLoginModalOpen(false)
     }, [clearAuthState])
 
     const updateUser = useCallback((patch: Partial<User>) => {
@@ -300,12 +317,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
         projects,
         isLoading,
         error,
+        sessionPhase,
+        authEpoch,
+        accountKey,
+        userHash,
         isLoginModalOpen,
         login,
         register,
         loginWithGoogle,
         completeGoogleLogin,
         logout,
+        continueSignedOut,
         updateUser,
         clearError,
         openLoginModal,
@@ -317,12 +339,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
         projects,
         isLoading,
         error,
+        sessionPhase,
+        authEpoch,
+        accountKey,
+        userHash,
         isLoginModalOpen,
         login,
         register,
         loginWithGoogle,
         completeGoogleLogin,
         logout,
+        continueSignedOut,
         updateUser,
         clearError,
         openLoginModal,

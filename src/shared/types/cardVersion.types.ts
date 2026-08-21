@@ -25,11 +25,6 @@ export interface CardVersionList {
     latest_version_id?: string | null
     latest_version_number: number
     versions: CardVersion[]
-    /** True when the owner has unpublished draft edits (additive — optional for compat). */
-    has_draft?: boolean
-    draft_updated_at?: string | null
-    /** The published version the draft was forked from (drives "unsaved since v{n}"). */
-    based_on_version_number?: number | null
 }
 
 /** Derived usage for a card: distinct sessions (adventures + chats) and stories. */

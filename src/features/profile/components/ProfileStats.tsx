@@ -9,9 +9,8 @@ import { useTranslation } from 'react-i18next'
 import type { UserProfile } from '@/shared'
 import { Icon } from '@/ui/primitives'
 
-/** Wallet balance: membership total when present, else the legacy `user_usage`. */
 function availableCredits(profile: UserProfile) {
-    return profile.membership?.total_available_credits ?? profile.user_usage
+    return profile.membership.total_available_credits
 }
 
 interface StatPillProps {

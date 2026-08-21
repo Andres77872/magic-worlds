@@ -34,6 +34,10 @@ class MockWebSocket {
         this.onopen?.(new Event('open'))
     }
 
+    emitMessage(message: unknown): void {
+        this.onmessage?.({ data: JSON.stringify(message) } as MessageEvent)
+    }
+
     emitClose(code: number): void {
         this.readyState = MockWebSocket.CLOSED
         this.onclose?.({ code } as CloseEvent)
@@ -98,6 +102,30 @@ describe('ChatSocket auth recovery', () => {
         expect(protocolsOf(MockWebSocket.instances[1])).toEqual(['mw.bearer.v1', 'new-token'])
         expect(expired).not.toHaveBeenCalled()
         expect(onMessage).not.toHaveBeenCalledWith(expect.objectContaining({ category: 'auth' }))
+    })
+
+    it('recovers across independent expiry cycles after authenticated ready frames', async () => {
+        let generation = 0
+        const refresh = vi.fn().mockImplementation(async () => {
+            generation += 1
+            const token = `new-token-${generation}`
+            localStorage.setItem('magic_worlds:token', token)
+            return token
+        })
+        configureChatSocketAuthRefresh(refresh)
+
+        const socket = new ChatSocket(3, { onMessage: vi.fn() })
+        socket.connect()
+        MockWebSocket.instances[0].emitClose(4401)
+        await flushPromises()
+        MockWebSocket.instances[1].emitOpen()
+        MockWebSocket.instances[1].emitMessage({ type: 'ready' })
+        MockWebSocket.instances[1].emitClose(4401)
+        await flushPromises()
+
+        expect(refresh).toHaveBeenCalledTimes(2)
+        expect(MockWebSocket.instances).toHaveLength(3)
+        expect(protocolsOf(MockWebSocket.instances[2])).toEqual(['mw.bearer.v1', 'new-token-2'])
     })
 
     it('keeps auth state when the refresh-driven reconnect is rejected with another 4401', async () => {

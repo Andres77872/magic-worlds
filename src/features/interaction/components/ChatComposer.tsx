@@ -105,7 +105,7 @@ export const ChatComposer = memo(function ChatComposer({
             <div
                 className={cx(
                     'rounded-xl border border-parchment-50/[.13] bg-ink-700 transition-all',
-                    'focus-within:border-ember-500 focus-within:shadow-[0_0_0_3px_rgba(232,162,74,.14)]',
+                    'focus-within:border-ember-500 focus-within:shadow-input-focus',
                 )}
             >
                 {showLoreHighlights ? (
@@ -173,15 +173,14 @@ export const ChatComposer = memo(function ChatComposer({
                     </div>
 
                     {isLoading ? (
-                        <button
-                            type="button"
+                        <IconButton
+                            label={t('interaction.composer.stopResponse')}
+                            size="sm"
+                            tone="danger"
                             onClick={onStop}
-                            aria-label={t('interaction.composer.stopResponse')}
-                            title={t('interaction.composer.stopResponse')}
-                            className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-md border border-blood-500/40 bg-blood-500/10 text-blood-500 transition-colors hover:bg-blood-500/25"
                         >
                             <Square size={15} fill="currentColor" />
-                        </button>
+                        </IconButton>
                     ) : (
                         <button
                             type="button"

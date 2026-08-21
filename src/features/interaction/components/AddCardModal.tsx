@@ -77,7 +77,7 @@ export function AddCardModal({ open, title, confirmKind, candidates, emptyHint, 
             footer={
                 <>
                     <Button variant="ghost" onClick={onClose} disabled={busy}>
-                        Cancel
+                        {t('common.cancel')}
                     </Button>
                     <Button
                         variant="primary"

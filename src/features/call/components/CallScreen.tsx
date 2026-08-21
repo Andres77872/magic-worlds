@@ -30,7 +30,6 @@ import { CallWaveform } from './CallWaveform'
 
 interface CallScreenProps {
     character?: Character
-    persona?: Character
     sessionId: number
     /** Leave the call and return to the text chat. */
     onSwitchToText: () => void
@@ -168,7 +167,7 @@ export function CallScreenView({
     return (
         <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-ink-900 text-parchment-50" data-testid="call-screen">
             <div aria-hidden className="pointer-events-none absolute inset-0">
-                <GlowBackdrop variant="center" animated />
+                <GlowBackdrop variant="center" />
             </div>
 
             {/* Top: leave / switch to text */}

@@ -30,7 +30,7 @@ export function InteractionTopBar({
 }: InteractionTopBarProps) {
     const { t } = useTranslation()
     return (
-        <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b border-parchment-50/[.08] bg-ink-900/80 px-2 backdrop-blur-md lg:hidden">
+        <header className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b border-parchment-50/[.08] bg-ink-900/80 px-2 backdrop-blur-md lg:hidden">
             <IconButton
                 label={mode === 'adventure' ? t('interaction.topBar.adventureDetails') : t('interaction.topBar.characterDetails')}
                 size="sm"

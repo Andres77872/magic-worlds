@@ -3,7 +3,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/ui/primitives';
+import { Button, Callout } from '@/ui/primitives';
 
 export interface FormActionsProps {
     onCancel: () => void;
@@ -32,13 +32,9 @@ export function FormActions({
     return (
         <div className="mt-8 border-t-2 border-parchment-50/10 pt-6">
             {error && (
-                <p
-                    role="status"
-                    aria-live="polite"
-                    className="mb-4 rounded-md border border-parchment-50/10 bg-parchment-50/5 px-4 py-3 font-ui text-[13px] text-parchment-200"
-                >
+                <Callout tone="danger" role="alert" className="mb-4 text-[13px]">
                     {error}
-                </p>
+                </Callout>
             )}
             <div className="flex justify-end gap-4 max-sm:flex-col max-sm:gap-3">
                 <Button

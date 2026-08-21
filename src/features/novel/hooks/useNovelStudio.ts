@@ -77,10 +77,12 @@ export function useNovelStudio(): NovelStudioApi {
 
     const addChapter = useCallback(async (): Promise<StoryChapter | null> => {
         if (!activeStory) return null
+        // No explicit `order`: the backend assigns MAX(order)+1. Sending
+        // chapters.length collides after a mid-list delete, and duplicate
+        // orders permanently break the generate endpoint for the story.
         const chapter = await createStoryChapter(activeStory.id, {
             title: `Chapter ${chapters.length + 1}`,
             body: '',
-            order: chapters.length,
             status: 'draft',
         })
         setSelectedChapterId(chapter.id)

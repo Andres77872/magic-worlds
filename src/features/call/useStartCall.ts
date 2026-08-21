@@ -14,6 +14,7 @@ import { useAuth, useData, useNavigation } from '@/app/hooks'
 import type { Character, CharacterChatSession } from '@/shared'
 import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { defaultPersonaForCharacter } from '@/utils/characterRoles'
+import { errorMessage } from '@/utils/errors'
 
 export interface UseStartCall {
     /** Start a fresh voice call with a character. Opens the persona picker first
@@ -33,9 +34,6 @@ export interface UseStartCall {
     closePersonaPick: () => void
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-    return error instanceof Error && error.message.trim() ? error.message : fallback
-}
 
 export function useStartCall(): UseStartCall {
     const { t } = useTranslation()

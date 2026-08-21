@@ -2,6 +2,7 @@
  * ItemPreviewCard — live preview of the item/object card being created.
  */
 
+import { useTranslation } from 'react-i18next'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
 import { EntityPreviewCard } from '../../common/components'
 import type { AttrMap } from '../../common/hooks'
@@ -18,13 +19,14 @@ export interface ItemPreviewCardProps {
 }
 
 export function ItemPreviewCard({ name, type, rarity, description, triggers, attributes, categories, imageUrl }: ItemPreviewCardProps) {
+    const { t } = useTranslation()
     return (
         <EntityPreviewCard
             name={name}
-            unnamedLabel="Unnamed Item"
+            unnamedLabel={t('creation.item.preview.unnamed')}
             badge={type ?? ''}
             secondaryBadge={rarity ?? ''}
-            badgePlaceholder="Add an item type..."
+            badgePlaceholder={t('creation.item.preview.badgePlaceholder')}
             description={description}
             triggers={triggers}
             attributes={attributes}

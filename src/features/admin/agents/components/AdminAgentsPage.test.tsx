@@ -39,6 +39,7 @@ const consumerUser = { ...rootUser, user_type: 'consumer' }
 const summary = {
     workflow_key: 'character_generation',
     kind: 'builtin_card',
+    storage: 'file',
     display_name: 'Character generator',
     output_mode: 'strict_card_schema',
     schema_model: 'Character',
@@ -99,7 +100,7 @@ describe('AdminAgentsPage', () => {
         expect(listAgents).not.toHaveBeenCalled()
     })
 
-    it('lists agents, loads a model catalog, and edits + saves a draft', async () => {
+    it('renders built-in file agents read-only with test and copy actions only', async () => {
         render(<AdminAgentsPage />)
 
         await waitFor(() => expect(listAgents).toHaveBeenCalled())
@@ -108,19 +109,10 @@ describe('AdminAgentsPage', () => {
         // Select the agent from the list (the list button shows its name).
         fireEvent.click(await screen.findByRole('button', { name: /Character generator/ }))
 
-        const systemField = await screen.findByLabelText('System message')
-        fireEvent.change(systemField, { target: { value: 'You generate vivid character cards.' } })
-
-        const saveButton = screen.getByRole('button', { name: 'Save draft' })
-        expect(saveButton).toBeEnabled()
-        fireEvent.submit(saveButton.closest('form')!)
-
-        await waitFor(() => {
-            expect(updateAgentDraft).toHaveBeenCalledWith(
-                'character_generation',
-                expect.objectContaining({ system_message: 'You generate vivid character cards.' }),
-            )
-        })
+        expect(await screen.findByLabelText('System message')).toBeDisabled()
+        expect(screen.getAllByRole('button', { name: 'Create custom copy' }).length).toBeGreaterThan(0)
+        expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /Publish/ })).not.toBeInTheDocument()
     })
 
     it('publishes and runs a non-persisting test', async () => {
@@ -129,9 +121,6 @@ describe('AdminAgentsPage', () => {
         fireEvent.click(await screen.findByRole('button', { name: /Character generator/ }))
 
         await screen.findByLabelText('System message')
-        fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
-        await waitFor(() => expect(publishAgent).toHaveBeenCalledWith('character_generation'))
-
         fireEvent.change(screen.getByLabelText('Sample input'), { target: { value: 'A moonlit scout' } })
         fireEvent.click(screen.getByRole('button', { name: 'Run test' }))
         await waitFor(() => {
@@ -141,5 +130,25 @@ describe('AdminAgentsPage', () => {
             )
         })
         expect(await screen.findByText(/"name": "Nyra"/)).toBeInTheDocument()
+    })
+
+    it('creates an exact custom copy request from the selected file agent', async () => {
+        createAgent.mockResolvedValue({ ...detail, storage: 'database', workflow_key: 'custom_character_generator_copy', is_system: false })
+        render(<AdminAgentsPage />)
+        fireEvent.click(await screen.findByRole('button', { name: /Character generator/ }))
+        await screen.findByLabelText('System message')
+        const copyButtons = await screen.findAllByRole('button', { name: 'Create custom copy' })
+        fireEvent.click(copyButtons[copyButtons.length - 1])
+
+        expect(await screen.findByLabelText('Copy from')).toHaveTextContent('Character generator')
+        fireEvent.click(screen.getByRole('button', { name: 'Create copy' }))
+
+        await waitFor(() =>
+            expect(createAgent).toHaveBeenCalledWith({
+                display_name: 'Character generator copy',
+                slug: 'character_generator_copy',
+                source_workflow_key: 'character_generation',
+            }),
+        )
     })
 })

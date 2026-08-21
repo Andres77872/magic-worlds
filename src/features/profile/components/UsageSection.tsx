@@ -124,9 +124,7 @@ function MonthlyUsagePanel({
             </div>
 
             <div className="rounded-lg border border-parchment-50/[.08] bg-ink-700/70 px-4 py-3">
-                <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
-                    {t('usage.creditsThisMonth')}
-                </span>
+                <Eyebrow tone="muted">{t('usage.creditsThisMonth')}</Eyebrow>
                 <div className="mt-2 flex items-baseline gap-2">
                     <span className="font-display text-h2 font-semibold leading-none text-parchment-50">
                         {formatNumber(monthly.credits_used, locale)}
@@ -157,9 +155,9 @@ function MonthlyUsagePanel({
 function MonthlyStat({ label, value, locale }: { label: string; value: number; locale: string }) {
     return (
         <div className="rounded-lg border border-parchment-50/[.08] bg-ink-600/60 px-3 py-2.5">
-            <span className="block font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
+            <Eyebrow tone="muted" className="block text-[11px]">
                 {label}
-            </span>
+            </Eyebrow>
             <span className="mt-1 block font-ui text-[16px] font-semibold text-parchment-50">{formatNumber(value, locale)}</span>
         </div>
     )

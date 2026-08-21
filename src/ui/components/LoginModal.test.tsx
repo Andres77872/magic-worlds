@@ -40,20 +40,20 @@ describe('LoginModal', () => {
         authError = null
     })
 
-    it('opens in sign-in mode with a selected tab and matching submit button', () => {
+    it('opens in sign-in mode with the sign-in option checked and a matching submit button', () => {
         renderModal()
-        expect(screen.getByRole('tab', { name: 'Sign in' })).toHaveAttribute('aria-selected', 'true')
-        expect(screen.getByRole('tab', { name: 'Create account' })).toHaveAttribute('aria-selected', 'false')
+        expect(screen.getByRole('radio', { name: 'Sign in' })).toHaveAttribute('aria-checked', 'true')
+        expect(screen.getByRole('radio', { name: 'Create account' })).toHaveAttribute('aria-checked', 'false')
         expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
         expect(screen.queryByLabelText(/confirm password/i)).not.toBeInTheDocument()
     })
 
-    it('switches to register mode: tab selected, title, confirm field and submit label change', () => {
+    it('switches to register mode: option checked, title, confirm field and submit label change', () => {
         renderModal()
-        fireEvent.click(screen.getByRole('tab', { name: 'Create account' }))
+        fireEvent.click(screen.getByRole('radio', { name: 'Create account' }))
 
-        expect(screen.getByRole('tab', { name: 'Create account' })).toHaveAttribute('aria-selected', 'true')
+        expect(screen.getByRole('radio', { name: 'Create account' })).toHaveAttribute('aria-checked', 'true')
         expect(screen.getByRole('heading', { name: 'Create your account' })).toBeInTheDocument()
         expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument()
         expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument()
@@ -61,7 +61,7 @@ describe('LoginModal', () => {
 
     it('blocks register and shows an inline error when passwords do not match', async () => {
         renderModal()
-        fireEvent.click(screen.getByRole('tab', { name: 'Create account' }))
+        fireEvent.click(screen.getByRole('radio', { name: 'Create account' }))
         fillCredentials('aria', 'hunter22')
         fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'different' } })
         fireEvent.click(screen.getByRole('button', { name: /create account/i }))
@@ -73,7 +73,7 @@ describe('LoginModal', () => {
     it('registers with matching passwords and closes on success', async () => {
         register.mockResolvedValue(true)
         const { onClose } = renderModal()
-        fireEvent.click(screen.getByRole('tab', { name: 'Create account' }))
+        fireEvent.click(screen.getByRole('radio', { name: 'Create account' }))
         fillCredentials('aria', 'hunter22')
         fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'hunter22' } })
         fireEvent.click(screen.getByRole('button', { name: /create account/i }))
@@ -97,18 +97,18 @@ describe('LoginModal', () => {
         renderModal()
         expect(screen.getByText('Username already exists')).toBeInTheDocument()
 
-        fireEvent.click(screen.getByRole('tab', { name: 'Create account' }))
+        fireEvent.click(screen.getByRole('radio', { name: 'Create account' }))
         expect(clearError).toHaveBeenCalled()
     })
 
     it('also switches modes from the footer link', () => {
         renderModal()
         fireEvent.click(screen.getByRole('button', { name: 'Create an account' }))
-        expect(screen.getByRole('tab', { name: 'Create account' })).toHaveAttribute('aria-selected', 'true')
+        expect(screen.getByRole('radio', { name: 'Create account' })).toHaveAttribute('aria-checked', 'true')
 
         // Footer link in register mode reads "Sign in" (the submit reads "Create account",
         // and the tabs have role="tab", so this is unambiguous).
         fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
-        expect(screen.getByRole('tab', { name: 'Sign in' })).toHaveAttribute('aria-selected', 'true')
+        expect(screen.getByRole('radio', { name: 'Sign in' })).toHaveAttribute('aria-checked', 'true')
     })
 })

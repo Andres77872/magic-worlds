@@ -15,6 +15,8 @@ export interface BackgroundTasksContextValue {
     cancelTask: (operation: BackgroundTaskOperation, taskId: string) => Promise<void>
     /** Archive all tasks currently in a terminal bucket on the server. */
     clearTerminalTasks: (bucket: 'completed' | 'failed') => Promise<void>
+    terminalHasMore: Record<'completed' | 'failed', boolean>
+    loadMoreTerminalTasks: (bucket: 'completed' | 'failed') => Promise<void>
 }
 
 export const BackgroundTasksContext = createContext<BackgroundTasksContextValue | undefined>(undefined)

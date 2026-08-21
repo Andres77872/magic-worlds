@@ -11,6 +11,7 @@
  * falls back to a full-width bottom sheet with drag/resize disabled.
  */
 import { useCallback, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronUp, Minus, Pencil, X } from 'lucide-react'
 import { Icon, IconButton, cx, useDraggable, useIsDesktop, type DragPosition } from '@/ui/primitives'
@@ -99,7 +100,11 @@ export function FloatingWindow({
         ? { ...style, zIndex, width: size.width, height: collapsed ? undefined : size.height }
         : { zIndex }
 
-    return (
+    // Portal to <body>: rendered in place, the window's 46–49 zIndex is scoped to
+    // the app shell's `isolate` stacking context and every body-portalled overlay
+    // (the z-[45] playlist dock included) paints above the whole subtree. It is
+    // `fixed` with viewport-coordinate dragging, so portalling is layout-neutral.
+    return createPortal(
         <section
             ref={ref}
             role="dialog"
@@ -184,6 +189,7 @@ export function FloatingWindow({
                     <span className="h-2.5 w-2.5 border-b-2 border-r-2 border-parchment-50/25 transition-colors group-hover/resize:border-ember-500/50" />
                 </div>
             )}
-        </section>
+        </section>,
+        document.body,
     )
 }

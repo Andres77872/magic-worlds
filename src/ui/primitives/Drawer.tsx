@@ -3,13 +3,13 @@
  * Modal's candlelit surface and header/footer bands, but slides in from the edge and
  * fills the viewport height. Closes on scrim click or Escape.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { cx } from './cx'
 import { IconButton } from './IconButton'
-import { useDismissableLayer } from './useDismissableLayer'
+import { useDismissableLayer, useScrimDismiss } from './useDismissableLayer'
 
 export type DrawerSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 
@@ -49,6 +49,7 @@ export function Drawer({
     children,
 }: DrawerProps) {
     const { t } = useTranslation()
+    const titleId = useId()
     // Keep the panel mounted through the exit animation, then unmount.
     const [mounted, setMounted] = useState(open)
     const [entered, setEntered] = useState(false)
@@ -66,9 +67,13 @@ export function Drawer({
     }, [open])
 
     // Escape-to-close, body scroll-lock, focus-trap and focus restoration.
-    useDismissableLayer({ open, onClose, panelRef })
+    useDismissableLayer({ open, onClose, panelRef, label: 'drawer' })
+    const scrim = useScrimDismiss(onClose)
 
-    if (!mounted) return null
+    // `mounted` lags `open` by one render (it is only set from the enter effect),
+    // so gate on either: the panel must be in the DOM in the same commit that
+    // opens the layer, or useDismissableLayer's initial focus finds nothing.
+    if (!open && !mounted) return null
 
     // Portal to <body> so the fixed overlay isn't trapped by an ancestor's CSS
     // transform / backdrop-filter (e.g. the interaction left panel), which would
@@ -80,12 +85,13 @@ export function Drawer({
                     'absolute inset-0 bg-ink-900/60 backdrop-blur-sm transition-opacity duration-200',
                     entered ? 'opacity-100' : 'opacity-0',
                 )}
-                onClick={onClose}
+                {...scrim}
             />
             <div
                 ref={panelRef}
                 role="dialog"
                 aria-modal="true"
+                aria-labelledby={title ? titleId : undefined}
                 tabIndex={-1}
                 className={cx(
                     'relative flex h-full w-full flex-col border-l border-parchment-50/10 bg-ink-700 shadow-xl outline-none transition-transform duration-200 ease-out',
@@ -101,7 +107,7 @@ export function Drawer({
                             <div className="flex flex-col gap-0.5">
                                 {eyebrow}
                                 {title && (
-                                    <h2 className="font-display text-[22px] font-semibold leading-tight text-parchment-50">
+                                    <h2 id={titleId} className="font-display text-h3 font-semibold leading-tight text-parchment-50">
                                         {title}
                                     </h2>
                                 )}

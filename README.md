@@ -84,7 +84,15 @@ Create a `.env` file in the repo root:
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
-The value may contain a `{hostname}` placeholder (e.g. `http://{hostname}:8010`), which is resolved at runtime to the browser's hostname. This keeps the API same-site when accessing the dev server from another device, so the `SameSite=lax` refresh cookie still works.
+The value may contain a `{hostname}` placeholder (for example
+`http://{hostname}:8010`), which resolves to the browser hostname at runtime.
+Two browser-auth deployments are supported:
+
+- Local/LAN same-site HTTP: use the hostname placeholder and configure the BFF
+  refresh cookie with `SameSite=lax` and `Secure=false`.
+- Cross-site production HTTPS: configure the BFF cookie with `SameSite=None`
+  and `Secure=true`, and list the exact SPA origin in every credentialed CORS
+  allow-list. Wildcard origins are invalid with credentials.
 
 ### Scripts
 

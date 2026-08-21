@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { ChevronDown, Gem, Globe, Loader2, Search, Swords, Users, X } from 'lucide-react'
 import type { CardMediaTargetType } from '@/shared'
 import { useClickOutside } from '@/shared/hooks'
-import { AuthenticatedImage, cx, Icon } from '@/ui/primitives'
+import { AuthenticatedImage, controlClass, cx, Icon } from '@/ui/primitives'
 import type { CardRef, CardTypeFilter } from '../mediaGalleryTypes'
 import { useCardPickerOptions } from '../hooks/useCardPickerOptions'
 
@@ -79,7 +79,7 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                     'inline-flex items-center gap-1 rounded-full border transition-all',
                     value
                         ? 'border-ember-500/45 bg-ember-500/15 text-ember-300'
-                        : 'border-parchment-50/[.08] bg-ink-600 text-parchment-200 hover:border-parchment-50/20 hover:text-parchment-50',
+                        : 'border-line-faint bg-ink-600 text-parchment-200 hover:border-parchment-50/20 hover:text-parchment-50',
                 )}
             >
                 <button
@@ -89,7 +89,7 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                     aria-haspopup="listbox"
                     aria-label={t('mediaGallery.picker.filterByCard')}
                     onClick={() => setOpen((prev) => !prev)}
-                    className="inline-flex cursor-pointer items-center gap-1.5 py-1.5 pl-3 font-ui text-[12.5px] font-medium"
+                    className="inline-flex cursor-pointer items-center gap-1.5 py-1.5 pl-3 font-ui text-label font-medium"
                     data-testid="card-picker-trigger"
                 >
                     {value ? (
@@ -122,7 +122,7 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
 
             {open && (
                 <div
-                    className="absolute right-0 top-full z-30 mt-2 w-72 rounded-lg border border-parchment-50/10 bg-ink-700 p-2 shadow-xl"
+                    className="absolute right-0 top-full z-10 mt-2 w-72 rounded-lg border border-parchment-50/10 bg-ink-700 p-2 shadow-xl"
                     data-testid="card-picker-panel"
                 >
                     <div className="relative mb-1 flex items-center">
@@ -140,7 +140,7 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                             onKeyDown={onInputKeyDown}
                             placeholder={t('mediaGallery.picker.searchPlaceholder')}
                             aria-label={t('mediaGallery.picker.searchLabel')}
-                            className="w-full rounded-md border border-parchment-50/10 bg-ink-800 py-2 pl-8 pr-8 font-ui text-sm text-parchment-50 placeholder:text-parchment-500 focus:outline-none"
+                            className={cx(controlClass, 'py-2 pl-8 pr-8')}
                             data-testid="card-picker-search"
                         />
                         {loading && (

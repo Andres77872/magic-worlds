@@ -42,14 +42,11 @@ export function MembershipSection({ profile, onRedeemed, autoClaimEmailCreditGra
     const { intlLocale } = useLanguage()
     const { setPage } = useNavigation()
     const membership = profile.membership
-    const cards = membership?.profile_cards
+    const cards = membership.profile_cards
 
     return (
         <div className="flex flex-col gap-4">
-            {!cards ? (
-                <LegacyCreditsCard credits={profile.user_usage} t={t} locale={intlLocale} />
-            ) : (
-                <section className="flex flex-col gap-4" aria-labelledby="membership-heading">
+            <section className="flex flex-col gap-4" aria-labelledby="membership-heading">
                     <SectionHeader
                         icon={WalletCards}
                         title={<span id="membership-heading">{t('membership.title')}</span>}
@@ -71,8 +68,7 @@ export function MembershipSection({ profile, onRedeemed, autoClaimEmailCreditGra
                         ))}
                     </div>
                     <PaygCard card={cards.payg} t={t} locale={intlLocale} />
-                </section>
-            )}
+            </section>
 
             <EmailCreditGrantClaimCard autoClaim={autoClaimEmailCreditGrants} onClaimed={onRedeemed} />
             <CreditCodeRedemptionCard onRedeemed={onRedeemed} />
@@ -268,21 +264,6 @@ function LimitRows({
                 ))}
             </div>
         </div>
-    )
-}
-
-function LegacyCreditsCard({ credits, t, locale }: { credits: number; t: TFunction; locale: string }) {
-    return (
-        <section className="flex flex-col gap-4" aria-labelledby="membership-heading">
-            <SectionHeader icon={WalletCards} title={<span id="membership-heading">{t('membership.title')}</span>} />
-            <Card className="flex flex-col gap-2 px-5 py-4">
-                <Eyebrow tone="muted">{t('membership.availableCredits')}</Eyebrow>
-                <span className="font-display text-h2 font-semibold leading-none text-parchment-50">{formatNumber(credits, locale)}</span>
-                <p className="font-ui text-[13px] text-parchment-400">
-                    {t('membership.legacyBody')}
-                </p>
-            </Card>
-        </section>
     )
 }
 

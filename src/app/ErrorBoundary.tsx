@@ -53,10 +53,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
         const body = (
             <div className="flex max-w-md flex-col items-center gap-4 text-center">
-                <h1 className="font-display text-[28px] font-semibold text-parchment-50">
+                <h1 className="font-display text-h3 font-semibold text-parchment-50">
                     Something went wrong
                 </h1>
-                <p className="font-narrative text-[16px] leading-relaxed text-parchment-300">
+                <p className="font-narrative text-body text-parchment-300">
                     {this.props.inline
                         ? 'This page hit an unexpected error. You can retry it, or reload the app.'
                         : 'The app hit an unexpected error. Reloading usually fixes it.'}

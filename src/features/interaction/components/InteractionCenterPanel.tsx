@@ -3,8 +3,8 @@ import {useTranslation} from 'react-i18next'
 import type {ChatNarratorIdentity, ChatResponseSegment, ChatSpeakerRosterEntry, ForwardOption, TurnEntry} from '../../../shared'
 import {apiService, type ImageJobPublicResponse, type TtsJobPublicResponse} from '../../../infrastructure/api'
 import {useAuth} from '../../../app/hooks'
-import {ArrowDown, Loader2, RotateCcw, Sparkles} from 'lucide-react'
-import {Button, Icon} from '../../../ui/primitives'
+import {ArrowDown, Loader2, RotateCcw, Sparkles, X} from 'lucide-react'
+import {Button, Icon, IconButton} from '../../../ui/primitives'
 import {ConfirmDialog} from '@/ui/components'
 import {ChatComposer} from './ChatComposer'
 import {ChatTurn} from './ChatTurn'
@@ -16,6 +16,7 @@ import {hasNonTerminalImageJob, mergeHydratedImageTurns, upsertChatImageFrame, u
 import {hasNonTerminalTtsJob, mergeHydratedTtsTurns, nonTerminalTtsJobIds, upsertChatTtsFrame, upsertTtsJobResult} from '../utils/chatTtsTurnState'
 import {mergeHydratedChatTurns} from '../utils/chatTurnMerge'
 import {finalizeResponseSegments, resolveSegmentIdentity, segmentsToPlainText, streamingXmlToPlainText, streamingXmlToSegments} from '@/utils/chatSegments'
+import { scrollBehavior } from '@/utils/motion'
 
 // Extend TurnEntry to include forward options and the (out-of-scope) image prompt
 interface ExtendedTurnEntry extends TurnEntry {
@@ -31,7 +32,7 @@ interface InteractionCenterPanelProps {
     sessionId: number
     turns: TurnEntry[]
     setTurns: (turns: TurnEntry[]) => void
-    /** Mode-specific wiring (canonical history endpoints, copy, forward options, basePath). */
+    /** Mode-specific wiring (stored history endpoints, copy, forward options, basePath). */
     config: ChatSessionConfig
     /**
      * Known AI cast for the session (speaker_id = card id). Persisted segments only
@@ -105,7 +106,7 @@ function ttsRequestId(assistantMessageId: number, turnId: string): string {
     return `tts-${assistantMessageId}-${turnId}`
 }
 
-function canonicalMessageId(turn?: TurnEntry | null): number | undefined {
+function storedMessageId(turn?: TurnEntry | null): number | undefined {
     if (!turn) return undefined
     const direct = Number(turn.id)
     if (Number.isInteger(direct) && direct > 0) return direct
@@ -470,7 +471,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                             turnId,
                         }
                     }
-                    if (userMessageId && index === userIndex && !canonicalMessageId(t)) {
+                    if (userMessageId && index === userIndex && !storedMessageId(t)) {
                         return { ...t, id: String(userMessageId), turnId }
                     }
                     return t
@@ -523,8 +524,13 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
     }, [socketStatus])
     const isReconnecting = hasEverConnected && socketStatus !== 'open'
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({behavior: 'smooth', block: 'end'})
+    // `turns` gets a new identity on every streamed chunk, so the follow-the-stream
+    // effect below must scroll instantly: a 'smooth' scroll restarted many times a
+    // second never settles and the log lurches for the whole generation. Smooth is
+    // reserved for the one deliberate jump, and even that yields to reduced motion
+    // (the global CSS rule in theme.css cannot reach a JS ScrollBehavior).
+    const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
+        messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' })
     }
 
     // Auto-scroll policy: follow the stream only while the reader is already at
@@ -547,7 +553,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
     const jumpToLatest = () => {
         nearBottomRef.current = true
         setHasNewBelow(false)
-        scrollToBottom()
+        scrollToBottom(scrollBehavior())
     }
 
     useEffect(() => {
@@ -573,16 +579,20 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         setTurnState(resolveTurnIdentities(turnsRef.current))
     }, [resolveTurnIdentities, setTurnState])
 
+    // Depend on the derived booleans, not on `turns`: the array is replaced on every
+    // streamed chunk, so an interval keyed on it was cleared and recreated many times
+    // a second and never reached its 3s tick — precisely during the stream the poller
+    // exists to recover from. Both callbacks read the latest turns through a ref.
+    const hasPendingImageJob = turns.some(hasNonTerminalImageJob)
+    const hasPendingTtsJob = turns.some(hasNonTerminalTtsJob)
     useEffect(() => {
-        const hasImage = turns.some(hasNonTerminalImageJob)
-        const hasTts = turns.some(hasNonTerminalTtsJob)
-        if (!hasImage && !hasTts) return
+        if (!hasPendingImageJob && !hasPendingTtsJob) return
         const timer = window.setInterval(() => {
-            if (hasImage) void pollNonTerminalImageJobs()
-            if (hasTts) void pollNonTerminalTtsJobs()
+            if (hasPendingImageJob) void pollNonTerminalImageJobs()
+            if (hasPendingTtsJob) void pollNonTerminalTtsJobs()
         }, 3_000)
         return () => window.clearInterval(timer)
-    }, [pollNonTerminalImageJobs, pollNonTerminalTtsJobs, turns])
+    }, [hasPendingImageJob, hasPendingTtsJob, pollNonTerminalImageJobs, pollNonTerminalTtsJobs])
 
     useEffect(() => {
         const recover = () => {
@@ -614,8 +624,8 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         setTurnState([])
         setError(null)
         try {
-            const canonicalTurns = await config.clearMessages(sessionId)
-            setTurnState(canonicalTurns)
+            const storedTurns = await config.clearMessages(sessionId)
+            setTurnState(storedTurns)
         } catch (error) {
             console.error('Failed to clear turns:', error)
             setTurnState(previousTurns)
@@ -784,12 +794,12 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         setTurnState(updatedTurns)
         setIsLoading(true)
         setError(null)
-        // Every generation appends a fresh canonical assistant row, so the
-        // replaced reply (and any canonical turns after it) must be deleted
+        // Every generation appends a fresh stored assistant row, so the
+        // replaced reply (and any stored turns after it) must be deleted
         // first — otherwise post-done hydration resurrects the old answer
         // next to a duplicated user bubble.
         const replacedIds = [existingAiTurn, ...currentTurns.slice(turnIndex + 1)]
-            .map((turn) => canonicalMessageId(turn))
+            .map((turn) => storedMessageId(turn))
             .filter((id): id is number => id !== undefined)
         try {
             for (const id of replacedIds) {
@@ -826,10 +836,10 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             setTurnState(updatedTurns)
             setError(null)
 
-            const messageId = canonicalMessageId(target)
+            const messageId = storedMessageId(target)
             if (messageId) {
-                const canonicalTurns = await config.deleteMessage(sessionId, messageId)
-                setTurnState(canonicalTurns)
+                const storedTurns = await config.deleteMessage(sessionId, messageId)
+                setTurnState(storedTurns)
             }
         } catch (error) {
             console.error('Failed to delete turn:', error)
@@ -857,16 +867,16 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             if (turn.id !== turnId) return turn
             const edited = { ...turn, content: newContent, timestamp: new Date().toISOString() }
             // Drop media generated from the prior assistant text so stale assets
-            // are never replayed while the canonical edit is in flight.
+            // are never replayed while the stored edit is in flight.
             return turn.type === 'ai' ? { ...edited, segments: undefined, ...RESET_IMAGE_FIELDS, ...RESET_TTS_FIELDS } : edited
         })
         setTurnState(updatedTurns)
         const target = previousTurns.find((turn) => turn.id === turnId)
-        const messageId = canonicalMessageId(target)
+        const messageId = storedMessageId(target)
         if (!messageId) return
         try {
-            const canonicalTurns = await config.updateMessage(sessionId, messageId, newContent)
-            setTurnState(canonicalTurns)
+            const storedTurns = await config.updateMessage(sessionId, messageId, newContent)
+            setTurnState(storedTurns)
         } catch (error) {
             console.error('Failed to edit turn:', error)
             setTurnState(previousTurns)
@@ -988,13 +998,14 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                                 {t('interaction.center.retry')}
                             </Button>
                         )}
-                        <button
+                        <IconButton
+                            label={t('interaction.center.closeError')}
+                            size="sm"
+                            tone="danger"
                             onClick={() => setError(null)}
-                            className="text-lg leading-none text-blood-500/80 hover:text-blood-500"
-                            aria-label={t('interaction.center.closeError')}
                         >
-                            ×
-                        </button>
+                            <X size={16} strokeWidth={1.75} />
+                        </IconButton>
                     </div>
                 </div>
             )}

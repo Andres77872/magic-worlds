@@ -90,7 +90,7 @@ export function SidebarTasksMenu({ collapsed = false, defaultOpen = false }: Sid
                     {activeCount > 0 && (
                         <span
                             aria-hidden="true"
-                            className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-arcane-500 px-1 font-ui text-[10px] font-bold leading-none text-ink-900 ring-2 ring-ink-900"
+                            className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ember-500 px-1 font-ui text-[10px] font-bold leading-none text-on-ember ring-2 ring-ink-900"
                         >
                             {activeCount > 9 ? '9+' : activeCount}
                         </span>
@@ -108,7 +108,7 @@ export function SidebarTasksMenu({ collapsed = false, defaultOpen = false }: Sid
                     )}
                 >
                     <div className="flex items-center gap-2.5 border-b border-parchment-50/10 p-3">
-                        <IconTile icon={ListChecks} tone="arcane" size="sm" />
+                        <IconTile icon={ListChecks} tone="ember" size="sm" />
                         <div className="min-w-0">
                             <p className="truncate font-ui text-sm font-semibold text-parchment-50">{t('tasksDrawer.title')}</p>
                             <p className="mt-0.5 font-mono text-[11px] text-parchment-400">{summary}</p>

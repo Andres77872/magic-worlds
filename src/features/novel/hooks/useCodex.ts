@@ -167,7 +167,7 @@ export function useCodex({ story }: { story: Story | null }): CodexApi {
     const saveSnapshot = useCallback(
         async (entry: CodexEntry, patch: { label: string; description: string }) => {
             if (!storyId) return
-            // Merge, never replace: card snapshots keep canonical race/category/source pins.
+            // Merge, never replace: card snapshots keep stored race/category/source pins.
             const snapshot: StoryCardSnapshot = {
                 ...entry.ref.snapshot,
                 name: patch.label,

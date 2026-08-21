@@ -7,7 +7,7 @@ import { makeRequestId } from '@/utils/uuid'
 import type { Lorebook, LorebookEntry } from '@/shared'
 import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { ConfirmDialog } from '@/ui/components'
-import { Badge, Button, Card, Field, Icon, Input, PageHeader, SwitchRow, Textarea, Toast } from '@/ui/primitives'
+import { Badge, Button, Card, Field, Icon, IconTile, Input, PageHeader, SwitchRow, Textarea, Toast } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
 import {
     blankEntryDraft,
@@ -263,7 +263,7 @@ export function LorebookStudio() {
                 eyebrow={t('lorebookStudio.shell.header.eyebrow')}
                 title={draft.name.trim() || t('lorebookStudio.shell.header.untitled')}
                 subtitle={t('lorebookStudio.shell.header.subtitle')}
-                icon={<span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-arcane-500/15 text-arcane-300"><Icon icon={BookOpen} size={22} /></span>}
+                icon={<IconTile icon={BookOpen} tone="arcane" size="md" />}
                 divider
                 actions={
                     <>

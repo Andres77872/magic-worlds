@@ -45,6 +45,8 @@ export interface MembershipOperationLimit {
 
 export interface MembershipPayg {
     balance: number
+    free_balance: number
+    billed_balance: number
 }
 
 export interface MembershipMonthlyOperationUsage {
@@ -52,6 +54,8 @@ export interface MembershipMonthlyOperationUsage {
     credits_used: number
     included_credits_used: number
     payg_credits_used: number
+    payg_free_credits_used: number
+    payg_billed_credits_used: number
     billable_seconds?: number
 }
 
@@ -63,6 +67,8 @@ export interface MembershipMonthlyUsage {
     credits_used: number
     included_credits_used: number
     payg_credits_used: number
+    payg_free_credits_used: number
+    payg_billed_credits_used: number
     operations: Record<string, MembershipMonthlyOperationUsage>
 }
 
@@ -112,6 +118,8 @@ export interface MembershipTierProfileCard {
 
 export interface MembershipPaygProfileCard {
     balance: number
+    free_balance: number
+    billed_balance: number
     credit_cost: number
     covered_operations: string[]
     non_expiring: boolean
@@ -137,8 +145,8 @@ export interface Membership {
     payg: MembershipPayg
     total_available_credits: number
     limits: Record<string, MembershipOperationLimit>
-    monthly_usage?: MembershipMonthlyUsage
-    profile_cards?: MembershipProfileCards
+    monthly_usage?: MembershipMonthlyUsage | null
+    profile_cards: MembershipProfileCards
 }
 
 /**
@@ -153,10 +161,7 @@ export interface UserProfile {
     /** Optional public-facing name. Null/absent → fall back to {@link username}. */
     display_name?: string | null
     user_type: string
-    /** Total available credits: remaining included credits plus PAYG balance. */
-    user_usage: number
-    /** Membership + PAYG credit details. Optional for safe rollout against older API responses. */
-    membership?: Membership
+    membership: Membership
     card_counts: UserCardCounts
 }
 

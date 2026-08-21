@@ -37,7 +37,7 @@ describe('snapshotLabel', () => {
 })
 
 describe('snapshotDescription', () => {
-    it('reads the canonical description', () => {
+    it('reads the stored description', () => {
         expect(snapshotDescription(ref({ snapshot: snapshot({ description: 'A ranger of the gate' }) }))).toBe('A ranger of the gate')
     })
 })
@@ -65,7 +65,7 @@ describe('lorebookEntrySnapshot', () => {
 })
 
 describe('clonedEntryIds', () => {
-    it('collects canonical snapshot ids for lorebook-entry refs only', () => {
+    it('collects stored snapshot ids for lorebook-entry refs only', () => {
         const refs = [
             ref({
                 id: 'a',

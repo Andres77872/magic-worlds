@@ -18,7 +18,7 @@ import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { apiService, ApiError } from '@/infrastructure/api'
 import type { CharacterCardResponse } from '@/shared/types/aiCard.types'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
-import { Button, Chip, Icon, Select, SuggestInput, SwitchRow, type SelectOption } from '@/ui/primitives'
+import { Button, Chip, Eyebrow, Icon, Select, SuggestInput, SwitchRow, type SelectOption } from '@/ui/primitives'
 import {
     CreatorStudio,
     StudioSection,
@@ -321,7 +321,7 @@ export function CharacterCreator() {
             // Persist the link only — do NOT loadData() here. A refresh flips isLoading,
             // which makes AppRouter unmount the whole creator (discarding in-progress edits)
             // and re-run the theme effect. The gallery refreshes on Save / next navigation.
-            void apiService.setCardMedia('character', id, { theme_song_url: url }).catch(() => {
+            void apiService.setCardMedia('character', id, { theme_song_url: url ?? null }).catch(() => {
                 setDraftToast({ tone: 'error', message: t('creation.common.media.errors.themeSaveFailed') })
             })
         }
@@ -826,9 +826,7 @@ export function CharacterCreator() {
                     description={sections.traits.description}
                 >
                     <div className="flex flex-col gap-2.5">
-                        <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
-                            {t('creation.character.quickAddStats')}
-                        </span>
+                        <Eyebrow tone="muted">{t('creation.character.quickAddStats')}</Eyebrow>
                         <SuggestedAttributes
                             presets={STAT_PRESETS}
                             existingKeys={statKeys}
@@ -838,7 +836,6 @@ export function CharacterCreator() {
 
                     <AttributeManager
                         title={t('creation.character.attributeGroups')}
-                        icon="*"
                         categories={guided.categories}
                         attributes={guided.attributes}
                         onAddCategory={guided.addCategory}

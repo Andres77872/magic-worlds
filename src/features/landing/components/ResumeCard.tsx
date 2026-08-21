@@ -11,7 +11,7 @@ import { PhoneCall, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { resolveMediaUrl } from '@/infrastructure/api'
 import { CardActionMenu, CardOptions, type CardOption, useCardActionContextMenu } from '@/ui/components/lists/Card'
-import { Avatar, Badge, Icon, cx } from '@/ui/primitives'
+import { Avatar, Badge, CardDeletingOverlay, Icon, cx } from '@/ui/primitives'
 import { RESUME_KIND_META, type ResumeSession } from './resumeModel'
 
 export interface ResumeCardProps {
@@ -154,7 +154,7 @@ export function ResumeCard({ session, onContinue, onCall, onDelete, deleting = f
                 <p className="m-0 mt-1.5 font-mono text-[11px] tracking-wide text-parchment-400">{session.meta}</p>
             </div>
             <div
-                className="opacity-100 transition-opacity sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100"
+                className="opacity-100 transition-opacity sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100 sm:pointer-coarse:opacity-100"
                 onClick={(e) => e.stopPropagation()}
             >
                 <CardOptions options={options} aria-label={t('galleryCard.actions', { title: session.title })} />
@@ -170,11 +170,7 @@ export function ResumeCard({ session, onContinue, onCall, onDelete, deleting = f
             >
                 <Icon icon={meta.icon} size={15} />
             </span>
-            {deleting && (
-                <div className="absolute inset-0 z-[1] flex items-center justify-center rounded-lg bg-ink-900/70 font-medium text-parchment-50">
-                    {t('galleryCard.deleting')}
-                </div>
-            )}
+            {deleting && <CardDeletingOverlay label={t('galleryCard.deleting')} />}
             <CardActionMenu
                 {...contextMenu.menuProps}
                 menuTestId="card-context-menu"

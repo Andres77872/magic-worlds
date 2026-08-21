@@ -52,8 +52,9 @@ vi.mock('../hooks/useCodex', () => ({
     }),
 }))
 vi.mock('../hooks/useGenerationHistory', () => ({
-    useGenerationHistory: () => ({ generations: [], patchStatus: vi.fn() }),
+    useGenerationHistory: () => ({ generations: [], patchStatus: vi.fn(), record: vi.fn() }),
 }))
+vi.mock('@/ui/components/ConfirmDialog', () => ({ ConfirmDialog: () => null }))
 vi.mock('../hooks/useOpenCodexEntry', () => ({ useOpenCodexEntry: () => vi.fn() }))
 vi.mock('./codex/CodexPanel', () => ({ CodexPanel: () => null }))
 vi.mock('./NovelChapterRail', () => ({ NovelChapterRail: () => null }))
@@ -126,7 +127,7 @@ describe('NovelStudio word goal persistence', () => {
         mocks.setGoal.mockResolvedValue(true)
     })
 
-    it('binds the active canonical chapter to the persisted word-goal hook', () => {
+    it('binds the active stored chapter to the persisted word-goal hook', () => {
         render(<NovelStudio />)
 
         const activeChapter = mocks.useNovelStudio.mock.results[0].value.activeChapter
@@ -137,7 +138,7 @@ describe('NovelStudio word goal persistence', () => {
         expect(mocks.setGoal).toHaveBeenCalledWith(2200)
     })
 
-    it('surfaces a visible error when the canonical word-goal save fails', async () => {
+    it('surfaces a visible error when the stored word-goal save fails', async () => {
         mocks.setGoal.mockResolvedValue(false)
         render(<NovelStudio />)
 

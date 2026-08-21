@@ -11,21 +11,12 @@ import { ConfirmDialog, EmptyState } from '@/ui/components'
 import { Button, Icon, IconButton, IconTile, PageHeader, Toast, controlClass } from '@/ui/primitives'
 import { ResumeCard } from '@/features/landing/components/ResumeCard'
 import { toResumeSessions, type ResumeSession } from '@/features/landing/components/resumeModel'
+import { searchableText } from '@/features/landing/components/resumeModel'
 
 interface ActionNotice {
     tone: 'success' | 'error'
     title: string
     message?: string
-}
-
-function searchableText(session: ResumeSession): string {
-    return [
-        session.title,
-        session.context,
-        session.playingAs,
-        session.snippet,
-        session.meta,
-    ].filter(Boolean).join(' ').toLowerCase()
 }
 
 export function ActiveAdventuresPage() {

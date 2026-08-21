@@ -23,7 +23,7 @@ interface WorldPlaceTypeSource {
     category?: WorldCategory[] | null
 }
 
-/** Read the canonical Setting / Place type category attribute. */
+/** Read the stored Setting / Place type category attribute. */
 export function readWorldPlaceType(card?: WorldPlaceTypeSource | null): string {
     const setting = card?.category?.find((group) => group.name?.trim().toLowerCase() === 'setting')
     for (const attributes of setting?.attributes ?? []) {
@@ -33,7 +33,7 @@ export function readWorldPlaceType(card?: WorldPlaceTypeSource | null): string {
     return DEFAULT_WORLD_PLACE_TYPE
 }
 
-/** Persist place scale in the canonical Setting / Place type category field. */
+/** Persist place scale in the stored Setting / Place type category field. */
 export function withWorldPlaceType(
     category: WorldCategory[] | undefined,
     placeType: string,

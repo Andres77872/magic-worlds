@@ -18,12 +18,17 @@ const baseAuth: AuthValue = {
     projects: [],
     isLoading: false,
     error: null,
+    sessionPhase: 'signed_out',
+    authEpoch: 0,
+    accountKey: 'test',
+    userHash: null,
     isLoginModalOpen: false,
     login: async () => false,
     register: async () => false,
     loginWithGoogle: async () => undefined,
     completeGoogleLogin: async () => false,
-    logout: () => undefined,
+    logout: async () => undefined,
+    continueSignedOut: () => undefined,
     updateUser: () => undefined,
     clearError: () => undefined,
     openLoginModal: () => undefined,
@@ -54,6 +59,8 @@ const backgroundTasks: BackgroundTasksValue = {
         throw new Error('not implemented in test')
     },
     clearTerminalTasks: async () => undefined,
+    terminalHasMore: { completed: false, failed: false },
+    loadMoreTerminalTasks: async () => undefined,
 }
 
 const dependencyStatus: ApiStatusContextValue = {
@@ -126,6 +133,7 @@ describe('Sidebar API status', () => {
         vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
         vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
         vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
         window.localStorage.removeItem('magic-worlds-sidebar-collapsed')
         window.localStorage.removeItem('magic-worlds-sidebar-groups')
     })
@@ -269,6 +277,18 @@ describe('Sidebar API status', () => {
         fireEvent.click(activeAdventures)
 
         expect(activeAdventures).toHaveAttribute('aria-current', 'page')
+    })
+
+    it('hides both adventure nav items when the adventures feature is off', async () => {
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
+
+        expect(await screen.findByRole('button', { name: 'Chatroom' })).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Started adventures' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Adventures' })).not.toBeInTheDocument()
+        // The groups themselves survive via their other items.
+        expect(document.querySelector('#sidebar-group-activity')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Items' })).toBeInTheDocument()
     })
 
     it('marks docs as the current view after selecting it from the account menu', async () => {

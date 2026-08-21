@@ -32,6 +32,7 @@ export const Ember: Story = {}
 export const Arcane: Story = { args: { tone: 'arcane', children: 'AI', icon: <Sparkles size={12} strokeWidth={2} /> } }
 export const Live: Story = { args: { tone: 'live', children: 'Live' } }
 export const Danger: Story = { args: { tone: 'danger', children: 'Error' } }
+export const Warning: Story = { args: { tone: 'warning', children: 'Degraded' } }
 export const Nsfw: Story = { args: { tone: 'nsfw', children: 'NSFW' } }
 export const Neutral: Story = { args: { tone: 'neutral', children: 'Draft' } }
 
