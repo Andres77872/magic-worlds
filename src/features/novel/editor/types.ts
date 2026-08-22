@@ -8,8 +8,16 @@ import type { SessionLoreEntry } from '@/features/lorebook/loreTriggers'
 import type { StoryCardKind, StoryGeneration, StoryGenerationCommand } from '@/shared'
 import type { CodexDetectionName } from '../hooks/useCodex'
 
-/** Inline AI lifecycle. Single source of truth lives in the extension storage. */
-export type InlineAIPhase = 'idle' | 'prompting' | 'pending' | 'revealing' | 'reviewing'
+/**
+ * Inline AI lifecycle. Single source of truth lives in the extension storage.
+ * There is no reveal phase: generated prose lands in one transaction and is
+ * reviewed in place, so the machine is idle → prompting? → pending → reviewing.
+ */
+export type InlineAIPhase = 'idle' | 'prompting' | 'pending' | 'reviewing'
+
+/** How much prose a beat should produce. Appended to the instruction; no API field. */
+export type BeatLength = 'short' | 'medium' | 'long'
+
 
 export interface EditorCodexEntry {
     id: string
@@ -21,19 +29,27 @@ export interface EditorCodexEntry {
 export interface InlineAIRequest {
     command: StoryGenerationCommand
     instruction?: string
+    /**
+     * What the writer actually typed, before the length sentence was appended.
+     * Kept separate from `instruction` so the prompt can be shown back to them
+     * and stored with the generation — the text is not the whole record of a
+     * beat; what was asked for is half of it.
+     */
+    prompt?: string
     selection?: { startOffset: number; endOffset: number; text: string }
 }
 
 export interface NovelEditorHandle {
     getMarkdown: () => string
     focus: () => void
+    /** Open the find & replace panel (the studio header's overflow menu). */
+    openFind: () => void
     hasActiveSuggestion: () => boolean
     /** Resolve any live suggestion (accept keeps text, reject restores). Must be awaited before chapter switches. */
     resolveSuggestion: (mode: 'accept' | 'reject') => Promise<void>
 }
 
 export interface NovelEditorProps {
-    chapterId: string
     initialBody: string
     codexEntries: EditorCodexEntry[]
     /** Enabled codex entity names, highlighted inline (ember). */
@@ -53,7 +69,7 @@ export interface NovelEditorProps {
     /**
      * Persist the current body immediately; awaited before generating and after
      * accepting. Resolves false when the body could not be saved — generation
-     * is aborted in that case so the muse never works from a stale manuscript.
+     * is aborted in that case so the model never works from a stale manuscript.
      */
     onRequestSaveFlush: () => Promise<boolean>
     onGenerate: (request: InlineAIRequest) => Promise<StoryGeneration>
@@ -62,4 +78,6 @@ export interface NovelEditorProps {
     /** Critique output is feedback, not prose — the studio shows it outside the manuscript. */
     onCritiqueResult: (generation: StoryGeneration) => void
     onSuggestionPhaseChange?: (phase: InlineAIPhase) => void
+    /** Codex entries currently enabled — shown as the beat composer's context readout. */
+    enabledContextCount?: number
 }

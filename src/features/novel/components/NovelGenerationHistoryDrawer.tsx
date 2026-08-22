@@ -1,6 +1,11 @@
 /**
- * NovelGenerationHistoryDrawer — every past generation across chapters,
- * newest first, with status badges and copy-to-clipboard re-use.
+ * NovelGenerationHistoryDrawer — every past generation across chapters, newest
+ * first, with status badges and copy-to-clipboard re-use.
+ *
+ * Each entry leads with the PROMPT, not the prose. Once a beat is accepted its
+ * text is just part of the chapter and the instruction that produced it exists
+ * nowhere else — this drawer is where it survives, so "what did I ask for to
+ * get that paragraph" has an answer.
  */
 
 import { useState } from 'react'
@@ -59,6 +64,15 @@ export function NovelGenerationHistoryDrawer({ open, generations, onClose }: Nov
                                     <Icon icon={copiedId === generation.id ? Check : Clipboard} size={14} />
                                 </IconButton>
                             </div>
+                            {(generation.prompt || generation.promptSummary) && (
+                                <p
+                                    className="m-0 mb-2 line-clamp-2 border-l-2 border-arcane-500/45 pl-2.5 font-ui text-caption text-arcane-300"
+                                    data-testid="generation-history-prompt"
+                                >
+                                    <span className="text-parchment-400">{t('novelEditor.history.prompt')}: </span>
+                                    {generation.prompt || generation.promptSummary}
+                                </p>
+                            )}
                             <p className="m-0 line-clamp-4 whitespace-pre-wrap font-narrative text-[14px] leading-6 text-parchment-200">
                                 {generation.output}
                             </p>

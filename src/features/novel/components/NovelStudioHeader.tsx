@@ -1,170 +1,273 @@
 /**
- * NovelStudioHeader — the studio masthead. Novel title and description edit
- * inline (commit on blur/Enter); the right cluster carries the save-state
- * pill, word count, history, codex and focus toggles, and explicit Save.
+ * NovelStudioHeader — one 48px row of chrome, and nothing more. The old
+ * masthead carried two always-live inputs and eight peer controls in a wrapping
+ * flex row, so at 1280px the Save button dropped to a second line and nothing
+ * in the cluster read as more important than anything else.
+ *
+ * Here the left is identity (novel · chapter) and the right is the two panel
+ * toggles; everything rarer than that lives behind More. The novel description
+ * left the header entirely — a logline is not something a writer needs in view
+ * every minute.
+ *
+ * The counters and the save state are NOT here. They live on the status strip
+ * under the manuscript, in the writer's line of sight, and printing them in
+ * both places was the same number twice. There is no Save button either: the
+ * chapter autosaves 1.2s after the last keystroke, retries failures and flushes
+ * on unmount, so an explicit Save is a no-op in every state except `error` —
+ * where the strip grows a Retry.
+ *
+ * The title edits in place but is not a permanently-live input: a live input in
+ * the chrome invites accidental edits every time the pointer lands on it.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlignVerticalSpaceAround, BookMarked, History, Minimize2, PanelRightOpen, RotateCcw, Save } from 'lucide-react'
+import {
+    AlignVerticalSpaceAround,
+    ArrowLeft,
+    History,
+    Maximize2,
+    Minimize2,
+    MoreHorizontal,
+    PanelRight,
+    Search,
+    type LucideIcon,
+} from 'lucide-react'
 import type { Story } from '@/shared'
-import { Button, Eyebrow, Icon, cx } from '@/ui/primitives'
-import { formatSaveState, storySourceLabel, type NovelSaveState } from '../utils/novelUtils'
-import { WordGoalControl } from './WordGoalControl'
+import { Icon, IconButton } from '@/ui/primitives'
 
-interface NovelStudioHeaderProps {
+export interface NovelStudioHeaderProps {
     story: Story
-    saveState: NovelSaveState
-    lastSavedAt: Date | null
-    words: number
-    goal: number | null
-    onSetGoal: (goal: number | null) => void
+    chapterTitle: string
     focusMode: boolean
     codexOpen: boolean
     typewriter: boolean
-    saveDisabled?: boolean
-    onSave: () => void
     onToggleFocusMode: () => void
     onToggleCodex: () => void
     onToggleTypewriter: () => void
     onOpenHistory: () => void
+    onOpenFind: () => void
+    onBack: () => void
     onSaveMeta: (patch: { title?: string; description?: string }) => void
 }
 
+// The Find binding is Ctrl **or** Cmd, so the hint must not claim ⌘ on Windows.
+const IS_APPLE =
+    typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || '')
+const FIND_KEY = IS_APPLE ? '⌘F' : 'Ctrl+F'
+
 export function NovelStudioHeader({
     story,
-    saveState,
-    lastSavedAt,
-    words,
-    goal,
-    onSetGoal,
+    chapterTitle,
     focusMode,
     codexOpen,
     typewriter,
-    saveDisabled,
-    onSave,
     onToggleFocusMode,
     onToggleCodex,
     onToggleTypewriter,
     onOpenHistory,
+    onOpenFind,
+    onBack,
     onSaveMeta,
 }: NovelStudioHeaderProps) {
     const { t } = useTranslation()
-    const [title, setTitle] = useState(story.title)
-    const [description, setDescription] = useState(story.description ?? '')
+    const [editing, setEditing] = useState(false)
+    const [draft, setDraft] = useState(story.title)
+    const [menuOpen, setMenuOpen] = useState(false)
+    const menuRef = useRef<HTMLDivElement | null>(null)
+    const menuTriggerRef = useRef<HTMLButtonElement | null>(null)
+    // Escape reverts by blurring, so the blur handler must know not to commit.
+    const revertRef = useRef(false)
 
-    const storyId = story.id
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setTitle(story.title)
-        setDescription(story.description ?? '')
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [storyId])
+        if (!menuOpen) return
+        const handlePointer = (event: MouseEvent) => {
+            if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false)
+        }
+        const handleKey = (event: globalThis.KeyboardEvent) => {
+            if (event.key !== 'Escape') return
+            event.preventDefault()
+            setMenuOpen(false)
+            menuTriggerRef.current?.focus()
+        }
+        document.addEventListener('mousedown', handlePointer)
+        document.addEventListener('keydown', handleKey)
+        return () => {
+            document.removeEventListener('mousedown', handlePointer)
+            document.removeEventListener('keydown', handleKey)
+        }
+    }, [menuOpen])
+
+    const startEditing = () => {
+        setDraft(story.title)
+        revertRef.current = false
+        setEditing(true)
+    }
 
     const commitTitle = () => {
-        const next = title.trim() || t('novelEditor.header.untitled')
-        setTitle(next)
+        setEditing(false)
+        if (revertRef.current) {
+            revertRef.current = false
+            return
+        }
+        const next = draft.trim() || t('novelEditor.header.untitled')
         if (next !== story.title) onSaveMeta({ title: next })
     }
 
-    const commitDescription = () => {
-        const next = description.trim()
-        if (next !== (story.description ?? '')) onSaveMeta({ description: next })
+    const onTitleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter') {
+            event.preventDefault()
+            event.currentTarget.blur()
+        } else if (event.key === 'Escape') {
+            event.preventDefault()
+            revertRef.current = true
+            event.currentTarget.blur()
+        }
     }
 
-    const blurOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter') e.currentTarget.blur()
+    const runMenuItem = (action: () => void) => {
+        setMenuOpen(false)
+        // The clicked row unmounts with the menu, so focus would land on <body>.
+        // Hand it back to the trigger first; anything the action opens (drawer,
+        // find panel) claims focus for itself afterwards.
+        menuTriggerRef.current?.focus()
+        action()
     }
 
     return (
-        <header className="border-b border-parchment-50/10 bg-ink-900/70 px-5 py-4 sm:px-8">
-            <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <Eyebrow tone="ember">{t('novelEditor.header.eyebrow', { source: storySourceLabel(story, t) })}</Eyebrow>
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-parchment-50/10 bg-ink-900/70 px-2 sm:px-3">
+            <IconButton label={t('novelEditor.header.back')} size="sm" onClick={onBack}>
+                <Icon icon={ArrowLeft} size={16} />
+            </IconButton>
+
+            <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                {editing ? (
                     <input
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
+                        value={draft}
+                        autoFocus
+                        onChange={(event) => setDraft(event.target.value)}
                         onBlur={commitTitle}
-                        onKeyDown={blurOnEnter}
+                        onKeyDown={onTitleKeyDown}
                         aria-label={t('novelEditor.header.titleLabel')}
-                        className="m-0 w-full max-w-[34ch] border-none bg-transparent p-0 font-display text-h3 font-semibold tracking-tight text-parchment-50 outline-none placeholder:text-parchment-500"
                         placeholder={t('novelEditor.header.untitled')}
+                        className="min-w-0 max-w-[38ch] flex-1 rounded-xs border border-ember-500/50 bg-ink-800 px-1.5 py-0.5 font-display text-[20px] font-semibold text-parchment-50 outline-none placeholder:text-parchment-500"
                         data-testid="novel-title-input"
                     />
-                    <input
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        onBlur={commitDescription}
-                        onKeyDown={blurOnEnter}
-                        aria-label={t('novelEditor.header.descriptionLabel')}
-                        className="m-0 w-full max-w-[60ch] border-none bg-transparent p-0 font-narrative text-body text-parchment-300 outline-none placeholder:text-parchment-500"
-                        placeholder={t('novelEditor.header.descriptionPlaceholder')}
-                    />
-                </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <span
-                        className={cx(
-                            'font-ui text-xs',
-                            saveState === 'error' ? 'text-blood-500' : 'text-parchment-400',
-                        )}
-                        data-testid="novel-save-state"
+                ) : (
+                    <button
+                        type="button"
+                        onClick={startEditing}
+                        aria-label={t('novelEditor.header.titleLabel')}
+                        className="min-w-0 max-w-[38ch] cursor-pointer truncate rounded-xs px-1.5 py-0.5 text-left font-display text-[20px] font-semibold text-parchment-50 transition-colors hover:bg-parchment-50/[.06]"
+                        data-testid="novel-title"
                     >
-                        {formatSaveState(saveState, lastSavedAt, t)}
-                    </span>
-                    {saveState === 'error' && (
-                        <Button
-                            variant="primary"
-                            size="sm"
-                            iconLeft={<Icon icon={RotateCcw} size={15} />}
-                            onClick={onSave}
-                            disabled={saveDisabled}
+                        {story.title || t('novelEditor.header.untitled')}
+                    </button>
+                )}
+                <span className="shrink-0 text-[13px] text-parchment-500" aria-hidden="true">
+                    /
+                </span>
+                <span className="min-w-0 truncate font-ui text-[13px] text-parchment-300" data-testid="novel-header-chapter">
+                    {chapterTitle || t('novelEditor.studio.chapterTitlePlaceholder')}
+                </span>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+                {!focusMode && (
+                    <IconButton
+                        label={t('novelEditor.header.codex')}
+                        size="sm"
+                       
+                        tone={codexOpen ? 'active' : 'default'}
+                        aria-pressed={codexOpen}
+                        onClick={onToggleCodex}
+                    >
+                        <Icon icon={PanelRight} size={16} />
+                    </IconButton>
+                )}
+                <IconButton
+                    label={t('novelEditor.header.focus')}
+                    size="sm"
+                   
+                    tone={focusMode ? 'active' : 'default'}
+                    aria-pressed={focusMode}
+                    onClick={onToggleFocusMode}
+                >
+                    <Icon icon={focusMode ? Minimize2 : Maximize2} size={16} />
+                </IconButton>
+
+                <div className="relative" ref={menuRef}>
+                    <IconButton
+                        ref={menuTriggerRef}
+                        label={t('novelEditor.header.more')}
+                        size="sm"
+                       
+                        aria-haspopup="menu"
+                        aria-expanded={menuOpen}
+                        onClick={() => setMenuOpen((open) => !open)}
+                        data-testid="novel-header-more"
+                    >
+                        <Icon icon={MoreHorizontal} size={16} />
+                    </IconButton>
+                    {menuOpen && (
+                        <div
+                            role="menu"
+                            aria-label={t('novelEditor.header.more')}
+                            className="absolute right-0 top-[calc(100%+6px)] z-40 w-[252px] rounded-md border border-parchment-50/10 bg-ink-700 p-1 shadow-lg"
+                            data-testid="novel-header-menu"
                         >
-                            {t('novelEditor.save.retry')}
-                        </Button>
+                            <MenuItem
+                                icon={AlignVerticalSpaceAround}
+                                label={t('novelEditor.header.typewriter')}
+                                hint={typewriter ? t('novelEditor.header.typewriterOn') : t('novelEditor.header.typewriterOff')}
+                                checked={typewriter}
+                                onSelect={() => runMenuItem(onToggleTypewriter)}
+                            />
+                            <MenuItem
+                                icon={Search}
+                                label={t('novelEditor.header.find')}
+                                hint={FIND_KEY}
+                                onSelect={() => runMenuItem(onOpenFind)}
+                            />
+                            <MenuItem
+                                icon={History}
+                                label={t('novelEditor.header.history')}
+                                onSelect={() => runMenuItem(onOpenHistory)}
+                            />
+                        </div>
                     )}
-                    <WordGoalControl words={words} goal={goal} onSetGoal={onSetGoal} />
-                    <Button
-                        variant={typewriter ? 'secondary' : 'ghost'}
-                        size="sm"
-                        iconLeft={<Icon icon={AlignVerticalSpaceAround} size={15} />}
-                        onClick={onToggleTypewriter}
-                        aria-pressed={typewriter}
-                    >
-                        {t('novelEditor.header.typewriter')}
-                    </Button>
-                    <Button variant="ghost" size="sm" iconLeft={<Icon icon={History} size={15} />} onClick={onOpenHistory}>
-                        {t('novelEditor.header.history')}
-                    </Button>
-                    {!focusMode && (
-                        <Button
-                            variant={codexOpen ? 'secondary' : 'ghost'}
-                            size="sm"
-                            iconLeft={<Icon icon={BookMarked} size={15} />}
-                            onClick={onToggleCodex}
-                            aria-pressed={codexOpen}
-                        >
-                            {t('novelEditor.header.codex')}
-                        </Button>
-                    )}
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        iconLeft={<Icon icon={focusMode ? PanelRightOpen : Minimize2} size={15} />}
-                        onClick={onToggleFocusMode}
-                    >
-                        {focusMode ? t('novelEditor.header.panels') : t('novelEditor.header.focus')}
-                    </Button>
-                    <Button
-                        variant="primary"
-                        size="sm"
-                        iconLeft={<Icon icon={Save} size={15} />}
-                        onClick={onSave}
-                        disabled={saveState === 'saving' || saveDisabled}
-                    >
-                        {saveState === 'saving' ? t('novelEditor.save.saving') : t('common.save')}
-                    </Button>
                 </div>
             </div>
         </header>
+    )
+}
+
+
+function MenuItem({
+    icon,
+    label,
+    hint,
+    checked,
+    onSelect,
+}: {
+    icon: LucideIcon
+    label: string
+    hint?: string
+    checked?: boolean
+    onSelect: () => void
+}) {
+    return (
+        <button
+            type="button"
+            role={checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+            aria-checked={checked}
+            onClick={onSelect}
+            className="flex h-8 w-full cursor-pointer items-center gap-2 rounded-xs px-2 text-left font-ui text-[13px] text-parchment-100 transition-colors hover:bg-parchment-50/[.06]"
+            data-testid="novel-header-menu-item"
+        >
+            <Icon icon={icon} size={14} className="shrink-0 text-parchment-300" />
+            <span className="truncate">{label}</span>
+            {hint && <span className="ml-auto shrink-0 font-mono text-[11px] text-parchment-400">{hint}</span>}
+        </button>
     )
 }

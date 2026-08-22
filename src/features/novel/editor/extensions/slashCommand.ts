@@ -1,11 +1,15 @@
 /**
- * Slash command — typing "/" opens the inline menu at the caret (Notion style).
- * Two kinds of items: BLOCK insertions (headings, lists, quote, scene break)
- * that run a TipTap chain instantly, and AI commands (continue/describe/critique
- * + free-text custom) that route to the inline-AI lifecycle. Built on
- * @tiptap/suggestion: the query tracks live (spaces allowed, styled arcane via
- * decorationClass), and rendering is bridged to React through a controller ref so
- * the extension stays stable.
+ * Slash command — typing "/" opens the command menu at the caret.
+ *
+ * Three kinds of item: BLOCK insertions that run a TipTap chain instantly, AI
+ * COMMANDS that go straight to the inline-AI lifecycle, and BEAT, which opens
+ * the composer so you can say what to do in your own words.
+ *
+ * Free text no longer becomes an invisible command. The old build appended an
+ * unlabelled "custom" item under the block list and sent the raw query as the
+ * instruction — undiscoverable, uneditable and impossible to re-run. Now typing
+ * something that matches no command offers exactly one row that opens the beat
+ * composer prefilled with what you typed.
  */
 
 import { Extension, type Editor, type Range } from '@tiptap/core'
@@ -17,88 +21,115 @@ import type { InlineAIPhase } from '../types'
 
 export const SLASH_COMMAND_PLUGIN_KEY = new PluginKey('novelSlashCommand')
 
-export type SlashSection = 'block' | 'ai'
+/** Write before Insert: this is an AI drafting tool, blocks are the second job. */
+export type SlashSection = 'write' | 'insert'
 
 interface SlashItemBase {
     key: string
     label: string
-    description: string
+    /** Right-aligned muted hint — a shortcut or a one-word qualifier, never a sentence. */
+    hint: string
     section: SlashSection
 }
 
-/** An AI command routed through the inline-AI lifecycle. */
-export interface SlashAiItem extends SlashItemBase {
-    type: 'ai'
-    section: 'ai'
-    command: StoryGenerationCommand
+/** Opens the beat composer. */
+export interface SlashBeatItem extends SlashItemBase {
+    type: 'beat'
+    section: 'write'
+    /** Prefill, when the row came from free text. */
     instruction?: string
+}
+
+/** A canned AI command, straight to the lifecycle. */
+export interface SlashCommandItem extends SlashItemBase {
+    type: 'command'
+    section: 'write'
+    command: StoryGenerationCommand
 }
 
 /** A structural block insertion that mutates the document directly. */
 export interface SlashBlockItem extends SlashItemBase {
     type: 'block'
-    section: 'block'
+    section: 'insert'
     /** Runs after the slash query range is already deleted. */
     run: (editor: Editor) => void
 }
 
-export type SlashItem = SlashAiItem | SlashBlockItem
+export type SlashItem = SlashBeatItem | SlashCommandItem | SlashBlockItem
 
-interface CannedSlashSpec {
+interface CommandSpec {
     key: string
-    labelKey: string
-    descriptionKey: string
     command: StoryGenerationCommand
 }
 
-interface BlockSlashSpec {
+interface BlockSpec {
     key: string
-    labelKey: string
-    descriptionKey: string
     run: (editor: Editor) => void
 }
 
-const BLOCK_ITEMS: BlockSlashSpec[] = [
-    { key: 'heading', labelKey: 'novelEditor.slash.heading.label', descriptionKey: 'novelEditor.slash.heading.description', run: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run() },
-    { key: 'subheading', labelKey: 'novelEditor.slash.subheading.label', descriptionKey: 'novelEditor.slash.subheading.description', run: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run() },
-    { key: 'bulletList', labelKey: 'novelEditor.slash.bulletList.label', descriptionKey: 'novelEditor.slash.bulletList.description', run: (editor) => editor.chain().focus().toggleBulletList().run() },
-    { key: 'orderedList', labelKey: 'novelEditor.slash.orderedList.label', descriptionKey: 'novelEditor.slash.orderedList.description', run: (editor) => editor.chain().focus().toggleOrderedList().run() },
-    { key: 'quote', labelKey: 'novelEditor.slash.quote.label', descriptionKey: 'novelEditor.slash.quote.description', run: (editor) => editor.chain().focus().toggleBlockquote().run() },
-    { key: 'sceneBreak', labelKey: 'novelEditor.slash.sceneBreak.label', descriptionKey: 'novelEditor.slash.sceneBreak.description', run: (editor) => editor.chain().focus().setHorizontalRule().run() },
+const COMMAND_ITEMS: CommandSpec[] = [
+    { key: 'continue', command: 'continue' },
+    { key: 'describe', command: 'describe' },
+    { key: 'critique', command: 'critique' },
 ]
 
-const CANNED_ITEMS: CannedSlashSpec[] = [
-    { key: 'continue', labelKey: 'novelEditor.slash.continue.label', descriptionKey: 'novelEditor.slash.continue.description', command: 'continue' },
-    { key: 'describe', labelKey: 'novelEditor.slash.describe.label', descriptionKey: 'novelEditor.slash.describe.description', command: 'describe' },
-    { key: 'critique', labelKey: 'novelEditor.slash.critique.label', descriptionKey: 'novelEditor.slash.critique.description', command: 'critique' },
+const BLOCK_ITEMS: BlockSpec[] = [
+    { key: 'heading', run: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run() },
+    { key: 'subheading', run: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run() },
+    { key: 'bulletList', run: (editor) => editor.chain().focus().toggleBulletList().run() },
+    { key: 'orderedList', run: (editor) => editor.chain().focus().toggleOrderedList().run() },
+    { key: 'quote', run: (editor) => editor.chain().focus().toggleBlockquote().run() },
+    { key: 'sceneBreak', run: (editor) => editor.chain().focus().setHorizontalRule().run() },
 ]
 
 export function buildSlashItems(query: string, t: TFunction): SlashItem[] {
     const needle = query.trim().toLowerCase()
     const matches = (label: string) => label.toLowerCase().includes(needle)
 
-    const blocks: SlashItem[] = BLOCK_ITEMS.map(
-        (spec): SlashBlockItem => ({ type: 'block', section: 'block', key: spec.key, label: t(spec.labelKey), description: t(spec.descriptionKey), run: spec.run }),
-    ).filter((item) => matches(item.label))
-
-    const canned: SlashItem[] = CANNED_ITEMS.map(
-        (spec): SlashAiItem => ({ type: 'ai', section: 'ai', key: spec.key, label: t(spec.labelKey), description: t(spec.descriptionKey), command: spec.command }),
-    ).filter((item) => matches(item.label))
-
-    const items = [...blocks, ...canned]
-    const trimmed = query.trim()
-    if (!trimmed) return items
-    // Free text is always offered as a custom instruction to the muse.
-    const custom: SlashAiItem = {
-        type: 'ai',
-        section: 'ai',
-        key: 'custom',
-        label: t('novelEditor.slash.custom.label', { text: trimmed }),
-        description: t('novelEditor.slash.custom.description'),
-        command: 'custom',
-        instruction: trimmed,
+    const beat: SlashBeatItem = {
+        type: 'beat',
+        section: 'write',
+        key: 'beat',
+        label: t('novelEditor.slash.beat.label'),
+        hint: t('novelEditor.slash.beat.hint'),
     }
-    return [...items, custom]
+    const commands: SlashItem[] = COMMAND_ITEMS.map(
+        (spec): SlashCommandItem => ({
+            type: 'command',
+            section: 'write',
+            key: spec.key,
+            label: t(`novelEditor.slash.${spec.key}.label`),
+            hint: t(`novelEditor.slash.${spec.key}.hint`),
+            command: spec.command,
+        }),
+    )
+    const blocks: SlashItem[] = BLOCK_ITEMS.map(
+        (spec): SlashBlockItem => ({
+            type: 'block',
+            section: 'insert',
+            key: spec.key,
+            label: t(`novelEditor.slash.${spec.key}.label`),
+            hint: t(`novelEditor.slash.${spec.key}.hint`),
+            run: spec.run,
+        }),
+    )
+
+    const items = [beat, ...commands, ...blocks].filter((item) => matches(item.label))
+    if (items.length > 0) return items
+
+    const trimmed = query.trim()
+    if (!trimmed) return []
+    // Nothing matched: offer the beat composer, prefilled and explicit.
+    return [
+        {
+            type: 'beat',
+            section: 'write',
+            key: 'free',
+            label: t('novelEditor.slash.free.label', { text: trimmed }),
+            hint: t('novelEditor.slash.free.hint'),
+            instruction: trimmed,
+        },
+    ]
 }
 
 export interface SlashMenuController {

@@ -2,8 +2,9 @@
  * FindReplacePanel — a compact find & replace surface that floats over the
  * manuscript (Ctrl/Cmd-F). It drives the searchReplace extension: typing seeds
  * the query, the chevrons step through matches, and replace/replace-all rewrite
- * them. Replacement is disabled while an AI suggestion is alive so it can never
- * collide with the inline reveal. Closing clears the search and returns focus.
+ * them. Replacement is disabled while a generation is pending or under review:
+ * rewriting the document then would count as a user edit and implicitly accept
+ * the generated text. Closing clears the search and returns focus.
  */
 
 import { useEffect, useReducer, useRef, useState } from 'react'

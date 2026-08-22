@@ -7,6 +7,11 @@
  * (or critiques dismissed) inline would be invisible until an unrelated
  * refetch, so record() keeps a local copy of every generation produced this
  * session and the merge dedupes by id once the server copy arrives.
+ *
+ * record() also keeps the writer's own prompt, which the server copy does not
+ * carry: once a beat is accepted the prose is in the chapter and the
+ * instruction that produced it exists nowhere else. The merge below preserves
+ * it rather than letting the authoritative copy overwrite it away.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -15,13 +20,15 @@ import { chaptersFor } from '../utils/novelUtils'
 
 export interface HistoryGeneration extends StoryGeneration {
     chapterTitle: string
+    /** What the writer asked for, in their own words. */
+    prompt?: string
 }
 
 export interface GenerationHistoryApi {
     generations: HistoryGeneration[]
     patchStatus: (generationId: string, status: StoryGenerationStatus) => void
     /** Track a generation created this session before any story refetch. */
-    record: (generation: StoryGeneration, chapterTitle: string) => void
+    record: (generation: StoryGeneration, chapterTitle: string, prompt?: string) => void
 }
 
 export function useGenerationHistory({ story }: { story: Story | null }): GenerationHistoryApi {
@@ -35,8 +42,11 @@ export function useGenerationHistory({ story }: { story: Story | null }): Genera
         setLocal([])
     }, [storyId])
 
-    const record = useCallback((generation: StoryGeneration, chapterTitle: string) => {
-        setLocal((prev) => [{ ...generation, chapterTitle }, ...prev.filter((item) => item.id !== generation.id)])
+    const record = useCallback((generation: StoryGeneration, chapterTitle: string, prompt?: string) => {
+        setLocal((prev) => [
+            { ...generation, chapterTitle, prompt: prompt?.trim() || undefined },
+            ...prev.filter((item) => item.id !== generation.id),
+        ])
     }, [])
 
     const generations = useMemo(() => {
@@ -44,8 +54,10 @@ export function useGenerationHistory({ story }: { story: Story | null }): Genera
         for (const generation of local) byId.set(generation.id, generation)
         for (const chapter of chaptersFor(story)) {
             for (const generation of chapter.generationHistory) {
-                // The server copy wins: same content, authoritative status.
-                byId.set(generation.id, { ...generation, chapterTitle: chapter.title })
+                // The server copy wins on content and status — but it has no
+                // record of what the writer typed, so the local prompt survives.
+                const prompt = byId.get(generation.id)?.prompt
+                byId.set(generation.id, { ...generation, chapterTitle: chapter.title, prompt })
             }
         }
         return [...byId.values()]

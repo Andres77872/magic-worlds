@@ -176,6 +176,10 @@
   --scale-zoom: 1.035;
   /* layout widths (Drawer / Modal / Sidebar size maps consume via var()) */
   --width-sidebar: 264px;
+  /* Manuscript measure: ~68 characters of Spectral at 18px, plus the prose
+     column's 28px gutters. Absolute, so the editor's chrome can line up with
+     the prose without inheriting its font. */
+  --width-manuscript: 640px;
   --width-drawer-sm: 360px;
   --width-drawer-md: 440px;
   --width-drawer-lg: 600px;
@@ -530,15 +534,21 @@
     box-shadow: 0 0 0 1px rgba(232, 162, 74, 0.55);
   }
 
+  /* No border, no radius, no tint: the page you are writing IS the page. The
+     old card treatment (bordered, filled, ember glow on focus-within) made the
+     manuscript look like a widget sitting on the manuscript. */
   .story-editor-shell {
-    background:
-      linear-gradient(180deg, rgba(246, 239, 226, 0.025), transparent 160px),
-      rgba(14, 12, 20, 0.42);
+    background: transparent;
   }
 
   .story-editor-prose {
     flex: 1 1 auto;
     min-height: 560px;
+    /* Line length is the single biggest readability lever in a manuscript
+       editor, and it was unset. */
+    width: 100%;
+    max-width: var(--width-manuscript);
+    margin: 0 auto;
     padding: 28px;
     outline: none;
     font-family: var(--font-narrative);
@@ -660,24 +670,6 @@
       color 220ms var(--ease-out),
       background 220ms var(--ease-out);
   }
-  /* In-flight request: shimmering caret-side widget at the insertion point. */
-  .story-editor-prose .ai-pending-widget {
-    display: inline-block;
-    margin-left: 4px;
-    padding: 0 6px;
-    border-radius: var(--radius-xs);
-    font-family: var(--font-ui);
-    font-size: 13px;
-    font-style: normal;
-    color: var(--color-arcane-300);
-    background-color: rgba(143, 111, 227, 0.12);
-    background-image: linear-gradient(100deg, transparent 30%, rgba(195, 176, 242, 0.35) 50%, transparent 70%);
-    background-size: 200% 100%;
-    background-repeat: no-repeat;
-    animation: var(--animate-shimmer);
-    user-select: none;
-    white-space: nowrap;
-  }
   /* Selected passage being rewritten while the request is in flight. */
   .story-editor-prose .ai-pending-source {
     background: rgba(143, 111, 227, 0.14);
@@ -698,5 +690,237 @@
     font-size: 0.85em;
     font-weight: 600;
     white-space: nowrap;
+  }
+}
+
+/* ============================================================
+   Novel editor — the in-document AI action row.
+
+   Generated prose is real document text, so the controls that act on it are
+   document content too: a widget decoration at the block boundary after the
+   run. It inherits the prose column's measure and padding, which is why it
+   needs no positioning of its own — and why the pill it replaces, which was
+   measured with coordsAtPos on every transaction, is gone.
+   ============================================================ */
+@layer components {
+  .story-editor-prose .ai-action-row {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    /* Matches the paragraph rhythm exactly (theme .story-editor-prose p). */
+    margin: 0 0 1rem;
+    font-family: var(--font-ui);
+    font-size: var(--text-caption);
+    user-select: none;
+  }
+  .story-editor-prose .ai-action-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    /* Claimed when the request starts, so the review state costs no reflow at
+       the moment the writer starts reading. */
+    min-height: 34px;
+  }
+  /* What was asked for. A beat is a prompt AND its prose; showing only the prose
+     throws half the record away the moment the text lands. Present from the
+     first "Generating…" frame, so the box never changes height. */
+  .story-editor-prose .ai-action-prompt {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-ui);
+    font-size: var(--text-meta);
+    line-height: 1.4;
+    color: var(--color-arcane-300);
+  }
+  .story-editor-prose > .ai-action-row:last-child {
+    margin-bottom: 0;
+  }
+  /* Ties the row to the run above it. Inside the 28px prose padding, so it
+     costs nothing horizontally. */
+  .story-editor-prose .ai-action-row::before {
+    content: '';
+    position: absolute;
+    left: -14px;
+    top: 2px;
+    bottom: 2px;
+    width: 2px;
+    border-radius: 1px;
+    background: color-mix(in srgb, var(--color-arcane-500) 45%, transparent);
+  }
+
+  .story-editor-prose .ai-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-xs);
+    font-family: var(--font-ui);
+    font-size: var(--text-caption);
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+      background-color var(--default-transition-duration) var(--ease-out),
+      border-color var(--default-transition-duration) var(--ease-out),
+      color var(--default-transition-duration) var(--ease-out);
+  }
+  /* The only filled control: accepting is the writer's commit. */
+  .story-editor-prose .ai-action-btn--accept {
+    height: 28px;
+    padding: 0 12px;
+    font-size: var(--text-label);
+    background: var(--color-ember-500);
+    color: var(--color-on-ember);
+  }
+  .story-editor-prose .ai-action-btn--accept:hover {
+    background: var(--color-ember-400);
+  }
+  .story-editor-prose .ai-action-btn--accept .ai-action-key {
+    color: var(--color-on-ember);
+    opacity: 0.65;
+  }
+  .story-editor-prose .ai-action-btn--regen {
+    border-color: color-mix(in srgb, var(--color-arcane-500) 40%, transparent);
+    color: var(--color-arcane-300);
+  }
+  .story-editor-prose .ai-action-btn--regen:hover {
+    background: color-mix(in srgb, var(--color-arcane-500) 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-arcane-500) 60%, transparent);
+  }
+  /* Decline destroys prose: kept furthest from the primary, with a wider gutter
+     than the 8px flex gap so a fast click cannot overshoot into it. */
+  .story-editor-prose .ai-action-btn--decline {
+    margin-left: 4px;
+    border-color: var(--color-line-faint);
+    color: var(--color-parchment-300);
+  }
+  .story-editor-prose .ai-action-btn--decline:hover {
+    background: color-mix(in srgb, var(--color-parchment-50) 6%, transparent);
+    border-color: var(--color-line);
+    color: var(--color-parchment-100);
+  }
+  .story-editor-prose .ai-action-key {
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    color: var(--color-parchment-500);
+  }
+  .story-editor-prose .ai-action-divider {
+    width: 1px;
+    height: 16px;
+    margin: 0 2px;
+    background: var(--color-line-faint);
+  }
+  .story-editor-prose .ai-action-meta {
+    margin-left: auto;
+    font-size: var(--text-meta);
+    color: var(--color-parchment-400);
+    font-variant-numeric: tabular-nums;
+  }
+  .story-editor-prose .ai-action-status {
+    font-size: var(--text-label);
+    color: var(--color-arcane-400);
+  }
+  /* One small spinner and a word — no shimmer sweep across a chip. */
+  .story-editor-prose .ai-action-spinner {
+    width: 13px;
+    height: 13px;
+    border-radius: 999px;
+    border: 1.5px solid color-mix(in srgb, var(--color-arcane-500) 30%, transparent);
+    border-top-color: var(--color-arcane-400);
+    animation: ai-action-spin 0.7s linear infinite;
+  }
+
+  /* Coarse pointers: real targets, and the row wraps rather than squeezing. */
+  @media (pointer: coarse) {
+    .story-editor-prose .ai-action-btn {
+      min-height: 44px;
+      padding: 0 16px;
+    }
+    .story-editor-prose .ai-action-btn--accept {
+      min-height: 44px;
+    }
+  }
+}
+
+@keyframes ai-action-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================
+   Novel editor — the beat note.
+
+   The record of what was asked for, kept in the manuscript above the prose it
+   produced. Quiet by construction: it is an annotation on the writer's page,
+   not a card sitting on it, so it borrows the arcane gutter rule the generated
+   run already uses and adds no elevation of its own.
+   ============================================================ */
+@layer components {
+  .story-editor-prose .ai-beat {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 0 0 0.6rem;
+    padding: 3px 6px 3px 10px;
+    border-left: 2px solid color-mix(in srgb, var(--color-arcane-500) 45%, transparent);
+    border-radius: var(--radius-xs);
+    background: color-mix(in srgb, var(--color-arcane-500) 7%, transparent);
+    font-family: var(--font-ui);
+    font-size: var(--text-meta);
+    line-height: 1.5;
+    user-select: none;
+    cursor: default;
+  }
+  .story-editor-prose .ai-beat.ProseMirror-selectednode {
+    background: color-mix(in srgb, var(--color-arcane-500) 16%, transparent);
+    border-left-color: var(--color-arcane-500);
+  }
+  .story-editor-prose .ai-beat-label {
+    flex: none;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-arcane-400);
+  }
+  /* One line: a long instruction must not push the prose down the page. The
+     full text stays on the title attribute. */
+  .story-editor-prose .ai-beat-prompt {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-parchment-200);
+  }
+  .story-editor-prose .ai-beat-remove {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--color-parchment-400);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    transition: color var(--default-transition-duration) var(--ease-out);
+  }
+  .story-editor-prose .ai-beat-remove:hover {
+    color: var(--color-parchment-50);
+  }
+  @media (pointer: coarse) {
+    .story-editor-prose .ai-beat-remove {
+      width: 32px;
+      height: 32px;
+    }
   }
 }

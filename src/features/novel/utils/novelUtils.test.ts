@@ -2,13 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { TFunction } from 'i18next'
 
 import type { Story, StoryChapter } from '@/shared'
-import { chaptersFor, formatSaveState, storySourceLabel, wordCount } from './novelUtils'
+import { chaptersFor, formatSaveState, wordCount } from './novelUtils'
 
 // Stub t that maps the keys these helpers use back to their English copy, so
 // the pure formatting/labeling contract stays asserted without i18n wiring.
 const COPY: Record<string, string> = {
-    'novelEditor.kind.adventure': 'Adventure',
-    'novelEditor.source.blank': 'Blank',
     'novelEditor.save.saving': 'Saving',
     'novelEditor.save.failed': 'Save failed',
     'novelEditor.save.unsaved': 'Unsaved',
@@ -76,13 +74,6 @@ describe('wordCount', () => {
     })
 })
 
-describe('storySourceLabel', () => {
-    it('labels blank, titled, and kind-only sources', () => {
-        expect(storySourceLabel(story(), t)).toBe('Blank')
-        expect(storySourceLabel(story({ source: { kind: 'character', id: 'char-1', title: 'Aria' } }), t)).toBe('Aria')
-        expect(storySourceLabel(story({ source: { kind: 'adventure_template', id: 'adv-1', title: null } }), t)).toBe('Adventure')
-    })
-})
 
 describe('formatSaveState', () => {
     it('formats each state', () => {

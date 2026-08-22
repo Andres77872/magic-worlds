@@ -1,14 +1,19 @@
 /**
- * WordGoalControl — the header word counter, upgraded into an optional goal
- * tracker. With no goal it reads as a plain word count; set a goal and it shows
- * `count / goal` with a thin ember progress bar. Clicking opens a small popover
- * to set or clear the target.
+ * WordGoalControl — the word count, with an optional target behind it. It sits
+ * at the left of the status strip under the manuscript, so at rest it is one
+ * mono readout and nothing else: no icon, no progress bar, no border. The bar
+ * and the label bought nothing a writer glancing at "1,204 / 2,000" does not
+ * already read.
+ *
+ * Clicking opens a small popover — Enter commits, Escape or an outside click
+ * closes, Clear removes the target. It opens UPWARD and left-aligned because
+ * the strip is the bottom edge of the layout; anchoring it below would put it
+ * off-screen.
  */
 
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Target } from 'lucide-react'
-import { Button, Icon } from '@/ui/primitives'
+import { Button } from '@/ui/primitives'
 
 interface WordGoalControlProps {
     words: number
@@ -21,6 +26,7 @@ export function WordGoalControl({ words, goal, onSetGoal }: WordGoalControlProps
     const [open, setOpen] = useState(false)
     const [draft, setDraft] = useState('')
     const wrapRef = useRef<HTMLDivElement | null>(null)
+    const triggerRef = useRef<HTMLButtonElement | null>(null)
 
     useEffect(() => {
         if (!open) return
@@ -28,7 +34,12 @@ export function WordGoalControl({ words, goal, onSetGoal }: WordGoalControlProps
             if (!wrapRef.current?.contains(event.target as Node)) setOpen(false)
         }
         const onKey = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setOpen(false)
+            if (event.key !== 'Escape') return
+            event.preventDefault()
+            setOpen(false)
+            // The popover holds focus (autoFocus on the input); closing it must
+            // not drop focus on <body>.
+            triggerRef.current?.focus()
         }
         document.addEventListener('mousedown', onPointer)
         document.addEventListener('keydown', onKey)
@@ -37,8 +48,6 @@ export function WordGoalControl({ words, goal, onSetGoal }: WordGoalControlProps
             document.removeEventListener('keydown', onKey)
         }
     }, [open])
-
-    const pct = goal ? Math.min(100, Math.round((words / goal) * 100)) : 0
 
     const openEditor = () => {
         setDraft(goal ? String(goal) : '')
@@ -56,28 +65,25 @@ export function WordGoalControl({ words, goal, onSetGoal }: WordGoalControlProps
 
     return (
         <div ref={wrapRef} className="relative">
-            <Button
-                variant="ghost"
-                size="sm"
+            <button
+                ref={triggerRef}
+                type="button"
                 onClick={openEditor}
-                data-testid="novel-word-goal"
                 aria-label={t('novelEditor.header.goalAria')}
+                aria-haspopup="dialog"
+                aria-expanded={open}
+                className="flex h-7 cursor-pointer items-center whitespace-nowrap rounded-xs px-1.5 font-mono text-[11px] text-parchment-400 transition-colors hover:bg-parchment-50/[.06] hover:text-parchment-200"
+                data-testid="novel-word-goal"
             >
-                <Icon icon={Target} size={13} />
-                {goal ? (
-                    <span className="flex items-center gap-1.5">
-                        <span>{t('novelEditor.header.goalProgress', { count: words.toLocaleString(), goal: goal.toLocaleString() })}</span>
-                        <span className="block h-1 w-14 overflow-hidden rounded-full bg-parchment-50/10">
-                            <span className="block h-full rounded-full bg-ember-500 transition-[width]" style={{ width: `${pct}%` }} />
-                        </span>
-                    </span>
-                ) : (
-                    <span>{t('novelEditor.header.words', { count: words, formatted: words.toLocaleString() })}</span>
-                )}
-            </Button>
+                {goal
+                    ? t('novelEditor.header.goalProgress', { count: words.toLocaleString(), goal: goal.toLocaleString() })
+                    : t('novelEditor.header.words', { count: words, formatted: words.toLocaleString() })}
+            </button>
             {open && (
                 <div
-                    className="absolute right-0 top-[calc(100%+6px)] z-40 w-[220px] rounded-lg border border-parchment-50/10 bg-ink-700 p-3 shadow-xl"
+                    role="dialog"
+                    aria-label={t('novelEditor.header.goalLabel')}
+                    className="absolute bottom-[calc(100%+6px)] left-0 z-40 w-[220px] rounded-md border border-parchment-50/10 bg-ink-700 p-3 shadow-lg"
                     data-testid="novel-word-goal-popover"
                 >
                     <label htmlFor="novel-word-goal-input" className="mb-1.5 block font-ui text-meta uppercase tracking-[0.14em] text-parchment-400">

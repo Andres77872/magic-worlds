@@ -6,10 +6,12 @@ const mocks = vi.hoisted(() => ({
     useNovelStudio: vi.fn(),
     useWordGoal: vi.fn(),
     setGoal: vi.fn(),
+    setPage: vi.fn(),
 }))
 
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: true, openLoginModal: vi.fn() }),
+    useNavigation: () => ({ setPage: mocks.setPage }),
     useData: () => ({
         generateStoryCandidate: vi.fn(),
         acceptStoryGeneration: vi.fn(),
@@ -37,7 +39,7 @@ vi.mock('../hooks/useChapterDraft', () => ({
         suspended: false,
         setSuspended: vi.fn(),
         saveNow: vi.fn(),
-        flush: vi.fn(async () => undefined),
+        flush: vi.fn(async () => true),
     }),
 }))
 vi.mock('../hooks/useCodex', () => ({
@@ -58,12 +60,13 @@ vi.mock('@/ui/components/ConfirmDialog', () => ({ ConfirmDialog: () => null }))
 vi.mock('../hooks/useOpenCodexEntry', () => ({ useOpenCodexEntry: () => vi.fn() }))
 vi.mock('./codex/CodexPanel', () => ({ CodexPanel: () => null }))
 vi.mock('./NovelChapterRail', () => ({ NovelChapterRail: () => null }))
-vi.mock('./NovelGenerationHistoryDrawer', () => ({ NovelGenerationHistoryDrawer: () => null }))
-vi.mock('./NovelStudioHeader', () => ({
-    NovelStudioHeader: ({ goal, onSetGoal }: { goal: number | null; onSetGoal: (goal: number | null) => void }) => (
+vi.mock('./StudioStatusStrip', () => ({
+    StudioStatusStrip: ({ goal, onSetGoal }: { goal: number | null; onSetGoal: (goal: number | null) => void }) => (
         <button type="button" onClick={() => onSetGoal(2200)}>Goal {goal}</button>
     ),
 }))
+vi.mock('./NovelGenerationHistoryDrawer', () => ({ NovelGenerationHistoryDrawer: () => null }))
+vi.mock('./NovelStudioHeader', () => ({ NovelStudioHeader: () => null }))
 
 import { NovelStudio } from './NovelStudio'
 

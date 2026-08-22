@@ -1,62 +1,89 @@
 /**
- * EditorBubbleMenu — the selection toolbar. Three grouped clusters: text format
- * (bold/italic/strikethrough), block transform (H1/H2/quote/bullet/numbered),
- * and the AI cluster — a single "Ask the muse" trigger that opens BubbleAiMenu
- * (rewrite/expand/condense/describe) plus an "Add to codex" action.
+ * EditorBubbleMenu — the selection toolbar, cut down to what a selection can
+ * usefully do: the three inline marks, quote, and the AI cluster. The block
+ * transforms (headings, lists) are gone — the slash menu and the markdown input
+ * rules ("## ", "- ") already own that job, and repeating them here made the
+ * toolbar wide enough to cover the very sentence being edited.
+ *
+ * The AI menu lives in BubbleAiMenu, but the trigger, the open flag and the
+ * dismissal handlers stay HERE, in the one element that wraps both: a menu
+ * component owning its own outside-click listener would race this toolbar's,
+ * and the loser closes the menu on the click that opened it.
  *
  * Every control uses preventToolbarBlur (onMouseDown preventDefault) so the live
  * selection survives; AI entries disable while a suggestion is alive.
  */
 
-import { useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Editor } from '@tiptap/core'
 import { BubbleMenu } from '@tiptap/react/menus'
 import {
     Bold,
     BookmarkPlus,
-    Heading1,
-    Heading2,
+    ChevronDown,
     Italic,
-    List,
-    ListOrdered,
-    Maximize2,
-    Minimize2,
-    PenLine,
     Quote,
-    ScrollText,
     Sparkles,
     Strikethrough,
 } from 'lucide-react'
 import type { StoryGenerationCommand } from '@/shared'
-import { Button, Icon, IconButton, cx } from '@/ui/primitives'
+import { Button, Icon, IconButton } from '@/ui/primitives'
 import type { InlineAIPhase } from '../types'
-import { BubbleAiMenu, type BubbleAiItem } from './BubbleAiMenu'
+import { BubbleAiMenu } from './BubbleAiMenu'
 
 function preventToolbarBlur(event: MouseEvent) {
     event.preventDefault()
 }
 
-interface EditorBubbleMenuProps {
+export interface EditorBubbleMenuProps {
     editor: Editor
     phase: InlineAIPhase
     onSelectionCommand: (command: StoryGenerationCommand) => void
+    /** Opens the beat composer with the current selection as its target. */
+    onBeatOnSelection: () => void
     onAddToCodex?: () => void
 }
 
-export function EditorBubbleMenu({ editor, phase, onSelectionCommand, onAddToCodex }: EditorBubbleMenuProps) {
+export function EditorBubbleMenu({ editor, phase, onSelectionCommand, onBeatOnSelection, onAddToCodex }: EditorBubbleMenuProps) {
     const { t } = useTranslation()
     const [aiOpen, setAiOpen] = useState(false)
+    const aiRef = useRef<HTMLDivElement | null>(null)
     // While a suggestion is alive the trigger is disabled and the menu render is
-    // gated below, so the submenu can never act on a stale selection.
+    // gated below, so the menu can never act on a stale selection.
     const aiDisabled = phase !== 'idle'
 
-    const aiItems: BubbleAiItem[] = [
-        { command: 'rewrite', label: t('novelEditor.bubbleMenu.rewrite'), description: t('novelEditor.bubbleMenu.rewriteHint'), icon: PenLine },
-        { command: 'expand', label: t('novelEditor.bubbleMenu.expand'), description: t('novelEditor.bubbleMenu.expandHint'), icon: Maximize2 },
-        { command: 'condense', label: t('novelEditor.bubbleMenu.condense'), description: t('novelEditor.bubbleMenu.condenseHint'), icon: Minimize2 },
-        { command: 'describe', label: t('novelEditor.bubbleMenu.describe'), description: t('novelEditor.bubbleMenu.describeHint'), icon: ScrollText },
-    ]
+    // A suggestion starting while the menu is open (keyboard shortcut, slash
+    // menu) must drop the open flag too — otherwise the menu silently reappears
+    // the moment the phase returns to idle, pointing at a selection that moved.
+    // Adjusted during render rather than in an effect: React re-runs this
+    // component before committing, so the menu never paints in the stale state.
+    const [wasDisabled, setWasDisabled] = useState(aiDisabled)
+    if (wasDisabled !== aiDisabled) {
+        setWasDisabled(aiDisabled)
+        if (aiDisabled && aiOpen) setAiOpen(false)
+    }
+
+    useEffect(() => {
+        if (!aiOpen) return
+        const handlePointer = (event: globalThis.MouseEvent) => {
+            if (!aiRef.current?.contains(event.target as Node)) setAiOpen(false)
+        }
+        const handleKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault()
+                setAiOpen(false)
+            }
+        }
+        // Capture so the editor's own handlers don't swallow the outside click first.
+        document.addEventListener('mousedown', handlePointer, true)
+        document.addEventListener('keydown', handleKey)
+        return () => {
+            document.removeEventListener('mousedown', handlePointer, true)
+            document.removeEventListener('keydown', handleKey)
+        }
+    }, [aiOpen])
+
 
     return (
         <BubbleMenu
@@ -79,69 +106,46 @@ export function EditorBubbleMenu({ editor, phase, onSelectionCommand, onAddToCod
 
             <Divider />
 
-            <ToolButton
-                label={t('novelEditor.bubbleMenu.heading')}
-                active={editor.isActive('heading', { level: 2 })}
-                onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-            >
-                <Icon icon={Heading1} size={14} />
-            </ToolButton>
-            <ToolButton
-                label={t('novelEditor.bubbleMenu.subheading')}
-                active={editor.isActive('heading', { level: 3 })}
-                onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-            >
-                <Icon icon={Heading2} size={14} />
-            </ToolButton>
             <ToolButton label={t('novelEditor.bubbleMenu.quote')} active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
                 <Icon icon={Quote} size={14} />
-            </ToolButton>
-            <ToolButton
-                label={t('novelEditor.bubbleMenu.bulletList')}
-                active={editor.isActive('bulletList')}
-                onClick={() => editor.chain().focus().toggleBulletList().run()}
-            >
-                <Icon icon={List} size={14} />
-            </ToolButton>
-            <ToolButton
-                label={t('novelEditor.bubbleMenu.orderedList')}
-                active={editor.isActive('orderedList')}
-                onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            >
-                <Icon icon={ListOrdered} size={14} />
             </ToolButton>
 
             <Divider />
 
-            <div className="relative">
+            <div className="relative" ref={aiRef}>
+                {/* variant="arcane" is the design system's AI treatment (arcane tint +
+                    arcane-300 text). A ghost button with a text-arcane-300 override would
+                    not work: cx() is a plain join, so ghost's own text colour wins. */}
                 <Button
-                    variant="ghost"
+                    variant="arcane"
                     size="sm"
                     disabled={aiDisabled}
                     onMouseDown={preventToolbarBlur}
                     onClick={() => setAiOpen((open) => !open)}
-                    iconLeft={<Icon icon={Sparkles} size={13} />}
-                    className="text-arcane-300"
+                    iconLeft={<Icon icon={Sparkles} size={14} />}
+                    iconRight={<Icon icon={ChevronDown} size={14} />}
                     aria-haspopup="menu"
                     aria-expanded={aiOpen}
                     data-testid="bubble-ai-trigger"
                 >
-                    {t('novelEditor.bubbleMenu.askMuse')}
+                    {t('novelEditor.bubbleMenu.ai')}
                 </Button>
                 {aiOpen && !aiDisabled && (
                     <BubbleAiMenu
-                        items={aiItems}
-                        onSelect={(command) => {
+                        onBeat={() => {
+                            setAiOpen(false)
+                            onBeatOnSelection()
+                        }}
+                        onSelectCommand={(command) => {
                             setAiOpen(false)
                             onSelectionCommand(command)
                         }}
-                        onClose={() => setAiOpen(false)}
                     />
                 )}
             </div>
 
             {onAddToCodex && (
-                <ToolButton label={t('novelEditor.bubbleMenu.addToCodex')} active={false} onClick={onAddToCodex} disabled={aiDisabled}>
+                <ToolButton label={t('novelEditor.bubbleMenu.addToCodex')} onClick={onAddToCodex} disabled={aiDisabled}>
                     <Icon icon={BookmarkPlus} size={14} />
                 </ToolButton>
             )}
@@ -153,6 +157,10 @@ function Divider() {
     return <span className="h-5 w-px bg-parchment-50/10" aria-hidden="true" />
 }
 
+
+/** `active` marks a toggle (a mark or block that is on/off) and drives
+ *  aria-pressed; one-shot actions such as "add to codex" omit it entirely so
+ *  they are not announced as pressable toggles. */
 function ToolButton({
     label,
     active,
@@ -161,10 +169,10 @@ function ToolButton({
     children,
 }: {
     label: string
-    active: boolean
+    active?: boolean
     onClick: () => void
     disabled?: boolean
-    children: React.ReactNode
+    children: ReactNode
 }) {
     return (
         <IconButton
@@ -172,9 +180,9 @@ function ToolButton({
             size="sm"
             tone={active ? 'active' : 'default'}
             disabled={disabled}
+            aria-pressed={active}
             onMouseDown={preventToolbarBlur}
             onClick={onClick}
-            className={cx('h-7 w-7')}
         >
             {children}
         </IconButton>

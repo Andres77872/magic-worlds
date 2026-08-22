@@ -21,7 +21,7 @@ vi.mock('@/infrastructure/api', () => ({
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
 }))
 
-import type { Story, StoryCardRef, StoryCardSnapshot } from '@/shared'
+import type { Story, StoryCardRef, StoryCardSnapshot, StoryContextTrace } from '@/shared'
 import { apiService } from '@/infrastructure/api'
 import { useCodex } from '../../hooks/useCodex'
 import { CodexPanel } from './CodexPanel'
@@ -70,10 +70,23 @@ function story(refs: StoryCardRef[]): Story {
     }
 }
 
-function Harness({ refs }: { refs: StoryCardRef[] }) {
+function Harness({ refs, trace }: { refs: StoryCardRef[]; trace?: StoryContextTrace | null }) {
     const codex = useCodex({ story: story(refs) })
-    return <CodexPanel codex={codex} requireAuth={() => true} onOpenCardPicker={() => {}} />
+    return <CodexPanel codex={codex} requireAuth={() => true} onOpenCardPicker={() => {}} contextTrace={trace} />
 }
+
+/** Opens the single "Add" disclosure so its two destinations are reachable. */
+function openAddMenu() {
+    fireEvent.click(screen.getAllByTestId('codex-add')[0])
+}
+
+const WORLD_REF = ref({
+    id: 'b',
+    kind: 'world',
+    cardId: 'w1',
+    precedence: 1,
+    snapshot: snapshot({ id: 'w1', name: 'Eldoria', story_card_kind: 'world', description: 'A drowned kingdom.' }),
+})
 
 const RAW_LOREBOOK = {
     id: 'lb-1',
@@ -94,25 +107,69 @@ describe('CodexPanel', () => {
     it('renders grouped entries with counts and an empty state otherwise', () => {
         const { rerender } = render(<Harness refs={[]} />)
         expect(screen.getByText('Your codex is empty')).toBeInTheDocument()
+        // The empty state offers the same single Add control as the header.
+        expect(screen.getAllByTestId('codex-add')).toHaveLength(2)
+        expect(screen.queryByTestId('codex-filter')).not.toBeInTheDocument()
 
-        rerender(
-            <Harness
-                refs={[
-                    ref({ id: 'a' }),
-                    ref({
-                        id: 'b',
-                        kind: 'world',
-                        cardId: 'w1',
-                        precedence: 1,
-                        snapshot: snapshot({ id: 'w1', name: 'Eldoria', story_card_kind: 'world' }),
-                    }),
-                ]}
-            />,
-        )
+        rerender(<Harness refs={[ref({ id: 'a' }), WORLD_REF]} />)
         expect(screen.getByText('Characters')).toBeInTheDocument()
         expect(screen.getByText('Worlds')).toBeInTheDocument()
         expect(screen.getByText('Aria')).toBeInTheDocument()
         expect(screen.getByText('Eldoria')).toBeInTheDocument()
+    })
+
+    it('shows the context meter with a hint until a trace exists, then the trace numbers', () => {
+        const { rerender } = render(<Harness refs={[ref({ id: 'a' }), ref({ id: 'b', enabled: false })]} />)
+
+        const meter = screen.getByTestId('codex-context-meter')
+        expect(within(meter).getByText('1/2')).toBeInTheDocument()
+        expect(within(meter).getByText('Disabled entries are never sent.')).toBeInTheDocument()
+        expect(meter.textContent).not.toMatch(/NaN|null/)
+        expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1')
+
+        const trace: StoryContextTrace = {
+            cards: [],
+            loreEntries: [],
+            chapters: [
+                { chapterId: 'c1', title: 'One', included: true, reason: 'current', estimatedTokens: 120 },
+                { chapterId: 'c2', title: 'Two', included: true, reason: 'recent', estimatedTokens: 80 },
+            ],
+            totalEstimatedTokens: 1420,
+        }
+        rerender(<Harness refs={[ref({ id: 'a' }), ref({ id: 'b', enabled: false })]} trace={trace} />)
+
+        expect(within(screen.getByTestId('codex-context-meter')).getByText('~1420 tokens · 2 chapters')).toBeInTheDocument()
+    })
+
+    it('filters entries by label and description, then reports no matches', () => {
+        render(<Harness refs={[ref({ id: 'a' }), WORLD_REF]} />)
+
+        fireEvent.change(screen.getByTestId('codex-filter'), { target: { value: 'drowned' } })
+        expect(screen.getByText('Eldoria')).toBeInTheDocument()
+        expect(screen.queryByText('Aria')).not.toBeInTheDocument()
+
+        fireEvent.change(screen.getByTestId('codex-filter'), { target: { value: 'zzz' } })
+        expect(screen.getByTestId('codex-no-matches')).toHaveTextContent('No matching entries')
+        // A filtered-out codex is not an empty codex.
+        expect(screen.queryByText('Your codex is empty')).not.toBeInTheDocument()
+    })
+
+    it('closes the add menu on Escape and on an outside click', () => {
+        render(<Harness refs={[]} />)
+        const trigger = screen.getAllByTestId('codex-add')[0]
+
+        fireEvent.click(trigger)
+        expect(screen.getByRole('menu')).toBeInTheDocument()
+        expect(trigger).toHaveAttribute('aria-expanded', 'true')
+
+        fireEvent.keyDown(document, { key: 'Escape' })
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+        expect(trigger).toHaveFocus()
+
+        fireEvent.click(trigger)
+        expect(screen.getByRole('menu')).toBeInTheDocument()
+        fireEvent.mouseDown(document.body)
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     })
 
     it('toggles an entry through its switch', async () => {
@@ -140,7 +197,6 @@ describe('CodexPanel', () => {
     it('edits a snapshot through the entry drawer', async () => {
         render(<Harness refs={[ref({ id: 'a', snapshot: snapshot({ race: 'elf' }) })]} />)
 
-        // The title now opens a preview window; the pencil opens the editor drawer.
         fireEvent.click(screen.getByRole('button', { name: 'Edit Aria' }))
         const nameInput = await screen.findByTestId('codex-entry-name')
         fireEvent.change(nameInput, { target: { value: 'Aria the Red' } })
@@ -160,10 +216,19 @@ describe('CodexPanel', () => {
         )
     })
 
+    it('opens the editor drawer from the row name — the one edit control', async () => {
+        render(<Harness refs={[ref({ id: 'a' })]} />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Edit Aria' }))
+
+        expect(await screen.findByTestId('codex-entry-name')).toHaveValue('Aria')
+    })
+
     it('clones selected lorebook entries through the two-step drawer', async () => {
         render(<Harness refs={[]} />)
 
-        fireEvent.click(screen.getAllByRole('button', { name: /Add lorebook/ })[0])
+        openAddMenu()
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Add lorebook' }))
         const book = await screen.findByTestId('codex-lorebook-option')
         fireEvent.click(book)
 

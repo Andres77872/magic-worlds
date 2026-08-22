@@ -1,14 +1,15 @@
 /**
- * NovelEditor — the manuscript surface. TipTap (markdown in/out, serif
- * prose) with custom layers: the inline AI suggestion lifecycle (slash command
- * → shimmer → typewriter → keep/discard, edits imply keep), codex @mentions,
- * inline reference detection (lorebook triggers + codex names), a grouped
- * selection toolbar, and a "/" block + AI command menu.
+ * NovelEditor — the manuscript surface. TipTap (markdown in/out, serif prose)
+ * with custom layers: the inline AI lifecycle (beat composer → generation
+ * written straight into the chapter and highlighted in place → accept /
+ * regenerate / decline from a row that sits with the text), codex @mentions,
+ * inline reference detection (lorebook triggers + codex names), a selection
+ * toolbar, and the "/" command menu.
  *
- * Body emission is gated while a suggestion is alive so suggestion text can
+ * Body emission is gated while the AI owns the document so generated text can
  * never reach autosave; the studio additionally suspends its timer via
- * onSuggestionPhaseChange. The studio must remount this component per
- * chapter (key={chapterId}) — initialBody is read once.
+ * onSuggestionPhaseChange. The studio must remount this component per chapter
+ * (key={chapterId}) — initialBody is read once.
  */
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -20,22 +21,27 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Typography from '@tiptap/extension-typography'
 import { PluginKey } from '@tiptap/pm/state'
 import type { MentionNodeAttrs } from '@tiptap/extension-mention'
-import { exitSuggestion, type SuggestionProps } from '@tiptap/suggestion'
+import { exitSuggestion } from '@tiptap/suggestion'
 import type { StoryGenerationCommand } from '@/shared'
 import { Toast, cx } from '@/ui/primitives'
 import { useOpenLoreEntry } from '@/features/lorebook/hooks/useOpenLoreEntry'
-import { AiSuggestion, findAiSuggestionRange } from './extensions/aiSuggestion'
+import type { AiActionRowModel } from './extensions/aiActionRow'
+import { AiBeat } from './extensions/aiBeat'
+import { AiSuggestion } from './extensions/aiSuggestion'
 import { createCodexMention } from './extensions/codexMention'
 import { buildDetectionMatchers, createDetection, DETECTION_META, type DetectionMatchers } from './extensions/detection'
 import { SearchReplace } from './extensions/searchReplace'
-import { createSlashCommand, type SlashItem, type SlashMenuController } from './extensions/slashCommand'
-import { AiSuggestionPill } from './components/AiSuggestionPill'
+import { createSlashCommand, type SlashItem } from './extensions/slashCommand'
+import { BeatComposer } from './components/BeatComposer'
 import { EditorBubbleMenu } from './components/EditorBubbleMenu'
 import { FindReplacePanel } from './components/FindReplacePanel'
 import { MentionMenu } from './components/MentionMenu'
 import { SlashCommandMenu } from './components/SlashCommandMenu'
-import { useEditorAnchor } from './hooks/useEditorAnchor'
+import { useAiActionRow } from './hooks/useAiActionRow'
+import { useBeatComposer } from './hooks/useBeatComposer'
+import { useEditorChrome } from './hooks/useEditorChrome'
 import { useInlineAI } from './hooks/useInlineAI'
+import { useSuggestionMenu } from './hooks/useSuggestionMenu'
 import { editorSelection } from './markdownSelection'
 import type { EditorCodexEntry, InlineAIPhase, NovelEditorHandle, NovelEditorProps } from './types'
 
@@ -48,35 +54,6 @@ function detectionSignature(props: NovelEditorProps): string {
 }
 
 const CODEX_MENTION_SUGGESTION_KEY = new PluginKey('codexMentionSuggestion')
-
-interface MenuAnchor {
-    left: number
-    top: number
-}
-
-interface MenuState<T> {
-    items: T[]
-    anchor: MenuAnchor
-    command: (item: T) => void
-    range: { from: number; to: number }
-}
-
-interface MentionMenuController {
-    onStart: (props: SuggestionProps<EditorCodexEntry, MentionNodeAttrs>) => void
-    onUpdate: (props: SuggestionProps<EditorCodexEntry, MentionNodeAttrs>) => void
-    onExit: () => void
-    onKeyDown: (event: KeyboardEvent) => boolean
-}
-
-function menuAnchorFor(container: HTMLElement | null, clientRect: (() => DOMRect | null) | null | undefined): MenuAnchor | null {
-    const rect = clientRect?.()
-    if (!rect || !container) return null
-    const containerRect = container.getBoundingClientRect()
-    return {
-        left: Math.max(8, rect.left - containerRect.left),
-        top: rect.bottom - containerRect.top + container.scrollTop + 6,
-    }
-}
 
 export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(function NovelEditor(props, ref) {
     const { t } = useTranslation()
@@ -101,40 +78,52 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
     const openLoreRef = useRef(openLore)
     openLoreRef.current = openLore
 
-    const [armed, setArmed] = useState(false)
     const [findOpen, setFindOpen] = useState(false)
     const [phase, setPhaseState] = useState<InlineAIPhase>('idle')
     const phaseRef = useRef<InlineAIPhase>('idle')
     // Last markdown handed to onBodyChange — lets the idle transition re-emit
-    // exactly once when gated edits (typing while a request was pending)
+    // exactly once when gated edits (a "/query" left behind by a click-away)
     // changed the doc without ever reaching the draft.
     const lastEmittedRef = useRef<string | null>(null)
 
-    // --- menu bridges (extensions are memoized once; everything dynamic goes through refs) ---
-    const [slashMenu, setSlashMenu] = useState<MenuState<SlashItem> | null>(null)
-    const [slashIndex, setSlashIndex] = useState(0)
-    const slashRef = useRef<{ menu: MenuState<SlashItem> | null; index: number }>({ menu: null, index: 0 })
-    slashRef.current = { menu: slashMenu, index: slashIndex }
-
-    const [mentionMenu, setMentionMenu] = useState<MenuState<EditorCodexEntry> | null>(null)
-    const [mentionIndex, setMentionIndex] = useState(0)
-    const mentionRef = useRef<{ menu: MenuState<EditorCodexEntry> | null; index: number }>({ menu: null, index: 0 })
-    mentionRef.current = { menu: mentionMenu, index: mentionIndex }
-
-    const slashControllerRef = useRef<SlashMenuController | null>(null)
-    const mentionControllerRef = useRef<MentionMenuController | null>(null)
+    // Everything the extensions need but cannot capture at construction time.
     const aiHandlersRef = useRef<{
         escape: (phase: InlineAIPhase) => void
         acceptKey: () => void
         rejectKey: () => void
+        regenerateKey: () => void
         implicitAccept: () => void
     }>({
         escape: () => {},
         acceptKey: () => {},
         rejectKey: () => {},
+        regenerateKey: () => {},
         implicitAccept: () => {},
     })
     const submitSlashRef = useRef<(item: SlashItem) => void>(() => {})
+    const editorRef = useRef<ReturnType<typeof useEditor> | null>(null)
+    const rowModelRef = useRef<AiActionRowModel | null>(null)
+
+    const slash = useSuggestionMenu<SlashItem>({
+        containerRef,
+        toCommand: (suggestionProps) => suggestionProps.command,
+        onEscape: (state) => {
+            // Leave no stray "/query" in the manuscript.
+            editorRef.current?.chain().focus().deleteRange(state.range).run()
+        },
+        onOpenChange: (open) => {
+            window.queueMicrotask(() => editorRef.current?.commands.aiSetPrompting(open))
+        },
+    })
+
+    const mention = useSuggestionMenu<EditorCodexEntry, MentionNodeAttrs>({
+        containerRef,
+        toCommand: (suggestionProps) => (item) => suggestionProps.command({ id: item.id, label: item.label }),
+        onEscape: () => {
+            const view = editorRef.current?.view
+            if (view) exitSuggestion(view, CODEX_MENTION_SUGGESTION_KEY)
+        },
+    })
 
     const extensions = useMemo(
         () => [
@@ -149,16 +138,21 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
             Placeholder.configure({ placeholder: tRef.current('novelEditor.editor.placeholder') }),
             Typography,
             SearchReplace,
+            AiBeat.configure({
+                getLabels: () => ({
+                    beat: tRef.current('novelEditor.beat.nodeLabel'),
+                    remove: tRef.current('novelEditor.beat.nodeRemove'),
+                }),
+            }),
             AiSuggestion.configure({
                 onPhaseChange: (nextPhase) => {
                     phaseRef.current = nextPhase
                     setPhaseState(nextPhase)
                     propsRef.current.onSuggestionPhaseChange?.(nextPhase)
-                    // Body emission is gated while a request/suggestion is alive,
-                    // so edits made during those phases (typing while the muse is
-                    // conjuring, then cancelling) never reached the draft. When
-                    // the lifecycle returns to idle without a doc change of its
-                    // own (cancel has none), re-emit if the doc drifted. Deferred:
+                    // Body emission is gated while the AI owns the document, so
+                    // edits made during those phases never reached the draft. When
+                    // the lifecycle returns to idle without a doc change of its own
+                    // (cancel has none), re-emit if the doc drifted. Deferred: the
                     // phase flips inside command execution, before dispatch lands.
                     if (nextPhase === 'idle') {
                         window.queueMicrotask(() => {
@@ -176,9 +170,11 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                 onEscape: (escapePhase) => aiHandlersRef.current.escape(escapePhase),
                 onAcceptRequest: () => aiHandlersRef.current.acceptKey(),
                 onRejectRequest: () => aiHandlersRef.current.rejectKey(),
+                onRegenerateRequest: () => aiHandlersRef.current.regenerateKey(),
+                getRowModel: () => rowModelRef.current,
             }),
             createSlashCommand({
-                controllerRef: slashControllerRef,
+                controllerRef: slash.controllerRef,
                 getPhase: () => phaseRef.current,
                 getT: () => tRef.current,
                 onSubmit: (item) => submitSlashRef.current(item),
@@ -197,10 +193,10 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                             .slice(0, 8)
                     },
                     render: () => ({
-                        onStart: (p) => mentionControllerRef.current?.onStart(p),
-                        onUpdate: (p) => mentionControllerRef.current?.onUpdate(p),
-                        onExit: () => mentionControllerRef.current?.onExit(),
-                        onKeyDown: ({ event }) => mentionControllerRef.current?.onKeyDown(event) ?? false,
+                        onStart: (p) => mention.controllerRef.current?.onStart(p),
+                        onUpdate: (p) => mention.controllerRef.current?.onUpdate(p),
+                        onExit: () => mention.controllerRef.current?.onExit(),
+                        onKeyDown: ({ event }) => mention.controllerRef.current?.onKeyDown(event) ?? false,
                     }),
                 },
             }),
@@ -215,6 +211,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                 onOpenCodex: (codexId) => propsRef.current.onOpenCodexEntry?.(codexId),
             }),
         ],
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- built once; everything dynamic goes through refs
         [],
     )
 
@@ -235,20 +232,24 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
             lastEmittedRef.current = created.getMarkdown()
         },
         onUpdate: ({ editor: next }) => {
-            const currentPhase = phaseRef.current
-            // Suggestion text must never reach the draft; prompting queries are
+            // Generated text must never reach the draft; prompting queries are
             // transient and self-heal when the range is deleted.
-            if (currentPhase === 'pending' || currentPhase === 'revealing' || currentPhase === 'reviewing') return
+            if (phaseRef.current !== 'idle') return
             const markdown = next.getMarkdown()
-            // Doc changes that don't change the serialized body (mark removal
-            // on accept/reject) must not dirty the draft for a no-op save.
+            // Doc changes that don't change the serialized body (mark removal on
+            // accept) must not dirty the draft for a no-op save.
             if (markdown === lastEmittedRef.current) return
             lastEmittedRef.current = markdown
             propsRef.current.onBodyChange(markdown)
         },
     })
-    const editorRef = useRef(editor)
     editorRef.current = editor
+
+    const { armed } = useEditorChrome(editor, {
+        containerRef,
+        typewriter: Boolean(props.typewriter),
+        getPhase: () => phaseRef.current,
+    })
 
     // Recompute detection decorations once when the codex changes.
     useEffect(() => {
@@ -256,45 +257,6 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         if (!target || target.isDestroyed) return
         target.view.dispatch(target.state.tr.setMeta(DETECTION_META, true))
     }, [detectionSig])
-
-    // "Armed" affordance: holding Ctrl/Cmd brightens detected references and
-    // turns the cursor into a pointer (mirrors the chat composer).
-    useEffect(() => {
-        const sync = (event: KeyboardEvent) => setArmed(event.ctrlKey || event.metaKey)
-        const reset = () => setArmed(false)
-        window.addEventListener('keydown', sync)
-        window.addEventListener('keyup', sync)
-        window.addEventListener('blur', reset)
-        return () => {
-            window.removeEventListener('keydown', sync)
-            window.removeEventListener('keyup', sync)
-            window.removeEventListener('blur', reset)
-        }
-    }, [])
-
-    // Typewriter mode: keep the caret line vertically centered. Never runs during
-    // the AI reveal (which owns its own scrollIntoView).
-    useEffect(() => {
-        if (!editor || !props.typewriter) return
-        const recenter = () => {
-            if (phaseRef.current !== 'idle') return
-            const container = containerRef.current
-            if (!container) return
-            try {
-                const coords = editor.view.coordsAtPos(editor.state.selection.head)
-                const rect = container.getBoundingClientRect()
-                container.scrollTop += coords.top - rect.top - rect.height * 0.45
-            } catch {
-                // coordsAtPos can throw mid-transaction; skip this tick.
-            }
-        }
-        editor.on('selectionUpdate', recenter)
-        editor.on('update', recenter)
-        return () => {
-            editor.off('selectionUpdate', recenter)
-            editor.off('update', recenter)
-        }
-    }, [editor, props.typewriter])
 
     const inlineAI = useInlineAI(editor, {
         onRequestSaveFlush: () => propsRef.current.onRequestSaveFlush(),
@@ -308,109 +270,25 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         escape: inlineAI.handleEscape,
         acceptKey: () => void inlineAI.accept(),
         rejectKey: () => void inlineAI.reject(),
+        regenerateKey: () => void inlineAI.regenerate(),
         implicitAccept: inlineAI.handleImplicitAccept,
     }
+
+    const { announcement } = useAiActionRow(editorRef, phase, inlineAI, rowModelRef)
+
+    const beat = useBeatComposer({ editorRef, containerRef, submit: inlineAI.submit })
+
     submitSlashRef.current = (item) => {
         if (item.type === 'block') {
             const target = editorRef.current
             if (target) item.run(target)
             return
         }
-        void inlineAI.submit(item.command, item.instruction)
-    }
-
-    // --- slash menu controller ---
-    slashControllerRef.current = {
-        onStart: (suggestionProps) => {
-            window.queueMicrotask(() => editorRef.current?.commands.aiSetPrompting(true))
-            const anchor = menuAnchorFor(containerRef.current, suggestionProps.clientRect)
-            if (!anchor) return
-            setSlashMenu({ items: suggestionProps.items, anchor, command: suggestionProps.command, range: suggestionProps.range })
-            setSlashIndex(0)
-        },
-        onUpdate: (suggestionProps) => {
-            const anchor = menuAnchorFor(containerRef.current, suggestionProps.clientRect)
-            if (!anchor) return
-            setSlashMenu({ items: suggestionProps.items, anchor, command: suggestionProps.command, range: suggestionProps.range })
-            setSlashIndex((index) => Math.min(index, Math.max(suggestionProps.items.length - 1, 0)))
-        },
-        onExit: () => {
-            setSlashMenu(null)
-            window.queueMicrotask(() => editorRef.current?.commands.aiSetPrompting(false))
-        },
-        onKeyDown: (event) => {
-            const { menu, index } = slashRef.current
-            if (!menu) return false
-            if (event.key === 'ArrowDown') {
-                setSlashIndex((index + 1) % menu.items.length)
-                return true
-            }
-            if (event.key === 'ArrowUp') {
-                setSlashIndex((index - 1 + menu.items.length) % menu.items.length)
-                return true
-            }
-            if (event.key === 'Enter') {
-                const item = menu.items[index]
-                if (item) menu.command(item)
-                return true
-            }
-            if (event.key === 'Escape') {
-                // Leave no stray "/instruction" in the manuscript.
-                editorRef.current?.chain().focus().deleteRange(menu.range).run()
-                return true
-            }
-            return false
-        },
-    }
-
-    // --- mention menu controller (same bridge shape, different item type) ---
-    const mentionMenuFrom = (suggestionProps: SuggestionProps<EditorCodexEntry, MentionNodeAttrs>): MenuState<EditorCodexEntry> | null => {
-        const anchor = menuAnchorFor(containerRef.current, suggestionProps.clientRect)
-        if (!anchor) return null
-        return {
-            items: suggestionProps.items,
-            anchor,
-            command: (item) => suggestionProps.command({ id: item.id, label: item.label }),
-            range: suggestionProps.range,
+        if (item.type === 'beat') {
+            beat.openAt(item.instruction ?? '')
+            return
         }
-    }
-    mentionControllerRef.current = {
-        onStart: (suggestionProps) => {
-            const menu = mentionMenuFrom(suggestionProps)
-            if (!menu) return
-            setMentionMenu(menu)
-            setMentionIndex(0)
-        },
-        onUpdate: (suggestionProps) => {
-            const menu = mentionMenuFrom(suggestionProps)
-            if (!menu) return
-            setMentionMenu(menu)
-            setMentionIndex((index) => Math.min(index, Math.max(suggestionProps.items.length - 1, 0)))
-        },
-        onExit: () => setMentionMenu(null),
-        onKeyDown: (event) => {
-            const { menu, index } = mentionRef.current
-            if (!menu) return false
-            if (event.key === 'ArrowDown') {
-                setMentionIndex(menu.items.length ? (index + 1) % menu.items.length : 0)
-                return true
-            }
-            if (event.key === 'ArrowUp') {
-                setMentionIndex(menu.items.length ? (index - 1 + menu.items.length) % menu.items.length : 0)
-                return true
-            }
-            if (event.key === 'Enter') {
-                const item = menu.items[index]
-                if (item) menu.command(item)
-                return true
-            }
-            if (event.key === 'Escape') {
-                const view = editorRef.current?.view
-                if (view) exitSuggestion(view, CODEX_MENTION_SUGGESTION_KEY)
-                return true
-            }
-            return false
-        },
+        void inlineAI.submit(item.command)
     }
 
     const handleSelectionCommand = (command: StoryGenerationCommand) => {
@@ -435,17 +313,6 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         if (text) propsRef.current.onAddToCodex?.(text)
     }
 
-    const pillAnchor = useEditorAnchor(
-        editor,
-        containerRef,
-        () => {
-            const target = editorRef.current
-            if (!target) return null
-            return findAiSuggestionRange(target.state.doc)?.to ?? null
-        },
-        phase === 'reviewing',
-    )
-
     useImperativeHandle(
         ref,
         (): NovelEditorHandle => ({
@@ -453,6 +320,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
             focus: () => {
                 editorRef.current?.commands.focus()
             },
+            openFind: () => setFindOpen(true),
             hasActiveSuggestion: () => phaseRef.current !== 'idle',
             resolveSuggestion: (mode) => inlineAI.resolve(mode),
         }),
@@ -468,17 +336,29 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
             <div className="relative flex min-h-0 flex-1 flex-col">
                 <div
                     ref={containerRef}
-                    className={cx(
-                        'story-editor-shell relative flex min-h-[480px] flex-1 flex-col overflow-auto rounded-md border border-parchment-50/10 bg-ink-900/45 transition focus-within:border-ember-500/60',
-                        armed && 'is-armed',
-                    )}
+                    className={cx('story-editor-shell relative flex min-h-0 flex-1 flex-col overflow-auto', armed && 'is-armed')}
                     data-focus={props.focusMode ? 'true' : undefined}
                     data-typewriter={props.typewriter ? 'true' : undefined}
                     data-testid="novel-editor"
                     onKeyDown={(event) => {
-                        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+                        // The composer is rendered inside this scrollport, so its
+                        // controls bubble here. It owns the keyboard while it is
+                        // open — otherwise Mod-Enter on a length chip re-opens it
+                        // and silently wipes the sentence being typed, and Mod-F
+                        // buries it under the find panel.
+                        if (beat.open) return
+                        const mod = event.ctrlKey || event.metaKey
+                        if (!mod) return
+                        if (event.key.toLowerCase() === 'f') {
                             event.preventDefault()
                             setFindOpen(true)
+                            return
+                        }
+                        // Mod-Enter belongs to Regenerate while a generation is under
+                        // review — that binding lives in the extension keymap.
+                        if (event.key === 'Enter' && phaseRef.current === 'idle') {
+                            event.preventDefault()
+                            beat.openAt('')
                         }
                     }}
                 >
@@ -487,47 +367,65 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                             editor={editor}
                             phase={phase}
                             onSelectionCommand={handleSelectionCommand}
+                            onBeatOnSelection={() => beat.openAt('')}
                             onAddToCodex={props.onAddToCodex ? handleAddToCodex : undefined}
                         />
                     )}
                     <EditorContent editor={editor} className="flex min-h-0 flex-1 flex-col" />
-                    {slashMenu && (
+                    {slash.menu && (
                         <SlashCommandMenu
-                            items={slashMenu.items}
-                            selectedIndex={slashIndex}
-                            anchor={slashMenu.anchor}
-                            onHover={setSlashIndex}
-                            onSelect={(item) => slashMenu.command(item)}
+                            items={slash.menu.items}
+                            selectedIndex={slash.index}
+                            anchor={slash.menu.anchor}
+                            onHover={slash.setIndex}
+                            onSelect={(item) => slash.menu?.command(item)}
                         />
                     )}
-                    {mentionMenu && (
+                    {mention.menu && (
                         <MentionMenu
-                            items={mentionMenu.items}
-                            selectedIndex={mentionIndex}
-                            anchor={mentionMenu.anchor}
-                            onHover={setMentionIndex}
-                            onSelect={(item) => mentionMenu.command(item)}
+                            items={mention.menu.items}
+                            selectedIndex={mention.index}
+                            anchor={mention.menu.anchor}
+                            onHover={mention.setIndex}
+                            onSelect={(item) => mention.menu?.command(item)}
                         />
                     )}
-                    {phase === 'reviewing' && pillAnchor && (
-                        <AiSuggestionPill anchor={pillAnchor} onAccept={() => void inlineAI.accept()} onReject={() => void inlineAI.reject()} />
+                    {beat.open && beat.target && (
+                        <BeatComposer
+                            anchor={beat.target.anchor}
+                            containerRef={containerRef}
+                            instruction={beat.instruction}
+                            length={beat.length}
+                            contextLine={beat.contextLine}
+                            contextCount={props.enabledContextCount ?? 0}
+                            targetsSelection={Boolean(beat.target.replaceRange)}
+                            optionsOpen={beat.optionsOpen}
+                            onToggleOptions={beat.toggleOptions}
+                            onInstructionChange={beat.setInstruction}
+                            onLengthChange={beat.setLength}
+                            onSubmit={beat.write}
+                            onCancel={beat.cancel}
+                        />
                     )}
                 </div>
-            {editor && findOpen && (
-                <FindReplacePanel
-                    editor={editor}
-                    disabled={phase !== 'idle'}
-                    onClose={() => {
-                        setFindOpen(false)
-                        editorRef.current?.commands.focus()
-                    }}
-                />
-            )}
+                {editor && findOpen && (
+                    <FindReplacePanel
+                        editor={editor}
+                        disabled={phase !== 'idle'}
+                        onClose={() => {
+                            setFindOpen(false)
+                            editorRef.current?.commands.focus()
+                        }}
+                    />
+                )}
             </div>
+            <span className="sr-only" aria-live="polite" data-testid="ai-suggestion-announcer">
+                {announcement}
+            </span>
             <Toast
                 open={Boolean(inlineAI.error)}
                 tone="error"
-                title={t('novelEditor.editor.museFaltered')}
+                title={t('novelEditor.editor.generationFailedTitle')}
                 message={inlineAI.error ?? undefined}
                 onClose={inlineAI.clearError}
             />

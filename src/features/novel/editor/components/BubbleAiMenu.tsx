@@ -1,91 +1,81 @@
 /**
- * BubbleAiMenu — the "Ask the muse" dropdown opened from the selection toolbar.
- * Collapses the AI selection commands (rewrite/expand/condense/describe) into a
- * single labelled, arcane-toned menu instead of four cramped buttons.
+ * BubbleAiMenu — the AI menu on the selection toolbar.
  *
- * Mouse-driven by design: every control uses onMouseDown preventDefault so the
- * editor never blurs and the live selection (and the BubbleMenu hosting it) stay
- * put. Closes on Escape or an outside click.
+ * Presentational on purpose. The trigger, the open flag and the dismissal
+ * handlers stay in EditorBubbleMenu, which wraps both in one element: a
+ * component that owned its own outside-click listener would race the toolbar's,
+ * and the loser closes the menu on the very click that opened it. That is the
+ * bug the previous version of this file had.
+ *
+ * Its first entry opens the beat composer on the selection, so the writer can
+ * say what to do in their own words instead of picking from canned verbs.
  */
 
-import { useEffect, useRef } from 'react'
+import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { LucideIcon } from 'lucide-react'
+import { Maximize2, Minimize2, PenLine, ScrollText, Wand2, type LucideIcon } from 'lucide-react'
 import type { StoryGenerationCommand } from '@/shared'
-import { Icon, cx } from '@/ui/primitives'
+import { Icon } from '@/ui/primitives'
 
-export interface BubbleAiItem {
+interface BubbleAiCommand {
     command: StoryGenerationCommand
     label: string
-    description: string
     icon: LucideIcon
 }
 
 interface BubbleAiMenuProps {
-    items: BubbleAiItem[]
-    onSelect: (command: StoryGenerationCommand) => void
-    onClose: () => void
+    /** Opens the beat composer with the selection as its target. */
+    onBeat: () => void
+    onSelectCommand: (command: StoryGenerationCommand) => void
 }
 
-export function BubbleAiMenu({ items, onSelect, onClose }: BubbleAiMenuProps) {
+/** The canned verbs, in the order a rewrite pass usually wants them. */
+function bubbleAiCommands(t: (key: string) => string): BubbleAiCommand[] {
+    return [
+        { command: 'rewrite', label: t('novelEditor.bubbleMenu.rewrite'), icon: PenLine },
+        { command: 'expand', label: t('novelEditor.bubbleMenu.expand'), icon: Maximize2 },
+        { command: 'condense', label: t('novelEditor.bubbleMenu.condense'), icon: Minimize2 },
+        { command: 'describe', label: t('novelEditor.bubbleMenu.describe'), icon: ScrollText },
+    ]
+}
+
+/** Mousedown never reaches the editor, so the live selection survives the click. */
+function preventBlur(event: MouseEvent) {
+    event.preventDefault()
+}
+
+function AiMenuItem({ label, icon, onSelect }: { label: string; icon: LucideIcon; onSelect: () => void }) {
+    return (
+        <button
+            type="button"
+            role="menuitem"
+            onMouseDown={preventBlur}
+            onClick={onSelect}
+            className="flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-xs px-2 text-left font-ui text-label text-parchment-100 transition-colors hover:bg-parchment-50/[.06]"
+            data-testid="bubble-ai-item"
+        >
+            <span className="shrink-0 text-arcane-400">
+                <Icon icon={icon} size={14} />
+            </span>
+            {label}
+        </button>
+    )
+}
+
+export function BubbleAiMenu({ onBeat, onSelectCommand }: BubbleAiMenuProps) {
     const { t } = useTranslation()
-    const menuRef = useRef<HTMLDivElement | null>(null)
-
-    useEffect(() => {
-        const handlePointer = (event: MouseEvent) => {
-            if (!menuRef.current?.contains(event.target as Node)) onClose()
-        }
-        const handleKey = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                event.preventDefault()
-                onClose()
-            }
-        }
-        // Capture so the editor's own handlers don't swallow the outside click first.
-        document.addEventListener('mousedown', handlePointer, true)
-        document.addEventListener('keydown', handleKey)
-        return () => {
-            document.removeEventListener('mousedown', handlePointer, true)
-            document.removeEventListener('keydown', handleKey)
-        }
-    }, [onClose])
-
     return (
         <div
-            ref={menuRef}
             role="menu"
-            aria-label={t('novelEditor.bubbleMenu.askMuse')}
-            className="absolute right-0 top-[calc(100%+6px)] z-40 w-[280px] overflow-hidden rounded-lg border border-arcane-500/30 bg-ink-700 shadow-xl"
+            aria-label={t('novelEditor.bubbleMenu.aiMenu')}
+            className="absolute right-0 top-[calc(100%+6px)] z-[100] w-[240px] overflow-hidden rounded-md border border-parchment-50/10 bg-ink-700 p-1 shadow-lg"
             data-testid="bubble-ai-menu"
         >
-            <p className="m-0 border-b border-parchment-50/[.06] px-3 py-1.5 font-ui text-meta uppercase tracking-[0.14em] text-arcane-300">
-                {t('novelEditor.bubbleMenu.askMuse')}
-            </p>
-            <ul className="m-0 flex list-none flex-col p-1">
-                {items.map((item) => (
-                    <li key={item.command}>
-                        <button
-                            type="button"
-                            role="menuitem"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => onSelect(item.command)}
-                            className={cx(
-                                'flex w-full cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors',
-                                'hover:bg-arcane-500/15',
-                            )}
-                            data-testid="bubble-ai-item"
-                        >
-                            <span className="mt-0.5 text-arcane-400">
-                                <Icon icon={item.icon} size={15} />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                                <span className="block truncate font-ui text-sm font-semibold text-parchment-100">{item.label}</span>
-                                <span className="block truncate font-ui text-xs text-parchment-400">{item.description}</span>
-                            </span>
-                        </button>
-                    </li>
-                ))}
-            </ul>
+            <AiMenuItem label={t('novelEditor.bubbleMenu.beat')} icon={Wand2} onSelect={onBeat} />
+            <span className="my-1 block h-px bg-parchment-50/10" aria-hidden="true" />
+            {bubbleAiCommands(t).map((item) => (
+                <AiMenuItem key={item.command} label={item.label} icon={item.icon} onSelect={() => onSelectCommand(item.command)} />
+            ))}
         </div>
     )
 }

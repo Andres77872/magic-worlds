@@ -8,28 +8,42 @@ import { buildSlashItems } from './slashCommand'
 const t = ((key: string) => key) as unknown as TFunction
 
 describe('buildSlashItems', () => {
-    it('returns a Blocks section before the AI section', () => {
+    it('puts Beat first and the Write section before Insert', () => {
         const items = buildSlashItems('', t)
-        const firstAi = items.findIndex((item) => item.section === 'ai')
-        const lastBlock = items.map((item) => item.section).lastIndexOf('block')
-        expect(items.some((item) => item.section === 'block')).toBe(true)
-        expect(firstAi).toBeGreaterThan(lastBlock)
+        expect(items[0].key).toBe('beat')
+        expect(items[0].type).toBe('beat')
+        const lastWrite = items.map((item) => item.section).lastIndexOf('write')
+        const firstInsert = items.findIndex((item) => item.section === 'insert')
+        expect(firstInsert).toBeGreaterThan(lastWrite)
     })
 
-    it('exposes block items with a run() and AI items with a command', () => {
+    it('exposes block items with a run() and canned commands with a command', () => {
         const items = buildSlashItems('', t)
         const heading = items.find((item) => item.key === 'heading')
         const describe_ = items.find((item) => item.key === 'describe')
         expect(heading?.type).toBe('block')
-        expect(describe_?.type).toBe('ai')
-        if (describe_?.type === 'ai') expect(describe_.command).toBe('describe')
+        expect(describe_?.type).toBe('command')
+        if (describe_?.type === 'command') expect(describe_.command).toBe('describe')
     })
 
-    it('appends a custom AI instruction when there is free text', () => {
+    it('offers one explicit Beat row when free text matches nothing', () => {
         const items = buildSlashItems('make it darker', t)
-        const custom = items.find((item) => item.key === 'custom')
-        expect(custom?.type).toBe('ai')
-        if (custom?.type === 'ai') expect(custom.instruction).toBe('make it darker')
+        expect(items).toHaveLength(1)
+        expect(items[0].key).toBe('free')
+        expect(items[0].type).toBe('beat')
+        if (items[0].type === 'beat') expect(items[0].instruction).toBe('make it darker')
+    })
+
+    it('does not offer the free-text row while a real command still matches', () => {
+        // The label echoes the key, so 'quote' matches the quote block item.
+        const items = buildSlashItems('quote', t)
+        expect(items.some((item) => item.key === 'free')).toBe(false)
+        expect(items.some((item) => item.key === 'quote')).toBe(true)
+    })
+
+    it('returns nothing for an empty query with no matches to invent', () => {
+        // An empty query always yields the full menu, never a free-text row.
+        expect(buildSlashItems('', t).some((item) => item.key === 'free')).toBe(false)
     })
 
     it('runs the TipTap chain for a block item', () => {

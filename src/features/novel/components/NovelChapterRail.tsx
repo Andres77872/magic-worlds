@@ -1,6 +1,12 @@
 /**
- * NovelChapterRail — left rail listing the novel's chapters in order, with
- * add and per-chapter delete (confirmed). Selection is delegated upward so
+ * NovelChapterRail — the chapter index. It is a list the writer scans, not a
+ * gallery: 30px single-line rows, an ember left edge on the active one, and no
+ * card chrome. Two-line bordered cards let ten chapters fill the viewport, which
+ * is exactly when a manuscript needs the index most.
+ *
+ * Adding a chapter is a quiet row at the foot of the list rather than an icon in
+ * the header — it is the one write action here, so it should read as the next
+ * chapter rather than as a toolbar button. Selection stays delegated upward so
  * the studio can flush the draft before switching.
  */
 
@@ -24,44 +30,64 @@ export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, o
     const { t } = useTranslation()
     const [pendingDelete, setPendingDelete] = useState<StoryChapter | null>(null)
 
+    const deletable = chapters.length > 1
+    const totalWords = chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0)
+
+    // The rail has no width of its own: it is a grid item and the studio owns
+    // the track, so a fixed `lg:w-*` here would only leave a dead strip whenever
+    // the two disagree.
     return (
-        <aside className="flex min-h-0 flex-col border-b border-parchment-50/10 bg-ink-900/35 lg:border-b-0 lg:border-r">
-            <div className="flex items-center justify-between px-4 pb-2 pt-4">
-                <h2 className="m-0 font-ui text-sm font-semibold text-parchment-100">{t('novelEditor.chapters.title')}</h2>
-                <IconButton label={t('novelEditor.chapters.add')} size="sm" onClick={onAdd}>
-                    <Icon icon={Plus} size={16} />
-                </IconButton>
+        <aside className="flex min-h-0 w-full flex-col border-b border-parchment-50/10 bg-ink-900/35 lg:border-b-0 lg:border-r">
+            <div className="flex h-[34px] shrink-0 items-center justify-between gap-2 px-3">
+                <h2 className="m-0 font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
+                    {t('novelEditor.chapters.title')}
+                </h2>
+                <span className="shrink-0 font-mono text-[10px] text-parchment-500">
+                    {t('novelEditor.header.words', { count: totalWords, formatted: totalWords.toLocaleString() })}
+                </span>
             </div>
-            <div className="flex flex-col gap-2 overflow-y-auto px-4 pb-4">
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
                 {chapters.map((chapter, index) => {
                     const active = chapter.id === activeChapterId
+                    const label = chapter.title || t('novelEditor.chapters.fallbackTitle', { number: index + 1 })
                     return (
                         <div key={chapter.id} className="group relative">
                             <button
                                 type="button"
                                 onClick={() => onSelect(chapter.id)}
                                 className={cx(
-                                    'w-full cursor-pointer rounded-md border px-3 py-2 text-left transition',
+                                    'flex h-[30px] w-full cursor-pointer items-center gap-2 border-l-2 pl-2.5 text-left transition-colors',
+                                    deletable ? 'pr-8' : 'pr-2.5',
                                     active
-                                        ? 'border-ember-500/70 bg-ember-500/10'
-                                        : 'border-parchment-50/10 hover:border-parchment-50/25 hover:bg-parchment-50/[.04]',
+                                        ? 'border-ember-500 bg-ember-500/10'
+                                        : 'border-transparent hover:bg-parchment-50/[.04]',
                                 )}
                                 data-testid="novel-chapter-row"
                             >
-                                <span className="block truncate pr-7 font-ui text-sm font-semibold text-parchment-100">
-                                    {chapter.title || t('novelEditor.chapters.fallbackTitle', { number: index + 1 })}
+                                <span className="w-[13px] shrink-0 font-mono text-[11px] text-parchment-500">{index + 1}</span>
+                                <span
+                                    className={cx(
+                                        'min-w-0 flex-1 truncate font-ui text-[13px]',
+                                        active ? 'text-parchment-50' : 'text-parchment-100',
+                                    )}
+                                >
+                                    {label}
                                 </span>
-                                <span className="mt-1 block font-ui text-xs text-parchment-400">
-                                    {t('novelEditor.chapters.words', { count: wordCount(chapter.body) })}
+                                <span
+                                    className="shrink-0 font-mono text-[11px] text-parchment-500"
+                                    aria-label={t('novelEditor.chapters.words', { count: wordCount(chapter.body) })}
+                                >
+                                    {wordCount(chapter.body).toLocaleString()}
                                 </span>
                             </button>
-                            {chapters.length > 1 && (
+                            {deletable && (
                                 <IconButton
-                                    label={t('novelEditor.chapters.deleteLabel', { title: chapter.title || t('novelEditor.chapters.fallbackTitle', { number: index + 1 }) })}
+                                    label={t('novelEditor.chapters.deleteLabel', { title: label })}
                                     size="sm"
                                     tone="danger"
                                     onClick={() => setPendingDelete(chapter)}
-                                    className="absolute right-1.5 top-1.5 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
                                 >
                                     <Icon icon={Trash2} size={14} />
                                 </IconButton>
@@ -70,6 +96,18 @@ export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, o
                     )
                 })}
             </div>
+
+            <button
+                type="button"
+                onClick={onAdd}
+                className="flex h-[30px] w-full shrink-0 cursor-pointer items-center gap-2 border-l-2 border-transparent pl-2.5 pr-2.5 text-left font-ui text-[13px] text-parchment-400 transition-colors hover:bg-parchment-50/[.04] hover:text-parchment-100"
+                data-testid="novel-chapter-add"
+            >
+                <span className="flex w-[13px] shrink-0 items-center justify-center">
+                    <Icon icon={Plus} size={14} />
+                </span>
+                <span className="truncate">{t('novelEditor.chapters.add')}</span>
+            </button>
 
             <ConfirmDialog
                 visible={pendingDelete !== null}

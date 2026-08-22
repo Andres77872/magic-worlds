@@ -60,6 +60,31 @@ describe('useGenerationHistory', () => {
         expect(result.current.generations[0].chapterTitle).toBe('Chapter 1')
     })
 
+    it('keeps the prompt the writer typed when the server copy arrives without one', () => {
+        const { result, rerender } = renderHook(({ s }) => useGenerationHistory({ story: s }), {
+            initialProps: { s: story([]) },
+        })
+
+        act(() => result.current.record(generation('g1'), 'Chapter 1', 'she follows him to the saltworks'))
+        expect(result.current.generations[0].prompt).toBe('she follows him to the saltworks')
+
+        // The authoritative copy has no record of what was typed. Once the beat
+        // is accepted the prose is just part of the chapter, so if the merge
+        // dropped the prompt it would exist nowhere at all.
+        rerender({ s: story([generation('g1', { status: 'accepted' })]) })
+
+        expect(result.current.generations[0].status).toBe('accepted')
+        expect(result.current.generations[0].prompt).toBe('she follows him to the saltworks')
+    })
+
+    it('records no prompt for a command that had none', () => {
+        const { result } = renderHook(() => useGenerationHistory({ story: story([]) }))
+
+        act(() => result.current.record(generation('g1'), 'Chapter 1', '   '))
+
+        expect(result.current.generations[0].prompt).toBeUndefined()
+    })
+
     it('dedupes by id once the server copy arrives and keeps status patches on top', () => {
         const { result, rerender } = renderHook(({ s }) => useGenerationHistory({ story: s }), {
             initialProps: { s: story([generation('g1')]) },
