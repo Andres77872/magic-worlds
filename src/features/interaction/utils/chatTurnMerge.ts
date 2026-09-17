@@ -58,6 +58,11 @@ function isServerAcknowledged(turn: TurnEntry): boolean {
 
 function findMatchingTurn(current: TurnEntry[], turn: TurnEntry): TurnEntry | undefined {
   const sameType = current.filter((candidate) => candidate.type === turn.type)
+  const requestId = turn.metadata?.request_id
+  if (typeof requestId === 'string') {
+    const byRequestId = sameType.find((candidate) => candidate.metadata?.request_id === requestId)
+    if (byRequestId) return byRequestId
+  }
   if (turn.assistantMessageId) {
     const byAssistantId = sameType.find((candidate) => candidate.assistantMessageId === turn.assistantMessageId)
     if (byAssistantId) return byAssistantId
@@ -76,6 +81,11 @@ function findMatchingTurn(current: TurnEntry[], turn: TurnEntry): TurnEntry | un
 function preserveMissingChatMetadata(hydrated: MergeableTurnEntry, existing: MergeableTurnEntry): MergeableTurnEntry {
   return {
     ...hydrated,
+    content: hydrated.content?.trim() ? hydrated.content : existing.content,
+    // A stored in-progress projection during reconnect must not re-arm a local
+    // turn that was already interrupted. A later committed projection wins.
+    ...(!existing.isStreaming && existing.metadata?.interrupted && hydrated.isStreaming
+      ? { isStreaming: false, metadata: { ...hydrated.metadata, interrupted: true } } : {}),
     forwardOptions: hydrated.forwardOptions ?? existing.forwardOptions,
     imagePrompt: hydrated.imagePrompt ?? existing.imagePrompt,
     narratorIdentity: hydrated.narratorIdentity ?? existing.narratorIdentity,

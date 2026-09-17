@@ -1,3 +1,5 @@
+import type { TextGenerationOptions } from '@/shared/types/textGeneration.types'
+import { frameBatch } from '@/utils/frameBatch'
 /**
  * useInlineAI — orchestrates the inline suggestion lifecycle around the
  * AiSuggestion extension: flush-save → generate (stale-token guarded) → insert
@@ -56,14 +58,17 @@ export interface InlineAICallbacks {
         instruction?: string
         selection?: MarkdownSelection
         prompt?: string
-    }) => Promise<StoryGeneration>
+    }, options?: TextGenerationOptions) => Promise<StoryGeneration>
     onAcceptGeneration: (generationId: string) => Promise<void>
     onDiscardGeneration: (generationId: string) => Promise<void>
+    onCritiquePreview?: (text: string, state: 'generating' | 'saving' | 'interrupted' | 'failed') => void
     onCritiqueResult: (generation: StoryGeneration) => void
 }
 
 export interface InlineAIRowMeta {
     words: number
+    preview?: string
+    stage?: string
     /** Words of the writer's own prose that the generation replaced, if any. */
     previous: number | null
     /** What was asked for. Null for the canned commands, which have no prompt. */
@@ -105,6 +110,8 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
     const [rowMeta, setRowMeta] = useState<InlineAIRowMeta>({ words: 0, previous: null, prompt: null })
     // Stale-response guard: bumping the token orphans any in-flight request.
     const tokenRef = useRef(0)
+    const controllerRef = useRef<AbortController | null>(null)
+    useEffect(() => () => { tokenRef.current += 1; controllerRef.current?.abort() }, [])
     const generationRef = useRef<StoryGeneration | null>(null)
     const lastRequestRef = useRef<InlineAIRequestState | null>(null)
     const resolvingRef = useRef(false)
@@ -122,6 +129,17 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
         // Published before the request goes out: the prompt belongs on the row
         // from the first "Generating…" frame, not only once prose exists.
         setRowMeta({ words: 0, previous: request.replacedWords, prompt: request.prompt ?? null })
+        const controller = new AbortController()
+        controllerRef.current?.abort()
+        controllerRef.current = controller
+        let preview = ''
+        if (request.command === 'critique') callbacksRef.current.onCritiquePreview?.('', 'generating')
+        const updates = frameBatch<string>((chunks) => {
+            if (token !== tokenRef.current) return
+            preview += chunks.join('')
+            if (request.command === 'critique') callbacksRef.current.onCritiquePreview?.(preview, 'generating')
+            else setRowMeta((current) => ({ ...current, preview, words: wordCount(preview) }))
+        })
         try {
             const saved = await callbacksRef.current.onRequestSaveFlush()
             if (!saved) {
@@ -139,7 +157,19 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
                 instruction: request.instruction,
                 selection: request.selection,
                 prompt: request.prompt,
+            }, {
+                signal: controller.signal,
+                onEvent: (event) => {
+                    if (token !== tokenRef.current || controller.signal.aborted) return
+                    if (event.type === 'delta') updates.push(event.delta)
+                    if (event.type === 'progress') {
+                        updates.flush()
+                        setRowMeta((current) => ({ ...current, stage: event.stage }))
+                        if (request.command === 'critique') callbacksRef.current.onCritiquePreview?.(preview, event.stage === 'saving' ? 'saving' : 'generating')
+                    }
+                },
             })
+            updates.flush()
             const target = editorRef.current
             if (token !== tokenRef.current || !target || target.storage.aiSuggestionState.phase !== 'pending') {
                 // Aborted while in flight — record the discard quietly.
@@ -166,7 +196,9 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
             generationRef.current = generation
             setRowMeta({ words: wordCount(generation.output), previous: request.replacedWords, prompt: request.prompt ?? null })
         } catch (generateError) {
-            if (token === tokenRef.current) {
+            updates.flush()
+            if (token === tokenRef.current && request.command === 'critique') callbacksRef.current.onCritiquePreview?.(preview, 'failed')
+            if (token === tokenRef.current && !controller.signal.aborted) {
                 editorRef.current?.commands.aiCancelPending()
                 setError(
                     generateError instanceof Error
@@ -174,6 +206,9 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
                         : tRef.current('novelEditor.editor.generationFailed'),
                 )
             }
+        } finally {
+            updates.cancel()
+            if (controllerRef.current === controller) controllerRef.current = null
         }
     }, [])
 
@@ -236,7 +271,10 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
 
     const abortPending = useCallback(() => {
         if (phase() !== 'pending') return
+        if (lastRequestRef.current?.command === 'critique') callbacksRef.current.onCritiquePreview?.('', 'interrupted')
         tokenRef.current += 1
+        controllerRef.current?.abort()
+        setRowMeta((current) => ({ ...current, preview: undefined, stage: undefined }))
         editorRef.current?.commands.aiCancelPending()
     }, [phase])
 

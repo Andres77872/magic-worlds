@@ -336,7 +336,7 @@ describe('InteractionCenterPanel message deletion', () => {
         })
 
         expect(scrollIntoView).not.toHaveBeenCalled()
-        const pill = screen.getByRole('button', { name: 'New messages' })
+        const pill = await screen.findByRole('button', { name: 'New messages' })
 
         fireEvent.click(pill)
         expect(scrollIntoView).toHaveBeenCalledTimes(1)
@@ -369,7 +369,7 @@ describe('InteractionCenterPanel message deletion', () => {
             handlers!.onDelta('The gate creaks open…')
         })
 
-        expect(scrollIntoView).toHaveBeenCalled()
+        await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
         expect(screen.queryByRole('button', { name: 'New messages' })).toBeNull()
     })
 
@@ -384,7 +384,7 @@ describe('InteractionCenterPanel message deletion', () => {
 
         // The old stored assistant row goes first, or hydration resurrects it.
         await waitFor(() => expect(deleteMessage).toHaveBeenCalledWith(7, 101))
-        await waitFor(() => expect(sendChat).toHaveBeenCalledWith('Open the door'))
+        await waitFor(() => expect(sendChat).toHaveBeenCalledWith('Open the door', expect.any(String)))
     })
 
     it('restores the previous reply and skips generation when the pre-regenerate delete fails', async () => {
@@ -526,6 +526,6 @@ describe('InteractionCenterPanel message deletion', () => {
         fireEvent.click(screen.getByLabelText('Send message'))
 
         await waitFor(() => expect(sendChat).toHaveBeenCalled())
-        expect(sendChat).toHaveBeenCalledWith('Look around')
+        expect(sendChat).toHaveBeenCalledWith('Look around', expect.any(String))
     })
 })

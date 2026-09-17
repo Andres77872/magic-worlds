@@ -15,6 +15,7 @@ import type {
     ForwardOption,
     TurnEntry,
 } from '../../shared'
+import { finalizeResponseSegments, streamingXmlToPlainText, streamingXmlToSegments } from '@/utils/chatSegments'
 import { apiService } from '../../infrastructure/api'
 
 export type SessionKind = 'adventure' | 'character'
@@ -92,16 +93,18 @@ export function storedMessagesToTurns(messages: StoredConversationMessage[]): Tu
                 ? turnMetadata.imagePrompt
                 : undefined
 
+            const interrupted = message.role === 'assistant' && (message.status === 'interrupted' || message.status === 'failed')
+            const partialSegments = interrupted && !segments?.length ? finalizeResponseSegments(streamingXmlToSegments(message.content).segments) : undefined
             return {
                 id: String(message.message_id),
                 type: message.role === 'assistant' ? 'ai' : message.role,
-                content: displayText || message.content,
+                content: displayText || (interrupted ? streamingXmlToPlainText(message.content) : message.content),
                 timestamp: message.completed_at ?? message.updated_at ?? message.created_at,
-                metadata,
+                metadata: interrupted ? { ...metadata, interrupted: true } : metadata,
                 isStreaming: message.status === 'pending' || message.status === 'streaming',
                 turnId: message.turn_id,
                 ...(message.role === 'assistant' ? { assistantMessageId: message.message_id } : {}),
-                ...(segments?.length ? { segments } : {}),
+                ...(segments?.length ? { segments } : partialSegments?.length ? { segments: partialSegments } : {}),
                 ...(forwardOptions?.length ? { forwardOptions } : {}),
                 ...(imagePrompt ? { imagePrompt } : {}),
                 ...(typeof imageJob.job_id === 'string' ? { imageJobId: imageJob.job_id } : {}),

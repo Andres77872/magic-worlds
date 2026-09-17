@@ -293,6 +293,22 @@ describe('VoiceSocket', () => {
         expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_error', category: 'unsupported_media' }))
     })
 
+    it('drops assistant text from canceled turns and other voice sessions', () => {
+        const onMessage = vi.fn()
+        const socket = new VoiceSocket(7, { onMessage })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage({ type: 'voice_state_snapshot', voice_session_id: 'voice-1' })
+        MockWebSocket.instances[0].emitMessage({ type: 'voice_cancelled', voice_session_id: 'voice-1', turn_id: 'turn-1', reason: 'barge_in' })
+        onMessage.mockClear()
+        MockWebSocket.instances[0].emitMessage({ type: 'voice_assistant_delta', voice_session_id: 'voice-1', turn_id: 'turn-1', delta: 'late' })
+        MockWebSocket.instances[0].emitMessage({ type: 'voice_assistant_delta', voice_session_id: 'older-session', turn_id: 'turn-2', delta: 'wrong session' })
+        expect(onMessage).not.toHaveBeenCalled()
+        MockWebSocket.instances[0].emitMessage({ type: 'voice_assistant_delta', voice_session_id: 'voice-1', turn_id: 'turn-2', delta: 'current' })
+        expect(onMessage).toHaveBeenCalledOnce()
+        socket.close()
+    })
+
     it('drops stale audio chunks after cancellation', () => {
         const onMessage = vi.fn()
         const socket = new VoiceSocket(7, { onMessage })

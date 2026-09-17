@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Character, CharacterChatSession } from '@/shared'
 import { ChatroomPage } from './ChatroomPage'
@@ -6,14 +6,21 @@ import { ChatroomPage } from './ChatroomPage'
 const setPage = vi.fn()
 const openLoginModal = vi.fn()
 const resumeCharacterChat = vi.fn()
+const startCharacterChat = vi.fn().mockResolvedValue(undefined)
 const deleteCharacterChat = vi.fn().mockResolvedValue(undefined)
 const loadData = vi.fn().mockResolvedValue(undefined)
 let authed = true
 let characterChats: CharacterChatSession[] = []
+let characters: Character[] = []
 
 const CHARACTERS: Character[] = [
     { id: 'c1', name: 'Lyra', race: 'Half-elf', stats: {}, role: 'character' },
     { id: 'c2', name: 'Sable', race: 'Tiefling', stats: {}, role: 'character' },
+] as Character[]
+
+const PERSONAS: Character[] = [
+    { id: 'p1', name: 'Aria', stats: {}, role: 'persona', is_default_persona: true },
+    { id: 'p2', name: 'Rowan', stats: {}, role: 'persona' },
 ] as Character[]
 
 const CHATS: CharacterChatSession[] = [
@@ -48,7 +55,9 @@ vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: authed, openLoginModal }),
     useNavigation: () => ({ setPage }),
     useData: () => ({
+        characters,
         characterChats,
+        startCharacterChat,
         resumeCharacterChat,
         deleteCharacterChat,
         loadData,
@@ -59,8 +68,26 @@ vi.mock('@/app/hooks', () => ({
 beforeEach(() => {
     authed = true
     characterChats = CHATS
+    characters = [...CHARACTERS, ...PERSONAS]
+    startCharacterChat.mockReset().mockResolvedValue(undefined)
+    loadData.mockReset().mockResolvedValue(undefined)
     vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
 })
+
+async function renderChatroom() {
+    await act(async () => {
+        render(<ChatroomPage />)
+    })
+}
+
+function selectNewChat(characterName = 'Lyra', personaName = 'Rowan') {
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
+    const dialog = screen.getByRole('dialog', { name: 'New chat' })
+    fireEvent.click(within(dialog).getByRole('button', { name: `Chat with ${characterName}` }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Choose persona' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: `Play as ${personaName}` }))
+    return dialog
+}
 
 afterEach(() => {
     vi.clearAllMocks()
@@ -68,8 +95,8 @@ afterEach(() => {
 })
 
 describe('ChatroomPage', () => {
-    it('renders saved character chats and resumes the selected chat', () => {
-        render(<ChatroomPage />)
+    it('renders saved character chats and resumes the selected chat', async () => {
+        await renderChatroom()
 
         expect(screen.getByTestId('chatroom-page')).toBeInTheDocument()
         expect(screen.getByText('Lyra')).toBeInTheDocument()
@@ -83,8 +110,8 @@ describe('ChatroomPage', () => {
         expect(setPage).toHaveBeenCalledWith('character-chat')
     })
 
-    it('filters chats by query and clears the search', () => {
-        render(<ChatroomPage />)
+    it('filters chats by query and clears the search', async () => {
+        await renderChatroom()
 
         fireEvent.change(screen.getByLabelText('Search chats'), { target: { value: 'sable' } })
 
@@ -97,8 +124,8 @@ describe('ChatroomPage', () => {
         expect(screen.getByText('Lyra')).toBeInTheDocument()
     })
 
-    it('navigates to character selection for a new group chat', () => {
-        render(<ChatroomPage />)
+    it('navigates to character selection for a new group chat', async () => {
+        await renderChatroom()
 
         fireEvent.click(screen.getByRole('button', { name: 'New group chat' }))
 
@@ -109,7 +136,7 @@ describe('ChatroomPage', () => {
 
     it('hides voice-call actions while the frontend flag is off', async () => {
         vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'false')
-        render(<ChatroomPage />)
+        await renderChatroom()
 
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))
 
@@ -119,7 +146,7 @@ describe('ChatroomPage', () => {
 
     it('resumes an existing chat in voice mode when the flag is enabled', async () => {
         vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
-        render(<ChatroomPage />)
+        await renderChatroom()
 
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))
         fireEvent.click(await screen.findByRole('menuitem', { name: 'Start voice call' }))
@@ -130,7 +157,7 @@ describe('ChatroomPage', () => {
 
     it('hides voice-call actions for group chats when the flag is enabled', async () => {
         vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
-        render(<ChatroomPage />)
+        await renderChatroom()
 
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra, Sable' }))
 
@@ -139,7 +166,7 @@ describe('ChatroomPage', () => {
     })
 
     it('deletes a chat after confirmation', async () => {
-        render(<ChatroomPage />)
+        await renderChatroom()
 
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))
         fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }))
@@ -150,10 +177,11 @@ describe('ChatroomPage', () => {
         fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
         expect(deleteCharacterChat).toHaveBeenCalledWith('chat-1')
+        expect(await screen.findByText('Chat deleted')).toBeInTheDocument()
     })
 
     it('shows the group title when deleting a group chat', async () => {
-        render(<ChatroomPage />)
+        await renderChatroom()
 
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra, Sable' }))
         fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }))
@@ -164,13 +192,14 @@ describe('ChatroomPage', () => {
         fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
         expect(deleteCharacterChat).toHaveBeenCalledWith('chat-3')
+        expect(await screen.findByText('Chat deleted')).toBeInTheDocument()
     })
 
-    it('renders signed-out visitors and gates only new group chat', () => {
+    it('lets signed-out visitors browse characters and gates starting chats', async () => {
         authed = false
         characterChats = []
 
-        render(<ChatroomPage />)
+        await renderChatroom()
 
         expect(screen.getByTestId('chatroom-page')).toBeInTheDocument()
         expect(openLoginModal).not.toHaveBeenCalled()
@@ -180,7 +209,92 @@ describe('ChatroomPage', () => {
         expect(setPage).toHaveBeenCalledWith('gallery-characters')
         expect(openLoginModal).not.toHaveBeenCalled()
 
-        fireEvent.click(screen.getByRole('button', { name: 'New group chat' }))
+        fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
         expect(openLoginModal).toHaveBeenCalledTimes(1)
+        expect(screen.queryByRole('dialog', { name: 'New chat' })).not.toBeInTheDocument()
+        expect(startCharacterChat).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getByRole('button', { name: 'New group chat' }))
+        expect(openLoginModal).toHaveBeenCalledTimes(2)
+    })
+
+    it('creates a separate chat with the selected character and persona before navigating', async () => {
+        let finishStart!: () => void
+        startCharacterChat.mockReturnValueOnce(new Promise<void>((resolve) => { finishStart = resolve }))
+        await renderChatroom()
+
+        const dialog = selectNewChat('Sable', 'Rowan')
+        expect(startCharacterChat).not.toHaveBeenCalled()
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Start chat' }))
+
+        expect(startCharacterChat).toHaveBeenCalledExactlyOnceWith(CHARACTERS[1], PERSONAS[1])
+        expect(resumeCharacterChat).not.toHaveBeenCalled()
+        expect(setPage).not.toHaveBeenCalled()
+        expect(within(dialog).getByRole('button', { name: 'Starting chat…' })).toBeDisabled()
+
+        await act(async () => { finishStart() })
+
+        expect(setPage).toHaveBeenCalledExactlyOnceWith('character-chat')
+        expect(screen.queryByRole('dialog', { name: 'New chat' })).not.toBeInTheDocument()
+    })
+
+    it('keeps the selected cards available for retry after chat creation fails', async () => {
+        startCharacterChat.mockRejectedValueOnce(new Error('Service unavailable'))
+        await renderChatroom()
+
+        const dialog = selectNewChat()
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Start chat' }))
+
+        expect(await within(dialog).findByRole('alert')).toHaveTextContent('Could not start this chat')
+        expect(setPage).not.toHaveBeenCalled()
+        expect(within(dialog).getByRole('button', { name: 'Play as Rowan' })).toHaveAttribute('aria-pressed', 'true')
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Start chat' }))
+
+        await waitFor(() => expect(setPage).toHaveBeenCalledExactlyOnceWith('character-chat'))
+        expect(startCharacterChat).toHaveBeenNthCalledWith(1, CHARACTERS[0], PERSONAS[1])
+        expect(startCharacterChat).toHaveBeenNthCalledWith(2, CHARACTERS[0], PERSONAS[1])
+    })
+
+    it('does not navigate back to chat after the user leaves during creation', async () => {
+        let finishStart!: () => void
+        startCharacterChat.mockReturnValueOnce(new Promise<void>((resolve) => { finishStart = resolve }))
+        const view = render(<ChatroomPage />)
+        await act(async () => {})
+        const dialog = selectNewChat()
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Start chat' }))
+
+        view.unmount()
+        await act(async () => { finishStart() })
+
+        expect(startCharacterChat).toHaveBeenCalledExactlyOnceWith(CHARACTERS[0], PERSONAS[1])
+        expect(setPage).not.toHaveBeenCalled()
+    })
+
+    it('starts one-to-one chats when group chats are disabled', async () => {
+        vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'false')
+        await renderChatroom()
+
+        expect(screen.queryByRole('button', { name: 'New group chat' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Resume chat: Lyra, Sable' })).not.toBeInTheDocument()
+        const dialog = selectNewChat()
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Start chat' }))
+
+        await waitFor(() => expect(setPage).toHaveBeenCalledWith('character-chat'))
+        expect(startCharacterChat).toHaveBeenCalledExactlyOnceWith(CHARACTERS[0], PERSONAS[1])
+    })
+
+    it('shows loading before announcing an empty conversation list', async () => {
+        characterChats = []
+        let finishLoad!: () => void
+        loadData.mockReturnValueOnce(new Promise<void>((resolve) => { finishLoad = resolve }))
+        render(<ChatroomPage />)
+
+        expect(screen.getByText('Loading conversations…')).toBeInTheDocument()
+        expect(screen.getAllByRole('button', { name: 'New chat' })).toHaveLength(1)
+
+        await act(async () => { finishLoad() })
+
+        expect(screen.queryByText('Loading conversations…')).not.toBeInTheDocument()
+        expect(screen.getAllByRole('button', { name: 'New chat' })).toHaveLength(2)
     })
 })

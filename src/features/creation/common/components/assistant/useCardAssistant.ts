@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { apiService, ApiError } from '@/infrastructure/api'
+import { frameBatch } from '@/utils/frameBatch'
 import { makeRequestId } from '@/utils/uuid'
 import type {
     CardAssistantCardResponse,
@@ -16,7 +17,7 @@ import {
     type AssistantTurnBase,
 } from './appliedActions'
 
-const DEFAULT_TIMEOUT_MS = 120_000
+const DEFAULT_TIMEOUT_MS = 180_000
 const META_TIMEOUT_MS = 15_000
 
 export type AssistantStatus = 'idle' | 'initializing' | 'switching' | 'streaming'
@@ -154,6 +155,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
     const activeRequestRef = useRef<string | null>(null)
     const userStoppedRef = useRef(false)
     const lastSentRef = useRef<string | null>(null)
+    const lastRequestIdRef = useRef<string | null>(null)
     const prevCardIdRef = useRef<string | null>(cardId ?? null)
 
     const nextLocalId = () => {
@@ -171,6 +173,8 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
     )
 
     const resetConversationState = useCallback(() => {
+        activeConversationRef.current = null
+        lastRequestIdRef.current = null
         setActiveConversation(null)
         setMessages([])
         setPendingCard(null)
@@ -223,6 +227,16 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
         const normalized = cardId ?? null
         if (prevCardIdRef.current === normalized) return
         prevCardIdRef.current = normalized
+        // A different editor target supersedes work started for the old one.
+        // A final that binds its own new card updates the conversation first.
+        if (streamControllerRef.current && activeConversationRef.current?.card_id !== normalized) {
+            activeRequestRef.current = null
+            streamControllerRef.current.abort(new DOMException('Assistant target changed', 'AbortError'))
+            streamControllerRef.current = null
+            setStreamingMessageId(null)
+            setStatus('idle')
+            resetConversationState()
+        }
         if (!open || !isAuthenticated) return
         let cancelled = false
         apiService
@@ -242,7 +256,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
         return () => {
             cancelled = true
         }
-    }, [cardId, open, isAuthenticated, cardType])
+    }, [cardId, open, isAuthenticated, cardType, resetConversationState])
 
     // Abort any in-flight stream on unmount; the server finishes and persists.
     useEffect(() => () => {
@@ -251,17 +265,19 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
         streamControllerRef.current = null
     }, [])
 
-    const createConversation = useCallback(async (): Promise<CardAssistantConversation> => {
+    const createConversation = useCallback(async (signal?: AbortSignal): Promise<CardAssistantConversation> => {
         const response = await apiService.createCardAssistantConversation(
             {
                 card_type: cardType,
                 card_id: cardIdRef.current ?? undefined,
                 title: titleRef.current,
             },
-            { timeoutMs: META_TIMEOUT_MS },
+            { timeoutMs: META_TIMEOUT_MS, signal },
         )
         // Note: does NOT touch `messages` — send() may already hold an
         // optimistic user message that must survive the lazy creation.
+        signal?.throwIfAborted()
+        activeConversationRef.current = response.conversation
         setActiveConversation(response.conversation)
         setConversations((prev) => [
             response.conversation,
@@ -273,8 +289,19 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
     const reloadConversation = useCallback(async (options: { applyCard?: boolean } = {}): Promise<boolean> => {
         const id = conversationKey(activeConversationRef.current)
         if (!id) return false
+        const requestId = lastRequestIdRef.current
+        const owner = activeRequestRef.current
         try {
             const detail = await apiService.getCardAssistantConversation(id, { timeoutMs: META_TIMEOUT_MS })
+            if (owner !== activeRequestRef.current || id !== conversationKey(activeConversationRef.current)) return false
+            const lastAssistant = [...(detail.messages ?? [])].reverse().find((message) => message.role === 'assistant')
+            const recovered = Boolean(lastAssistant?.status === 'completed'
+                && (!requestId || lastAssistant.metadata?.request_id === requestId)
+                && !detail.conversation.active_request_id)
+            if (requestId && !recovered) {
+                console.warn('text_stream_recovery_failed', { requestId, surface: 'card_assistant' })
+                return false
+            }
             setActiveConversation(detail.conversation)
             setMessages(detail.messages ?? [])
             setInterruptedIds(new Set())
@@ -288,9 +315,9 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                     setPendingCard(recoveredCard)
                 }
             }
-            const lastAssistant = [...(detail.messages ?? [])].reverse().find((message) => message.role === 'assistant')
-            return Boolean(lastAssistant && lastAssistant.status === 'completed')
+            return recovered
         } catch (err) {
+            if (owner !== activeRequestRef.current || id !== conversationKey(activeConversationRef.current)) return false
             setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current), canReload: true })
             return false
         }
@@ -325,13 +352,35 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
 
         let receivedFinal = false
         let receivedError = false
+        let receivedText = false
+        let userAcknowledged = false
         const requestId = createRequestId()
         const controller = new AbortController()
+        lastRequestIdRef.current = requestId
         activeRequestRef.current = requestId
         streamControllerRef.current = controller
+        const updates = frameBatch<string>((chunks) => {
+            if (activeRequestRef.current !== requestId) return
+            const delta = chunks.join('')
+            setStreamingMessageId(placeholderId)
+            setMessages((prev) => {
+                if (prev.some((message) => message.message_id === placeholderId)) {
+                    return prev.map((message) => message.message_id === placeholderId
+                        ? { ...message, content: message.content + delta } : message)
+                }
+                return [...prev, {
+                    message_id: placeholderId,
+                    conversation_id: conversationKey(activeConversationRef.current) ?? -1,
+                    sequence_no: prev.length + 1,
+                    role: 'assistant', status: 'pending', content: delta,
+                }]
+            })
+        })
 
         try {
-            const conversation = activeConversationRef.current ?? await createConversation()
+            const conversation = activeConversationRef.current ?? await createConversation(controller.signal)
+            controller.signal.throwIfAborted()
+            if (activeRequestRef.current !== requestId) return
             const id = conversationKey(conversation)
             if (!id) throw new Error('Missing assistant conversation id')
             await apiService.streamCardAssistantMessage(
@@ -342,8 +391,14 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                     current_card: normalizedCurrentCard(currentCardRef.current, cardIdRef.current),
                 },
                 (event) => {
-                    if (activeRequestRef.current !== requestId) return
+                    if (activeRequestRef.current !== requestId || controller.signal.aborted || (event.request_id && event.request_id !== requestId)) return
+                    if (event.type !== 'assistant_delta') updates.flush()
+                    if (event.type === 'progress') {
+                        setNotice({ kind: 'info', message: tRef.current(`streaming.${event.stage}`) })
+                        return
+                    }
                     if (event.type === 'user_message' && event.user_message) {
+                        userAcknowledged = true
                         setMessages((prev) => prev.map((message) => (
                             message.message_id === optimisticId ? event.user_message! : message
                         )))
@@ -352,32 +407,14 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                     if (event.type === 'assistant_delta') {
                         const delta = event.delta || ''
                         if (!delta) return
-                        setStreamingMessageId(placeholderId)
-                        setMessages((prev) => {
-                            const existing = prev.find((message) => message.message_id === placeholderId)
-                            if (!existing) {
-                                return [
-                                    ...prev,
-                                    {
-                                        message_id: placeholderId,
-                                        conversation_id: id,
-                                        sequence_no: prev.length + 1,
-                                        role: 'assistant',
-                                        status: 'pending',
-                                        content: delta,
-                                    },
-                                ]
-                            }
-                            return prev.map((message) => (
-                                message.message_id === placeholderId
-                                    ? { ...message, content: `${message.content}${delta}` }
-                                    : message
-                            ))
-                        })
+                        receivedText = true
+                        updates.push(delta)
                         return
                     }
                     if (event.type === 'final') {
                         receivedFinal = true
+                        setNotice(null)
+                        activeConversationRef.current = event.conversation
                         setActiveConversation(event.conversation)
                         setConversations((prev) => [
                             event.conversation,
@@ -394,7 +431,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                             setMessages(event.messages)
                         } else {
                             setMessages((prev) => [
-                                ...prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId),
+                                ...prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId && message.message_id !== event.user_message?.message_id && message.message_id !== event.assistant_message?.message_id),
                                 ...(event.user_message ? [event.user_message] : []),
                                 ...(event.assistant_message ? [event.assistant_message] : []),
                             ])
@@ -406,20 +443,11 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                     if (event.type === 'error') {
                         receivedError = true
                         const message = event.detail || event.error?.message || tRef.current('creation.common.assistant.notices.generic')
-                        setMessages((prev) => {
-                            const withoutPlaceholder = prev.filter((item) => item.message_id !== placeholderId)
-                            return [
-                                ...withoutPlaceholder,
-                                {
-                                    message_id: placeholderId,
-                                    conversation_id: id,
-                                    sequence_no: withoutPlaceholder.length + 1,
-                                    role: 'assistant',
-                                    status: 'failed',
-                                    content: message,
-                                },
-                            ]
-                        })
+                        setMessages((prev) => prev.some((item) => item.message_id === placeholderId)
+                            ? prev.map((item) => item.message_id === placeholderId ? { ...item, status: 'failed' } : item)
+                            : [...prev, { message_id: placeholderId, conversation_id: id, sequence_no: prev.length + 1,
+                                role: 'assistant', status: 'failed', content: message }])
+                        setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                         setStreamingMessageId(null)
                         setNotice({ kind: 'error', message, canRetry: event.error?.retryable !== false })
                     }
@@ -428,10 +456,12 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                 },
                 { requestId, timeoutMs, signal: controller.signal },
             )
+            if (activeRequestRef.current !== requestId) return
             if (!receivedFinal && !receivedError) {
                 // The stream closed without a result. The server may still
                 // have persisted the turn — pick up its truth before erroring.
                 const recovered = await reloadConversation({ applyCard: true })
+                if (activeRequestRef.current !== requestId) return
                 if (!recovered) {
                     setNotice({
                         kind: 'error',
@@ -442,6 +472,9 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                 }
             }
         } catch (err) {
+            updates.flush()
+            if (activeRequestRef.current !== requestId) return
+            if (!userAcknowledged && !receivedText) setMessages((prev) => prev.filter((item) => item.message_id !== optimisticId))
             if (isAbortError(err)) {
                 if (userStoppedRef.current) {
                     setInterruptedIds((prev) => new Set(prev).add(placeholderId))
@@ -453,7 +486,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                 }
                 // Otherwise the panel closed/unmounted — nothing to surface.
             } else if (err instanceof ApiError && err.status === 409) {
-                setMessages((prev) => prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId))
+                setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                 setNotice({
                     kind: 'error',
                     message: tRef.current('creation.common.assistant.notices.busy'),
@@ -461,10 +494,12 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                     canReload: true,
                 })
             } else if (err instanceof ApiError && err.action === 'reload_conversation') {
+                if (err.code === 'stream_incomplete' && await reloadConversation({ applyCard: true })) return
+                if (activeRequestRef.current !== requestId) return
                 setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                 setNotice({ kind: 'error', message: err.message, canReload: true })
             } else {
-                setMessages((prev) => prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId))
+                setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                 setNotice({
                     kind: 'error',
                     message: assistantErrorMessage(err, tRef.current),
@@ -472,13 +507,15 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                 })
             }
         } finally {
+            updates.flush()
+            updates.cancel()
             if (activeRequestRef.current === requestId) {
                 activeRequestRef.current = null
+                streamControllerRef.current = null
+                userStoppedRef.current = false
+                setStreamingMessageId(null)
+                setStatus('idle')
             }
-            streamControllerRef.current = null
-            userStoppedRef.current = false
-            setStreamingMessageId(null)
-            setStatus('idle')
         }
     }, [isAuthenticated, onAuthRequired, timeoutMs, createConversation, reloadConversation, cardType])
 
@@ -509,6 +546,8 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
         activeRequestRef.current = null
         streamControllerRef.current?.abort(new DOMException('Assistant closed', 'AbortError'))
         streamControllerRef.current = null
+        setStreamingMessageId(null)
+        setStatus('idle')
         setOpen(false)
     }, [])
 
@@ -527,8 +566,13 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
         if (streamControllerRef.current) return
         setNotice(null)
         setStatus('switching')
+        const selectionId = createRequestId()
+        activeRequestRef.current = selectionId
         try {
             const detail = await apiService.getCardAssistantConversation(id, { timeoutMs: META_TIMEOUT_MS })
+            if (activeRequestRef.current !== selectionId) return
+            lastRequestIdRef.current = null
+            activeConversationRef.current = detail.conversation
             setActiveConversation(detail.conversation)
             setMessages(detail.messages ?? [])
             setLiveActions(new Map())
@@ -537,9 +581,13 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
             // the user choose to apply it.
             setPendingCard((detail.card as TCard | null | undefined) ?? null)
         } catch (err) {
+            if (activeRequestRef.current !== selectionId) return
             setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current) })
         } finally {
-            setStatus('idle')
+            if (activeRequestRef.current === selectionId) {
+                activeRequestRef.current = null
+                setStatus('idle')
+            }
         }
     }, [])
 

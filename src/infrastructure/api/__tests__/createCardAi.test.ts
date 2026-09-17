@@ -165,7 +165,6 @@ describe('AI card API methods', () => {
                 card: { id: 'char-1', name: 'Nyra' },
                 applied_actions: [{ type: 'patch_card' }],
             },
-            { type: 'done', request_id: 'turn-req' },
         ])
     })
 

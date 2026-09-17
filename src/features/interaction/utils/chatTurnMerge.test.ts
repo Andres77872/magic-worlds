@@ -27,6 +27,20 @@ const liveAiTurn: ExtendedTurnEntry = {
 }
 
 describe('mergeHydratedChatTurns', () => {
+  it('reconciles a request whose turn-start acknowledgement was lost, preserving its partial reply', () => {
+    const optimistic: TurnEntry[] = [
+      { id: 'local-user', type: 'user', content: 'Continue', timestamp, metadata: { request_id: 'req-2' } },
+      { id: 'local-ai', type: 'ai', content: 'The door opens', timestamp, isStreaming: false, metadata: { request_id: 'req-2', interrupted: true } },
+    ]
+    const stored: TurnEntry[] = [
+      { ...optimistic[0], id: '200', turnId: 'turn-2' },
+      { ...optimistic[1], id: '201', turnId: 'turn-2', assistantMessageId: 201, content: '', isStreaming: true, metadata: { request_id: 'req-2' } },
+    ]
+    const merged = mergeHydratedChatTurns(optimistic, stored)
+    expect(merged).toHaveLength(2)
+    expect(merged[1]).toMatchObject({ id: '201', content: 'The door opens', isStreaming: false, metadata: { interrupted: true } })
+  })
+
   it('preserves current structured segments when hydrated AI turn is plain text only', () => {
     const hydrated: TurnEntry[] = [
       userTurn,

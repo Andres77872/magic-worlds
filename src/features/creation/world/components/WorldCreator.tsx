@@ -35,6 +35,7 @@ import {
     CreatorTextarea,
     AttributeManager,
     CardAssistantChatbot,
+    SavedCardGenerator,
     MediaStudioSection,
     GeneratedDraftNotice,
     TriggersField,
@@ -475,6 +476,13 @@ export function WorldCreator() {
                         subheading={t(WORLD_GALLERY_SUBHEADING_KEY)}
                         onPick={pickTemplate}
                         onSkip={() => setTemplate(null)}
+                    />
+                    <SavedCardGenerator
+                        cardType="world"
+                        generate={(description, options) => apiService.createWorldAI(description, options)}
+                        onSaved={applyAssistantCard}
+                        isAuthenticated={isAuthenticated}
+                        onAuthRequired={openLoginModal}
                     />
                 </CreatorIntro>
                 {chatbot}

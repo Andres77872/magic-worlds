@@ -45,9 +45,12 @@ export function AssistantMessage({ turn }: { turn: VisibleAssistantTurn }) {
                     <Eyebrow tone="arcane" className="text-[10px]">{t('creation.common.assistant.label')}</Eyebrow>
                     {canCopy && <CopyTextButton text={message.content} onError={(error) => console.error('Failed to copy assistant message:', error)} />}
                 </div>
-                <div className="rounded-lg border border-blood-500/40 bg-blood-500/10 px-3 py-2 font-ui text-[13px] leading-relaxed text-parchment-100">
-                    {message.content}
-                </div>
+                {isInterrupted ? <AssistantMarkdown content={message.content} isStreaming={false} /> : (
+                    <div className="rounded-lg border border-blood-500/40 bg-blood-500/10 px-3 py-2 font-ui text-[13px] leading-relaxed text-parchment-100">
+                        {message.content}
+                    </div>
+                )}
+                {isInterrupted && <span className="font-ui text-[11px] italic text-parchment-400">{t('streaming.interrupted')}</span>}
             </div>
         )
     }

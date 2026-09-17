@@ -1,3 +1,4 @@
+import type { TextGenerationOptions } from '@/shared/types/textGeneration.types'
 /**
  * NovelStudio — the writing room. A thin layout shell: chapter rail (left),
  * manuscript (centre, with the status strip under it), codex panel (right,
@@ -14,7 +15,7 @@ import { CodexCardPickerDrawer } from '@/features/codex'
 import type { StoryGeneration } from '@/shared'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { Markdown } from '@/ui/components/Markdown'
-import { Drawer, Icon, Toast, cx } from '@/ui/primitives'
+import { Button, Drawer, Icon, Toast, cx } from '@/ui/primitives'
 import { NovelEditor } from '../editor/NovelEditor'
 import type { InlineAIRequest, NovelEditorHandle } from '../editor/types'
 import { useChapterDraft } from '../hooks/useChapterDraft'
@@ -48,6 +49,7 @@ export function NovelStudio() {
     const { requireAuth } = guards
 
     const [critique, setCritique] = useState<StoryGeneration | null>(null)
+    const [critiquePreview, setCritiquePreview] = useState<{ text: string; state: 'generating' | 'saving' | 'interrupted' | 'failed' } | null>(null)
     const [suggestionActive, setSuggestionActive] = useState(false)
     const [cardPickerOpen, setCardPickerOpen] = useState(false)
     const [cardPickerQuery, setCardPickerQuery] = useState('')
@@ -96,7 +98,7 @@ export function NovelStudio() {
         guards.guardedLeave(() => void studio.addChapter())
     }
 
-    const handleGenerate = async (request: InlineAIRequest): Promise<StoryGeneration> => {
+    const handleGenerate = async (request: InlineAIRequest, options?: TextGenerationOptions): Promise<StoryGeneration> => {
         if (!requireAuth()) throw new Error(t('novelEditor.studio.loginRequired'))
         if (!activeChapter) throw new Error(t('novelEditor.studio.noChapter'))
         // No contextSettings override: the backend resolves the story's stored
@@ -106,7 +108,7 @@ export function NovelStudio() {
             command: request.command,
             instruction: request.instruction,
             selection: request.selection,
-        })
+        }, options)
         // The story payload only refreshes on accept — record locally so the
         // history drawer shows this generation even if it gets declined, and so
         // the prompt outlives the request that carried it.
@@ -201,7 +203,11 @@ export function NovelStudio() {
                                 await discardStoryGeneration(story.id, generationId)
                                 history.patchStatus(generationId, 'rejected')
                             }}
-                            onCritiqueResult={setCritique}
+                            onCritiquePreview={(text, state) => {
+                                setCritique(null)
+                                setCritiquePreview((current) => ({ text: state === 'interrupted' ? current?.text ?? text : text, state }))
+                            }}
+                            onCritiqueResult={(generation) => { setCritiquePreview(null); setCritique(generation) }}
                             onSuggestionPhaseChange={(phase) => {
                                 setSuggestionActive(phase === 'pending' || phase === 'reviewing')
                                 // Suspend autosave for 'prompting' too: a half-typed
@@ -254,14 +260,26 @@ export function NovelStudio() {
             />
 
             <Drawer
-                open={critique !== null}
-                onClose={() => setCritique(null)}
+                open={critique !== null || critiquePreview !== null}
+                onClose={() => {
+                    if (critiquePreview?.state === 'generating' || critiquePreview?.state === 'saving') void editorHandleRef.current?.resolveSuggestion('reject')
+                    setCritique(null); setCritiquePreview(null)
+                }}
                 eyebrow={t('novelEditor.critique.eyebrow')}
                 title={t('novelEditor.critique.title')}
                 icon={<Icon icon={MessageSquareQuote} size={18} />}
                 size="lg"
             >
-                {critique && <Markdown content={critique.output} />}
+                {critiquePreview && (
+                    <div className="space-y-4">
+                        <p role="status" className="text-caption text-parchment-400">{t(`streaming.${critiquePreview.state}`)}</p>
+                        <div aria-live="off"><Markdown content={critiquePreview.text} /></div>
+                        {(critiquePreview.state === 'generating' || critiquePreview.state === 'saving') && (
+                            <Button variant="secondary" onClick={() => void editorHandleRef.current?.resolveSuggestion('reject')}>{t('common.cancel')}</Button>
+                        )}
+                    </div>
+                )}
+                {critique && <><p role="status" className="sr-only">{t('streaming.completed')}</p><Markdown content={critique.output} /></>}
             </Drawer>
             <Toast
                 open={wordGoalSaveFailed}

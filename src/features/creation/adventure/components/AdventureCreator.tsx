@@ -35,6 +35,7 @@ import {
     CreatorTextarea,
     AttributeManager,
     CardAssistantChatbot,
+    SavedCardGenerator,
     MediaStudioSection,
     GeneratedDraftNotice,
     TriggersField,
@@ -543,6 +544,13 @@ export function AdventureCreator() {
                         subheading={t(ADVENTURE_GALLERY_SUBHEADING_KEY)}
                         onPick={pickTemplate}
                         onSkip={() => setTemplate(null)}
+                    />
+                    <SavedCardGenerator
+                        cardType="adventure"
+                        generate={(description, options) => apiService.createAdventureTemplateAI(description, options)}
+                        onSaved={applyAssistantCard}
+                        isAuthenticated={isAuthenticated}
+                        onAuthRequired={openLoginModal}
                     />
                 </CreatorIntro>
                 {chatbot}

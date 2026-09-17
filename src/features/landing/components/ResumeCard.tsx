@@ -98,7 +98,7 @@ export function ResumeCard({ session, onContinue, onCall, onDelete, deleting = f
             onPointerLeave={contextMenu.pointerHandlers.onPointerLeave}
             onPointerUp={contextMenu.pointerHandlers.onPointerUp}
             className={cx(
-                'group relative flex cursor-pointer items-center gap-4 overflow-hidden rounded-lg border border-line-faint',
+                'group relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-lg border border-line-faint sm:gap-4',
                 'border-l-2 p-4 transition-all hover:-translate-y-[2px]',
                 isArcane
                     ? 'border-l-arcane-500/50 hover:border-arcane-500/45 hover:shadow-card-hover-arcane'
@@ -162,7 +162,7 @@ export function ResumeCard({ session, onContinue, onCall, onDelete, deleting = f
             <span
                 aria-hidden="true"
                 className={cx(
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all',
+                    'hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all sm:flex',
                     isArcane
                         ? 'border-arcane-500/40 bg-arcane-500/15 text-arcane-300 group-hover:bg-arcane-500/30 group-hover:shadow-glow-arcane'
                         : 'border-ember-500/35 bg-ember-500/10 text-ember-400 group-hover:bg-ember-500 group-hover:text-on-ember group-hover:shadow-glow-ember',

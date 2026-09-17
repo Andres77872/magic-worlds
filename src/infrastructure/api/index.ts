@@ -1,7 +1,9 @@
+import type { TextGenerationEvent, TextGenerationOptions } from '@/shared/types/textGeneration.types'
 /**
  * API infrastructure - centralized API request handling
  */
 
+import { readEventStream, StreamContractError, type SseEvent } from './sse'
 import type {
     AdminVoiceCloneRequest,
     AdminVoiceCloneResponse,
@@ -78,6 +80,7 @@ import { API_BASE_URL } from './baseUrl'
 import { getProtectedMediaPath } from './mediaUrl'
 import { isPatreonFeatureEnabled } from '../../shared/patreonFeatureFlag'
 import {
+    isTextStreamingFeatureEnabled,
     isCallsFeatureEnabled,
     isCommunityCardsFeatureEnabled,
     isLorebookResourcesFeatureEnabled,
@@ -1103,115 +1106,83 @@ class ApiService {
         }
     }
 
-    // Shared SSE-frame parser for the card- and lorebook-assistant streams
-    // (identical wire format; the caller picks the event union via <T>).
-    private parseAssistantStreamFrame<T>(frame: string): T | null {
-        let eventType = 'message'
-        const dataLines: string[] = []
-        for (const rawLine of frame.split('\n')) {
-            const line = rawLine.trimEnd()
-            if (!line || line.startsWith(':')) continue
-            if (line.startsWith('event:')) {
-                eventType = line.slice(6).trim()
-                continue
-            }
-            if (line.startsWith('data:')) {
-                dataLines.push(line.slice(5).trimStart())
-            }
-        }
-        if (!dataLines.length) return null
-        const data = JSON.parse(dataLines.join('\n')) as Record<string, unknown>
-        if (!data || typeof data !== 'object') return null
-        return { ...data, type: eventType } as T
-    }
-
-    private async readCardAssistantStream(
-        response: Response,
-        onEvent: (event: CardAssistantStreamEvent) => void,
-        assertOwner: () => void = () => undefined,
+    /** All POST streams share auth ownership, pre-consumption refresh, and cleanup. */
+    private async authenticatedStream<T extends { type: string }>(
+        endpoint: string,
+        body: unknown,
+        onEvent: (event: T) => void,
+        options: { signal?: AbortSignal; requestId?: string; timeoutMs?: number; idempotencyKey?: string } = {},
     ): Promise<void> {
-        if (!response.body) {
-            throw new ApiError(502, 'Card assistant stream returned no response body.', {
-                category: 'upstream_contract',
-                code: 'card_assistant_stream_body_missing',
-                requestId: response.headers.get('X-Request-Id') || undefined,
-                retryable: true,
-            })
+        const token = this.getStoredToken()
+        const owner = { ...authSession.getSnapshot(), token }
+        const requestId = options.requestId || this.createClientId('mw-stream')
+        const controller = new AbortController()
+        const abort = () => controller.abort(options.signal?.reason)
+        if (options.signal?.aborted) abort()
+        else options.signal?.addEventListener('abort', abort, { once: true })
+        const unsubscribe = authSession.subscribe(() => {
+            if (!authSession.isCurrent(owner)) controller.abort(new DOMException('Authentication changed', 'AbortError'))
+        })
+        let timedOut = false
+        const timeout = setTimeout(() => {
+            timedOut = true
+            controller.abort(new DOMException('Generation timed out', 'AbortError'))
+        }, options.timeoutMs ?? 180_000)
+        const config: RequestInit = {
+            method: 'POST', signal: controller.signal,
+            headers: {
+                'Content-Type': 'application/json', Accept: 'text/event-stream',
+                'X-Request-Id': requestId,
+                ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(body),
         }
-
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ''
-        const flushFrame = (frame: string) => {
-            assertOwner()
-            const event = this.parseAssistantStreamFrame<CardAssistantStreamEvent>(frame)
-            if (event) onEvent(event)
-        }
-
         try {
-            while (true) {
-                const { value, done } = await reader.read()
-                if (done) break
-                assertOwner()
-                buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
-                let separator = buffer.indexOf('\n\n')
-                while (separator >= 0) {
-                    const frame = buffer.slice(0, separator)
-                    buffer = buffer.slice(separator + 2)
-                    flushFrame(frame)
-                    separator = buffer.indexOf('\n\n')
+            controller.signal.throwIfAborted()
+            let response = await fetch(`${this.baseUrl}${endpoint}`, config)
+            this.assertCurrentOwner(owner)
+            if (response.status === 401) {
+                await response.body?.cancel()
+                const rotated = this.getStoredToken()
+                const nextToken = rotated && rotated !== token ? rotated : await this.waitForSignal(this.refreshAccessToken(token), controller.signal)
+                this.assertCurrentOwner(owner)
+                controller.signal.throwIfAborted()
+                response = await fetch(`${this.baseUrl}${endpoint}`, this.withAuthorization(config, nextToken))
+                this.assertCurrentOwner(owner)
+                if (response.status === 401 && rotated && rotated !== token) {
+                    await response.body?.cancel()
+                    const refreshed = await this.waitForSignal(this.refreshAccessToken(rotated), controller.signal)
+                    this.assertCurrentOwner(owner)
+                    controller.signal.throwIfAborted()
+                    response = await fetch(`${this.baseUrl}${endpoint}`, this.withAuthorization(config, refreshed))
+                    this.assertCurrentOwner(owner)
                 }
             }
-            buffer += decoder.decode().replace(/\r\n/g, '\n')
-            if (buffer.trim()) flushFrame(buffer)
-            assertOwner()
-        } finally {
-            reader.releaseLock()
-        }
-    }
-
-    private async readLorebookAssistantStream(
-        response: Response,
-        onEvent: (event: LorebookAssistantStreamEvent) => void,
-        assertOwner: () => void = () => undefined,
-    ): Promise<void> {
-        if (!response.body) {
-            throw new ApiError(502, 'Lorebook assistant stream returned no response body.', {
-                category: 'upstream_contract',
-                code: 'lorebook_assistant_stream_body_missing',
-                requestId: response.headers.get('X-Request-Id') || undefined,
-                retryable: true,
-            })
-        }
-
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ''
-        const flushFrame = (frame: string) => {
-            assertOwner()
-            const event = this.parseAssistantStreamFrame<LorebookAssistantStreamEvent>(frame)
-            if (event) onEvent(event)
-        }
-
-        try {
-            while (true) {
-                const { value, done } = await reader.read()
-                if (done) break
-                assertOwner()
-                buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
-                let separator = buffer.indexOf('\n\n')
-                while (separator >= 0) {
-                    const frame = buffer.slice(0, separator)
-                    buffer = buffer.slice(separator + 2)
-                    flushFrame(frame)
-                    separator = buffer.indexOf('\n\n')
-                }
+            if (!response.ok) {
+                const parsed = await this.extractError(response)
+                throw new ApiError(response.status, parsed.message, parsed)
             }
-            buffer += decoder.decode().replace(/\r\n/g, '\n')
-            if (buffer.trim()) flushFrame(buffer)
-            assertOwner()
+            await readEventStream(response, (event: T) => {
+                const identity = event as T & { request_id?: string }
+                if (identity.request_id && identity.request_id !== requestId) throw new StreamContractError('The stream returned a result for a different request.')
+                onEvent(event)
+            }, { signal: controller.signal, assertOwner: () => this.assertCurrentOwner(owner) })
+            this.assertCurrentOwner(owner)
+        } catch (error) {
+            if (timedOut || error instanceof StreamContractError) {
+                throw new ApiError(0, timedOut ? 'The generation wait timed out.' : (error as Error).message, {
+                    category: timedOut ? 'timeout' : 'stream',
+                    code: error instanceof StreamContractError ? error.code : 'stream_timeout',
+                    requestId, retryable: false, action: 'reload_conversation',
+                })
+            }
+            throw error
         } finally {
-            reader.releaseLock()
+            clearTimeout(timeout)
+            unsubscribe()
+            options.signal?.removeEventListener('abort', abort)
+            controller.abort()
         }
     }
 
@@ -1767,6 +1738,9 @@ class ApiService {
      * The backend creates the card and returns it.
      */
     async createCharacterAI(description: string, options: AiCardRequestOptions = {}): Promise<CharacterCardResponse> {
+        if (options.onEvent && isTextStreamingFeatureEnabled()) return this.streamGeneratedResult<CharacterCardResponse>(
+            '/characters/ai/stream', { description: description.trim() }, 'card', options,
+        )
         const token = this.getStoredToken()
         const result = await this.authenticatedRequest<CharacterCardResponse>('/characters/ai/', token, {
             method: 'POST',
@@ -2057,6 +2031,9 @@ class ApiService {
      * The backend creates the card and returns it.
      */
     async createWorldAI(description: string, options: AiCardRequestOptions = {}): Promise<WorldCardResponse> {
+        if (options.onEvent && isTextStreamingFeatureEnabled()) return this.streamGeneratedResult<WorldCardResponse>(
+            '/worlds/ai/stream', { description: description.trim() }, 'card', options,
+        )
         const token = this.getStoredToken()
         const result = await this.authenticatedRequest<WorldCardResponse>('/worlds/ai/', token, {
             method: 'POST',
@@ -2086,6 +2063,9 @@ class ApiService {
      * Generate + persist a new item/object from a description via the AI endpoint.
      */
     async createItemAI(description: string, options: AiCardRequestOptions = {}): Promise<ItemCardResponse> {
+        if (options.onEvent && isTextStreamingFeatureEnabled()) return this.streamGeneratedResult<ItemCardResponse>(
+            '/items/ai/stream', { description: description.trim() }, 'card', options,
+        )
         const token = this.getStoredToken()
         const result = await this.authenticatedRequest<ItemCardResponse>('/items/ai/', token, {
             method: 'POST',
@@ -2547,18 +2527,91 @@ class ApiService {
         })
     }
 
-    async generateStory(storyId: string, request: StoryGenerateRequest): Promise<StoryGenerateResponse> {
+    async generateStory(storyId: string, request: StoryGenerateRequest, options: TextGenerationOptions = {}): Promise<StoryGenerateResponse> {
         this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        const requestId = this.createClientId('mw-story-generate')
-        return this.authenticatedRequest<StoryGenerateResponse>(`/stories/${encodeURIComponent(storyId)}/generate`, token, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Request-Id': requestId,
-            },
-            body: request as unknown as BodyInit,
+        const requestId = options.requestId || this.createClientId('mw-story-generate')
+        const owner = authSession.getSnapshot()
+        if (!isTextStreamingFeatureEnabled()) return this.authenticatedRequest<StoryGenerateResponse>(`/stories/${encodeURIComponent(storyId)}/generate`, this.getStoredToken(), {
+            method: 'POST', body: request as unknown as BodyInit,
+            headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId }, signal: options.signal, timeoutMs: options.timeoutMs,
         })
+        try {
+            return await this.streamGeneratedResult<StoryGenerateResponse>(`/stories/${encodeURIComponent(storyId)}/generate/stream`, request, null, { ...options, requestId })
+        } catch (error) {
+            this.assertCurrentOwner(owner)
+            if (options.signal?.aborted) throw error
+            // Reconcile only the exact saved candidate; never start a second generation.
+            if (!(error instanceof ApiError) || error.status === 0) {
+                const story = await this.getStory(storyId).catch(() => null)
+                this.assertCurrentOwner(owner)
+                options.signal?.throwIfAborted()
+                const chapter = story?.chapters.find((item) => item.id === request.chapterId)
+                const generation = chapter?.generationHistory.find((item) => item.requestId === requestId)
+                if (chapter && generation) return { generation, chapter, stagedCardUpdates: [] }
+                console.warn('text_stream_recovery_failed', { requestId, surface: 'story' })
+            }
+            throw error
+        }
+    }
+
+    private async streamGeneratedResult<T>(endpoint: string, body: unknown, resultKey: 'card' | null, options: TextGenerationOptions & { idempotencyKey?: string }): Promise<T> {
+        const owner = authSession.getSnapshot()
+        options = { ...options, requestId: options.requestId || this.createClientId('mw-generation'),
+            ...(resultKey ? { idempotencyKey: options.idempotencyKey || this.createClientId('mw-generation-idem') } : {}) }
+        let result: T | undefined
+        let failure: ApiError | undefined
+        try {
+            await this.authenticatedStream(endpoint, body, (event: SseEvent) => {
+                if (event.type === 'final') {
+                    const candidate = resultKey ? event[resultKey] : event.generation
+                    if (!candidate || typeof candidate !== 'object' || typeof (candidate as { id?: unknown }).id !== 'string') {
+                        throw new StreamContractError('The stream returned an invalid saved result.')
+                    }
+                    if (resultKey) this.assertAiCardSynchronousContract(candidate)
+                    result = (resultKey ? candidate : event) as T
+                }
+                else if (event.type === 'error') {
+                    const detail = event.error as Record<string, unknown> | undefined
+                    failure = new ApiError(typeof event.status_code === 'number' ? event.status_code : 502, String(event.detail || detail?.message || 'Generation failed.'), {
+                        category: typeof detail?.category === 'string' ? detail.category : 'generation',
+                        code: typeof detail?.code === 'string' ? detail.code : undefined,
+                        requestId: options.requestId,
+                        retryable: detail?.retryable !== false,
+                    })
+                } else if (event.type === 'delta' || event.type === 'progress' || event.type === 'preview') {
+                    const valid = event.type === 'delta' ? typeof event.delta === 'string'
+                        : event.type === 'progress' ? ['generating', 'validating', 'saving'].includes(String(event.stage))
+                        : typeof event.text === 'string' && Array.isArray(event.path) && event.path.length > 0 && event.path.length < 32
+                            && event.path.every((part) => typeof part === 'string' || (Number.isInteger(part) && Number(part) >= 0))
+                    if (!valid) throw new StreamContractError('The stream returned an invalid preview event.')
+                    options.onEvent?.(event as unknown as TextGenerationEvent)
+                }
+            }, options)
+        } catch (error) {
+            this.assertCurrentOwner(owner)
+            const stopped = options.signal?.aborted && options.signal.reason?.message === 'Stopped by user'
+            if (resultKey && options.idempotencyKey && (!options.signal?.aborted || stopped)) {
+                for (let attempt = 0; attempt < 3; attempt++) {
+                    const recovered = await this.authenticatedRequest<{ status: string; card?: T; request_id: string }>(
+                        endpoint.replace(/\/stream$/, '/result'), this.getStoredToken(), {
+                            method: 'GET', headers: { 'Idempotency-Key': options.idempotencyKey, 'X-Request-Id': options.requestId! }, timeoutMs: 5000,
+                        }).catch(() => null)
+                    this.assertCurrentOwner(owner)
+                    if (options.signal?.aborted && !stopped) throw error
+                    if (recovered?.status === 'completed' && recovered.card && recovered.request_id === options.requestId) {
+                        this.assertAiCardSynchronousContract(recovered.card)
+                        return recovered.card
+                    }
+                    if (!recovered || recovered.status !== 'in_flight') break
+                    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+                }
+                if (!stopped) console.warn('text_stream_recovery_failed', { requestId: options.requestId, surface: 'card' })
+            }
+            throw error
+        }
+        if (failure) throw failure
+        if (!result) throw new ApiError(502, 'The stream ended without a saved result.', { code: 'stream_incomplete', requestId: options.requestId })
+        return result
     }
 
     async acceptStoryGeneration(storyId: string, generationId: string): Promise<Story> {
@@ -2622,6 +2675,9 @@ class ApiService {
      * endpoint. The backend creates the card and returns it.
      */
     async createAdventureTemplateAI(description: string, options: AiCardRequestOptions = {}): Promise<AdventureTemplateCardResponse> {
+        if (options.onEvent && isTextStreamingFeatureEnabled()) return this.streamGeneratedResult<AdventureTemplateCardResponse>(
+            '/adventure-templates/ai/stream', { description: description.trim() }, 'card', options,
+        )
         const token = this.getStoredToken()
         const result = await this.authenticatedRequest<AdventureTemplateCardResponse>('/adventure-templates/ai/', token, {
             method: 'POST',
@@ -2719,83 +2775,7 @@ class ApiService {
         onEvent: (event: CardAssistantStreamEvent) => void,
         options: CardAssistantRequestOptions = {},
     ): Promise<void> {
-        const token = this.getStoredToken()
-        const requestId = options.requestId || this.createClientId('mw-card-assistant-turn')
-        const endpoint = `/card-assistant/conversations/${conversationId}/messages/stream`
-        const url = `${this.baseUrl}${endpoint}`
-        const payload = JSON.stringify(body)
-        const owner = { ...authSession.getSnapshot(), token }
-
-        let didTimeout = false
-        let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-        let signal = options.signal
-        if (options.timeoutMs && options.timeoutMs > 0) {
-            const controller = new AbortController()
-            signal = controller.signal
-            if (options.signal) {
-                if (options.signal.aborted) {
-                    controller.abort(options.signal.reason)
-                } else {
-                    options.signal.addEventListener('abort', () => controller.abort(options.signal?.reason), { once: true })
-                }
-            }
-            timeoutHandle = setTimeout(() => {
-                didTimeout = true
-                controller.abort(new DOMException('Card assistant stream timed out locally', 'AbortError'))
-            }, options.timeoutMs)
-        }
-
-        const config: RequestInit = {
-            method: 'POST',
-            headers: {
-                ...this.cardAssistantHeaders({ ...options, requestId }),
-                Accept: 'text/event-stream',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: payload,
-            signal,
-        }
-
-        try {
-            let response = await fetch(url, config)
-            this.assertCurrentOwner(owner)
-            if (response.status === 401) {
-                const rotatedToken = this.getStoredToken()
-                if (rotatedToken && rotatedToken !== token) {
-                    response = await fetch(url, this.withAuthorization(config, rotatedToken))
-                    this.assertCurrentOwner(owner)
-                }
-                if (response.status === 401) {
-                    const nextToken = await this.waitForSignal(
-                        this.refreshAccessToken(rotatedToken || token),
-                        signal,
-                    )
-                    this.assertCurrentOwner(owner)
-                    response = await fetch(url, this.withAuthorization(config, nextToken))
-                    this.assertCurrentOwner(owner)
-                }
-            }
-            if (!response.ok) {
-                const parsed = await this.extractError(response)
-                throw new ApiError(response.status, parsed.message, parsed)
-            }
-            await this.readCardAssistantStream(response, onEvent, () => this.assertCurrentOwner(owner))
-        } catch (error) {
-            if (didTimeout && error instanceof DOMException && error.name === 'AbortError') {
-                throw new ApiError(0, 'Local wait timed out. The assistant may still finish and save the conversation.', {
-                    category: 'timeout',
-                    code: 'card_assistant_client_timeout',
-                    retryable: true,
-                    action: 'reload_conversation',
-                })
-            }
-            if (!(error instanceof ApiError)) {
-                console.warn(`Card assistant stream error for ${endpoint}:`, error)
-            }
-            throw error
-        } finally {
-            if (timeoutHandle) clearTimeout(timeoutHandle)
-        }
+        return this.authenticatedStream(`/card-assistant/conversations/${conversationId}/messages/stream`, body, onEvent, options)
     }
 
     async createLorebookAssistantConversation(
@@ -2886,83 +2866,7 @@ class ApiService {
         options: LorebookAssistantRequestOptions = {},
     ): Promise<void> {
         this.assertLorebooksEnabled()
-        const token = this.getStoredToken()
-        const requestId = options.requestId || this.createClientId('mw-lorebook-assistant-turn')
-        const endpoint = `/lorebook-assistant/conversations/${conversationId}/messages/stream`
-        const url = `${this.baseUrl}${endpoint}`
-        const payload = JSON.stringify(body)
-        const owner = { ...authSession.getSnapshot(), token }
-
-        let didTimeout = false
-        let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-        let signal = options.signal
-        if (options.timeoutMs && options.timeoutMs > 0) {
-            const controller = new AbortController()
-            signal = controller.signal
-            if (options.signal) {
-                if (options.signal.aborted) {
-                    controller.abort(options.signal.reason)
-                } else {
-                    options.signal.addEventListener('abort', () => controller.abort(options.signal?.reason), { once: true })
-                }
-            }
-            timeoutHandle = setTimeout(() => {
-                didTimeout = true
-                controller.abort(new DOMException('Lorebook assistant stream timed out locally', 'AbortError'))
-            }, options.timeoutMs)
-        }
-
-        const config: RequestInit = {
-            method: 'POST',
-            headers: {
-                ...this.lorebookAssistantHeaders({ ...options, requestId }),
-                Accept: 'text/event-stream',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: payload,
-            signal,
-        }
-
-        try {
-            let response = await fetch(url, config)
-            this.assertCurrentOwner(owner)
-            if (response.status === 401) {
-                const rotatedToken = this.getStoredToken()
-                if (rotatedToken && rotatedToken !== token) {
-                    response = await fetch(url, this.withAuthorization(config, rotatedToken))
-                    this.assertCurrentOwner(owner)
-                }
-                if (response.status === 401) {
-                    const nextToken = await this.waitForSignal(
-                        this.refreshAccessToken(rotatedToken || token),
-                        signal,
-                    )
-                    this.assertCurrentOwner(owner)
-                    response = await fetch(url, this.withAuthorization(config, nextToken))
-                    this.assertCurrentOwner(owner)
-                }
-            }
-            if (!response.ok) {
-                const parsed = await this.extractError(response)
-                throw new ApiError(response.status, parsed.message, parsed)
-            }
-            await this.readLorebookAssistantStream(response, onEvent, () => this.assertCurrentOwner(owner))
-        } catch (error) {
-            if (didTimeout && error instanceof DOMException && error.name === 'AbortError') {
-                throw new ApiError(0, 'Local wait timed out. The assistant may still finish and save the conversation.', {
-                    category: 'timeout',
-                    code: 'lorebook_assistant_client_timeout',
-                    retryable: true,
-                    action: 'reload_conversation',
-                })
-            }
-            if (!(error instanceof ApiError)) {
-                console.warn(`Lorebook assistant stream error for ${endpoint}:`, error)
-            }
-            throw error
-        } finally {
-            if (timeoutHandle) clearTimeout(timeoutHandle)
-        }
+        return this.authenticatedStream(`/lorebook-assistant/conversations/${conversationId}/messages/stream`, body, onEvent, options)
     }
 
     /**

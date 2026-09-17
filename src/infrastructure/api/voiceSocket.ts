@@ -328,6 +328,9 @@ export class VoiceSocket {
     }
 
     private shouldDropStaleFrame(message: VoiceSocketServerFrame): boolean {
+        if (message.type === 'voice_assistant_delta') {
+            return message.voice_session_id !== this.voiceSessionId || this.cancelledTurns.has(turnKey(message.voice_session_id, message.turn_id))
+        }
         if (message.type === 'voice_audio_chunk') {
             const key = turnKey(message.voice_session_id, message.turn_id)
             if (this.cancelledTurns.has(key)) return true

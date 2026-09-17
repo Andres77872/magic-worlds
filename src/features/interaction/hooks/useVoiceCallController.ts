@@ -367,7 +367,9 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         onSegmentAck: handleSegmentAck,
         onTranscriptFinal: handleTranscriptFinal,
         onTurnStart: handleTurnStart,
-        onAssistantDelta: (frame) => setAssistantText((current) => `${current}${frame.content}`),
+        onAssistantDelta: (frame) => {
+            if (frame.turn_id === activeTurnIdRef.current) setAssistantText((current) => `${current}${frame.content}`)
+        },
         onAudioChunk: handleAudioChunk,
         onAudioFinal: handleAudioFinal,
         onTurnEnd: handleTurnEnd,

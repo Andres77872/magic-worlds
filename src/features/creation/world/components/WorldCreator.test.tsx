@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     setEditingWorld: vi.fn(),
     replaceHash: vi.fn(),
     createWorld: vi.fn(),
+    createWorldAI: vi.fn(),
     updateWorld: vi.fn(),
     generateCardPortrait: vi.fn(),
     getWorld: vi.fn(),
@@ -50,6 +51,7 @@ vi.mock('@/infrastructure/api', () => ({
         sendCardAssistantMessage: mocks.sendCardAssistantMessage,
         streamCardAssistantMessage: mocks.streamCardAssistantMessage,
         createWorld: mocks.createWorld,
+        createWorldAI: mocks.createWorldAI,
         updateWorld: mocks.updateWorld,
         generateCardPortrait: mocks.generateCardPortrait,
         getWorld: mocks.getWorld,
@@ -70,6 +72,17 @@ vi.mock('@/infrastructure/api', () => ({
 import { WorldCreator } from './WorldCreator'
 
 describe('WorldCreator AI generation', () => {
+    it('opens a one-shot saved result from the gallery and refreshes the library', async () => {
+        mocks.createWorldAI.mockResolvedValue({ id: 'generated-world', name: 'Moon Archive', type: 'library', description: 'A candlelit archive.' })
+        render(<WorldCreator />)
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Create a candlelit archive' } })
+        fireEvent.click(screen.getByRole('button', { name: /generate world/i }))
+        await waitFor(() => expect(mocks.setEditingWorld).toHaveBeenCalledWith(expect.objectContaining({ id: 'generated-world', name: 'Moon Archive' })))
+        expect(mocks.createWorldAI).toHaveBeenCalledWith('Create a candlelit archive', expect.objectContaining({ onEvent: expect.any(Function), signal: expect.any(AbortSignal) }))
+        expect(mocks.replaceHash).toHaveBeenCalledWith(expect.stringContaining('generated-world'))
+        expect(mocks.loadData).toHaveBeenCalledWith({ silent: true })
+    })
+
     beforeEach(() => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true

@@ -95,3 +95,8 @@ export function isPageFeatureEnabled(page: PageType): boolean {
     }
 }
 
+
+/** Disable during rollout until the BFF streaming routes are deployed. Chosen before POST. */
+export function isTextStreamingFeatureEnabled(): boolean {
+    return import.meta.env.VITE_FEATURE_TEXT_STREAMING_ENABLED !== 'false'
+}

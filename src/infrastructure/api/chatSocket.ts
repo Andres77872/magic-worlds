@@ -77,6 +77,7 @@ export type ChatSocketStatus = 'connecting' | 'open' | 'closed'
 export interface ChatSocketHandlers {
     onMessage: (message: ChatSocketServerMessage) => void
     onStatusChange?: (status: ChatSocketStatus) => void
+    onStreamInterrupted?: () => void
 }
 
 export class ChatSocket {
@@ -97,6 +98,8 @@ export class ChatSocket {
     private lastFrameAt = 0
     // A chat frame requested before the socket is OPEN; flushed on connect.
     private pendingChat: string | null = null
+    private sentChat = false
+    private sentRequestId: string | undefined
 
     constructor(sessionId: number, handlers: ChatSocketHandlers, basePath: string = 'adventure-sessions') {
         this.sessionId = sessionId
@@ -150,6 +153,8 @@ export class ChatSocket {
                     void this.refreshBeforeSendingPendingChat(pendingFrame)
                     return
                 }
+                this.sentChat = true
+                this.sentRequestId = JSON.parse(this.pendingChat).request_id
                 ws.send(this.pendingChat)
                 this.pendingChat = null
             }
@@ -175,6 +180,7 @@ export class ChatSocket {
                     this.authRecoveryAttempted = false
                     this.terminalAuthReported = false
                 }
+                if ((message.type === 'done' || message.type === 'error') && (!message.request_id || message.request_id === this.sentRequestId)) this.sentChat = false
                 this.handlers.onMessage(message)
             }
         }
@@ -231,6 +237,8 @@ export class ChatSocket {
             return
         }
         if (this.isOpen) {
+            this.sentChat = true
+            this.sentRequestId = requestId
             this.ws!.send(frame)
             return
         }
@@ -269,6 +277,7 @@ export class ChatSocket {
 
     /** Cancel the in-flight generation (no-op if the socket isn't open). */
     cancel(): void {
+        this.pendingChat = null
         if (this.isOpen) this.ws!.send(JSON.stringify({ type: 'cancel' }))
     }
 
@@ -351,6 +360,7 @@ export class ChatSocket {
         try {
             await refreshAccessTokenForSocket()
         } catch (error) {
+            if (this.closedByUser || this.pendingChat !== expectedFrame) return
             if (this.pendingChat === expectedFrame) {
                 this.pendingChat = null
             }
@@ -473,6 +483,10 @@ export class ChatSocket {
     }
 
     private setStatus(status: ChatSocketStatus): void {
+        if (status === 'closed' && this.sentChat) {
+            this.sentChat = false
+            if (!this.closedByUser) this.handlers.onStreamInterrupted?.()
+        }
         this.handlers.onStatusChange?.(status)
     }
 

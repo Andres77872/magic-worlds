@@ -71,3 +71,5 @@ export type { FormActionsProps } from './FormActions';
 export { QualityHint, TriggerHints } from './QualityHint';
 export type { QualityHintProps, TriggerHintsProps } from './QualityHint';
 export { findBroadTrigger } from './triggerQuality';
+
+export { SavedCardGenerator } from './SavedCardGenerator';

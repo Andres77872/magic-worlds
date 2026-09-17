@@ -82,6 +82,45 @@ describe('ChatSocket auth recovery', () => {
         vi.restoreAllMocks()
     })
 
+    it('Stop clears a queued chat before the socket opens', () => {
+        const socket = new ChatSocket(3, { onMessage: vi.fn() })
+        socket.sendChat('Do not send', 'stopped-request')
+        socket.cancel()
+        MockWebSocket.instances[0].emitOpen()
+        expect(MockWebSocket.instances[0].send).not.toHaveBeenCalled()
+        socket.close()
+    })
+
+    it('Stop invalidates a pending token refresh continuation', async () => {
+        const expired = jwtWithExp(Math.floor(Date.now() / 1000) - 60)
+        localStorage.setItem('magic_worlds:token', expired)
+        let resolve!: (token: string) => void
+        configureChatSocketAuthRefresh(() => new Promise((done) => { resolve = done }))
+        const socket = new ChatSocket(3, { onMessage: vi.fn() })
+        socket.sendChat('Do not send', 'stopped-request')
+        socket.cancel()
+        resolve('fresh-token')
+        await flushPromises()
+        expect(MockWebSocket.instances).toHaveLength(0)
+        socket.close()
+    })
+
+    it('reports a dropped active stream once and never resends it on reconnect', async () => {
+        vi.useFakeTimers()
+        const interrupted = vi.fn()
+        const socket = new ChatSocket(3, { onMessage: vi.fn(), onStreamInterrupted: interrupted })
+        socket.connect()
+        MockWebSocket.instances[0].emitOpen()
+        socket.sendChat('Only once', 'req-one')
+        MockWebSocket.instances[0].emitClose(1006)
+        expect(interrupted).toHaveBeenCalledOnce()
+        await vi.advanceTimersByTimeAsync(2000)
+        MockWebSocket.instances[1].emitOpen()
+        expect(MockWebSocket.instances[1].send).not.toHaveBeenCalled()
+        socket.close()
+        vi.useRealTimers()
+    })
+
     it('refreshes once on first 4401 and reconnects with the new token', async () => {
         const expired = vi.fn()
         const onMessage = vi.fn()

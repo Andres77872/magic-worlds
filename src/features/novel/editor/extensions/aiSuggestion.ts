@@ -511,7 +511,7 @@ export const AiSuggestion = Extension.create<AiSuggestionOptions, AiSuggestionSt
                                 // Stable across transactions, so the row is not rebuilt
                                 // (and hover/focus lost) on every keystroke; changes only
                                 // when what the row says changes.
-                                key: `ai-action-row:${model.state}:${model.meta}:${model.prompt}:${model.canRegenerate}`,
+                                key: `ai-action-row:${model.state}:${model.meta}:${model.prompt}:${model.canRegenerate}:${model.labels.generating}`,
                                 side: 1,
                                 marks: [],
                                 ignoreSelection: true,

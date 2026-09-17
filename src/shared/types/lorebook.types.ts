@@ -259,6 +259,7 @@ export interface LorebookAssistantTurnResponse {
 }
 
 export type LorebookAssistantStreamEvent =
+    | { type: 'progress'; request_id?: string; stage: 'generating' | 'validating' | 'saving' }
     | {
         type: 'user_message'
         request_id?: string

@@ -260,9 +260,10 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
 
     const inlineAI = useInlineAI(editor, {
         onRequestSaveFlush: () => propsRef.current.onRequestSaveFlush(),
-        onGenerate: (request) => propsRef.current.onGenerate(request),
+        onGenerate: (request, options) => propsRef.current.onGenerate(request, options),
         onAcceptGeneration: (id) => propsRef.current.onAcceptGeneration(id),
         onDiscardGeneration: (id) => propsRef.current.onDiscardGeneration(id),
+        onCritiquePreview: (text, state) => propsRef.current.onCritiquePreview?.(text, state),
         onCritiqueResult: (generation) => propsRef.current.onCritiqueResult(generation),
     })
 

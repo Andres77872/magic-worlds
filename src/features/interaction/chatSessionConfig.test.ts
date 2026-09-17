@@ -75,3 +75,13 @@ describe('storedMessagesToTurns', () => {
         expect(turns[1].isStreaming).toBe(false)
     })
 })
+
+
+it('restores interrupted narrative without exposing incomplete XML or restarting its spinner', () => {
+    const [turn] = storedMessagesToTurns([message({ role: 'assistant', status: 'interrupted',
+        content: '<response><say speaker_id="aria">The door listens', metadata: { partial: true } })])
+    expect(turn.content).toBe('The door listens')
+    expect(turn.isStreaming).toBe(false)
+    expect(turn.metadata?.interrupted).toBe(true)
+    expect(turn.segments?.[0].content).toBe('The door listens')
+})

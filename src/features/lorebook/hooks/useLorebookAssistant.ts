@@ -1,5 +1,8 @@
+import type { TFunction } from 'i18next'
+import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiService, ApiError } from '@/infrastructure/api'
+import { frameBatch } from '@/utils/frameBatch'
 import { makeRequestId } from '@/utils/uuid'
 import type {
     Lorebook,
@@ -19,7 +22,7 @@ import {
 } from '@/features/creation/common/components/assistant/useCardAssistant'
 import { lorebookToApiPayload } from '../lorebookTransforms'
 
-const DEFAULT_TIMEOUT_MS = 120_000
+const DEFAULT_TIMEOUT_MS = 180_000
 const META_TIMEOUT_MS = 15_000
 
 export interface LorebookAssistantTurn extends AssistantTurnBase<LorebookAssistantMessage> {
@@ -63,13 +66,13 @@ function createRequestId(): string {
     return makeRequestId('mw-lorebook-assistant')
 }
 
-function assistantErrorMessage(error: unknown): string {
+function assistantErrorMessage(error: unknown, t: TFunction): string {
     if (error instanceof ApiError) {
         return error.isTransient
-            ? 'The assistant is briefly unavailable. Try again in a moment.'
+            ? t('creation.common.assistant.notices.transient')
             : error.message
     }
-    return 'The assistant could not complete that request.'
+    return t('creation.common.assistant.notices.generic')
 }
 
 function isAbortError(error: unknown): boolean {
@@ -93,6 +96,9 @@ export function useLorebookAssistant({
     onAuthRequired,
     timeoutMs = DEFAULT_TIMEOUT_MS,
 }: UseLorebookAssistantOptions): UseLorebookAssistantResult {
+    const { t } = useTranslation()
+    const tRef = useRef(t)
+    useEffect(() => { tRef.current = t }, [t])
     const [open, setOpen] = useState(false)
     const [status, setStatus] = useState<AssistantStatus>('idle')
     const [conversations, setConversations] = useState<LorebookAssistantConversation[]>([])
@@ -126,6 +132,7 @@ export function useLorebookAssistant({
     const activeRequestRef = useRef<string | null>(null)
     const userStoppedRef = useRef(false)
     const lastSentRef = useRef<string | null>(null)
+    const lastRequestIdRef = useRef<string | null>(null)
     const prevLorebookIdRef = useRef<string | null>(lorebookId ?? null)
 
     const nextLocalId = () => {
@@ -143,6 +150,8 @@ export function useLorebookAssistant({
     )
 
     const resetConversationState = useCallback(() => {
+        activeConversationRef.current = null
+        lastRequestIdRef.current = null
         setActiveConversation(null)
         setMessages([])
         setPendingLorebook(null)
@@ -172,7 +181,7 @@ export function useLorebookAssistant({
                 setMessages(detail.messages ?? [])
             })
             .catch((err) => {
-                if (!cancelled) setNotice({ kind: 'error', message: assistantErrorMessage(err) })
+                if (!cancelled) setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current) })
             })
             .finally(() => {
                 if (!cancelled) setStatus((prev) => (prev === 'initializing' ? 'idle' : prev))
@@ -186,6 +195,16 @@ export function useLorebookAssistant({
         const normalized = lorebookId ?? null
         if (prevLorebookIdRef.current === normalized) return
         prevLorebookIdRef.current = normalized
+        // A different editor target supersedes work started for the old one.
+        // A final that binds its own new card updates the conversation first.
+        if (streamControllerRef.current && activeConversationRef.current?.lorebook_id !== normalized) {
+            activeRequestRef.current = null
+            streamControllerRef.current.abort(new DOMException('Assistant target changed', 'AbortError'))
+            streamControllerRef.current = null
+            setStreamingMessageId(null)
+            setStatus('idle')
+            resetConversationState()
+        }
         if (!open || !isAuthenticated) return
         let cancelled = false
         apiService
@@ -205,7 +224,7 @@ export function useLorebookAssistant({
         return () => {
             cancelled = true
         }
-    }, [lorebookId, open, isAuthenticated])
+    }, [lorebookId, open, isAuthenticated, resetConversationState])
 
     useEffect(() => () => {
         activeRequestRef.current = null
@@ -213,14 +232,16 @@ export function useLorebookAssistant({
         streamControllerRef.current = null
     }, [])
 
-    const createConversation = useCallback(async (): Promise<LorebookAssistantConversation> => {
+    const createConversation = useCallback(async (signal?: AbortSignal): Promise<LorebookAssistantConversation> => {
         const response = await apiService.createLorebookAssistantConversation(
             {
                 lorebookId: lorebookIdRef.current ?? undefined,
                 title: titleRef.current,
             },
-            { timeoutMs: META_TIMEOUT_MS },
+            { timeoutMs: META_TIMEOUT_MS, signal },
         )
+        signal?.throwIfAborted()
+        activeConversationRef.current = response.conversation
         setActiveConversation(response.conversation)
         setConversations((prev) => [
             response.conversation,
@@ -232,16 +253,28 @@ export function useLorebookAssistant({
     const reloadConversation = useCallback(async (): Promise<boolean> => {
         const id = conversationKey(activeConversationRef.current)
         if (!id) return false
+        const requestId = lastRequestIdRef.current
+        const owner = activeRequestRef.current
         try {
             const detail = await apiService.getLorebookAssistantConversation(id, { timeoutMs: META_TIMEOUT_MS })
+            if (owner !== activeRequestRef.current || id !== conversationKey(activeConversationRef.current)) return false
+            const lastAssistant = [...(detail.messages ?? [])].reverse().find((message) => message.role === 'assistant')
+            const recovered = Boolean(lastAssistant?.status === 'completed'
+                && (!requestId || lastAssistant.metadata?.request_id === requestId)
+                && !detail.conversation.active_request_id)
+            if (requestId && !recovered) {
+                console.warn('text_stream_recovery_failed', { requestId, surface: 'lorebook_assistant' })
+                return false
+            }
             setActiveConversation(detail.conversation)
             setMessages(detail.messages ?? [])
             setInterruptedIds(new Set())
             setNotice(null)
-            const lastAssistant = [...(detail.messages ?? [])].reverse().find((message) => message.role === 'assistant')
-            return Boolean(lastAssistant && lastAssistant.status === 'completed')
+            if (requestId && detail.lorebook) onLorebookRef.current(detail.lorebook)
+            return recovered
         } catch (err) {
-            setNotice({ kind: 'error', message: assistantErrorMessage(err), canReload: true })
+            if (owner !== activeRequestRef.current || id !== conversationKey(activeConversationRef.current)) return false
+            setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current), canReload: true })
             return false
         }
     }, [])
@@ -275,21 +308,49 @@ export function useLorebookAssistant({
 
         let receivedFinal = false
         let receivedError = false
+        let receivedText = false
+        let userAcknowledged = false
         const requestId = createRequestId()
         const controller = new AbortController()
+        lastRequestIdRef.current = requestId
         activeRequestRef.current = requestId
         streamControllerRef.current = controller
+        const updates = frameBatch<string>((chunks) => {
+            if (activeRequestRef.current !== requestId) return
+            const delta = chunks.join('')
+            setStreamingMessageId(placeholderId)
+            setMessages((prev) => {
+                if (prev.some((message) => message.message_id === placeholderId)) {
+                    return prev.map((message) => message.message_id === placeholderId
+                        ? { ...message, content: message.content + delta } : message)
+                }
+                return [...prev, {
+                    message_id: placeholderId,
+                    conversation_id: conversationKey(activeConversationRef.current) ?? -1,
+                    sequence_no: prev.length + 1,
+                    role: 'assistant', status: 'pending', content: delta,
+                }]
+            })
+        })
 
         try {
-            const conversation = activeConversationRef.current ?? await createConversation()
+            const conversation = activeConversationRef.current ?? await createConversation(controller.signal)
+            controller.signal.throwIfAborted()
+            if (activeRequestRef.current !== requestId) return
             const id = conversationKey(conversation)
             if (!id) throw new Error('Missing assistant conversation id')
             await apiService.streamLorebookAssistantMessage(
                 id,
                 { message: text, currentLorebook: currentLorebookPayload(currentLorebookRef.current) },
                 (event) => {
-                    if (activeRequestRef.current !== requestId) return
+                    if (activeRequestRef.current !== requestId || controller.signal.aborted || (event.request_id && event.request_id !== requestId)) return
+                    if (event.type !== 'assistant_delta') updates.flush()
+                    if (event.type === 'progress') {
+                        setNotice({ kind: 'info', message: tRef.current(`streaming.${event.stage}`) })
+                        return
+                    }
                     if (event.type === 'user_message' && event.user_message) {
+                        userAcknowledged = true
                         setMessages((prev) => prev.map((message) => (
                             message.message_id === optimisticId ? event.user_message! : message
                         )))
@@ -298,32 +359,14 @@ export function useLorebookAssistant({
                     if (event.type === 'assistant_delta') {
                         const delta = event.delta || ''
                         if (!delta) return
-                        setStreamingMessageId(placeholderId)
-                        setMessages((prev) => {
-                            const existing = prev.find((message) => message.message_id === placeholderId)
-                            if (!existing) {
-                                return [
-                                    ...prev,
-                                    {
-                                        message_id: placeholderId,
-                                        conversation_id: id,
-                                        sequence_no: prev.length + 1,
-                                        role: 'assistant',
-                                        status: 'pending',
-                                        content: delta,
-                                    },
-                                ]
-                            }
-                            return prev.map((message) => (
-                                message.message_id === placeholderId
-                                    ? { ...message, content: `${message.content}${delta}` }
-                                    : message
-                            ))
-                        })
+                        receivedText = true
+                        updates.push(delta)
                         return
                     }
                     if (event.type === 'final') {
                         receivedFinal = true
+                        setNotice(null)
+                        activeConversationRef.current = event.conversation
                         setActiveConversation(event.conversation)
                         setConversations((prev) => [
                             event.conversation,
@@ -339,7 +382,7 @@ export function useLorebookAssistant({
                             setMessages(event.messages)
                         } else {
                             setMessages((prev) => [
-                                ...prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId),
+                                ...prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId && message.message_id !== event.user_message?.message_id && message.message_id !== event.assistant_message?.message_id),
                                 ...(event.user_message ? [event.user_message] : []),
                                 ...(event.assistant_message ? [event.assistant_message] : []),
                             ])
@@ -350,71 +393,71 @@ export function useLorebookAssistant({
                     }
                     if (event.type === 'error') {
                         receivedError = true
-                        const message = event.detail || event.error?.message || 'The assistant could not complete that request.'
-                        setMessages((prev) => {
-                            const withoutPlaceholder = prev.filter((item) => item.message_id !== placeholderId)
-                            return [
-                                ...withoutPlaceholder,
-                                {
-                                    message_id: placeholderId,
-                                    conversation_id: id,
-                                    sequence_no: withoutPlaceholder.length + 1,
-                                    role: 'assistant',
-                                    status: 'failed',
-                                    content: message,
-                                },
-                            ]
-                        })
+                        const message = event.detail || event.error?.message || tRef.current('creation.common.assistant.notices.generic')
+                        setMessages((prev) => prev.some((item) => item.message_id === placeholderId)
+                            ? prev.map((item) => item.message_id === placeholderId ? { ...item, status: 'failed' } : item)
+                            : [...prev, { message_id: placeholderId, conversation_id: id, sequence_no: prev.length + 1,
+                                role: 'assistant', status: 'failed', content: message }])
+                        setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                         setStreamingMessageId(null)
                         setNotice({ kind: 'error', message, canRetry: event.error?.retryable !== false })
                     }
                 },
                 { requestId, timeoutMs, signal: controller.signal },
             )
+            if (activeRequestRef.current !== requestId) return
             if (!receivedFinal && !receivedError) {
                 const recovered = await reloadConversation()
+                if (activeRequestRef.current !== requestId) return
                 if (!recovered) {
                     setNotice({
                         kind: 'error',
-                        message: 'The assistant stream ended before returning a result.',
+                        message: tRef.current('creation.common.assistant.notices.streamEnded'),
                         canRetry: true,
                         canReload: true,
                     })
                 }
             }
         } catch (err) {
+            updates.flush()
+            if (activeRequestRef.current !== requestId) return
+            if (!userAcknowledged && !receivedText) setMessages((prev) => prev.filter((item) => item.message_id !== optimisticId))
             if (isAbortError(err)) {
                 if (userStoppedRef.current) {
                     setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                     setNotice({
                         kind: 'info',
-                        message: 'Stopped. The assistant may still finish and save its reply.',
+                        message: tRef.current('creation.common.assistant.notices.stopped'),
                         canReload: true,
                     })
                 }
             } else if (err instanceof ApiError && err.status === 409) {
-                setMessages((prev) => prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId))
+                setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                 setNotice({
                     kind: 'error',
-                    message: 'The assistant is still finishing a previous request.',
+                    message: tRef.current('creation.common.assistant.notices.busy'),
                     canRetry: true,
                     canReload: true,
                 })
             } else if (err instanceof ApiError && err.action === 'reload_conversation') {
+                if (err.code === 'stream_incomplete' && await reloadConversation()) return
+                if (activeRequestRef.current !== requestId) return
                 setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                 setNotice({ kind: 'error', message: err.message, canReload: true })
             } else {
-                setMessages((prev) => prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId))
-                setNotice({ kind: 'error', message: assistantErrorMessage(err), canRetry: true })
+                setInterruptedIds((prev) => new Set(prev).add(placeholderId))
+                setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current), canRetry: true })
             }
         } finally {
+            updates.flush()
+            updates.cancel()
             if (activeRequestRef.current === requestId) {
                 activeRequestRef.current = null
+                streamControllerRef.current = null
+                userStoppedRef.current = false
+                setStreamingMessageId(null)
+                setStatus('idle')
             }
-            streamControllerRef.current = null
-            userStoppedRef.current = false
-            setStreamingMessageId(null)
-            setStatus('idle')
         }
     }, [isAuthenticated, onAuthRequired, timeoutMs, createConversation, reloadConversation])
 
@@ -445,6 +488,8 @@ export function useLorebookAssistant({
         activeRequestRef.current = null
         streamControllerRef.current?.abort(new DOMException('Assistant closed', 'AbortError'))
         streamControllerRef.current = null
+        setStreamingMessageId(null)
+        setStatus('idle')
         setOpen(false)
     }, [])
 
@@ -463,17 +508,26 @@ export function useLorebookAssistant({
         if (streamControllerRef.current) return
         setNotice(null)
         setStatus('switching')
+        const selectionId = createRequestId()
+        activeRequestRef.current = selectionId
         try {
             const detail = await apiService.getLorebookAssistantConversation(id, { timeoutMs: META_TIMEOUT_MS })
+            if (activeRequestRef.current !== selectionId) return
+            lastRequestIdRef.current = null
+            activeConversationRef.current = detail.conversation
             setActiveConversation(detail.conversation)
             setMessages(detail.messages ?? [])
             setLiveActions(new Map())
             setInterruptedIds(new Set())
             setPendingLorebook(detail.lorebook ?? null)
         } catch (err) {
-            setNotice({ kind: 'error', message: assistantErrorMessage(err) })
+            if (activeRequestRef.current !== selectionId) return
+            setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current) })
         } finally {
-            setStatus('idle')
+            if (activeRequestRef.current === selectionId) {
+                activeRequestRef.current = null
+                setStatus('idle')
+            }
         }
     }, [])
 
@@ -485,7 +539,7 @@ export function useLorebookAssistant({
             if (err instanceof ApiError && err.status === 409) {
                 setNotice({ kind: 'error', message: 'That conversation is still processing a message. Try again shortly.' })
             } else {
-                setNotice({ kind: 'error', message: assistantErrorMessage(err) })
+                setNotice({ kind: 'error', message: assistantErrorMessage(err, tRef.current) })
             }
             return
         }

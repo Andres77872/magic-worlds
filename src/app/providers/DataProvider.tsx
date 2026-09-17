@@ -1,3 +1,4 @@
+import type { TextGenerationOptions } from '@/shared/types/textGeneration.types'
 /**
  * Data management provider for all application entities
  * Uses API for data persistence instead of localStorage
@@ -115,7 +116,7 @@ interface DataContextValue {
     updateStoryCardRef: (storyId: string, refId: string, ref: Partial<StoryCardRef> | Record<string, unknown>) => Promise<StoryCardRef>
     deleteStoryCardRef: (storyId: string, refId: string) => Promise<void>
     previewStoryContext: (storyId: string, request: StoryGenerateRequest) => Promise<StoryContextTrace>
-    generateStoryCandidate: (storyId: string, request: StoryGenerateRequest) => Promise<StoryGeneration>
+    generateStoryCandidate: (storyId: string, request: StoryGenerateRequest, options?: TextGenerationOptions) => Promise<StoryGeneration>
     acceptStoryGeneration: (storyId: string, generationId: string) => Promise<Story>
     stashStoryGeneration: (storyId: string, generationId: string) => Promise<void>
     discardStoryGeneration: (storyId: string, generationId: string) => Promise<void>
@@ -763,13 +764,13 @@ export function DataProvider({ children }: DataProviderProps) {
         upsertStory(loaded)
     }
 
-    const generateStoryCandidate = async (storyId: string, request: StoryGenerateRequest): Promise<StoryGeneration> => {
+    const generateStoryCandidate = async (storyId: string, request: StoryGenerateRequest, options?: TextGenerationOptions): Promise<StoryGeneration> => {
         if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to generate story text')
         }
-        const response = await apiService.generateStory(storyId, request)
+        const response = await apiService.generateStory(storyId, request, options)
         return response.generation
     }
 

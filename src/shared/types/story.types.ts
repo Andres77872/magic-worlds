@@ -121,6 +121,7 @@ export interface StorySelection {
 }
 
 export interface StoryGeneration {
+    requestId?: string | null
     id: string
     storyId: string
     chapterId: string

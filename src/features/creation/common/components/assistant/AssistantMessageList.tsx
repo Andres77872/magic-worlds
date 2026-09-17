@@ -77,6 +77,11 @@ export function AssistantMessageList({ turns, status, suggestions, onSuggestion,
     const showSkeleton = status === 'switching' || (status === 'initializing' && !turns.length)
     const showEmpty = !showSkeleton && !turns.length && status !== 'initializing'
     const thinking = status === 'streaming' && !turns.some((turn) => turn.isStreaming)
+    const latestReply = [...turns].reverse().find((turn) => turn.message.role === 'assistant')
+    const announcement = status === 'streaming' ? t('streaming.generating')
+        : showSkeleton || !latestReply ? ''
+            : latestReply.isInterrupted || latestReply.message.status === 'failed' ? t('streaming.interrupted')
+                : latestReply.message.status === 'completed' ? t('streaming.replyCompleted') : ''
 
     const handleScroll = () => {
         const node = scrollRef.current
@@ -100,6 +105,7 @@ export function AssistantMessageList({ turns, status, suggestions, onSuggestion,
 
     return (
         <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3.5 py-3">
+            <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">{announcement}</p>
             {showSkeleton && <LoadingSkeleton />}
             {showEmpty && <EmptyState suggestions={suggestions} onSuggestion={onSuggestion} emptyTitle={emptyTitle} emptyDescription={emptyDescription} />}
             {!showSkeleton && turns.map((turn) => (

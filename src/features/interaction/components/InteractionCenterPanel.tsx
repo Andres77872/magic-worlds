@@ -1,3 +1,4 @@
+import { frameBatch } from '@/utils/frameBatch'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useTranslation} from 'react-i18next'
 import type {ChatNarratorIdentity, ChatResponseSegment, ChatSpeakerRosterEntry, ForwardOption, TurnEntry} from '../../../shared'
@@ -162,6 +163,10 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
     const turnsRef = useRef<TurnEntry[]>(turns)
     const streamingIdRef = useRef<string | null>(null)
     const rawResponseRef = useRef('')
+    const recoveryRef = useRef<{ assistantMessageId?: number; turnId?: string; requestId?: string; until: number } | null>(null)
+    const mountedRef = useRef(true)
+    useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false } }, [])
+    const deltaBatchRef = useRef<ReturnType<typeof frameBatch<string>> | null>(null)
     // Speaker roster + narrator identity (seeded from the session cast, refreshed by
     // the `speakers` frame). Read inside the long-lived socket callbacks to resolve
     // speaker_id → name/portrait for live attribution, and on hydration to restore
@@ -249,7 +254,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
 
     // Finalize the in-flight AI turn after a failure (server `error` frame or the
     // generation watchdog): restore the previous answer on a failed regeneration,
-    // otherwise leave the turn empty so the regenerate affordance stays visible.
+    // otherwise retain the partial reply and mark it interrupted.
     const failStreamingTurn = useCallback((message: string) => {
         clearGenerationWatchdog()
         const id = streamingIdRef.current
@@ -284,7 +289,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                         ttsError: restore.ttsError,
                     }
                 }
-                return { ...entry, isStreaming: false, content: '' }
+                return { ...entry, isStreaming: false, segments: finalizeResponseSegments(entry.segments), metadata: { ...entry.metadata, interrupted: true } }
             })
             : turnsRef.current
         if (id) {
@@ -307,7 +312,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         }, GENERATION_WATCHDOG_MS)
     }, [clearGenerationWatchdog, failStreamingTurn, t])
 
-    useEffect(() => clearGenerationWatchdog, [clearGenerationWatchdog])
+    useEffect(() => () => { clearGenerationWatchdog(); deltaBatchRef.current?.cancel() }, [clearGenerationWatchdog])
 
     // Persisted segments only carry speaker_id/speaker_name (portraits are stripped
     // server-side), so hydrated AI turns re-resolve identity against the roster.
@@ -331,7 +336,13 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             const hydrated = await config.loadTurns(sessionId)
             // A generation may have started while the projection was loading
             // (rapid follow-up send) — that projection is stale; drop it.
-            if (streamingIdRef.current) return
+            if (!mountedRef.current || streamingIdRef.current) return
+            const recovery = recoveryRef.current
+            if (recovery && hydrated.some((turn) => turn.type === 'ai' && !turn.isStreaming &&
+                ((recovery.assistantMessageId && turn.assistantMessageId === recovery.assistantMessageId) || (recovery.turnId && turn.turnId === recovery.turnId) || (recovery.requestId && turn.metadata?.request_id === recovery.requestId)))) {
+                recoveryRef.current = null
+                setError(null)
+            }
             // Hydration owns ordering/deletions, while the live stream may
             // temporarily be the only source with parsed response segments.
             const textMerged = mergeHydratedChatTurns(turnsRef.current, hydrated)
@@ -343,7 +354,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         } catch (err) {
             console.warn('Failed to hydrate chat media state:', err)
         }
-    }, [config, isAuthenticated, resolveTurnIdentities, sessionId, setTurnState])
+    }, [config, isAuthenticated, resolveTurnIdentities, sessionId, setTurnState, setError])
 
     const pollNonTerminalImageJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
         const jobs = snapshot.filter(hasNonTerminalImageJob)
@@ -422,8 +433,27 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                 // can name the narrator (Game Master / scene-setting).
                 updateStreamingTurn((t) => ({ ...t, narratorIdentity: narrator ?? null }))
             },
+            onTurnStarted: (frame) => {
+                const index = turnsRef.current.findIndex((turn) => turn.id === streamingIdRef.current)
+                if (index > 0 && turnsRef.current[index - 1].type === 'user') {
+                    setTurnState(turnsRef.current.map((turn, i) => i === index - 1
+                        ? { ...turn, id: String(frame.user_message_id), turnId: frame.turn_id } : turn))
+                }
+                updateStreamingTurn((turn) => ({ ...turn, assistantMessageId: frame.assistant_message_id, turnId: frame.turn_id }))
+            },
+            onConnectionLost: () => {
+                const active = turnsRef.current.find((turn) => turn.id === streamingIdRef.current)
+                if (active) recoveryRef.current = { assistantMessageId: active.assistantMessageId, turnId: active.turnId, requestId: typeof active.metadata?.request_id === 'string' ? active.metadata.request_id : undefined, until: Date.now() + 30_000 }
+                deltaBatchRef.current?.flush()
+                failStreamingTurn(t('streaming.reconnecting'))
+                void hydrateTurnsFromApi()
+            },
             onDelta: (content) => {
+                if (!streamingIdRef.current) return
                 armGenerationWatchdog()
+                if (!deltaBatchRef.current) deltaBatchRef.current = frameBatch<string>((chunks) => {
+                    if (!streamingIdRef.current) return
+                    const content = chunks.join('')
                 rawResponseRef.current += content
                 const raw = rawResponseRef.current
                 // Paint live per-speaker segments when the XML voice markup is present;
@@ -437,6 +467,8 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                 } else {
                     updateStreamingTurn((t) => ({ ...t, segments: undefined, content: plain }))
                 }
+                })
+                deltaBatchRef.current.push(content)
             },
             onMetadata: ({ forwardOptions, imagePrompt }) => {
                 updateStreamingTurn((t) => ({
@@ -446,12 +478,15 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                 }))
             },
             onSegments: ({ segments, displayText }) => {
+                deltaBatchRef.current?.flush()
                 armGenerationWatchdog()
                 const resolved = resolveSegmentIdentity(segments, rosterRef.current.map)
                 const content = displayText?.trim() || segmentsToPlainText(resolved)
                 updateStreamingTurn((t) => ({ ...t, segments: resolved, content: content || t.content }))
             },
-            onDone: ({ userMessageId, assistantMessageId, turnId }) => {
+            onDone: ({ interrupted, userMessageId, assistantMessageId, turnId }) => {
+                deltaBatchRef.current?.flush()
+                if (!streamingIdRef.current) return
                 clearGenerationWatchdog()
                 const id = streamingIdRef.current
                 const streamingIndex = turnsRef.current.findIndex((turn) => turn.id === id)
@@ -466,6 +501,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                             ...entry,
                             id: assistantMessageId ? String(assistantMessageId) : t.id,
                             isStreaming: false,
+                            metadata: { ...entry.metadata, interrupted },
                             segments: finalizeResponseSegments(entry.segments),
                             assistantMessageId,
                             turnId,
@@ -497,7 +533,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                 // Auto-narrate: request TTS for the just-finished GM turn. The audio
                 // streams back over the same socket; playback still needs a tap (see
                 // TurnNarration) because WS callbacks have no user-gesture context.
-                if (autoNarrateRef.current && assistantMessageId && turnId) {
+                if (!interrupted && autoNarrateRef.current && assistantMessageId && turnId) {
                     sendTts(assistantMessageId, turnId, ttsRequestId(assistantMessageId, turnId))
                 }
             },
@@ -508,6 +544,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             onTtsComplete: applyTtsFrame,
             onTtsFailed: applyTtsFrame,
             onError: (message) => {
+                deltaBatchRef.current?.flush()
                 failStreamingTurn(message || t('interaction.center.generateFailed'))
             },
         },
@@ -571,6 +608,21 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             void hydrateTurnsFromApi()
         }
     }, [hydrateTurnsFromApi, socketStatus])
+
+    // Reconnect may race the server's interrupted-turn commit. Re-read briefly,
+    // without replaying the chat or replacing visible partial text with a spinner.
+    useEffect(() => {
+        const timer = window.setInterval(() => {
+            if (!recoveryRef.current) return
+            if (Date.now() > recoveryRef.current.until) {
+                console.warn('text_stream_recovery_failed', { requestId: recoveryRef.current.requestId, surface: 'chat' })
+                recoveryRef.current = null
+                return
+            }
+            void hydrateTurnsFromApi()
+        }, 2_000)
+        return () => window.clearInterval(timer)
+    }, [hydrateTurnsFromApi])
 
     // The parent-seeded turns render before the first hydration, so attach
     // roster portraits to them once at mount (both callbacks are stable).
@@ -691,16 +743,21 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             return
         }
 
+        deltaBatchRef.current?.cancel()
+        recoveryRef.current = null
         streamingIdRef.current = aiTurn.id
         rawResponseRef.current = ''
         rosterRef.current = { map: seededRosterMap(), narrator: null }
         restoreRef.current = restore ?? null
 
+        const requestId = generateUUID()
+        const precedingUser = [...history].reverse().find((turn) => turn.type === 'user')
         const streamingTurns = turnsRef.current.map((t) =>
             t.id === aiTurn.id
                 ? {
                     ...(t as ExtendedTurnEntry),
                     isStreaming: true,
+                    metadata: { ...t.metadata, request_id: requestId, interrupted: false },
                     content: '',
                     forwardOptions: undefined,
                     segments: undefined,
@@ -711,7 +768,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                     ...RESET_IMAGE_FIELDS,
                     ...RESET_TTS_FIELDS,
                 }
-                : t
+                : t.id === precedingUser?.id ? { ...t, metadata: { ...t.metadata, request_id: requestId } } : t
         )
         setTurnState(streamingTurns)
 
@@ -722,7 +779,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             failStreamingTurn(t('interaction.center.generateFailed'))
             return
         }
-        sendChat(content)
+        sendChat(content, requestId)
         armGenerationWatchdog()
     }
 
@@ -969,6 +1026,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
 
     const handleStop = () => {
         if (!stopArmedRef.current) return
+        deltaBatchRef.current?.flush()
         cancel()
         // With no open socket the cancel can't reach the server and no `done`
         // will ever arrive for this stream — recover the composer right away

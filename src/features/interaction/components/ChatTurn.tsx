@@ -161,6 +161,10 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
                     )}
                 </div>
 
+                {!isUser && !turn.isStreaming && turn.metadata?.interrupted === true && (
+                    <p className="text-caption text-parchment-400">{t('streaming.interrupted')}</p>
+                )}
+
                 {showForwardOptions && (
                     <ForwardOptions
                         options={turn.forwardOptions}

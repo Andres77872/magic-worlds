@@ -30,6 +30,25 @@ vi.mock('../../../infrastructure/api', () => ({
 }))
 
 describe('useAdventureChatSocket image lifecycle dispatch', () => {
+  it('discards narrative and completion frames from superseded requests while preserving media delivery', () => {
+    const onDelta = vi.fn(), onDone = vi.fn(), onTurnStarted = vi.fn(), onImageComplete = vi.fn()
+    const { result } = renderHook(() => useAdventureChatSocket(7, { onDelta, onDone, onTurnStarted, onImageComplete }))
+    result.current.sendChat('First', 'req-1')
+    result.current.sendChat('Next', 'req-2')
+    socketHandlers?.onMessage({ type: 'turn_started', request_id: 'req-1', turn_id: 'old' })
+    socketHandlers?.onMessage({ type: 'delta', request_id: 'req-1', delta: 'Old' })
+    socketHandlers?.onMessage({ type: 'done', request_id: 'req-1' })
+    socketHandlers?.onMessage({ type: 'image_complete', request_id: 'req-1', assets: [] })
+    expect(onDelta).not.toHaveBeenCalled()
+    expect(onDone).not.toHaveBeenCalled()
+    expect(onTurnStarted).not.toHaveBeenCalled()
+    expect(onImageComplete).toHaveBeenCalledOnce()
+    socketHandlers?.onMessage({ type: 'delta', request_id: 'req-2', content: 'New' })
+    socketHandlers?.onMessage({ type: 'done', request_id: 'req-2' })
+    expect(onDelta).toHaveBeenCalledOnce()
+    expect(onDone).toHaveBeenCalledOnce()
+  })
+
   afterEach(() => {
     socketHandlers = null
     socketInstances.length = 0

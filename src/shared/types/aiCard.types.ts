@@ -1,3 +1,4 @@
+import type { TextGenerationOptions } from './textGeneration.types'
 export const AI_CARD_DESCRIPTION_MIN_CHARS = 5
 export const AI_CARD_DESCRIPTION_MAX_CHARS = 4000
 export const AI_CARD_CLIENT_TIMEOUT_MS = Number(import.meta.env.VITE_AI_CARD_CLIENT_TIMEOUT_MS || 90_000)
@@ -16,7 +17,7 @@ export type AiCardPublicCategory =
     | 'internal'
     | string
 
-export interface AiCardRequestOptions {
+export interface AiCardRequestOptions extends TextGenerationOptions {
     signal?: AbortSignal
     requestId?: string
     idempotencyKey?: string
@@ -177,6 +178,7 @@ export interface CardAssistantTurnResponse {
 }
 
 export type CardAssistantStreamEvent =
+    | { type: 'progress'; request_id?: string; stage: 'generating' | 'validating' | 'saving' }
     | {
         type: 'user_message'
         request_id?: string

@@ -13,6 +13,8 @@ import type { TFunction } from 'i18next'
 import { Sparkles } from 'lucide-react'
 import { AI_CARD_CLIENT_TIMEOUT_MS, AI_CARD_DESCRIPTION_MAX_CHARS, AI_CARD_DESCRIPTION_MIN_CHARS, type AiCardRequestOptions } from '@/shared'
 import { Button, Icon, SectionHeader } from '@/ui/primitives'
+import { frameBatch } from '@/utils/frameBatch'
+import type { TextGenerationEvent } from '@/shared/types/textGeneration.types'
 import { makeRequestId } from '@/utils/uuid'
 import { CreatorTextarea } from './CreatorField'
 
@@ -74,6 +76,9 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
     const [description, setDescription] = useState('')
     const [isGenerating, setIsGenerating] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [preview, setPreview] = useState<Record<string, { path: Array<string | number>; text: string }>>({})
+    const [completed, setCompleted] = useState(false)
+    const [stage, setStage] = useState<'generating' | 'validating' | 'saving'>('generating')
     const controllerRef = useRef<AbortController | null>(null)
     const attemptRef = useRef<{ description: string; requestId: string; idempotencyKey: string } | null>(null)
     const mountedRef = useRef(true)
@@ -96,7 +101,7 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
         mountedRef.current = true
         return () => {
             mountedRef.current = false
-            controllerRef.current?.abort()
+            controllerRef.current?.abort(new DOMException('Panel closed', 'AbortError'))
         }
     }, [])
 
@@ -112,7 +117,7 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
     }
 
     const handleCancel = () => {
-        controllerRef.current?.abort()
+        controllerRef.current?.abort(new DOMException('Stopped by user', 'AbortError'))
     }
 
     const handleGenerate = async () => {
@@ -126,13 +131,31 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
         controllerRef.current = controller
         setIsGenerating(true)
         setError(null)
+        setCompleted(false)
+        setPreview({})
+        setStage('generating')
+        const updates = frameBatch<TextGenerationEvent>((events) => {
+            if (!mountedRef.current || controllerRef.current !== controller) return
+            setPreview((current) => {
+                const next = { ...current }
+                for (const event of events) if (event.type === 'preview') next[JSON.stringify(event.path)] = event
+                return next
+            })
+        })
         try {
             await onGenerate(prompt, {
                 signal: controller.signal,
                 requestId: attempt.requestId,
                 idempotencyKey: attempt.idempotencyKey,
                 timeoutMs,
+                onEvent: (event) => {
+                    if (controller.signal.aborted || controllerRef.current !== controller) return
+                    if (event.type === 'progress') setStage(event.stage)
+                    if (event.type === 'preview') updates.push(event)
+                },
             })
+            updates.flush()
+            if (mountedRef.current) setCompleted(true)
             // On success the creator reloads and navigates away — nothing to do.
         } catch (err) {
             if (!mountedRef.current) return
@@ -142,6 +165,8 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
                 setError(aiErrorCopy(err, noun, t))
             }
         } finally {
+            updates.flush()
+            updates.cancel()
             if (mountedRef.current) {
                 setIsGenerating(false)
                 controllerRef.current = null
@@ -168,10 +193,22 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
                 <span className={isTooLong ? 'text-blood-500' : undefined}>{trimmedLength}/{AI_CARD_DESCRIPTION_MAX_CHARS}</span>
             </div>
             {isGenerating && (
-                <p className="font-narrative text-xs italic text-parchment-400">
-                    {t('creation.common.aiGenerate.busyNote', { noun })}
+                <p role="status" className="font-narrative text-xs italic text-parchment-400">
+                    {t(`streaming.${stage}`)}
                 </p>
             )}
+            {Object.keys(preview).length > 0 && (
+                <section aria-label={t('streaming.preview')} className="max-h-80 space-y-3 overflow-y-auto rounded-md border border-arcane-500/30 bg-ink-800 p-4">
+                    <p className="text-caption text-arcane-300">{t(isGenerating ? 'streaming.preview' : completed ? 'streaming.completed' : 'streaming.incomplete')}</p>
+                    {Object.entries(preview).map(([key, field]) => (
+                        <div key={key}>
+                            <p className="text-caption text-parchment-400">{field.path.map((part) => typeof part === 'number' ? part + 1 : t(`streamFields.${part}`, { defaultValue: part.replace(/_/g, ' ') })).join(' › ')}</p>
+                            <p className="whitespace-pre-wrap font-narrative text-body text-parchment-100">{field.text}</p>
+                        </div>
+                    ))}
+                </section>
+            )}
+            {completed && <p role="status" className="sr-only">{t('streaming.completed')}</p>}
             {error && <p className="text-sm text-blood-500">{error}</p>}
             <div className="flex justify-end gap-2">
                 {isGenerating && (

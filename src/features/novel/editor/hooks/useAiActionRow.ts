@@ -40,6 +40,7 @@ export function useAiActionRow(
 
     const model: AiActionRowModel | null = live
         ? {
+              preview: inlineAI.rowMeta.preview,
               state: phase === 'pending' ? 'generating' : 'reviewing',
               meta:
                   phase === 'reviewing'
@@ -61,7 +62,7 @@ export function useAiActionRow(
                   decline: t('novelEditor.suggestion.decline'),
                   regenerate: t('novelEditor.suggestion.regenerate'),
                   cancel: t('novelEditor.suggestion.cancel'),
-                  generating: t('novelEditor.suggestion.generating'),
+                  generating: inlineAI.rowMeta.stage ? t(`streaming.${inlineAI.rowMeta.stage as 'generating' | 'validating' | 'saving'}`) : t('novelEditor.suggestion.generating'),
                   acceptKey: t('novelEditor.suggestion.acceptKey'),
                   declineKey: t('novelEditor.suggestion.declineKey'),
                   regenerateKey: REGENERATE_KEY,
@@ -83,6 +84,8 @@ export function useAiActionRow(
         const editor = editorRef.current
         if (!editor || editor.isDestroyed) return
         editor.view.dispatch(editor.state.tr.setMeta(AI_SUGGESTION_META, true))
+        const preview = editor.view.dom.querySelector('[data-testid="ai-stream-preview"]')
+        if (preview) preview.textContent = model?.preview ?? ''
     }, [editorRef, live, model, rowModelRef])
 
     return { announcement: phase === 'reviewing' ? t('novelEditor.suggestion.announce', { count: words }) : '' }

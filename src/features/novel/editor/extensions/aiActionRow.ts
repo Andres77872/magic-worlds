@@ -29,6 +29,7 @@ export interface AiActionRowLabels {
 
 export interface AiActionRowModel {
     state: AiActionRowState
+    preview?: string
     /** Right-aligned muted readout ("+121 words"); empty while generating. */
     meta: string
     /**
@@ -107,6 +108,14 @@ export function renderActionRow(getModel: () => AiActionRowModel | null): HTMLEl
         row.append(prompt)
     }
 
+    if (model.state === 'generating') {
+        const preview = document.createElement('div')
+        preview.className = 'whitespace-pre-wrap font-narrative text-body text-parchment-100'
+        preview.setAttribute('data-testid', 'ai-stream-preview')
+        preview.setAttribute('aria-live', 'off')
+        preview.textContent = model.preview ?? ''
+        row.append(preview)
+    }
     const controls = document.createElement('div')
     controls.className = 'ai-action-controls'
     row.append(controls)

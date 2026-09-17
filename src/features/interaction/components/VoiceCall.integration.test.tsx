@@ -31,7 +31,7 @@ const integration = vi.hoisted(() => ({
     openLoginModal: vi.fn(),
     resumeCharacterChat: vi.fn(),
     deleteCharacterChat: vi.fn(),
-    loadData: vi.fn(),
+    loadData: vi.fn().mockResolvedValue(undefined),
     isAuthenticated: true,
     characterChats: [] as CharacterChatSession[],
 }))

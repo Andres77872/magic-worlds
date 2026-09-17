@@ -145,6 +145,21 @@ describe('useCardAssistant: open + initial load', () => {
 })
 
 describe('useCardAssistant: send + streaming', () => {
+    it('invalidates a turn when another generation changes the editor target', async () => {
+        const stream = controllableStream()
+        const props = hookOptions()
+        const { result, rerender } = renderHook((value) => useCardAssistant(value), { initialProps: props })
+        let pending!: Promise<void>
+        act(() => { pending = result.current.send('Create a world') })
+        await waitFor(() => expect(stream.emit).toBeDefined())
+        rerender({ ...props, cardId: 'other-world' })
+        expect(stream.lastOptions?.signal?.aborted).toBe(true)
+        await act(async () => { stream.emit!({ type: 'assistant_delta', delta: 'Stale world' }); await pending })
+        expect(result.current.status).toBe('idle')
+        expect(result.current.turns).toEqual([])
+        expect(props.onCard).not.toHaveBeenCalled()
+    })
+
     it('lazily creates a conversation, keeps the optimistic message, and streams with request id + signal', async () => {
         const stream = controllableStream()
         const { result } = renderHook(() => useCardAssistant(hookOptions()))
@@ -172,7 +187,7 @@ describe('useCardAssistant: send + streaming', () => {
 
         act(() => stream.emit!({ type: 'assistant_delta', delta: 'Once' }))
         act(() => stream.emit!({ type: 'assistant_delta', delta: ' upon' }))
-        expect(last(result.current.turns)?.message.content).toBe('Once upon')
+        await waitFor(() => expect(last(result.current.turns)?.message.content).toBe('Once upon'))
         expect(last(result.current.turns)?.isStreaming).toBe(true)
 
         act(() => stream.resolve!())
@@ -338,14 +353,14 @@ describe('useCardAssistant: send + streaming', () => {
         await waitFor(() => expect(result.current.activeConversation).not.toBeNull())
 
         const recoveredCard = { id: 'world-1', name: 'Recovered Glass' }
-        mocks.getCardAssistantConversation.mockResolvedValue({
+        mocks.getCardAssistantConversation.mockImplementation(async () => ({
             conversation: CONVO,
             messages: [
                 message({ message_id: 20, content: 'Generate it' }),
-                message({ message_id: 21, role: 'assistant', content: 'Recovered reply.' }),
+                message({ message_id: 21, role: 'assistant', content: 'Recovered reply.', metadata: { request_id: stream.lastOptions?.requestId } }),
             ],
             card: recoveredCard,
-        })
+        }))
 
         let sendPromise!: Promise<void>
         act(() => {
@@ -464,5 +479,63 @@ describe('useCardAssistant: sessions', () => {
 
         expect(result.current.conversations).toHaveLength(1)
         expect(result.current.notice).toMatchObject({ kind: 'error' })
+    })
+})
+
+describe('assistant request isolation', () => {
+    it('keeps partial text and rejects an older completed reply during recovery', async () => {
+        const stream = controllableStream()
+        const onCard = vi.fn()
+        const { result } = renderHook(() => useCardAssistant(hookOptions({ onCard })))
+        let pending!: Promise<void>
+        act(() => { pending = result.current.send('New request') })
+        await waitFor(() => expect(stream.emit).toBeDefined())
+        act(() => stream.emit!({ type: 'assistant_delta', delta: 'New partial' }))
+        mocks.getCardAssistantConversation.mockResolvedValue({ conversation: CONVO,
+            messages: [message({ message_id: 40, role: 'assistant', content: 'Old result', metadata: { request_id: 'older-request' } })],
+            card: { id: 'old-card', name: 'Old' },
+        })
+        act(() => stream.resolve!())
+        await act(async () => { await pending })
+        expect(last(result.current.turns)?.message.content).toBe('New partial')
+        expect(onCard).not.toHaveBeenCalled()
+        expect(result.current.notice?.canReload).toBe(true)
+    })
+
+    it('ignores late callbacks and cleanup after close/reopen starts a newer request', async () => {
+        const first = controllableStream()
+        const onCard = vi.fn()
+        const { result } = renderHook(() => useCardAssistant(hookOptions({ onCard })))
+        let pending!: Promise<void>
+        act(() => { pending = result.current.send('First') })
+        await waitFor(() => expect(first.emit).toBeDefined())
+        const late = first.emit!
+        act(() => { result.current.closePanel(); result.current.openPanel() })
+        const second = controllableStream()
+        let next!: Promise<void>
+        act(() => { next = result.current.send('Second') })
+        await waitFor(() => expect(second.emit).toBeDefined())
+        await act(async () => { await pending })
+        expect(result.current.status).toBe('streaming')
+        act(() => late({ type: 'final', conversation: CONVO, card: { id: 'old', name: 'Old' }, applied_actions: [] }))
+        expect(onCard).not.toHaveBeenCalled()
+        act(() => second.emit!({ type: 'assistant_delta', delta: 'Second partial' }))
+        act(() => result.current.stop())
+        await act(async () => { await next })
+        expect(last(result.current.turns)?.message.content).toBe('Second partial')
+    })
+
+    it('preserves a partial reply when the network fails', async () => {
+        const stream = controllableStream()
+        const { result } = renderHook(() => useCardAssistant(hookOptions()))
+        let pending!: Promise<void>
+        act(() => { pending = result.current.send('Write') })
+        await waitFor(() => expect(stream.emit).toBeDefined())
+        act(() => stream.emit!({ type: 'assistant_delta', delta: 'Keep me' }))
+        act(() => stream.reject!(new TypeError('Network failed')))
+        await act(async () => { await pending })
+        expect(last(result.current.turns)?.message.content).toBe('Keep me')
+        expect(last(result.current.turns)?.isInterrupted).toBe(true)
+        expect(result.current.notice?.kind).toBe('error')
     })
 })

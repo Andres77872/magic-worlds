@@ -1,15 +1,15 @@
 /**
- * Chatroom — full gallery of saved one-on-one character conversations.
+ * Chatroom — start a conversation or return to a saved character chat.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { MessageCircle, Search, Users, X } from 'lucide-react'
+import { MessageCircle, MessageCirclePlus, Search, Users, X } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
-import type { CharacterChatSession } from '@/shared'
-import { EmptyState, ConfirmDialog } from '@/ui/components'
-import { Button, Icon, IconButton, IconTile, PageHeader, Toast, controlClass } from '@/ui/primitives'
+import type { Character, CharacterChatSession } from '@/shared'
+import { EmptyState, ConfirmDialog, LoadingSpinner } from '@/ui/components'
+import { Button, Icon, IconButton, IconTile, Input, PageHeader, Toast } from '@/ui/primitives'
 import { ResumeCard } from '@/features/landing/components/ResumeCard'
 import { toResumeSessions, type ResumeSession } from '@/features/landing/components/resumeModel'
 import { buildGalleryModeHash } from '@/features/gallery/galleryLinks'
@@ -17,6 +17,7 @@ import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { isGroupChatsFeatureEnabled } from '@/shared/featureFlags'
 import { chatDisplayTitle } from '@/utils/chatTitle'
 import { searchableText } from '@/features/landing/components/resumeModel'
+import { NewCharacterChatDialog } from './NewCharacterChatDialog'
 
 interface ActionNotice {
     tone: 'success' | 'error'
@@ -33,24 +34,49 @@ export function ChatroomPage() {
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const {
+        characters,
         characterChats,
+        startCharacterChat,
         resumeCharacterChat,
         deleteCharacterChat,
         loadData,
         loadingState,
     } = useData()
     const [query, setQuery] = useState('')
+    const [newChatOpen, setNewChatOpen] = useState(false)
+    const [refreshing, setRefreshing] = useState(isAuthenticated)
     const [pendingDelete, setPendingDelete] = useState<CharacterChatSession | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null)
+    const mountedRef = useRef(false)
     const voiceModeEnabled = isFrontendVoiceModeEnabled()
     const groupChatsEnabled = isGroupChatsFeatureEnabled()
 
     useEffect(() => {
-        if (isAuthenticated) void loadData({ silent: true })
+        mountedRef.current = true
+        return () => { mountedRef.current = false }
+    }, [])
+
+    useEffect(() => {
+        let current = true
+        if (isAuthenticated) {
+            void loadData({ silent: true }).finally(() => {
+                if (current) setRefreshing(false)
+            })
+        }
         // Refresh the gallery on entry without swapping the whole app to loading.
+        return () => { current = false }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated])
+
+    const refreshLibrary = async () => {
+        setRefreshing(true)
+        try {
+            await loadData({ silent: true })
+        } finally {
+            setRefreshing(false)
+        }
+    }
 
     const requireAuth = (action: () => void) => {
         if (!isAuthenticated) {
@@ -90,6 +116,15 @@ export function ChatroomPage() {
         requireAuth(() => setPage('gallery-characters', { hash: buildGalleryModeHash('character', 'group-chat') }))
     }
 
+    const openNewChat = () => requireAuth(() => setNewChatOpen(true))
+
+    const startNewChat = async (character: Character, persona: Character) => {
+        await startCharacterChat(character, persona)
+        if (!mountedRef.current) return
+        setNewChatOpen(false)
+        setPage('character-chat')
+    }
+
     const confirmDelete = async () => {
         const target = pendingDelete
         setPendingDelete(null)
@@ -120,6 +155,10 @@ export function ChatroomPage() {
         <Button variant="secondary" size="sm" onClick={() => setQuery('')}>
             {t('characterChat.room.clearSearch')}
         </Button>
+    ) : isAuthenticated ? (
+        <Button variant="primary" size="sm" iconLeft={<Icon icon={MessageCirclePlus} size={15} />} onClick={openNewChat}>
+            {t('characterChat.room.newChat')}
+        </Button>
     ) : (
         <Button
             variant="primary"
@@ -141,10 +180,18 @@ export function ChatroomPage() {
                 subtitle={t('characterChat.room.subtitle')}
                 size="lg"
                 actions={
-                    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto md:justify-end">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Button
+                            variant="primary"
+                            iconLeft={<Icon icon={MessageCirclePlus} size={16} />}
+                            onClick={openNewChat}
+                            aria-haspopup="dialog"
+                        >
+                            {t('characterChat.room.newChat')}
+                        </Button>
                         {groupChatsEnabled && (
                             <Button
-                                variant="primary"
+                                variant="secondary"
                                 iconLeft={<Icon icon={Users} size={16} />}
                                 onClick={startGroupChat}
                                 className="shrink-0"
@@ -152,35 +199,36 @@ export function ChatroomPage() {
                                 {t('characterChat.room.newGroupChat')}
                             </Button>
                         )}
-                        <div className="relative flex w-full items-center sm:w-[320px]">
-                            <span className="pointer-events-none absolute left-3 flex items-center text-parchment-400">
-                                <Icon icon={Search} size={16} />
-                            </span>
-                            <input
-                                type="search"
-                                value={query}
-                                onChange={(event) => setQuery(event.target.value)}
-                                onKeyDown={(event) => {
-                                    if (event.key === 'Escape') setQuery('')
-                                }}
-                                placeholder={t('characterChat.room.searchPlaceholder')}
-                                aria-label={t('characterChat.room.searchLabel')}
-                                className={`${controlClass} rounded-full pl-10 pr-12`}
-                            />
-                            {hasQuery && (
-                                <IconButton
-                                    size="sm"
-                                    label={t('characterChat.room.clearSearch')}
-                                    onClick={() => setQuery('')}
-                                    className="absolute right-2"
-                                >
-                                    <Icon icon={X} size={16} />
-                                </IconButton>
-                            )}
-                        </div>
                     </div>
                 }
             />
+
+            <div className="relative flex w-full items-center sm:max-w-sm">
+                <span className="pointer-events-none absolute left-3 flex items-center text-parchment-400">
+                    <Icon icon={Search} size={16} />
+                </span>
+                <Input
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Escape') setQuery('')
+                    }}
+                    placeholder={t('characterChat.room.searchPlaceholder')}
+                    aria-label={t('characterChat.room.searchLabel')}
+                    className="rounded-full pl-10 pr-12"
+                />
+                {hasQuery && (
+                    <IconButton
+                        size="sm"
+                        label={t('characterChat.room.clearSearch')}
+                        onClick={() => setQuery('')}
+                        className="absolute right-2"
+                    >
+                        <Icon icon={X} size={16} />
+                    </IconButton>
+                )}
+            </div>
 
             <Toast
                 open={Boolean(actionNotice)}
@@ -204,13 +252,15 @@ export function ChatroomPage() {
                         />
                     ))}
                 </div>
+            ) : isAuthenticated && refreshing && !hasQuery ? (
+                <LoadingSpinner message={t('characterChat.room.loading')} />
             ) : loadingState.error && !hasQuery ? (
                 // An empty list during a load failure is a misleading "false empty" —
                 // show an error with a retry instead of "no chats yet".
                 <EmptyState
                     icon={<Icon icon={MessageCircle} size={44} />}
                     message={t('common.loadError')}
-                    button={{ label: t('common.tryAgain'), onClick: () => void loadData() }}
+                    button={{ label: t('common.tryAgain'), onClick: () => void refreshLibrary() }}
                 />
             ) : (
                 <EmptyState
@@ -220,6 +270,23 @@ export function ChatroomPage() {
                 >
                     {emptyAction}
                 </EmptyState>
+            )}
+
+            {newChatOpen && isAuthenticated && (
+                <NewCharacterChatDialog
+                    characters={characters}
+                    loading={refreshing || loadingState.isLoading}
+                    // Other library endpoints can fail independently. Keep usable
+                    // character cards available when their cached list is populated.
+                    loadError={characters.length === 0 ? loadingState.error : undefined}
+                    onRetry={() => void refreshLibrary()}
+                    onStart={startNewChat}
+                    onClose={() => setNewChatOpen(false)}
+                    onBrowseCharacters={() => {
+                        setNewChatOpen(false)
+                        setPage('gallery-characters')
+                    }}
+                />
             )}
 
             <ConfirmDialog

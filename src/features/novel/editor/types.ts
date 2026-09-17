@@ -1,3 +1,4 @@
+import type { TextGenerationOptions } from '@/shared/types/textGeneration.types'
 /**
  * Shared editor-slice types: the inline-AI lifecycle, the codex entries fed
  * to @mention autocomplete, and the imperative handle the studio uses to
@@ -72,10 +73,11 @@ export interface NovelEditorProps {
      * is aborted in that case so the model never works from a stale manuscript.
      */
     onRequestSaveFlush: () => Promise<boolean>
-    onGenerate: (request: InlineAIRequest) => Promise<StoryGeneration>
+    onGenerate: (request: InlineAIRequest, options?: TextGenerationOptions) => Promise<StoryGeneration>
     onAcceptGeneration: (generationId: string) => Promise<void>
     onDiscardGeneration: (generationId: string) => Promise<void>
     /** Critique output is feedback, not prose — the studio shows it outside the manuscript. */
+    onCritiquePreview?: (text: string, state: 'generating' | 'saving' | 'interrupted' | 'failed') => void
     onCritiqueResult: (generation: StoryGeneration) => void
     onSuggestionPhaseChange?: (phase: InlineAIPhase) => void
     /** Codex entries currently enabled — shown as the beat composer's context readout. */

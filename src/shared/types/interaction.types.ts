@@ -195,7 +195,8 @@ export type ChatSocketClientMessage =
     | { type: 'cancel' }
     | { type: 'ping' }
 
-export type ChatSocketServerMessage =
+export type ChatSocketServerMessage = ChatFrameIdentity & (
+    | { type: 'turn_started'; user_message_id: number; assistant_message_id: number; turn_id: string }
     | { type: 'ready' }
     | { type: 'speakers'; roster: ChatSpeakerRosterEntry[]; narrator?: ChatNarratorIdentity | null }
     | { type: 'delta'; content: string }
@@ -212,3 +213,6 @@ export type ChatSocketServerMessage =
     | { type: 'done'; interrupted?: boolean; user_message_id?: number; assistant_message_id?: number; turn_id?: string }
     | { type: 'error'; message: string; category?: string }
     | { type: 'pong' }
+)
+
+export interface ChatFrameIdentity { request_id?: string; turn_id?: string }
