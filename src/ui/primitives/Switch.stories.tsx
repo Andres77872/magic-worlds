@@ -12,7 +12,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Boolean toggle (`role="switch"`) — ember track when on, ink when off. `SwitchRow` wraps it in the bordered settings row used across editors: label + optional description on the left, switch on the right. Label clicks toggle.',
+          'Boolean toggle (`role="switch"`) — ember track when on, ink when off. `SwitchRow` supports a standalone surface or a plain row for integrated settings lists. Label clicks toggle.',
       },
     },
   },
@@ -64,7 +64,7 @@ export const Rows: Story = {
   render: function Render() {
     const [state, setState] = useState({ enabled: true, constant: false, secret: false })
     return (
-      <div className="grid w-[420px] gap-3">
+      <div className="grid w-full max-w-md gap-3">
         <SwitchRow
           label="Enabled"
           description="Disabled entries stay visible but do not activate."
@@ -84,6 +84,20 @@ export const Rows: Story = {
           onChange={(secret) => setState((s) => ({ ...s, secret }))}
         />
       </div>
+    )
+  },
+}
+
+export const IntegratedSettings: Story = {
+  args: { checked: true, onChange: () => {}, 'aria-label': 'Enabled' },
+  render: function Render() {
+    const [enabled, setEnabled] = useState(true)
+    const [constant, setConstant] = useState(false)
+    return (
+      <section aria-label="Entry settings" className="w-full max-w-md divide-y divide-line-faint">
+        <SwitchRow variant="plain" label="Enabled" description="Include this entry when its keywords match." checked={enabled} onChange={setEnabled} />
+        <SwitchRow variant="plain" label="Always include" description="Keep this lore present throughout the story." checked={constant} onChange={setConstant} />
+      </section>
     )
   },
 }

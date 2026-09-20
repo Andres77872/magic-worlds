@@ -1,7 +1,7 @@
 import { FilePlus2, Loader2, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { LorebookResource } from '@/shared'
-import { Button, Card, Icon } from '@/ui/primitives'
+import { Button, Icon } from '@/ui/primitives'
 import { ResourceCard } from './ResourceCard'
 
 interface ResourceGridProps {
@@ -44,7 +44,7 @@ export function ResourceGrid({
 
     if (items.length === 0) {
         return (
-            <Card className="flex min-h-[280px] flex-col items-center justify-center gap-4 p-8 text-center">
+            <section className="flex min-h-64 flex-col items-center justify-center gap-4 py-8 text-center">
                 <Icon icon={Plus} size={32} className="text-arcane-300" />
                 <div className="grid gap-1">
                     <h2 className="font-display text-h3 font-semibold text-parchment-50">
@@ -61,7 +61,7 @@ export function ResourceGrid({
                         {t('lorebookResourcesGallery.actions.newText')}
                     </Button>
                 )}
-            </Card>
+            </section>
         )
     }
 

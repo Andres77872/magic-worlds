@@ -13,7 +13,7 @@ import type {
     MembershipOperationLimit,
     UserProfile,
 } from '@/shared'
-import { Badge, Card, Eyebrow, SectionHeader } from '@/ui/primitives'
+import { Badge, Eyebrow, SectionHeader } from '@/ui/primitives'
 import { cx } from '@/ui/primitives/cx'
 import { formatNumber, operationLabel, orderedLimitEntries } from './membership.helpers'
 
@@ -40,12 +40,10 @@ export function UsageSection({ profile }: UsageSectionProps) {
                 title={<span id="usage-heading">{t('usage.title')}</span>}
                 right={monthly ? <Badge tone="neutral">{t('usage.toDate', { month: formatMonthLabel(monthly, intlLocale, t) })}</Badge> : undefined}
             />
-            <Card>
-                <div className={cx('grid', monthly && 'lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)]')}>
-                    <DailyUsagePanel membership={membership} operations={operations} t={t} locale={intlLocale} />
-                    {monthly && <MonthlyUsagePanel monthly={monthly} operations={monthlyOperations} t={t} locale={intlLocale} />}
-                </div>
-            </Card>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-8">
+                <DailyUsagePanel membership={membership} operations={operations} t={t} locale={intlLocale} />
+                {monthly && <MonthlyUsagePanel monthly={monthly} operations={monthlyOperations} t={t} locale={intlLocale} />}
+            </div>
         </section>
     )
 }
@@ -62,10 +60,10 @@ function DailyUsagePanel({
     locale: string
 }) {
     return (
-        <div className="flex min-w-0 flex-col gap-5 p-5">
+        <div className="flex min-w-0 flex-col gap-5">
             <div className="flex flex-col gap-1">
                 <Eyebrow tone="muted">{t('usage.today')}</Eyebrow>
-                <span className="font-ui text-[13px] text-parchment-400">{t('usage.dailySubtitle')}</span>
+                <span className="font-ui text-[13px] text-fg-subtle">{t('usage.dailySubtitle')}</span>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -78,7 +76,7 @@ function DailyUsagePanel({
                     locale={locale}
                     prominent
                 />
-                <span className="font-ui text-[12px] text-parchment-400">
+                <span className="font-ui text-[12px] text-fg-subtle">
                     {t('usage.remainingToday', { value: formatNumber(membership.credits.remaining, locale) })}
                 </span>
             </div>
@@ -86,7 +84,7 @@ function DailyUsagePanel({
             {operations.length > 0 && (
                 <div className="flex flex-col gap-2.5">
                     <Eyebrow tone="muted">{t('usage.perOperation')}</Eyebrow>
-                    <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-x-6 gap-y-3">
                         {operations.map(([operation, limit]) => (
                             <UsageMeter
                                 key={operation}
@@ -117,13 +115,13 @@ function MonthlyUsagePanel({
     locale: string
 }) {
     return (
-        <div className="flex min-w-0 flex-col gap-5 border-t border-parchment-50/[.08] bg-ink-800/35 p-5 lg:border-l lg:border-t-0">
+        <div className="flex min-w-0 flex-col gap-5">
             <div className="flex flex-col gap-1">
                 <Eyebrow tone="ember">{t('usage.month')}</Eyebrow>
-                <span className="font-ui text-[13px] text-parchment-400">{formatDateRange(monthly, locale, t)}</span>
+                <span className="font-ui text-[13px] text-fg-subtle">{formatDateRange(monthly, locale, t)}</span>
             </div>
 
-            <div className="rounded-lg border border-parchment-50/[.08] bg-ink-700/70 px-4 py-3">
+            <div className="border-b border-line-faint pb-5">
                 <Eyebrow tone="muted">{t('usage.creditsThisMonth')}</Eyebrow>
                 <div className="mt-2 flex items-baseline gap-2">
                     <span className="font-display text-h2 font-semibold leading-none text-parchment-50">
@@ -133,7 +131,7 @@ function MonthlyUsagePanel({
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-6">
                 <MonthlyStat label={t('usage.included')} value={monthly.included_credits_used} locale={locale} />
                 <MonthlyStat label={t('usage.payg')} value={monthly.payg_credits_used} locale={locale} />
             </div>
@@ -141,7 +139,7 @@ function MonthlyUsagePanel({
             {operations.length > 0 && (
                 <div className="flex flex-col gap-2.5">
                     <Eyebrow tone="muted">{t('usage.accumulatedByOperation')}</Eyebrow>
-                    <div className="flex flex-col overflow-hidden rounded-lg border border-parchment-50/[.08]">
+                    <div className="flex flex-col">
                         {operations.map(([operation, usage]) => (
                             <MonthlyOperationRow key={operation} operation={operation} usage={usage} t={t} locale={locale} />
                         ))}
@@ -154,7 +152,7 @@ function MonthlyUsagePanel({
 
 function MonthlyStat({ label, value, locale }: { label: string; value: number; locale: string }) {
     return (
-        <div className="rounded-lg border border-parchment-50/[.08] bg-ink-600/60 px-3 py-2.5">
+        <div className="min-w-0">
             <Eyebrow tone="muted" className="block text-[11px]">
                 {label}
             </Eyebrow>
@@ -175,18 +173,18 @@ function MonthlyOperationRow({
     locale: string
 }) {
     return (
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-parchment-50/[.06] px-3 py-2.5 last:border-b-0">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-line-faint py-3 last:border-b-0">
             <div className="min-w-0">
-                <span className="block truncate font-ui text-[12px] font-semibold text-parchment-100">
+                <span className="block font-ui text-caption font-semibold text-parchment-100">
                     {operationName(operation, t)}
                 </span>
-                <span className="block font-ui text-[11px] text-parchment-500">
+                <span className="block font-ui text-[11px] text-fg-subtle">
                     {monthlyOperationUsageLabel(usage, t, locale)}
                 </span>
             </div>
             <div className="text-right font-ui text-[11px] text-parchment-300">
                 <span className="block font-semibold text-parchment-100">{t('usage.credits', { value: formatNumber(usage.credits_used, locale) })}</span>
-                <span className="block text-parchment-500">
+                <span className="block text-fg-subtle">
                     {t('usage.includedPayg', {
                         included: formatNumber(usage.included_credits_used, locale),
                         payg: formatNumber(usage.payg_credits_used, locale),
@@ -213,13 +211,13 @@ function UsageMeter({ label, used, max, ariaLabel, valueLabel, prominent = false
 
     return (
         <div className="flex flex-col gap-1.5">
-            <div className="flex items-baseline justify-between gap-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 {prominent ? (
                     <Eyebrow tone="muted">{label}</Eyebrow>
                 ) : (
-                    <span className="truncate font-ui text-[12px] font-semibold text-parchment-100">{label}</span>
+                    <span className="min-w-0 font-ui text-caption font-semibold text-parchment-100">{label}</span>
                 )}
-                <span className="shrink-0 font-ui text-[11px] text-parchment-400">
+                <span className="shrink-0 font-ui text-[11px] text-fg-subtle">
                     {valueLabel ?? t('usage.of', { used: formatNumber(used, locale), max: formatNumber(max, locale) })}
                 </span>
             </div>

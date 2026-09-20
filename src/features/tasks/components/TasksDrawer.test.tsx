@@ -148,8 +148,7 @@ describe('TasksDrawer', () => {
         })
 
         fireEvent.click(await screen.findByRole('button', { name: /completed\s*0/i }))
-        expect(screen.getByText('No completed songs yet')).toBeInTheDocument()
-        expect(screen.getByText('Nothing here')).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: 'No completed songs yet' })).toBeInTheDocument()
     })
 
     it('opens the attached card modal from task metadata', async () => {

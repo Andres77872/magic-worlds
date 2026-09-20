@@ -86,3 +86,7 @@ export const ProviderError: Story = {
         error: { category: 'provider_submission', code: 'VOICE_PROVIDER_SUBMISSION', message: 'provider failed', fatal: false },
     },
 }
+
+export const Reconnecting: Story = { args: { state: 'reconnecting', inputLevel: 0 } }
+export const Muted: Story = { args: { state: 'listening', isMuted: true, inputLevel: 0 } }
+export const LongCaptions: Story = { args: { state: 'assistant_speaking', transcript: 'Tell me everything you found in the archive, including the letter and the map.', assistantText: 'The archive holds an account of the city before the flood. Every street and garden has been carefully marked on the old map. Someone circled the bell tower and wrote a warning beside it: return before the last light fades. I think whoever left that letter expected us to follow the route tonight.' } }

@@ -39,7 +39,7 @@ export function GreetingHeader({ query, onQueryChange, resultsCount, action }: G
             actions={
                 <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto md:justify-end">
                     {action}
-                    <div className="relative flex w-full items-center sm:w-[360px]">
+                    <div className="relative flex w-[360px] max-w-full items-center">
                         <span className="pointer-events-none absolute left-3 flex items-center text-parchment-400">
                             <Icon icon={Search} size={16} />
                         </span>

@@ -4,6 +4,7 @@ import { AuthContext } from '@/app/providers/AuthProvider'
 import { apiService } from '@/infrastructure/api'
 import type { AgentDetail, AgentModelOption, AgentSummary } from '@/shared'
 import { AdminAgentsPage } from './AdminAgentsPage'
+import { installPlayAdminAuditApi } from '../../playAdminAuditFixtures'
 
 type AuthValue = NonNullable<ComponentProps<typeof AuthContext.Provider>['value']>
 
@@ -27,7 +28,7 @@ const sourceDetail: AgentDetail = {
     graph_version_prefix: 'world-generator',
     draft: {
         system_message: 'Create vivid world cards while preserving the requested setting and tone.',
-        prompt_template: '{{input}}',
+        prompt_template: '{{handle_parser_input_0}}',
         model: '{{env.CARD_LLM_MODEL}}',
         temperature: 0.7,
         max_tokens: 4096,
@@ -40,7 +41,7 @@ const sourceDetail: AgentDetail = {
     },
     published: {
         system_message: 'Create vivid world cards while preserving the requested setting and tone.',
-        prompt_template: '{{input}}',
+        prompt_template: '{{handle_parser_input_0}}',
         model: '{{env.CARD_LLM_MODEL}}',
         temperature: 0.7,
         max_tokens: 4096,
@@ -94,9 +95,6 @@ const rootAuth: AuthValue = {
 }
 
 const withAgentApi: Decorator = (Story) => {
-    apiService.listAgents = async () => [sourceAgent]
-    apiService.listAgentModels = async () => ({ models })
-    apiService.getAgent = async () => sourceDetail
     return (
         <AuthContext.Provider value={rootAuth}>
             <Story />
@@ -109,6 +107,17 @@ const meta = {
     component: AdminAgentsPage,
     tags: ['autodocs'],
     decorators: [withAgentApi],
+    beforeEach: () => {
+        const restore = installPlayAdminAuditApi()
+        apiService.listAgents = async () => [sourceAgent]
+        apiService.listAgentModels = async () => ({ models })
+        apiService.getAgent = async () => sourceDetail
+        apiService.listAgentVersions = async () => ({ versions: [
+            { version_id: '2', version_number: 2, graph_version: 'world-generator-v2', output_mode: 'strict_card_schema', is_current: true, published_at: '2026-09-18', published_by_user_id: 1 },
+            { version_id: '1', version_number: 1, graph_version: 'world-generator-v1', output_mode: 'strict_card_schema', is_current: false, published_at: '2026-09-01', published_by_user_id: 1 },
+        ] })
+        return restore
+    },
     parameters: {
         layout: 'fullscreen',
         docs: {
@@ -122,6 +131,20 @@ const meta = {
 
 export default meta
 type Story = StoryObj<typeof meta>
+
+export const Overview: Story = {}
+export const Loading: Story = { beforeEach: () => { apiService.listAgents = () => new Promise(() => {}) } }
+export const Empty: Story = { beforeEach: () => { apiService.listAgents = async () => [] } }
+export const LoadError: Story = { beforeEach: () => { apiService.listAgents = async () => { throw new Error('The preview service is temporarily unavailable.') } } }
+
+export const CustomAgent: Story = {
+    beforeEach: () => {
+        const custom: AgentSummary = { ...sourceAgent, workflow_key: 'custom_archive', display_name: 'Archive narrator', storage: 'database', is_system: false, output_mode: 'markdown', schema_model: null, has_unpublished_draft: true }
+        apiService.listAgents = async () => [custom]
+        apiService.getAgent = async () => ({ ...sourceDetail, ...custom, draft: { ...sourceDetail.draft, json_output: false }, published: { ...sourceDetail.published!, json_output: false } })
+    },
+}
+export const Restricted: Story = { decorators: [(Story) => <AuthContext.Provider value={{ ...rootAuth, user: { ...rootAuth.user!, user_type: 'user' } }}><Story /></AuthContext.Provider>] }
 
 export const CreateCustomCopy: Story = {
     play: async ({ canvasElement }) => {

@@ -173,7 +173,7 @@ Choose carefully.`
     )
 
     expect(screen.getByText('The gate opens.')).toBeInTheDocument()
-    expect(screen.getByText(/conjuring the scene/i)).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Generating image…')
   })
 
   it('renders completed mirrored asset and not provider sentinel URLs', () => {

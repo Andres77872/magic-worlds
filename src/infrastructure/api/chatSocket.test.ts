@@ -453,4 +453,15 @@ describe('ChatSocket auth recovery', () => {
             request_id: 'request-7',
         })
     })
+
+    it('preserves the stored user message id while a retry waits for connection', () => {
+        const socket = new ChatSocket(7, { onMessage: vi.fn() })
+        socket.connect()
+        socket.sendChat('hello', 'retry-7', 100)
+        MockWebSocket.instances[0].emitOpen()
+
+        expect(JSON.parse(String(MockWebSocket.instances[0].send.mock.calls[0][0]))).toEqual({
+            type: 'chat', content: 'hello', request_id: 'retry-7', existing_user_message_id: 100,
+        })
+    })
 })

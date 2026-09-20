@@ -22,10 +22,10 @@ export function InteractionRightPanel({ turns = [] }: InteractionRightPanelProps
     return (
         <div className="flex h-full flex-col p-5">
             <SectionHeader icon={History} title={t('interaction.logPanel.title')} className="shrink-0" />
-            <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+            <div className="mt-2 flex min-h-0 flex-1 flex-col divide-y divide-parchment-50/10 overflow-y-auto">
                 {turns.length === 0 ? (
-                    <div className="rounded-lg border border-parchment-50/10 bg-ink-700 p-4 text-center">
-                        <p className="font-narrative italic text-parchment-400">
+                    <div className="py-4">
+                        <p className="text-label leading-relaxed text-parchment-300">
                             {t('interaction.logPanel.emptyTitle')}
                             <br />
                             {t('interaction.logPanel.emptyHint')}
@@ -35,26 +35,26 @@ export function InteractionRightPanel({ turns = [] }: InteractionRightPanelProps
                     turns.map((turn, index) => (
                         <div
                             key={turn.id || index}
-                            className="rounded-lg border border-parchment-50/10 bg-ink-700 p-3"
+                            className="py-3"
                         >
-                            <div className="mb-1 flex items-center justify-between font-mono text-[11px]">
-                                <span className="text-parchment-500">{formatTime(turn.timestamp)}</span>
+                            <div className="mb-2 flex items-center justify-between gap-2 font-mono text-caption">
+                                <time dateTime={turn.timestamp} className="text-parchment-400">{formatTime(turn.timestamp)}</time>
                                 <span
                                     className={
                                         turn.type === 'user'
-                                            ? 'rounded-full bg-ember-500/15 px-2 py-0.5 text-ember-300'
-                                            : 'rounded-full bg-arcane-500/15 px-2 py-0.5 text-arcane-300'
+                                            ? 'text-ember-300'
+                                            : 'text-arcane-300'
                                     }
                                 >
                                     {turn.type === 'user' ? t('interaction.logPanel.you') : t('interaction.logPanel.gm')}
                                 </span>
                             </div>
-                            <div className="line-clamp-2 min-w-0 text-[13px] text-parchment-200">{turn.content}</div>
+                            <p className="line-clamp-2 min-w-0 text-label leading-relaxed text-parchment-200 break-words">{turn.content}</p>
                         </div>
                     ))
                 )}
             </div>
-            <p className="mt-3 shrink-0 font-ui text-[12px] text-parchment-500">{t('interaction.logPanel.autoSave')}</p>
+            <p className="mt-3 shrink-0 font-ui text-caption text-parchment-400">{t('interaction.logPanel.autoSave')}</p>
         </div>
     )
 }

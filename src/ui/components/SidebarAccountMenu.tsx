@@ -208,7 +208,7 @@ export function SidebarAccountMenu({
     const containerClassName = cx('relative', placement === 'rise' && 'w-full')
     const menuPlacement =
         placement === 'rise'
-            ? 'bottom-0 left-full ml-3 origin-bottom-left'
+            ? 'bottom-full left-0 mb-2 origin-bottom-left lg:bottom-0 lg:left-full lg:mb-0 lg:ml-3'
             : 'right-0 top-full mt-2 origin-top-right'
     const enterFrom = placement === 'rise' ? 'translate-y-1' : '-translate-y-1'
 

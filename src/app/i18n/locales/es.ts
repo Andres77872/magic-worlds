@@ -9,6 +9,25 @@ type TranslationValueShape<T> = T extends string
 type TranslationResource = TranslationValueShape<EnShape>
 
 export const es = {
+    imageGeneration: {
+        stages: {
+            starting: 'Iniciando la generación de imagen…',
+            pending: 'Imagen en cola…',
+            in_progress: 'Generando imagen…',
+            mirroring: 'Guardando imagen…',
+            loading: 'Cargando imagen…',
+            uploading: 'Subiendo imagen…',
+        },
+        hints: {
+            starting: 'Enviando tu solicitud. Puede tardar un momento.',
+            pending: 'Tu imagen comenzará a generarse en cuanto haya un espacio disponible.',
+            in_progress: 'Puede tardar un momento. Tu imagen aparecerá aquí cuando esté lista.',
+            mirroring: 'Tu imagen ya está creada. Terminando los últimos detalles…',
+            loading: 'Tu imagen está lista. Preparándola para mostrarla…',
+            uploading: 'Tu imagen aparecerá aquí cuando termine la subida.',
+        },
+        keepChatting: 'Puedes seguir conversando mientras se crea tu imagen.',
+    },
     streamFields: {
         name: 'Nombre',
         description: 'Descripción',
@@ -1092,7 +1111,7 @@ export const es = {
                         },
                         actionMenu: {
                             title: 'Cada carta tiene un menú de acciones',
-                            body: 'El menú de cada carta cubre toda su vida: editar, comenzar una aventura o iniciar un chat, exportar la carta como JSON, copiar un enlace compartible o eliminar con confirmación.',
+                            body: 'El menú de cada carta cubre toda su vida: editar, comenzar una aventura o iniciar un chat, descargar la carta en PNG, copiar un enlace compartible o eliminar con confirmación.',
                         },
                         links: {
                             title: 'Enlaces y vistas previas',
@@ -1313,7 +1332,7 @@ export const es = {
                     reusableFacts: 'Mantén las descripciones factuales y reutilizables. Pon los cambios temporales de escena en la sesión de aventura en curso en vez de reescribir la carta original.',
                     compactLorebooks: 'Trata las entradas de lorebook como hechos compactos. Divide documentos grandes de ambientación en entradas más pequeñas con claves de activación precisas.',
                     saveOften: 'Guarda después de ediciones importantes, antes de navegar fuera y antes de usar contenido generado como material de referencia importante.',
-                    exportCards: 'Exporta cartas importantes como JSON desde el menú de galería antes de grandes reescrituras. El archivo también sirve como respaldo que puedes conservar o compartir.',
+                    exportCards: 'Descarga las cartas importantes como archivos PNG desde el menú de galería antes de grandes reescrituras. Conserva o comparte las imágenes exportadas.',
                     iterateMedia: 'Usa imágenes y temas generados como herramientas de iteración. Regenera cuando la dirección no funciona; revisa el historial cuando el recurso correcto ya existe.',
                     separateWorkflows: 'Usa novelas para prosa de autor y aventuras para juego interactivo. Comparten cartas, pero sirven a flujos de trabajo distintos.',
                 },
@@ -1403,7 +1422,8 @@ export const es = {
                 personas: {
                     sectionTitle: 'Tus personas',
                     sectionSubtitle: 'A quién interpretas en chats y aventuras.',
-                    count: '{{count}} cartas',
+                    count_one: '{{count}} carta',
+                    count_other: '{{count}} cartas',
                     defaultBadge: 'Persona predeterminada',
                     defaultMarker: 'Predeterminada',
                     newPersona: 'Nueva persona',
@@ -3001,6 +3021,7 @@ export const es = {
                         replaceImage: 'Reemplazar imagen',
                         removeImage: 'Quitar imagen',
                         uploading: 'Subiendo…',
+                        stopWaiting: 'Dejar de esperar',
                         generating: 'Generando…',
                         starting: 'Iniciando…',
                         stages: {
@@ -3037,7 +3058,7 @@ export const es = {
                             tooLarge: 'Esa imagen pesa más de 15 MB — elige un archivo más pequeño.',
                             uploadCanceled: 'Subida cancelada.',
                             nameFirst: 'Primero dale un nombre a tu {{noun}} — el retrato se basa en él.',
-                            imageCanceled: 'Cancelado. La imagen aún podría terminar en segundo plano — inténtalo de nuevo para verificar.',
+                            imageCanceled: 'Dejaste de esperar. La imagen aún podría terminar; revisa tu galería en un momento.',
                             saveFirst: 'Primero guarda el {{noun}}, luego genera su tema.',
                             themeCanceled: 'Cancelado antes de que se aceptara la tarea.',
                             defaultThemeDescription: 'Un tema musical evocador para {{name}}.',
@@ -4453,6 +4474,7 @@ export const es = {
                     alt: 'Escena generada',
                     conjuring: 'Conjurando la escena…',
                     failed: 'La generación de la imagen falló.',
+                    loadFailed: 'No se pudo cargar la imagen. Actualiza la página para intentarlo de nuevo.',
                 },
                 leftPanel: {
                     addCharacter: 'Agregar personaje',

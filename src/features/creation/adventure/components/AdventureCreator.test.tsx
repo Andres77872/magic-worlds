@@ -196,7 +196,7 @@ describe('AdventureCreator navigation', () => {
         render(<AdventureCreator />)
 
         fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
-        fireEvent.change(screen.getByLabelText(/premise/i), { target: { value: 'The beacons are lit.' } })
+        fireEvent.change(screen.getByRole('textbox', { name: /premise/i }), { target: { value: 'The beacons are lit.' } })
         fireEvent.click(screen.getByRole('button', { name: /^Create Adventure$/i }))
 
         await waitFor(() => expect(apiService.createAdventureTemplate).toHaveBeenCalledTimes(1))
@@ -234,7 +234,7 @@ describe('AdventureCreator guided payload', () => {
         // Create mode opens on the template gallery — pick a starting shape.
         fireEvent.click(screen.getByRole('button', { name: /heroic quest/i }))
 
-        fireEvent.change(screen.getByLabelText(/premise/i), { target: { value: 'The beacons are lit.' } })
+        fireEvent.change(screen.getByRole('textbox', { name: /premise/i }), { target: { value: 'The beacons are lit.' } })
 
         // Copy the template's ghost into the guided Opening scene field.
         const openingRow = container.querySelector('[data-guided-field="opening.scene"]') as HTMLElement

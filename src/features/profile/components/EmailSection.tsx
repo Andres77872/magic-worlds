@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { AtSign, Loader2, Mail, Plus, RefreshCw, Star, Trash2 } from 'lucide-react'
 import { apiService, ApiError } from '@/infrastructure/api'
 import type { UserEmail } from '@/shared/types/auth.types'
-import { Badge, Button, Card, Icon, IconButton, Input, SectionHeader, Toast } from '@/ui/primitives'
+import { Badge, Button, Icon, IconButton, Input, SectionHeader, Toast } from '@/ui/primitives'
 
 interface Notice {
     tone: 'success' | 'error'
@@ -85,7 +85,7 @@ export function EmailSection() {
     return (
         <section className="flex flex-col gap-4">
             <SectionHeader icon={Mail} title={t('profile.emails.title')} />
-            <Card className="flex flex-col gap-4 px-5 py-5">
+            <div className="flex flex-col gap-4">
                 <p className="font-ui text-[13px] text-parchment-400">{t('profile.emails.subtitle')}</p>
 
                 {/* Add email */}
@@ -97,6 +97,7 @@ export function EmailSection() {
                             value={newEmail}
                             onChange={(e) => setNewEmail(e.target.value)}
                             placeholder={t('profile.emails.addPlaceholder')}
+                            aria-label={t('profile.emails.addPlaceholder')}
                             autoComplete="email"
                             className="pl-10"
                         />
@@ -133,8 +134,8 @@ export function EmailSection() {
                             const busy = busyId === email.id
                             return (
                                 <li key={email.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-ui text-[14px] text-parchment-100">
+                                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                        <span className="break-all font-ui text-sm text-parchment-100">
                                             {email.email_masked || email.email || email.id}
                                         </span>
                                         {email.is_primary && (
@@ -145,7 +146,7 @@ export function EmailSection() {
                                         </Badge>
                                     </div>
 
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex flex-wrap items-center gap-1.5">
                                         {!isActivated(email) && (
                                             <Button
                                                 variant="ghost"
@@ -182,7 +183,7 @@ export function EmailSection() {
                         })}
                     </ul>
                 )}
-            </Card>
+            </div>
 
             <Toast
                 open={Boolean(notice)}

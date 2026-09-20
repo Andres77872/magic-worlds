@@ -509,7 +509,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                             label={t('playlist.removeFromPlaylist', { title: track.title })}
                                             size="sm"
                                             tone="danger"
-                                            className="h-7 w-7"
+                                            className="h-8 w-8"
                                             onClick={() => playlist.removeAt(index)}
                                         >
                                             <X size={13} />
@@ -579,7 +579,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 )
                             )}
                         </div>
-                        <div className="flex shrink-0 items-center gap-0.5">
+                        <div className="flex shrink-0 items-center gap-1">
                             <button
                                 type="button"
                                 aria-label={t('playlist.dragPlayer')}
@@ -590,16 +590,50 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 onPointerCancel={endDrag}
                                 onKeyDown={nudgeDock}
                                 className={cx(
-                                    'inline-flex h-7 w-7 shrink-0 touch-none cursor-grab items-center justify-center rounded-md text-parchment-300 transition-colors hover:bg-parchment-50/[.05] hover:text-parchment-50',
+                                    'inline-flex h-8 w-8 shrink-0 touch-none cursor-grab items-center justify-center rounded-md text-parchment-300 transition-colors hover:bg-parchment-50/[.05] hover:text-parchment-50',
                                     dragging && 'cursor-grabbing bg-ember-500/15 text-ember-300',
                                 )}
                             >
                                 <GripVertical size={14} />
                             </button>
                             <IconButton
+                                label={queueOpen ? t('playlist.hidePlaylist') : t('playlist.showPlaylist')}
+                                size="sm"
+                                tone={queueOpen ? 'active' : 'default'}
+                                className="relative h-8 w-8"
+                                onClick={() => setQueueOpen((open) => !open)}
+                            >
+                                <ListMusic size={14} />
+                                {playlist.queue.length > 1 && (
+                                    <span
+                                        className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-ember-500 px-0.5 font-mono text-[9px] font-bold leading-none text-on-ember ring-2 ring-ink-800"
+                                        aria-hidden="true"
+                                    >
+                                        {playlist.queue.length}
+                                    </span>
+                                )}
+                                <Icon
+                                    icon={queueOpen ? ChevronDown : ChevronUp}
+                                    size={9}
+                                    className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 text-parchment-400"
+                                />
+                            </IconButton>
+                            <IconButton
+                                label={t('playlist.closePlayer')}
+                                size="sm"
+                                className="h-8 w-8"
+                                onClick={playlist.clearAndClose}
+                            >
+                                <X size={14} />
+                            </IconButton>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-1 items-center justify-evenly gap-1">
+                            <IconButton
                                 label={t('playlist.previousTrack')}
                                 size="sm"
-                                className="h-7 w-7"
+                                className="h-8 w-8"
                                 onClick={playlist.prev}
                             >
                                 <SkipBack size={14} />
@@ -642,7 +676,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                             <IconButton
                                 label={t('playlist.nextTrack')}
                                 size="sm"
-                                className="h-7 w-7"
+                                className="h-8 w-8"
                                 disabled={atQueueEnd}
                                 onClick={playlist.next}
                             >
@@ -652,7 +686,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 label={loopLabel[playlist.loopMode]}
                                 size="sm"
                                 tone={playlist.loopMode === 'off' ? 'default' : 'active'}
-                                className="h-7 w-7"
+                                className="h-8 w-8"
                                 aria-pressed={playlist.loopMode !== 'off'}
                                 onClick={playlist.cycleLoopMode}
                             >
@@ -672,7 +706,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                     label={volumeButtonLabel}
                                     size="sm"
                                     tone={volumeOpen ? 'active' : 'default'}
-                                    className="h-7 w-7"
+                                    className="h-8 w-8"
                                     aria-haspopup="dialog"
                                     aria-expanded={volumeOpen}
                                     aria-pressed={playlist.muted}
@@ -723,7 +757,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 }
                                 size="sm"
                                 tone={downloadError ? 'danger' : 'default'}
-                                className="h-7 w-7"
+                                className="h-8 w-8"
                                 disabled={downloading}
                                 onClick={downloadCurrentTrack}
                             >
@@ -732,36 +766,6 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                 ) : (
                                     <Download size={14} strokeWidth={1.75} />
                                 )}
-                            </IconButton>
-                            <IconButton
-                                label={queueOpen ? t('playlist.hidePlaylist') : t('playlist.showPlaylist')}
-                                size="sm"
-                                tone={queueOpen ? 'active' : 'default'}
-                                className="relative h-7 w-7"
-                                onClick={() => setQueueOpen((open) => !open)}
-                            >
-                                <ListMusic size={14} />
-                                {playlist.queue.length > 1 && (
-                                    <span
-                                        className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-ember-500 px-0.5 font-mono text-[9px] font-bold leading-none text-on-ember ring-2 ring-ink-800"
-                                        aria-hidden="true"
-                                    >
-                                        {playlist.queue.length}
-                                    </span>
-                                )}
-                                <Icon
-                                    icon={queueOpen ? ChevronDown : ChevronUp}
-                                    size={9}
-                                    className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 text-parchment-400"
-                                />
-                            </IconButton>
-                            <IconButton
-                                label={t('playlist.closePlayer')}
-                                size="sm"
-                                className="h-7 w-7"
-                                onClick={playlist.clearAndClose}
-                            >
-                                <X size={14} />
                             </IconButton>
                         </div>
                     </div>
@@ -802,7 +806,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                         </span>
                     </div>
                     {playlist.error && (
-                        <p className="pl-10 font-mono text-micro text-blood-500">{playbackError}</p>
+                        <p role="alert" className="font-ui text-caption text-parchment-200">{playbackError}</p>
                     )}
                 </div>
             </section>

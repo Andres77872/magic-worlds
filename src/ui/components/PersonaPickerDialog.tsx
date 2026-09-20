@@ -4,7 +4,7 @@ import { CheckCircle2, Circle, Loader2, UserCircle } from 'lucide-react'
 import type { Character } from '@/shared'
 import { resolveMediaUrl } from '@/infrastructure/api'
 import { characterRole, defaultPersona, personaCandidates } from '@/utils/characterRoles'
-import { Avatar, Badge, Button, Icon, Modal, Tag, cx } from '@/ui/primitives'
+import { Avatar, Badge, Button, Callout, Icon, Modal, Tag, cx } from '@/ui/primitives'
 import { EmptyState } from './common/EmptyState'
 
 interface PersonaPickerDialogProps {
@@ -70,12 +70,9 @@ export function PersonaPickerDialog({
                         <p className="font-narrative text-sm leading-relaxed text-parchment-300">{description}</p>
                     )}
                     {error && (
-                        <div
-                            role="alert"
-                            className="rounded-md border border-blood-500/30 bg-blood-500/10 px-3 py-2 font-ui text-xs leading-relaxed text-blood-500"
-                        >
+                        <Callout tone="danger" role="alert">
                             {error}
-                        </div>
+                        </Callout>
                     )}
                 </div>
             )}
@@ -91,7 +88,7 @@ export function PersonaPickerDialog({
                     }
                 />
             ) : (
-                <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto pr-1">
+                <div className="flex flex-col divide-y divide-line-faint">
                     {candidates.map((character) => {
                         const selectedRow = character.id === selectedId
                         const role = characterRole(character)
@@ -103,17 +100,17 @@ export function PersonaPickerDialog({
                                 disabled={isConfirming}
                                 onClick={() => setSelectedId(character.id)}
                                 className={cx(
-                                    'flex w-full items-start gap-3 rounded-lg border bg-ink-800 p-3 text-left transition-colors disabled:pointer-events-none disabled:opacity-70',
+                                    'flex w-full items-start gap-3 rounded-md px-2 py-4 text-left transition-colors disabled:pointer-events-none disabled:opacity-70',
                                     selectedRow
-                                        ? 'border-ember-500/70 ring-1 ring-ember-500/40'
-                                        : 'border-parchment-50/10 hover:border-ember-500/45',
+                                        ? 'bg-ember-500/10'
+                                        : 'hover:bg-parchment-50/[.04]',
                                 )}
                             >
                                 <Avatar
                                     name={character.name}
                                     src={resolveMediaUrl(character.image_url)}
                                     size={42}
-                                    ring={role === 'persona' ? 'ember' : 'arcane'}
+                                    ring="none"
                                 />
                                 <span className="min-w-0 flex-1">
                                     <span className="flex flex-wrap items-center gap-2">
@@ -124,7 +121,7 @@ export function PersonaPickerDialog({
                                         {character.is_default_persona && <Badge tone="ember">{t('ui.personaPicker.default')}</Badge>}
                                     </span>
                                     {character.description && (
-                                        <span className="mt-1 line-clamp-2 block font-narrative text-xs leading-snug text-parchment-400">
+                                        <span className="mt-1 line-clamp-2 block font-ui text-label leading-relaxed text-parchment-300">
                                             {character.description}
                                         </span>
                                     )}

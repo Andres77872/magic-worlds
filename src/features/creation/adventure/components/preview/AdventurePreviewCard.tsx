@@ -33,7 +33,6 @@ export function AdventurePreviewCard({ title, scenario, cast, persona, world, ob
 
     return (
         <div className="flex flex-col gap-2">
-            <Eyebrow tone="muted">{t('creation.adventure.preview.livePreview')}</Eyebrow>
             <Card>
                 <Portrait name={title} src={resolveMediaUrl(imageUrl)} height={150}>
                     <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 p-4">

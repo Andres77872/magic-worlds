@@ -34,6 +34,11 @@ import { ApiError } from '@/infrastructure/api'
 import { useCardAssistant } from './useCardAssistant'
 
 const CONVO = { conversation_id: 2, card_type: 'world' as const, card_id: null, title: 'Untitled World', updated_at: '2026-06-10T10:00:00Z' }
+const TARGET_CAS = { revision: '2026-09-19T00:43:33', content_hash: 'a'.repeat(64) }
+const PUBLISHED_REVISION = {
+    latest_version_id: 'version-3', latest_version_number: 3, has_draft: false,
+    draft_updated_at: null, draft_based_on_version_number: null,
+}
 
 function message(overrides: Partial<CardAssistantMessage>): CardAssistantMessage {
     return {
@@ -145,6 +150,117 @@ describe('useCardAssistant: open + initial load', () => {
 })
 
 describe('useCardAssistant: send + streaming', () => {
+    it.each(['character', 'world', 'item'] as const)('sends server revision metadata and preserves unsaved %s fields', async (cardType) => {
+        const conversation = { ...CONVO, card_type: cardType, card_id: 'card-1' }
+        mocks.createCardAssistantConversation.mockResolvedValue({ conversation, messages: [] })
+        mocks.getCardAssistantConversation.mockResolvedValue({
+            conversation, messages: [], target_cas: TARGET_CAS,
+            card: { id: 'card-1', name: 'Saved name', ...PUBLISHED_REVISION, is_draft: false },
+        })
+        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, emit) => emit({ type: 'final', conversation }))
+        const { result } = renderHook(() => useCardAssistant(hookOptions({
+            cardType, cardId: 'card-1', currentCard: { name: 'Unsaved name', category: null },
+        })))
+
+        await act(async () => { await result.current.send('Refine this') })
+
+        expect(mocks.streamCardAssistantMessage).toHaveBeenCalledWith(2, {
+            message: 'Refine this', card_type: cardType,
+            current_card: { id: 'card-1', name: 'Unsaved name', category: null, ...PUBLISHED_REVISION },
+            expected_revision: TARGET_CAS.revision, expected_content_hash: TARGET_CAS.content_hash,
+        }, expect.any(Function), expect.any(Object))
+    })
+
+    it('refreshes the saved snapshot for each turn, including a newly saved private draft', async () => {
+        const conversation = { ...CONVO, card_id: 'world-1' }
+        mocks.createCardAssistantConversation.mockResolvedValue({ conversation, messages: [] })
+        mocks.getCardAssistantConversation.mockResolvedValue({
+            conversation, messages: [], target_cas: TARGET_CAS,
+            card: { id: 'world-1', ...PUBLISHED_REVISION },
+        })
+        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, emit) => emit({ type: 'final', conversation }))
+        const { result } = renderHook(() => useCardAssistant(hookOptions({ cardId: 'world-1', currentCard: { name: 'Glass' } })))
+        await act(async () => { await result.current.send('First edit') })
+
+        const revision = { ...PUBLISHED_REVISION, has_draft: true, is_draft: true,
+            draft_updated_at: '2026-09-19T00:45:00', draft_based_on_version_number: 3, based_on_version_number: 3 }
+        const targetCas = { revision: revision.draft_updated_at, content_hash: 'b'.repeat(64) }
+        mocks.getCardAssistantConversation.mockResolvedValue({
+            conversation, messages: [], card: { id: 'world-1', ...revision }, target_cas: targetCas,
+        })
+        await act(async () => { await result.current.send('Second edit') })
+
+        expect(mocks.streamCardAssistantMessage).toHaveBeenLastCalledWith(2, {
+            message: 'Second edit', card_type: 'world', current_card: { id: 'world-1', name: 'Glass', ...revision },
+            expected_revision: targetCas.revision, expected_content_hash: targetCas.content_hash,
+        }, expect.any(Function), expect.any(Object))
+    })
+
+    it('sends adventure concurrency values without versioned-card metadata', async () => {
+        const conversation = { ...CONVO, card_type: 'adventure_template', card_id: 'adventure-1' }
+        mocks.createCardAssistantConversation.mockResolvedValue({ conversation, messages: [] })
+        mocks.getCardAssistantConversation.mockResolvedValue({ conversation, messages: [], target_cas: TARGET_CAS })
+        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, emit) => emit({ type: 'final', conversation }))
+        const { result } = renderHook(() => useCardAssistant(hookOptions({
+            cardType: 'adventure_template', cardId: 'adventure-1', currentCard: { name: 'A quest' },
+        })))
+        await act(async () => { await result.current.send('Add a twist') })
+        expect(mocks.streamCardAssistantMessage.mock.calls[0][1]).toEqual({
+            message: 'Add a twist', card_type: 'adventure_template', current_card: { id: 'adventure-1', name: 'A quest' },
+            expected_revision: TARGET_CAS.revision, expected_content_hash: TARGET_CAS.content_hash,
+        })
+    })
+
+    it('never starts a stream when stopped during the snapshot fetch', async () => {
+        const conversation = { ...CONVO, card_id: 'world-1' }
+        mocks.createCardAssistantConversation.mockResolvedValue({ conversation, messages: [] })
+        let resolveSnapshot!: (value: unknown) => void
+        mocks.getCardAssistantConversation.mockImplementation(() => new Promise((resolve) => { resolveSnapshot = resolve }))
+        const { result } = renderHook(() => useCardAssistant(hookOptions({ cardId: 'world-1' })))
+        let pending!: Promise<void>
+        act(() => { pending = result.current.send('Edit') })
+        await waitFor(() => expect(resolveSnapshot).toBeDefined())
+        act(() => result.current.stop())
+        await act(async () => {
+            resolveSnapshot({ conversation, messages: [], target_cas: TARGET_CAS, card: { id: 'world-1', ...PUBLISHED_REVISION } })
+            await pending
+        })
+        expect(mocks.streamCardAssistantMessage).not.toHaveBeenCalled()
+        expect(result.current.status).toBe('idle')
+    })
+
+    it('fails before sending when the bound snapshot has no revision metadata', async () => {
+        const conversation = { ...CONVO, card_id: 'world-1' }
+        mocks.createCardAssistantConversation.mockResolvedValue({ conversation, messages: [] })
+        mocks.getCardAssistantConversation.mockResolvedValue({
+            conversation, messages: [], target_cas: TARGET_CAS, card: { id: 'world-1', name: 'Glass' },
+        })
+        const { result } = renderHook(() => useCardAssistant(hookOptions({ cardId: 'world-1' })))
+        await act(async () => { await result.current.send('Edit') })
+        expect(mocks.streamCardAssistantMessage).not.toHaveBeenCalled()
+        expect(result.current.notice).toMatchObject({ kind: 'error' })
+        expect(result.current.turns).toEqual([])
+    })
+
+    it.each([false, true])('stages the current saved card on reload after a conflict (streaming: %s)', async (streaming) => {
+        const error = { category: 'target_snapshot_stale', code: 'card_assistant_target_snapshot_stale' }
+        const message = 'The card changed after this assistant turn started.'
+        if (streaming) {
+            mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, emit) => emit({ type: 'error', detail: message, error }))
+        } else {
+            mocks.streamCardAssistantMessage.mockRejectedValue(new ApiError(409, message, error))
+        }
+        const onCard = vi.fn()
+        const { result } = renderHook(() => useCardAssistant(hookOptions({ onCard })))
+        await act(async () => { await result.current.send('Edit') })
+        expect(result.current.notice).toMatchObject({ kind: 'error', message, canReload: true })
+        const card = { id: 'world-1', name: 'Changed in another tab' }
+        mocks.getCardAssistantConversation.mockResolvedValue({ conversation: CONVO, messages: [], card })
+        await act(async () => { await result.current.reloadConversation() })
+        expect(result.current.pendingCard).toEqual(card)
+        expect(onCard).not.toHaveBeenCalled()
+    })
+
     it('invalidates a turn when another generation changes the editor target', async () => {
         const stream = controllableStream()
         const props = hookOptions()

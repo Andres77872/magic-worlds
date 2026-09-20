@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { AudioLines } from 'lucide-react'
 import type { AdminVoiceConcreteType, AdminVoiceEntry, AdminVoiceGroups, AdminVoiceQueryType } from '@/shared'
-import { Badge, Card, Chip, SectionHeader } from '@/ui/primitives'
+import { Badge, Chip, SectionHeader } from '@/ui/primitives'
 import { LIBRARY_FILTERS, VOICE_TYPE_META } from '../constants'
 import { SystemVoiceBrowser } from './SystemVoiceBrowser'
 import { VoiceRow } from './VoiceRow'
@@ -61,7 +61,7 @@ function VoiceGroup({
                     ))}
                 </div>
             ) : (
-                <div className="rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3 font-ui text-sm text-parchment-300">
+                <div className="py-3 font-ui text-sm text-parchment-300">
                     {loading ? t('admin.voices.library.loading') : t('admin.voices.library.emptyGroup')}
                 </div>
             )}
@@ -81,50 +81,48 @@ export function VoiceLibraryPanel({
     const { t } = useTranslation()
     const total = countVoices(groups)
     return (
-        <Card>
-            <div className="flex flex-col gap-5 p-5">
-                <SectionHeader
-                    icon={AudioLines}
-                    title={t('admin.voices.library.title')}
-                    tone="arcane"
-                    right={
-                        <Badge tone={loadingVoices ? 'neutral' : 'glass'}>
-                            {loadingVoices ? t('admin.voices.library.loadingShort') : t('admin.voices.library.count', { count: total })}
-                        </Badge>
-                    }
-                />
-                <div className="flex flex-wrap gap-2" role="group" aria-label={t('admin.voices.library.filterAria')}>
-                    {LIBRARY_FILTERS.map((filter) => (
-                        <Chip key={filter.value} active={voiceType === filter.value} onClick={() => setVoiceType(filter.value)}>
-                            {t(filter.labelKey)}
-                        </Chip>
-                    ))}
-                </div>
-                <div className="flex flex-col gap-5">
-                    {GROUP_ORDER.map((type) =>
-                        type === 'system' ? (
-                            <SystemVoiceBrowser
-                                key={type}
-                                voices={groups.system}
-                                loading={loadingVoices}
-                                deletingVoiceId={deletingVoiceId}
-                                onTest={onTest}
-                                onDelete={onDelete}
-                            />
-                        ) : (
-                            <VoiceGroup
-                                key={type}
-                                type={type}
-                                voices={groups[type]}
-                                loading={loadingVoices}
-                                deletingVoiceId={deletingVoiceId}
-                                onTest={onTest}
-                                onDelete={onDelete}
-                            />
-                        ),
-                    )}
-                </div>
+        <section className="flex min-w-0 flex-col gap-5">
+            <SectionHeader
+                icon={AudioLines}
+                title={t('admin.voices.library.title')}
+                tone="arcane"
+                right={
+                    <Badge tone={loadingVoices ? 'neutral' : 'glass'}>
+                        {loadingVoices ? t('admin.voices.library.loadingShort') : t('admin.voices.library.count', { count: total })}
+                    </Badge>
+                }
+            />
+            <div className="flex flex-wrap gap-2" role="group" aria-label={t('admin.voices.library.filterAria')}>
+                {LIBRARY_FILTERS.map((filter) => (
+                    <Chip key={filter.value} active={voiceType === filter.value} onClick={() => setVoiceType(filter.value)}>
+                        {t(filter.labelKey)}
+                    </Chip>
+                ))}
             </div>
-        </Card>
+            <div className="flex flex-col gap-5">
+                {GROUP_ORDER.map((type) =>
+                    type === 'system' ? (
+                        <SystemVoiceBrowser
+                            key={type}
+                            voices={groups.system}
+                            loading={loadingVoices}
+                            deletingVoiceId={deletingVoiceId}
+                            onTest={onTest}
+                            onDelete={onDelete}
+                        />
+                    ) : (
+                        <VoiceGroup
+                            key={type}
+                            type={type}
+                            voices={groups[type]}
+                            loading={loadingVoices}
+                            deletingVoiceId={deletingVoiceId}
+                            onTest={onTest}
+                            onDelete={onDelete}
+                        />
+                    ),
+                )}
+            </div>
+        </section>
     )
 }

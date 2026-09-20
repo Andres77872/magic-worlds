@@ -128,6 +128,7 @@ import type {
     CardAssistantRequestOptions,
     CardAssistantStreamEvent,
     CardAssistantTurnResponse,
+    CardAssistantTurnRequest,
     CharacterCardResponse,
     ItemCardResponse,
     WorldCardResponse,
@@ -2748,11 +2749,7 @@ class ApiService {
 
     async sendCardAssistantMessage(
         conversationId: number,
-        body: {
-            message: string
-            card_type: CardAssistantCardType
-            current_card?: Record<string, unknown> | null
-        },
+        body: CardAssistantTurnRequest,
         options: CardAssistantRequestOptions = {},
     ): Promise<CardAssistantTurnResponse> {
         const token = this.getStoredToken()
@@ -2767,11 +2764,7 @@ class ApiService {
 
     async streamCardAssistantMessage(
         conversationId: number,
-        body: {
-            message: string
-            card_type: CardAssistantCardType
-            current_card?: Record<string, unknown> | null
-        },
+        body: CardAssistantTurnRequest,
         onEvent: (event: CardAssistantStreamEvent) => void,
         options: CardAssistantRequestOptions = {},
     ): Promise<void> {

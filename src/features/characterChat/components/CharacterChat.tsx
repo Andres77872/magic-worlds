@@ -12,7 +12,6 @@ import { useTranslation } from 'react-i18next'
 import type { CharacterChatCodexCard, CharacterChatSession, TurnEntry } from '../../../shared'
 import type { CodexLibraryCardSelection } from '@/features/codex'
 import { useNavigation, useData, useAuth } from '../../../app/hooks'
-import { LoadingSpinner } from '../../../ui/components'
 import { characterChatConfig } from '../../interaction/chatSessionConfig'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { InteractionCenterPanel, InteractionTopBar, SidePanelDrawer } from '../../interaction/components'
@@ -21,7 +20,6 @@ import { chatDisplayTitle } from '@/utils/chatTitle'
 import { CharacterChatSidebar } from './CharacterChatSidebar'
 
 export function CharacterChat() {
-    const { t } = useTranslation()
     const { goBack, setPage } = useNavigation()
     const {
         activeCharacterChat,
@@ -33,32 +31,24 @@ export function CharacterChat() {
         removeCharacterChatCodexCard,
     } = useData()
     const { isAuthenticated } = useAuth()
-
-    // Detail route fallback: page navigation is allowed, but an active chat is
-    // required before mounting the socket-backed chat surface.
-    useEffect(() => {
-        if (!isAuthenticated) {
-            setPage('chatroom')
-        }
-    }, [isAuthenticated, setPage])
-
-    // No active chat (e.g. deep link / refresh) → back to the chat list.
-    useEffect(() => {
-        if (isAuthenticated && !activeCharacterChat) {
-            setPage('chatroom')
-        }
-    }, [isAuthenticated, activeCharacterChat, setPage])
-
-    if (!isAuthenticated) {
-        return null
-    }
     const activeCast = activeCharacterChat?.characters?.length
         ? activeCharacterChat.characters
         : activeCharacterChat?.character
           ? [activeCharacterChat.character]
           : []
-    if (!activeCharacterChat || activeCast.length === 0) {
-        return <LoadingSpinner message={t('characterChat.loading')} />
+    const hasActiveChat = Boolean(activeCharacterChat && activeCast.length > 0)
+
+    // Detail route fallback: page navigation is allowed, but an active chat is
+    // required before mounting the socket-backed chat surface. An empty cast is
+    // also unavailable, not an in-flight load that a spinner could wait for.
+    useEffect(() => {
+        if (!isAuthenticated || !hasActiveChat) {
+            setPage('chatroom')
+        }
+    }, [isAuthenticated, hasActiveChat, setPage])
+
+    if (!isAuthenticated || !activeCharacterChat || activeCast.length === 0) {
+        return null
     }
 
     const handleBack = () => goBack('landing')

@@ -21,6 +21,7 @@ export * from './lists'
 export * from './common/EmptyState'
 export * from './common/ModeBadge'
 export * from './common/CopyTextButton'
+export { ImageGenerationStatus, type ImageGenerationStage } from './common/ImageGenerationStatus'
 
 // Reference panel building blocks (codex / lorebook rows + groups)
 export * from './reference'

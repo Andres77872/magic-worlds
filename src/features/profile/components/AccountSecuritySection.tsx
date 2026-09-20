@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff, KeyRound, Loader2, Lock, ShieldCheck } from 'lucide-react'
 import { apiService, ApiError } from '@/infrastructure/api'
-import { Button, Card, Field, Icon, Input, SectionHeader, Toast } from '@/ui/primitives'
+import { Button, Field, Icon, Input, SectionHeader, Toast } from '@/ui/primitives'
 
 interface Notice {
     tone: 'success' | 'error'
@@ -107,23 +107,21 @@ export function AccountSecuritySection() {
     return (
         <section className="flex flex-col gap-4">
             <SectionHeader icon={ShieldCheck} title={t('profile.security.title')} />
-            <Card className="px-5 py-5">
-                <form onSubmit={handleSubmit} className="flex max-w-md flex-col gap-4">
-                    {passwordField('current', t('profile.security.current'), current, setCurrent, 'current-password', Lock)}
-                    {passwordField('next', t('profile.security.new'), next, setNext, 'new-password', KeyRound)}
-                    {passwordField('confirm', t('profile.security.confirm'), confirm, setConfirm, 'new-password', ShieldCheck)}
-                    <div className="flex justify-end">
-                        <Button
-                            type="submit"
-                            size="sm"
-                            disabled={submitting}
-                            iconLeft={submitting ? <Loader2 size={15} className="animate-spin" /> : <Icon icon={KeyRound} size={15} />}
-                        >
-                            {submitting ? t('profile.security.submitting') : t('profile.security.submit')}
-                        </Button>
-                    </div>
-                </form>
-            </Card>
+            <form onSubmit={handleSubmit} className="flex max-w-md flex-col gap-4">
+                {passwordField('current', t('profile.security.current'), current, setCurrent, 'current-password', Lock)}
+                {passwordField('next', t('profile.security.new'), next, setNext, 'new-password', KeyRound)}
+                {passwordField('confirm', t('profile.security.confirm'), confirm, setConfirm, 'new-password', ShieldCheck)}
+                <div className="flex justify-end">
+                    <Button
+                        type="submit"
+                        size="sm"
+                        disabled={submitting}
+                        iconLeft={submitting ? <Loader2 size={15} className="animate-spin" /> : <Icon icon={KeyRound} size={15} />}
+                    >
+                        {submitting ? t('profile.security.submitting') : t('profile.security.submit')}
+                    </Button>
+                </div>
+            </form>
 
             <Toast
                 open={Boolean(notice)}

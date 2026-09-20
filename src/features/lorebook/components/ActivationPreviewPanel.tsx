@@ -57,10 +57,10 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
     }
 
     return (
-        <div className="flex flex-col gap-4 rounded-xl border border-parchment-50/10 bg-ink-800 p-5">
+        <section aria-label={t('lorebookStudio.activationPreview.title')} className="flex min-w-0 flex-col gap-4 border-t border-parchment-50/10 pt-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                    <h3 className="font-display text-xl font-semibold text-parchment-50">{t('lorebookStudio.activationPreview.title')}</h3>
+                    <h3 className="font-display text-h3 font-semibold text-parchment-50">{t('lorebookStudio.activationPreview.title')}</h3>
                     <p className="mt-1 font-narrative text-sm text-parchment-300">
                         {t('lorebookStudio.activationPreview.description')}
                     </p>
@@ -98,25 +98,25 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
                 </Callout>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg bg-ink-700 px-4 py-3">
-                    <div className="font-ui text-meta font-semibold uppercase tracking-[0.14em] text-parchment-400">{t('lorebookStudio.activationPreview.statActivated')}</div>
-                    <div className="mt-1 font-display text-2xl font-semibold text-parchment-50">{activated.length}</div>
+            <dl className="grid grid-cols-2 gap-4 border-y border-parchment-50/10 py-4 sm:grid-cols-3">
+                <div className="min-w-0">
+                    <dt className="font-ui text-caption font-medium text-parchment-400">{t('lorebookStudio.activationPreview.statActivated')}</dt>
+                    <dd className="mt-1 font-display text-2xl font-semibold text-parchment-50">{activated.length}</dd>
                 </div>
-                <div className="rounded-lg bg-ink-700 px-4 py-3">
-                    <div className="font-ui text-meta font-semibold uppercase tracking-[0.14em] text-parchment-400">{t('lorebookStudio.activationPreview.statSkipped')}</div>
-                    <div className="mt-1 font-display text-2xl font-semibold text-parchment-50">{skipped}</div>
+                <div className="min-w-0">
+                    <dt className="font-ui text-caption font-medium text-parchment-400">{t('lorebookStudio.activationPreview.statSkipped')}</dt>
+                    <dd className="mt-1 font-display text-2xl font-semibold text-parchment-50">{skipped}</dd>
                 </div>
-                <div className="rounded-lg bg-ink-700 px-4 py-3">
-                    <div className="font-ui text-meta font-semibold uppercase tracking-[0.14em] text-parchment-400">{t('lorebookStudio.activationPreview.statTokens')}</div>
-                    <div className="mt-1 font-display text-2xl font-semibold text-parchment-50">
+                <div className="col-span-2 min-w-0 sm:col-span-1">
+                    <dt className="font-ui text-caption font-medium text-parchment-400">{t('lorebookStudio.activationPreview.statTokens')}</dt>
+                    <dd className="mt-1 font-display text-2xl font-semibold text-parchment-50">
                         {preview.totalEstimatedTokens}<span className="text-sm text-parchment-400">/{preview.tokenBudget}</span>
-                    </div>
+                    </dd>
                 </div>
-            </div>
+            </dl>
 
-            <div className="overflow-hidden rounded-lg border border-parchment-50/[.08]">
-                <div className="border-b border-parchment-50/[.08] bg-ink-700 px-4 py-3 font-ui text-sm font-semibold text-parchment-50">
+            <div className="min-w-0">
+                <div className="border-b border-parchment-50/10 pb-3 font-ui text-body font-semibold text-parchment-50">
                     {t('lorebookStudio.activationPreview.traceTitle')}
                 </div>
                 <div className="max-h-[260px] overflow-y-auto divide-y divide-parchment-50/[.06]">
@@ -124,7 +124,7 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
                         <div className="px-4 py-6 text-center font-narrative text-sm text-parchment-300">{t('lorebookStudio.activationPreview.empty')}</div>
                     ) : (
                         preview.results.map((result) => (
-                            <div key={`${result.lorebookId}-${result.entryId}`} className="px-4 py-3">
+                            <div key={`${result.lorebookId}-${result.entryId}`} className="py-3">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span className="font-ui text-sm font-semibold text-parchment-50">{result.title}</span>
                                     <Badge tone={result.status === 'activated' ? 'live' : 'neutral'}>
@@ -156,6 +156,6 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
                     <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-parchment-200">{preview.promptPreview}</pre>
                 </Callout>
             )}
-        </div>
+        </section>
     )
 }

@@ -4,7 +4,7 @@
  */
 
 import {Plus, Trash2, X} from 'lucide-react';
-import {useState} from 'react';
+import {useId, useState} from 'react';
 import {Trans, useTranslation} from 'react-i18next';
 import {ConfirmDialog} from '../ConfirmDialog';
 import {Button, Icon, IconButton, Input, Textarea} from '@/ui/primitives';
@@ -52,6 +52,7 @@ export const AttributeList = ({
 }: AttributeListProps) => {
   const {t} = useTranslation();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const headingId = useId();
   const singularName = category.name.slice(0, -1);
 
   // Handle delete category button click
@@ -71,18 +72,18 @@ export const AttributeList = ({
   const defaultAddButtonLabel = t('ui.attributeList.add', {name: singularName});
 
   return (
-    <div className="mb-4 rounded-lg border border-parchment-50/10 bg-ink-700 p-4">
+    <section aria-labelledby={headingId} className="min-w-0 border-t border-line-faint py-5 first:border-t-0 first:pt-0">
       <div className="mb-4 flex flex-col items-start justify-between gap-2 md:flex-row md:items-start">
         <div className="flex-1">
-          <h3 className="m-0 mb-2 font-display text-lg font-semibold text-parchment-50">{category.name}</h3>
+          <h3 id={headingId} className="m-0 mb-2 font-display text-lg font-semibold text-fg">{category.name}</h3>
           {category.description && (
-            <p className="m-0 font-narrative text-sm leading-snug text-parchment-400">{category.description}</p>
+            <p className="m-0 font-ui text-label leading-relaxed text-fg-subtle">{category.description}</p>
           )}
         </div>
         <div className="flex w-full flex-wrap items-center justify-between gap-2 md:w-auto md:justify-end">
           <Button
             type="button"
-            variant="secondary"
+            variant="ghost"
             size="sm"
             iconLeft={<Icon icon={Plus} size={14} />}
             onClick={onAddAttribute}
@@ -93,7 +94,7 @@ export const AttributeList = ({
           {isDeletable && onDeleteCategory && (
             <Button
               type="button"
-              variant="danger"
+              variant="danger-ghost"
               size="sm"
               iconLeft={<Icon icon={Trash2} size={14} />}
               onClick={handleDeleteClick}
@@ -107,36 +108,37 @@ export const AttributeList = ({
 
       <div className="flex flex-col gap-2">
         {attributes.length === 0 && (
-          <div className="rounded-sm bg-ink-600 p-4 text-center font-narrative italic text-parchment-400">
-            <p className="m-0">{t('ui.attributeList.emptyHint', {name: category.name.toLowerCase()})}</p>
-          </div>
+          <p className="m-0 py-3 text-body text-fg-subtle">{t('ui.attributeList.emptyHint', {name: category.name.toLowerCase()})}</p>
         )}
 
         {attributes.map((attr, index) => (
           <div
             key={index}
-            className="flex flex-col items-start gap-2 rounded-sm border-b border-parchment-50/10 p-2 pb-2 transition-colors hover:bg-ink-600 md:flex-row md:border-b-0"
+            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2 border-b border-line-faint pb-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] sm:border-b-0 sm:pb-0"
           >
             <Input
-              className="w-full flex-1 md:w-auto"
+              className="col-start-1 min-w-0 w-full"
               type="text"
               placeholder={keyPlaceholder || defaultKeyPlaceholder}
+              aria-label={`${keyPlaceholder || defaultKeyPlaceholder} ${index + 1}`}
               value={attr.key}
               onChange={(e) => onUpdateAttribute(index, 'key', e.target.value)}
             />
             {valueIsTextarea ? (
               <Textarea
-                className="w-full flex-[2] min-h-[60px] md:w-auto"
+                className="col-start-1 row-start-2 min-h-16 min-w-0 w-full sm:col-start-2 sm:row-start-1"
                 placeholder={valuePlaceholder || defaultValuePlaceholder}
+                aria-label={`${valuePlaceholder || defaultValuePlaceholder} ${index + 1}`}
                 value={attr.value}
                 onChange={(e) => onUpdateAttribute(index, 'value', e.target.value)}
                 rows={2}
               />
             ) : (
               <Input
-                className="w-full flex-[2] md:w-auto"
+                className="col-start-1 row-start-2 min-w-0 w-full sm:col-start-2 sm:row-start-1"
                 type="text"
                 placeholder={valuePlaceholder || defaultValuePlaceholder}
+                aria-label={`${valuePlaceholder || defaultValuePlaceholder} ${index + 1}`}
                 value={attr.value}
                 onChange={(e) => onUpdateAttribute(index, 'value', e.target.value)}
               />
@@ -144,6 +146,7 @@ export const AttributeList = ({
             <IconButton
               tone="danger"
               size="sm"
+              className="col-start-2 row-start-1 sm:col-start-3"
               onClick={() => onRemoveAttribute(index)}
               label={t('ui.attributeList.remove')}
             >
@@ -178,6 +181,6 @@ export const AttributeList = ({
         cancelLabel={t('common.cancel')}
         variant="danger"
       />
-    </div>
+    </section>
   );
 };

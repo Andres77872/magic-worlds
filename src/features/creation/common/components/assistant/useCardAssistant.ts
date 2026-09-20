@@ -9,6 +9,7 @@ import type {
     CardAssistantCardType,
     CardAssistantConversation,
     CardAssistantMessage,
+    CardAssistantTurnRequest,
 } from '@/shared/types/aiCard.types'
 import {
     attachAppliedChanges,
@@ -94,6 +95,8 @@ function isAbortError(error: unknown): boolean {
 function normalizedCurrentCard(
     card: Record<string, unknown>,
     cardId: string | null | undefined,
+    cardType: CardAssistantCardType,
+    savedCard?: CardAssistantCardResponse | null,
 ): Record<string, unknown> | null {
     if (!cardId) return null
     const clean = (value: unknown): unknown => {
@@ -105,7 +108,27 @@ function normalizedCurrentCard(
                 .map(([key, child]) => [key, clean(child)]),
         )
     }
-    return { ...(clean(card) as Record<string, unknown>), id: cardId }
+    const result: Record<string, unknown> = { ...(clean(card) as Record<string, unknown>), id: cardId }
+    if (cardType !== 'adventure_template') {
+        // Form payloads contain authored fields only. Revision markers must come from
+        // the server's editable snapshot, never invented defaults or old form data.
+        const revisionKeys = [
+            'latest_version_id', 'latest_version_number', 'has_draft',
+            'draft_updated_at', 'draft_based_on_version_number',
+        ]
+        if (!savedCard || savedCard.id !== cardId || revisionKeys.some((key) => savedCard[key] === undefined)) {
+            throw new Error('Missing card assistant revision metadata')
+        }
+        for (const key of revisionKeys) result[key] = savedCard[key]
+        // The strict DTO forbids even is_draft:false on the published fallback.
+        delete result.is_draft
+        delete result.based_on_version_number
+        if (savedCard.has_draft === true) {
+            result.is_draft = savedCard.is_draft
+            result.based_on_version_number = savedCard.based_on_version_number
+        }
+    }
+    return result
 }
 
 export function useCardAssistant<TCard extends CardAssistantCardResponse = CardAssistantCardResponse>({
@@ -378,18 +401,34 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
         })
 
         try {
-            const conversation = activeConversationRef.current ?? await createConversation(controller.signal)
+            const existing = activeConversationRef.current
+            const targetId = cardIdRef.current
+            const conversation = existing && (existing.card_id ?? null) === targetId
+                ? existing
+                : await createConversation(controller.signal)
             controller.signal.throwIfAborted()
             if (activeRequestRef.current !== requestId) return
             const id = conversationKey(conversation)
             if (!id) throw new Error('Missing assistant conversation id')
+            const body: CardAssistantTurnRequest = { message: text, card_type: cardType, current_card: null }
+            if (targetId) {
+                // Saves, publishes, restores and assistant turns can all advance the
+                // editable snapshot. Fetch it on each send without hydrating the form
+                // or losing the user's unsaved changes. The server checks these CAS
+                // values before generation and again before committing the result.
+                const detail = await apiService.getCardAssistantConversation(id, { timeoutMs: META_TIMEOUT_MS, signal: controller.signal })
+                controller.signal.throwIfAborted()
+                if (activeRequestRef.current !== requestId) return
+                if (detail.conversation.card_id !== targetId || !detail.target_cas) {
+                    throw new Error('Missing card assistant target snapshot')
+                }
+                body.current_card = normalizedCurrentCard(currentCardRef.current, targetId, cardType, detail.card)
+                body.expected_revision = detail.target_cas.revision
+                body.expected_content_hash = detail.target_cas.content_hash
+            }
             await apiService.streamCardAssistantMessage(
                 id,
-                {
-                    message: text,
-                    card_type: cardType,
-                    current_card: normalizedCurrentCard(currentCardRef.current, cardIdRef.current),
-                },
+                body,
                 (event) => {
                     if (activeRequestRef.current !== requestId || controller.signal.aborted || (event.request_id && event.request_id !== requestId)) return
                     if (event.type !== 'assistant_delta') updates.flush()
@@ -442,6 +481,10 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                     }
                     if (event.type === 'error') {
                         receivedError = true
+                        const staleTarget = event.error?.category === 'target_snapshot_stale'
+                        // A rejected turn has no completed result to recover. Reload
+                        // must instead stage the current saved card for review.
+                        if (staleTarget) lastRequestIdRef.current = null
                         const message = event.detail || event.error?.message || tRef.current('creation.common.assistant.notices.generic')
                         setMessages((prev) => prev.some((item) => item.message_id === placeholderId)
                             ? prev.map((item) => item.message_id === placeholderId ? { ...item, status: 'failed' } : item)
@@ -449,7 +492,11 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                                 role: 'assistant', status: 'failed', content: message }])
                         setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                         setStreamingMessageId(null)
-                        setNotice({ kind: 'error', message, canRetry: event.error?.retryable !== false })
+                        setNotice({
+                            kind: 'error', message,
+                            canRetry: !staleTarget && event.error?.retryable !== false,
+                            canReload: staleTarget,
+                        })
                     }
                     // 'done' alone never reports success; the post-stream
                     // recovery below handles a missing 'final'.
@@ -485,6 +532,9 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                     })
                 }
                 // Otherwise the panel closed/unmounted — nothing to surface.
+            } else if (err instanceof ApiError && err.category === 'target_snapshot_stale') {
+                lastRequestIdRef.current = null
+                setNotice({ kind: 'error', message: err.message, canReload: true })
             } else if (err instanceof ApiError && err.status === 409) {
                 setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                 setNotice({

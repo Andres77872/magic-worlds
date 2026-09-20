@@ -54,15 +54,11 @@ export function AttributeManager({
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2 border-b-2 border-parchment-50/10 pb-4">
+            <div className="flex flex-col gap-2">
                 <SectionHeader
-                    title={
-                        <span className="flex items-center gap-2">
-                            {icon && <Icon icon={icon} size={20} className="text-parchment-400" />}
-                            {title}
-                        </span>
-                    }
-                    className="max-sm:flex-col max-sm:items-start max-sm:gap-4"
+                    as="h3"
+                    icon={icon}
+                    title={title}
                     right={
                         <Button
                             variant="secondary"
@@ -79,13 +75,11 @@ export function AttributeManager({
             </div>
 
             {showAddCategory && (
-                <div onClick={(e) => e.stopPropagation()}>
-                    <CategoryForm
-                        onSubmit={handleAddCategory}
-                        onCancel={() => setShowAddCategory(false)}
-                        useFormWrapper={false}
-                    />
-                </div>
+                <CategoryForm
+                    onSubmit={handleAddCategory}
+                    onCancel={() => setShowAddCategory(false)}
+                    useFormWrapper={false}
+                />
             )}
 
             <div className="flex flex-col gap-6">
@@ -93,26 +87,25 @@ export function AttributeManager({
                     const config = categoryConfig[category.id] || {};
 
                     return (
-                        <div key={category.id}>
-                            <AttributeList
-                                category={category}
-                                attributes={attributes[category.id] || []}
-                                onAddAttribute={() => onAddAttribute(category.id)}
-                                onUpdateAttribute={(index, field, value) =>
-                                    onUpdateAttribute(category.id, index, field, value)
-                                }
-                                onRemoveAttribute={(index) => onRemoveAttribute(category.id, index)}
-                                onDeleteCategory={() => onDeleteCategory(category.id)}
-                                isDeletable={category.type === 'custom'}
-                                keyPlaceholder={config.keyPlaceholder}
-                                valuePlaceholder={config.valuePlaceholder}
-                                addButtonLabel={config.addButtonLabel}
-                                valueIsTextarea={config.valueIsTextarea}
-                            />
-                        </div>
+                        <AttributeList
+                            key={category.id}
+                            category={category}
+                            attributes={attributes[category.id] || []}
+                            onAddAttribute={() => onAddAttribute(category.id)}
+                            onUpdateAttribute={(index, field, value) =>
+                                onUpdateAttribute(category.id, index, field, value)
+                            }
+                            onRemoveAttribute={(index) => onRemoveAttribute(category.id, index)}
+                            onDeleteCategory={() => onDeleteCategory(category.id)}
+                            isDeletable={category.type === 'custom'}
+                            keyPlaceholder={config.keyPlaceholder}
+                            valuePlaceholder={config.valuePlaceholder}
+                            addButtonLabel={config.addButtonLabel}
+                            valueIsTextarea={config.valueIsTextarea}
+                        />
                     );
                 })}
             </div>
         </div>
     );
-} 
+}

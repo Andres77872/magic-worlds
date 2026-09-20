@@ -1,4 +1,23 @@
 export const en = {
+    imageGeneration: {
+        stages: {
+            starting: 'Starting image generation…',
+            pending: 'Image queued…',
+            in_progress: 'Generating image…',
+            mirroring: 'Saving image…',
+            loading: 'Loading image…',
+            uploading: 'Uploading image…',
+        },
+        hints: {
+            starting: 'Sending your request. This can take a moment.',
+            pending: 'Your image will start automatically when a slot is available.',
+            in_progress: 'This can take a moment. Your image will appear here when ready.',
+            mirroring: 'Your image has been created. Finishing up…',
+            loading: 'Your image is ready. Preparing it for display…',
+            uploading: 'Your image will appear here when the upload finishes.',
+        },
+        keepChatting: 'You can keep chatting while your image is being created.',
+    },
     streamFields: {
         name: 'Name',
         description: 'Description',
@@ -1082,7 +1101,7 @@ export const en = {
                         },
                         actionMenu: {
                             title: 'Every card has an action menu',
-                            body: 'Each card’s menu covers its whole life: edit, begin an adventure or start a chat, export the card as JSON, copy a shareable link, or delete with confirmation.',
+                            body: 'Each card’s menu covers its whole life: edit, begin an adventure or start a chat, download a PNG card, copy a shareable link, or delete with confirmation.',
                         },
                         links: {
                             title: 'Links and previews',
@@ -1303,7 +1322,7 @@ export const en = {
                     reusableFacts: 'Keep descriptions factual and reusable. Put temporary scene changes in the running adventure session instead of rewriting the original card.',
                     compactLorebooks: 'Treat lorebook entries as compact facts. Split large setting documents into smaller entries with precise activation keys.',
                     saveOften: 'Save after major edits, before navigating away, and before using generated output as important source material.',
-                    exportCards: 'Export important cards as JSON from the gallery menu before large rewrites. The file doubles as a backup you can keep or share.',
+                    exportCards: 'Download important cards as PNG files from the gallery menu before large rewrites. Keep or share the exported card images.',
                     iterateMedia: 'Use generated images and themes as iteration tools. Regenerate when the direction is wrong; browse history when the right asset already exists.',
                     separateWorkflows: 'Use novels for authored prose and adventures for interactive play. They share cards, but they serve different workflows.',
                 },
@@ -1393,7 +1412,8 @@ export const en = {
                 personas: {
                     sectionTitle: 'Your personas',
                     sectionSubtitle: 'Who you play as in chats and adventures.',
-                    count: '{{count}} cards',
+                    count_one: '{{count}} card',
+                    count_other: '{{count}} cards',
                     defaultBadge: 'Default persona',
                     defaultMarker: 'Default',
                     newPersona: 'New persona',
@@ -2991,6 +3011,7 @@ export const en = {
                         replaceImage: 'Replace image',
                         removeImage: 'Remove image',
                         uploading: 'Uploading…',
+                        stopWaiting: 'Stop waiting',
                         generating: 'Generating…',
                         starting: 'Starting…',
                         stages: {
@@ -3027,7 +3048,7 @@ export const en = {
                             tooLarge: 'That image is larger than 15 MB — pick a smaller file.',
                             uploadCanceled: 'Upload canceled.',
                             nameFirst: 'Give your {{noun}} a name first — the portrait is drawn from it.',
-                            imageCanceled: 'Canceled. The image may still finish in the background — try again to check.',
+                            imageCanceled: 'Stopped waiting. The image may still finish; check your gallery in a moment.',
                             saveFirst: 'Save the {{noun}} first, then generate its theme.',
                             themeCanceled: 'Canceled before the task was accepted.',
                             defaultThemeDescription: 'An evocative theme song for {{name}}.',
@@ -4443,6 +4464,7 @@ export const en = {
                     alt: 'Generated scene',
                     conjuring: 'Conjuring the scene…',
                     failed: 'Image generation failed.',
+                    loadFailed: 'The image could not be loaded. Refresh the page to try again.',
                 },
                 leftPanel: {
                     addCharacter: 'Add character',

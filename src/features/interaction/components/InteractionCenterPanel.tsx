@@ -49,8 +49,6 @@ interface TurnRestore {
     forwardOptions?: ForwardOption[]
     segments?: ChatResponseSegment[]
     imagePrompt?: string
-    assistantMessageId?: number
-    turnId?: string
     imageJobId?: string
     imageStatus?: ExtendedTurnEntry['imageStatus']
     imageStatusUrl?: string
@@ -271,8 +269,8 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                         forwardOptions: restore.forwardOptions,
                         segments: restore.segments,
                         imagePrompt: restore.imagePrompt,
-                        assistantMessageId: restore.assistantMessageId,
-                        turnId: restore.turnId,
+                        // Keep the current attempt's stored ids: the restored
+                        // reply's row was deleted before regeneration started.
                         imageJobId: restore.imageJobId,
                         imageStatus: restore.imageStatus,
                         imageStatusUrl: restore.imageStatusUrl,
@@ -543,7 +541,16 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             onTtsJob: applyTtsFrame,
             onTtsComplete: applyTtsFrame,
             onTtsFailed: applyTtsFrame,
-            onError: (message) => {
+            onError: (message, detail) => {
+                // The UI copy is deliberately generic; the category + request id
+                // are what correlate this failure with the backend log line.
+                console.warn('chat_stream_error', {
+                    surface: config.basePath,
+                    sessionId,
+                    category: detail.category,
+                    requestId: detail.requestId,
+                    turnId: detail.turnId,
+                })
                 deltaBatchRef.current?.flush()
                 failStreamingTurn(message || t('interaction.center.generateFailed'))
             },
@@ -688,8 +695,10 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         }
     }
 
+    const composerRef = useRef<HTMLTextAreaElement | null>(null)
     const handleForwardOptionClick = useCallback((message: string) => {
         setInput(message)
+        composerRef.current?.focus()
     }, [])
 
     // Request (or retry) TTS narration for a finished GM turn. Optimistically marks
@@ -773,13 +782,16 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         setTurnState(streamingTurns)
 
         // The server owns the durable history and prompt construction. A chat
-        // request therefore carries only the latest user input.
-        const content = [...history].reverse().find((turn) => turn.type === 'user')?.content.trim()
+        // request carries the latest input and, for a retry, its durable id.
+        // Sending stored text as new input would append a duplicate user row.
+        const content = precedingUser?.content.trim()
         if (!content) {
             failStreamingTurn(t('interaction.center.generateFailed'))
             return
         }
-        sendChat(content, requestId)
+        const existingUserMessageId = storedMessageId(precedingUser)
+        if (existingUserMessageId !== undefined) sendChat(content, requestId, existingUserMessageId)
+        else sendChat(content, requestId)
         armGenerationWatchdog()
     }
 
@@ -791,6 +803,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
     })
 
     const handleRegenerateResponse = useCallback(async (turnId: string) => {
+        if (streamingIdRef.current) return
         if (!isAuthenticated) {
             openLoginModal()
             return
@@ -815,8 +828,6 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             forwardOptions: existingAiTurn.forwardOptions,
             segments: existingAiTurn.segments,
             imagePrompt: existingAiTurn.imagePrompt,
-            assistantMessageId: existingAiTurn.assistantMessageId,
-            turnId: existingAiTurn.turnId,
             imageJobId: existingAiTurn.imageJobId,
             imageStatus: existingAiTurn.imageStatus,
             imageStatusUrl: existingAiTurn.imageStatusUrl,
@@ -837,6 +848,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         const truncatedTurns = currentTurns.slice(0, turnIndex + 1)
         const resetAiTurn: ExtendedTurnEntry = {
             ...existingAiTurn,
+            id: generateUUID(),
             content: '',
             isStreaming: true,
             forwardOptions: undefined,
@@ -852,9 +864,8 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         setIsLoading(true)
         setError(null)
         // Every generation appends a fresh stored assistant row, so the
-        // replaced reply (and any stored turns after it) must be deleted
-        // first — otherwise post-done hydration resurrects the old answer
-        // next to a duplicated user bubble.
+        // replaced reply (and any stored turns after it) must be deleted first.
+        // The preceding user row is reused by id when generation starts.
         const replacedIds = [existingAiTurn, ...currentTurns.slice(turnIndex + 1)]
             .map((turn) => storedMessageId(turn))
             .filter((id): id is number => id !== undefined)
@@ -1079,8 +1090,8 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                             <p className="max-w-md font-narrative text-[17px] leading-relaxed text-parchment-200">
                                 {config.copy.emptyBody}
                             </p>
-                            <div className="mt-2 flex items-center gap-2 rounded-full border border-parchment-50/10 bg-ink-700 px-4 py-2 text-[13px] text-parchment-400">
-                                <Sparkles size={15} className="text-arcane-300" />
+                            <div className="mt-2 flex items-center gap-2 text-label text-parchment-300">
+                                <Sparkles size={15} strokeWidth={1.75} className="shrink-0 text-arcane-300" aria-hidden />
                                 <span>{config.copy.emptyHint}</span>
                             </div>
                         </div>
@@ -1110,13 +1121,13 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                                 )
                             })}
                             {canGenerateResponse && (
-                                <div className="my-4 flex items-center gap-3 rounded-xl border border-parchment-50/10 bg-ink-700 p-4">
-                                    <Sparkles size={18} className="shrink-0 text-arcane-300" />
-                                    <div className="flex flex-1 flex-col">
-                                        <span className="text-[14px] font-semibold text-parchment-50">
+                                <div className="my-4 flex flex-wrap items-center gap-3 border-t border-parchment-50/10 py-4">
+                                    <Sparkles size={18} strokeWidth={1.75} className="shrink-0 text-arcane-300" aria-hidden />
+                                    <div className="flex min-w-0 flex-1 basis-40 flex-col gap-1">
+                                        <span className="text-body font-semibold text-parchment-50">
                                             {config.copy.waitingTitle}
                                         </span>
-                                        <span className="text-[13px] text-parchment-400">
+                                        <span className="text-label text-parchment-300">
                                             {config.copy.waitingHint}
                                         </span>
                                     </div>
@@ -1149,8 +1160,9 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             )}
             </div>
 
-            <div className="border-t border-parchment-50/10 bg-ink-900/40 backdrop-blur-md">
+            <div className="bg-ink-800">
                 <ChatComposer
+                    inputRef={composerRef}
                     value={input}
                     onValueChange={setInput}
                     onSubmit={handleSubmit}

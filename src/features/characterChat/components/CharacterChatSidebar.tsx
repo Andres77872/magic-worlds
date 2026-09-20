@@ -10,7 +10,7 @@ import type { CodexLibraryCardSelection } from '@/features/codex'
 import { SessionLorebookPanel } from '@/features/lorebook'
 import { isLorebooksFeatureEnabled } from '@/shared/featureFlags'
 import { resolveMediaUrl } from '../../../infrastructure/api'
-import { Avatar, Button, Eyebrow, Icon, Portrait, Tag } from '../../../ui/primitives'
+import { Avatar, Button, Eyebrow, Icon, Portrait } from '@/ui/primitives'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
 import { CharacterChatCodexPanel } from './CharacterChatCodexPanel'
 
@@ -86,25 +86,21 @@ export function CharacterChatSidebar({
                         <h2 className="font-display text-h3 font-semibold leading-tight text-parchment-50">
                             {heading}
                         </h2>
-                        {!isGroup && lead?.race && (
-                            <div className="mt-1">
-                                <Tag>{lead.race}</Tag>
-                            </div>
-                        )}
+                        {!isGroup && lead?.race && <p className="text-label text-parchment-300">{lead.race}</p>}
                     </div>
 
                     {persona && (
-                        <div className="rounded-lg border border-ember-500/25 bg-ember-500/10 px-4 py-3">
-                            <Eyebrow tone="ember" className="mb-1 text-micro">
+                        <section className="border-l-2 border-ember-500/40 py-1 pl-3">
+                            <Eyebrow tone="ember" className="mb-1">
                                 {t('characterChat.sidebar.youAre')}
                             </Eyebrow>
                             <p className="font-display text-body font-semibold text-parchment-50">{persona.name}</p>
-                            {persona.race && <p className="mt-0.5 font-narrative text-xs text-parchment-400">{persona.race}</p>}
-                        </div>
+                            {persona.race && <p className="mt-0.5 text-label text-parchment-300">{persona.race}</p>}
+                        </section>
                     )}
 
                     {(hasCodexControls || (sessionId && lorebooksEnabled)) && (
-                        <div className="flex flex-col divide-y divide-parchment-50/10 rounded-lg border border-parchment-50/10 bg-ink-800 px-4 py-3">
+                        <div className="flex flex-col divide-y divide-parchment-50/10 border-y border-parchment-50/10">
                             {onAddCodexCards && onToggleCodexCard && onRemoveCodexCard && (
                                 <CharacterChatCodexPanel
                                     cards={codexCards}
@@ -121,54 +117,52 @@ export function CharacterChatSidebar({
                     )}
 
                     {isGroup ? (
-                        <div className="flex flex-col gap-2">
+                        <ul className="m-0 flex list-none flex-col divide-y divide-parchment-50/10 p-0">
                             {cast.map((member) => (
-                                <div key={member.id} className="rounded-lg border border-parchment-50/10 bg-ink-800 px-3 py-3">
-                                    <div className="flex items-start gap-3">
-                                        <Avatar
-                                            name={member.name}
-                                            src={resolveMediaUrl(member.image_url)}
-                                            size={42}
-                                            ring="arcane"
-                                        />
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                                <p className="min-w-0 truncate font-display text-body font-semibold text-parchment-50">{member.name}</p>
-                                                {member.race && <Tag>{member.race}</Tag>}
-                                            </div>
-                                            {member.greeting && (
-                                                <p className="mt-1 line-clamp-2 font-narrative text-xs italic leading-snug text-parchment-400">
-                                                    “{member.greeting}”
-                                                </p>
-                                            )}
-                                            {member.description && !member.greeting && (
-                                                <p className="mt-1 line-clamp-2 font-narrative text-xs leading-snug text-parchment-400">
-                                                    {member.description}
-                                                </p>
-                                            )}
+                                <li key={member.id} className="flex items-start gap-3 py-4">
+                                    <Avatar
+                                        name={member.name}
+                                        src={resolveMediaUrl(member.image_url)}
+                                        size={42}
+                                        ring="arcane"
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                            <p className="min-w-0 truncate font-display text-body font-semibold text-parchment-50">{member.name}</p>
+                                            {member.race && <span className="text-caption text-parchment-300">{member.race}</span>}
                                         </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => onEditCharacter(member)}
-                                            iconLeft={<Pencil size={14} />}
-                                            aria-label={t('characterChat.sidebar.editAria', { name: member.name })}
-                                        >
-                                            {t('common.edit')}
-                                        </Button>
+                                        {member.greeting && (
+                                            <p className="mt-1 line-clamp-2 font-narrative text-label italic text-parchment-300">
+                                                “{member.greeting}”
+                                            </p>
+                                        )}
+                                        {member.description && !member.greeting && (
+                                            <p className="mt-1 line-clamp-2 font-narrative text-label text-parchment-300">
+                                                {member.description}
+                                            </p>
+                                        )}
                                     </div>
-                                </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => onEditCharacter(member)}
+                                        iconLeft={<Pencil size={14} />}
+                                        aria-label={t('characterChat.sidebar.editAria', { name: member.name })}
+                                    >
+                                        {t('common.edit')}
+                                    </Button>
+                                </li>
                             ))}
-                        </div>
+                        </ul>
                     ) : lead?.greeting && (
-                        <div className="rounded-lg border border-parchment-50/10 bg-ink-800 px-4 py-3">
-                            <Eyebrow tone="ember" className="mb-1 text-micro">
+                        <section>
+                            <Eyebrow tone="muted" className="mb-2">
                                 {t('characterChat.sidebar.openingLine')}
                             </Eyebrow>
-                            <p className="font-narrative text-body italic leading-relaxed text-parchment-200">
+                            <blockquote className="font-narrative text-body italic leading-relaxed text-parchment-200">
                                 “{lead.greeting}”
-                            </p>
-                        </div>
+                            </blockquote>
+                        </section>
                     )}
 
                     {!isGroup && lead?.description && (

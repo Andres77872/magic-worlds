@@ -44,12 +44,12 @@ export function CardPreviewModal({
 
     const footer = onImport ? (
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
-            <span className="min-w-0 truncate font-ui text-xs text-parchment-400">
+            <span className="min-w-0 truncate font-ui text-xs text-fg-subtle">
                 {originalCreatorName
                     ? t('gallery.preview.createdBy', { name: originalCreatorName })
                     : ''}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
                 {alreadyImported && onOpenExisting && (
                     <Button variant="secondary" size="sm" onClick={onOpenExisting} disabled={importing}>
                         {t('gallery.preview.openExisting')}
@@ -59,7 +59,7 @@ export function CardPreviewModal({
                     variant="primary"
                     size="sm"
                     onClick={onImport}
-                    disabled={importDisabled || importing}
+                    disabled={importDisabled || importing || loading || Boolean(error) || !card}
                     iconLeft={
                         importing ? (
                             <Icon icon={Loader2} size={15} className="animate-spin" />

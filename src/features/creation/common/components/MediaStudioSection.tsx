@@ -22,6 +22,7 @@ import { useBackgroundTasks } from '@/app/hooks'
 import { apiService, resolveMediaUrl, type ImageJobPublicResponse } from '@/infrastructure/api'
 import { Button, Eyebrow, Icon, IconButton, ImageLightbox, Portrait, SectionHeader } from '@/ui/primitives'
 import { AudioWavePlayer } from '@/ui/components/audio'
+import { ImageGenerationStatus, type ImageGenerationStage } from '@/ui/components'
 import { CreatorField, CreatorTextarea } from './CreatorField'
 import { MediaHistoryDrawer } from './MediaHistoryDrawer'
 
@@ -165,6 +166,7 @@ export function MediaStudioSection({
     const [imgBusyKind, setImgBusyKind] = useState<'generate' | 'upload'>('generate')
     const [imgStage, setImgStage] = useState<ImageJobPublicResponse['status'] | null>(null)
     const [imgError, setImgError] = useState<string | null>(null)
+    const [imgNotice, setImgNotice] = useState<string | null>(null)
     const [viewerOpen, setViewerOpen] = useState(false)
     const imgAbortRef = useRef<AbortController | null>(null)
     const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -189,6 +191,7 @@ export function MediaStudioSection({
         setImgBusyKind('upload')
         setImgBusy(true)
         setImgError(null)
+        setImgNotice(null)
         try {
             const res = await apiService.uploadCardImage(file, { signal: controller.signal })
             if (!mountedRef.current) return
@@ -215,6 +218,7 @@ export function MediaStudioSection({
     const handleRemoveImage = () => {
         onImageUrl(undefined)
         setImgError(null)
+        setImgNotice(null)
         setViewerOpen(false)
     }
 
@@ -230,8 +234,10 @@ export function MediaStudioSection({
         const controller = new AbortController()
         imgAbortRef.current = controller
         setImgBusyKind('generate')
+        setImgStage(null)
         setImgBusy(true)
         setImgError(null)
+        setImgNotice(null)
         try {
             const body: CardPortraitRequest = {
                 card_type: cardType,
@@ -261,14 +267,14 @@ export function MediaStudioSection({
             } else if (job.status === 'pending' || job.status === 'in_progress' || job.status === 'mirroring') {
                 // The local wait deadline passed but the job is still running server-side —
                 // this is "slow", not "failed".
-                setImgError(t('creation.common.media.errors.timeout'))
+                setImgNotice(t('creation.common.media.errors.timeout'))
             } else {
                 setImgError(mediaErrorCopy(job.error ?? { category: job.status }, 'portrait', t))
             }
         } catch (err) {
             if (!mountedRef.current) return
             if (controller.signal.aborted) {
-                setImgError(t('creation.common.media.notices.imageCanceled'))
+                setImgNotice(t('creation.common.media.notices.imageCanceled'))
             } else {
                 setImgError(mediaErrorCopy(err, 'portrait', t))
             }
@@ -452,6 +458,18 @@ export function MediaStudioSection({
             : imgStage === 'pending' || imgStage === 'in_progress' || imgStage === 'mirroring'
               ? t(`creation.common.media.stages.${imgStage}`)
               : t('creation.common.media.generating')
+    const imageStage: ImageGenerationStage = imgBusyKind === 'upload'
+        ? 'uploading'
+        : imgStage === 'pending' || imgStage === 'in_progress' || imgStage === 'mirroring'
+          ? imgStage
+          : 'starting'
+    const imageFeedback = (
+        <>
+            {imgBusy && <ImageGenerationStatus stage={imageStage} />}
+            {imgNotice && <p role="status" className="text-caption text-parchment-300">{imgNotice}</p>}
+            {imgError && <p role="alert" className="text-caption text-blood-300">{imgError}</p>}
+        </>
+    )
 
     // Rendered once per layout — the hidden picker drives Replace/Upload, the
     // lightbox drives View. Both read the same refs/state as the action buttons.
@@ -470,7 +488,7 @@ export function MediaStudioSection({
 
     if (layout === 'compact') {
         return (
-            <div className="flex flex-col gap-4 rounded-xl border border-parchment-50/10 bg-ink-800 p-4 shadow-sm">
+            <div className="flex flex-col gap-4 border-t border-parchment-50/10 pt-5">
                 <div className="flex flex-col gap-0.5">
                     <Eyebrow tone="arcane">{isAdventure ? t('creation.common.media.coverTheme') : t('creation.common.media.portraitTheme')}</Eyebrow>
                     <p className="font-narrative text-xs leading-snug text-parchment-400">
@@ -496,18 +514,19 @@ export function MediaStudioSection({
                             />
                         </div>
                     )}
+                    {imageFeedback}
                     <CreatorTextarea
+                        aria-label={t('creation.common.media.artDirectionLabel')}
                         value={direction}
                         onChange={setDirection}
                         rows={2}
                         maxLength={EXTRA_DIRECTION_MAX}
                         placeholder={t('creation.common.media.artDirectionPlaceholderCompact')}
                     />
-                    {imgError && <p className="text-xs text-blood-500">{imgError}</p>}
                     {imgBusy ? (
-                        <div className="flex justify-end gap-2">
+                        <div className="flex flex-wrap justify-end gap-2">
                             <Button variant="secondary" size="sm" onClick={() => imgAbortRef.current?.abort()}>
-                                {t('common.cancel')}
+                                {imgBusyKind === 'generate' ? t('creation.common.media.stopWaiting') : t('common.cancel')}
                             </Button>
                             <Button variant="arcane" size="sm" disabled iconLeft={<Icon icon={Sparkles} size={15} />}>
                                 {imgBusyLabel}
@@ -564,6 +583,7 @@ export function MediaStudioSection({
                         />
                     )}
                     <CreatorTextarea
+                        aria-label={t('creation.common.media.songDirectionLabel')}
                         value={songDirection}
                         onChange={setSongDirection}
                         rows={2}
@@ -618,7 +638,7 @@ export function MediaStudioSection({
             {/* Portrait */}
             <div className="flex flex-col gap-4">
                 {imageControls}
-                <SectionHeader icon={ImagePlus} tone="arcane" title={imageLabel} />
+                <SectionHeader as="h3" icon={ImagePlus} tone="arcane" title={imageLabel} />
                 <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
                     <div className="group relative">
                         <Portrait name={template.name} src={resolvedImage} height={180} className="rounded-xl" />
@@ -632,6 +652,7 @@ export function MediaStudioSection({
                         )}
                     </div>
                     <div className="flex flex-col gap-3">
+                        {imageFeedback}
                         <CreatorField label={t('creation.common.media.artDirectionLabel')} tooltip={t('creation.common.media.artDirectionHelper')}>
                             <CreatorTextarea
                                 value={direction}
@@ -641,15 +662,14 @@ export function MediaStudioSection({
                                 placeholder={t('creation.common.media.artDirectionPlaceholder')}
                             />
                         </CreatorField>
-                        {imgError && <p className="text-sm text-blood-500">{imgError}</p>}
-                        <div className="flex items-center justify-between gap-2">
-                            <Button variant="ghost" onClick={() => openHistory('images')} iconLeft={<Icon icon={History} size={16} />}>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <Button variant="ghost" disabled={imgBusy} onClick={() => openHistory('images')} iconLeft={<Icon icon={History} size={16} />}>
                                 {t('creation.common.media.gallery')}
                             </Button>
-                            <div className="flex justify-end gap-2">
+                            <div className="flex flex-wrap justify-end gap-2">
                                 {imgBusy && (
                                     <Button variant="secondary" onClick={() => imgAbortRef.current?.abort()}>
-                                        {t('common.cancel')}
+                                        {imgBusyKind === 'generate' ? t('creation.common.media.stopWaiting') : t('common.cancel')}
                                     </Button>
                                 )}
                                 {!imgBusy && !resolvedImage && (
@@ -673,7 +693,7 @@ export function MediaStudioSection({
 
             {/* Theme song */}
             <div className="flex flex-col gap-4">
-                <SectionHeader icon={Music2} tone="arcane" title={t('creation.common.media.musicTheme')} />
+                <SectionHeader as="h3" icon={Music2} tone="arcane" title={t('creation.common.media.musicTheme')} />
                 {resolvedTheme && (
                     <AudioWavePlayer
                         src={resolvedTheme}

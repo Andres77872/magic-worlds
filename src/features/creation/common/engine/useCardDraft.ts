@@ -80,9 +80,8 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded }: UseCa
     const [saving, setSaving] = useState(false)
     const [publishing, setPublishing] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    // The body re-hydration must fire at most once per (card, version) — keyed so switching the
-    // viewed version of the same card (e.g. drawer "View v2") re-hydrates while same-key stays put.
-    const loadedFor = useRef<string | null>(null)
+    // Changing the callback must not restart a load or overwrite ongoing edits.
+    // The effect dependencies already limit hydration to card/version transitions.
     const onDraftLoadedRef = useRef(onDraftLoaded)
     onDraftLoadedRef.current = onDraftLoaded
 
@@ -103,21 +102,15 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded }: UseCa
             setDraftState(null)
             setIsHistorical(false)
             setViewingVersionNumber(null)
+            setLoading(false)
             return
         }
-        const loadKey = `${cardId}:${version ?? 'default'}`
         let cancelled = false
         setLoading(true)
         void (async () => {
             const doc = await fetchDraft()
             if (cancelled) return
             if (doc) setDraftState(toState(doc))
-
-            if (loadedFor.current === loadKey) {
-                setLoading(false)
-                return
-            }
-            loadedFor.current = loadKey
 
             if (typeof version === 'number') {
                 // Read-only historical view — never touches the draft. Falls back to the draft/

@@ -7,13 +7,14 @@ const meta = {
   title: 'Primitives/SectionHeader',
   component: SectionHeader,
   tags: ['autodocs'],
-  parameters: { layout: 'padded' },
-  decorators: [(Story) => <div className="w-[420px]"><Story /></div>],
+  parameters: { layout: 'padded', docs: { description: { component: 'Open section heading with a responsive action slot. Use the heading level that matches the document outline; ember denotes user content, arcane AI content.' } } },
+  decorators: [(Story) => <div className="w-full max-w-md"><Story /></div>],
   argTypes: {
     title: { control: 'text' },
     tone: { control: 'inline-radio', options: ['ember', 'arcane'] },
     icon: { control: false },
     right: { control: false },
+    as: { control: 'inline-radio', options: ['h2', 'h3', 'h4'] },
   },
   args: { title: 'Your characters', icon: Swords, tone: 'ember' },
 } satisfies Meta<typeof SectionHeader>

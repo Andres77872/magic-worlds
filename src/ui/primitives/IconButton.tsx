@@ -16,11 +16,10 @@ interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 
     children: ReactNode
 }
 
-// sm/md stay visually compact, but on coarse pointers (touch) an invisible
-// ::after overlay extends the hit area to the 44px minimum target size.
+// Touch targets occupy real layout space so adjacent actions cannot overlap.
 const DIM: Record<IconButtonSize, string> = {
-    sm: "h-8 w-8 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']",
-    md: "h-10 w-10 pointer-coarse:after:absolute pointer-coarse:after:-inset-0.5 pointer-coarse:after:content-['']",
+    sm: 'h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11',
+    md: 'h-10 w-10 pointer-coarse:h-11 pointer-coarse:w-11',
     lg: 'h-11 w-11',
 }
 
@@ -41,7 +40,10 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
             aria-label={label}
             title={label}
             className={cx(
-                'relative inline-flex shrink-0 items-center justify-center rounded-md transition-colors',
+                'inline-flex shrink-0 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                // Preserve caller positioning; conflicting relative/absolute utilities
+                // otherwise move search clears and lightbox close controls into the flow.
+                !/(?:^|\s)(?:absolute|fixed|sticky|static)(?:\s|$)/.test(className ?? '') && 'relative',
                 DIM[size],
                 TONE[tone],
                 className,

@@ -137,7 +137,7 @@ function SegmentMarkdown({ content, thought = false }: { content: string; though
 function ChatSegments({ segments }: { segments: ChatResponseSegment[] }) {
     const { t } = useTranslation()
     return (
-        <div className="flex w-full flex-col gap-3">
+        <div className="flex w-full flex-col gap-5">
             {segments.map((segment, index) => {
                 if (segment.kind === 'narrator') {
                     return (
@@ -153,10 +153,10 @@ function ChatSegments({ segments }: { segments: ChatResponseSegment[] }) {
                     <div
                         key={`${segment.kind}-${segment.speaker_id || speakerName}-${index}`}
                         className={cx(
-                            'w-full rounded-lg border px-3 py-2',
+                            'w-full border-l-2 pl-4',
                             isThought
-                                ? 'border-arcane-500/25 bg-arcane-500/10 text-arcane-300'
-                                : 'border-parchment-50/10 bg-ink-700/70 text-parchment-100',
+                                ? 'border-arcane-500/30 text-parchment-200'
+                                : 'border-parchment-50/15 text-parchment-100',
                         )}
                     >
                         <div className="mb-1.5 flex items-center gap-2">
@@ -171,11 +171,11 @@ function ChatSegments({ segments }: { segments: ChatResponseSegment[] }) {
                                 // thought in the whole log, on-screen or not.
                                 status={segment.streaming ? (isThought ? 'think' : 'live') : 'none'}
                             />
-                            <Eyebrow tone={isThought ? 'arcane' : 'ember'} className="text-[10px] tracking-[0.12em]">
+                            <Eyebrow tone={isThought ? 'arcane' : 'muted'} className="text-caption">
                                 {isThought ? t('interaction.chat.speakerThinks', { name: speakerName }) : speakerName}
                             </Eyebrow>
                         </div>
-                        <div className="font-narrative text-[15px] leading-relaxed">
+                        <div className="font-narrative text-narrative break-words">
                             <SegmentMarkdown content={segment.content} thought={isThought} />
                         </div>
                     </div>
@@ -213,7 +213,7 @@ function streamingStatusLabel(
 
 function StreamingStatus({ label }: { label: string }) {
     return (
-        <div className="mt-1.5 inline-flex items-center font-mono text-[11px] tracking-[0.08em] text-parchment-500">
+        <div className="mt-2 inline-flex items-center font-mono text-caption text-parchment-400">
             <span>{label}</span>
             <StreamingDots />
         </div>
@@ -227,9 +227,9 @@ function StreamingStatus({ label }: { label: string }) {
 export const ChatMessage = memo(function ChatMessage({ content, isUser, isStreaming, segments, narratorIdentity, aiLabel, loreMatcher }: ChatMessageProps) {
     const { t } = useTranslation()
     if (isUser) {
-        // Player turn — ember candlelit bubble (plain text + inline lore marks)
+        // Player voice stays distinct with a light ember wash, without a second outline.
         return (
-            <div className="inline-block rounded-2xl rounded-br-xs border border-ember-500/30 bg-ember-500/[.14] px-4 py-3 font-ui text-[15px] leading-relaxed text-parchment-50 whitespace-pre-wrap">
+            <div className="inline-block rounded-lg bg-ember-500/10 px-4 py-3 font-ui text-body text-parchment-50 whitespace-pre-wrap break-words">
                 {renderWithTriggers(content, loreMatcher ?? null)}
             </div>
         )

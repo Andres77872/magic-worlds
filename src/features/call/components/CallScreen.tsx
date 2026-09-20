@@ -171,7 +171,7 @@ export function CallScreenView({
             </div>
 
             {/* Top: leave / switch to text */}
-            <div className="relative z-10 flex items-center justify-between px-4 py-3">
+            <div className="relative z-10 flex shrink-0 items-center justify-between px-4 py-3">
                 <Button variant="ghost" size="sm" iconLeft={<Icon icon={MessageSquareText} size={15} />} onClick={onSwitchToText}>
                     {t('call.screen.switchToText')}
                 </Button>
@@ -179,7 +179,8 @@ export function CallScreenView({
             </div>
 
             {/* Center: identity + status + waveform + captions */}
-            <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6 text-center">
+            <div className="relative z-10 min-h-0 flex-1 overflow-y-auto px-6 text-center">
+                <div className="flex min-h-full flex-col items-center justify-center gap-5 py-5">
                 <div className={cx('rounded-full transition-all duration-300 ease-out', glowClass)}>
                     <Avatar name={name} src={imageUrl ?? null} size={188} ring={avatarRing} status={avatarStatus} />
                 </div>
@@ -198,12 +199,12 @@ export function CallScreenView({
                 {/* Live captions */}
                 <div className="flex min-h-[3.5rem] w-full max-w-[560px] flex-col gap-2 text-[15px] leading-relaxed">
                     {assistantText && (
-                        <p className="rounded-xl border border-arcane-500/25 bg-arcane-500/10 px-4 py-2.5 text-parchment-100">
+                        <p className="border-l-2 border-arcane-500/40 py-2 pl-4 text-left text-parchment-100">
                             <span className="font-semibold text-arcane-300">{name}:</span> {assistantText}
                         </p>
                     )}
                     {transcript && (
-                        <p className="rounded-xl border border-ember-500/20 bg-ember-500/10 px-4 py-2.5 text-parchment-100">
+                        <p className="border-l-2 border-ember-500/40 py-2 pl-4 text-left text-parchment-100">
                             <span className="font-semibold text-ember-300">{t('call.screen.youLabel')}</span> {transcript}
                         </p>
                     )}
@@ -224,10 +225,11 @@ export function CallScreenView({
                         </span>
                     </p>
                 )}
+                </div>
             </div>
 
             {/* Bottom: large controls */}
-            <div className="relative z-10 flex items-center justify-center gap-4 px-6 pb-7 pt-3">
+            <div className="relative z-10 flex shrink-0 items-center justify-center gap-4 px-6 pb-5 pt-3">
                 <CallControlButton
                     label={isMuted ? t('call.screen.unmute') : t('call.screen.mute')}
                     tone={isMuted ? 'danger' : 'neutral'}
@@ -241,7 +243,7 @@ export function CallScreenView({
                 <CallControlButton label={t('call.screen.endCall')} tone="danger" prominent onClick={onEnd} icon={PhoneOff} />
             </div>
 
-            <p className="relative z-10 pb-4 text-center text-caption text-parchment-400">
+            <p className="relative z-10 shrink-0 px-6 pb-4 text-center text-caption text-parchment-400">
                 {t('call.screen.privacyNote')}
             </p>
 

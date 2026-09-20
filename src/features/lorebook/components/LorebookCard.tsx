@@ -81,13 +81,17 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
                         <h3 className="m-0 min-w-0 truncate font-display text-narrative font-semibold leading-tight text-parchment-50" title={lorebook.name}>
                             {lorebook.name}
                         </h3>
-                        <Badge tone={lorebook.enabled ? 'live' : 'neutral'} className="hidden shrink-0 sm:inline-flex">
-                            {lorebook.enabled ? t('lorebookGallery.card.enabled') : t('lorebookGallery.card.disabled')}
-                        </Badge>
-                        {secretEntries > 0 && (
-                            <Badge tone="nsfw" icon={<Icon icon={EyeOff} size={11} />} className="hidden shrink-0 sm:inline-flex">
-                                {t('lorebookGallery.card.secret', { count: secretEntries })}
+                        <span className="hidden shrink-0 sm:inline-flex">
+                            <Badge tone={lorebook.enabled ? 'live' : 'neutral'}>
+                                {lorebook.enabled ? t('lorebookGallery.card.enabled') : t('lorebookGallery.card.disabled')}
                             </Badge>
+                        </span>
+                        {secretEntries > 0 && (
+                            <span className="hidden shrink-0 sm:inline-flex">
+                                <Badge tone="nsfw" icon={<Icon icon={EyeOff} size={11} />}>
+                                    {t('lorebookGallery.card.secret', { count: secretEntries })}
+                                </Badge>
+                            </span>
                         )}
                     </div>
                     <p className="m-0 truncate font-narrative text-label leading-snug text-parchment-300">

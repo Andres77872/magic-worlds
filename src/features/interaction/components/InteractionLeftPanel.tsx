@@ -4,12 +4,12 @@ import { ArrowLeft, AudioLines, Check, Globe, Info, Pencil, Plus, UserCircle, Us
 import type { Adventure, AdventureSnapshot, Character, CharacterVoice, World } from '../../../shared'
 import { readWorldPlaceType, worldPlaceTypeLabel } from '../../../shared'
 import { isLorebooksFeatureEnabled, isVoicesFeatureEnabled } from '../../../shared/featureFlags'
-import { Badge, Button, Icon, IconButton, SectionHeader, SwitchRow, Tag, Textarea } from '../../../ui/primitives'
+import { Avatar, Button, Icon, IconButton, SectionHeader, SwitchRow, Textarea, ThemeSongButton } from '@/ui/primitives'
+import { ReferenceRow } from '@/ui/components'
 import { VoicePickerDialog } from '../../voices/components/VoicePickerDialog'
 import { SessionLorebookPanel } from '@/features/lorebook'
 import { cardWindow } from '@/features/floatingWindows'
 import { snapshotToCardPreview } from '@/features/codex'
-import { Card } from '../../../ui/components/lists/Card'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
 import { resolveMediaUrl } from '../../../infrastructure/api'
 import { useData, useFloatingWindows } from '../../../app/hooks'
@@ -116,9 +116,9 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
     }
 
     return (
-        <div className="flex flex-col gap-4 p-5">
-            <div className="flex items-center gap-2">
-                <Button variant="secondary" full iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack} className="flex-1">
+        <div className="flex min-w-0 flex-col gap-6 p-5">
+            <div className="flex flex-wrap items-center gap-2">
+                <Button variant="ghost" size="sm" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack} className="min-w-0 whitespace-normal! text-left">
                     {t('interaction.leftPanel.backToAdventures')}
                 </Button>
                 <ModeBadge mode="adventure" />
@@ -126,13 +126,13 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
 
             <ScenarioSection scenario={scenario} editable={editable} onSave={handleSaveScenario} />
 
-            {lorebooksEnabled && <SessionLorebookPanel targetKind="adventure_session" targetId={adventure.id} />}
+            {lorebooksEnabled && <SessionLorebookPanel targetKind="adventure_session" targetId={adventure.id} framed={false} />}
 
             <section className="flex flex-col gap-2.5">
                 <SectionHeader
                     icon={UserCircle}
                     title={t('interaction.leftPanel.personaTitle')}
-                    tone="arcane"
+                    tone="ember"
                     right={editable && !persona ? <AddButton label={t('interaction.leftPanel.choosePersona')} onClick={() => setPicker('persona')} /> : undefined}
                 />
                 {persona ? (
@@ -234,11 +234,11 @@ function NarrationSection({
     return (
         <section className="flex flex-col gap-2.5">
             <SectionHeader icon={Volume2} title={t('interaction.narration.title')} tone="ember" />
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-700/70 px-3.5 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
                     <p className="font-ui text-sm font-semibold text-parchment-50">{t('interaction.narration.narratorVoice')}</p>
                     {voice?.voice_id ? (
-                        <code className="font-mono text-xs text-parchment-400">{voice.preset_name || voice.voice_id}</code>
+                        <code className="font-mono text-caption text-parchment-300 break-all">{voice.preset_name || voice.voice_id}</code>
                     ) : (
                         <p className="font-ui text-xs text-parchment-300">{t('interaction.narration.usesDefault')}</p>
                     )}
@@ -253,6 +253,7 @@ function NarrationSection({
                 </Button>
             </div>
             <SwitchRow
+                variant="plain"
                 label={t('interaction.narration.narrateThoughts')}
                 description={t('interaction.narration.narrateThoughtsDesc')}
                 checked={narrateThoughts}
@@ -280,10 +281,8 @@ function CardList({
     entries: SnapshotCardEntry[]
     onPreview: (entry: SnapshotCardEntry) => void
 }) {
-    // A lone card reads better full-width; multiples tile two-up in the column.
-    const layout = entries.length > 1 ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-3'
     return (
-        <div className={layout}>
+        <div className="flex min-w-0 flex-col gap-1">
             {entries.map((entry) => (
                 <CompactCard key={entry.key} entry={entry} onPreview={onPreview} />
             ))}
@@ -299,30 +298,23 @@ function CompactCard({ entry, onPreview }: { entry: SnapshotCardEntry; onPreview
         ? [worldPlaceTypeLabel(readWorldPlaceType(card)), card.type].filter(Boolean).join(' / ')
         : card.race || ''
     const newer = Boolean(card.newer_version_available)
-    const subtitle =
-        badge || newer ? (
-            <span className="flex flex-wrap items-center gap-1">
-                {badge && <Tag>{badge}</Tag>}
-                {newer && <Badge tone="ember">{t('cardVersions.newer.badge')}</Badge>}
-            </span>
-        ) : undefined
+    const title = card.name || t('interaction.leftPanel.untitled')
+    const description = [badge, newer ? t('cardVersions.newer.badge') : undefined].filter(Boolean).join(' · ')
+    const themeSongUrl = resolveMediaUrl(card.theme_song_url)
     return (
-        <Card
-            title={card.name || t('interaction.leftPanel.untitled')}
-            subtitle={subtitle}
-            highlight={ref.kind === 'persona'}
-            onClick={() => onPreview(entry)}
-            imageUrl={resolveMediaUrl(card.image_url)}
-            themeSongUrl={resolveMediaUrl(card.theme_song_url)}
+        <ReferenceRow
+            leading={<Avatar name={title} src={resolveMediaUrl(card.image_url)} size={36} ring={ref.kind === 'persona' ? 'ember' : 'none'} />}
+            title={title}
+            description={description || undefined}
+            onTitleClick={() => onPreview(entry)}
+            trailing={themeSongUrl ? <ThemeSongButton src={themeSongUrl} cardName={title} artworkUrl={resolveMediaUrl(card.image_url)} className="pointer-coarse:h-11 pointer-coarse:w-11" /> : undefined}
         />
     )
 }
 
 function EmptyState({ children }: { children: ReactNode }) {
     return (
-        <div className="rounded-lg border border-dashed border-parchment-50/12 bg-ink-700/40 p-4">
-            <p className="font-narrative text-[14px] italic text-parchment-400">{children}</p>
-        </div>
+        <p className="py-1 text-label text-parchment-300">{children}</p>
     )
 }
 
@@ -412,13 +404,13 @@ function ScenarioSection({
                     </div>
                 </div>
             ) : (
-                <div className="rounded-lg border border-parchment-50/10 bg-ink-700 p-4">
+                <div>
                     {scenario ? (
-                        <p className="whitespace-pre-line font-narrative text-[15px] leading-relaxed text-parchment-200">
+                        <p className="whitespace-pre-line font-narrative text-body text-parchment-200 break-words">
                             {scenario}
                         </p>
                     ) : (
-                        <p className="font-narrative text-[14px] italic text-parchment-400">
+                        <p className="text-label text-parchment-300">
                             {editable ? t('interaction.scenario.emptyEditable') : t('interaction.scenario.empty')}
                         </p>
                     )}

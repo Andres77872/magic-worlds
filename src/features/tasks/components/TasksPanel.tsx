@@ -422,7 +422,7 @@ function TaskRow({
     const regionId = `task-detail-${task.operation}-${task.task_id}`
 
     return (
-        <div className="overflow-hidden rounded-lg border border-parchment-50/10 bg-ink-800/60">
+        <div className="border-b border-line-faint last:border-b-0">
             <button
                 type="button"
                 aria-expanded={expanded}
@@ -456,6 +456,7 @@ function TaskRow({
 
             <div
                 id={regionId}
+                inert={!expanded}
                 className={cx('grid transition-[grid-template-rows] duration-200 ease-out', expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}
             >
                 <div className="min-h-0 overflow-hidden">
@@ -499,14 +500,11 @@ function TaskRow({
                                     cardId: task.target.id,
                                     artworkUrl: resolveMediaUrl(attachedCard?.imageUrl),
                                 }}
-                                className="rounded-lg border border-arcane-500/20 bg-ink-900/50 p-2.5"
+                                className="py-2"
                             />
                         )}
                         {task.error?.detail && (
-                            <div className="flex items-start gap-2 rounded-md border border-blood-500/30 bg-blood-500/10 px-3 py-2">
-                                <Icon icon={AlertCircle} size={14} className="mt-0.5 shrink-0 text-blood-500" />
-                                <p className="font-ui text-xs leading-relaxed text-blood-500">{task.error.detail}</p>
-                            </div>
+                            <Callout tone="danger" icon={<Icon icon={AlertCircle} size={14} />}>{task.error.detail}</Callout>
                         )}
                         {task.status === 'pending' && task.cancel_url && (
                             <Button variant="secondary" size="sm" className="self-start" onClick={onCancel}>

@@ -7,7 +7,7 @@ import { makeRequestId } from '@/utils/uuid'
 import type { Lorebook, LorebookEntry } from '@/shared'
 import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { ConfirmDialog } from '@/ui/components'
-import { Badge, Button, Card, Field, Icon, IconTile, Input, PageHeader, SwitchRow, Textarea, Toast } from '@/ui/primitives'
+import { Badge, Button, Field, Icon, IconTile, Input, PageHeader, SwitchRow, Textarea, Toast } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
 import {
     blankEntryDraft,
@@ -123,11 +123,12 @@ export function LorebookStudio() {
         }))
     }
 
-    // Below the xl breakpoint the editor pane stacks far beneath the entry
+    // Below the 2xl breakpoint the editor pane stacks beneath the entry
     // table, so bring it into view when an entry is picked.
     const focusEditor = () => {
-        if (typeof window === 'undefined' || window.matchMedia('(min-width: 1280px)').matches) return
-        requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+        if (typeof window === 'undefined' || window.matchMedia('(min-width: 1536px)').matches) return
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }))
     }
 
     const selectEntry = (entryId: string) => {
@@ -287,16 +288,19 @@ export function LorebookStudio() {
                 </div>
             )}
 
-            <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_420px]">
-                <aside className="flex flex-col gap-4 xl:sticky xl:top-4 xl:self-start">
-                    <Card className="p-4">
+            <div className="grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[240px_minmax(0,1fr)_400px]">
+                <aside className="flex min-w-0 flex-col gap-6 lg:self-start lg:border-r lg:border-parchment-50/10 lg:pr-6">
+                    <section aria-label={t('lorebookStudio.shell.sections.profile')} className="border-t border-parchment-50/10 pt-6 first:border-t-0 first:pt-0">
                         <div className="mb-4 flex items-center gap-2 font-ui text-sm font-semibold text-parchment-50">
                             <Icon icon={Library} size={16} className="text-arcane-300" />
                             {t('lorebookStudio.shell.sections.profile')}
                         </div>
                         <div className="flex flex-col gap-4">
-                            <Field label={t('lorebookStudio.shell.fields.name.label')}>
-                                <Input value={draft.name} onChange={(event) => patchDraft({ name: event.target.value })} placeholder={t('lorebookStudio.shell.fields.name.placeholder')} />
+                            <Field
+                                label={t('lorebookStudio.shell.fields.name.label')}
+                                error={saveError && !draft.name.trim() ? t('lorebookStudio.issues.message.name_required') : undefined}
+                            >
+                                <Input required value={draft.name} onChange={(event) => patchDraft({ name: event.target.value })} placeholder={t('lorebookStudio.shell.fields.name.placeholder')} />
                             </Field>
                             <Field label={t('lorebookStudio.shell.fields.description.label')}>
                                 <Textarea
@@ -314,15 +318,16 @@ export function LorebookStudio() {
                                 placeholder={t('lorebookStudio.shell.fields.tags.placeholder')}
                             />
                             <SwitchRow
+                                variant="plain"
                                 label={t('lorebookStudio.shell.toggles.enabled.label')}
                                 description={t('lorebookStudio.shell.toggles.enabled.description')}
                                 checked={draft.enabled}
                                 onChange={(enabled) => patchDraft({ enabled })}
                             />
                         </div>
-                    </Card>
+                    </section>
 
-                    <Card className="p-4">
+                    <section aria-label={t('lorebookStudio.shell.sections.defaults')} className="border-t border-parchment-50/10 pt-6 first:border-t-0 first:pt-0">
                         <div className="mb-4 flex items-center gap-2 font-ui text-sm font-semibold text-parchment-50">
                             <Icon icon={Settings2} size={16} className="text-arcane-300" />
                             {t('lorebookStudio.shell.sections.defaults')}
@@ -335,32 +340,35 @@ export function LorebookStudio() {
                                 <Input type="number" min={100} value={draft.settings.tokenBudget} onChange={(event) => patchSettings({ tokenBudget: Number(event.target.value) })} />
                             </Field>
                             <SwitchRow
+                                variant="plain"
                                 label={t('lorebookStudio.shell.toggles.wholeWord.label')}
                                 description={t('lorebookStudio.shell.toggles.wholeWord.description')}
                                 checked={draft.settings.matchWholeWords}
                                 onChange={(matchWholeWords) => patchSettings({ matchWholeWords })}
                             />
                             <SwitchRow
+                                variant="plain"
                                 label={t('lorebookStudio.shell.toggles.caseSensitive.label')}
                                 description={t('lorebookStudio.shell.toggles.caseSensitive.description')}
                                 checked={draft.settings.caseSensitive}
                                 onChange={(caseSensitive) => patchSettings({ caseSensitive })}
                             />
                             <SwitchRow
+                                variant="plain"
                                 label={t('lorebookStudio.shell.toggles.recursive.label')}
                                 description={t('lorebookStudio.shell.toggles.recursive.description')}
                                 checked={draft.settings.recursiveScanning}
                                 onChange={(recursiveScanning) => patchSettings({ recursiveScanning })}
                             />
                         </div>
-                    </Card>
+                    </section>
 
-                    <Card className="p-4">
+                    <section aria-label={t('lorebookStudio.shell.sections.summary')} className="border-t border-parchment-50/10 pt-6 first:border-t-0 first:pt-0">
                         <div className="mb-3 flex items-center gap-2 font-ui text-sm font-semibold text-parchment-50">
                             <Icon icon={Tags} size={16} className="text-arcane-300" />
                             {t('lorebookStudio.shell.sections.summary')}
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-wrap gap-2">
                             <Badge tone="arcane">{t('lorebookStudio.shell.summary.entries', { count: draft.entries.length })}</Badge>
                             <Badge tone="arcane">{t('lorebookStudio.shell.summary.keys', { count: draft.entries.reduce((sum, entry) => sum + entry.keys.length, 0) })}</Badge>
                             {resourceFeaturesEnabled && (
@@ -369,7 +377,7 @@ export function LorebookStudio() {
                             <Badge tone={errorCount > 0 ? 'danger' : 'live'}>{t('lorebookStudio.shell.summary.issues', { count: issues.length })}</Badge>
                             <Badge tone={saved ? 'live' : 'neutral'}>{saved ? t('lorebookStudio.shell.summary.saved') : t('lorebookStudio.shell.summary.draft')}</Badge>
                         </div>
-                    </Card>
+                    </section>
                 </aside>
 
                 <main className="flex min-w-0 flex-col gap-6">
@@ -393,20 +401,20 @@ export function LorebookStudio() {
                         onAdd={addEntry}
                         onDelete={requestEntryDelete}
                     />
-                    <div className="grid gap-6 lg:grid-cols-2">
-                        <div className="flex flex-col gap-4 rounded-xl border border-parchment-50/10 bg-ink-800 p-5">
+                    <div className="grid gap-6">
+                        <section aria-label={t('lorebookStudio.shell.sections.validation')} className="flex flex-col gap-4 border-t border-parchment-50/10 pt-6">
                             <div className="flex items-center gap-2">
                                 <Icon icon={Search} size={16} className="text-arcane-300" />
-                                <h3 className="font-display text-xl font-semibold text-parchment-50">{t('lorebookStudio.shell.sections.validation')}</h3>
+                                <h3 className="font-display text-h3 font-semibold text-parchment-50">{t('lorebookStudio.shell.sections.validation')}</h3>
                             </div>
                             <LorebookIssueList issues={issues} />
-                        </div>
+                        </section>
                         <LorebookAttachPanel lorebook={draft} onChange={(attachments) => patchDraft({ attachments })} />
                     </div>
                     <ActivationPreviewPanel lorebook={visibleDraft} saved={saved} />
                 </main>
 
-                <aside ref={editorRef} className="min-w-0 scroll-mt-4 xl:sticky xl:top-4 xl:self-start">
+                <aside ref={editorRef} className="min-w-0 scroll-mt-4 border-t border-parchment-50/10 pt-6 lg:col-start-2 2xl:col-start-auto 2xl:self-start 2xl:border-l 2xl:border-t-0 2xl:pl-6 2xl:pt-0">
                     <LoreEntryEditor
                         entry={selectedEntry}
                         onChange={updateEntry}

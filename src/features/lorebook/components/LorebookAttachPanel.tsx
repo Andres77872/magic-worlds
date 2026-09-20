@@ -87,15 +87,15 @@ export function LorebookAttachPanel({ lorebook, onChange }: LorebookAttachPanelP
     }
 
     return (
-        <div className="flex flex-col gap-4 rounded-xl border border-parchment-50/10 bg-ink-800 p-5">
+        <section aria-label={t('lorebookStudio.attachPanel.title')} className="flex min-w-0 flex-col gap-4 border-t border-parchment-50/10 pt-6">
             <div>
-                <h3 className="font-display text-xl font-semibold text-parchment-50">{t('lorebookStudio.attachPanel.title')}</h3>
+                <h3 className="font-display text-h3 font-semibold text-parchment-50">{t('lorebookStudio.attachPanel.title')}</h3>
                 <p className="mt-1 font-narrative text-sm text-parchment-300">
                     {t('lorebookStudio.attachPanel.description')}
                 </p>
             </div>
 
-            <div className="grid gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-700/40 p-3">
+            <div className="grid gap-3">
                 <div className="grid gap-3 sm:grid-cols-2">
                     <Field label={t('lorebookStudio.attachPanel.targetKindLabel')}>
                         <Select
@@ -140,7 +140,7 @@ export function LorebookAttachPanel({ lorebook, onChange }: LorebookAttachPanelP
             </div>
 
             {lorebook.attachments.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-parchment-50/15 bg-ink-700/30 px-4 py-6 text-center">
+                <div className="px-4 py-6 text-center">
                     <Icon icon={Pin} size={28} className="mx-auto text-arcane-300" />
                     <p className="mt-2 font-ui text-sm text-parchment-200">{t('lorebookStudio.attachPanel.emptyTitle')}</p>
                     <p className="mt-1 font-narrative text-sm text-parchment-400">
@@ -148,9 +148,9 @@ export function LorebookAttachPanel({ lorebook, onChange }: LorebookAttachPanelP
                     </p>
                 </div>
             ) : (
-                <div className="divide-y divide-parchment-50/[.06] overflow-hidden rounded-lg border border-parchment-50/[.08]">
+                <div className="divide-y divide-parchment-50/10">
                     {lorebook.attachments.map((attachment) => (
-                        <div key={attachment.id} className="flex items-center justify-between gap-3 bg-ink-700 px-4 py-3">
+                        <div key={attachment.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                             <div className="min-w-0">
                                 <div className="font-ui text-sm font-semibold capitalize text-parchment-50">
                                     {labelTarget(t, attachment.targetKind, attachment.targetId)}
@@ -179,6 +179,6 @@ export function LorebookAttachPanel({ lorebook, onChange }: LorebookAttachPanelP
                     ))}
                 </div>
             )}
-        </div>
+        </section>
     )
 }

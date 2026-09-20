@@ -6,7 +6,7 @@
  * toolbar wide enough to cover the very sentence being edited.
  *
  * The AI menu lives in BubbleAiMenu, but the trigger, the open flag and the
- * dismissal handlers stay HERE, in the one element that wraps both: a menu
+ * dismissal handlers stay HERE, tracking both trigger and body portal: a menu
  * component owning its own outside-click listener would race this toolbar's,
  * and the loser closes the menu on the click that opened it.
  *
@@ -14,7 +14,8 @@
  * selection survives; AI entries disable while a suggestion is alive.
  */
 
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { Editor } from '@tiptap/core'
 import { BubbleMenu } from '@tiptap/react/menus'
@@ -29,6 +30,7 @@ import {
 } from 'lucide-react'
 import type { StoryGenerationCommand } from '@/shared'
 import { Button, Icon, IconButton } from '@/ui/primitives'
+import { useAnchoredPopup } from '@/ui/primitives/useAnchoredPopup'
 import type { InlineAIPhase } from '../types'
 import { BubbleAiMenu } from './BubbleAiMenu'
 
@@ -48,10 +50,15 @@ export interface EditorBubbleMenuProps {
 export function EditorBubbleMenu({ editor, phase, onSelectionCommand, onBeatOnSelection, onAddToCodex }: EditorBubbleMenuProps) {
     const { t } = useTranslation()
     const [aiOpen, setAiOpen] = useState(false)
-    const aiRef = useRef<HTMLDivElement | null>(null)
+    const aiRef = useRef<HTMLDivElement>(null!)
+    const aiMenuRef = useRef<HTMLDivElement>(null!)
     // While a suggestion is alive the trigger is disabled and the menu render is
     // gated below, so the menu can never act on a stale selection.
     const aiDisabled = phase !== 'idle'
+    const { position } = useAnchoredPopup(aiOpen && !aiDisabled, aiRef, aiMenuRef, undefined, 240)
+    // The submenu is portalled outside TipTap's toolbar element, so it must
+    // follow the toolbar's lifecycle when a keyboard action collapses selection.
+    const bubbleOptions = useMemo(() => ({ onHide: () => setAiOpen(false) }), [])
 
     // A suggestion starting while the menu is open (keyboard shortcut, slash
     // menu) must drop the open flag too — otherwise the menu silently reappears
@@ -67,7 +74,7 @@ export function EditorBubbleMenu({ editor, phase, onSelectionCommand, onBeatOnSe
     useEffect(() => {
         if (!aiOpen) return
         const handlePointer = (event: globalThis.MouseEvent) => {
-            if (!aiRef.current?.contains(event.target as Node)) setAiOpen(false)
+            if (!aiRef.current?.contains(event.target as Node) && !aiMenuRef.current?.contains(event.target as Node)) setAiOpen(false)
         }
         const handleKey = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
@@ -75,12 +82,19 @@ export function EditorBubbleMenu({ editor, phase, onSelectionCommand, onBeatOnSe
                 setAiOpen(false)
             }
         }
+        // TipTap repositions its toolbar asynchronously; closing the submenu
+        // avoids keeping coordinates from the previous selection geometry.
+        const handleLayoutChange = () => setAiOpen(false)
         // Capture so the editor's own handlers don't swallow the outside click first.
         document.addEventListener('mousedown', handlePointer, true)
         document.addEventListener('keydown', handleKey)
+        window.addEventListener('resize', handleLayoutChange)
+        window.addEventListener('scroll', handleLayoutChange, true)
         return () => {
             document.removeEventListener('mousedown', handlePointer, true)
             document.removeEventListener('keydown', handleKey)
+            window.removeEventListener('resize', handleLayoutChange)
+            window.removeEventListener('scroll', handleLayoutChange, true)
         }
     }, [aiOpen])
 
@@ -88,7 +102,8 @@ export function EditorBubbleMenu({ editor, phase, onSelectionCommand, onBeatOnSe
     return (
         <BubbleMenu
             editor={editor}
-            className="flex items-center gap-1 rounded-md border border-parchment-50/10 bg-ink-900/95 p-1 shadow-lg"
+            options={bubbleOptions}
+            className="flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-1 rounded-md border border-parchment-50/10 bg-ink-900/95 p-1 shadow-lg"
         >
             <ToolButton label={t('novelEditor.bubbleMenu.bold')} active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
                 <Icon icon={Bold} size={14} />
@@ -130,8 +145,10 @@ export function EditorBubbleMenu({ editor, phase, onSelectionCommand, onBeatOnSe
                 >
                     {t('novelEditor.bubbleMenu.ai')}
                 </Button>
-                {aiOpen && !aiDisabled && (
+                {aiOpen && !aiDisabled && createPortal(
                     <BubbleAiMenu
+                        menuRef={aiMenuRef}
+                        position={position}
                         onBeat={() => {
                             setAiOpen(false)
                             onBeatOnSelection()
@@ -140,7 +157,8 @@ export function EditorBubbleMenu({ editor, phase, onSelectionCommand, onBeatOnSe
                             setAiOpen(false)
                             onSelectionCommand(command)
                         }}
-                    />
+                    />,
+                    document.body,
                 )}
             </div>
 

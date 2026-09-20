@@ -4,7 +4,7 @@ import type { TFunction } from 'i18next'
 import { Loader2, Play } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
 import type { AdminVoiceAudioFormat, AdminVoiceEmotion, AdminVoiceModel, AdminVoiceSampleRate, AdminVoiceTestRequest, AdminVoiceTestResponse } from '@/shared'
-import { Badge, Button, Card, Field, Icon, Input, SectionHeader, Textarea } from '@/ui/primitives'
+import { Badge, Button, Field, Icon, Input, SectionHeader, Textarea } from '@/ui/primitives'
 import { DEFAULT_SYNTH_SETTINGS, DEFAULT_TEST_TEXT, TEST_TEXT_LIMIT, type SynthSettings } from '../constants'
 import { useEphemeralAudioUrl } from '../hexAudio'
 import type { StudioToast } from '../hooks/useVoiceStudio'
@@ -95,69 +95,67 @@ export function SynthLabPanel({ voiceId, onVoiceIdChange, notify, setError }: Sy
     }
 
     return (
-        <Card>
-            <form id="voice-synthesis-lab" className="flex flex-col gap-5 p-5" onSubmit={(event) => void handleSubmit(event)}>
-                <SectionHeader
-                    icon={Play}
-                    title="Synthesis lab"
-                    tone="ember"
-                    right={tested ? <Badge tone="ember">Ephemeral</Badge> : undefined}
+        <form id="voice-synthesis-lab" className="flex flex-col gap-5 border-t border-line-faint pt-6" onSubmit={(event) => void handleSubmit(event)}>
+            <SectionHeader
+                icon={Play}
+                title="Synthesis lab"
+                tone="ember"
+                right={tested ? <Badge tone="ember">Ephemeral</Badge> : undefined}
+            />
+            <Field
+                label="Voice ID"
+                error={voiceIdOverLimit ? 'Voice ID must be 256 characters or fewer.' : undefined}
+                helper="Use Test on any library row or paste a system, cloned, or designed voice ID."
+            >
+                <Input
+                    value={voiceId}
+                    onChange={(event) => onVoiceIdChange(event.target.value)}
+                    maxLength={256}
+                    placeholder="English_expressive_narrator"
                 />
-                <Field
-                    label="Voice ID"
-                    error={voiceIdOverLimit ? 'Voice ID must be 256 characters or fewer.' : undefined}
-                    helper="Use Test on any library row or paste a system, cloned, or designed voice ID."
+            </Field>
+            <Field
+                label="Content input"
+                error={testOverLimit ? `Test content must be ${TEST_TEXT_LIMIT} characters or fewer.` : undefined}
+                helper={`${text.length}/${TEST_TEXT_LIMIT} characters. Returns temporary audio and stores no asset.`}
+            >
+                <Textarea
+                    value={text}
+                    maxLength={TEST_TEXT_LIMIT}
+                    onChange={(event) => {
+                        rememberTextarea(event)
+                        setText(event.target.value)
+                    }}
+                    onSelect={rememberTextarea}
+                    onFocus={rememberTextarea}
+                    placeholder="Write one short passage that proves whether this voice fits the scene."
+                />
+            </Field>
+            <TextArtifactToolbar onInsert={insertArtifact} />
+            <SynthControls settings={settings} onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
+            <div className="flex justify-end">
+                <Button
+                    type="submit"
+                    variant="primary"
+                    iconLeft={<Icon icon={testing ? Loader2 : Play} size={15} className={testing ? 'animate-spin' : undefined} />}
+                    disabled={!canTest}
                 >
-                    <Input
-                        value={voiceId}
-                        onChange={(event) => onVoiceIdChange(event.target.value)}
-                        maxLength={256}
-                        placeholder="English_expressive_narrator"
-                    />
-                </Field>
-                <Field
-                    label="Content input"
-                    error={testOverLimit ? `Test content must be ${TEST_TEXT_LIMIT} characters or fewer.` : undefined}
-                    helper={`${text.length}/${TEST_TEXT_LIMIT} characters. Returns temporary audio and stores no asset.`}
-                >
-                    <Textarea
-                        value={text}
-                        maxLength={TEST_TEXT_LIMIT}
-                        onChange={(event) => {
-                            rememberTextarea(event)
-                            setText(event.target.value)
-                        }}
-                        onSelect={rememberTextarea}
-                        onFocus={rememberTextarea}
-                        placeholder="Write one short passage that proves whether this voice fits the scene."
-                    />
-                </Field>
-                <TextArtifactToolbar onInsert={insertArtifact} />
-                <SynthControls settings={settings} onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
-                <div className="flex justify-end">
-                    <Button
-                        type="submit"
-                        variant="primary"
-                        iconLeft={<Icon icon={testing ? Loader2 : Play} size={15} className={testing ? 'animate-spin' : undefined} />}
-                        disabled={!canTest}
-                    >
-                        Test voice
-                    </Button>
-                </div>
+                    Test voice
+                </Button>
+            </div>
 
-                {tested && (
-                    <VoiceResultCard
-                        tone="ember"
-                        badgeLabel="Test result"
-                        voiceId={tested.voice_id}
-                        audioSrc={audioSrc}
-                        audioTitle="voice test"
-                        durationMs={tested.duration_ms}
-                        metaLine={buildMetaLine(tested, t)}
-                        audioMissingHint="The voice test returned, but the audio could not be decoded."
-                    />
-                )}
-            </form>
-        </Card>
+            {tested && (
+                <VoiceResultCard
+                    tone="ember"
+                    badgeLabel="Test result"
+                    voiceId={tested.voice_id}
+                    audioSrc={audioSrc}
+                    audioTitle="voice test"
+                    durationMs={tested.duration_ms}
+                    metaLine={buildMetaLine(tested, t)}
+                    audioMissingHint="The voice test returned, but the audio could not be decoded."
+                />
+            )}
+        </form>
     )
 }

@@ -190,7 +190,7 @@ export interface StoredConversationMessage {
  * ignored. See magic-worlds-api `route_chat.chat_session_ws`.
  */
 export type ChatSocketClientMessage =
-    | { type: 'chat'; content: string; request_id?: string }
+    | { type: 'chat'; content: string; request_id?: string; existing_user_message_id?: number }
     | { type: 'tts'; assistant_message_id: number; turn_id: string; request_id?: string }
     | { type: 'cancel' }
     | { type: 'ping' }

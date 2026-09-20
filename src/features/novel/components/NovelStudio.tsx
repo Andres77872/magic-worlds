@@ -170,7 +170,7 @@ export function NovelStudio() {
                         <input
                             value={draft.title}
                             onChange={(event) => draft.setTitle(event.target.value)}
-                            className="min-w-0 w-full border-0 bg-transparent font-display text-h3 font-semibold leading-tight text-parchment-50 outline-none placeholder:text-parchment-500"
+                            className="min-w-0 w-full border-0 bg-transparent font-display text-h3 font-semibold leading-tight text-parchment-50 placeholder:text-parchment-500"
                             aria-label={t('novelEditor.studio.chapterTitleLabel')}
                             placeholder={t('novelEditor.studio.chapterTitlePlaceholder')}
                             data-testid="novel-chapter-title"

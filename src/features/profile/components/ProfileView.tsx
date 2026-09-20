@@ -102,7 +102,7 @@ export function ProfileView({
             />
 
             <div className="grid gap-6 border-t border-parchment-50/[.08] pt-6 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
-                <aside className="lg:sticky lg:top-6 lg:self-start">
+                <aside className="min-w-0 lg:sticky lg:top-6 lg:self-start">
                     <Tabs
                         options={tabs}
                         value={tab}
@@ -110,7 +110,7 @@ export function ProfileView({
                         idBase="profile"
                         aria-label={t('profile.tabs.aria')}
                         orientation={isDesktop ? 'vertical' : 'horizontal'}
-                        className={isDesktop ? undefined : '-mx-5 overflow-x-auto px-5 sm:-mx-8 sm:px-8'}
+                        className={isDesktop ? undefined : '-mx-5 overflow-x-auto overflow-y-hidden px-5 py-1 sm:-mx-8 sm:px-8'}
                     />
                 </aside>
 

@@ -2,7 +2,7 @@ import { useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
-import { cx, IconButton, useIsDesktop } from '../../../ui/primitives'
+import { cx, IconButton, useMediaQuery } from '@/ui/primitives'
 import { useDismissableLayer, useScrimDismiss } from '../../../ui/primitives/useDismissableLayer'
 
 interface SidePanelDrawerProps {
@@ -12,6 +12,8 @@ interface SidePanelDrawerProps {
     /** Used for the mobile close button's accessible label. */
     label: string
     children: ReactNode
+    /** Two-panel adventures need a wider reading column before both rails dock. */
+    dockAt?: 'lg' | 'xl'
 }
 
 /**
@@ -26,9 +28,9 @@ interface SidePanelDrawerProps {
  * animates in *and* out without any effect-driven state. The panel's own header
  * (Back button, etc.) lives in `children`; this only adds a slim close bar.
  */
-export function SidePanelDrawer({ side, open, onClose, label, children }: SidePanelDrawerProps) {
+export function SidePanelDrawer({ side, open, onClose, label, children, dockAt = 'lg' }: SidePanelDrawerProps) {
     const { t } = useTranslation()
-    const isDesktop = useIsDesktop()
+    const isDesktop = useMediaQuery(dockAt === 'xl' ? '(min-width: 1280px)' : '(min-width: 1024px)')
 
     // Escape-to-close, scroll-lock, focus-trap and focus-restore while the mobile
     // sheet is open — shared with Modal/Drawer so stacked layers behave (only the
@@ -42,7 +44,7 @@ export function SidePanelDrawer({ side, open, onClose, label, children }: SidePa
         return (
             <aside
                 className={cx(
-                    'hidden w-[320px] shrink-0 overflow-y-auto bg-ink-900 lg:block',
+                    'w-80 shrink-0 overflow-y-auto bg-ink-900',
                     side === 'left' ? 'border-r border-parchment-50/[.08]' : 'border-l border-parchment-50/[.08]',
                 )}
             >

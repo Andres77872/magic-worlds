@@ -39,13 +39,13 @@ export function DataLoadErrorBanner() {
         <div
             role="status"
             aria-live="polite"
-            className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2.5 text-sm font-medium text-parchment-100"
+            className="flex shrink-0 flex-col gap-3 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2.5 text-sm font-medium text-parchment-100 sm:flex-row sm:items-center sm:justify-between"
         >
             <span className="flex min-w-0 items-center gap-3">
                 <Icon icon={CloudOff} size={18} className="shrink-0 text-amber-500" />
-                <span className="truncate">{t('dataLoadBanner.message')}</span>
+                <span>{t('dataLoadBanner.message')}</span>
             </span>
-            <span className="flex shrink-0 items-center gap-1.5">
+            <span className="flex shrink-0 items-center gap-1.5 self-start sm:self-auto">
                 <Button
                     variant="primary"
                     size="sm"

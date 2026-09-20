@@ -154,6 +154,21 @@ export interface CardAssistantConversationResponse {
     conversation: CardAssistantConversation
     messages: CardAssistantMessage[]
     card?: CardAssistantCardResponse | null
+    target_cas?: CardAssistantTargetCas | null
+}
+
+/** Server snapshot used to reject edits saved by another request during a turn. */
+export interface CardAssistantTargetCas {
+    revision: string
+    content_hash: string
+}
+
+export interface CardAssistantTurnRequest {
+    message: string
+    card_type: CardAssistantCardType
+    current_card?: Record<string, unknown> | null
+    expected_revision?: string
+    expected_content_hash?: string
 }
 
 export interface CardAssistantConversationListResponse {
@@ -169,6 +184,7 @@ export interface CardAssistantAppliedAction {
 
 export interface CardAssistantTurnResponse {
     conversation: CardAssistantConversation
+    target_cas?: CardAssistantTargetCas | null
     user_message?: CardAssistantMessage
     assistant_message?: CardAssistantMessage
     tool_message?: CardAssistantMessage | null

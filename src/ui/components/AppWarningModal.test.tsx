@@ -11,6 +11,7 @@ describe('AppWarningModal', () => {
         render(<AppWarningModal />)
 
         expect(screen.getByRole('dialog')).toBeInTheDocument()
+        expect(screen.getByRole('dialog')).toHaveFocus()
         expect(screen.getByText('Before you continue')).toBeInTheDocument()
         expect(screen.getByText(/zero-retention mode/i)).toBeInTheDocument()
         expect(screen.getByText(/18 or older/i)).toBeInTheDocument()

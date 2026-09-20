@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 import type { Adventure } from '@/shared'
 import { MODE_META } from '@/shared/modes'
 import { GalleryCard, type CardOption } from '@/ui/components/lists/Card'
-import { Button, Eyebrow, GlowBackdrop, Icon } from '@/ui/primitives'
+import { Button, Eyebrow, Icon } from '@/ui/primitives'
 import { CARD_GRID_CLASS, sceneCardProps } from './libraryCards'
 import type { Scene } from './sceneModel'
 import { FilterChips } from './FilterChips'
@@ -51,21 +51,18 @@ export function BeginZone({
         return (
             <section className="flex flex-col" data-testid="begin-zone">
                 <BeginHeader count={0} onViewAll={undefined} onCreate={onCreate} />
-                <div className="relative mt-5 flex flex-col items-center gap-4 overflow-hidden rounded-2xl border border-parchment-50/10 bg-ink-800 px-8 py-14 text-center">
-                    <GlowBackdrop variant="center" />
-                    <div className="relative flex flex-col items-center gap-3">
-                        <Eyebrow tone="ember">{t('landing.begin.emptyEyebrow')}</Eyebrow>
-                        <h3 className="m-0 font-display text-h3 font-semibold text-parchment-50">
-                            {t('landing.begin.emptyTitle')}
-                        </h3>
-                        <p className="m-0 max-w-[46ch] font-narrative text-narrative text-parchment-300">
-                            {t('landing.begin.emptyBody')}
-                        </p>
-                        <div className="pt-2">
-                            <Button variant="primary" iconLeft={<Icon icon={Wand2} size={16} />} onClick={onCreate}>
-                                {t('landing.begin.emptyAction')}
-                            </Button>
-                        </div>
+                <div className="mt-5 flex flex-col items-center gap-3 px-5 py-12 text-center">
+                    <Eyebrow tone="ember">{t('landing.begin.emptyEyebrow')}</Eyebrow>
+                    <h3 className="m-0 font-display text-h3 font-semibold text-parchment-50">
+                        {t('landing.begin.emptyTitle')}
+                    </h3>
+                    <p className="m-0 max-w-[46ch] font-narrative text-narrative text-parchment-300">
+                        {t('landing.begin.emptyBody')}
+                    </p>
+                    <div className="pt-2">
+                        <Button variant="primary" iconLeft={<Icon icon={Wand2} size={16} />} onClick={onCreate}>
+                            {t('landing.begin.emptyAction')}
+                        </Button>
                     </div>
                 </div>
             </section>
@@ -121,7 +118,7 @@ export function BeginZone({
                     })}
                 </div>
             ) : filter !== 'All' ? (
-                <div className="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-parchment-50/[.12] bg-ink-800 p-12 text-center">
+                <div className="mt-5 flex flex-col items-center gap-3 px-5 py-12 text-center">
                     <Icon icon={Sparkles} size={28} className="text-parchment-500" />
                     <p className="m-0 font-narrative text-narrative text-parchment-300">
                         {t('landing.begin.noGenreMatch')}

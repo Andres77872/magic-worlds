@@ -24,7 +24,7 @@ const meta = {
   },
   args: {
     eyebrow: 'Creation',
-    title: 'Create Character',
+    title: 'Create character',
     size: 'md',
   },
 } satisfies Meta<typeof PageHeader>
@@ -35,7 +35,7 @@ type Story = StoryObj<typeof meta>
 export const CreationStudio: Story = {
   args: {
     eyebrow: 'Creation',
-    title: 'Create Character',
+    title: 'Create character',
     icon: <IconTile icon={Plus} tone="arcane" size="sm" />,
     divider: true,
     actions: (
@@ -44,6 +44,17 @@ export const CreationStudio: Story = {
         <Button variant="primary" iconLeft={<Icon icon={Plus} size={16} />}>Create</Button>
       </>
     ),
+  },
+}
+
+export const NarrowActions: Story = {
+  decorators: [(Story) => <div className="w-full max-w-xs"><Story /></div>],
+  args: {
+    eyebrow: 'Your library',
+    title: 'Characters from the forgotten coast',
+    subtitle: 'Choose a companion or create someone new.',
+    actions: <><Button variant="ghost">Import</Button><Button>Create character</Button></>,
+    divider: true,
   },
 }
 

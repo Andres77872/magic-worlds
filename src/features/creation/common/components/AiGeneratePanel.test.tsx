@@ -41,6 +41,17 @@ describe('AiGeneratePanel', () => {
         expect(options.timeoutMs).toBe(90_000)
     })
 
+    it('flattens line breaks and tabs before sending, since the backend rejects control characters', async () => {
+        const onGenerate = vi.fn().mockResolvedValue(undefined)
+        render(<AiGeneratePanel noun="character" onGenerate={onGenerate} />)
+
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'A grumpy dwarf blacksmith\r\n\twho secretly\n\nwrites poetry ' } })
+        fireEvent.click(screen.getByRole('button', { name: /generate character/i }))
+
+        await waitFor(() => expect(onGenerate).toHaveBeenCalledTimes(1))
+        expect(onGenerate.mock.calls[0][0]).toBe('A grumpy dwarf blacksmith who secretly writes poetry')
+    })
+
     it('renders category-specific structured error copy with support id', async () => {
         const onGenerate = vi.fn().mockRejectedValue({
             category: 'quota_exceeded',

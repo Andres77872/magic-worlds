@@ -8,7 +8,7 @@ const meta = {
   tags: ['autodocs'],
   parameters: {
     layout: 'padded',
-    docs: { description: { component: 'Sticky in-page nav for the studio editor column — one chip per section. Click scrolls to the anchor; an IntersectionObserver highlights the section in view (standalone here, so the first chip stays active).' } },
+    docs: { description: { component: 'Sticky navigation for creator sections, with horizontal scrolling on small screens. The current section is announced with aria-current. Clicks update selection immediately and scrolling respects reduced-motion preferences.' } },
   },
   decorators: [(Story) => <div className="w-[640px] max-w-full"><Story /></div>],
   argTypes: { items: { control: false } },

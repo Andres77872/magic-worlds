@@ -4,6 +4,7 @@ import { AssistantBanner } from './AssistantBanner'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantHeader } from './AssistantHeader'
 import { AssistantMessageList } from './AssistantMessageList'
+import { AssistantShell } from './AssistantShell'
 import { AssistantPendingCardBanner } from './CardAssistantChatbot'
 import { ConversationMenu } from './ConversationMenu'
 import { SAMPLE_CONVERSATIONS, SAMPLE_CONVERSATION_TURNS } from './assistantFixtures'
@@ -31,10 +32,7 @@ function PanelComposition({
   pendingCard?: boolean
 }) {
   return (
-    <section
-      aria-label="Card assistant"
-      className="flex h-[640px] w-[420px] flex-col overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-800 shadow-xl"
-    >
+    <AssistantShell open onOpen={() => {}} fabLabel="Open card assistant" dialogLabel="Card assistant">
       <AssistantHeader
         cardTitle="The Vitrine Expanse"
         streaming={streaming}
@@ -62,7 +60,7 @@ function PanelComposition({
       />
       {notice && <AssistantBanner notice={notice} onRetry={() => {}} onReload={() => {}} onDismiss={() => {}} />}
       <AssistantComposer streaming={streaming} onSend={() => {}} onStop={() => {}} />
-    </section>
+    </AssistantShell>
   )
 }
 

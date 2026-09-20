@@ -24,7 +24,7 @@ export function CallHistoryRow({ call, characters, onView, onCallAgain }: CallHi
 
     return (
         <div
-            className="flex items-center gap-3 rounded-xl border border-parchment-50/10 bg-ink-800/60 px-3 py-2.5 transition-colors hover:border-parchment-50/20"
+            className="flex flex-wrap items-center gap-3 border-b border-line-faint py-4 last:border-b-0"
             data-testid="call-history-row"
         >
             <Avatar name={display.name} src={display.imageUrl ?? null} size={44} />
@@ -32,7 +32,7 @@ export function CallHistoryRow({ call, characters, onView, onCallAgain }: CallHi
                 <p className="truncate font-medium text-parchment-100">{display.name}</p>
                 <p className="truncate text-caption text-parchment-400">{[when, meta].filter(Boolean).join(' · ')}</p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:shrink-0">
                 {onCallAgain && (
                     <Button variant="ghost" size="sm" iconLeft={<Icon icon={Phone} size={15} />} onClick={onCallAgain}>
                         {t('call.history.callAgain')}

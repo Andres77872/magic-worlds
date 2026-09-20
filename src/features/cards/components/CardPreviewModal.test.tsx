@@ -113,6 +113,19 @@ describe('CardPreviewModal', () => {
         expect(onOpenExisting).toHaveBeenCalledTimes(1)
     })
 
+    it.each([
+        { loading: true, error: null, card: null },
+        { loading: false, error: 'Unavailable', card: null },
+        { loading: false, error: null, card: null },
+    ])('keeps import unavailable until card details can be reviewed: %j', (state) => {
+        const onImport = vi.fn()
+        render(<CardPreviewModal target={{ type: 'world', id: 'w1' }} {...state} onClose={vi.fn()} onImport={onImport} />)
+        const button = screen.getByRole('button', { name: 'Import' })
+        expect(button).toBeDisabled()
+        fireEvent.click(button)
+        expect(onImport).not.toHaveBeenCalled()
+    })
+
     it('disables the import button while importing', () => {
         render(
             <I18nextProvider i18n={i18n}>

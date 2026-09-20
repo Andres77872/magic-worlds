@@ -25,13 +25,15 @@ function hasVoice(character: Character): boolean {
 export function CallsPage() {
     const { t } = useTranslation()
     const { isAuthenticated } = useAuth()
-    const { characters } = useData()
+    const { characters, loadingState, loadData } = useData()
     const { setPage } = useNavigation()
     const call = useStartCall()
 
     const [query, setQuery] = useState('')
     const [recentCalls, setRecentCalls] = useState<CallSummary[]>([])
     const [loadingCalls, setLoadingCalls] = useState(isAuthenticated)
+    const [callsError, setCallsError] = useState(false)
+    const [reloadCalls, setReloadCalls] = useState(0)
     const [selectedCall, setSelectedCall] = useState<CallSummary | null>(null)
 
     useEffect(() => {
@@ -39,10 +41,12 @@ export function CallsPage() {
             setRecentCalls([])
             setSelectedCall(null)
             setLoadingCalls(false)
+            setCallsError(false)
             return
         }
         let cancelled = false
         setLoadingCalls(true)
+        setCallsError(false)
         apiService
             .getRecentVoiceCalls({ limit: 30 })
             .then((response) => {
@@ -50,7 +54,7 @@ export function CallsPage() {
             })
             .catch((error) => {
                 console.error('Failed to load recent calls:', error)
-                if (!cancelled) setRecentCalls([])
+                if (!cancelled) setCallsError(true)
             })
             .finally(() => {
                 if (!cancelled) setLoadingCalls(false)
@@ -58,7 +62,7 @@ export function CallsPage() {
         return () => {
             cancelled = true
         }
-    }, [isAuthenticated])
+    }, [isAuthenticated, reloadCalls])
 
     // Callable characters: real characters (not personas), voice-configured first.
     const callableCharacters = useMemo(() => {
@@ -141,13 +145,12 @@ export function CallsPage() {
                                 badge={hasVoice(character) ? t('call.page.voiceSet') : undefined}
                                 description={character.description || undefined}
                                 tags={character.triggers?.slice(0, 2)}
-                                onClick={() => call.startCall(character)}
-                                actionLabel={t('call.page.callName', { name: character.name })}
                                 footer={
                                     <Button
                                         variant="primary"
                                         size="sm"
                                         className="w-full"
+                                        aria-label={t('call.page.callName', { name: character.name })}
                                         iconLeft={<Icon icon={Phone} size={15} />}
                                         onClick={() => call.startCall(character)}
                                         disabled={call.startingId === character.id}
@@ -158,6 +161,13 @@ export function CallsPage() {
                             />
                         )}
                     />
+                ) : loadingState?.isLoading && callableCharacters.length === 0 ? (
+                    <p role="status" className="py-8 text-body text-parchment-300">{t('common.loading')}</p>
+                ) : loadingState?.error && callableCharacters.length === 0 ? (
+                    <div role="alert" className="flex flex-wrap items-center gap-3 py-8 text-body text-parchment-300">
+                        <p>{t('common.loadError')}</p>
+                        <Button variant="secondary" size="sm" onClick={() => void loadData({ silent: true })}>{t('common.tryAgain')}</Button>
+                    </div>
                 ) : (
                     <EmptyState
                         icon={<Icon icon={Users} size={40} />}
@@ -182,8 +192,13 @@ export function CallsPage() {
                 {loadingCalls ? (
                     <div className="flex flex-col gap-2" aria-busy="true">
                         {[0, 1, 2].map((index) => (
-                            <div key={index} className="image-shimmer h-[66px] rounded-xl border border-parchment-50/10 bg-ink-800/60" />
+                            <div key={index} className="image-shimmer h-16 rounded-md bg-ink-700/50" />
                         ))}
+                    </div>
+                ) : callsError ? (
+                    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-blood-500/40 py-3 pl-4 text-body text-parchment-200">
+                        <p>{t('common.loadError')}</p>
+                        <Button variant="secondary" size="sm" onClick={() => setReloadCalls((value) => value + 1)}>{t('common.tryAgain')}</Button>
                     </div>
                 ) : recentCalls.length > 0 ? (
                     <div className="flex flex-col gap-2">

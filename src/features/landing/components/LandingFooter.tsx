@@ -36,7 +36,7 @@ export function LandingFooter({ onNavigate }: LandingFooterProps) {
 
                 <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[160px_220px]">
                     <nav aria-label={t('landing.footer.pagesNav')} className="flex flex-col gap-2">
-                        <h2 className="font-ui text-[12px] font-semibold uppercase tracking-[0.16em] text-parchment-500">
+                        <h2 className="font-ui text-[12px] font-semibold uppercase tracking-[0.16em] text-fg-subtle">
                             {t('landing.footer.pages')}
                         </h2>
                         {legalPageLinks.map((link) => (
@@ -59,7 +59,7 @@ export function LandingFooter({ onNavigate }: LandingFooterProps) {
                     </nav>
 
                     <div className="flex flex-col gap-2">
-                        <h2 className="font-ui text-[12px] font-semibold uppercase tracking-[0.16em] text-parchment-500">
+                        <h2 className="font-ui text-[12px] font-semibold uppercase tracking-[0.16em] text-fg-subtle">
                             {t('landing.footer.contact')}
                         </h2>
                         <a

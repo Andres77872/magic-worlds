@@ -51,8 +51,10 @@ function PreviewBody({ children, busy, notice }: Pick<StudioPreviewDockProps, 'c
     )
 }
 
-export function StudioPreviewDock({ children, label = 'Live preview', busy, notice, footer }: StudioPreviewDockProps) {
+export function StudioPreviewDock({ children, label, busy, notice, footer }: StudioPreviewDockProps) {
     const [open, setOpen] = useState(false)
+    const { t } = useTranslation()
+    const previewLabel = label ?? t('creation.common.entityPreview.livePreview')
 
     return (
         <>
@@ -62,10 +64,10 @@ export function StudioPreviewDock({ children, label = 'Live preview', busy, noti
                     type="button"
                     onClick={() => setOpen((o) => !o)}
                     aria-expanded={open}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-parchment-50/10 bg-ink-800 px-4 py-3 text-left transition-colors hover:border-parchment-50/20"
+                    className="flex w-full items-center justify-between gap-3 border-b border-parchment-50/10 py-3 text-left transition-colors hover:text-parchment-100"
                 >
                     <span className="flex items-center gap-2">
-                        <Eyebrow tone="muted">{label}</Eyebrow>
+                        <Eyebrow tone="muted">{previewLabel}</Eyebrow>
                         {busy && <Icon icon={Sparkles} size={14} className="animate-pulse text-arcane-300" />}
                     </span>
                     <Icon icon={open ? ChevronUp : ChevronDown} size={16} className="text-parchment-400" />
@@ -84,6 +86,7 @@ export function StudioPreviewDock({ children, label = 'Live preview', busy, noti
                 its height to the viewport and scrolls internally so a tall preview +
                 footer never gets clipped while pinned. */}
             <div className="hidden lg:flex lg:max-h-[calc(100vh-2rem)] lg:flex-col lg:gap-4 lg:overflow-y-auto lg:pr-1">
+                <Eyebrow tone="muted">{previewLabel}</Eyebrow>
                 <PreviewBody busy={busy} notice={notice}>
                     {children}
                 </PreviewBody>

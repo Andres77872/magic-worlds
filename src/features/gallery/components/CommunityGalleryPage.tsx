@@ -4,7 +4,7 @@ import { Gem, Globe, Import, Loader2, RefreshCw, Swords, UserCircle, Users } fro
 import type { LucideIcon } from 'lucide-react'
 import { useNavigation } from '@/app/hooks'
 import { CardGrid, GalleryCard, GalleryCardSkeleton } from '@/ui/components'
-import { Button, Icon, PageHeader, SectionHeader, Toast } from '@/ui/primitives'
+import { Button, Callout, Icon, PageHeader, SectionHeader, Toast } from '@/ui/primitives'
 import { isAdventuresFeatureEnabled } from '@/shared/featureFlags'
 import { buildGalleryViewHash, galleryPageForType } from '../galleryLinks'
 import { publicConfigFor, type GalleryItem, type GalleryType } from '../galleryConfig'
@@ -102,29 +102,24 @@ function CommunityGallerySection({
                 title={<span id={`community-${section.type}`}>{sectionLabel}</span>}
                 right={
                     <div className="flex items-center gap-2">
-                        {gallery.error && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                iconLeft={<Icon icon={RefreshCw} size={14} />}
-                                onClick={gallery.refresh}
-                            >
-                                {t('gallery.retry')}
-                            </Button>
-                        )}
                         <Button variant="secondary" size="sm" onClick={openFullGallery}>
                             {t('gallery.viewAll')}
                         </Button>
                     </div>
                 }
             />
+            {gallery.error && <Callout tone="danger" role="alert" action={
+                <Button variant="secondary" size="sm" iconLeft={<Icon icon={RefreshCw} size={14} />} onClick={gallery.refresh}>
+                    {t('gallery.retry')}
+                </Button>
+            }>{gallery.error}</Callout>}
             <CardGrid
                 items={gallery.items}
                 layout="rail"
                 fadeEdges
                 loading={gallery.loading}
-                loadingComponent={<GalleryCardSkeleton />}
-                showEmptyState={!gallery.loading}
+                loadingComponent={<div className="w-full max-w-xs"><GalleryCardSkeleton /></div>}
+                showEmptyState={!gallery.loading && !gallery.error}
                 emptyStateTitle={t(`gallery.type.${section.type}.publicEmptyTitle`)}
                 emptyStateDescription={t('gallery.publicEmptyDescription')}
                 getItemKey={(item) => item.id}

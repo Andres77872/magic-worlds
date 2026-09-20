@@ -17,12 +17,12 @@ describe('useMicrophoneCapture', () => {
         expect(getUserMedia).not.toHaveBeenCalled()
     })
 
-    it('reports permission denied and leaves no capture running', async () => {
+    it.each([false, true])('reports permission denied and leaves no capture running (StrictMode: %s)', async (reactStrictMode) => {
         Object.defineProperty(navigator, 'mediaDevices', {
             configurable: true,
             value: { getUserMedia: vi.fn().mockRejectedValue(new DOMException('Permission denied', 'NotAllowedError')) },
         })
-        const { result } = renderHook(() => useMicrophoneCapture({ consentGranted: true }))
+        const { result } = renderHook(() => useMicrophoneCapture({ consentGranted: true }), { reactStrictMode })
 
         await act(async () => {
             await expect(result.current.start()).resolves.toBe(false)
@@ -50,7 +50,7 @@ describe('useMicrophoneCapture', () => {
         Object.defineProperty(globalThis, 'AudioWorkletNode', { configurable: true, writable: true, value: original })
     })
 
-    it('resumes a suspended AudioContext so worklet capture is not silently dead', async () => {
+    it.each([false, true])('resumes a suspended AudioContext so worklet capture is not silently dead (StrictMode: %s)', async (reactStrictMode) => {
         // Browsers can hand back a 'suspended' context when it is created after the awaited
         // getUserMedia (past the synchronous user gesture). Without resume(), the worklet's
         // process() is never pulled — no level/VAD/segment — so the call sits on "Listening".
@@ -64,7 +64,7 @@ describe('useMicrophoneCapture', () => {
         }
         Object.defineProperty(globalThis, 'AudioContext', { configurable: true, writable: true, value: SuspendedAudioContext })
 
-        const { result } = renderHook(() => useMicrophoneCapture({ consentGranted: true }))
+        const { result } = renderHook(() => useMicrophoneCapture({ consentGranted: true }), { reactStrictMode })
 
         await act(async () => {
             await expect(result.current.start()).resolves.toBe(true)

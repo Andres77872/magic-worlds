@@ -1,4 +1,4 @@
-import { CheckCircle2, Coins, Crown, Lock, Rocket, Sparkles, WalletCards } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Coins, Crown, Lock, Rocket, Sparkles, WalletCards } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -62,7 +62,7 @@ export function MembershipSection({ profile, onRedeemed, autoClaimEmailCreditGra
                         }
                     />
 
-                    <div className="grid gap-4 md:grid-cols-3">
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,210px),1fr))] gap-4">
                         {cards.tiers.map((tier) => (
                             <TierCard key={tier.plan_code} tier={tier} t={t} locale={intlLocale} />
                         ))}
@@ -83,8 +83,8 @@ function TierCard({ tier, t, locale }: { tier: MembershipTierProfileCard; t: TFu
     return (
         <Card
             className={cx(
-                'flex flex-col gap-5 p-5',
-                isCurrent ? 'border-ember-500/45 shadow-glow-ember' : 'bg-ink-700/75',
+                'flex flex-col gap-4 p-5',
+                isCurrent ? 'border-ember-500/45' : 'bg-ink-700/50',
             )}
         >
             <div className="flex items-start justify-between gap-3">
@@ -110,7 +110,7 @@ function TierCard({ tier, t, locale }: { tier: MembershipTierProfileCard; t: TFu
                             isCurrent ? 'text-parchment-200' : 'text-parchment-300',
                         )}
                     >
-                        <Icon icon={CheckCircle2} size={14} className={isCurrent ? 'text-ember-400' : 'text-parchment-400'} />
+                        <Icon icon={CheckCircle2} size={14} className={isCurrent ? 'text-ember-400' : 'text-fg-subtle'} />
                         {highlight}
                     </span>
                 ))}
@@ -166,9 +166,9 @@ function AllowanceStat({
                 >
                     {formatNumber(credits.max, locale)}
                 </span>
-                <span className="font-ui text-[12px] text-parchment-400">{t('membership.creditsPerDay')}</span>
+                <span className="font-ui text-[12px] text-fg-subtle">{t('membership.creditsPerDay')}</span>
             </div>
-            <span className="font-ui text-[12px] text-parchment-400">
+            <span className="font-ui text-[12px] text-fg-subtle">
                 {current ? t('membership.includedDailyCredits') : t('membership.indicativeDailyIncludedCredits')}
             </span>
         </div>
@@ -177,9 +177,9 @@ function AllowanceStat({
 
 function PaygCard({ card, t, locale }: { card: MembershipPaygProfileCard; t: TFunction; locale: string }) {
     return (
-        <Card className="border-ember-500/25 p-5">
-            <div className="flex flex-col gap-5 md:flex-row md:gap-8">
-                <div className="flex flex-col gap-4 md:w-[300px] md:shrink-0">
+        <section className="border-t border-line-faint py-6">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,250px),1fr))] gap-6">
+                <div className="flex min-w-0 flex-col gap-4">
                     <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
                             <IconTile icon={Coins} tone="ember" size="sm" />
@@ -188,7 +188,7 @@ function PaygCard({ card, t, locale }: { card: MembershipPaygProfileCard; t: TFu
                         <Badge tone="ember">{card.badge}</Badge>
                     </div>
 
-                    <div className="rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3">
+                    <div className="py-1">
                         <Eyebrow tone="muted">{t('membership.walletBalance')}</Eyebrow>
                         <div className="mt-1.5 flex items-baseline gap-2">
                             <span className="font-display text-h2 font-semibold leading-none text-ember-300">
@@ -227,7 +227,7 @@ function PaygCard({ card, t, locale }: { card: MembershipPaygProfileCard; t: TFu
                     </Button>
                 </div>
             </div>
-        </Card>
+        </section>
     )
 }
 
@@ -245,25 +245,28 @@ function LimitRows({
     const entries = orderedLimitEntries(limits)
 
     return (
-        <div className="flex flex-col gap-1.5">
-            <Eyebrow tone="muted">{preview ? t('membership.indicativeLimits') : t('membership.dailyLimits')}</Eyebrow>
-            <div className="flex flex-col overflow-hidden rounded-lg border border-parchment-50/[.08]">
+        <details className="group border-t border-line-faint">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 font-ui text-label text-parchment-200 [&::-webkit-details-marker]:hidden">
+                {preview ? t('membership.indicativeLimits') : t('membership.dailyLimits')}
+                <Icon icon={ChevronDown} size={14} className="shrink-0 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="flex flex-col">
                 {entries.map(([operation, limit]) => (
                     <div
                         key={operation}
-                        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-parchment-50/[.06] px-3 py-2 last:border-b-0"
+                        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-line-faint py-2 last:border-b-0"
                     >
-                        <span className="block min-w-0 truncate font-ui text-[12px] font-semibold text-parchment-100">
+                        <span className="block min-w-0 font-ui text-caption font-semibold text-parchment-100">
                             {operationName(operation, t)}
                         </span>
                         <div className="text-right font-ui text-[11px] text-parchment-300">
                             <span className="block">{formatNumber(limit.daily_limit, locale)}{t('membership.perDay')}</span>
-                            <span className="block text-parchment-500">{t('membership.inFlight', { count: limit.max_in_flight })}</span>
+                            <span className="block text-fg-subtle">{t('membership.inFlight', { count: limit.max_in_flight })}</span>
                         </div>
                     </div>
                 ))}
             </div>
-        </div>
+        </details>
     )
 }
 

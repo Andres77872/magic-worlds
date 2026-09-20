@@ -83,6 +83,14 @@ describe('CharacterChat voice mode wiring', () => {
         expect(screen.getByTestId('chat-sidebar')).toHaveAttribute('data-session-id', '7')
     })
 
+    it.each([null, { ...CHAT, character: undefined, characters: [] }])('returns to chatroom when the refreshed chat has no usable cast (%j)', (chat) => {
+        activeCharacterChat = chat
+        render(<CharacterChat />, { reactStrictMode: true })
+        expect(setPage).toHaveBeenCalledWith('chatroom')
+        expect(screen.queryByTestId('center-kind')).not.toBeInTheDocument()
+        expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()
+    })
+
     it('passes the group chat id to the sidebar for session lorebook attachments', () => {
         activeCharacterChat = {
             ...CHAT,

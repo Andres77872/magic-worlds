@@ -119,6 +119,24 @@ describe('CardPicker', () => {
         expect(onChange).toHaveBeenCalledWith(undefined)
     })
 
+    it('portals the searchable panel out of clipping containers and clamps it inside a narrow viewport', async () => {
+        const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+            x: 270, y: 100, left: 270, right: 360, top: 100, bottom: 132, width: 90, height: 32, toJSON: () => ({}),
+        })
+        vi.stubGlobal('innerWidth', 390)
+        try {
+            const { container } = render(<div style={{ overflow: 'hidden' }}><CardPicker cardType="character" onChange={vi.fn()} /></div>)
+            fireEvent.click(screen.getByTestId('card-picker-trigger'))
+            const panel = await screen.findByTestId('card-picker-panel')
+            expect(container).not.toContainElement(panel)
+            expect(panel).toHaveStyle({ position: 'fixed', left: '94px', width: '288px' })
+            expect(screen.getByTestId('card-picker-search')).toHaveFocus()
+        } finally {
+            bounds.mockRestore()
+            vi.unstubAllGlobals()
+        }
+    })
+
     it('closes on outside click', async () => {
         render(
             <div>

@@ -9,7 +9,7 @@ const meta = {
   tags: ['autodocs'],
   parameters: {
     layout: 'padded',
-    docs: { description: { component: 'A titled, anchored editor block in the Creator Studio — an outlined surface with a serif header, optional icon/tone/description, and a right-aligned slot.' } },
+    docs: { description: { component: 'A titled, anchored editor section on the shared canvas. Spacing and one divider group the fields, while icons distinguish standard editing from AI assistance.' } },
   },
   decorators: [(Story) => <div className="w-[640px] max-w-full"><Story /></div>],
   argTypes: {

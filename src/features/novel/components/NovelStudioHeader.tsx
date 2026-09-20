@@ -150,7 +150,7 @@ export function NovelStudioHeader({
                         onKeyDown={onTitleKeyDown}
                         aria-label={t('novelEditor.header.titleLabel')}
                         placeholder={t('novelEditor.header.untitled')}
-                        className="min-w-0 max-w-[38ch] flex-1 rounded-xs border border-ember-500/50 bg-ink-800 px-1.5 py-0.5 font-display text-[20px] font-semibold text-parchment-50 outline-none placeholder:text-parchment-500"
+                        className="min-w-0 max-w-[38ch] flex-1 rounded-xs border border-ember-500/50 bg-ink-800 px-1.5 py-0.5 font-display text-xl font-semibold text-parchment-50 placeholder:text-parchment-500"
                         data-testid="novel-title-input"
                     />
                 ) : (
@@ -158,16 +158,16 @@ export function NovelStudioHeader({
                         type="button"
                         onClick={startEditing}
                         aria-label={t('novelEditor.header.titleLabel')}
-                        className="min-w-0 max-w-[38ch] cursor-pointer truncate rounded-xs px-1.5 py-0.5 text-left font-display text-[20px] font-semibold text-parchment-50 transition-colors hover:bg-parchment-50/[.06]"
+                        className="min-w-0 max-w-[38ch] cursor-pointer truncate rounded-xs px-1.5 py-0.5 text-left font-display text-xl font-semibold text-parchment-50 transition-colors hover:bg-parchment-50/[.06]"
                         data-testid="novel-title"
                     >
                         {story.title || t('novelEditor.header.untitled')}
                     </button>
                 )}
-                <span className="shrink-0 text-[13px] text-parchment-500" aria-hidden="true">
+                <span className="shrink-0 text-label text-parchment-500" aria-hidden="true">
                     /
                 </span>
-                <span className="min-w-0 truncate font-ui text-[13px] text-parchment-300" data-testid="novel-header-chapter">
+                <span className="min-w-0 truncate font-ui text-label text-parchment-300" data-testid="novel-header-chapter">
                     {chapterTitle || t('novelEditor.studio.chapterTitlePlaceholder')}
                 </span>
             </div>
@@ -262,7 +262,7 @@ function MenuItem({
             role={checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
             aria-checked={checked}
             onClick={onSelect}
-            className="flex h-8 w-full cursor-pointer items-center gap-2 rounded-xs px-2 text-left font-ui text-[13px] text-parchment-100 transition-colors hover:bg-parchment-50/[.06]"
+            className="flex h-8 w-full cursor-pointer items-center gap-2 rounded-xs px-2 text-left font-ui text-label text-parchment-100 transition-colors hover:bg-parchment-50/[.06]"
             data-testid="novel-header-menu-item"
         >
             <Icon icon={icon} size={14} className="shrink-0 text-parchment-300" />

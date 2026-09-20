@@ -47,7 +47,7 @@ const withProviders = (value: AuthValue): Decorator =>
     (Story) => (
         <NavigationProvider>
             <AuthContext.Provider value={value}>
-                <div className="relative flex min-h-[26rem] w-[14rem] items-end">
+                <div className="relative flex min-h-[38rem] w-[14rem] items-end">
                     <Story />
                 </div>
             </AuthContext.Provider>

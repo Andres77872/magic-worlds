@@ -101,7 +101,7 @@ export function WordGoalControl({ words, goal, onSetGoal }: WordGoalControlProps
                             if (event.key === 'Enter') commit()
                         }}
                         placeholder={t('novelEditor.header.goalPlaceholder')}
-                        className="w-full rounded-md border border-parchment-50/10 bg-ink-800 px-2.5 py-1.5 font-ui text-sm text-parchment-50 outline-none focus:border-ember-500"
+                        className="w-full rounded-md border border-parchment-50/10 bg-ink-800 px-2.5 py-1.5 font-ui text-sm text-parchment-50 focus:border-ember-500"
                         data-testid="novel-word-goal-input"
                     />
                     <div className="mt-2.5 flex items-center justify-between gap-2">

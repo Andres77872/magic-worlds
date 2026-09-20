@@ -5,14 +5,14 @@
  * Layout: a header (eyebrow + title + Back + primary Save) over a responsive
  * grid — left = the editor column (a sticky section nav + the caller's <form>),
  * right = a sticky live preview. On mobile the preview moves to the top (as a
- * collapsible dock) and the nav is hidden.
+ * collapsible dock) and the nav scrolls horizontally.
  *
  * The studio does NOT own the <form>; the caller renders `<form id="…-form">`
  * as `children` and wires the header's Save button to it via `form="…-form"`.
  * This keeps the shell entity-agnostic while submit/keydown stay with the state.
  */
 
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft } from 'lucide-react'
 import { Button, Icon, PageHeader, cx } from '@/ui/primitives'
@@ -46,6 +46,46 @@ export function CreatorStudio({
     children,
 }: CreatorStudioProps) {
     const { t } = useTranslation()
+    const navStart = useRef<HTMLDivElement>(null)
+    const navContainer = useRef<HTMLDivElement>(null)
+    const [navPinned, setNavPinned] = useState(false)
+    const hasNav = nav != null
+
+    useEffect(() => {
+        const marker = navStart.current
+        const navigation = navContainer.current
+        if (!marker || !navigation) return
+        const updateClearance = () => {
+            const inset = Number.parseFloat(getComputedStyle(navigation).top) || 0
+            // The wrapped navigation can gain rows at intermediate widths or
+            // with longer translated labels. Anchors must clear its real size.
+            navigation.parentElement?.style.setProperty('--studio-nav-clearance', `${navigation.getBoundingClientRect().height + inset}px`)
+            return inset
+        }
+        let observer: IntersectionObserver | undefined
+        const observe = () => {
+            observer?.disconnect()
+            const root = marker.closest('[data-app-main]')
+            const inset = updateClearance()
+            observer = new IntersectionObserver(([entry]) => {
+                // Compare with the same boundary that determines intersection.
+                // A negative margin can be crossed while the marker is still
+                // below viewport zero, especially during slow scrolling.
+                setNavPinned(!entry.isIntersecting && entry.boundingClientRect.bottom <= (entry.rootBounds?.top ?? inset))
+            }, { root, rootMargin: `-${inset}px 0px 0px` })
+            observer.observe(marker)
+        }
+        observe()
+        const sizeObserver = new ResizeObserver(updateClearance)
+        sizeObserver.observe(navigation)
+        window.addEventListener('resize', observe)
+        return () => {
+            observer?.disconnect()
+            sizeObserver.disconnect()
+            window.removeEventListener('resize', observe)
+        }
+    }, [hasNav])
+
     return (
         <div
             className={cx(
@@ -72,9 +112,15 @@ export function CreatorStudio({
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-8">
                 <div className="order-last min-w-0 lg:order-none">
                     {nav && (
-                        <div className="sticky top-4 z-10 mb-6 hidden rounded-xl border border-parchment-50/10 bg-ink-800/90 px-3 py-2.5 backdrop-blur lg:block">
-                            {nav}
-                        </div>
+                        <>
+                            <div ref={navStart} aria-hidden="true" className="h-px" />
+                            <div ref={navContainer} className={cx(
+                                'sticky top-14 z-10 mb-6 min-w-0 border-b border-line-faint lg:top-4',
+                                navPinned && 'bg-ink-900/95 backdrop-blur',
+                            )}>
+                                {nav}
+                            </div>
+                        </>
                     )}
                     {children}
                 </div>

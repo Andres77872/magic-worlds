@@ -22,6 +22,8 @@ interface DismissableLayerOptions<T extends HTMLElement> {
     lockScroll?: boolean
     /** Label used only to make the layer stack readable while debugging. */
     label?: string
+    /** Focus the panel for long reading dialogs so controls below do not scroll past the introduction. */
+    initialFocus?: 'first-control' | 'panel'
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -39,6 +41,7 @@ export function useDismissableLayer<T extends HTMLElement>({
     panelRef,
     lockScroll: shouldLockScroll = true,
     label = 'layer',
+    initialFocus = 'first-control',
 }: DismissableLayerOptions<T>) {
     // Read onClose through a ref so an inline (unstable) onClose doesn't re-run the
     // effect every render — that would re-capture focus and steal it back to the
@@ -81,7 +84,7 @@ export function useDismissableLayer<T extends HTMLElement>({
             const last = focusable[focusable.length - 1]
             const active = document.activeElement
             if (e.shiftKey) {
-                if (active === first || !panel.contains(active)) {
+                if (active === first || active === panel || !panel.contains(active)) {
                     e.preventDefault()
                     last.focus()
                 }
@@ -97,7 +100,7 @@ export function useDismissableLayer<T extends HTMLElement>({
         // Move focus into the panel (first focusable, else the panel itself).
         const panel = panelRef.current
         const firstFocusable = panel?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
-        ;(firstFocusable ?? panel)?.focus()
+        ;(initialFocus === 'panel' ? panel : firstFocusable ?? panel)?.focus({ preventScroll: initialFocus === 'panel' })
 
         return () => {
             document.removeEventListener('keydown', onKeyDown)
@@ -107,7 +110,7 @@ export function useDismissableLayer<T extends HTMLElement>({
                 previouslyFocused.focus()
             }
         }
-    }, [open, panelRef, shouldLockScroll, label])
+    }, [open, panelRef, shouldLockScroll, label, initialFocus])
 }
 
 /**

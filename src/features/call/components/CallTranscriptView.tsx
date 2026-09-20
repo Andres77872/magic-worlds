@@ -27,9 +27,9 @@ function CharacterTranscriptLine({ segment, speaker }: { segment: CallTranscript
     const { t } = useTranslation()
     const { src, loading } = useAuthenticatedMediaUrl(segment.audio_url ?? undefined, 'audio/mpeg')
     return (
-        <div className="rounded-lg border border-arcane-500/25 bg-arcane-500/10 px-3 py-2.5 text-sm leading-relaxed text-parchment-100">
+        <div className="border-l-2 border-arcane-500/30 py-2 pl-4 text-body text-parchment-100">
             <p>
-                <span className="inline-flex items-center gap-1 font-semibold text-arcane-300">
+                <span className="mb-1 flex items-center gap-1 text-caption font-semibold text-arcane-300">
                     <Icon icon={Volume2} size={12} />
                     {speaker}
                 </span>{' '}
@@ -51,9 +51,9 @@ function CharacterTranscriptLine({ segment, speaker }: { segment: CallTranscript
 function UserTranscriptLine({ segment }: { segment: CallTranscriptSegment }) {
     const { t } = useTranslation()
     return (
-        <div className="rounded-lg border border-ember-500/20 bg-ember-500/10 px-3 py-2.5 text-sm leading-relaxed text-parchment-100">
+        <div className="border-l-2 border-ember-500/30 py-2 pl-4 text-body text-parchment-100">
             <p>
-                <span className="inline-flex items-center gap-1 font-semibold text-ember-300">
+                <span className="mb-1 flex items-center gap-1 text-caption font-semibold text-ember-300">
                     <Icon icon={Mic} size={12} />
                     {t('call.transcript.youSaid')}
                 </span>{' '}

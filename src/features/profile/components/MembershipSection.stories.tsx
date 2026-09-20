@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { NavigationProvider } from '@/app/providers/NavigationProvider'
 import { baseProfile } from './ProfileView.stories'
 import { MembershipSection } from './MembershipSection'
 
@@ -15,7 +16,11 @@ const meta = {
       },
     },
   },
-  decorators: [(Story) => <div className="w-[920px] max-w-full"><Story /></div>],
+  decorators: [(Story) => (
+    <NavigationProvider>
+      <div className="w-[920px] max-w-full"><Story /></div>
+    </NavigationProvider>
+  )],
   argTypes: { profile: { control: false } },
   args: { profile: baseProfile },
 } satisfies Meta<typeof MembershipSection>

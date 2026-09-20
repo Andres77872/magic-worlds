@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const setPage = vi.fn()
@@ -625,6 +625,25 @@ describe('GalleryPage', () => {
         await waitFor(() => expect(apiService.getCharacter).toHaveBeenCalledWith('c99'))
         expect(await screen.findByText('Zed')).toBeInTheDocument()
         expect(screen.getByText('Zed').closest('[data-gallery-card-id="c99"]')).toHaveClass('ring-1')
+    })
+
+    it('retries a linked card interrupted by a gallery search instead of losing the link', async () => {
+        let resolveCard!: (card: unknown) => void
+        let resolveSearch!: (cards: unknown) => void
+        vi.mocked(apiService.getCharacters).mockImplementation((_skip, _limit, query) => query
+            ? new Promise(resolve => { resolveSearch = resolve })
+            : Promise.resolve(CHARACTERS))
+        vi.mocked(apiService.getCharacter).mockReturnValue(new Promise(resolve => { resolveCard = resolve }))
+        window.history.replaceState(null, '', '#/gallery/characters?card=c99')
+        render(<GalleryPage type="character" />, { reactStrictMode: true })
+        await waitFor(() => expect(apiService.getCharacter).toHaveBeenCalledWith('c99'))
+
+        fireEvent.change(screen.getByTestId('gallery-search-input'), { target: { value: 'bard' } })
+        await waitFor(() => expect(apiService.getCharacters).toHaveBeenCalledWith(0, 24, 'bard', 'character'))
+        await act(async () => resolveSearch(CHARACTERS))
+        await act(async () => resolveCard({ id: 'c99', name: 'Zed', role: 'character', race: 'Tiefling' }))
+
+        expect(await screen.findByText('Zed')).toBeInTheDocument()
     })
 
     it('exports a world card image from the share menu', async () => {

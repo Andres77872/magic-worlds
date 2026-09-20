@@ -10,7 +10,7 @@ import type { TFunction } from 'i18next'
 import { Copy, Globe2, Link2, Loader2, RefreshCw, Share2, Trash2 } from 'lucide-react'
 import type { SharedCardResource } from '@/shared'
 import { apiService } from '@/infrastructure/api'
-import { Badge, Button, Card, Chip, Icon, SectionHeader, Toast } from '@/ui/primitives'
+import { Badge, Button, Callout, Chip, Icon, SectionHeader, Toast } from '@/ui/primitives'
 import { publicItems } from '@/features/gallery/galleryConfig'
 import { buildSharedCardUrl } from '@/features/gallery/galleryLinks'
 import type { ProfileSharedCardsState } from '../hooks/useProfileSharedCards'
@@ -148,21 +148,21 @@ export function ProfileSharingSection({ sharing }: { sharing: ProfileSharedCards
                 onClose={() => setNotice(null)}
             />
 
-            <Card>
+            <div>
                 {sharing.isLoading ? (
-                    <div className="flex items-center gap-2 px-5 py-5 font-ui text-sm text-parchment-300">
+                    <div className="flex items-center gap-2 py-5 font-ui text-sm text-parchment-300">
                         <Icon icon={Loader2} size={16} className="animate-spin text-ember-400" />
                         {t('profile.sharing.loading')}
                     </div>
                 ) : sharing.error ? (
-                    <div className="flex flex-col gap-3 px-5 py-5">
-                        <p className="font-ui text-sm text-blood-500">{sharing.error}</p>
+                    <div className="flex flex-col gap-3 py-5">
+                        <Callout tone="danger" role="alert">{sharing.error}</Callout>
                         <Button variant="secondary" size="sm" onClick={sharing.refresh}>
                             {t('common.tryAgain')}
                         </Button>
                     </div>
                 ) : activeItems.length === 0 ? (
-                    <div className="px-5 py-5 font-ui text-sm text-parchment-400">
+                    <div className="py-5 font-ui text-sm text-parchment-400">
                         {tab === 'public'
                             ? t('profile.sharing.publicEmpty')
                             : t('profile.sharing.linksEmpty')}
@@ -179,7 +179,7 @@ export function ProfileSharingSection({ sharing }: { sharing: ProfileSharedCards
                             return (
                                 <div
                                     key={`${tab}:${resource.card_type}:${cardId ?? resource.share_token ?? title}`}
-                                    className="flex flex-col gap-3 border-b border-parchment-50/[.06] px-5 py-4 last:border-b-0 md:flex-row md:items-center md:justify-between"
+                                    className="flex flex-col gap-3 border-b border-line-faint py-4 last:border-b-0 md:flex-row md:items-center md:justify-between"
                                 >
                                     <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-2">
@@ -232,7 +232,7 @@ export function ProfileSharingSection({ sharing }: { sharing: ProfileSharedCards
                         })}
                     </div>
                 )}
-            </Card>
+            </div>
         </section>
     )
 }

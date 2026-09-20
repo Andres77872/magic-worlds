@@ -7,7 +7,7 @@ import { UserCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { apiService } from '@/infrastructure/api'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
-import { Button, Icon } from '@/ui/primitives'
+import { Button, Callout, Icon } from '@/ui/primitives'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
 import { isBillingFeatureEnabled } from '@/shared/billingFeatureFlag'
@@ -132,9 +132,9 @@ export function ProfilePage() {
     if (error && !profile) {
         return (
             <div className="mx-auto flex w-full max-w-[960px] flex-col gap-4 px-5 py-10 sm:px-8">
-                <div className="rounded-md border border-blood-500/30 bg-blood-500/10 px-4 py-3 text-[14px] text-blood-500">
+                <Callout tone="danger" role="alert">
                     {error}
-                </div>
+                </Callout>
                 <div>
                     <Button variant="secondary" size="sm" onClick={refresh}>
                         {t('common.tryAgain')}

@@ -83,3 +83,12 @@ export const WithSelect: Story = {
     )
   },
 }
+
+export const CompactTextarea: Story = {
+  args: { label: 'Portrait direction', helper: 'A short visual note for this character.' },
+  render: (args) => (
+    <Field {...args}>
+      <Textarea rows={2} placeholder="Moonlit forest, silver cloak…" />
+    </Field>
+  ),
+}

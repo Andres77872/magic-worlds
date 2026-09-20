@@ -20,6 +20,8 @@ interface SegmentedControlProps<T extends string> {
     value: T
     onChange: (value: T) => void
     size?: IconButtonSize
+    /** Show option names when an icon alone cannot explain the choice. */
+    showLabels?: boolean
     'aria-label': string
     className?: string
     'data-testid'?: string
@@ -30,6 +32,7 @@ export function SegmentedControl<T extends string>({
     value,
     onChange,
     size = 'sm',
+    showLabels = false,
     'aria-label': ariaLabel,
     className,
     'data-testid': testId,
@@ -51,13 +54,31 @@ export function SegmentedControl<T extends string>({
         <div
             role="radiogroup"
             aria-label={ariaLabel}
-            className={cx('inline-flex items-center gap-0.5 rounded-lg border border-line-faint bg-surface-raised p-1', className)}
+            className={cx('inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-line-faint bg-surface-raised p-1', className)}
             data-testid={testId}
         >
             {options.map((option, index) => {
                 const selected = option.value === value
                 return (
-                    <IconButton
+                    showLabels ? (
+                    <button
+                        key={option.value}
+                        ref={(node) => { refs.current[index] = node }}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        tabIndex={selected ? 0 : -1}
+                        onClick={() => onChange(option.value)}
+                        onKeyDown={(event) => handleKeyDown(event, index)}
+                        className={cx(
+                            'inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 py-2 font-ui text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember-400',
+                            selected ? 'bg-ember-500/10 text-ember-300' : 'text-parchment-300 hover:bg-parchment-50/[.04] hover:text-parchment-100',
+                        )}
+                    >
+                        <span aria-hidden="true" className="shrink-0">{option.icon}</span>
+                        <span>{option.label}</span>
+                    </button>
+                    ) : <IconButton
                         key={option.value}
                         ref={(node) => {
                             refs.current[index] = node

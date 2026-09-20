@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
 import type { AdminVoiceEntry } from '@/shared'
-import { Badge, Button, Icon, IconButton, Input, Select, cx } from '@/ui/primitives'
+import { Button, Icon, IconButton, Input, Select, cx } from '@/ui/primitives'
 import { SYSTEM_VOICE_PAGE_SIZE } from '@/features/admin/voices/constants'
 import { buildLanguageOptions, deriveVoiceLanguage } from '@/features/admin/voices/voiceLanguage'
 
@@ -86,7 +86,7 @@ export function SystemVoicePicker({ voices, loading, selectedVoiceId, onSelect }
             </div>
 
             {visible.length > 0 ? (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col divide-y divide-line-faint">
                     {visible.map((voice) => {
                         const selected = voice.voice_id === selectedVoiceId
                         const description = voice.description.filter(Boolean).join(' ')
@@ -94,8 +94,8 @@ export function SystemVoicePicker({ voices, loading, selectedVoiceId, onSelect }
                             <div
                                 key={voice.voice_id}
                                 className={cx(
-                                    'flex items-start justify-between gap-3 rounded-lg border px-4 py-3',
-                                    selected ? 'border-ember-500/60 bg-parchment-50/[.05]' : 'border-parchment-50/[.08] bg-ink-800/70',
+                                    'flex flex-wrap items-start justify-between gap-3 border-l-2 pl-3 py-4',
+                                    selected ? 'border-l-ember-500 bg-ember-500/[.05]' : 'border-l-transparent',
                                 )}
                             >
                                 <div className="min-w-0">
@@ -116,7 +116,7 @@ export function SystemVoicePicker({ voices, loading, selectedVoiceId, onSelect }
                     })}
                 </div>
             ) : (
-                <div className="rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3 font-ui text-sm text-parchment-300">
+                <div role="status" className="py-6 font-ui text-sm text-parchment-300">
                     {loading ? t('voices.systemPicker.loading') : t('voices.systemPicker.noMatch')}
                 </div>
             )}
@@ -140,7 +140,7 @@ export function SystemVoicePicker({ voices, loading, selectedVoiceId, onSelect }
                 </div>
             )}
 
-            <Badge tone="neutral">{t('voices.systemPicker.count', { count: voices.length })}</Badge>
+            <p className="font-ui text-xs text-parchment-300">{t('voices.systemPicker.count', { count: voices.length })}</p>
         </div>
     )
 }

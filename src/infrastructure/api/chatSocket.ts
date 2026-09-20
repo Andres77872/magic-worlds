@@ -220,11 +220,12 @@ export class ChatSocket {
     }
 
     /** Request a generation. Queues until the socket is OPEN, (re)connecting if needed. */
-    sendChat(content: string, requestId?: string): void {
+    sendChat(content: string, requestId?: string, existingUserMessageId?: number): void {
         const frame = JSON.stringify({
             type: 'chat',
             content,
             ...(requestId ? { request_id: requestId } : {}),
+            ...(existingUserMessageId !== undefined ? { existing_user_message_id: existingUserMessageId } : {}),
         })
         const token = getStoredToken()
         if (!token) {

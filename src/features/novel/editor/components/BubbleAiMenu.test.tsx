@@ -4,7 +4,7 @@ import { BubbleAiMenu } from './BubbleAiMenu'
 
 describe('BubbleAiMenu', () => {
     it('offers Beat first, then the canned verbs', () => {
-        render(<BubbleAiMenu onBeat={vi.fn()} onSelectCommand={vi.fn()} />)
+        render(<BubbleAiMenu menuRef={null} position={{ top: 40, left: 8, width: 240 }} onBeat={vi.fn()} onSelectCommand={vi.fn()} />)
 
         const items = screen.getAllByTestId('bubble-ai-item')
         expect(items[0]).toHaveTextContent('Beat')
@@ -14,7 +14,7 @@ describe('BubbleAiMenu', () => {
     it('routes Beat and the verbs to their own handlers', () => {
         const onBeat = vi.fn()
         const onSelectCommand = vi.fn()
-        render(<BubbleAiMenu onBeat={onBeat} onSelectCommand={onSelectCommand} />)
+        render(<BubbleAiMenu menuRef={null} position={{ top: 40, left: 8, width: 240 }} onBeat={onBeat} onSelectCommand={onSelectCommand} />)
 
         fireEvent.click(screen.getByRole('menuitem', { name: 'Beat' }))
         expect(onBeat).toHaveBeenCalledTimes(1)
@@ -24,7 +24,7 @@ describe('BubbleAiMenu', () => {
     })
 
     it('keeps the live selection: mousedown never reaches the editor', () => {
-        render(<BubbleAiMenu onBeat={vi.fn()} onSelectCommand={vi.fn()} />)
+        render(<BubbleAiMenu menuRef={null} position={{ top: 40, left: 8, width: 240 }} onBeat={vi.fn()} onSelectCommand={vi.fn()} />)
 
         const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
         screen.getByRole('menuitem', { name: 'Rewrite' }).dispatchEvent(event)
@@ -34,7 +34,7 @@ describe('BubbleAiMenu', () => {
 
     it('owns no dismissal listener — the toolbar wrapping trigger and menu owns that', () => {
         const onBeat = vi.fn()
-        render(<BubbleAiMenu onBeat={onBeat} onSelectCommand={vi.fn()} />)
+        render(<BubbleAiMenu menuRef={null} position={{ top: 40, left: 8, width: 240 }} onBeat={onBeat} onSelectCommand={vi.fn()} />)
 
         // A stray outside click must not be swallowed or acted on here; if this
         // component grew its own handler it would race the toolbar's and close

@@ -86,7 +86,7 @@ export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, o
                 <h3 className="line-clamp-2 font-display text-base font-semibold leading-snug text-parchment-50">
                     {item.title}
                 </h3>
-                <span className="font-mono text-micro text-parchment-500">{formatWhen(item.createdAt)}</span>
+                <span className="font-mono text-micro text-fg-subtle">{formatWhen(item.createdAt)}</span>
             </div>
 
             <div className="relative mt-2 flex items-center justify-between gap-2">

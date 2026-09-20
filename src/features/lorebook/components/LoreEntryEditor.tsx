@@ -40,7 +40,7 @@ export function LoreEntryEditor({ entry, onChange, onDelete }: LoreEntryEditorPr
 
     if (!entry) {
         return (
-            <div className="flex min-h-[420px] flex-col items-center justify-center rounded-xl border border-dashed border-parchment-50/15 bg-ink-700/30 px-6 text-center">
+            <div className="flex min-h-64 flex-col items-center justify-center px-4 py-8 text-center">
                 <Icon icon={ScrollText} size={34} className="text-arcane-300" />
                 <p className="mt-3 font-display text-xl font-semibold text-parchment-50">{t('lorebookStudio.entryEditor.empty.title')}</p>
                 <p className="mt-1 max-w-[34ch] font-narrative text-sm text-parchment-300">
@@ -53,25 +53,25 @@ export function LoreEntryEditor({ entry, onChange, onDelete }: LoreEntryEditorPr
     const patch = (changes: Partial<LorebookEntry>) => onChange({ ...entry, ...changes })
 
     return (
-        <div className="flex flex-col gap-5 rounded-xl border border-parchment-50/10 bg-ink-800 p-5">
+        <section aria-label={entry.title || t('lorebookStudio.entryEditor.untitled')} className="flex min-w-0 flex-col gap-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-arcane-500/10 px-3 py-1 font-ui text-xs font-semibold text-arcane-300">
+                    <div className="inline-flex items-center gap-2 font-ui text-caption text-parchment-400">
                         <Icon icon={SlidersHorizontal} size={13} />
                         {t('lorebookStudio.entryEditor.estimatedTokens', { count: estimateTokens(entry.content) })}
                     </div>
-                    <h3 className="mt-3 truncate font-display text-xl font-semibold text-parchment-50">
+                    <h3 className="mt-2 break-words font-display text-h3 font-semibold text-parchment-50">
                         {entry.title || t('lorebookStudio.entryEditor.untitled')}
                     </h3>
                 </div>
                 {onDelete && (
-                    <Button variant="danger" size="sm" onClick={() => onDelete(entry.id)}>
+                    <Button variant="danger-ghost" size="sm" onClick={() => onDelete(entry.id)}>
                         {t('common.delete')}
                     </Button>
                 )}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]">
+            <div className="grid gap-4">
                 <Field label={t('lorebookStudio.entryEditor.fields.title.label')}>
                     <Input value={entry.title} onChange={(event) => patch({ title: event.target.value })} placeholder={t('lorebookStudio.entryEditor.fields.title.placeholder')} />
                 </Field>
@@ -93,11 +93,11 @@ export function LoreEntryEditor({ entry, onChange, onDelete }: LoreEntryEditorPr
                 />
             </Field>
 
-            <div className="rounded-xl border border-parchment-50/[.08] bg-ink-700/40 p-4">
-                <div className="mb-4 flex items-center gap-2 font-ui text-sm font-semibold text-parchment-50">
+            <section className="border-t border-parchment-50/10 pt-5">
+                <h4 className="mb-4 flex items-center gap-2 font-ui text-body font-semibold text-parchment-50">
                     <Icon icon={KeyRound} size={16} className="text-arcane-300" />
                     {t('lorebookStudio.entryEditor.activation.heading')}
-                </div>
+                </h4>
                 <div className="grid gap-4">
                     <TriggersField
                         values={entry.keys}
@@ -131,13 +131,13 @@ export function LoreEntryEditor({ entry, onChange, onDelete }: LoreEntryEditorPr
                             />
                         </Field>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        <SwitchRow label={t('lorebookStudio.entryEditor.switches.enabled.label')} description={t('lorebookStudio.entryEditor.switches.enabled.description')} checked={entry.enabled} onChange={(enabled) => patch({ enabled })} />
-                        <SwitchRow label={t('lorebookStudio.entryEditor.switches.constant.label')} description={t('lorebookStudio.entryEditor.switches.constant.description')} checked={entry.constant} onChange={(constant) => patch({ constant })} />
-                        <SwitchRow label={t('lorebookStudio.entryEditor.switches.wholeWords.label')} description={t('lorebookStudio.entryEditor.switches.wholeWords.description')} checked={entry.matchWholeWords} onChange={(matchWholeWords) => patch({ matchWholeWords })} />
-                        <SwitchRow label={t('lorebookStudio.entryEditor.switches.caseSensitive.label')} description={t('lorebookStudio.entryEditor.switches.caseSensitive.description')} checked={entry.caseSensitive} onChange={(caseSensitive) => patch({ caseSensitive })} />
-                        <SwitchRow label={t('lorebookStudio.entryEditor.switches.regex.label')} description={t('lorebookStudio.entryEditor.switches.regex.description')} checked={entry.regex} onChange={(regex) => patch({ regex })} />
-                        <SwitchRow label={t('lorebookStudio.entryEditor.switches.secret.label')} description={t('lorebookStudio.entryEditor.switches.secret.description')} checked={entry.isSecret} onChange={(isSecret) => patch({ isSecret })} />
+                    <div className="divide-y divide-parchment-50/10">
+                        <SwitchRow variant="plain" label={t('lorebookStudio.entryEditor.switches.enabled.label')} description={t('lorebookStudio.entryEditor.switches.enabled.description')} checked={entry.enabled} onChange={(enabled) => patch({ enabled })} />
+                        <SwitchRow variant="plain" label={t('lorebookStudio.entryEditor.switches.constant.label')} description={t('lorebookStudio.entryEditor.switches.constant.description')} checked={entry.constant} onChange={(constant) => patch({ constant })} />
+                        <SwitchRow variant="plain" label={t('lorebookStudio.entryEditor.switches.wholeWords.label')} description={t('lorebookStudio.entryEditor.switches.wholeWords.description')} checked={entry.matchWholeWords} onChange={(matchWholeWords) => patch({ matchWholeWords })} />
+                        <SwitchRow variant="plain" label={t('lorebookStudio.entryEditor.switches.caseSensitive.label')} description={t('lorebookStudio.entryEditor.switches.caseSensitive.description')} checked={entry.caseSensitive} onChange={(caseSensitive) => patch({ caseSensitive })} />
+                        <SwitchRow variant="plain" label={t('lorebookStudio.entryEditor.switches.regex.label')} description={t('lorebookStudio.entryEditor.switches.regex.description')} checked={entry.regex} onChange={(regex) => patch({ regex })} />
+                        <SwitchRow variant="plain" label={t('lorebookStudio.entryEditor.switches.secret.label')} description={t('lorebookStudio.entryEditor.switches.secret.description')} checked={entry.isSecret} onChange={(isSecret) => patch({ isSecret })} />
                     </div>
                     {entry.isSecret && (
                         <Field label={<span className="inline-flex items-center gap-2"><Icon icon={EyeOff} size={14} /> {t('lorebookStudio.entryEditor.fields.revealCondition.label')}</span>}>
@@ -149,15 +149,15 @@ export function LoreEntryEditor({ entry, onChange, onDelete }: LoreEntryEditorPr
                         </Field>
                     )}
                 </div>
-            </div>
+            </section>
 
-            <div className="rounded-xl border border-parchment-50/[.08] bg-ink-700/40 p-4">
-                <div className="mb-4 flex items-center gap-2 font-ui text-sm font-semibold text-parchment-50">
+            <section className="border-t border-parchment-50/10 pt-5">
+                <h4 className="mb-4 flex items-center gap-2 font-ui text-body font-semibold text-parchment-50">
                     <Icon icon={Route} size={16} className="text-arcane-300" />
                     {t('lorebookStudio.entryEditor.placement.heading')}
-                </div>
-                <div className="grid gap-4 sm:grid-cols-3">
-                    <Field label={t('lorebookStudio.entryEditor.placement.position.label')}>
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                    <Field label={t('lorebookStudio.entryEditor.placement.position.label')} className="col-span-2">
                         <Select
                             options={insertionPositionOptions}
                             value={entry.insertionPosition}
@@ -171,11 +171,11 @@ export function LoreEntryEditor({ entry, onChange, onDelete }: LoreEntryEditorPr
                         <Input type="number" value={entry.priority} onChange={(event) => patch({ priority: Number(event.target.value) })} />
                     </Field>
                 </div>
-            </div>
+            </section>
 
             <Callout tone="info" icon={<Icon icon={Settings2} size={15} />}>
                 {t('lorebookStudio.entryEditor.placement.note')}
             </Callout>
-        </div>
+        </section>
     )
 }

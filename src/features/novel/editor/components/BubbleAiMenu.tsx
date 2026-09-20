@@ -2,7 +2,7 @@
  * BubbleAiMenu — the AI menu on the selection toolbar.
  *
  * Presentational on purpose. The trigger, the open flag and the dismissal
- * handlers stay in EditorBubbleMenu, which wraps both in one element: a
+ * handlers stay in EditorBubbleMenu, which tracks the trigger and portal: a
  * component that owned its own outside-click listener would race the toolbar's,
  * and the loser closes the menu on the very click that opened it. That is the
  * bug the previous version of this file had.
@@ -11,11 +11,12 @@
  * say what to do in their own words instead of picking from canned verbs.
  */
 
-import type { MouseEvent } from 'react'
+import type { MouseEvent, Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Maximize2, Minimize2, PenLine, ScrollText, Wand2, type LucideIcon } from 'lucide-react'
 import type { StoryGenerationCommand } from '@/shared'
 import { Icon } from '@/ui/primitives'
+import type { PopupPosition } from '@/ui/primitives/useAnchoredPopup'
 
 interface BubbleAiCommand {
     command: StoryGenerationCommand
@@ -24,6 +25,8 @@ interface BubbleAiCommand {
 }
 
 interface BubbleAiMenuProps {
+    menuRef: Ref<HTMLDivElement>
+    position: PopupPosition | null
     /** Opens the beat composer with the selection as its target. */
     onBeat: () => void
     onSelectCommand: (command: StoryGenerationCommand) => void
@@ -62,13 +65,15 @@ function AiMenuItem({ label, icon, onSelect }: { label: string; icon: LucideIcon
     )
 }
 
-export function BubbleAiMenu({ onBeat, onSelectCommand }: BubbleAiMenuProps) {
+export function BubbleAiMenu({ menuRef, position, onBeat, onSelectCommand }: BubbleAiMenuProps) {
     const { t } = useTranslation()
     return (
         <div
+            ref={menuRef}
             role="menu"
             aria-label={t('novelEditor.bubbleMenu.aiMenu')}
-            className="absolute right-0 top-[calc(100%+6px)] z-[100] w-[240px] overflow-hidden rounded-md border border-parchment-50/10 bg-ink-700 p-1 shadow-lg"
+            style={position ?? { visibility: 'hidden' }}
+            className="fixed z-[100] max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-md border border-parchment-50/10 bg-ink-700 p-1 shadow-lg"
             data-testid="bubble-ai-menu"
         >
             <AiMenuItem label={t('novelEditor.bubbleMenu.beat')} icon={Wand2} onSelect={onBeat} />

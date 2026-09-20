@@ -28,7 +28,6 @@ import {
     Badge,
     Button,
     Card,
-    Chip,
     Drawer,
     Field,
     Icon,
@@ -340,7 +339,7 @@ export function AdminAgentsPage() {
                 </div>
             )}
 
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+            {(!error || agents.length > 0) && <div className="grid gap-8 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
                 <AgentList
                     agents={agents}
                     loading={loadingList}
@@ -395,7 +394,7 @@ export function AdminAgentsPage() {
                         </div>
                     </Card>
                 )}
-            </div>
+            </div>}
 
             <VersionHistoryDrawer
                 open={versionsOpen}
@@ -480,69 +479,67 @@ function AgentList({
     onDelete: (agent: AgentSummary) => void
 }) {
     return (
-        <Card>
-            <div className="flex flex-col gap-4 p-5">
-                <SectionHeader
-                    icon={Bot}
-                    title="Agents"
-                    tone="arcane"
-                    right={<Badge tone={loading ? 'neutral' : 'glass'}>{loading ? 'Loading' : `${agents.length}`}</Badge>}
-                />
-                <Button variant="secondary" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={onNew}>
-                    Create custom copy
-                </Button>
-                <div className="flex flex-col gap-2">
-                    {agents.length === 0 && !loading && (
-                        <p className="rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3 font-ui text-sm text-parchment-300">
-                            No agents yet.
-                        </p>
-                    )}
-                    {/* Row container is a <div>, not a <button>: the delete control is a
-                        real <button> and nesting one inside another is invalid HTML —
-                        assistive tech folds the inner control into the row's name and
-                        never exposes it as a separate action. Select and delete are
-                        siblings in a two-column grid instead. */}
-                    {agents.map((agent) => (
-                        <div
-                            key={agent.workflow_key}
-                            className={cx(
-                                'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-lg border px-3.5 py-3 transition-colors',
-                                selectedKey === agent.workflow_key
-                                    ? 'border-ember-500/50 bg-ember-500/10'
-                                    : 'border-parchment-50/[.08] bg-ink-800/70 hover:border-parchment-50/20',
-                            )}
+        <section className="flex min-w-0 flex-col gap-4 self-start">
+            <SectionHeader
+                icon={Bot}
+                title="Agents"
+                tone="arcane"
+                right={<Badge tone={loading ? 'neutral' : 'glass'}>{loading ? 'Loading' : `${agents.length}`}</Badge>}
+            />
+            <Button variant="secondary" size="sm" iconLeft={<Icon icon={Plus} size={14} />} onClick={onNew}>
+                Create custom copy
+            </Button>
+            <div className="flex flex-col gap-2">
+                {agents.length === 0 && !loading && (
+                    <p className="py-3 font-ui text-sm text-parchment-300">
+                        No agents yet.
+                    </p>
+                )}
+                {/* Row container is a <div>, not a <button>: the delete control is a
+                    real <button> and nesting one inside another is invalid HTML —
+                    assistive tech folds the inner control into the row's name and
+                    never exposes it as a separate action. Select and delete are
+                    siblings in a two-column grid instead. */}
+                {agents.map((agent) => (
+                    <div
+                        key={agent.workflow_key}
+                        className={cx(
+                            'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-md border-l-2 px-3 py-3 transition-colors',
+                            selectedKey === agent.workflow_key
+                                ? 'border-ember-500 bg-ember-500/10'
+                                : 'border-transparent hover:bg-surface-raised',
+                        )}
+                    >
+                        <button
+                            type="button"
+                            onClick={() => onSelect(agent.workflow_key)}
+                            aria-pressed={selectedKey === agent.workflow_key}
+                            className="flex min-w-0 flex-col gap-1.5 rounded-xs text-left"
                         >
-                            <button
-                                type="button"
-                                onClick={() => onSelect(agent.workflow_key)}
-                                aria-pressed={selectedKey === agent.workflow_key}
-                                className="flex min-w-0 flex-col gap-1.5 rounded-xs text-left"
-                            >
-                                <span className="min-w-0 truncate font-ui text-sm font-semibold text-parchment-50">
-                                    {agent.display_name}
-                                </span>
-                                <span className="flex flex-wrap items-center gap-1.5">
-                                    <Badge tone="glass">{OUTPUT_MODE_LABEL[agent.output_mode]}</Badge>
-                                    {agent.has_unpublished_draft && agent.has_published && (
-                                        <Badge tone="ember">Draft</Badge>
-                                    )}
-                                    {!agent.has_published && <Badge tone="ember">Unpublished</Badge>}
-                                </span>
-                            </button>
-                            {agent.storage === 'file' ? (
-                                <Badge tone="neutral" icon={<Icon icon={Lock} size={10} />}>
-                                    File
-                                </Badge>
-                            ) : (
-                                <IconButton label={`Delete ${agent.display_name}`} size="sm" onClick={() => onDelete(agent)}>
-                                    <Icon icon={Trash2} size={14} />
-                                </IconButton>
-                            )}
-                        </div>
-                    ))}
-                </div>
+                            <span className="min-w-0 truncate font-ui text-sm font-semibold text-parchment-50">
+                                {agent.display_name}
+                            </span>
+                            <span className="flex flex-wrap items-center gap-1.5">
+                                <Badge tone="glass">{OUTPUT_MODE_LABEL[agent.output_mode]}</Badge>
+                                {agent.has_unpublished_draft && agent.has_published && (
+                                    <Badge tone="ember">Draft</Badge>
+                                )}
+                                {!agent.has_published && <Badge tone="ember">Unpublished</Badge>}
+                            </span>
+                        </button>
+                        {agent.storage === 'file' ? (
+                            <Badge tone="neutral" icon={<Icon icon={Lock} size={10} />}>
+                                File
+                            </Badge>
+                        ) : (
+                            <IconButton label={`Delete ${agent.display_name}`} size="sm" onClick={() => onDelete(agent)}>
+                                <Icon icon={Trash2} size={14} />
+                            </IconButton>
+                        )}
+                    </div>
+                ))}
             </div>
-        </Card>
+        </section>
     )
 }
 
@@ -628,195 +625,187 @@ function AgentEditor(props: EditorProps) {
           ]
 
     return (
-        <form className="flex flex-col gap-6" onSubmit={onSubmit}>
-            <Card>
-                <div className="flex flex-col gap-5 p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <SectionHeader icon={Bot} title={isNew ? 'Create custom copy' : form.displayName} tone="arcane" />
-                        <div className="flex items-center gap-2">{statusBadge(detail, isNew, dirty)}</div>
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        {isNew && (
-                            <Field label="Copy from" error={errors.sourceWorkflowKey} helper="The new agent starts as a detached copy of this source.">
-                                <Select
-                                    options={sourceOptions}
-                                    value={form.sourceWorkflowKey}
-                                    onChange={onSource}
-                                    aria-label="Copy from"
-                                />
-                            </Field>
-                        )}
-                        <Field label="Name" error={errors.displayName}>
-                            <Input
-                                value={form.displayName}
-                                disabled={!isNew}
-                                maxLength={128}
-                                onChange={(event) => onDisplayName(event.target.value)}
-                                onBlur={() => {
-                                    if (isNew && !form.slug.trim() && form.displayName.trim()) {
-                                        onSlug(slugifyWorkflowKey(form.displayName))
-                                    }
-                                }}
-                                placeholder="World generator"
-                            />
-                        </Field>
-                        <Field
-                            label="Workflow key"
-                            error={errors.slug}
-                            helper={isNew ? 'Lowercase id; stored as custom_<key>.' : 'Built-in key (read-only).'}
-                        >
-                            <Input
-                                value={form.slug}
-                                disabled={!isNew}
-                                maxLength={40}
-                                onChange={(event) => onSlug(slugifyWorkflowKey(event.target.value))}
-                                placeholder="my_generator"
-                            />
-                        </Field>
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Field label="Output mode" error={errors.outputMode} helper="Controls whether JSON output is requested.">
-                            <Select
-                                options={outputModeOptions}
-                                value={form.outputMode}
-                                onChange={(value) => onOutputMode(value as AgentOutputMode)}
-                                disabled={readOnly}
-                                aria-label="Output mode"
-                            />
-                        </Field>
-                        <Field label="Model" error={errors.model} helper="Provider credentials stay server-side (env).">
-                            <Select
-                                options={modelOptions}
-                                value={e.model || null}
-                                onChange={(value) => onPatch({ model: value })}
-                                placeholder="Select a model"
-                                aria-label="Model"
-                                disabled={readOnly}
-                            />
-                        </Field>
-                    </div>
+        <form className="flex min-w-0 flex-col gap-8" onSubmit={onSubmit}>
+            <section className="flex flex-col gap-5 border-t border-line-faint pt-6 first:border-t-0 first:pt-0">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <SectionHeader icon={Bot} title={isNew ? 'Create custom copy' : form.displayName} tone="arcane" />
+                    <div className="flex items-center gap-2">{statusBadge(detail, isNew, dirty)}</div>
                 </div>
-            </Card>
 
-            <Card>
-                <div className="flex flex-col gap-5 p-5">
-                    <SectionHeader icon={CornerDownLeft} title="Prompts" tone="ember" />
-                    <Field label="System message" error={errors.system_message}>
-                        <Textarea
-                            value={e.system_message}
-                            onChange={(event) => onPatch({ system_message: event.target.value })}
-                            maxLength={20000}
-                            disabled={readOnly}
-                            rows={4}
-                            placeholder="You generate Magic Worlds content cards..."
+                <div className="grid gap-4 sm:grid-cols-2">
+                    {isNew && (
+                        <Field label="Copy from" error={errors.sourceWorkflowKey} helper="The new agent starts as a detached copy of this source.">
+                            <Select
+                                options={sourceOptions}
+                                value={form.sourceWorkflowKey}
+                                onChange={onSource}
+                                aria-label="Copy from"
+                            />
+                        </Field>
+                    )}
+                    <Field label="Name" error={errors.displayName}>
+                        <Input
+                            value={form.displayName}
+                            disabled={!isNew}
+                            maxLength={128}
+                            onChange={(event) => onDisplayName(event.target.value)}
+                            onBlur={() => {
+                                if (isNew && !form.slug.trim() && form.displayName.trim()) {
+                                    onSlug(slugifyWorkflowKey(form.displayName))
+                                }
+                            }}
+                            placeholder="World generator"
                         />
                     </Field>
-                    <PromptTemplateField
-                        value={e.prompt_template}
-                        error={errors.prompt_template}
-                        onChange={(value) => onPatch({ prompt_template: value })}
+                    <Field
+                        label="Workflow key"
+                        error={errors.slug}
+                        helper={isNew ? 'Lowercase id; stored as custom_<key>.' : 'Built-in key (read-only).'}
+                    >
+                        <Input
+                            value={form.slug}
+                            disabled={!isNew}
+                            maxLength={40}
+                            onChange={(event) => onSlug(slugifyWorkflowKey(event.target.value))}
+                            placeholder="my_generator"
+                        />
+                    </Field>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Output mode" error={errors.outputMode} helper="Controls whether JSON output is requested.">
+                        <Select
+                            options={outputModeOptions}
+                            value={form.outputMode}
+                            onChange={(value) => onOutputMode(value as AgentOutputMode)}
+                            disabled={readOnly}
+                            aria-label="Output mode"
+                        />
+                    </Field>
+                    <Field label="Model" error={errors.model} helper="Provider credentials stay server-side (env).">
+                        <Select
+                            options={modelOptions}
+                            value={e.model || null}
+                            onChange={(value) => onPatch({ model: value })}
+                            placeholder="Select a model"
+                            aria-label="Model"
+                            disabled={readOnly}
+                        />
+                    </Field>
+                </div>
+            </section>
+
+            <section className="flex flex-col gap-5 border-t border-line-faint pt-6 first:border-t-0 first:pt-0">
+                <SectionHeader icon={CornerDownLeft} title="Prompts" tone="ember" />
+                <Field label="System message" error={errors.system_message}>
+                    <Textarea
+                        value={e.system_message}
+                        onChange={(event) => onPatch({ system_message: event.target.value })}
+                        maxLength={20000}
+                        disabled={readOnly}
+                        rows={4}
+                        placeholder="You generate Magic Worlds content cards..."
+                    />
+                </Field>
+                <PromptTemplateField
+                    value={e.prompt_template}
+                    error={errors.prompt_template}
+                    onChange={(value) => onPatch({ prompt_template: value })}
+                    disabled={readOnly}
+                />
+            </section>
+
+            <section className="flex flex-col gap-5 border-t border-line-faint pt-6 first:border-t-0 first:pt-0">
+                <SectionHeader icon={FlaskConical} title="Generation parameters" tone="arcane" />
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,160px),1fr))] gap-4">
+                    <NumberField
+                        label="Temperature"
+                        value={e.temperature}
+                        error={errors.temperature}
+                        min={0}
+                        max={2}
+                        step={0.05}
+                        onChange={(value) => onPatch({ temperature: value ?? 0 })}
+                        disabled={readOnly}
+                    />
+                    <NumberField
+                        label="Top-p"
+                        value={e.top_p}
+                        error={errors.top_p}
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        allowEmpty
+                        onChange={(value) => onPatch({ top_p: value })}
+                        disabled={readOnly}
+                    />
+                    <NumberField
+                        label="Max tokens"
+                        value={e.max_tokens}
+                        error={errors.max_tokens}
+                        min={1}
+                        max={32000}
+                        step={1}
+                        onChange={(value) => onPatch({ max_tokens: value ?? 0 })}
                         disabled={readOnly}
                     />
                 </div>
-            </Card>
+                <SwitchRow
+                    label="JSON output"
+                    description="Derived from the output mode and not editable directly."
+                    checked={e.json_output}
+                    onChange={() => undefined}
+                    disabled
+                />
+            </section>
 
-            <Card>
-                <div className="flex flex-col gap-5 p-5">
-                    <SectionHeader icon={FlaskConical} title="Generation parameters" tone="arcane" />
-                    <div className="grid gap-4 sm:grid-cols-3">
-                        <NumberField
-                            label="Temperature"
-                            value={e.temperature}
-                            error={errors.temperature}
-                            min={0}
-                            max={2}
-                            step={0.05}
-                            onChange={(value) => onPatch({ temperature: value ?? 0 })}
+            <section className="flex flex-col gap-5 border-t border-line-faint pt-6 first:border-t-0 first:pt-0">
+                <SectionHeader icon={History} title="Context window" tone="ember" />
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,160px),1fr))] gap-4">
+                    <NumberField
+                        label="Max messages"
+                        value={e.max_messages}
+                        error={errors.max_messages}
+                        min={1}
+                        max={64}
+                        step={1}
+                        onChange={(value) => onPatch({ max_messages: value ?? 0 })}
+                        disabled={readOnly}
+                    />
+                    <NumberField
+                        label="Max input tokens"
+                        value={e.max_input_tokens}
+                        error={errors.max_input_tokens}
+                        min={256}
+                        max={200000}
+                        step={256}
+                        onChange={(value) => onPatch({ max_input_tokens: value ?? 0 })}
+                        disabled={readOnly}
+                    />
+                    <Field label="Truncation">
+                        <Select
+                            options={[
+                                { value: 'tail', label: 'Tail (drop oldest)' },
+                                { value: 'token_budget', label: 'Token budget' },
+                            ]}
+                            value={e.truncation_strategy}
+                            onChange={(value) => onPatch({ truncation_strategy: value as 'tail' | 'token_budget' })}
+                            aria-label="Truncation strategy"
                             disabled={readOnly}
                         />
-                        <NumberField
-                            label="Top-p"
-                            value={e.top_p}
-                            error={errors.top_p}
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            allowEmpty
-                            onChange={(value) => onPatch({ top_p: value })}
-                            disabled={readOnly}
-                        />
-                        <NumberField
-                            label="Max tokens"
-                            value={e.max_tokens}
-                            error={errors.max_tokens}
-                            min={1}
-                            max={32000}
-                            step={1}
-                            onChange={(value) => onPatch({ max_tokens: value ?? 0 })}
-                            disabled={readOnly}
-                        />
-                    </div>
-                    <SwitchRow
-                        label="JSON output"
-                        description="Derived from the output mode and not editable directly."
-                        checked={e.json_output}
-                        onChange={() => undefined}
-                        disabled
+                    </Field>
+                    <NumberField
+                        label="Timeout (seconds)"
+                        value={e.timeout}
+                        error={errors.timeout}
+                        min={1}
+                        max={600}
+                        step={1}
+                        onChange={(value) => onPatch({ timeout: value ?? 0 })}
+                        disabled={readOnly}
                     />
                 </div>
-            </Card>
-
-            <Card>
-                <div className="flex flex-col gap-5 p-5">
-                    <SectionHeader icon={History} title="Context window" tone="ember" />
-                    <div className="grid gap-4 sm:grid-cols-3">
-                        <NumberField
-                            label="Max messages"
-                            value={e.max_messages}
-                            error={errors.max_messages}
-                            min={1}
-                            max={64}
-                            step={1}
-                            onChange={(value) => onPatch({ max_messages: value ?? 0 })}
-                            disabled={readOnly}
-                        />
-                        <NumberField
-                            label="Max input tokens"
-                            value={e.max_input_tokens}
-                            error={errors.max_input_tokens}
-                            min={256}
-                            max={200000}
-                            step={256}
-                            onChange={(value) => onPatch({ max_input_tokens: value ?? 0 })}
-                            disabled={readOnly}
-                        />
-                        <Field label="Truncation">
-                            <Select
-                                options={[
-                                    { value: 'tail', label: 'Tail (drop oldest)' },
-                                    { value: 'token_budget', label: 'Token budget' },
-                                ]}
-                                value={e.truncation_strategy}
-                                onChange={(value) => onPatch({ truncation_strategy: value as 'tail' | 'token_budget' })}
-                                aria-label="Truncation strategy"
-                                disabled={readOnly}
-                            />
-                        </Field>
-                        <NumberField
-                            label="Timeout (seconds)"
-                            value={e.timeout}
-                            error={errors.timeout}
-                            min={1}
-                            max={600}
-                            step={1}
-                            onChange={(value) => onPatch({ timeout: value ?? 0 })}
-                            disabled={readOnly}
-                        />
-                    </div>
-                </div>
-            </Card>
+            </section>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex gap-2">
@@ -1011,13 +1000,13 @@ function VersionHistoryDrawer({
                 {versions.map((version) => (
                     <div
                         key={version.version_id}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3"
+                        className="flex flex-wrap items-center justify-between gap-3 border-b border-line-faint py-4 last:border-b-0"
                     >
                         <div className="min-w-0">
                             <div className="flex items-center gap-2">
                                 <span className="font-ui text-sm font-semibold text-parchment-50">v{version.version_number}</span>
                                 {version.is_current && <Badge tone="arcane">Current</Badge>}
-                                <Chip>{OUTPUT_MODE_LABEL[version.output_mode]}</Chip>
+                                <Badge tone="neutral">{OUTPUT_MODE_LABEL[version.output_mode]}</Badge>
                             </div>
                             <p className="mt-1 font-mono text-xs text-parchment-400">{version.graph_version}</p>
                             {version.published_at && (

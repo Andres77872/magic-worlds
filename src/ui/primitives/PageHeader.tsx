@@ -21,7 +21,7 @@ interface PageHeaderProps {
     eyebrowTone?: 'ember' | 'arcane' | 'muted'
     title: ReactNode
     subtitle?: ReactNode
-    /** Leading element before the title (an emoji string or an <IconTile>). */
+    /** Leading element before the title, usually an IconTile. */
     icon?: ReactNode
     /** Right-aligned actions (buttons, a search field, etc.). */
     actions?: ReactNode
@@ -35,7 +35,7 @@ interface PageHeaderProps {
 }
 
 const TITLE_SIZE = {
-    md: 'text-h2 max-sm:text-[26px]',
+    md: 'text-h3 sm:text-h2',
     lg: 'text-h1',
 } as const
 
@@ -52,29 +52,27 @@ export function PageHeader({
     className,
 }: PageHeaderProps) {
     return (
-        <header className={cx(divider && 'border-b border-parchment-50/10 pb-5', className)}>
-            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
-                <div className="flex min-w-0 flex-col gap-2.5">
-                    {eyebrow && <Eyebrow tone={eyebrowTone}>{eyebrow}</Eyebrow>}
-                    <div className="flex items-center gap-3">
-                        {icon}
-                        <Heading
-                            className={cx(
-                                'm-0 font-display font-semibold tracking-tight text-parchment-50',
-                                TITLE_SIZE[size],
-                            )}
-                        >
-                            {title}
-                        </Heading>
-                    </div>
-                    {subtitle && (
-                        <p className="max-w-[60ch] font-narrative text-[17px] leading-snug text-parchment-300">
-                            {subtitle}
-                        </p>
-                    )}
+        <header className={cx('flex min-w-0 flex-wrap items-center justify-between gap-x-6 gap-y-4', divider && 'border-b border-line pb-5', className)}>
+            <div className="flex min-w-0 max-w-full flex-1 basis-64 flex-col gap-2">
+                {eyebrow && <Eyebrow tone={eyebrowTone}>{eyebrow}</Eyebrow>}
+                <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
+                    {icon}
+                    <Heading
+                        className={cx(
+                            'm-0 min-w-0 break-words font-display font-semibold tracking-tight text-fg',
+                            TITLE_SIZE[size],
+                        )}
+                    >
+                        {title}
+                    </Heading>
                 </div>
-                {actions && <div className="flex shrink-0 flex-wrap items-center gap-3">{actions}</div>}
+                {subtitle && (
+                    <p className="max-w-prose font-ui text-body text-fg-subtle">
+                        {subtitle}
+                    </p>
+                )}
             </div>
+            {actions && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 [&>*]:max-w-full">{actions}</div>}
         </header>
     )
 }

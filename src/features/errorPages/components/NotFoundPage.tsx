@@ -2,7 +2,7 @@ import { ArrowLeft, Home } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigation } from '@/app/hooks'
 import { notFoundArt } from '@/assets/marketing'
-import { Button, Eyebrow, GlowBackdrop, Icon, Illustration } from '@/ui/primitives'
+import { Button, Eyebrow, Icon, Illustration } from '@/ui/primitives'
 
 /**
  * 404 fallback view. The router renders this for any `currentPage === 'not-found'`,
@@ -21,7 +21,6 @@ export function NotFoundPage() {
 
     return (
         <div className="relative w-full">
-            <GlowBackdrop variant="center" />
             <div className="relative mx-auto flex min-h-[70vh] w-full max-w-[760px] flex-col items-center justify-center gap-7 px-5 py-12 text-center sm:py-16">
                 <Illustration
                     src={notFoundArt}
@@ -30,7 +29,7 @@ export function NotFoundPage() {
                     ring="ember"
                     vignette
                     eager
-                    className="w-[min(560px,92vw)] shadow-glow-ember"
+                    className="w-full max-w-[560px]"
                 />
 
                 <div className="flex flex-col items-center gap-3">
@@ -42,9 +41,9 @@ export function NotFoundPage() {
                         {t('notFound.body')}
                     </p>
                     {showPath && (
-                        <p className="mt-1 flex flex-wrap items-center justify-center gap-2 font-mono text-[12px] text-parchment-500">
+                        <p className="mt-1 flex flex-wrap items-center justify-center gap-2 font-mono text-[12px] text-fg-subtle">
                             <span className="uppercase tracking-[0.16em]">{t('notFound.pathLabel')}</span>
-                            <span className="rounded-xs bg-parchment-50/[.06] px-2 py-0.5 text-parchment-400">{brokenHash}</span>
+                            <span className="max-w-full break-all rounded-xs bg-parchment-50/[.06] px-2 py-0.5 text-fg-subtle">{brokenHash}</span>
                         </p>
                     )}
                 </div>

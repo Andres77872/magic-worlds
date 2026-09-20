@@ -7,7 +7,7 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Gift, Loader2, Ticket } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
-import { Button, Card, Field, Icon, IconTile, Input, Modal, Toast } from '@/ui/primitives'
+import { Button, Field, Icon, IconTile, Input, Modal, Toast } from '@/ui/primitives'
 
 interface CreditCodeRedemptionCardProps {
     /** Called after a successful redeem so the container can re-fetch /user/me. */
@@ -56,7 +56,7 @@ export function CreditCodeRedemptionCard({ onRedeemed }: CreditCodeRedemptionCar
 
     return (
         <>
-            <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <section className="flex flex-col gap-4 border-t border-line-faint py-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                     <IconTile icon={Ticket} tone="ember" size="sm" />
                     <div className="min-w-0">
@@ -73,7 +73,7 @@ export function CreditCodeRedemptionCard({ onRedeemed }: CreditCodeRedemptionCar
                 >
                     {t('membership.redeem.button')}
                 </Button>
-            </Card>
+            </section>
 
             <Modal
                 open={open}

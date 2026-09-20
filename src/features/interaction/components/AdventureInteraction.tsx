@@ -128,7 +128,7 @@ export function AdventureInteraction() {
     const title = currentAdventure.snapshot?.template?.name?.trim() || t('interaction.adventureFallbackTitle')
 
     return (
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-ink-800 lg:flex-row">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-ink-800 xl:flex-row">
             <InteractionTopBar
                 title={title}
                 mode="adventure"
@@ -136,10 +136,11 @@ export function AdventureInteraction() {
                 leftOpen={openPanelId === 'left'}
                 onToggleRight={() => openPanel('right')}
                 rightOpen={openPanelId === 'right'}
+                dockAt="xl"
             />
 
             <div className="flex min-h-0 flex-1 overflow-hidden lg:flex-row">
-                <SidePanelDrawer side="left" open={openPanelId === 'left'} onClose={closePanels} label={t('interaction.panels.detailsLabel')}>
+                <SidePanelDrawer side="left" open={openPanelId === 'left'} onClose={closePanels} label={t('interaction.panels.detailsLabel')} dockAt="xl">
                     <InteractionLeftPanel adventure={currentAdventure} onBack={handleBack} onSnapshotChange={handleSnapshotChange} />
                 </SidePanelDrawer>
 
@@ -147,7 +148,7 @@ export function AdventureInteraction() {
                     <InteractionCenterPanel sessionId={Number(currentAdventure.id)} turns={turns} setTurns={setTurns} config={chatConfig} />
                 </div>
 
-                <SidePanelDrawer side="right" open={openPanelId === 'right'} onClose={closePanels} label={t('interaction.panels.logLabel')}>
+                <SidePanelDrawer side="right" open={openPanelId === 'right'} onClose={closePanels} label={t('interaction.panels.logLabel')} dockAt="xl">
                     <InteractionRightPanel turns={turns} />
                 </SidePanelDrawer>
             </div>

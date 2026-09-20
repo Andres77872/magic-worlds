@@ -5,7 +5,7 @@ import { AudioLines, Copy, Loader2, Pencil, Play, Plus, RefreshCw, Trash2 } from
 import { useAuth } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
 import type { AdminVoiceEmotion, AdminVoiceEntry, VoicePreset } from '@/shared'
-import { Badge, Button, Card, Icon, IconButton, IconTile, PageHeader, Toast } from '@/ui/primitives'
+import { Badge, Button, Icon, IconButton, IconTile, PageHeader, Toast } from '@/ui/primitives'
 import { VoiceClipPlayer } from '@/ui/components/audio'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { EmptyState } from '@/ui/components/common/EmptyState'
@@ -45,7 +45,7 @@ export function VoiceStudioPage() {
     const [pendingDelete, setPendingDelete] = useState<VoicePreset | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [previewId, setPreviewId] = useState<string | null>(null)
-    const { src: previewSrc, previewing, runPreview } = usePreviewVoice()
+    const { src: previewSrc, previewing, error: previewError, runPreview } = usePreviewVoice()
 
     const refresh = async () => {
         if (!isAuthenticated) return
@@ -161,7 +161,12 @@ export function VoiceStudioPage() {
                 </div>
             )}
 
-            {presets.length === 0 && !loading ? (
+            {loading && presets.length === 0 ? (
+                <div role="status" className="flex items-center gap-2 py-8 text-body text-parchment-300">
+                    <Icon icon={Loader2} size={18} className="animate-spin" />
+                    {t('common.loading')}
+                </div>
+            ) : presets.length === 0 && !error ? (
                 <EmptyState
                     icon={<Icon icon={AudioLines} size={40} />}
                     message={t('voices.studio.emptyMessage')}
@@ -169,12 +174,12 @@ export function VoiceStudioPage() {
                     button={{ label: t('voices.studio.newPreset'), onClick: () => setEditor({ open: true, mode: 'create', source: null }) }}
                 />
             ) : (
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col divide-y divide-line-faint">
                     {presets.map((preset) => {
                         const chips = recipeChips(preset, t)
                         return (
-                            <Card key={preset.preset_id}>
-                                <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
+                            <article key={preset.preset_id}>
+                                <div className="flex flex-col gap-3 py-5 sm:flex-row sm:items-start sm:justify-between">
                                     <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <p className="font-ui text-sm font-semibold text-parchment-50">{preset.name}</p>
@@ -198,6 +203,7 @@ export function VoiceStudioPage() {
                                                 <VoiceClipPlayer src={previewSrc} title={t('voices.studio.previewTitle', { name: preset.name })} />
                                             </div>
                                         )}
+                                        {previewId === preset.preset_id && previewError && <p role="alert" className="mt-2 text-body text-blood-300">{previewError}</p>}
                                     </div>
                                     <div className="flex shrink-0 flex-wrap justify-end gap-2">
                                         <Button
@@ -239,7 +245,7 @@ export function VoiceStudioPage() {
                                         )}
                                     </div>
                                 </div>
-                            </Card>
+                            </article>
                         )
                     })}
                 </div>

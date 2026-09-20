@@ -69,6 +69,23 @@ describe('HeroSessionGallery', () => {
         expect(onOpen).toHaveBeenCalledWith(chat)
     })
 
+    it('renders the built-in persona token as the localized player label and keeps named personas', () => {
+        render(
+            <HeroSessionGallery
+                sessions={[
+                    session({ id: 'default', playingAs: '{{user}}' }),
+                    session({ id: 'named', playingAs: 'Wren' }),
+                ]}
+                onOpen={vi.fn()}
+                onBeginNew={vi.fn()}
+            />,
+        )
+
+        expect(screen.getByText('4 turns · 2h ago · playing as You')).toBeInTheDocument()
+        expect(screen.getByText('4 turns · 2h ago · playing as Wren')).toBeInTheDocument()
+        expect(screen.queryByText(/\{\{user\}\}/)).not.toBeInTheDocument()
+    })
+
     it('hides carousel controls for a single session', () => {
         render(<HeroSessionGallery sessions={[session({})]} onOpen={vi.fn()} onBeginNew={vi.fn()} />)
 

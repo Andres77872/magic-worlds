@@ -353,9 +353,12 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
         setMuted(false)
     }, [])
 
-    useEffect(() => () => {
-        mountedRef.current = false
-        stop()
+    useEffect(() => {
+        mountedRef.current = true
+        return () => {
+            mountedRef.current = false
+            stop()
+        }
     }, [stop])
 
     return { status, error, source, isMuted, nextSeq, start, stop, mute, unmute }

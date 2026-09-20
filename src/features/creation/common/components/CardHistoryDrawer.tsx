@@ -18,7 +18,7 @@ import { Eye, History, RotateCcw, Upload, Undo2 } from 'lucide-react'
 import type { CardVersion, VersionableCardType } from '@/shared'
 import { useCardUsage } from '@/shared/hooks/useCardUsage'
 import { apiService } from '@/infrastructure/api'
-import { Badge, Button, cx, Drawer, Eyebrow } from '@/ui/primitives'
+import { Badge, Button, Callout, cx, Drawer, Eyebrow } from '@/ui/primitives'
 import { CardUsageLine } from '@/ui/components/common/CardUsageLine'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { formatWhen } from '@/utils/time'
@@ -143,26 +143,26 @@ export function CardHistoryDrawer({
                 </div>
             )}
 
-            {error && <p className="mb-3 text-sm text-blood-500">{error}</p>}
+            {error && <Callout tone="danger" role="alert" className="mb-3">{error}</Callout>}
 
             {loading && versions.length === 0 ? (
                 <p className="font-narrative text-sm text-parchment-400">{t('cardVersions.drawer.loading')}</p>
-            ) : versions.length === 0 ? (
+            ) : error && versions.length === 0 ? null : versions.length === 0 ? (
                 <EmptyState
                     icon={<History size={28} strokeWidth={1.5} />}
                     message={t('cardVersions.history.empty')}
                     secondaryText={t('cardVersions.history.emptyHint')}
                 />
             ) : (
-                <ul className="flex flex-col gap-2">
+                <ul className="divide-y divide-line">
                     {versions.map((v) => {
                         const isLatest = v.version_number === latestVersionNumber
                         return (
                             <li
                                 key={v.version_id}
                                 className={cx(
-                                    'flex items-center justify-between gap-3 rounded-xl border bg-ink-800 px-3 py-2.5',
-                                    isLatest ? 'border-verdant-500/50' : 'border-parchment-50/10',
+                                    'flex flex-wrap items-start justify-between gap-3 border-l-2 py-3 pl-3',
+                                    isLatest ? 'border-l-verdant-500' : 'border-l-transparent',
                                 )}
                             >
                                 <div className="min-w-0">
@@ -172,8 +172,8 @@ export function CardHistoryDrawer({
                                         </span>
                                         {isLatest && <Badge tone="live">{t('cardVersions.history.latest')}</Badge>}
                                     </div>
-                                    {v.label && <p className="truncate font-narrative text-xs text-parchment-300">{v.label}</p>}
-                                    <p className="font-ui text-[11px] text-parchment-500">{formatWhen(v.created_at, { year: true })}</p>
+                                    {v.label && <p className="break-words font-narrative text-caption text-parchment-300">{v.label}</p>}
+                                    <p className="font-ui text-meta text-parchment-400">{formatWhen(v.created_at, { year: true })}</p>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-1">
                                     <Button

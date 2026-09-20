@@ -73,14 +73,15 @@ export function Input({ className, id, ...rest }: InputHTMLAttributes<HTMLInputE
     )
 }
 
-export function Textarea({ className, id, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function Textarea({ className, id, rows, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
     const ctx = useFieldContext()
     return (
         <textarea
             id={id ?? ctx?.id}
             aria-invalid={ctx?.invalid || undefined}
             aria-describedby={ctx?.describedById}
-            className={cx(controlClass, 'min-h-[120px] resize-y', className)}
+            className={cx(controlClass, 'resize-y', rows === undefined && 'min-h-30', className)}
+            rows={rows}
             {...rest}
         />
     )

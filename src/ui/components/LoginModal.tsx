@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { AlertTriangle, ArrowLeft, Eye, EyeOff, Loader2, Lock, LogIn, Mail, MailCheck, ShieldCheck, Sparkles, User, UserPlus } from 'lucide-react'
 import { useAuth } from '../../app/hooks'
 import { apiService, ApiError } from '../../infrastructure/api'
-import { Button, cx, Field, Icon, Input, Modal } from '../primitives'
+import { Button, Callout, cx, Field, Icon, Input, Modal } from '../primitives'
 
 interface LoginModalProps {
     isOpen: boolean
@@ -193,10 +193,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                                 </Field>
 
                                 {forgotError && (
-                                    <div className="flex items-center gap-2 text-label text-blood-500">
-                                        <Icon icon={AlertTriangle} size={15} className="shrink-0" />
-                                        <span>{forgotError}</span>
-                                    </div>
+                                    <Callout tone="danger" role="alert">{forgotError}</Callout>
                                 )}
 
                                 <Button
@@ -341,10 +338,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     )}
 
                     {error && (
-                        <div className="flex items-center gap-2 text-label text-blood-500">
-                            <Icon icon={AlertTriangle} size={15} className="shrink-0" />
-                            <span>{error}</span>
-                        </div>
+                        <Callout tone="danger" role="alert">{error}</Callout>
                     )}
 
                     <Button

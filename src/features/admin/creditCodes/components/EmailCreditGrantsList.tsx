@@ -42,7 +42,7 @@ export function EmailCreditGrantsList({
 
     return (
         <div className="flex flex-col gap-3">
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col divide-y divide-line-faint">
                 {grants.map((grant) => {
                     const view = viewStatus(grant)
                     const expiry = formatStamp(grant.expires_at, intlLocale)
@@ -52,10 +52,10 @@ export function EmailCreditGrantsList({
                     return (
                         <li
                             key={grant.grant_id}
-                            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3"
+                            className="flex flex-wrap items-center justify-between gap-4 py-4"
                         >
                             <div className="flex min-w-0 flex-col gap-1">
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <span className="truncate font-ui text-sm font-semibold text-parchment-50">{grant.email}</span>
                                     <Badge tone={statusTone(view)}>{statusLabel(view, t)}</Badge>
                                     <span className="font-mono text-[11px] text-parchment-500">#{grant.grant_id}</span>

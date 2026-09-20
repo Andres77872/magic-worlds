@@ -313,11 +313,13 @@ export function GalleryCard({
                             {title}
                         </h3>
                         {markerBadge && <span className="shrink-0">{markerBadge}</span>}
-                        {badge && <Badge tone="glass" className="hidden shrink-0 sm:inline-flex">{badge}</Badge>}
+                        {badge && <span className="hidden shrink-0 sm:inline-flex"><Badge tone="glass">{badge}</Badge></span>}
                         {showVersion && (
-                            <Badge tone="glass" className="hidden shrink-0 font-mono sm:inline-flex">
-                                {t('cardVersions.drawer.versionLabel', { number: versionNumber })}
-                            </Badge>
+                            <span className="hidden shrink-0 sm:inline-flex">
+                                <Badge tone="glass" className="font-mono">
+                                    {t('cardVersions.drawer.versionLabel', { number: versionNumber })}
+                                </Badge>
+                            </span>
                         )}
                         {hasDraft && <Badge tone="ember" className="shrink-0">{t('cardVersions.gallery.draftPending')}</Badge>}
                     </div>

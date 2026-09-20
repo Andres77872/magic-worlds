@@ -158,6 +158,7 @@ export function CardDraftControls({
                             value={label}
                             onChange={(e) => setLabel(e.target.value)}
                             placeholder={t('cardVersions.publish.labelPlaceholder')}
+                            aria-label={t('cardVersions.publish.labelPlaceholder')}
                             maxLength={255}
                         />
                     </div>

@@ -13,7 +13,7 @@ const meta = {
   tags: ['autodocs'],
   parameters: {
     layout: 'padded',
-    docs: { description: { component: 'The right rail: the scrollable adventure log (turn history with You/GM badges). Progress saves automatically; there is no manual save.' } },
+    docs: { description: { component: 'The right rail presents the adventure history as a continuous list, with speaker and time labels above each excerpt. Progress saves automatically.' } },
   },
   decorators: [(Story) => <div className="w-[360px] max-w-full"><Story /></div>],
   argTypes: {

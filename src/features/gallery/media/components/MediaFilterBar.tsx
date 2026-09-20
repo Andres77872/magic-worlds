@@ -76,7 +76,7 @@ export function MediaFilterBar({ filters, onMediaType, onCardType, onCard }: Med
             </div>
 
             {showLegacyHint && (
-                <p className="font-narrative text-xs text-parchment-500">
+                <p className="font-narrative text-xs text-fg-subtle">
                     {t('mediaGallery.filters.legacyHint')}
                 </p>
             )}

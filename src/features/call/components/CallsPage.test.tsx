@@ -9,9 +9,11 @@ const resumeCharacterChat = vi.fn()
 const startCharacterChat = vi.fn<(character: Character, persona: Character) => Promise<CharacterChatSession>>()
 const getRecentVoiceCalls = vi.fn()
 const getVoiceCallTranscript = vi.fn()
+const loadData = vi.fn()
 
 let authed = true
 let characters: Character[] = []
+let libraryState: { isLoading: boolean; error: string | null } = { isLoading: false, error: null }
 
 const PERSONA: Character = { id: 'p1', name: 'Aria', stats: {}, role: 'persona', is_default_persona: true } as Character
 const CARD_PERSONA: Character = { id: 'p2', name: 'Sera', stats: {}, role: 'persona' } as Character
@@ -21,7 +23,7 @@ const MIRA_WITH_DEFAULT: Character = { ...MIRA, default_persona_id: 'p2' } as Ch
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: authed, openLoginModal }),
     useNavigation: () => ({ setPage }),
-    useData: () => ({ characters, startCharacterChat, resumeCharacterChat }),
+    useData: () => ({ characters, startCharacterChat, resumeCharacterChat, loadingState: libraryState, loadData }),
 }))
 
 // GalleryCard reaches for the playlist (theme-song button); stub the deep import.
@@ -39,6 +41,7 @@ beforeEach(() => {
     vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
     authed = true
     characters = [MIRA, PERSONA]
+    libraryState = { isLoading: false, error: null }
     getRecentVoiceCalls.mockResolvedValue({ items: [] })
     getVoiceCallTranscript.mockResolvedValue({ call: {}, segments: [] })
     startCharacterChat.mockResolvedValue({ id: 'chat-1', character: MIRA } as CharacterChatSession)
@@ -50,6 +53,34 @@ afterEach(() => {
 })
 
 describe('CallsPage', () => {
+    it('distinguishes an unavailable character library from an empty one', async () => {
+        characters = []
+        libraryState = { isLoading: false, error: 'Unavailable' }
+        render(<CallsPage />)
+        expect(screen.queryByText('No characters yet')).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+        expect(loadData).toHaveBeenCalledWith({ silent: true })
+        await screen.findByText('No calls yet')
+    })
+
+    it('announces the initial character library load', async () => {
+        characters = []
+        libraryState = { isLoading: true, error: null }
+        render(<CallsPage />)
+        expect(screen.getByRole('status')).toHaveTextContent('Loading…')
+        expect(screen.queryByText('No characters yet')).not.toBeInTheDocument()
+        await screen.findByText('No calls yet')
+    })
+    it('offers recovery after a failed history load instead of showing a false empty state', async () => {
+        getRecentVoiceCalls.mockRejectedValueOnce(new Error('Service unavailable'))
+        render(<CallsPage />)
+        expect(await screen.findByRole('alert')).toHaveTextContent('Some content failed to load.')
+        expect(screen.queryByText('No calls yet')).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+        expect(await screen.findByText('No calls yet')).toBeInTheDocument()
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
     it('renders the launch gallery and recent-calls sections', async () => {
         render(<CallsPage />)
         expect(screen.getByTestId('calls-page')).toBeInTheDocument()
@@ -64,7 +95,7 @@ describe('CallsPage', () => {
     it('starts a voice call from a character card (default persona present)', async () => {
         render(<CallsPage />)
 
-        fireEvent.click(screen.getByRole('button', { name: 'Call' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Call Mira' }))
 
         await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(MIRA, PERSONA))
         await waitFor(() => expect(resumeCharacterChat).toHaveBeenCalledWith({ id: 'chat-1', character: MIRA }, { mode: 'voice' }))
@@ -75,7 +106,7 @@ describe('CallsPage', () => {
         characters = [MIRA_WITH_DEFAULT, PERSONA, CARD_PERSONA]
         render(<CallsPage />)
 
-        fireEvent.click(screen.getByRole('button', { name: 'Call' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Call Mira' }))
 
         await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(MIRA_WITH_DEFAULT, CARD_PERSONA))
         await waitFor(() => expect(resumeCharacterChat).toHaveBeenCalledWith({ id: 'chat-1', character: MIRA }, { mode: 'voice' }))
@@ -103,7 +134,7 @@ describe('CallsPage', () => {
         expect(setPage).not.toHaveBeenCalledWith('landing')
         expect(getRecentVoiceCalls).not.toHaveBeenCalled()
 
-        fireEvent.click(screen.getByRole('button', { name: 'Call' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Call Mira' }))
         expect(openLoginModal).toHaveBeenCalledTimes(1)
     })
 })

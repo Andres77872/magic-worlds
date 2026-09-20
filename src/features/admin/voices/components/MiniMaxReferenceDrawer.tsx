@@ -135,21 +135,21 @@ export function MiniMaxReferenceDrawer({ open, onClose }: { open: boolean; onClo
                     ))}
                 </div>
 
-                <div className="rounded-lg border border-parchment-50/[.08] bg-ink-800/70 p-4">
-                    <p className="font-ui text-sm font-semibold text-parchment-50">{active.label}</p>
+                <section className="border-t border-parchment-50/10 pt-5">
+                    <h3 className="font-heading text-xl text-parchment-50">{active.label}</h3>
                     <p className="mt-1 font-ui text-sm leading-relaxed text-parchment-300">{active.summary}</p>
 
-                    <div className="mt-3 grid gap-2">
+                    <dl className="mt-4 divide-y divide-parchment-50/10">
                         {active.items.map((item) => (
-                            <div key={item.label} className="rounded-md border border-parchment-50/[.08] bg-ink-900/50 px-3 py-2">
+                            <div key={item.label} className="py-3">
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <p className="font-ui text-sm font-semibold text-parchment-100">{item.label}</p>
+                                    <dt className="font-ui text-sm font-semibold text-parchment-100">{item.label}</dt>
                                     {item.badge && <Badge tone={badgeTone(item.badge)}>{item.badge}</Badge>}
                                 </div>
-                                <p className="mt-1 font-ui text-sm leading-relaxed text-parchment-300">{item.detail}</p>
+                                <dd className="mt-1 font-ui text-sm leading-relaxed text-parchment-300">{item.detail}</dd>
                             </div>
                         ))}
-                    </div>
+                    </dl>
 
                     <div className="mt-3 flex flex-wrap gap-2" aria-label={`${active.label} docs`}>
                         {active.links.map((link) => (
@@ -158,14 +158,14 @@ export function MiniMaxReferenceDrawer({ open, onClose }: { open: boolean; onClo
                                 href={link.href}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-md border border-parchment-50/15 px-3 py-1.5 font-ui text-[13px] font-semibold text-parchment-100 transition-all hover:border-ember-500/60 hover:bg-parchment-50/[.05]"
+                                className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-3 py-2 font-ui text-sm font-semibold text-parchment-100 transition-colors hover:bg-parchment-50/[.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember-400"
                             >
                                 {link.label}
                                 <Icon icon={ExternalLink} size={13} />
                             </a>
                         ))}
                     </div>
-                </div>
+                </section>
             </div>
         </Drawer>
     )

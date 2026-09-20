@@ -1,15 +1,15 @@
 /**
  * StudioSection — a titled, anchored editor block for the Creator Studio.
  *
- * Each section is an outlined surface (raised against the ink-800 canvas via a
- * hairline border) with a display-serif header and an `id` anchor so the
+ * Each section shares the editor canvas, using space and a single divider
+ * with a display-serif header and an `id` anchor so the
  * StudioSectionNav can scroll-spy and jump to it. The `scroll-mt` clears the
  * sticky section nav on desktop.
  */
 
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { IconTile } from '@/ui/primitives'
+import { Icon, cx } from '@/ui/primitives'
 
 export interface StudioSectionProps {
     /** Anchor id — referenced by StudioSectionNav items. */
@@ -24,28 +24,29 @@ export interface StudioSectionProps {
 }
 
 /**
- * A section reads as a distinct "chapter": a header band (tinted IconTile +
- * display title + description + optional action) separated by a hairline from
- * the body, rather than a flat box of fields. The faint top wash adds candlelit
- * depth so a stack of sections no longer looks like a plain monochrome form.
+ * Fields stay on one continuous editor surface. Reserve enclosed surfaces for
+ * interactive cards and previews rather than nesting a card around every group.
  */
 export function StudioSection({ id, icon, tone = 'ember', title, description, right, children }: StudioSectionProps) {
     return (
         <section
             id={id}
-            className="scroll-mt-20 overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-800 shadow-sm"
+            aria-labelledby={`${id}-heading`}
+            className="scroll-mt-[calc(var(--studio-nav-clearance,7rem)+var(--spacing)*4)] border-t border-parchment-50/10 pt-6 first:border-t-0 first:pt-0"
         >
-            <div className="flex items-start gap-4 border-b border-parchment-50/[.07] bg-gradient-to-b from-parchment-50/[.025] to-transparent p-6 max-sm:p-5">
-                {icon && <IconTile icon={icon} tone={tone} size="sm" />}
+            <div className="mb-5 flex flex-wrap items-start gap-3">
                 <div className="min-w-0 flex-1">
-                    <h3 className="font-display text-[20px] font-semibold leading-tight text-parchment-50">{title}</h3>
+                    <h2 id={`${id}-heading`} className="flex items-center gap-2 font-display text-h3 font-semibold leading-tight text-parchment-50">
+                        {icon && <Icon icon={icon} size={18} className={cx('shrink-0', tone === 'arcane' ? 'text-arcane-300' : 'text-ember-400')} />}
+                        {title}
+                    </h2>
                     {description && (
-                        <p className="mt-1 font-narrative text-sm leading-snug text-parchment-400">{description}</p>
+                        <p className="mt-1 font-ui text-label leading-relaxed text-parchment-300">{description}</p>
                     )}
                 </div>
                 {right && <div className="shrink-0">{right}</div>}
             </div>
-            <div className="flex flex-col gap-6 p-6 max-sm:p-5">{children}</div>
+            <div className="flex flex-col gap-5">{children}</div>
         </section>
     )
 }

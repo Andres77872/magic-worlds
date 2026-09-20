@@ -22,6 +22,7 @@ interface ModalProps {
     footer?: ReactNode
     className?: string
     closeLabel?: string
+    initialFocus?: 'first-control' | 'panel'
     children: ReactNode
 }
 
@@ -41,12 +42,13 @@ export function Modal({
     footer,
     className,
     closeLabel,
+    initialFocus,
     children,
 }: ModalProps) {
     const { t } = useTranslation()
     const titleId = useId()
     const panelRef = useRef<HTMLDivElement>(null)
-    useDismissableLayer({ open, onClose, panelRef, label: 'modal' })
+    useDismissableLayer({ open, onClose, panelRef, label: 'modal', initialFocus })
     const scrim = useScrimDismiss(onClose)
 
     if (!open) return null

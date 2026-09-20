@@ -420,12 +420,12 @@ describe('CharacterCreator deep-link bootstrap', () => {
         })
     })
 
-    it('restores the editor from `?card=<id>` on refresh without flashing the create gallery', async () => {
+    it.each([false, true])('restores the editor from `?card=<id>` on refresh (StrictMode: %s) without flashing the create gallery', async (reactStrictMode) => {
         // Deep-link / cold refresh: route carries the id but no card is in memory yet.
         mocks.cardEdit = { cardType: 'character', cardId: 'char-1' }
         mocks.getCharacter.mockResolvedValue({ id: 'char-1', name: 'Nyra', race: 'moon elf', description: 'Scout', triggers: [] })
 
-        render(<CharacterCreator />)
+        render(<CharacterCreator />, { reactStrictMode })
 
         // No "create" template gallery flash — the fetched card hydrates the edit form instead.
         expect(screen.queryByRole('button', { name: /skip — start with the standard fields/i })).not.toBeInTheDocument()

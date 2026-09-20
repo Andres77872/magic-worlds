@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { NavigationProvider } from '@/app/providers/NavigationProvider'
 import type { Membership, UserProfile } from '@/shared'
 import type { ProfileSharedCardsState } from '../hooks/useProfileSharedCards'
 import { ProfileView } from './ProfileView'
@@ -162,11 +163,15 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'Account/profile view backed by `GET /user/me`. A two-column settings shell: an always-visible identity header (avatar, display-name editor, role, content-stat pills, log out) over a sticky section nav — Membership, Usage, Shared cards, Account, Security — beside the active panel, instead of one long scroll. The nav is vertical on desktop and a horizontal scroller on mobile. Use the `initialTab` control to preview each section.',
+                    'Account/profile view backed by `GET /user/me`. A two-column settings shell: an always-visible identity header (avatar, display-name editor, role, content-stat strip, log out) over a sticky section nav — Membership, Usage, Shared cards, Account, Security — beside the active panel, instead of one long scroll. The nav is vertical on desktop and a horizontal scroller on mobile. Use the `initialTab` control to preview each section.',
             },
         },
     },
-    decorators: [(Story) => <div className="bg-ink-800 text-parchment-50"><Story /></div>],
+    decorators: [(Story) => (
+        <NavigationProvider>
+            <div className="bg-ink-800 text-parchment-50"><Story /></div>
+        </NavigationProvider>
+    )],
     argTypes: {
         profile: { control: false },
         onLogout: { control: false },

@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Import, Link2, Loader2, Sparkles } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
+import { useNavigation } from '@/app/hooks'
 import type { SharedCardResource } from '@/shared'
 import { isAdventuresFeatureEnabled } from '@/shared/featureFlags'
 import { GalleryCard } from '@/ui/components'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
-import { Badge, Button, Card, Eyebrow, Icon, PageHeader, Toast } from '@/ui/primitives'
+import { Badge, Button, Eyebrow, Icon, PageHeader, Toast } from '@/ui/primitives'
 import { publicItems, type GalleryItem, type GalleryType } from '../galleryConfig'
 import { buildSharedCardUrl, parseSharedCardToken } from '../galleryLinks'
 import { useCardImport, useGalleryCardPreview, type ImportSource } from '../hooks/useCardImport'
@@ -23,6 +24,8 @@ function playlistCardType(type: GalleryType) {
 
 export function SharedCardPage() {
     const { t } = useTranslation()
+    const { setPage } = useNavigation()
+    const [retryCount, setRetryCount] = useState(0)
     const token = parseSharedCardToken()
     const importHook = useCardImport()
     const preview = useGalleryCardPreview()
@@ -61,7 +64,7 @@ export function SharedCardPage() {
         return () => {
             cancelled = true
         }
-    }, [t, token])
+    }, [t, token, retryCount])
 
     const importSharedCard = () => {
         if (!token) return
@@ -92,6 +95,7 @@ export function SharedCardPage() {
                     icon={<Icon icon={Sparkles} size={44} />}
                     message={t('gallery.shared.unavailable')}
                     secondaryText={error ?? t('gallery.shared.unavailableBody')}
+                    button={token && error ? { label: t('gallery.retry'), onClick: () => setRetryCount(value => value + 1) } : { label: t('sidebar.nav.community'), onClick: () => setPage('community') }}
                 />
             </div>
         )
@@ -155,27 +159,10 @@ export function SharedCardPage() {
                     cardId={item.id}
                     actionLabel={t('gallery.preview.previewAction', { title: item.title })}
                     onClick={() => preview.open(item)}
-                    footer={
-                        <Button
-                            variant={alreadyImported ? 'secondary' : 'primary'}
-                            size="sm"
-                            full
-                            iconLeft={
-                                importing ? (
-                                    <Icon icon={Loader2} size={15} className="animate-spin" />
-                                ) : (
-                                    <Icon icon={Import} size={15} />
-                                )
-                            }
-                            disabled={importing}
-                            onClick={importSharedCard}
-                        >
-                            {importing ? t('gallery.importing') : alreadyImported ? t('gallery.preview.importCopy') : t('gallery.importCard')}
-                        </Button>
-                    }
+
                 />
 
-                <Card className="p-5">
+                <section className="min-w-0 border-t border-line-faint pt-5 md:border-l md:border-t-0 md:pl-6 md:pt-1" aria-label={t('gallery.shared.cardType')}>
                     <div className="flex flex-col gap-4">
                         <div className="flex flex-wrap items-center gap-2">
                             <Badge tone="neutral">{t('gallery.shared.unlistedLink')}</Badge>
@@ -193,18 +180,9 @@ export function SharedCardPage() {
                                 {t(`gallery.type.${item.galleryType}.singular`)}
                             </p>
                         </div>
-                        <div className="border-t border-line-faint pt-4">
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                iconLeft={<Icon icon={Link2} size={15} />}
-                                onClick={() => void copyCurrentLink()}
-                            >
-                                {t('gallery.copyUnlistedLink')}
-                            </Button>
-                        </div>
+
                     </div>
-                </Card>
+                </section>
             </div>
 
             <CardImportOverlays

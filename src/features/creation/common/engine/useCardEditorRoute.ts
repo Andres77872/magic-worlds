@@ -50,7 +50,7 @@ export function useCardEditorRoute(
     const { isAuthenticated, openLoginModal } = useAuth()
     const data = useData()
     const [bootstrapping, setBootstrapping] = useState(false)
-    // One attempt per (auth, card id): refetch on id change, retry after login, never loop.
+    // One active attempt per (type, auth, card id); cancelled effects must be able to retry.
     const attemptedFor = useRef<string | null>(null)
     const onCardLoadedRef = useRef(onCardLoaded)
     onCardLoadedRef.current = onCardLoaded
@@ -64,11 +64,16 @@ export function useCardEditorRoute(
         cardType === 'character' ? data.editingCharacter : cardType === 'world' ? data.editingWorld : data.editingItem
 
     useEffect(() => {
-        if (!routeId) return
-        const key = `${isAuthenticated}:${routeId}`
+        if (!routeId) {
+            attemptedFor.current = null
+            setBootstrapping(false)
+            return
+        }
+        const key = `${cardType}:${isAuthenticated}:${routeId}`
         // Already editing the right card (gallery click, create→edit) — nothing to bootstrap.
         if (editing && editing.id === routeId) {
             attemptedFor.current = key
+            setBootstrapping(false)
             return
         }
         if (attemptedFor.current === key) return
@@ -76,6 +81,7 @@ export function useCardEditorRoute(
 
         if (!isAuthenticated) {
             // Deep-linked while logged out: prompt login; the auth flip re-runs this effect.
+            setBootstrapping(false)
             openLoginModal()
             return
         }
@@ -115,6 +121,9 @@ export function useCardEditorRoute(
         })()
         return () => {
             cancelled = true
+            // StrictMode replays mount effects, and route/auth changes can interrupt a fetch.
+            // Its ignored result cannot satisfy the next effect's load attempt.
+            if (attemptedFor.current === key) attemptedFor.current = null
         }
         // `data` setters are stable; depend on the inputs that change the decision.
         // eslint-disable-next-line react-hooks/exhaustive-deps

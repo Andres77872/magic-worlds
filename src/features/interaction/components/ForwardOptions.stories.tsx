@@ -7,7 +7,7 @@ const meta = {
   tags: ['autodocs'],
   parameters: {
     layout: 'padded',
-    docs: { description: { component: 'AI-suggested next actions offered after a Game Master turn. Each option shows a short label; picking one submits its full message. Renders nothing unless there are options.' } },
+    docs: { description: { component: 'AI-suggested next actions form a quiet list below a reply. Picking an option inserts its full message into the composer for editing before sending. Renders nothing unless there are options.' } },
   },
   decorators: [(Story) => <div className="w-[560px] max-w-full"><Story /></div>],
   argTypes: {
@@ -28,6 +28,17 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Options: Story = {}
+
+/** Long suggestions wrap within a narrow transcript and retain a full row target. */
+export const NarrowWithLongReplies: Story = {
+  decorators: [(Story) => <div className="w-64 max-w-full"><Story /></div>],
+  args: {
+    options: [
+      { label: 'Ask the courier why the old library has been locked since the winter festival', message: 'Why has the old library stayed locked since the winter festival?' },
+      { label: 'Open the envelope', message: 'Open the envelope carefully.' },
+    ],
+  },
+}
 
 /** With no options, the component renders nothing. */
 export const Empty: Story = { args: { options: [] } }

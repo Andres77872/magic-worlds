@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { ScrollText, Tags, User } from 'lucide-react'
-import { Button, Input } from '@/ui/primitives'
+import { Button, Field, Icon, Input, Textarea } from '@/ui/primitives'
 import { Card } from '@/ui/components/lists/Card'
 import { Tag } from '@/ui/primitives'
 import { CreatorStudio } from './CreatorStudio'
@@ -29,8 +29,8 @@ const meta = {
   },
   args: {
     eyebrow: 'Creation',
-    title: 'Create Character',
-    icon: '🎭',
+    title: 'Create character',
+    icon: <Icon icon={User} size={28} />,
     isLoading: false,
     onBack: () => {},
     headerActions: (
@@ -57,11 +57,17 @@ const meta = {
     children: (
       <form id="demo-form" className="flex flex-col gap-6" onSubmit={(e) => e.preventDefault()}>
         <StudioSection id="identity" icon={User} title="Identity" description="Who steps into the scene?">
-          <Input placeholder="Name — e.g. Lyra Dawnwhisper" />
-          <Input placeholder="Race — e.g. Half-elf" />
+          <Field label="Name"><Input placeholder="Lyra Dawnwhisper" /></Field>
+          <Field label="Race"><Input placeholder="Half-elf" /></Field>
         </StudioSection>
-        <StudioSection id="backstory" icon={ScrollText} title="Backstory" tone="arcane">
-          <Input placeholder="A line that sets the scene…" />
+        <StudioSection id="attributes" icon={Tags} title="Attributes" description="Details that shape how your character acts.">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Strength"><Input placeholder="A practiced swordswoman" /></Field>
+            <Field label="Vulnerability"><Input placeholder="Trust comes slowly" /></Field>
+          </div>
+        </StudioSection>
+        <StudioSection id="backstory" icon={ScrollText} title="Backstory">
+          <Field label="History"><Textarea placeholder="A line that sets the scene…" rows={4} /></Field>
         </StudioSection>
       </form>
     ),

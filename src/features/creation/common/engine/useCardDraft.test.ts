@@ -135,4 +135,28 @@ describe('useCardDraft', () => {
         expect(result.current.isHistorical).toBe(false)
         expect(onDraftLoaded).toHaveBeenCalledWith(expect.objectContaining({ name: 'Published Nyra' }))
     })
+
+    it.each([2, 'latest'] as const)('retries an interrupted version %s when returning to the same card', async (version) => {
+        vi.spyOn(apiService, 'getCardDraft').mockResolvedValue({ id: 'c1', is_draft: false })
+        let resolveBody!: (body: { id: string; name: string }) => void
+        const pending = new Promise<{ id: string; name: string }>(resolve => { resolveBody = resolve })
+        const getBody = version === 'latest'
+            ? vi.spyOn(apiService, 'getPublishedBody').mockReturnValue(pending)
+            : vi.spyOn(apiService, 'getCardVersion').mockReturnValue(pending)
+        const onDraftLoaded = vi.fn()
+        const { result, rerender } = renderHook(
+            ({ cardId }: { cardId: string | null }) => useCardDraft({ cardType: 'character', cardId, version, onDraftLoaded }),
+            { initialProps: { cardId: 'c1' as string | null }, reactStrictMode: true },
+        )
+        await waitFor(() => expect(getBody).toHaveBeenCalled())
+
+        rerender({ cardId: null })
+        expect(result.current.loading).toBe(false)
+        rerender({ cardId: 'c1' })
+        await act(async () => resolveBody({ id: 'c1', name: 'Requested version' }))
+
+        expect(onDraftLoaded).toHaveBeenCalledExactlyOnceWith({ id: 'c1', name: 'Requested version' })
+        expect(result.current.loading).toBe(false)
+        expect(result.current.isHistorical).toBe(typeof version === 'number')
+    })
 })

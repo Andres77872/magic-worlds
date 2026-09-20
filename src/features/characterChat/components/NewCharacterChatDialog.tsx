@@ -160,8 +160,8 @@ export function NewCharacterChatDialog({
                 ) : (
                     <>
                         {!choosingCharacter && selectedCharacter && (
-                            <div className="flex items-center gap-3 rounded-lg border border-arcane-500/25 bg-arcane-500/10 p-3">
-                                <Avatar name={selectedCharacter.name} src={resolveMediaUrl(selectedCharacter.image_url)} size={40} ring="arcane" />
+                            <div className="flex items-center gap-3 border-l-2 border-arcane-500/30 py-2 pl-3">
+                                <Avatar name={selectedCharacter.name} src={resolveMediaUrl(selectedCharacter.image_url)} size={40} ring="none" />
                                 <div className="min-w-0">
                                     <p className="text-caption text-arcane-300">{t('characterChat.newChat.chattingWith')}</p>
                                     <p className="break-words font-display text-body font-semibold text-parchment-50">{selectedCharacter.name}</p>
@@ -213,11 +213,11 @@ export function NewCharacterChatDialog({
                                                 }
                                             }}
                                             className={cx(
-                                                'flex w-full items-start gap-3 rounded-lg border bg-ink-800 p-3 text-left transition-colors disabled:pointer-events-none disabled:opacity-70',
-                                                selected ? 'border-ember-500/70 ring-1 ring-ember-500/40' : 'border-parchment-50/10 hover:border-ember-500/45',
+                                                'flex w-full items-start gap-3 border-l-2 px-3 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ember-400 disabled:pointer-events-none disabled:opacity-70',
+                                                selected ? 'border-l-ember-500 bg-ember-500/[.06]' : 'border-l-transparent hover:bg-surface-raised',
                                             )}
                                         >
-                                            <Avatar name={character.name} src={resolveMediaUrl(character.image_url)} size={44} ring={choosingCharacter ? 'arcane' : 'ember'} />
+                                            <Avatar name={character.name} src={resolveMediaUrl(character.image_url)} size={44} ring="none" />
                                             <span className="min-w-0 flex-1">
                                                 <span className="flex flex-wrap items-center gap-2">
                                                     <span className="break-words font-display text-body font-semibold text-parchment-50">{character.name}</span>

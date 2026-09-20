@@ -30,7 +30,7 @@ export function FormActions({
     const { t } = useTranslation();
     const resolvedCancelLabel = cancelLabel ?? t('common.cancel');
     return (
-        <div className="mt-8 border-t-2 border-parchment-50/10 pt-6">
+        <div className="mt-2 border-t border-parchment-50/10 pt-6">
             {error && (
                 <Callout tone="danger" role="alert" className="mb-4 text-[13px]">
                     {error}

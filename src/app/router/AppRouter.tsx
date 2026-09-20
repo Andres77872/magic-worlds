@@ -75,6 +75,11 @@ export function AppRouter() {
     const mainRef = useRef<HTMLElement>(null)
     const [mobileNavOpen, setMobileNavOpen] = useState(false)
     const pageEnabled = isPageFeatureEnabled(currentPage)
+    // Verification consumes a single-use token and then signs out. Keep its result
+    // mounted through that auth transition instead of reopening a tokenless page.
+    const pageKey = currentPage === 'verify-email'
+        ? currentPage
+        : `${currentPage}:${currentPage === 'story' ? accountKey : authEpoch}`
 
     useEffect(() => {
         mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
@@ -84,7 +89,7 @@ export function AppRouter() {
         // `isolate` makes this div a stacking context so the -z-10 ambience
         // paints above bg-ink-800 yet below all content (sidebar included —
         // its translucent bg-ink-900/80 lets the glow continue underneath).
-        <div className="isolate flex min-h-screen bg-ink-800 text-parchment-50">
+        <div className="isolate flex min-h-dvh bg-ink-800 text-parchment-50">
             {/* Viewport-fixed app background: static stone grain underneath,
                 breathing candlelight on top. Stays put while <main> scrolls, so
                 it never crops at a section edge. */}
@@ -96,7 +101,7 @@ export function AppRouter() {
                 className="hidden lg:flex"
                 renderTasks={({ collapsed }) => <SidebarTasksMenu collapsed={collapsed} />}
             />
-            <main ref={mainRef} data-app-main className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
+            <main ref={mainRef} data-app-main className="flex h-dvh min-w-0 flex-1 flex-col overflow-y-auto">
                 <MobileTopBar onOpenNav={() => setMobileNavOpen(true)} />
                 <ServicesDownBanner />
                 <AppUpdateBanner />
@@ -108,7 +113,7 @@ export function AppRouter() {
                 ) : (
                     // Keyed on the page so a crash resets when the user navigates
                     // away; scoped to <main> so the sidebar/nav/modals survive it.
-                    <ErrorBoundary scope="page" inline key={currentPage === 'story' ? `story:${accountKey}` : `${currentPage}:${authEpoch}`}>
+                    <ErrorBoundary scope="page" inline key={pageKey}>
                         <Suspense fallback={<div className="flex min-h-full flex-1 items-center justify-center"><LoadingSpinner /></div>}>
                             {!pageEnabled ? (
                                 <NotFoundPage />

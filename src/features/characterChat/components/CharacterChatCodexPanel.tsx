@@ -6,7 +6,7 @@ import { useFloatingWindows } from '@/app/hooks'
 import { cardWindow } from '@/features/floatingWindows'
 import { CodexCardPickerDrawer, KIND_ICONS, snapshotDisplayDescription, snapshotDisplayLabel, snapshotToCardPreview, type CodexLibraryCardSelection } from '@/features/codex'
 import { ConfirmDialog, ReferenceGroup, ReferenceRow } from '@/ui/components'
-import { Icon, IconButton, IconTile, Switch } from '@/ui/primitives'
+import { Icon, IconButton, Switch } from '@/ui/primitives'
 
 interface CharacterChatCodexPanelProps {
     cards: CharacterChatCodexCard[]
@@ -55,7 +55,7 @@ export function CharacterChatCodexPanel({ cards, onAddCards, onToggleCard, onRem
                                 key={card.id}
                                 testId="chat-codex-card"
                                 dimmed={!card.enabled}
-                                leading={<IconTile icon={KIND_ICONS[card.kind]} tone={arcane ? 'arcane' : 'ember'} size="sm" />}
+                                leading={<Icon icon={KIND_ICONS[card.kind]} size={18} className={arcane ? 'text-arcane-300' : 'text-ember-400'} />}
                                 title={label}
                                 description={description || undefined}
                                 onTitleClick={() => openWindow(cardWindow(snapshotToCardPreview(card.snapshot, card.kind, card.cardId)))}

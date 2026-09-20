@@ -21,6 +21,8 @@ export function useAnchoredPopup(
     popupRef: RefObject<HTMLElement>,
     /** Re-measure when this changes while open (e.g. the option list). */
     contentKey?: unknown,
+    /** Optional comfortable width for search popups with a compact trigger. */
+    minimumWidth = 0,
 ): { position: PopupPosition | null; clearPosition: () => void } {
     const [position, setPosition] = useState<PopupPosition | null>(null)
 
@@ -34,9 +36,10 @@ export function useAnchoredPopup(
         const top = openAbove
             ? Math.max(VIEWPORT_MARGIN, rect.top - POPUP_GAP - height)
             : rect.bottom + POPUP_GAP
-        const left = Math.max(VIEWPORT_MARGIN, Math.min(rect.left, window.innerWidth - rect.width - VIEWPORT_MARGIN))
-        setPosition({ top, left, width: rect.width })
-    }, [popupRef, triggerRef])
+        const width = Math.min(Math.max(rect.width, minimumWidth), Math.max(0, window.innerWidth - VIEWPORT_MARGIN * 2))
+        const left = Math.max(VIEWPORT_MARGIN, Math.min(rect.left, window.innerWidth - width - VIEWPORT_MARGIN))
+        setPosition({ top, left, width })
+    }, [popupRef, triggerRef, minimumWidth])
 
     useLayoutEffect(() => {
         if (open) updatePosition()

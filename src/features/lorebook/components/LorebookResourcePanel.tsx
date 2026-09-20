@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, FilePlus2, FileText, Library, Link2, Plus, Sparkles, Trash2, Upload } from 'lucide-react'
 import type { LorebookResource } from '@/shared'
-import { Badge, Button, Callout, Card, Field, Icon, IconButton, Input, SwitchRow, Tag, Textarea, cx } from '@/ui/primitives'
+import { Badge, Button, Callout, Field, Icon, IconButton, Input, SwitchRow, Tag, Textarea, cx } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
 import {
     LOREBOOK_RESOURCE_ACCEPT,
@@ -143,8 +143,8 @@ export function LorebookResourcePanel({
     }
 
     return (
-        <Card className="rounded-xl" data-testid="lorebook-resource-panel">
-            <div className="flex flex-col gap-3 border-b border-parchment-50/[.08] px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+        <section aria-label={t('lorebookStudio.resources.heading')} data-testid="lorebook-resource-panel">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line pb-4">
                 <div>
                     <div className="flex items-center gap-2">
                         <Icon icon={FileText} size={16} className="text-arcane-300" />
@@ -190,8 +190,9 @@ export function LorebookResourcePanel({
             )}
 
             {onExtractMetadataOnSaveChange && (
-                <div className="grid gap-3 border-b border-parchment-50/[.08] px-4 py-3">
+                <div className="grid gap-3 border-b border-line py-4">
                     <SwitchRow
+                        variant="plain"
                         label={t('lorebookStudio.resources.extractOnSave.label')}
                         description={t('lorebookStudio.resources.extractOnSave.description')}
                         checked={extractMetadataOnSave}
@@ -405,7 +406,7 @@ export function LorebookResourcePanel({
                     })}
                 </div>
             )}
-        </Card>
+        </section>
     )
 }
 

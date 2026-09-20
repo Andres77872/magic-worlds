@@ -102,8 +102,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
     }, [enabled])
 
     const fetchImagesPage = useCallback(
-        async (f: MediaGalleryFilters) => {
-            const src = imagesRef.current
+        async (f: MediaGalleryFilters, src: SourceState) => {
             const res = await apiService.listImageJobs({
                 status: 'completed',
                 limit: pageSize,
@@ -119,8 +118,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
     )
 
     const fetchThemesPage = useCallback(
-        async (f: MediaGalleryFilters) => {
-            const src = themesRef.current
+        async (f: MediaGalleryFilters, src: SourceState) => {
             const res = await apiService.listUserThemeSongs({
                 status: 'completed',
                 limit: pageSize,
@@ -140,14 +138,16 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
      * its buffer dry (while not exhausted) before each comparison.
      */
     const emitPage = useCallback(
-        async (f: MediaGalleryFilters): Promise<MediaGalleryItem[]> => {
+        async (f: MediaGalleryFilters, seq: number): Promise<MediaGalleryItem[]> => {
             const out: MediaGalleryItem[] = []
             const images = imagesRef.current
             const themes = themesRef.current
-            while (out.length < pageSize) {
+            // Keep this load's buffers together and stop before any further refill when
+            // a refresh, filter change, or unmount has invalidated the request.
+            while (seq === seqRef.current && out.length < pageSize) {
                 const refills: Promise<void>[] = []
-                if (!images.done && images.buffer.length === 0) refills.push(fetchImagesPage(f))
-                if (!themes.done && themes.buffer.length === 0) refills.push(fetchThemesPage(f))
+                if (!images.done && images.buffer.length === 0) refills.push(fetchImagesPage(f, images))
+                if (!themes.done && themes.buffer.length === 0) refills.push(fetchThemesPage(f, themes))
                 if (refills.length > 0) {
                     await Promise.all(refills)
                     continue
@@ -182,7 +182,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
             }
             setError(null)
             try {
-                const page = await emitPage(f)
+                const page = await emitPage(f, seq)
                 if (seq !== seqRef.current) return
                 setHasMore(sourcesHaveMore())
                 setItems((prev) => (reset ? page : appendDedupedById(prev, page)))
@@ -206,6 +206,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
         if (!enabled) return
         // eslint-disable-next-line react-hooks/set-state-in-effect
         void fetchPage(true, filters)
+        return () => { seqRef.current += 1 }
     }, [enabled, fetchPage, filters])
 
     const loadMore = useCallback(() => {

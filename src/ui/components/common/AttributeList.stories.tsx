@@ -11,7 +11,7 @@ const meta = {
     layout: 'padded',
     docs: { description: { component: 'Editable group of key/value attributes for a character/world/adventure. Add, edit, and remove rows; deleting a non-empty category asks for confirmation. Fully controlled — the story below wires up local state.' } },
   },
-  decorators: [(Story) => <div className="w-[640px]"><Story /></div>],
+  decorators: [(Story) => <div className="w-full max-w-2xl"><Story /></div>],
   argTypes: {
     isDeletable: { control: 'boolean' },
     valueIsTextarea: { control: 'boolean' },

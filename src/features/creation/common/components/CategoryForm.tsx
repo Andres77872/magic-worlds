@@ -39,13 +39,14 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
 
     // Use FormWrapper component to conditionally render as form or div
     const FormWrapper = useFormWrapper ? 'form' : 'div';
-    
+
     return (
         <FormWrapper
             {...(useFormWrapper ? { onSubmit: handleSubmit } : {})}
-            className="relative mb-6 rounded-md border border-parchment-50/20 bg-ink-600 p-6 max-sm:p-4">
+            className="relative border-l-2 border-ember-500/30 py-2 pl-4 sm:pl-5">
 
             <SectionHeader
+                as="h3"
                 icon={FolderPlus}
                 title={theme === 'nature'
                     ? t('creation.common.categoryForm.adventureComponentTitle')
@@ -109,4 +110,4 @@ export function CategoryForm({ onSubmit, onCancel, theme = 'magical', useFormWra
             </div>
         </FormWrapper>
     );
-} 
+}

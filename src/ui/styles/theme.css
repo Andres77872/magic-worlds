@@ -26,7 +26,9 @@
   --color-parchment-100: #e7ddcb;
   --color-parchment-200: #c9bfae;
   --color-parchment-300: #9a9184;
-  --color-parchment-400: #6e6a78;
+  /* Faint but readable: 4.98:1 on ink-700 and 4.52:1 on ink-600.
+     Used for helper text, metadata and placeholders, not only decoration. */
+  --color-parchment-400: #8c8695;
   --color-parchment-500: #4c4858;
   /* Ember — primary accent (candlelight gold).
      -200 is the hover step: components rest on -300 and brighten to -200. */

@@ -42,6 +42,7 @@ export function CreatorField({
 }
 
 interface InputProps {
+    'aria-label'?: string;
     id?: string;
     type?: string;
     value: string;
@@ -57,6 +58,7 @@ interface InputProps {
 }
 
 export function CreatorInput({
+    'aria-label': ariaLabel,
     id,
     type = 'text',
     value,
@@ -70,6 +72,7 @@ export function CreatorInput({
 }: InputProps) {
     return (
         <Input
+            aria-label={ariaLabel}
             id={id}
             className={className}
             type={type}
@@ -85,6 +88,7 @@ export function CreatorInput({
 }
 
 export function CreatorTextarea({
+    'aria-label': ariaLabel,
     id,
     value,
     onChange,
@@ -98,6 +102,7 @@ export function CreatorTextarea({
 }: InputProps) {
     return (
         <Textarea
+            aria-label={ariaLabel}
             id={id}
             className={`leading-normal ${className}`}
             value={value}

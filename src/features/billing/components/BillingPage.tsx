@@ -17,7 +17,7 @@ import { useAuth, useNavigation } from '@/app/hooks'
 import { isBillingFeatureEnabled } from '@/shared/billingFeatureFlag'
 import type { UserProfile } from '@/shared'
 import type { BillingPlanCatalogResponse } from '@/shared/types/billing.types'
-import { Badge, Button, Callout, Card, Eyebrow, Icon, IconTile, SectionHeader, Toast } from '@/ui/primitives'
+import { Badge, Button, Callout, Card, Eyebrow, Icon, IconTile, PageHeader, Toast } from '@/ui/primitives'
 import { cx } from '@/ui/primitives/cx'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
 import { useTranslation } from 'react-i18next'
@@ -130,7 +130,7 @@ export function BillingPage() {
 
     if (!isAuthenticated) {
         return (
-            <div className="mx-auto w-full max-w-[960px] px-5 py-10 sm:px-8">
+            <div className="mx-auto w-full max-w-[1040px] px-5 py-8 sm:px-8 sm:py-10">
                 <Card className="flex flex-col items-start gap-3 p-6">
                     <h1 className="font-display text-h2 font-semibold text-parchment-50">{t('billing.title')}</h1>
                     <p className="font-ui text-[14px] text-parchment-300">{t('billing.signedOutBody')}</p>
@@ -145,17 +145,19 @@ export function BillingPage() {
     const isPaid = currentPlan === 'plus' || currentPlan === 'pro'
 
     return (
-        <div className="mx-auto w-full max-w-[960px] px-5 py-10 sm:px-8">
+        <div className="mx-auto w-full max-w-[1040px] px-5 py-8 sm:px-8 sm:py-10">
             <div className="mb-6 flex items-center gap-3">
                 <Button variant="ghost" size="sm" onClick={() => setPage('profile')}>
                     <Icon icon={ArrowLeft} size={16} /> {t('billing.back')}
                 </Button>
             </div>
 
-            <SectionHeader
-                icon={Coins}
+            <PageHeader
+                icon={<IconTile icon={Coins} tone="ember" />}
+                size="lg"
+                divider
                 title={t('billing.title')}
-                right={isPaid ? (
+                actions={isPaid ? (
                     <Button variant="secondary" size="sm" onClick={manageSubscription} disabled={!billingEnabled || pending !== null}>
                         {pending === 'portal' ? <Icon icon={Loader2} size={14} className="animate-spin" /> : <Icon icon={Settings} size={14} />}
                         {t('billing.manageSubscription')}
@@ -167,7 +169,7 @@ export function BillingPage() {
                 <div className="py-16"><LoadingSpinner /></div>
             ) : error ? (
                 <div className="mt-4 flex flex-col gap-3">
-                    <div className="rounded-md border border-blood-500/30 bg-blood-500/10 px-4 py-3 text-[14px] text-blood-500">{error}</div>
+                    <Callout tone="danger" role="alert">{error}</Callout>
                     <div><Button variant="secondary" size="sm" onClick={retry}>{t('billing.retry')}</Button></div>
                 </div>
             ) : !billingEnabled ? (
@@ -178,7 +180,7 @@ export function BillingPage() {
                 </div>
             ) : (
                 <div className="mt-4 flex flex-col gap-6">
-                    <div className="grid gap-4 md:grid-cols-3">
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,230px),1fr))] gap-4">
                         {(catalog?.plans ?? []).map((plan) => {
                             const isCurrent = plan.plan_code === currentPlan
                             const purchasable = plan.plan_code !== 'free' && !isCurrent && billingEnabled
@@ -186,7 +188,7 @@ export function BillingPage() {
                             return (
                                 <Card
                                     key={plan.plan_code}
-                                    className={cx('flex flex-col gap-5 p-5', isCurrent ? 'border-ember-500/45 shadow-glow-ember' : 'bg-ink-700/75')}
+                                    className={cx('flex flex-col gap-5 p-5', isCurrent ? 'border-ember-500/45' : 'bg-ink-700/50')}
                                 >
                                     <div className="flex items-start justify-between gap-3">
                                         {isCurrent
@@ -232,9 +234,9 @@ export function BillingPage() {
                         })}
                     </div>
 
-                    <section className="flex flex-col gap-3">
+                    <section className="flex flex-col gap-4 border-t border-line-faint pt-6">
                         <Eyebrow tone="muted">{t('billing.creditPacks')}</Eyebrow>
-                        <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,230px),1fr))] gap-4">
                             {(catalog?.credit_packs ?? []).map((pack) => (
                                 <Card key={pack.credit_product_code} className="flex flex-col gap-4 p-5">
                                     <div className="flex items-center gap-3">

@@ -21,13 +21,21 @@ export interface AdventureChatHandlers {
     onTtsJob?: (frame: Extract<ChatSocketServerMessage, { type: 'tts_job' }>) => void
     onTtsComplete?: (frame: Extract<ChatSocketServerMessage, { type: 'tts_complete' }>) => void
     onTtsFailed?: (frame: Extract<ChatSocketServerMessage, { type: 'tts_failed' }>) => void
-    /** The backend reported an error for this turn. */
-    onError?: (message: string) => void
+    /** The backend reported an error for this turn. `detail` carries the
+     *  server's fixed error category and the ids needed to find the matching
+     *  backend log line. */
+    onError?: (message: string, detail: AdventureChatSocketErrorDetail) => void
+}
+
+export interface AdventureChatSocketErrorDetail {
+    category?: string
+    requestId?: string
+    turnId?: string
 }
 
 export interface AdventureChatSocketApi {
     status: ChatSocketStatus
-    sendChat: (content: string, requestId?: string) => void
+    sendChat: (content: string, requestId?: string, existingUserMessageId?: number) => void
     sendTts: (assistantMessageId: number, turnId: string, requestId?: string) => void
     cancel: () => void
 }
@@ -118,7 +126,11 @@ export function useAdventureChatSocket(
                         current.onTtsFailed?.(message)
                         break
                     case 'error':
-                        current.onError?.(message.message)
+                        current.onError?.(message.message, {
+                            category: message.category,
+                            requestId: message.request_id,
+                            turnId: message.turn_id,
+                        })
                         break
                     // 'ready' | 'pong' | 'image' | 'action': ignored (forward-compatible).
                 }
@@ -134,7 +146,10 @@ export function useAdventureChatSocket(
         // basePath in deps so switching session kinds tears down + reconnects cleanly.
     }, [sessionId, authDisabled, basePath])
 
-    const sendChat = (content: string, requestId?: string) => { requestRef.current = requestId; socketRef.current?.sendChat(content, requestId) }
+    const sendChat = (content: string, requestId?: string, existingUserMessageId?: number) => {
+        requestRef.current = requestId
+        socketRef.current?.sendChat(content, requestId, existingUserMessageId)
+    }
     const sendTts = (assistantMessageId: number, turnId: string, requestId?: string) =>
         socketRef.current?.sendTts(assistantMessageId, turnId, requestId)
     const cancel = () => socketRef.current?.cancel()

@@ -162,6 +162,11 @@ function HeroSessionSlide({ session, eager, onOpen, onBeginNew }: HeroSessionSli
     const actionLabel = t(meta.resumeLabelKey)
     const actionIcon = meta.icon
     const fallback = t(meta.fallbackSnippetKey)
+    // The built-in persona keeps the prompt token as its stored name. Resolve it
+    // only for display so the session's original persona and prompt stay intact.
+    const playingAs = /^\{\{\s*user\s*\}\}$/i.test(session.playingAs?.trim() ?? '')
+        ? t('interaction.chat.player')
+        : session.playingAs
 
     return (
         <article
@@ -230,8 +235,8 @@ function HeroSessionSlide({ session, eager, onOpen, onBeginNew }: HeroSessionSli
                     {session.snippet || fallback}
                 </p>
                 <p className="m-0 font-mono text-[12px] tracking-wide text-parchment-300">
-                    {session.playingAs
-                        ? t('landing.heroGallery.playingAs', { meta: session.meta, name: session.playingAs })
+                    {playingAs
+                        ? t('landing.heroGallery.playingAs', { meta: session.meta, name: playingAs })
                         : session.meta}
                 </p>
                 <div className="flex flex-wrap items-center gap-3 pt-1">

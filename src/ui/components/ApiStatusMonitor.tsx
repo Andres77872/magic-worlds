@@ -13,7 +13,7 @@ import type { ApiStatus } from '../../app/hooks'
 import { useLanguage } from '../../app/hooks'
 import type { ApiDependencyService } from '@/infrastructure/api'
 import { formatApiTime } from '@/utils/time'
-import { Badge, type BadgeTone, Icon, IconTile, Tooltip, cx } from '../primitives'
+import { Badge, type BadgeTone, Icon, Tooltip, cx } from '../primitives'
 
 // Matches the Drawer transition so the popover enters/exits with the app's idiom.
 const PANEL_TRANSITION_MS = 200
@@ -97,7 +97,7 @@ function HealthDependencyRow({
     const latency = typeof service.latency_ms === 'number' ? `${service.latency_ms}ms` : null
     return (
         <div className={cx(depth > 0 && 'pl-3')}>
-            <div className="flex items-start justify-between gap-3 rounded-md border border-parchment-50/[.06] bg-ink-700 px-2.5 py-2 transition-colors hover:bg-ink-600">
+            <div className="flex items-start justify-between gap-3 border-b border-parchment-50/[.08] py-2">
                 <div className="flex min-w-0 items-start gap-2">
                     <span
                         aria-hidden="true"
@@ -226,13 +226,13 @@ export function ApiStatusMonitor({ status, services = [], checkedAt, collapsed =
                     role="dialog"
                     aria-label={t('sidebar.api.dependenciesTitle')}
                     className={cx(
-                        'absolute bottom-0 left-full z-50 ml-3 flex max-h-[min(32rem,calc(100vh-2rem))] w-[min(20rem,calc(100vw-5rem))] origin-bottom-left flex-col overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-800 text-left shadow-lg transition-[opacity,transform] duration-200 ease-out',
+                        'absolute bottom-full left-0 z-50 mb-2 flex max-h-[min(32rem,calc(100dvh-7rem))] w-[min(20rem,calc(100vw-2rem))] origin-bottom-left lg:bottom-0 lg:left-full lg:mb-0 lg:ml-3 flex-col overflow-hidden rounded-xl border border-parchment-50/10 bg-ink-800 text-left shadow-lg transition-[opacity,transform] duration-200 ease-out',
                         entered ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-1 scale-[.98] opacity-0',
                     )}
                 >
                     <div className="flex items-start justify-between gap-3 border-b border-parchment-50/10 p-3">
                         <div className="flex min-w-0 items-center gap-2.5">
-                            <IconTile icon={Activity} tone="ember" size="sm" />
+                            <Icon icon={Activity} size={20} className="shrink-0 text-ember-400" />
                             <div className="min-w-0">
                                 <p className="truncate font-ui text-sm font-semibold text-parchment-50">
                                     {t('sidebar.api.dependenciesTitle')}
@@ -262,7 +262,7 @@ export function ApiStatusMonitor({ status, services = [], checkedAt, collapsed =
                                 ))}
                             </div>
                         ) : (
-                            <div className="rounded-md border border-parchment-50/[.08] bg-ink-700 px-3 py-2 font-ui text-xs text-parchment-300">
+                            <div className="py-2 font-ui text-xs text-parchment-300">
                                 {t('sidebar.api.detailsUnavailable')}
                             </div>
                         )}

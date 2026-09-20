@@ -48,6 +48,7 @@ export function AppWarningModal() {
             title={t('warning.title')}
             icon={<Icon icon={AlertTriangle} size={22} className="text-amber-500" />}
             showClose={false}
+            initialFocus="panel"
             size="lg"
             footer={
                 <Button

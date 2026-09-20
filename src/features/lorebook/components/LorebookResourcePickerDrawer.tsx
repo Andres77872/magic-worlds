@@ -116,8 +116,8 @@ export function LorebookResourcePickerDrawer({ open, lorebook, onClose, onAttach
                             <Loader2 size={14} className="animate-spin text-ember-500" aria-hidden="true" />
                             {t('lorebookResourcePicker.loading')}
                         </li>
-                    ) : gallery.items.length === 0 ? (
-                        <li className="px-2 py-5 text-center font-ui text-xs text-parchment-500">
+                    ) : gallery.items.length === 0 ? !gallery.error && (
+                        <li className="px-2 py-5 text-center font-ui text-xs text-parchment-400">
                             {hasQuery ? t('lorebookResourcePicker.noMatches') : t('lorebookResourcePicker.empty')}
                         </li>
                     ) : gallery.items.map((resource) => {

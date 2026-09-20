@@ -9,7 +9,7 @@
 import { useTranslation } from 'react-i18next'
 import { Card } from '@/ui/components/lists/Card'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
-import { Chip, Eyebrow, Tag } from '@/ui/primitives'
+import { Chip, Tag } from '@/ui/primitives'
 import { resolveMediaUrl } from '@/infrastructure/api'
 import type { AttrMap } from '../hooks'
 
@@ -55,7 +55,6 @@ export function EntityPreviewCard({
 
     return (
         <div className="flex flex-col gap-2">
-            <Eyebrow tone="muted">{t('creation.common.entityPreview.livePreview')}</Eyebrow>
             <Card
                 title={name.trim() || unnamedLabel}
                 imageUrl={resolveMediaUrl(imageUrl)}

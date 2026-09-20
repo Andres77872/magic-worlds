@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { MediaStudioSection, type MediaStudioSectionProps } from './MediaStudioSection'
 import { apiService } from '@/infrastructure/api'
@@ -103,6 +103,8 @@ describe('MediaStudioSection image generation', () => {
         fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
 
         expect(await screen.findByText(/taking a while/i)).toBeInTheDocument()
+        expect(screen.getByRole('status')).toHaveTextContent(/taking a while/i)
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
         expect(onImageUrl).not.toHaveBeenCalled()
     })
 
@@ -122,9 +124,47 @@ describe('MediaStudioSection image generation', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
 
-        expect(await screen.findByText('Saving image…')).toBeInTheDocument()
+        await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saving image…'))
 
         resolveWait({ job_id: 'j1', status: 'completed', assets: [{ url: '/img.png' }] })
         await waitFor(() => expect(onImageUrl).toHaveBeenCalledWith('/img.png'))
+        expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+
+    it.each(['compact', 'full'] as const)('shows immediate feedback and live stages in the %s layout', async (layout) => {
+        let resolveStart!: (job: unknown) => void
+        let resolveWait!: (job: unknown) => void
+        let onUpdate!: (job: unknown) => void
+        genMock.mockImplementation(() => new Promise((resolve) => { resolveStart = resolve }))
+        waitMock.mockImplementation((_id: string, opts: { onUpdate: (job: unknown) => void }) => {
+            onUpdate = opts.onUpdate
+            return new Promise((resolve) => { resolveWait = resolve })
+        })
+        const { props } = renderPanel({ layout })
+
+        fireEvent.click(screen.getByRole('button', { name: /generate (profile image|portrait)/i }))
+        expect(screen.getByRole('status')).toHaveTextContent('Starting image generation…')
+        expect(screen.getByRole('button', { name: 'Generating…' })).toBeDisabled()
+
+        await act(async () => { resolveStart({ job_id: 'j1', status: 'pending' }) })
+        expect(screen.getByRole('status')).toHaveTextContent('Image queued…')
+        act(() => { onUpdate({ job_id: 'j1', status: 'in_progress' }) })
+        expect(screen.getByRole('status')).toHaveTextContent('Generating image…')
+        await act(async () => { resolveWait({ job_id: 'j1', status: 'completed', assets: [{ url: '/img.png' }] }) })
+        expect(props.onImageUrl).toHaveBeenCalledWith('/img.png')
+        expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+
+    it('explains that stopping the wait does not cancel the server job', async () => {
+        genMock.mockResolvedValue({ job_id: 'j1', status: 'pending' })
+        waitMock.mockImplementation((_id: string, { signal }: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+        }))
+        renderPanel()
+        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+        await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Image queued…'))
+        fireEvent.click(screen.getByRole('button', { name: 'Stop waiting' }))
+        await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/check your gallery/i))
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 })

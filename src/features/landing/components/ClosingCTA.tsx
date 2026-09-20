@@ -37,7 +37,7 @@ export function ClosingCTA({ onAction, actionLabel }: ClosingCTAProps) {
                         {actionLabel ?? t('landing.closing.action')}
                     </Button>
                 </div>
-                <p className="mt-[18px] font-ui text-[13px] text-parchment-500">
+                <p className="mt-[18px] font-ui text-[13px] text-fg-subtle">
                     {t('landing.closing.free')} ·{' '}
                     <a
                         href={GITHUB_URL}

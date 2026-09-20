@@ -47,6 +47,14 @@ describe('ResourceDetailView', () => {
         vi.restoreAllMocks()
     })
 
+    it('opens Markdown content directly for writing when Edit is selected', () => {
+        render(<ResourceDetailView resource={completedResource()} isCreate={false} loading={false} saving={false} onSave={vi.fn()} onDelete={vi.fn()} onBack={vi.fn()} />)
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+        expect(screen.getByRole('textbox', { name: 'Content' })).toHaveValue('Names spoken under glass are binding.')
+        fireEvent.change(screen.getByLabelText('File name'), { target: { value: 'renamed.md' } })
+        expect(screen.getByRole('textbox', { name: 'Content' })).toBeInTheDocument()
+    })
+
     it('keeps the resource file type in sync when the filename extension changes', async () => {
         const onSave = vi.fn(async () => false)
 

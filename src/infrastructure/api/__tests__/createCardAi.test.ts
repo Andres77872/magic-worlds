@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, apiService } from '../index'
 
 const fetchMock = vi.fn()
+const currentCard = {
+    id: 'char-1', name: 'Nyra', description: 'A wandering scout.', category: null,
+    latest_version_id: null, latest_version_number: 0, has_draft: false,
+    draft_updated_at: null, draft_based_on_version_number: null,
+}
+const targetSnapshot = { expected_revision: '2026-09-19T00:43:33', expected_content_hash: 'a'.repeat(64) }
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
     return new Response(JSON.stringify(body), {
@@ -80,7 +86,8 @@ describe('AI card API methods', () => {
         await apiService.sendCardAssistantMessage(7, {
             message: 'Make her older',
             card_type: 'character',
-            current_card: { id: 'char-1', name: 'Nyra' },
+            current_card: currentCard,
+            ...targetSnapshot,
         }, { requestId: 'turn-req' })
 
         const [conversationUrl, conversationInit] = fetchMock.mock.calls[0] as [string, RequestInit]
@@ -104,7 +111,8 @@ describe('AI card API methods', () => {
         expect(JSON.parse(String(turnInit.body))).toEqual({
             message: 'Make her older',
             card_type: 'character',
-            current_card: { id: 'char-1', name: 'Nyra' },
+            current_card: currentCard,
+            ...targetSnapshot,
         })
     })
 
@@ -138,7 +146,8 @@ describe('AI card API methods', () => {
         await apiService.streamCardAssistantMessage(7, {
             message: 'Make her older',
             card_type: 'character',
-            current_card: { id: 'char-1', name: 'Nyra' },
+            current_card: currentCard,
+            ...targetSnapshot,
         }, (event) => {
             events.push(event)
         }, { requestId: 'turn-req' })
@@ -153,7 +162,8 @@ describe('AI card API methods', () => {
         expect(JSON.parse(String(turnInit.body))).toEqual({
             message: 'Make her older',
             card_type: 'character',
-            current_card: { id: 'char-1', name: 'Nyra' },
+            current_card: currentCard,
+            ...targetSnapshot,
         })
         expect(events).toEqual([
             { type: 'assistant_delta', delta: 'Updated ' },

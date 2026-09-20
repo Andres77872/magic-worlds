@@ -166,10 +166,10 @@ export function PresetEditor({ open, mode, source, systemVoices, loadingVoices, 
 
                 <Field label={t('voices.editor.baseVoiceLabel')} helper={t('voices.editor.baseVoiceHelper')}>
                     {baseVoice && !pickerOpen ? (
-                        <div className="flex items-center justify-between gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-arcane-500/30 py-2 pl-3">
                             <div className="min-w-0">
                                 <p className="font-ui text-sm font-semibold text-parchment-50">{baseVoice.voice_name || baseVoice.voice_id}</p>
-                                <code className="font-mono text-xs text-parchment-400">{baseVoice.voice_id}</code>
+                                <code className="font-mono text-caption text-parchment-400 break-all">{baseVoice.voice_id}</code>
                             </div>
                             <Button variant="secondary" size="sm" onClick={() => setPickerOpen(true)}>
                                 {t('voices.editor.change')}
@@ -190,14 +190,14 @@ export function PresetEditor({ open, mode, source, systemVoices, loadingVoices, 
 
                 <PresetRecipeControls recipe={recipe} onChange={(patch) => setRecipe((current) => ({ ...current, ...patch }))} />
 
-                <div className="flex flex-col gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-800/40 p-4">
+                <div className="flex flex-col gap-3 border-t border-line-faint pt-5">
                     <Field
                         label={t('voices.editor.previewLineLabel')}
                         error={previewOverLimit ? 'Preview must be 400 characters or fewer.' : undefined}
                     >
                         <Textarea value={previewText} onChange={(event) => setPreviewText(event.target.value)} maxLength={PRESET_PREVIEW_LIMIT} placeholder={DEFAULT_PREVIEW_TEXT} />
                     </Field>
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                         <Button
                             variant="secondary"
                             size="sm"

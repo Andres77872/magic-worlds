@@ -259,7 +259,7 @@ export function LorebookResourcesGalleryPage() {
 
                     {banner}
 
-                    <ResourceGrid
+                    {(!gallery.error || gallery.items.length > 0) && <ResourceGrid
                         items={gallery.items}
                         loading={gallery.loading}
                         hasMore={gallery.hasMore}
@@ -271,7 +271,7 @@ export function LorebookResourcesGalleryPage() {
                         onCreate={() => createManual('txt')}
                         onOpen={openResource}
                         onDelete={(resource) => setPendingDelete(resource)}
-                    />
+                    />}
                 </div>
             )}
 

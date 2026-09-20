@@ -1000,7 +1000,7 @@ export function DataProvider({ children }: DataProviderProps) {
                 setEditingTemplate(null)
                 setEditingInProgress(null)
                 setEditingLorebook(null)
-                if (!silent) setLoadingState({ isLoading: false })
+                setLoadingState({ isLoading: false })
                 hasLoadedOnceRef.current = true
                 return
             }
@@ -1184,10 +1184,17 @@ export function DataProvider({ children }: DataProviderProps) {
     // After the first completed load, auth transitions refresh silently — a
     // non-silent load flips `isLoading`, which unmounts the current page and
     // destroys any in-progress editor state (creator forms, chapter drafts).
+    // Restoring a saved login flips isAuthenticated without changing authEpoch:
+    // the session coordinator already initialized that ownership from storage.
     useEffect(() => {
+        // An older session's blocking request can no longer finish after ownership
+        // changes. Release its spinner before starting this session's silent load.
+        if (hasLoadedOnceRef.current) {
+            setLoadingState((prev) => prev.isLoading ? { ...prev, isLoading: false } : prev)
+        }
         loadData({ silent: hasLoadedOnceRef.current })
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [authEpoch])
+    }, [authEpoch, isAuthenticated])
     
     // Extract isLoading and error from loadingState
     const { isLoading = false, error = null } = loadingState

@@ -212,12 +212,14 @@ export function VoiceCloneForm({ onCreated, notify, setError, onSendToLab }: Voi
             </Field>
 
             <SwitchRow
+                variant="plain"
                 label={t('admin.voices.clone.noiseReductionLabel')}
                 description={t('admin.voices.clone.noiseReductionDescription')}
                 checked={noiseReduction}
                 onChange={setNoiseReduction}
             />
             <SwitchRow
+                variant="plain"
                 label={t('admin.voices.clone.volumeNormalizationLabel')}
                 description={t('admin.voices.clone.volumeNormalizationDescription')}
                 checked={volumeNormalization}
@@ -236,8 +238,8 @@ export function VoiceCloneForm({ onCreated, notify, setError, onSendToLab }: Voi
                 />
             </Field>
 
-            <details className="rounded-lg border border-parchment-50/[.08] bg-ink-800/40 px-4 py-3">
-                <summary className="cursor-pointer font-ui text-sm font-semibold text-parchment-100">
+            <details className="border-t border-parchment-50/10 pt-3">
+                <summary className="min-h-11 cursor-pointer rounded-sm py-2 font-ui text-sm font-semibold text-parchment-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember-400">
                     {t('admin.voices.clone.promptSummary')}
                 </summary>
                 <div className="mt-4 flex flex-col gap-4">

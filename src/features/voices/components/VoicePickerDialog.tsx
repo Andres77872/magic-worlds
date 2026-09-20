@@ -44,19 +44,27 @@ export function VoicePickerDialog({ open, currentVoice, onSelect, onClose }: Voi
     const [presets, setPresets] = useState<VoicePreset[]>([])
     const [systemVoices, setSystemVoices] = useState<AdminVoiceEntry[]>([])
     const [loading, setLoading] = useState(false)
+    const [loadError, setLoadError] = useState(false)
+    const [reload, setReload] = useState(0)
     const [previewId, setPreviewId] = useState<string | null>(null)
-    const { src: previewSrc, previewing, runPreview } = usePreviewVoice()
+    const { src: previewSrc, previewing, error: previewError, runPreview } = usePreviewVoice()
 
     // Loading presets + system voices when the picker opens is a backend sync.
     useEffect(() => {
         if (!open) return
         /* eslint-disable react-hooks/set-state-in-effect */
         setLoading(true)
-        Promise.all([
-            apiService.listVoicePresets().catch(() => [] as VoicePreset[]),
-            apiService.listSystemVoices().then((response) => response.groups.system ?? []).catch(() => [] as AdminVoiceEntry[]),
+        setLoadError(false)
+        let cancelled = false
+        Promise.allSettled([
+            apiService.listVoicePresets(),
+            apiService.listSystemVoices().then((response) => response.groups.system ?? []),
         ])
-            .then(([presetList, voiceList]) => {
+            .then(([presetResult, voiceResult]) => {
+                if (cancelled) return
+                const presetList = presetResult.status === 'fulfilled' ? presetResult.value : []
+                const voiceList = voiceResult.status === 'fulfilled' ? voiceResult.value : []
+                setLoadError(presetResult.status === 'rejected' || voiceResult.status === 'rejected')
                 setPresets(presetList)
                 setSystemVoices(voiceList)
                 // Land on the tab that actually holds the current voice so the
@@ -64,12 +72,13 @@ export function VoicePickerDialog({ open, currentVoice, onSelect, onClose }: Voi
                 const onPreset = presetList.some((preset) => presetMatchesVoice(preset, currentVoice))
                 setTab(onPreset || !currentVoice?.voice_id ? 'presets' : 'system')
             })
-            .finally(() => setLoading(false))
+            .finally(() => { if (!cancelled) setLoading(false) })
+        return () => { cancelled = true }
         /* eslint-enable react-hooks/set-state-in-effect */
         // Depend on the voice's identity fields, not the object, so the picker
         // doesn't refetch on every parent re-render that recreates currentVoice.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, currentVoice?.voice_id, currentVoice?.preset_id])
+    }, [open, currentVoice?.voice_id, currentVoice?.preset_id, reload])
 
     const choosePreset = (preset: VoicePreset) => {
         onSelect(voiceFromPreset(preset))
@@ -109,8 +118,15 @@ export function VoicePickerDialog({ open, currentVoice, onSelect, onClose }: Voi
             }
         >
             <div className="flex flex-col gap-4">
+                {loadError && (
+                    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-blood-500 pl-3 text-body text-parchment-200">
+                        <span>{t('common.loadError')}</span>
+                        <Button variant="secondary" size="sm" onClick={() => setReload((value) => value + 1)}>{t('common.tryAgain')}</Button>
+                    </div>
+                )}
+                {previewError && <p role="alert" className="text-body text-blood-300">{previewError}</p>}
                 {currentVoice?.voice_id && (
-                    <div className="flex items-center gap-2 rounded-lg border border-ember-500/45 bg-ember-500/[.08] px-4 py-2.5">
+                    <div className="flex items-center gap-2 border-l-2 border-ember-500/45 pl-3 py-2.5">
                         <Icon icon={Check} size={16} className="shrink-0 text-ember-400" />
                         <div className="min-w-0">
                             <p className="font-ui text-[0.7rem] uppercase tracking-wide text-ember-300/80">{t('voices.picker.currentlyUsing')}</p>
@@ -130,18 +146,18 @@ export function VoicePickerDialog({ open, currentVoice, onSelect, onClose }: Voi
 
                 {tab === 'presets' ? (
                     presets.length > 0 ? (
-                        <div className="flex flex-col gap-2">
+                        <div className="flex flex-col divide-y divide-line-faint">
                             {presets.map((preset) => {
                                 const selected = presetMatchesVoice(preset, currentVoice)
                                 return (
                                     <div
                                         key={preset.preset_id}
                                         className={cx(
-                                            'flex flex-col gap-2 rounded-lg border px-4 py-3',
-                                            selected ? 'border-ember-500/60 bg-parchment-50/[.05]' : 'border-parchment-50/[.08] bg-ink-800/70',
+                                            'flex flex-col gap-2 border-l-2 pl-3 py-4',
+                                            selected ? 'border-l-ember-500 bg-ember-500/[.05]' : 'border-l-transparent',
                                         )}
                                     >
-                                        <div className="flex items-start justify-between gap-3">
+                                        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
                                             <div className="min-w-0">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <p className="font-ui text-sm font-semibold text-parchment-50">{preset.name}</p>
@@ -173,8 +189,8 @@ export function VoicePickerDialog({ open, currentVoice, onSelect, onClose }: Voi
                                 )
                             })}
                         </div>
-                    ) : (
-                        <p className="rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3 font-ui text-sm text-parchment-300">
+                    ) : !loadError && (
+                        <p role="status" className="py-6 font-ui text-sm text-parchment-300">
                             {loading ? t('voices.picker.loadingPresets') : t('voices.picker.noPresets')}
                         </p>
                     )

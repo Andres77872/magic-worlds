@@ -106,6 +106,27 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
     expect(onError).not.toHaveBeenCalled()
   })
 
+  it('passes the error category and correlation ids to onError', () => {
+    const onError = vi.fn()
+
+    const { result } = renderHook(() => useAdventureChatSocket(7, { onError }))
+    result.current.sendChat('Open the door', 'req-1')
+
+    socketHandlers?.onMessage({
+      type: 'error',
+      message: 'The model returned an invalid response. Please try again.',
+      category: 'upstream_contract',
+      request_id: 'req-1',
+      turn_id: 'turn-1',
+    })
+
+    expect(onError).toHaveBeenCalledWith('The model returned an invalid response. Please try again.', {
+      category: 'upstream_contract',
+      requestId: 'req-1',
+      turnId: 'turn-1',
+    })
+  })
+
   it('dispatches parsed response segments', () => {
     const onSegments = vi.fn()
 
@@ -208,7 +229,14 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
     expect(socketInstances[0].sendChat).toHaveBeenCalledWith(
       'Look around',
       'request-7',
+      undefined,
     )
+  })
+
+  it('forwards the stored user message id when regenerating', () => {
+    const { result } = renderHook(() => useAdventureChatSocket(7, {}))
+    result.current.sendChat('Look around', 'retry-7', 100)
+    expect(socketInstances[0].sendChat).toHaveBeenCalledWith('Look around', 'retry-7', 100)
   })
 
   it('ignores voice transport frames on the text chat hook', () => {

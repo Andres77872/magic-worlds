@@ -22,21 +22,20 @@ export function EmailVerifyPage() {
     const { setPage } = useNavigation()
     const [token] = useState(() => parseAuthToken('verify-email'))
     const [status, setStatus] = useState<VerifyStatus>('verifying')
-    const ranRef = useRef(false)
+    const verificationRef = useRef<ReturnType<typeof apiService.verifyEmail> | null>(null)
 
     useEffect(() => {
-        // StrictMode mounts effects twice in dev; the token is single-use, so guard.
-        if (ranRef.current) return
-        ranRef.current = true
         clearAuthDeepLink()
 
         if (!token) {
             setStatus('missing')
             return
         }
+        // Submit the single-use token once, but subscribe on every effect setup.
+        // StrictMode cancels the first subscription; the replacement still needs its result.
+        verificationRef.current ??= apiService.verifyEmail(token)
         let cancelled = false
-        void apiService
-            .verifyEmail(token)
+        void verificationRef.current
             .then(() => {
                 if (cancelled) return
                 // The provider revoked every session on a valid token; drop the now

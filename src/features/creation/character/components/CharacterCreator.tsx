@@ -628,6 +628,7 @@ export function CharacterCreator() {
 
                     {isPersona && (
                         <SwitchRow
+                            variant="plain"
                             label={t('creation.character.role.useAsDefaultPersona')}
                             checked={isDefaultPersona}
                             onChange={setIsDefaultPersona}

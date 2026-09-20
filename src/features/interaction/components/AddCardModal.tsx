@@ -107,7 +107,7 @@ export function AddCardModal({ open, title, confirmKind, candidates, emptyHint, 
                             placeholder={t(`interaction.addCard.searchPlaceholder_${confirmKind}`)}
                         />
                     )}
-                    <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto pr-1">
+                    <div className="flex max-h-[360px] flex-col divide-y divide-line-faint overflow-y-auto pr-1">
                         {filtered.map((c) => {
                             const isSelected = selected.includes(c.id)
                             return (
@@ -117,10 +117,10 @@ export function AddCardModal({ open, title, confirmKind, candidates, emptyHint, 
                                     onClick={() => toggle(c.id)}
                                     aria-pressed={isSelected}
                                     className={cx(
-                                        'flex items-start gap-3 rounded-lg border p-3 text-left transition-colors',
+                                        'flex items-start gap-3 border-l-2 px-3 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ember-400',
                                         isSelected
-                                            ? 'border-ember-500/50 bg-ember-500/[0.08]'
-                                            : 'border-parchment-50/10 bg-ink-800 hover:border-parchment-50/20',
+                                            ? 'border-l-ember-500 bg-ember-500/[0.08]'
+                                            : 'border-l-transparent hover:bg-surface-raised',
                                     )}
                                 >
                                     <span

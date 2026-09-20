@@ -19,7 +19,7 @@ export function ResourceExtractionMetadata({ resource }: ResourceExtractionMetad
 
     if (!extraction) {
         return (
-            <section className="grid gap-3 rounded-lg border border-arcane-500/20 bg-arcane-500/[.06] px-4 py-4">
+            <section className="grid gap-3 border-t border-line pt-5">
                 <SectionHeader icon={FileText} tone="arcane" title={heading} />
                 <p className="m-0 font-ui text-sm text-parchment-300">
                     {status === 'failed'
@@ -31,7 +31,7 @@ export function ResourceExtractionMetadata({ resource }: ResourceExtractionMetad
     }
 
     return (
-        <section className="grid gap-4 rounded-lg border border-arcane-500/20 bg-arcane-500/[.06] px-4 py-4">
+        <section className="grid gap-4 border-t border-line pt-5">
             <SectionHeader
                 icon={FileText}
                 tone="arcane"

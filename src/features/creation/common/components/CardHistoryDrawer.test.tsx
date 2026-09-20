@@ -28,6 +28,13 @@ function renderDrawer(props: Partial<Parameters<typeof CardHistoryDrawer>[0]> = 
 }
 
 describe('CardHistoryDrawer', () => {
+    it('does not present failed history loading as an empty version history', async () => {
+        vi.spyOn(apiService, 'listCardVersions').mockRejectedValue(new Error('Unavailable'))
+        vi.spyOn(apiService, 'getCardUsage').mockResolvedValue({ sessions: 0, stories: 0 })
+        renderDrawer()
+        expect(await screen.findByRole('alert')).toHaveTextContent('Could not load versions')
+        expect(screen.queryByText('No published versions yet')).not.toBeInTheDocument()
+    })
     it('shows the Draft tier and routes Publish / Discard through callbacks', async () => {
         vi.spyOn(apiService, 'listCardVersions').mockResolvedValue({
             card_id: 'card-1',

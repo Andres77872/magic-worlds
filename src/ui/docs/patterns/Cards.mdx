@@ -10,13 +10,13 @@ import { Stage } from '../Swatch'
 
 A card is Reverie's base **raised surface** — a character, a world, a saved scene
 lifted just off the dark canvas. Depth comes from *lightening* (an `ink-700`
-surface) plus a hairline border and a soft ambient shadow, never from heavy
+surface) plus a hairline border, never from heavy
 material elevation.
 
 ## The Card primitive
 
 `Card` is a single `div` with the surface look baked in: `bg-surface-raised`, a
-`border-line-faint` hairline, `shadow-md`, rounded corners, and clipped overflow.
+`border-line-faint` hairline, rounded corners, and clipped overflow.
 It forwards a ref and spreads the rest of its props, so it stays a plain box you
 compose into.
 
@@ -45,8 +45,12 @@ The only knob is **`interactive`**.
   </div>
 </Stage>
 
-- **Static** (default) — a container for information. Just a `transition-all`, no hover affordance.
-- **Interactive** — a clickable surface (a world you can open, a character you can pick). Adds `cursor-pointer` and the shared **`.lift`** utility.
+- **Static** (default) — a distinct content object or preview. A quiet surface and `transition-colors`, without a resting shadow or hover affordance.
+- **Interactive** — a clickable surface (a world you can open, a character you can pick). Adds `shadow-sm`, `cursor-pointer`, and the shared **`.lift`** utility.
+
+For a form group, settings list, toolbar, or prose section, use an open semantic
+section with a heading and spacing instead of a card. See
+[Composition](?path=/docs/design-system-patterns-composition--docs) for the shared grouping rules.
 
 Set `interactive` only when the whole card is a single click target. If a card
 merely *contains* buttons, leave it static and let those controls own the

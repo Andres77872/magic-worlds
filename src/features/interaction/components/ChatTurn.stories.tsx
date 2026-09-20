@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { useRef, useState } from 'react'
 import type { TurnEntry } from '../../../shared'
+import { ChatComposer } from './ChatComposer'
 import { ChatTurn } from './ChatTurn'
 
 // Mirrors ChatTurn's local ExtendedTurnEntry shape.
@@ -44,7 +46,7 @@ const meta = {
   tags: ['autodocs'],
   parameters: {
     layout: 'padded',
-    docs: { description: { component: 'A full turn row: avatar, role eyebrow + timestamp, actions, the message (player bubble or GM prose), and any suggested forward options. Composes ChatAvatar, ChatMessage, ChatActions, ForwardOptions and EditMode.' } },
+    docs: { description: { component: 'A full conversation turn with speaker metadata above the prose and unframed utilities below it. Suggested replies form one flat list; player turns use a subtle ember surface, and dialogue uses a quiet left edge.' } },
   },
   decorators: [(Story) => <div className="w-[760px] max-w-full"><Story /></div>],
   argTypes: {
@@ -77,3 +79,28 @@ export const StructuredSegments: Story = { args: { turn: structuredTurn } }
 
 /** Streaming — actions are hidden and the thinking dots show. */
 export const Streaming: Story = { args: { turn: { ...gmTurn, forwardOptions: undefined, isStreaming: true } } }
+
+function ConversationPreview() {
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
+  const [autoNarrate, setAutoNarrate] = useState(false)
+  const selectReply = (message: string) => {
+    setDraft(message)
+    inputRef.current?.focus()
+  }
+  return (
+    <div>
+      <ChatTurn turn={userTurn} onForwardOptionClick={selectReply} onEditClick={() => {}} onDeleteClick={() => {}} />
+      <ChatTurn turn={structuredTurn} aiLabel="The keeper of the northern archive" onForwardOptionClick={selectReply} onRegenerateClick={() => {}} onEditClick={() => {}} onDeleteClick={() => {}} />
+      <ChatComposer inputRef={inputRef} value={draft} onValueChange={setDraft} onSubmit={() => setDraft('')} onStop={() => {}} isLoading={false} isMutating={false} autoNarrate={autoNarrate} onToggleAutoNarrate={() => setAutoNarrate((value) => !value)} onReset={() => {}} canReset placeholder="What do you do next?" />
+    </div>
+  )
+}
+
+/** The full reading rhythm, including an editable suggested reply and the composer. */
+export const Conversation: Story = { render: () => <ConversationPreview /> }
+
+export const NarrowConversation: Story = {
+  decorators: [(Story) => <div className="w-80 max-w-full"><Story /></div>],
+  render: () => <ConversationPreview />,
+}

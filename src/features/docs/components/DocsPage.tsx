@@ -36,7 +36,6 @@ import {
     Badge,
     Button,
     Card,
-    GlowBackdrop,
     Icon,
     IconTile,
     Illustration,
@@ -213,7 +212,6 @@ export function DocsPage() {
                         aria-hidden
                         className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink-900 via-ink-900/85 to-ink-900/60"
                     />
-                    <GlowBackdrop variant="hero" />
                     <div className="relative p-6 sm:p-8">
                         <PageHeader
                             eyebrow={docs.page.eyebrow}
@@ -241,7 +239,7 @@ export function DocsPage() {
                             <div className="relative">
                                 <span
                                     aria-hidden
-                                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-parchment-400"
+                                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle"
                                 >
                                     <Icon icon={Search} size={16} />
                                 </span>
@@ -252,30 +250,30 @@ export function DocsPage() {
                                     placeholder={docs.search.placeholder}
                                     value={query}
                                     onChange={(event) => setQuery(event.target.value)}
-                                    className="h-11 w-full rounded-md border border-parchment-50/[.12] bg-ink-900/70 pl-9 pr-9 font-ui text-sm text-parchment-50 transition-colors placeholder:text-parchment-400 focus:border-ember-500/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500"
+                                    className="h-11 w-full rounded-md border border-parchment-50/[.12] bg-ink-900/70 pl-9 pr-9 font-ui text-sm text-parchment-50 transition-colors placeholder:text-fg-subtle focus:border-ember-500/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500"
                                 />
                                 {query && (
                                     <button
                                         type="button"
                                         aria-label={docs.search.clear}
                                         onClick={() => setQuery('')}
-                                        className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-parchment-400 transition-colors hover:bg-parchment-50/[.06] hover:text-parchment-50"
+                                        className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-fg-subtle transition-colors hover:bg-parchment-50/[.06] hover:text-parchment-50"
                                     >
                                         <Icon icon={X} size={15} />
                                     </button>
                                 )}
                             </div>
-                            <p className="mt-1.5 font-ui text-[12px] text-parchment-500">{docs.search.shortcutHint}</p>
+                            <p className="mt-1.5 font-ui text-[12px] text-fg-subtle">{docs.search.shortcutHint}</p>
                         </div>
                     </div>
                 </section>
 
-                <div className="grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
-                    <aside className="lg:sticky lg:top-6 lg:self-start">
+                <div className="grid min-w-0 grid-cols-1 gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
+                    <aside className="min-w-0 lg:sticky lg:top-6 lg:self-start">
                         <nav
                             ref={navRef}
                             aria-label={docs.navAriaLabel}
-                            className="flex gap-2 overflow-x-auto rounded-xl border border-parchment-50/10 bg-ink-900/55 p-2 lg:flex-col lg:overflow-visible"
+                            className="flex min-w-0 gap-2 overflow-x-auto border-b border-line-faint pb-2 lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-l lg:pl-2"
                         >
                             {docs.sections.map((section) => {
                                 const active = activeSection === section.id
@@ -605,7 +603,7 @@ function GuideSection({
     children: ReactNode
 }) {
     return (
-        <section id={id} hidden={hidden} className="scroll-mt-8">
+        <section id={id} hidden={hidden} className="scroll-mt-8 border-t border-line-faint pt-8 first:border-t-0 first:pt-0">
             {art && (
                 <Illustration
                     src={art}
@@ -682,14 +680,14 @@ function FeatureCard({
     children,
 }: Pick<GuideItem, 'icon' | 'title' | 'badge' | 'tone'> & { children: ReactNode }) {
     return (
-        <Card className="group p-5">
+        <article className="min-w-0 border-t border-line-faint py-5">
             <div className="mb-3 flex items-start justify-between gap-3">
-                <IconTile icon={icon} tone={tone} size="sm" glow />
+                <Icon icon={icon} size={20} className={tone === 'arcane' ? 'text-arcane-300' : 'text-ember-300'} />
                 {badge && <Badge tone={tone}>{badge}</Badge>}
             </div>
-            <h3 className="m-0 font-display text-xl font-semibold text-parchment-50">{title}</h3>
-            <p className="mt-2 font-ui text-sm leading-relaxed text-parchment-300">{children}</p>
-        </Card>
+            <h3 className="m-0 font-display text-h3 font-semibold text-fg">{title}</h3>
+            <p className="mt-2 font-ui text-body text-fg-muted">{children}</p>
+        </article>
     )
 }
 
@@ -749,7 +747,7 @@ function UtilityRow({
               : 'bg-parchment-50/[.06] text-parchment-200'
 
     return (
-        <div className="flex gap-3 rounded-lg border border-parchment-50/10 bg-ink-900/45 p-4">
+        <div className="flex min-w-0 gap-3 border-t border-line-faint py-4">
             <span className={cx('inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md', toneClass)}>
                 <Icon icon={icon} size={16} />
             </span>

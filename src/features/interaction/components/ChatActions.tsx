@@ -110,7 +110,7 @@ function MessageDeleteConfirmPopover({
             style={{ position: 'fixed', top: renderedCoords.top, left: renderedCoords.left, width: POPOVER_WIDTH }}
             className="z-[100] rounded-lg border border-parchment-50/10 bg-ink-800/95 p-2 shadow-xl ring-1 ring-ink-900/60 backdrop-blur-md"
         >
-            <div id={labelledBy} className="px-1 pb-2 font-ui text-[13px] font-semibold text-parchment-100">
+            <div id={labelledBy} className="px-1 pb-2 font-ui text-label font-semibold text-parchment-100">
                 {t('interaction.actions.deleteMessageConfirm')}
             </div>
             <div className="flex items-center justify-end gap-2">
@@ -196,7 +196,7 @@ export function ChatActions({
     }, [confirmingDelete])
 
     return (
-        <div className="flex items-center gap-0.5">
+        <div className="flex flex-wrap items-center gap-0.5">
             {canCopy && (
                 <CopyTextButton text={messageContent} onError={(error) => console.error('Failed to copy chat message:', error)} />
             )}

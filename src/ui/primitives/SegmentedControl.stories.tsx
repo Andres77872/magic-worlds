@@ -68,3 +68,8 @@ export const TwoOptions: Story = {
   render: () => <GridListSwitcher />,
   parameters: { docs: { description: { story: 'Any small set of mutually-exclusive modes works — here a simple grid/list pair.' } } },
 }
+
+export const VisibleLabels: Story = {
+  args: { showLabels: true },
+  parameters: { docs: { description: { story: 'Show labels for choices whose meaning must be visible without hovering, such as administration scopes.' } } },
+}

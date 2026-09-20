@@ -244,6 +244,45 @@ describe('useMediaGallery', () => {
         expect(listImageJobs).toHaveBeenLastCalledWith(expect.objectContaining({ offset: PAGE_SIZE }))
     })
 
+    it('stops obsolete pagination after StrictMode replays the initial load', async () => {
+        let resolveOld!: (page: ImageJobListResponse) => void
+        listImageJobs
+            .mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve }))
+            .mockResolvedValueOnce(imagesResponse([imageJob('current', '2026-06-10T10:00:00')], null))
+        // Hold unexpected refills pending so a broken loop fails without flooding the test process.
+        listImageJobs.mockImplementation(() => new Promise(() => {}))
+        const { result } = renderHook(() => useMediaGallery(PAGE_SIZE), { reactStrictMode: true })
+        await waitFor(() => expect(result.current.loading).toBe(false))
+
+        await act(async () => resolveOld(imagesResponse([], PAGE_SIZE)))
+
+        expect(listImageJobs).toHaveBeenCalledTimes(2)
+        expect(result.current.items.map(item => item.id)).toEqual(['img-current'])
+        expect(result.current.hasMore).toBe(false)
+    })
+
+    it.each(['filter', 'disable', 'unmount'] as const)('stops obsolete pagination after %s', async (action) => {
+        let resolveOld!: (page: ImageJobListResponse) => void
+        listImageJobs.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve }))
+        listImageJobs.mockImplementation(() => new Promise(() => {}))
+        const { result, rerender, unmount } = renderHook(
+            ({ enabled }) => useMediaGallery(PAGE_SIZE, { enabled }),
+            { initialProps: { enabled: true } },
+        )
+        if (action === 'filter') {
+            act(() => result.current.setMediaType('themes'))
+            await waitFor(() => expect(result.current.loading).toBe(false))
+        } else if (action === 'disable') {
+            rerender({ enabled: false })
+            expect(result.current.loading).toBe(false)
+        } else {
+            unmount()
+        }
+
+        await act(async () => resolveOld(imagesResponse([], PAGE_SIZE)))
+        expect(listImageJobs).toHaveBeenCalledTimes(1)
+    })
+
     it('removeItem drops emitted items and purges buffered copies', async () => {
         listImageJobs.mockResolvedValueOnce(
             imagesResponse(

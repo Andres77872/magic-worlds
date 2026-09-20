@@ -21,10 +21,10 @@ export function VoiceRow({ voice, deleting, onTest, onDelete }: VoiceRowProps) {
     const { t } = useTranslation()
     const description = voice.description.filter(Boolean).join(' ')
     return (
-        <div className="flex flex-col gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 border-b border-line-faint py-4 last:border-b-0">
             <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-ui text-sm font-semibold text-parchment-50">{voice.voice_name || voice.voice_id}</p>
+                    <p className="break-words font-ui text-sm font-semibold text-parchment-50">{voice.voice_name || voice.voice_id}</p>
                     <Badge tone={voice.deletable ? 'arcane' : 'neutral'}>{t(TYPE_LABEL_KEY[voice.voice_type])}</Badge>
                 </div>
                 <CopyableVoiceId value={voice.voice_id} compact />
@@ -39,7 +39,7 @@ export function VoiceRow({ voice, deleting, onTest, onDelete }: VoiceRowProps) {
                 </Button>
                 {voice.deletable ? (
                     <Button
-                        variant="danger"
+                        variant="danger-ghost"
                         size="sm"
                         iconLeft={<Icon icon={deleting ? Loader2 : Trash2} size={14} className={deleting ? 'animate-spin' : undefined} />}
                         disabled={deleting}

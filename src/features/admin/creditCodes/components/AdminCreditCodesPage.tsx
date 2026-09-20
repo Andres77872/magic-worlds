@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { KeyRound, Mail, RefreshCw, Ticket } from 'lucide-react'
 import { useAuth } from '@/app/hooks'
 import type { CreditGrantKind } from '@/shared'
-import { Button, Card, Icon, IconTile, PageHeader, SectionHeader, Toast } from '@/ui/primitives'
+import { Button, Icon, IconTile, PageHeader, SectionHeader, Toast } from '@/ui/primitives'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { useCreditCodesStudio } from '../hooks/useCreditCodesStudio'
@@ -96,96 +96,94 @@ export function AdminCreditCodesPage() {
 
             <CreditGrantSummaryTiles counts={counts} activeStatus={studio.status} onSelect={studio.setStatus} />
 
-            <Card>
-                <div className="flex flex-col gap-5 p-5">
-                    <CreditTokensToolbar
-                        activeType={activeType}
-                        onTypeChange={(type) => {
-                            setCreateOpen(false)
-                            studio.setActiveType(type)
-                        }}
-                        status={studio.status}
-                        onStatusChange={studio.setStatus}
-                        search={studio.searchInput}
-                        onSearchChange={studio.setSearchInput}
-                        searching={studio.loading}
-                        sort={studio.sort}
-                        onSortChange={studio.setSort}
-                        total={studio.total}
-                        onCreate={() => setCreateOpen((open) => !open)}
-                        createActive={createOpen}
-                        onExport={() => void studio.exportCsv()}
-                        exporting={studio.exporting}
-                        exportDisabled={(studio.total ?? 0) === 0}
-                    />
+            <section className="flex flex-col gap-5 border-t border-line-faint pt-6">
+                <CreditTokensToolbar
+                    activeType={activeType}
+                    onTypeChange={(type) => {
+                        setCreateOpen(false)
+                        studio.setActiveType(type)
+                    }}
+                    status={studio.status}
+                    onStatusChange={studio.setStatus}
+                    search={studio.searchInput}
+                    onSearchChange={studio.setSearchInput}
+                    searching={studio.loading}
+                    sort={studio.sort}
+                    onSortChange={studio.setSort}
+                    total={studio.total}
+                    onCreate={() => setCreateOpen((open) => !open)}
+                    createActive={createOpen}
+                    onExport={() => void studio.exportCsv()}
+                    exporting={studio.exporting}
+                    exportDisabled={(studio.total ?? 0) === 0}
+                />
 
-                    {createOpen && (
-                        <div className="rounded-lg border border-ember-500/25 bg-ember-500/[.04] p-4">
-                            <SectionHeader
-                                icon={activeType === 'code' ? KeyRound : Mail}
-                                title={
-                                    activeType === 'code'
-                                        ? t('admin.creditCodes.codes.title')
-                                        : t('admin.creditCodes.emailGrants.title')
-                                }
-                                tone="ember"
-                            />
-                            <p className="mt-1 mb-4 font-ui text-[13px] leading-relaxed text-parchment-300">
-                                {activeType === 'code'
-                                    ? t('admin.creditCodes.codes.description')
-                                    : t('admin.creditCodes.emailGrants.description')}
-                            </p>
-                            {activeType === 'code' ? (
-                                <CreateCreditCodeGrantForm
-                                    onCreated={() => studio.handleCreated()}
-                                    notify={studio.setToast}
-                                    setError={studio.setError}
-                                />
-                            ) : (
-                                <CreateEmailCreditGrantsForm
-                                    onCreated={() => studio.handleCreated()}
-                                    notify={studio.setToast}
-                                    setError={studio.setError}
-                                />
-                            )}
-                        </div>
-                    )}
-
-                    <div className="border-t border-parchment-50/[.08] pt-5">
+                {createOpen && (
+                    <div className="border-y border-line-faint py-5">
+                        <SectionHeader
+                            icon={activeType === 'code' ? KeyRound : Mail}
+                            title={
+                                activeType === 'code'
+                                    ? t('admin.creditCodes.codes.title')
+                                    : t('admin.creditCodes.emailGrants.title')
+                            }
+                            tone="ember"
+                        />
+                        <p className="mt-1 mb-4 font-ui text-label leading-relaxed text-parchment-300">
+                            {activeType === 'code'
+                                ? t('admin.creditCodes.codes.description')
+                                : t('admin.creditCodes.emailGrants.description')}
+                        </p>
                         {activeType === 'code' ? (
-                            <CreditCodeGrantsList
-                                grants={studio.codeGrants}
-                                loading={studio.loading}
-                                mutatingId={studio.mutatingId}
-                                onDisable={(grant) =>
-                                    studio.setPendingDisable({
-                                        kind: 'code',
-                                        id: grant.code_id,
-                                        label: grant.label || t('admin.creditCodes.codes.untitled'),
-                                    })
-                                }
-                                onEdit={(grant) => setEditing({ kind: 'code', grant })}
-                                hasMore={studio.hasMore}
-                                loadingMore={studio.loadingMore}
-                                onLoadMore={() => void studio.loadMore()}
+                            <CreateCreditCodeGrantForm
+                                onCreated={() => studio.handleCreated()}
+                                notify={studio.setToast}
+                                setError={studio.setError}
                             />
                         ) : (
-                            <EmailCreditGrantsList
-                                grants={studio.emailGrants}
-                                loading={studio.loading}
-                                mutatingId={studio.mutatingId}
-                                onDisable={(grant) =>
-                                    studio.setPendingDisable({ kind: 'email', id: grant.grant_id, label: grant.email })
-                                }
-                                onEdit={(grant) => setEditing({ kind: 'email', grant })}
-                                hasMore={studio.hasMore}
-                                loadingMore={studio.loadingMore}
-                                onLoadMore={() => void studio.loadMore()}
+                            <CreateEmailCreditGrantsForm
+                                onCreated={() => studio.handleCreated()}
+                                notify={studio.setToast}
+                                setError={studio.setError}
                             />
                         )}
                     </div>
-                </div>
-            </Card>
+                )}
+
+                {(!studio.error || (activeType === 'code' ? studio.codeGrants.length : studio.emailGrants.length) > 0) && <div>
+                    {activeType === 'code' ? (
+                        <CreditCodeGrantsList
+                            grants={studio.codeGrants}
+                            loading={studio.loading}
+                            mutatingId={studio.mutatingId}
+                            onDisable={(grant) =>
+                                studio.setPendingDisable({
+                                    kind: 'code',
+                                    id: grant.code_id,
+                                    label: grant.label || t('admin.creditCodes.codes.untitled'),
+                                })
+                            }
+                            onEdit={(grant) => setEditing({ kind: 'code', grant })}
+                            hasMore={studio.hasMore}
+                            loadingMore={studio.loadingMore}
+                            onLoadMore={() => void studio.loadMore()}
+                        />
+                    ) : (
+                        <EmailCreditGrantsList
+                            grants={studio.emailGrants}
+                            loading={studio.loading}
+                            mutatingId={studio.mutatingId}
+                            onDisable={(grant) =>
+                                studio.setPendingDisable({ kind: 'email', id: grant.grant_id, label: grant.email })
+                            }
+                            onEdit={(grant) => setEditing({ kind: 'email', grant })}
+                            hasMore={studio.hasMore}
+                            loadingMore={studio.loadingMore}
+                            onLoadMore={() => void studio.loadMore()}
+                        />
+                    )}
+                </div>}
+            </section>
 
             <EditCreditGrantDialog
                 key={editing ? `${editing.kind}-${editing.kind === 'code' ? (editing.grant as { code_id: number }).code_id : (editing.grant as { grant_id: number }).grant_id}` : 'edit-none'}

@@ -51,7 +51,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
     const { t } = useTranslation()
     const [mode, setMode] = useState<'read' | 'edit'>(isCreate ? 'edit' : 'read')
     const [draft, setDraft] = useState<LorebookResource>(resource)
-    const [contentView, setContentView] = useState<ContentView>(() => defaultContentView(resource))
+    const [contentView, setContentView] = useState<ContentView>(() => isCreate ? 'plain' : defaultContentView(resource))
     const [extractMetadata, setExtractMetadata] = useState(false)
     const [urlImportValue, setUrlImportValue] = useState('')
     const [urlImporting, setUrlImporting] = useState(false)
@@ -62,7 +62,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
     useEffect(() => {
         setDraft(resource)
         setMode(isCreate ? 'edit' : 'read')
-        setContentView(defaultContentView(resource))
+        setContentView(isCreate ? 'plain' : defaultContentView(resource))
         setExtractMetadata(false)
         setUrlImportValue('')
         setUrlImportError(null)
@@ -80,6 +80,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
     const isEdit = mode === 'edit'
 
     const startEdit = () => {
+        setContentView('plain')
         setDraft(resource)
         setExtractMetadata(false)
         setMode('edit')
@@ -92,6 +93,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
         setDraft(resource)
         setExtractMetadata(false)
         setMode('read')
+        setContentView(defaultContentView(resource))
     }
     const save = async () => {
         const ok = await onSave(draft, { extractMetadata })
@@ -101,6 +103,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
         if (ok) {
             setExtractMetadata(false)
             setMode('read')
+            setContentView(defaultContentView(draft))
         }
     }
     const syncMetadata = async () => {
@@ -236,7 +239,6 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                                     const fileName = event.target.value
                                     const fileType = lorebookResourceFileTypeFromName(fileName)
                                     patch({ fileName, fileType })
-                                    setContentView(defaultContentView({ ...draft, fileName, fileType }))
                                 }}
                             />
                         </Field>
@@ -253,7 +255,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                     <Field label={t('lorebookResourcesGallery.editor.descriptionLabel')}>
                         <Textarea value={draft.description ?? ''} onChange={(event) => patch({ description: event.target.value })} className="min-h-[86px]" />
                     </Field>
-                    <section className="grid gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-700/70 p-4">
+                    <section className="grid gap-3 border-y border-line py-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
                             <Field
                                 className="min-w-0 flex-1"
@@ -306,6 +308,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                         error={overLimit ? t('lorebookResourcesGallery.errors.size', { name: draft.fileName, count: LOREBOOK_RESOURCE_MAX_CHARS }) : undefined}
                     />
                     <SwitchRow
+                        variant="plain"
                         label={t('lorebookResourcesGallery.metadata.syncOnSaveLabel')}
                         description={t('lorebookResourcesGallery.metadata.syncOnSaveDescription')}
                         checked={extractMetadata}

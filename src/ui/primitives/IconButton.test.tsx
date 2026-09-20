@@ -15,7 +15,7 @@ describe('IconButton', () => {
         expect(button).toHaveAttribute('title', 'Dismiss')
     })
 
-    it.each(['sm', 'md'] as const)('extends the %s touch target on coarse pointers', (size) => {
+    it.each(['sm', 'md'] as const)('reserves space for the %s touch target on coarse pointers', (size) => {
         render(
             <IconButton label="Dismiss" size={size}>
                 <X size={14} />
@@ -23,8 +23,9 @@ describe('IconButton', () => {
         )
 
         const button = screen.getByRole('button', { name: 'Dismiss' })
-        expect(button.className).toContain('pointer-coarse:after:absolute')
-        expect(button.className).toContain('relative')
+        expect(button.className).toContain('pointer-coarse:h-11')
+        expect(button.className).toContain('pointer-coarse:w-11')
+        expect(button.className).not.toContain('after:')
     })
 
     it('leaves the lg size (already 44px) without a hit-area overlay', () => {

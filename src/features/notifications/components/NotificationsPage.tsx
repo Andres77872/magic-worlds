@@ -6,8 +6,8 @@ import { pageFromHash } from '@/features/gallery/galleryLinks'
 import { ApiError, apiService } from '@/infrastructure/api'
 import type { NotificationSeverity, UserNotification } from '@/shared'
 import { formatRelativeTime } from '@/utils/time'
-import { EmptyState } from '@/ui/components'
-import { Badge, Button, Card, Icon, IconButton, PageHeader } from '@/ui/primitives'
+import { EmptyState, LoadingSpinner } from '@/ui/components'
+import { Badge, Button, Icon, IconButton, PageHeader } from '@/ui/primitives'
 
 const severityIcon = {
     info: Info,
@@ -176,7 +176,7 @@ export function NotificationsPage() {
     }
 
     return (
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 sm:px-8 sm:py-10">
             <PageHeader
                 eyebrow={t('sidebar.notifications.eyebrow')}
                 title={t('sidebar.notifications.title')}
@@ -187,7 +187,7 @@ export function NotificationsPage() {
                         <Badge tone={unreadCount > 0 ? 'ember' : 'neutral'} aria-live="polite">
                             {t('sidebar.notifications.unreadCount', { count: unreadCount })}
                         </Badge>
-                        <Button variant="secondary" size="sm" onClick={() => setUnreadOnly((current) => !current)}>
+                        <Button variant="secondary" size="sm" aria-pressed={unreadOnly} onClick={() => setUnreadOnly((current) => !current)}>
                             {unreadOnly ? t('sidebar.notifications.showAll') : t('sidebar.notifications.unreadOnly')}
                         </Button>
                         <Button
@@ -209,56 +209,56 @@ export function NotificationsPage() {
 
             {error && <p role="alert" className="rounded-lg border border-blood-500/30 bg-blood-500/10 p-4 font-ui text-sm text-parchment-100">{error}</p>}
 
-            {!loading && items.length === 0 ? (
+            {loading ? (
+                <div className="py-12"><LoadingSpinner /></div>
+            ) : items.length === 0 && !error ? (
                 <EmptyState
                     icon={<Icon icon={Bell} size={28} />}
                     message={unreadOnly ? t('sidebar.notifications.emptyUnread') : t('sidebar.notifications.empty')}
                     secondaryText={t('sidebar.notifications.emptyHint')}
                 />
             ) : (
-                <div className="flex flex-col gap-3" aria-busy={loading}>
+                <div className="flex flex-col" aria-busy={loading}>
                     {items.map((item) => {
                         const SeverityIcon = severityIcon[item.severity]
                         const actionable = Boolean(item.action_url || item.metadata?.job_kind)
                         const pending = pendingIds.has(item.notification_id)
                         return (
-                            <Card key={item.notification_id} className={item.read_at ? 'opacity-80' : 'border-ember-500/25'}>
-                                <div className="flex items-start gap-4 p-4">
-                                    <div className="mt-0.5 rounded-md bg-ink-600 p-2 text-parchment-200">
-                                        <Icon icon={SeverityIcon} size={18} />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <h2 className="font-display text-xl font-semibold text-parchment-50">{item.title}</h2>
-                                            <Badge tone={severityTone[item.severity]}>{t(`sidebar.notifications.severity.${item.severity}`)}</Badge>
-                                            {!item.read_at && <Badge tone="ember">{t('sidebar.notifications.new')}</Badge>}
-                                        </div>
-                                        <p className="mt-1 font-narrative text-base text-parchment-200">{item.body}</p>
-                                        <p className="mt-2 font-mono text-caption text-parchment-400">{formatRelativeTime(item.created_at)}</p>
-                                        <div className="mt-3 flex flex-wrap gap-2">
-                                            {actionable && (
-                                                <Button variant="secondary" size="sm" disabled={pending} onClick={() => void followAction(item)}>
-                                                    {item.action_label || t('sidebar.notifications.open')}
-                                                </Button>
-                                            )}
-                                            {!item.read_at && (
-                                                <Button variant="ghost" size="sm" disabled={pending} onClick={() => void markRead(item)}>
-                                                    {t('sidebar.notifications.markRead')}
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <IconButton
-                                        label={t('sidebar.notifications.dismiss')}
-                                        size="sm"
-                                        tone="danger"
-                                        disabled={pending}
-                                        onClick={() => void dismiss(item.notification_id)}
-                                    >
-                                        <Icon icon={Trash2} size={16} />
-                                    </IconButton>
+                            <article key={item.notification_id} className="flex items-start gap-3 border-b border-line-faint py-5 last:border-b-0 sm:gap-4">
+                                <div className="mt-1 hidden text-parchment-300 sm:block">
+                                    <Icon icon={SeverityIcon} size={18} />
                                 </div>
-                            </Card>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h2 className="font-ui text-body font-semibold text-parchment-50">{item.title}</h2>
+                                        <Badge tone={severityTone[item.severity]}>{t(`sidebar.notifications.severity.${item.severity}`)}</Badge>
+                                        {!item.read_at && <Badge tone="ember">{t('sidebar.notifications.new')}</Badge>}
+                                    </div>
+                                    <p className="mt-1 break-words font-ui text-body text-parchment-200">{item.body}</p>
+                                    <p className="mt-2 font-mono text-caption text-parchment-400">{formatRelativeTime(item.created_at)}</p>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        {actionable && (
+                                            <Button variant="secondary" size="sm" disabled={pending} onClick={() => void followAction(item)}>
+                                                {item.action_label || t('sidebar.notifications.open')}
+                                            </Button>
+                                        )}
+                                        {!item.read_at && (
+                                            <Button variant="ghost" size="sm" disabled={pending} onClick={() => void markRead(item)}>
+                                                {t('sidebar.notifications.markRead')}
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                                <IconButton
+                                    label={t('sidebar.notifications.dismiss')}
+                                    size="sm"
+                                    tone="danger"
+                                    disabled={pending}
+                                    onClick={() => void dismiss(item.notification_id)}
+                                >
+                                    <Icon icon={Trash2} size={16} />
+                                </IconButton>
+                            </article>
                         )
                     })}
                     {hasMore && (

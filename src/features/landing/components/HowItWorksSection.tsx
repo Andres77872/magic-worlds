@@ -19,30 +19,25 @@ export function HowItWorksSection() {
                         {t('landing.steps.title')}
                     </h2>
                 </div>
-                <div className="grid gap-[22px] sm:grid-cols-2 lg:grid-cols-3">
+                <ol className="grid gap-8 lg:grid-cols-3 lg:gap-10">
                     {HOW_IT_WORKS_STEPS.map((step, i) => (
-                        <div
+                        <li
                             key={step.titleKey}
-                            className="group lift lift-arcane relative overflow-hidden rounded-xl border border-line-faint bg-gradient-to-b from-ink-700 to-ink-800 px-[26px] pb-7 pt-[30px]"
+                            className="relative border-t border-line-faint pt-6"
                         >
-                            {/* top hairline glint — a faint candlelight catch on the upper edge */}
-                            <span
-                                aria-hidden
-                                className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-arcane-500/40 to-transparent"
-                            />
-                            <span className="absolute right-6 top-[22px] font-mono text-xs text-parchment-500">
+                            <span className="absolute right-0 top-6 font-mono text-xs text-parchment-500">
                                 {String(i + 1).padStart(2, '0')}
                             </span>
-                            <IconTile icon={step.icon} tone="arcane" glow className="mb-5" />
-                            <h3 className="mb-[9px] font-ui text-[19px] font-semibold tracking-[-0.01em] text-parchment-50">
+                            <IconTile icon={step.icon} tone="arcane" className="mb-5" />
+                            <h3 className="mb-2 font-display text-h3 font-semibold text-parchment-50">
                                 {t(step.titleKey)}
                             </h3>
-                            <p className="font-narrative text-[15.5px] leading-[1.55] text-parchment-400">
+                            <p className="font-narrative text-body text-parchment-400">
                                 {t(step.bodyKey)}
                             </p>
-                        </div>
+                        </li>
                     ))}
-                </div>
+                </ol>
             </div>
         </section>
     )

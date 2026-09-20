@@ -441,7 +441,7 @@ export function MediaHistoryDrawer({
 
 function EmptyState({ icon, title, hint }: { icon: typeof ImageOff; title: string; hint: string }) {
     return (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-parchment-50/15 bg-ink-800/50 px-6 py-10 text-center">
+        <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
             <Icon icon={icon} size={26} className="text-parchment-500" />
             <p className="font-display text-sm font-semibold text-parchment-200">{title}</p>
             <p className="max-w-xs font-narrative text-xs text-parchment-400">{hint}</p>

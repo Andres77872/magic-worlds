@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Editor } from '@tiptap/core'
 import type { InlineAIPhase } from '../types'
@@ -7,8 +7,12 @@ import { EditorBubbleMenu } from './EditorBubbleMenu'
 // The real BubbleMenu positions itself against a live ProseMirror selection,
 // which jsdom cannot produce. The toolbar's own contract — the trigger, the
 // open flag and dismissal — is what is under test here.
+const bubbleLifecycle = vi.hoisted(() => ({ onHide: undefined as (() => void) | undefined }))
 vi.mock('@tiptap/react/menus', () => ({
-    BubbleMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    BubbleMenu: ({ children, options }: { children: React.ReactNode; options?: { onHide?: () => void } }) => {
+        bubbleLifecycle.onHide = options?.onHide
+        return <div>{children}</div>
+    },
 }))
 
 function fakeEditor() {
@@ -36,6 +40,8 @@ describe('EditorBubbleMenu', () => {
         expect(screen.queryByTestId('bubble-ai-menu')).not.toBeInTheDocument()
         fireEvent.click(screen.getByTestId('bubble-ai-trigger'))
         expect(screen.getByTestId('bubble-ai-menu')).toBeInTheDocument()
+        // Escape the manuscript's scrolling clip while retaining outside-click ownership.
+        expect(screen.getByTestId('bubble-ai-menu').parentElement).toBe(document.body)
     })
 
     it('owns dismissal for the menu it renders — Escape and outside click', () => {
@@ -51,13 +57,36 @@ describe('EditorBubbleMenu', () => {
         expect(screen.queryByTestId('bubble-ai-menu')).not.toBeInTheDocument()
     })
 
-    it('does not close on a click inside itself — the wrapper covers trigger and menu', () => {
+    it('does not close on a click inside its body-portal menu', () => {
         renderToolbar()
 
         fireEvent.click(screen.getByTestId('bubble-ai-trigger'))
         fireEvent.mouseDown(screen.getByTestId('bubble-ai-menu'))
 
         expect(screen.getByTestId('bubble-ai-menu')).toBeInTheDocument()
+    })
+
+    it('closes the portalled AI menu when TipTap hides the selection toolbar', () => {
+        renderToolbar()
+        fireEvent.click(screen.getByTestId('bubble-ai-trigger'))
+        expect(screen.getByTestId('bubble-ai-menu').parentElement).toBe(document.body)
+
+        act(() => bubbleLifecycle.onHide?.())
+
+        expect(screen.queryByTestId('bubble-ai-menu')).not.toBeInTheDocument()
+        expect(screen.getByTestId('bubble-ai-trigger')).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it.each(['resize', 'scroll'] as const)('dismisses stale submenu coordinates on %s', (eventType) => {
+        renderToolbar()
+        fireEvent.click(screen.getByTestId('bubble-ai-trigger'))
+        act(() => {
+            // Non-bubbling descendant scroll must still reach the capture listener.
+            const target = eventType === 'scroll' ? screen.getByTestId('bubble-ai-trigger') : window
+            target.dispatchEvent(new Event(eventType))
+        })
+        expect(screen.queryByTestId('bubble-ai-menu')).not.toBeInTheDocument()
+        expect(screen.getByTestId('bubble-ai-trigger')).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('routes Beat and the canned verbs, closing behind each', () => {

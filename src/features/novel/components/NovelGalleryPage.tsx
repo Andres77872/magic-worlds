@@ -205,7 +205,7 @@ export function NovelGalleryPage() {
                 onClose={() => setActionNotice(null)}
             />
 
-            <CardGrid
+            {(!gallery.error || gallery.items.length > 0) && <CardGrid
                 items={gallery.items}
                 layout={cardGridLayout(layoutView)}
                 density={cardGridDensity(layoutView)}
@@ -238,7 +238,7 @@ export function NovelGalleryPage() {
                         options={optionsFor(item)}
                     />
                 )}
-            />
+            />}
 
             <ConfirmDialog
                 visible={pendingDelete !== null}

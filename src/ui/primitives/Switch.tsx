@@ -21,7 +21,7 @@ interface SwitchProps {
 }
 
 const TRACK_SIZE: Record<SwitchSize, string> = {
-    sm: 'h-5 w-9',
+    sm: 'h-6 w-10',
     md: 'h-6 w-[42px]',
 }
 
@@ -31,7 +31,7 @@ const THUMB_SIZE: Record<SwitchSize, string> = {
 }
 
 const THUMB_ON: Record<SwitchSize, string> = {
-    sm: 'translate-x-[18px]',
+    sm: 'translate-x-5',
     md: 'translate-x-[21px]',
 }
 
@@ -82,17 +82,20 @@ interface SwitchRowProps {
     checked: boolean
     onChange: (checked: boolean) => void
     disabled?: boolean
+    /** Plain rows integrate into a divided settings list without nested cards. */
+    variant?: 'surface' | 'plain'
     className?: string
 }
 
-export function SwitchRow({ label, description, checked, onChange, disabled = false, className }: SwitchRowProps) {
+export function SwitchRow({ label, description, checked, onChange, disabled = false, variant = 'surface', className }: SwitchRowProps) {
     const id = useId()
     const switchId = `switch-${id}`
     const descriptionId = description ? `switch-desc-${id}` : undefined
     return (
         <div
             className={cx(
-                'flex items-start justify-between gap-4 rounded-lg border border-parchment-50/[.08] bg-ink-700/70 px-3.5 py-3',
+                'flex min-w-0 items-start justify-between gap-4 py-3',
+                variant === 'surface' && 'rounded-lg border border-line-faint bg-surface-raised/70 px-3.5',
                 className,
             )}
         >

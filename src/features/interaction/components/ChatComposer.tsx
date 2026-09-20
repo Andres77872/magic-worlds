@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useRef } from 'react'
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RotateCcw, Send, Square, Volume2 } from 'lucide-react'
-import { cx, IconButton } from '@/ui/primitives'
+import { Button, cx, IconButton } from '@/ui/primitives'
 import { HighlightedTextarea, matcherIsEmpty, type TriggerMatcher } from '@/features/lorebook'
 
 const MAX_LENGTH = 4000
@@ -25,6 +25,8 @@ interface ChatComposerProps {
     /** Disable Reset when there is nothing to clear. */
     canReset: boolean
     placeholder: string
+    /** Lets suggested replies focus the same composer after inserting their draft. */
+    inputRef?: RefObject<HTMLTextAreaElement | null>
     /** When set, underline session-lore triggers as the player types (Ctrl/Cmd-click opens). */
     loreMatcher?: TriggerMatcher | null
 }
@@ -57,10 +59,12 @@ export const ChatComposer = memo(function ChatComposer({
     onReset,
     canReset,
     placeholder,
+    inputRef,
     loreMatcher,
 }: ChatComposerProps) {
     const { t } = useTranslation()
-    const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+    const localTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+    const textareaRef = inputRef ?? localTextareaRef
     const showLoreHighlights = !matcherIsEmpty(loreMatcher)
 
     // Auto-grow: reset to `auto` so the box can shrink, then clamp to scrollHeight.
@@ -70,7 +74,7 @@ export const ChatComposer = memo(function ChatComposer({
         if (!el) return
         el.style.height = 'auto'
         el.style.height = `${el.scrollHeight}px`
-    }, [])
+    }, [textareaRef])
 
     // Recompute height on any external value change too (forward-option chips
     // call setInput; send clears it) — those don't fire the textarea's onInput.
@@ -89,7 +93,7 @@ export const ChatComposer = memo(function ChatComposer({
             if (el) el.style.height = 'auto'
             el?.focus()
         })
-    }, [value, isLoading, isMutating, onSubmit])
+    }, [value, isLoading, isMutating, onSubmit, textareaRef])
 
     const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -134,7 +138,7 @@ export const ChatComposer = memo(function ChatComposer({
                         aria-label={t('interaction.composer.messageLabel')}
                         className={cx(
                             'block max-h-[160px] min-h-[44px] w-full resize-none border-0 bg-transparent px-4 pb-1.5 pt-3',
-                            'font-narrative text-[15px] leading-relaxed text-parchment-50 placeholder:text-parchment-400',
+                            'font-narrative text-body text-parchment-50 placeholder:text-parchment-400',
                             'focus:outline-none focus:ring-0',
                         )}
                     />
@@ -166,7 +170,7 @@ export const ChatComposer = memo(function ChatComposer({
                             <RotateCcw size={16} strokeWidth={1.75} />
                         </IconButton>
                         {nearLimit && (
-                            <span className="ml-1 font-mono text-[11px] text-parchment-400">
+                            <span className="ml-1 font-mono text-caption text-parchment-400">
                                 {value.length}/{MAX_LENGTH}
                             </span>
                         )}
@@ -182,16 +186,16 @@ export const ChatComposer = memo(function ChatComposer({
                             <Square size={15} fill="currentColor" />
                         </IconButton>
                     ) : (
-                        <button
-                            type="button"
+                        <Button
+                            size="sm"
                             onClick={submit}
                             disabled={!value.trim() || isMutating}
                             aria-label={t('interaction.composer.sendMessage')}
                             title={t('interaction.composer.sendMessage')}
-                            className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-md bg-ember-500 text-on-ember transition-all hover:bg-ember-400 hover:shadow-glow-ember active:scale-[.98] disabled:pointer-events-none disabled:opacity-50"
+                            className="h-11 min-w-11 shrink-0"
                         >
                             <Send size={17} strokeWidth={1.75} />
-                        </button>
+                        </Button>
                     )}
                 </div>
             </div>

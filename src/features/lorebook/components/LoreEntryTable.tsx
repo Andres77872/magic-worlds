@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { EyeOff, KeyRound, Plus, ScrollText, Trash2 } from 'lucide-react'
 import type { LorebookEntry } from '@/shared'
-import { Badge, Button, Card, Icon, IconButton, cx } from '@/ui/primitives'
+import { Badge, Button, Icon, IconButton, cx } from '@/ui/primitives'
 import { estimateTokens } from '../lorebookTransforms'
 import { entryTypeLabelKey } from '../lorebookCopy'
 
@@ -16,8 +16,8 @@ interface LoreEntryTableProps {
 export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete }: LoreEntryTableProps) {
     const { t } = useTranslation()
     return (
-        <Card className="rounded-xl">
-            <div className="flex items-center justify-between gap-4 border-b border-parchment-50/[.08] px-4 py-3">
+        <section aria-label={t('lorebookStudio.entryTable.heading')} className="border-t border-line pt-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
                 <div>
                     <h3 className="font-display text-xl font-semibold text-parchment-50">{t('lorebookStudio.entryTable.heading')}</h3>
                     <p className="font-ui text-xs text-parchment-300">{t('lorebookStudio.entryTable.subtitle', { count: entries.length })}</p>
@@ -26,12 +26,12 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                     {t('lorebookStudio.entryTable.addEntry')}
                 </Button>
             </div>
-            <div className="max-h-[calc(100vh-280px)] min-h-[360px] overflow-y-auto">
+            <div className="max-h-96 overflow-y-auto">
                 {entries.length === 0 ? (
                     <button
                         type="button"
                         onClick={onAdd}
-                        className="flex min-h-[280px] w-full flex-col items-center justify-center gap-3 px-6 text-center text-parchment-300 transition-colors hover:bg-parchment-50/[.03] hover:text-parchment-100"
+                        className="flex min-h-48 w-full flex-col items-center justify-center gap-3 px-6 py-6 text-center text-parchment-300 transition-colors hover:bg-parchment-50/[.03] hover:text-parchment-100"
                     >
                         <Icon icon={ScrollText} size={34} className="text-arcane-300" />
                         <span className="font-display text-xl text-parchment-50">{t('lorebookStudio.entryTable.empty.title')}</span>
@@ -101,6 +101,6 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                     </div>
                 )}
             </div>
-        </Card>
+        </section>
     )
 }

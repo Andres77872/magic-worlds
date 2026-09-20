@@ -112,9 +112,10 @@ export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPan
 
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,.8fr)]">
                     <div className="flex flex-col gap-4">
-                        <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-4">
                             <Field label={t('admin.creditCodes.quotaReset.targetLabel')}>
                                 <SegmentedControl
+                                    showLabels
                                     aria-label={t('admin.creditCodes.quotaReset.targetLabel')}
                                     options={targetOptions(t)}
                                     value={target}
@@ -122,8 +123,9 @@ export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPan
                                 />
                             </Field>
                             <Field label={t('admin.creditCodes.quotaReset.periodsLabel')} error={!periodsValid ? validationMessage : undefined}>
-                                <div className="grid gap-2 sm:grid-cols-2">
+                                <div className="flex flex-col gap-2">
                                     <SwitchRow
+                                        variant="plain"
                                         label={t('admin.creditCodes.quotaReset.periods.daily')}
                                         description={t('admin.creditCodes.quotaReset.dailyDescription')}
                                         checked={daily}
@@ -131,6 +133,7 @@ export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPan
                                         disabled={resetting}
                                     />
                                     <SwitchRow
+                                        variant="plain"
                                         label={t('admin.creditCodes.quotaReset.periods.monthly')}
                                         description={t('admin.creditCodes.quotaReset.monthlyDescription')}
                                         checked={monthly}
@@ -142,9 +145,10 @@ export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPan
                         </div>
 
                         {target === 'user' && (
-                            <div className="grid gap-4 rounded-lg border border-parchment-50/[.08] bg-ink-700/55 p-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+                            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-4 border-t border-line-faint pt-4">
                                 <Field label={t('admin.creditCodes.quotaReset.identifierLabel')}>
                                     <SegmentedControl
+                                        showLabels
                                         aria-label={t('admin.creditCodes.quotaReset.identifierLabel')}
                                         options={identifierOptions(t)}
                                         value={identifierMode}
@@ -229,14 +233,14 @@ function QuotaResetResult({ result }: { result: QuotaResetResponse | null }) {
     const { t } = useTranslation()
     if (!result) {
         return (
-            <div className="rounded-lg border border-parchment-50/[.08] bg-ink-700/45 p-4 font-ui text-sm text-parchment-300">
+            <div className="py-3 font-ui text-sm text-parchment-300">
                 {t('admin.creditCodes.quotaReset.noResult')}
             </div>
         )
     }
 
     return (
-        <div className="rounded-lg border border-arcane-500/25 bg-arcane-500/[.06] p-4">
+        <div className="border-l-2 border-verdant-500/40 pl-4">
             <div className="font-ui text-sm font-semibold text-parchment-50">{t('admin.creditCodes.quotaReset.resultTitle')}</div>
             <dl className="mt-3 space-y-2 font-ui text-sm text-parchment-200">
                 <ResultLine label={t('admin.creditCodes.quotaReset.resultTarget')}>

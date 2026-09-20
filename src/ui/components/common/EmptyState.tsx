@@ -1,6 +1,5 @@
 import type {ReactNode} from 'react';
-import {useTranslation} from 'react-i18next';
-import {Button, Eyebrow} from '@/ui/primitives';
+import {Button, cx} from '@/ui/primitives';
 
 interface EmptyStateProps {
     /** The main message to display */
@@ -29,23 +28,20 @@ export function EmptyState({
                            className = '',
                            children,
                        }: EmptyStateProps) {
-    const { t } = useTranslation()
-
     return (
         <div
-            className={`col-[1/-1] my-4 flex w-full flex-col items-center justify-center rounded-md border border-dashed border-parchment-50/20 bg-ink-700 px-4 py-6 text-center text-parchment-400 ${className}`}
+            className={cx('col-[1/-1] my-4 flex min-w-0 w-full flex-col items-center justify-center px-4 py-10 text-center text-fg-subtle', className)}
         >
             {icon && (
-                <div className="mb-4 flex items-center justify-center text-parchment-500">
+                <div aria-hidden="true" className="mb-4 flex items-center justify-center text-fg-subtle">
                     {icon}
                 </div>
             )}
-            <Eyebrow tone="muted" className="mb-2">{t('emptyState.eyebrow')}</Eyebrow>
             <h3 className="m-0 font-display text-h3 font-semibold text-parchment-50">
                 {message}
             </h3>
             {secondaryText && (
-                <p className="mx-auto mb-4 mt-2 max-w-[400px] font-narrative leading-normal text-parchment-400">
+                <p className="mx-auto mb-4 mt-2 max-w-sm font-ui text-body text-fg-subtle">
                     {secondaryText}
                 </p>
             )}

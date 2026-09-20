@@ -9,9 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const openLoginModal = vi.fn()
 let authenticated = true
+let authEpoch: number | undefined
 
 vi.mock('../hooks/useAuth', () => ({
-    useAuth: () => ({ isAuthenticated: authenticated, openLoginModal }),
+    useAuth: () => ({ isAuthenticated: authenticated, authEpoch, openLoginModal }),
 }))
 
 vi.mock('@/infrastructure', () => {
@@ -63,7 +64,9 @@ function Probe() {
     return (
         <div>
             <span data-testid="stories-count">{ctx?.stories.length ?? 0}</span>
+            <span data-testid="persona-names">{ctx?.characters.filter((card) => card.role === 'persona').map((card) => card.name).join(', ')}</span>
             <button type="button" onClick={() => ctx?.setActiveStory(STORY)}>Open story</button>
+            <button type="button" onClick={() => void ctx?.loadData()}>Reload data</button>
             <span data-testid="loading-log">{loadingLog.some((v, i) => v && i > 0 && !loadingLog[i - 1]) ? 'respun' : 'stable'}</span>
             <span data-testid="is-loading">{String(ctx?.isLoading ?? false)}</span>
         </div>
@@ -83,12 +86,33 @@ describe('DataProvider auth transitions', () => {
         vi.clearAllMocks()
         vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
         authenticated = true
+        authEpoch = undefined
         loadingLog.length = 0
+        vi.mocked(apiService.getCharacters).mockResolvedValue([])
         vi.mocked(apiService.getStories).mockResolvedValue([STORY])
     })
 
     afterEach(() => {
         vi.unstubAllEnvs()
+    })
+
+    it('loads saved personas when persisted login becomes ready without advancing the auth epoch', async () => {
+        authenticated = false
+        authEpoch = 0
+        vi.mocked(apiService.getCharacters).mockResolvedValue([
+            { id: 'persona-1', name: '{{user}}', role: 'persona', is_default_persona: true },
+        ])
+        const view = renderProvider()
+        expect(apiService.getCharacters).not.toHaveBeenCalled()
+
+        // AuthProvider hydrates localStorage in an effect; authSession already has
+        // this account, so its ownership epoch correctly remains unchanged.
+        authenticated = true
+        view.rerender(<DataProvider><Probe /></DataProvider>)
+
+        await waitFor(() => expect(screen.getByTestId('persona-names')).toHaveTextContent('{{user}}'))
+        expect(apiService.getCharacters).toHaveBeenCalledWith(0, 100)
+        expect(screen.getByTestId('loading-log')).toHaveTextContent('stable')
     })
 
     it('reloads silently on re-login after the initial load (no page-unmounting spinner)', async () => {
@@ -152,5 +176,36 @@ describe('DataProvider auth transitions', () => {
         )
 
         await waitFor(() => expect(screen.getByTestId('stories-count')).toHaveTextContent('0'))
+    })
+
+    it('clears a blocking reload interrupted by logout', async () => {
+        const view = renderProvider()
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
+        let resolveOld!: (cards: unknown) => void
+        vi.mocked(apiService.getCharacters).mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
+        act(() => screen.getByRole('button', { name: 'Reload data' }).click())
+        expect(screen.getByTestId('is-loading')).toHaveTextContent('true')
+
+        authenticated = false
+        view.rerender(<DataProvider><Probe /></DataProvider>)
+        expect(screen.getByTestId('is-loading')).toHaveTextContent('false')
+        await act(async () => resolveOld([{ id: 'stale', name: 'Stale persona', role: 'persona' }]))
+        expect(screen.getByTestId('persona-names')).not.toHaveTextContent('Stale persona')
+        expect(screen.getByTestId('is-loading')).toHaveTextContent('false')
+    })
+
+    it('releases the previous session spinner when a new auth epoch reloads silently', async () => {
+        const view = renderProvider()
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
+        let resolveOld!: (cards: unknown) => void
+        vi.mocked(apiService.getCharacters).mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
+        act(() => screen.getByRole('button', { name: 'Reload data' }).click())
+        expect(screen.getByTestId('is-loading')).toHaveTextContent('true')
+
+        authEpoch = 2
+        view.rerender(<DataProvider><Probe /></DataProvider>)
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
+        await act(async () => resolveOld([]))
+        expect(screen.getByTestId('is-loading')).toHaveTextContent('false')
     })
 })

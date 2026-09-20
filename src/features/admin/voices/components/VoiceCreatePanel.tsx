@@ -1,7 +1,7 @@
 import { useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import { WandSparkles } from 'lucide-react'
-import { Card, Chip, SectionHeader } from '@/ui/primitives'
+import { Chip, SectionHeader } from '@/ui/primitives'
 import type { StudioToast } from '../hooks/useVoiceStudio'
 import { VoiceCloneForm } from './VoiceCloneForm'
 import { VoiceDesignForm } from './VoiceDesignForm'
@@ -25,25 +25,23 @@ export function VoiceCreatePanel(props: VoiceCreatePanelProps) {
     const switchMode = (next: CreateMode) => startTransition(() => setMode(next))
 
     return (
-        <Card>
-            <div className="flex flex-col gap-5 p-5">
-                <SectionHeader
-                    icon={WandSparkles}
-                    title={t('admin.voices.create.title')}
-                    tone="arcane"
-                    right={
-                        <div className="flex gap-2" role="group" aria-label={t('admin.voices.create.modeAria')}>
-                            <Chip active={mode === 'design'} onClick={() => switchMode('design')}>
-                                {t('admin.voices.create.design')}
-                            </Chip>
-                            <Chip active={mode === 'clone'} onClick={() => switchMode('clone')}>
-                                {t('admin.voices.create.clone')}
-                            </Chip>
-                        </div>
-                    }
-                />
-                {mode === 'design' ? <VoiceDesignForm {...props} /> : <VoiceCloneForm {...props} />}
-            </div>
-        </Card>
+        <section className="flex min-w-0 flex-col gap-5">
+            <SectionHeader
+                icon={WandSparkles}
+                title={t('admin.voices.create.title')}
+                tone="arcane"
+                right={
+                    <div className="flex gap-2" role="group" aria-label={t('admin.voices.create.modeAria')}>
+                        <Chip active={mode === 'design'} onClick={() => switchMode('design')}>
+                            {t('admin.voices.create.design')}
+                        </Chip>
+                        <Chip active={mode === 'clone'} onClick={() => switchMode('clone')}>
+                            {t('admin.voices.create.clone')}
+                        </Chip>
+                    </div>
+                }
+            />
+            {mode === 'design' ? <VoiceDesignForm {...props} /> : <VoiceCloneForm {...props} />}
+        </section>
     )
 }

@@ -76,90 +76,72 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
     const imageUrl = safeAssets[0]?.url ?? (turn.imageUrl && isSafeAssetUrl(turn.imageUrl) ? turn.imageUrl : undefined)
 
     return (
-        <div className={cx('mb-6 flex gap-3', isUser && 'flex-row-reverse')}>
+        <article className={cx('mb-8 flex gap-3', isUser && 'flex-row-reverse')}>
             <ChatAvatar isUser={isUser} />
 
-            <div className={cx('flex min-w-0 max-w-[640px] flex-col gap-1.5', isUser ? 'items-end' : 'items-start')}>
-                <div className={cx('flex items-center gap-2', isUser && 'flex-row-reverse')}>
-                    <Eyebrow tone={isUser ? 'ember' : 'arcane'} className="min-w-0 truncate text-[11px] tracking-[0.16em]">
+            <div className={cx('flex min-w-0 max-w-[640px] flex-1 flex-col gap-2', isUser ? 'items-end' : 'items-start')}>
+                <header className={cx('flex min-h-8 w-full min-w-0 items-center gap-3', isUser && 'flex-row-reverse')}>
+                    <Eyebrow tone={isUser ? 'ember' : 'arcane'} className="min-w-0 truncate">
                         {isUser ? t('interaction.chat.player') : turn.narratorIdentity?.name || resolvedAiLabel}
                     </Eyebrow>
-                    <div className={cx('flex shrink-0 items-center gap-2', isUser && 'flex-row-reverse')}>
-                        <span className="font-mono text-[11px] text-parchment-500">
-                            {formatApiTime(turn.timestamp)}
-                        </span>
-                        {/* Group TTS + copy/edit/regenerate/delete into one quiet toolbar so they
-                            read as a single control cluster rather than glyphs crowding the name. */}
-                        {!isEditing && (
-                            <div className="flex items-center gap-0.5 rounded-full border border-parchment-50/[.08] bg-ink-700/60 px-1 py-0.5">
-                                {!isUser && onRequestNarration && (
-                                    <TurnNarration
-                                        status={turn.ttsStatus}
-                                        url={turn.ttsUrl ?? turn.ttsAssets?.[0]?.url}
-                                        segments={turn.ttsSegments}
-                                        errorDetail={turn.ttsError?.detail}
-                                        canRequest={!turn.isStreaming && Boolean(turn.assistantMessageId || turn.turnId)}
-                                        onRequest={() => onRequestNarration(turn.assistantMessageId, turn.turnId)}
-                                    />
-                                )}
-                                <ChatActions
-                                    turnId={turn.id}
-                                    isUser={isUser}
-                                    isEditing={isEditing}
-                                    isStreaming={turn.isStreaming}
-                                    actionsDisabled={actionsDisabled}
-                                    messageContent={turn.content}
-                                    onEditClick={onEditClick ? handleEditStart : undefined}
-                                    onRegenerateClick={onRegenerateClick}
-                                    onDeleteClick={onDeleteClick}
-                                    confirmingDelete={confirmingDelete}
-                                    deleting={deleting}
-                                    onConfirmDelete={() => onConfirmDeleteClick?.(turn.id)}
-                                    onCancelDelete={onCancelDeleteClick}
-                                />
-                            </div>
-                        )}
-                    </div>
-                </div>
+                    <time dateTime={turn.timestamp} className="shrink-0 font-mono text-caption text-parchment-400">
+                        {formatApiTime(turn.timestamp)}
+                    </time>
+                </header>
 
-                <div className="w-full">
-                    {isUser ? (
-                        <div className="flex flex-col items-end">
-                            {isEditing ? (
-                                <EditMode
-                                    initialContent={turn.content}
-                                    isUser={isUser}
-                                    onSave={handleEditSave}
-                                    onCancel={handleEditCancel}
-                                />
-                            ) : (
-                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} loreMatcher={loreMatcher} />
-                            )}
-                        </div>
+                <div className={cx('w-full min-w-0', isUser && 'flex flex-col items-end')}>
+                    {isEditing ? (
+                        <EditMode
+                            initialContent={turn.content}
+                            isUser={isUser}
+                            onSave={handleEditSave}
+                            onCancel={handleEditCancel}
+                        />
                     ) : (
-                        <>
-                            {isEditing ? (
-                                <EditMode
-                                    initialContent={turn.content}
-                                    isUser={isUser}
-                                    onSave={handleEditSave}
-                                    onCancel={handleEditCancel}
-                                />
-                            ) : (
-                                <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} narratorIdentity={turn.narratorIdentity} aiLabel={resolvedAiLabel} loreMatcher={loreMatcher} />
-                            )}
-                            {!isUser && !isEditing && showImage && (
-                                <GeneratedImage
-                                    status={turn.imageStatus}
-                                    url={imageUrl}
-                                    width={safeAssets[0]?.width}
-                                    height={safeAssets[0]?.height}
-                                    errorDetail={turn.imageError?.detail}
-                                />
-                            )}
-                        </>
+                        <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} narratorIdentity={turn.narratorIdentity} aiLabel={resolvedAiLabel} loreMatcher={loreMatcher} />
+                    )}
+                    {!isUser && !isEditing && showImage && (
+                        <GeneratedImage
+                            status={turn.imageStatus}
+                            url={imageUrl}
+                            width={safeAssets[0]?.width}
+                            height={safeAssets[0]?.height}
+                            errorDetail={turn.imageError?.detail}
+                        />
                     )}
                 </div>
+
+                {/* Utilities follow their content, leaving the speaker line and prose quiet.
+                    Keep them visible for keyboard, touch, and first-time readers. */}
+                {!isEditing && (
+                    <div className="flex max-w-full flex-wrap items-center gap-0.5">
+                        {!isUser && onRequestNarration && (
+                            <TurnNarration
+                                status={turn.ttsStatus}
+                                url={turn.ttsUrl ?? turn.ttsAssets?.[0]?.url}
+                                segments={turn.ttsSegments}
+                                errorDetail={turn.ttsError?.detail}
+                                canRequest={!turn.isStreaming && Boolean(turn.assistantMessageId || turn.turnId)}
+                                onRequest={() => onRequestNarration(turn.assistantMessageId, turn.turnId)}
+                            />
+                        )}
+                        <ChatActions
+                            turnId={turn.id}
+                            isUser={isUser}
+                            isEditing={isEditing}
+                            isStreaming={turn.isStreaming}
+                            actionsDisabled={actionsDisabled}
+                            messageContent={turn.content}
+                            onEditClick={onEditClick ? handleEditStart : undefined}
+                            onRegenerateClick={onRegenerateClick}
+                            onDeleteClick={onDeleteClick}
+                            confirmingDelete={confirmingDelete}
+                            deleting={deleting}
+                            onConfirmDelete={() => onConfirmDeleteClick?.(turn.id)}
+                            onCancelDelete={onCancelDeleteClick}
+                        />
+                    </div>
+                )}
 
                 {!isUser && !turn.isStreaming && turn.metadata?.interrupted === true && (
                     <p className="text-caption text-parchment-400">{t('streaming.interrupted')}</p>
@@ -172,6 +154,6 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
                     />
                 )}
             </div>
-        </div>
+        </article>
     )
 })

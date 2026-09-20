@@ -84,7 +84,9 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
     const mountedRef = useRef(true)
 
     const label = noun.charAt(0).toUpperCase() + noun.slice(1)
-    const trimmed = description.trim()
+    // The backend rejects control characters, line breaks and tabs included, so a
+    // multi-line prompt is flattened to single spaces before validation and sending.
+    const trimmed = description.replace(/\p{Cc}+/gu, ' ').replace(/ {2,}/g, ' ').trim()
     const trimmedLength = trimmed.length
     const isTooShort = trimmedLength > 0 && trimmedLength < AI_CARD_DESCRIPTION_MIN_CHARS
     const isTooLong = trimmedLength > AI_CARD_DESCRIPTION_MAX_CHARS
@@ -181,6 +183,7 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
                 {t('creation.common.aiGenerate.prompt', { noun })}
             </p>
             <CreatorTextarea
+                aria-label={t('creation.common.aiGenerate.prompt', { noun })}
                 id={`ai-generate-${noun}`}
                 value={description}
                 onChange={setDescription}
@@ -198,7 +201,7 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
                 </p>
             )}
             {Object.keys(preview).length > 0 && (
-                <section aria-label={t('streaming.preview')} className="max-h-80 space-y-3 overflow-y-auto rounded-md border border-arcane-500/30 bg-ink-800 p-4">
+                <section aria-label={t('streaming.preview')} className="max-h-80 space-y-3 overflow-y-auto border-t border-arcane-500/20 pt-4">
                     <p className="text-caption text-arcane-300">{t(isGenerating ? 'streaming.preview' : completed ? 'streaming.completed' : 'streaming.incomplete')}</p>
                     {Object.entries(preview).map(([key, field]) => (
                         <div key={key}>

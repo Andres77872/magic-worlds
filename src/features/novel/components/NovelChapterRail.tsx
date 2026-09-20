@@ -47,7 +47,7 @@ export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, o
                 </span>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="max-h-60 min-h-0 flex-1 overflow-y-auto lg:max-h-none">
                 {chapters.map((chapter, index) => {
                     const active = chapter.id === activeChapterId
                     const label = chapter.title || t('novelEditor.chapters.fallbackTitle', { number: index + 1 })
@@ -56,9 +56,10 @@ export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, o
                             <button
                                 type="button"
                                 onClick={() => onSelect(chapter.id)}
+                                aria-current={active ? 'page' : undefined}
                                 className={cx(
-                                    'flex h-[30px] w-full cursor-pointer items-center gap-2 border-l-2 pl-2.5 text-left transition-colors',
-                                    deletable ? 'pr-8' : 'pr-2.5',
+                                    'flex min-h-8 w-full cursor-pointer items-center gap-2 border-l-2 pl-2.5 text-left transition-colors pointer-coarse:min-h-11',
+                                    deletable ? 'pr-8 pointer-coarse:pr-14' : 'pr-2.5',
                                     active
                                         ? 'border-ember-500 bg-ember-500/10'
                                         : 'border-transparent hover:bg-parchment-50/[.04]',
@@ -68,7 +69,7 @@ export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, o
                                 <span className="w-[13px] shrink-0 font-mono text-[11px] text-parchment-500">{index + 1}</span>
                                 <span
                                     className={cx(
-                                        'min-w-0 flex-1 truncate font-ui text-[13px]',
+                                        'min-w-0 flex-1 truncate font-ui text-label',
                                         active ? 'text-parchment-50' : 'text-parchment-100',
                                     )}
                                 >
@@ -100,7 +101,7 @@ export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, o
             <button
                 type="button"
                 onClick={onAdd}
-                className="flex h-[30px] w-full shrink-0 cursor-pointer items-center gap-2 border-l-2 border-transparent pl-2.5 pr-2.5 text-left font-ui text-[13px] text-parchment-400 transition-colors hover:bg-parchment-50/[.04] hover:text-parchment-100"
+                className="flex min-h-8 w-full shrink-0 cursor-pointer items-center gap-2 border-l-2 border-transparent pl-2.5 pr-2.5 text-left font-ui text-label text-parchment-400 transition-colors hover:bg-parchment-50/[.04] hover:text-parchment-100 pointer-coarse:min-h-11"
                 data-testid="novel-chapter-add"
             >
                 <span className="flex w-[13px] shrink-0 items-center justify-center">

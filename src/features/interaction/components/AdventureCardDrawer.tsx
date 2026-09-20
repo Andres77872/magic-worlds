@@ -288,7 +288,7 @@ function CardReadView({ entry }: { entry: SnapshotCardEntry }) {
                 )}
             </DetailSection>
 
-            <p className="font-ui text-[12px] leading-snug text-parchment-500">
+            <p className="font-ui text-caption leading-snug text-parchment-400">
                 {t('interaction.cardDrawer.ownCopyNote')}
             </p>
         </div>
@@ -300,7 +300,7 @@ function DetailSection({ title, hint, children }: { title: string; hint?: string
         <section className="flex flex-col gap-2">
             <Eyebrow tone="muted">{title}</Eyebrow>
             {children}
-            {hint && <p className="font-ui text-[11px] leading-snug text-parchment-500">{hint}</p>}
+            {hint && <p className="font-ui text-caption leading-snug text-parchment-400">{hint}</p>}
         </section>
     )
 }
@@ -311,16 +311,16 @@ function AttributeGroup({ name, attributes }: { name?: string; attributes: Array
             {name && (
                 <span className="font-ui text-[12px] font-semibold uppercase tracking-[0.08em] text-parchment-300">{name}</span>
             )}
-            <div className="overflow-hidden rounded-lg border border-parchment-50/10 bg-ink-800">
+            <div className="divide-y divide-line-subtle">
                 {attributes.map((attr, ai) => {
                     const [key, value] = Object.entries(attr)[0] ?? ['', '']
                     return (
                         <div
                             key={`${key}-${ai}`}
-                            className="flex items-start justify-between gap-3 border-b border-parchment-50/[0.06] px-3.5 py-2.5 last:border-b-0"
+                            className="flex min-w-0 items-start justify-between gap-3 py-2.5"
                         >
-                            <span className="font-ui text-[13px] text-parchment-400">{key}</span>
-                            <span className="text-right font-ui text-[13px] text-parchment-100">{String(value)}</span>
+                            <span className="min-w-0 break-words font-ui text-body-sm text-parchment-400">{key}</span>
+                            <span className="min-w-0 break-words text-right font-ui text-body-sm text-parchment-100">{String(value)}</span>
                         </div>
                     )
                 })}
@@ -331,7 +331,7 @@ function AttributeGroup({ name, attributes }: { name?: string; attributes: Array
 
 function EmptyHint({ children }: { children: ReactNode }) {
     return (
-        <p className="rounded-lg border border-dashed border-parchment-50/12 bg-ink-700/40 px-3.5 py-3 font-narrative text-[13px] italic text-parchment-400">
+        <p className="font-narrative text-body-sm italic text-parchment-400">
             {children}
         </p>
     )

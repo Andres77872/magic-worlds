@@ -19,7 +19,7 @@ const meta = {
     },
     decorators: [
         (Story) => (
-            <div className="w-[460px] rounded-xl border border-parchment-50/10 bg-ink-800 p-4">
+            <div className="w-full max-w-[460px]">
                 <Story />
             </div>
         ),

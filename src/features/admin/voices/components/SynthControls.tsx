@@ -28,7 +28,7 @@ export function SynthControls({ settings, onChange }: SynthControlsProps) {
             ...(option.descriptionKey ? { description: t(option.descriptionKey) } : {}),
         }))
     return (
-        <div className="flex flex-col gap-4 rounded-lg border border-parchment-50/[.08] bg-ink-800/40 p-4">
+        <div className="flex flex-col gap-4 border-t border-line-faint pt-5">
             <div className="grid gap-4 sm:grid-cols-2">
                 <Field label={t('admin.voices.synth.fields.model')}>
                     <Select options={resolve(MODEL_OPTIONS)} value={settings.model} onChange={(model) => onChange({ model })} size="sm" />

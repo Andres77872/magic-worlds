@@ -9,7 +9,7 @@
  * global focus-visible ring is preserved. Roving tabindex with arrow/Home/End
  * keys — selection follows focus, mirroring {@link SegmentedControl}.
  */
-import { useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { cx } from './cx'
 
 export interface TabOption<T extends string> {
@@ -70,8 +70,21 @@ export function Tabs<T extends string>({
     'data-testid': testId,
 }: TabsProps<T>) {
     const refs = useRef<(HTMLButtonElement | null)[]>([])
+    const containerRef = useRef<HTMLDivElement>(null)
     const vertical = orientation === 'vertical'
     const isPill = !vertical && variant === 'pill'
+
+    useEffect(() => {
+        if (vertical) return
+        const container = containerRef.current
+        const selected = refs.current[options.findIndex((option) => option.value === value)]
+        if (!container || !selected || container.scrollWidth <= container.clientWidth) return
+        const viewport = container.getBoundingClientRect()
+        const tab = selected.getBoundingClientRect()
+        // Scroll just the navigation strip, preserving the page's reading position.
+        if (tab.left < viewport.left) container.scrollLeft += tab.left - viewport.left
+        else if (tab.right > viewport.right) container.scrollLeft += tab.right - viewport.right
+    }, [value, vertical, options])
 
     // Only enabled tabs participate in roving focus.
     const enabledIndexes = options.flatMap((option, index) => (option.disabled ? [] : [index]))
@@ -114,6 +127,7 @@ export function Tabs<T extends string>({
 
     return (
         <div
+            ref={containerRef}
             role="tablist"
             aria-label={ariaLabel}
             aria-orientation={orientation}

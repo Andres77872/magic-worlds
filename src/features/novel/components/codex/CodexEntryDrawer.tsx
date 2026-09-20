@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Icon, Button, Drawer, Field, Input, Tag, Textarea } from '@/ui/primitives'
+import { Icon, Button, Callout, Drawer, Field, Input, Tag, Textarea } from '@/ui/primitives'
 import type { CodexEntry } from '../../hooks/useCodex'
 import { KIND_ICONS, KIND_META } from '../../utils/codexUtils'
 
@@ -21,12 +21,14 @@ export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDra
     const { t } = useTranslation()
     const [label, setLabel] = useState('')
     const [description, setDescription] = useState('')
+    const [error, setError] = useState<string | null>(null)
 
     const entryId = entry?.id ?? null
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setLabel(entry?.label ?? '')
         setDescription(entry?.description ?? '')
+        setError(null)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [entryId])
 
@@ -37,8 +39,13 @@ export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDra
 
     const submit = async () => {
         if (!entry) return
-        await onSave(entry, { label: label.trim() || entry.label, description })
-        onClose()
+        setError(null)
+        try {
+            await onSave(entry, { label: label.trim() || entry.label, description })
+            onClose()
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : t('novelEditor.save.failed'))
+        }
     }
 
     return (
@@ -62,6 +69,7 @@ export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDra
         >
             {entry && (
                 <div className="flex flex-col gap-4">
+                    {error && <Callout tone="danger" role="alert">{error}</Callout>}
                     <p className="m-0 font-ui text-xs text-parchment-400">
                         {t('novelEditor.entryDrawer.privateCopy', { label: entry.label, kind: metaLabel ? metaLabel.toLowerCase() : t('novelEditor.entryDrawer.defaultKind') })}
                     </p>

@@ -11,7 +11,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Editor } from '@tiptap/core'
 import { CaseSensitive, ChevronDown, ChevronUp, X } from 'lucide-react'
-import { Button, Icon, IconButton } from '@/ui/primitives'
+import { Button, Icon, IconButton, Input, controlClass, cx } from '@/ui/primitives'
 import { SEARCH_PLUGIN_KEY } from '../extensions/searchReplace'
 
 interface FindReplacePanelProps {
@@ -74,7 +74,7 @@ export function FindReplacePanel({ editor, disabled, onClose }: FindReplacePanel
             role="search"
             aria-label={t('novelEditor.find.title')}
         >
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
                 <input
                     ref={findRef}
                     value={find}
@@ -82,16 +82,17 @@ export function FindReplacePanel({ editor, disabled, onClose }: FindReplacePanel
                     onKeyDown={onFindKeyDown}
                     placeholder={t('novelEditor.find.findPlaceholder')}
                     aria-label={t('novelEditor.find.findPlaceholder')}
-                    className="min-w-0 flex-1 rounded-md border border-parchment-50/10 bg-ink-900 px-2.5 py-1.5 font-ui text-sm text-parchment-50 outline-none focus:border-ember-500"
+                    className={cx(controlClass, 'min-w-0 w-full')}
                     data-testid="find-input"
                 />
-                <span className="w-14 shrink-0 text-center font-ui text-xs tabular-nums text-parchment-400" data-testid="find-count">
+                <span className="min-w-0 flex-1 text-center font-ui text-caption tabular-nums text-parchment-400" data-testid="find-count">
                     {t('novelEditor.find.matches', { current, total })}
                 </span>
                 <IconButton
                     label={t('novelEditor.find.caseSensitive')}
                     size="sm"
                     tone={caseSensitive ? 'active' : 'default'}
+                    aria-pressed={caseSensitive}
                     onClick={() => setCaseSensitive((value) => !value)}
                 >
                     <Icon icon={CaseSensitive} size={15} />
@@ -106,13 +107,13 @@ export function FindReplacePanel({ editor, disabled, onClose }: FindReplacePanel
                     <Icon icon={X} size={15} />
                 </IconButton>
             </div>
-            <div className="mt-1.5 flex items-center gap-1.5">
-                <input
+            <div className="mt-3 flex flex-wrap items-center justify-end gap-1.5">
+                <Input
                     value={replace}
                     onChange={(event) => setReplace(event.target.value)}
                     placeholder={t('novelEditor.find.replacePlaceholder')}
                     aria-label={t('novelEditor.find.replacePlaceholder')}
-                    className="min-w-0 flex-1 rounded-md border border-parchment-50/10 bg-ink-900 px-2.5 py-1.5 font-ui text-sm text-parchment-50 outline-none focus:border-ember-500"
+                    className="min-w-0 w-full"
                     data-testid="replace-input"
                 />
                 <Button

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 
 const mocks = vi.hoisted(() => ({
     cardEdit: null as Record<string, unknown> | null,
@@ -41,6 +41,8 @@ beforeEach(() => {
     mocks.cardEdit = null
     mocks.isAuthenticated = true
     mocks.editingCharacter = null
+    mocks.editingWorld = null
+    mocks.editingItem = null
 })
 
 afterEach(() => {
@@ -74,6 +76,48 @@ describe('useCardEditorRoute', () => {
         expect(mocks.getCharacter).not.toHaveBeenCalled()
     })
 
+    it.each([
+        ['character', mocks.getCharacter, mocks.setEditingCharacter],
+        ['world', mocks.getWorld, mocks.setEditingWorld],
+        ['item', mocks.getItem, mocks.setEditingItem],
+    ] as const)('finishes a cold %s load when StrictMode replays the effect', async (cardType, getCard, setEditingCard) => {
+        mocks.cardEdit = { cardType, cardId: 'card-1' }
+        let resolveCard!: (card: Record<string, unknown>) => void
+        getCard.mockReturnValue(new Promise(resolve => { resolveCard = resolve }))
+        const onCardLoaded = vi.fn()
+        const { result } = renderHook(() => useCardEditorRoute(cardType, { onCardLoaded }), { reactStrictMode: true })
+
+        expect(result.current.bootstrapping).toBe(true)
+        await act(async () => resolveCard({ id: 'card-1', name: 'Restored card' }))
+
+        expect(setEditingCard).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'card-1', name: 'Restored card' }))
+        expect(onCardLoaded).toHaveBeenCalledExactlyOnceWith({ id: 'card-1', name: 'Restored card' })
+        expect(result.current.bootstrapping).toBe(false)
+    })
+
+    it('clears loading when leaving a pending route and can load it again', async () => {
+        mocks.cardEdit = { cardType: 'character', cardId: 'char-1' }
+        let resolveCancelled!: (card: Record<string, unknown>) => void
+        mocks.getCharacter.mockReturnValueOnce(new Promise(resolve => { resolveCancelled = resolve }))
+        const onCardLoaded = vi.fn()
+        const { result, rerender } = renderHook(() => useCardEditorRoute('character', { onCardLoaded }))
+        expect(result.current.bootstrapping).toBe(true)
+
+        mocks.cardEdit = null
+        rerender()
+        expect(result.current.bootstrapping).toBe(false)
+        await act(async () => resolveCancelled({ id: 'char-1', name: 'Cancelled card' }))
+        expect(mocks.setEditingCharacter).not.toHaveBeenCalled()
+        expect(onCardLoaded).not.toHaveBeenCalled()
+
+        mocks.getCharacter.mockResolvedValue({ id: 'char-1', name: 'Restored card' })
+        mocks.cardEdit = { cardType: 'character', cardId: 'char-1' }
+        rerender()
+
+        await waitFor(() => expect(onCardLoaded).toHaveBeenCalledWith({ id: 'char-1', name: 'Restored card' }))
+        expect(result.current.bootstrapping).toBe(false)
+    })
+
     it('ignores routes that target a different editor type', () => {
         mocks.cardEdit = { cardType: 'world', cardId: 'w-1' }
         const { result } = renderHook(() => useCardEditorRoute('character'))
@@ -84,9 +128,10 @@ describe('useCardEditorRoute', () => {
     it('bounces to the gallery when the card cannot be loaded', async () => {
         mocks.cardEdit = { cardType: 'character', cardId: 'gone' }
         mocks.getCharacter.mockRejectedValue(new Error('404'))
-        renderHook(() => useCardEditorRoute('character'))
+        const { result } = renderHook(() => useCardEditorRoute('character'), { reactStrictMode: true })
         await waitFor(() => expect(mocks.setPage).toHaveBeenCalledWith('gallery-characters'))
         expect(mocks.setEditingCharacter).not.toHaveBeenCalled()
+        expect(result.current.bootstrapping).toBe(false)
     })
 
     it('prompts login and skips the fetch while unauthenticated', () => {

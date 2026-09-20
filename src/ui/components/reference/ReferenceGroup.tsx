@@ -54,10 +54,10 @@ export function ReferenceGroup({
             className={cx('flex flex-col gap-2', !flush && 'py-3 first:pt-0 last:pb-0')}
             aria-label={ariaLabel ?? label}
         >
-            <div className="flex items-center gap-2 px-0.5">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 px-0.5">
                 <Eyebrow tone={tone}>{label}</Eyebrow>
                 {count !== undefined && count > 0 && (
-                    <span className="font-mono text-meta text-parchment-500">{count}</span>
+                    <span className="font-mono text-meta text-fg-subtle">{count}</span>
                 )}
                 {(headerExtras || (onAdd && addLabel)) && (
                     <div className="ml-auto flex items-center gap-1">
@@ -77,5 +77,5 @@ export function ReferenceGroup({
 
 /** One-line inline empty/placeholder copy — shared so groups stay visually flat. */
 export function ReferenceEmpty({ children }: { children: ReactNode }) {
-    return <p className="m-0 px-0.5 py-1 font-ui text-xs leading-snug text-parchment-400">{children}</p>
+    return <p className="m-0 px-0.5 py-1 font-ui text-caption leading-relaxed text-fg-subtle">{children}</p>
 }

@@ -158,6 +158,7 @@ function CookiePreferencesModal({ open, initialAnalytics, onClose, onSave }: Coo
             <div className="flex flex-col gap-4">
                 <p className="font-ui text-sm leading-relaxed text-parchment-300">{t('cookieConsent.preferences.intro')}</p>
                 <SwitchRow
+                    variant="plain"
                     label={t('cookieConsent.essential.title')}
                     description={t('cookieConsent.essential.desc')}
                     checked
@@ -166,6 +167,7 @@ function CookiePreferencesModal({ open, initialAnalytics, onClose, onSave }: Coo
                 />
                 <div>
                     <SwitchRow
+                        variant="plain"
                         label={t('cookieConsent.analytics.title')}
                         description={t('cookieConsent.analytics.desc')}
                         checked={analytics}

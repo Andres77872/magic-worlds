@@ -155,7 +155,7 @@ export function LorebookGalleryPage() {
                 </div>
             )}
 
-            <CardGrid
+            {(!gallery.error || gallery.items.length > 0) && <CardGrid
                 items={gallery.items}
                 layout={cardGridLayout(layoutView)}
                 density={cardGridDensity(layoutView)}
@@ -184,7 +184,7 @@ export function LorebookGalleryPage() {
                         options={optionsFor(lorebook)}
                     />
                 )}
-            />
+            />}
 
             <ConfirmDialog
                 visible={pendingDelete !== null}

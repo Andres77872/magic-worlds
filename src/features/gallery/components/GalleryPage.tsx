@@ -214,7 +214,6 @@ export function GalleryPage({ type }: GalleryPageProps) {
         if (!isAuthenticated && !isPublicView) return
         const key = `${viewMode}:${type}:${linkedCardId}`
         if (fetchedLinkedRef.current === key) return
-        fetchedLinkedRef.current = key
         let cancelled = false
 
         void activeConfig.fetchItem(linkedCardId)
@@ -222,11 +221,15 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 if (cancelled) return
                 const item = activeConfig.toItem?.(raw)
                 if (!item) throw new Error('Card not found')
+                // Only a completed request satisfies this link. Search/auth changes can
+                // cancel a pending load, and its replacement must still be allowed to run.
+                fetchedLinkedRef.current = key
                 upsertItem(item)
                 setHighlightedId(item.id)
             })
             .catch((error) => {
                 if (cancelled) return
+                fetchedLinkedRef.current = key
                 console.error('Failed to load shared gallery card:', error)
                 setActionNotice({
                     tone: 'error',
@@ -845,66 +848,10 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 title={activeDisplayConfig.title}
                 size="lg"
                 actions={
-                    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto md:justify-end">
-                        {communityCardsEnabled && (
-                            <div className="flex w-full gap-2 sm:w-auto">
-                                <Chip
-                                    active={!isPublicView}
-                                    onClick={() => switchViewMode('mine')}
-                                    aria-pressed={!isPublicView}
-                                >
-                                    {t('gallery.myCards')}
-                                </Chip>
-                                <Chip
-                                    active={isPublicView}
-                                    icon={<Icon icon={Globe2} size={13} />}
-                                    onClick={() => switchViewMode('public')}
-                                    aria-pressed={isPublicView}
-                                >
-                                    {t('gallery.publicCards')}
-                                </Chip>
-                            </div>
-                        )}
-                        <GalleryViewToggle value={layoutView} onChange={setLayoutView} className="shrink-0" />
-                        <div className="relative flex w-full items-center sm:w-[320px]">
-                            <span className="pointer-events-none absolute left-3 flex items-center text-parchment-400">
-                                <Icon icon={Search} size={16} />
-                            </span>
-                            <input
-                                type="search"
-                                value={gallery.query}
-                                onChange={(e) => gallery.setQuery(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Escape') gallery.setQuery('')
-                                }}
-                                placeholder={activeDisplayConfig.searchPlaceholder}
-                                aria-label={activeDisplayConfig.searchPlaceholder}
-                                className={`${controlClass} rounded-full pl-10 ${gallery.searching && hasQuery ? 'pr-16' : 'pr-12'}`}
-                                data-testid="gallery-search-input"
-                            />
-                            {gallery.searching && (
-                                <Loader2
-                                    className={`absolute ${hasQuery ? 'right-12' : 'right-4'} animate-spin text-ember-500`}
-                                    size={16}
-                                    aria-hidden="true"
-                                    data-testid="gallery-search-spinner"
-                                />
-                            )}
-                            {hasQuery && (
-                                <IconButton
-                                    size="sm"
-                                    onClick={() => gallery.setQuery('')}
-                                    label={t('gallery.clearSearch')}
-                                    className="absolute right-2"
-                                    data-testid="gallery-search-clear"
-                                >
-                                    <Icon icon={X} size={16} />
-                                </IconButton>
-                            )}
-                        </div>
+                    <div className="flex flex-wrap items-center gap-3">
                         {groupChatsEnabled && type === 'character' && !groupSelectionMode && !isPublicView && (
                             <Button
-                                variant="primary"
+                                variant="secondary"
                                 iconLeft={<Icon icon={Users} size={16} />}
                                 onClick={enterGroupSelection}
                                 className="shrink-0"
@@ -914,7 +861,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                         )}
                         {!groupSelectionMode && !isPublicView && (
                             <Button
-                                variant={type === 'character' ? 'secondary' : 'primary'}
+                                variant="primary"
                                 iconLeft={<Icon icon={Plus} size={16} />}
                                 onClick={openCreatePage}
                                 className="shrink-0"
@@ -925,6 +872,65 @@ export function GalleryPage({ type }: GalleryPageProps) {
                     </div>
                 }
             />
+
+            <div className="flex flex-wrap items-center gap-3 border-b border-line-faint pb-5">
+                {communityCardsEnabled && (
+                    <div className="flex flex-wrap gap-2">
+                        <Chip
+                            active={!isPublicView}
+                            onClick={() => switchViewMode('mine')}
+                            aria-pressed={!isPublicView}
+                        >
+                            {t('gallery.myCards')}
+                        </Chip>
+                        <Chip
+                            active={isPublicView}
+                            icon={<Icon icon={Globe2} size={13} />}
+                            onClick={() => switchViewMode('public')}
+                            aria-pressed={isPublicView}
+                        >
+                            {t('gallery.publicCards')}
+                        </Chip>
+                    </div>
+                )}
+                <GalleryViewToggle value={layoutView} onChange={setLayoutView} className="shrink-0" />
+                <div className="relative flex w-full items-center sm:ml-auto sm:w-80 sm:max-w-full">
+                    <span className="pointer-events-none absolute left-3 flex items-center text-parchment-400">
+                        <Icon icon={Search} size={16} />
+                    </span>
+                    <input
+                        type="search"
+                        value={gallery.query}
+                        onChange={(e) => gallery.setQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Escape') gallery.setQuery('')
+                        }}
+                        placeholder={activeDisplayConfig.searchPlaceholder}
+                        aria-label={activeDisplayConfig.searchPlaceholder}
+                        className={`${controlClass} rounded-full pl-10 ${gallery.searching && hasQuery ? 'pr-16' : 'pr-12'}`}
+                        data-testid="gallery-search-input"
+                    />
+                    {gallery.searching && (
+                        <Loader2
+                            className={`absolute ${hasQuery ? 'right-12' : 'right-4'} animate-spin text-ember-500`}
+                            size={16}
+                            aria-hidden="true"
+                            data-testid="gallery-search-spinner"
+                        />
+                    )}
+                    {hasQuery && (
+                        <IconButton
+                            size="sm"
+                            onClick={() => gallery.setQuery('')}
+                            label={t('gallery.clearSearch')}
+                            className="absolute right-2"
+                            data-testid="gallery-search-clear"
+                        >
+                            <Icon icon={X} size={16} />
+                        </IconButton>
+                    )}
+                </div>
+            </div>
 
             {groupSelectionMode && type === 'character' && !isPublicView && (
                 <div className="sticky top-17 z-[10] flex flex-col gap-3 rounded-lg border border-ember-500/25 bg-ink-700/95 px-4 py-3 shadow-lg backdrop-blur md:flex-row md:items-center md:justify-between lg:top-3">
@@ -1081,6 +1087,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
                 emptyStateTitle={hasQuery ? activeDisplayConfig.noMatchTitle : activeDisplayConfig.emptyTitle}
                 emptyStateDescription={hasQuery ? activeDisplayConfig.noMatchDescription : activeDisplayConfig.emptyDescription}
                 emptyStateAction={emptyAction}
+                showEmptyState={!gallery.error}
                 data-testid={`gallery-grid-${type}`}
                 renderCard={(item) => {
                     const selected = Boolean(selectedGroupItems[item.id])

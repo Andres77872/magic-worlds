@@ -47,7 +47,7 @@ export function AdminVoicesPage() {
                 subtitle={t('admin.voices.page.subtitle')}
                 size="lg"
                 actions={
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                         <Button
                             variant="secondary"
                             size="sm"
@@ -82,8 +82,8 @@ export function AdminVoicesPage() {
                 </div>
             )}
 
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                <div className="flex flex-col gap-6 self-start">
+            <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <div className="flex min-w-0 flex-col gap-8 self-start">
                     <VoiceCreatePanel
                         onCreated={() => void studio.refreshVoices()}
                         notify={studio.setToast}
@@ -98,7 +98,7 @@ export function AdminVoicesPage() {
                     />
                 </div>
 
-                <VoiceLibraryPanel
+                {(!studio.error || Object.values(studio.groups).some((voices) => voices.length > 0)) && <VoiceLibraryPanel
                     groups={studio.groups}
                     voiceType={studio.voiceType}
                     setVoiceType={studio.setVoiceType}
@@ -106,7 +106,7 @@ export function AdminVoicesPage() {
                     deletingVoiceId={studio.deletingVoiceId}
                     onTest={(voice) => studio.sendToLab(voice.voice_id)}
                     onDelete={studio.setPendingDelete}
-                />
+                />}
             </div>
 
             <ConfirmDialog

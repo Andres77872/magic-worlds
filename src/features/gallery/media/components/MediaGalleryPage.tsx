@@ -141,6 +141,7 @@ export function MediaGalleryPage() {
                         </Button>
                     ) : undefined
                 }
+                showEmptyState={!gallery.error}
                 data-testid="media-gallery-grid"
                 renderCard={(item) =>
                     item.kind === 'image' ? (

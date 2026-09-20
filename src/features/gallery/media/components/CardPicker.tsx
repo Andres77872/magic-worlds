@@ -6,7 +6,10 @@
  * card-type filter.
  */
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
+import { useAnchoredPopup } from '@/ui/primitives/useAnchoredPopup'
+import { useDismissableLayer } from '@/ui/primitives/useDismissableLayer'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, Gem, Globe, Loader2, Search, Swords, Users, X } from 'lucide-react'
 import type { CardMediaTargetType } from '@/shared'
@@ -35,10 +38,15 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
     const [query, setQuery] = useState('')
     const [activeIndex, setActiveIndex] = useState(0)
     const rootRef = useRef<HTMLDivElement>(null!)
+    const triggerRef = useRef<HTMLButtonElement>(null!)
+    const popupRef = useRef<HTMLDivElement>(null!)
+    const listboxId = useId()
     const inputRef = useRef<HTMLInputElement>(null)
     const { options, loading } = useCardPickerOptions(cardType, query, open)
 
-    useClickOutside(rootRef, () => setOpen(false))
+    const { position } = useAnchoredPopup(open, triggerRef, popupRef, options, 288)
+    useDismissableLayer({ open, onClose: () => setOpen(false), panelRef: popupRef, lockScroll: false, label: 'card-picker' })
+    useClickOutside(rootRef, () => setOpen(false), [popupRef])
 
     useEffect(() => {
         if (open) inputRef.current?.focus()
@@ -84,7 +92,9 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
             >
                 <button
                     type="button"
+                    ref={triggerRef}
                     role="combobox"
+                    aria-controls={open ? listboxId : undefined}
                     aria-expanded={open}
                     aria-haspopup="listbox"
                     aria-label={t('mediaGallery.picker.filterByCard')}
@@ -120,9 +130,11 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                 )}
             </div>
 
-            {open && (
+            {open && createPortal(
                 <div
-                    className="absolute right-0 top-full z-10 mt-2 w-72 rounded-lg border border-parchment-50/10 bg-ink-700 p-2 shadow-xl"
+                    ref={popupRef}
+                    style={{ position: 'fixed', top: position?.top ?? -9999, left: position?.left ?? -9999, width: position?.width }}
+                    className="z-[100] max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-lg border border-line-faint bg-ink-700 p-2 shadow-lg"
                     data-testid="card-picker-panel"
                 >
                     <div className="relative mb-1 flex items-center">
@@ -147,7 +159,7 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                             <Loader2 size={14} className="absolute right-2.5 animate-spin text-ember-500" aria-hidden="true" />
                         )}
                     </div>
-                    <ul role="listbox" aria-label={t('mediaGallery.picker.listboxLabel')} className="flex max-h-72 flex-col overflow-y-auto">
+                    <ul id={listboxId} role="listbox" aria-label={t('mediaGallery.picker.listboxLabel')} className="flex max-h-72 flex-col overflow-y-auto">
                         {options.map((option, index) => (
                             <li key={`${option.type}:${option.id}`} role="presentation">
                                 <button
@@ -165,22 +177,22 @@ export function CardPicker({ cardType, value, onChange }: CardPickerProps) {
                                     {option.imageUrl ? (
                                         <AuthenticatedImage src={option.imageUrl} alt="" className="h-7 w-7 shrink-0 rounded-md object-cover" />
                                     ) : (
-                                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-ink-800 text-parchment-500">
+                                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-ink-800 text-fg-subtle">
                                             <Icon icon={TYPE_ICON[option.type]} size={13} />
                                         </span>
                                     )}
                                     <span className="min-w-0 flex-1 truncate font-ui text-sm text-parchment-100">{option.name}</span>
-                                    <Icon icon={TYPE_ICON[option.type]} size={12} className="shrink-0 text-parchment-500" />
+                                    <Icon icon={TYPE_ICON[option.type]} size={12} className="shrink-0 text-fg-subtle" />
                                 </button>
                             </li>
                         ))}
                         {options.length === 0 && !loading && (
-                            <li className="px-2 py-3 text-center font-ui text-xs text-parchment-500" role="presentation">
+                            <li className="px-2 py-3 text-center font-ui text-xs text-fg-subtle" role="presentation">
                                 {t('mediaGallery.picker.noMatches')}
                             </li>
                         )}
                     </ul>
-                </div>
+                </div>, document.body,
             )}
         </div>
     )

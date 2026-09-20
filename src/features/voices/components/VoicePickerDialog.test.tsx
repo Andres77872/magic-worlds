@@ -129,4 +129,13 @@ describe('VoicePickerDialog', () => {
             ),
         )
     })
+
+    it('shows a recoverable load error instead of an empty preset library', async () => {
+        listVoicePresets.mockRejectedValueOnce(new Error('Unavailable'))
+        render(<VoicePickerDialog open onSelect={vi.fn()} onClose={vi.fn()} />)
+        expect(await screen.findByRole('alert')).toHaveTextContent('Some content failed to load.')
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+        expect(await screen.findByText('Child girl')).toBeInTheDocument()
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
 })

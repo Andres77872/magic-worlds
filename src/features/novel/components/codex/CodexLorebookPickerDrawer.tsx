@@ -12,7 +12,7 @@ import type { Lorebook } from '@/shared'
 import { apiService } from '@/infrastructure/api'
 import { normalizeLorebookList } from '@/features/lorebook/lorebookTransforms'
 import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card'
-import { Badge, Button, Drawer, Icon, IconButton, SelectionCheck, Tag, cx } from '@/ui/primitives'
+import { Badge, Button, Callout, Drawer, Icon, IconButton, Input, SelectionCheck, Tag, cx } from '@/ui/primitives'
 
 const SEARCH_DEBOUNCE_MS = 300
 const LOREBOOK_LIMIT = 24
@@ -31,6 +31,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
     const [query, setQuery] = useState('')
     const [lorebooks, setLorebooks] = useState<Lorebook[]>([])
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
     const [picked, setPicked] = useState<Lorebook | null>(null)
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const seqRef = useRef(0)
@@ -40,6 +41,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
         const seq = ++seqRef.current
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setLoading(true)
+        setError(null)
         const timer = setTimeout(() => {
             apiService
                 .getLorebooks(0, LOREBOOK_LIMIT, query.trim() || undefined)
@@ -47,16 +49,17 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                     if (seq !== seqRef.current) return
                     setLorebooks(normalizeLorebookList(raw))
                 })
-                .catch(() => {
+                .catch((cause: unknown) => {
                     if (seq !== seqRef.current) return
                     setLorebooks([])
+                    setError(cause instanceof Error ? cause.message : t('lorebookGallery.error.loadFailed'))
                 })
                 .finally(() => {
                     if (seq === seqRef.current) setLoading(false)
                 })
         }, SEARCH_DEBOUNCE_MS)
         return () => clearTimeout(timer)
-    }, [open, query])
+    }, [open, query, t])
 
     const close = () => {
         setPicked(null)
@@ -85,8 +88,13 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
 
     const submit = async () => {
         if (!picked) return
-        await onClone(picked, Array.from(selectedIds))
-        close()
+        setError(null)
+        try {
+            await onClone(picked, Array.from(selectedIds))
+            close()
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : t('novelEditor.save.failed'))
+        }
     }
 
     return (
@@ -99,7 +107,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
             size="xl"
             footer={
                 picked ? (
-                    <div className="flex w-full items-center justify-between gap-2">
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
                         <Button
                             variant="ghost"
                             size="sm"
@@ -108,7 +116,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                         >
                             {allSelected ? t('novelEditor.lorebookPicker.selectNone') : t('novelEditor.lorebookPicker.selectAll')}
                         </Button>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             <Button variant="ghost" onClick={close} disabled={busy}>
                                 {t('common.cancel')}
                             </Button>
@@ -125,6 +133,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                 ) : undefined
             }
         >
+            {error && <Callout tone="danger" role="alert" className="mb-4">{error}</Callout>}
             {!picked ? (
                 <div className="flex flex-col gap-3">
                     <p className="m-0 font-ui text-xs text-parchment-400">
@@ -134,13 +143,13 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                         <span className="pointer-events-none absolute left-3 text-parchment-400">
                             <Icon icon={Search} size={15} />
                         </span>
-                        <input
+                        <Input
                             type="search"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder={t('novelEditor.lorebookPicker.searchPlaceholder')}
                             aria-label={t('novelEditor.lorebookPicker.searchPlaceholder')}
-                            className="w-full rounded-md border border-parchment-50/10 bg-ink-800 py-2 pl-9 pr-9 font-ui text-sm text-parchment-50 placeholder:text-parchment-500 focus:outline-none focus:border-ember-500"
+                            className="pl-9 pr-9"
                             data-testid="codex-lorebook-search"
                         />
                         {loading && <Loader2 size={15} className="absolute right-3 animate-spin text-ember-500" aria-hidden="true" />}
@@ -169,8 +178,8 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                                 </button>
                             </li>
                         ))}
-                        {lorebooks.length === 0 && !loading && (
-                            <li className="px-2 py-4 text-center font-ui text-xs text-parchment-500">{t('novelEditor.lorebookPicker.noMatches')}</li>
+                        {lorebooks.length === 0 && !loading && !error && (
+                            <li className="px-2 py-4 text-center font-ui text-xs text-parchment-400">{t('novelEditor.lorebookPicker.noMatches')}</li>
                         )}
                     </ul>
                 </div>
@@ -225,7 +234,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                             )
                         })}
                         {picked.entries.length === 0 && (
-                            <li className="px-2 py-4 text-center font-ui text-xs text-parchment-500">{t('novelEditor.lorebookPicker.noEntries')}</li>
+                            <li className="px-2 py-4 text-center font-ui text-xs text-parchment-400">{t('novelEditor.lorebookPicker.noEntries')}</li>
                         )}
                     </ul>
                 </div>

@@ -11,7 +11,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'Compact content-stat strip for the identity header — character, world, item, adventure and credit counts as small inline pills (not full cards) so the always-visible header stays dense.',
+                    'Compact content-stat strip for the identity header — character, world, item, adventure and credit counts as open inline metrics so the always-visible header stays dense.',
             },
         },
     },
