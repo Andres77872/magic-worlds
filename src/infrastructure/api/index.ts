@@ -67,6 +67,15 @@ import type {
     EmailCreditGrantUpdateRequest,
     QuotaResetRequest,
     QuotaResetResponse,
+    MembershipAssignRequest,
+    MembershipAssignResponse,
+    MembershipMemberListParams,
+    MembershipMemberListResponse,
+    MembershipOverviewResponse,
+    MembershipPlan,
+    MembershipPlanCreateRequest,
+    MembershipPlanListResponse,
+    MembershipPlanUpdateRequest,
 } from '../../shared/types/billing.types'
 import type {
     PatreonLinkRequest,
@@ -1477,6 +1486,75 @@ class ApiService {
         const token = this.getStoredToken()
         return this.authenticatedRequest<EmailCreditGrantClaimResponse>('/billing/email-credit-grants/claim', token, {
             method: 'POST',
+        })
+    }
+
+    // --- Membership plans & members (root console) --------------------------
+
+    /** Every plan (default + custom) with limits and member counts. Root only. */
+    async listMembershipPlans(): Promise<MembershipPlanListResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<MembershipPlanListResponse>('/admin/billing/plans', token, { method: 'GET' })
+    }
+
+    async getMembershipPlan(planCode: string): Promise<MembershipPlan> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<MembershipPlan>(
+            `/admin/billing/plans/${encodeURIComponent(planCode)}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Create a custom plan. The body must carry a limit row for every operation. */
+    async createMembershipPlan(body: MembershipPlanCreateRequest): Promise<MembershipPlan> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<MembershipPlan>('/admin/billing/plans', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    async updateMembershipPlan(planCode: string, body: MembershipPlanUpdateRequest): Promise<MembershipPlan> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<MembershipPlan>(
+            `/admin/billing/plans/${encodeURIComponent(planCode)}`,
+            token,
+            { method: 'PATCH', body: body as unknown as BodyInit },
+        )
+    }
+
+    /** Paginated accounts with plan, usage, and PAYG balances. Root only. */
+    async listMembershipMembers(params: MembershipMemberListParams = {}): Promise<MembershipMemberListResponse> {
+        const token = this.getStoredToken()
+        const query = new URLSearchParams()
+        if (params.plan_code) query.set('plan_code', params.plan_code)
+        if (params.search) query.set('search', params.search)
+        if (params.sort) query.set('sort', params.sort)
+        if (params.limit != null) query.set('limit', String(params.limit))
+        if (params.offset != null) query.set('offset', String(params.offset))
+        const suffix = query.toString()
+        return this.authenticatedRequest<MembershipMemberListResponse>(
+            `/admin/billing/memberships${suffix ? `?${suffix}` : ''}`,
+            token,
+            { method: 'GET' },
+        )
+    }
+
+    /** Move one account onto a plan (root override; custom plans survive billing reconcile). */
+    async assignMembershipPlan(body: MembershipAssignRequest): Promise<MembershipAssignResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<MembershipAssignResponse>('/admin/billing/memberships/assign', token, {
+            method: 'POST',
+            body: body as unknown as BodyInit,
+        })
+    }
+
+    /** Aggregate membership KPIs: members per plan, usage today / this month, wallets. */
+    async getMembershipOverview(): Promise<MembershipOverviewResponse> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<MembershipOverviewResponse>('/admin/billing/membership-overview', token, {
+            method: 'GET',
         })
     }
 

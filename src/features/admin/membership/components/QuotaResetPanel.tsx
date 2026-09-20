@@ -14,6 +14,7 @@ import {
     Textarea,
 } from '@/ui/primitives'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
+import { dateFromApiTimestamp } from '@/utils/time'
 
 type IdentifierMode = 'user_hash' | 'user_id'
 
@@ -24,13 +25,13 @@ interface QuotaResetPanelProps {
 }
 
 const targetOptions = (t: (key: string) => string) => [
-    { value: 'all' as const, label: t('admin.creditCodes.quotaReset.targetAll'), icon: <Icon icon={Users} size={16} /> },
-    { value: 'user' as const, label: t('admin.creditCodes.quotaReset.targetUser'), icon: <Icon icon={UserRound} size={16} /> },
+    { value: 'all' as const, label: t('admin.membership.quotaReset.targetAll'), icon: <Icon icon={Users} size={16} /> },
+    { value: 'user' as const, label: t('admin.membership.quotaReset.targetUser'), icon: <Icon icon={UserRound} size={16} /> },
 ]
 
 const identifierOptions = (t: (key: string) => string) => [
-    { value: 'user_hash' as const, label: t('admin.creditCodes.quotaReset.identifierHash'), icon: <Icon icon={Hash} size={16} /> },
-    { value: 'user_id' as const, label: t('admin.creditCodes.quotaReset.identifierId'), icon: <span className="font-ui text-xs font-bold">#</span> },
+    { value: 'user_hash' as const, label: t('admin.membership.quotaReset.identifierHash'), icon: <Icon icon={Hash} size={16} /> },
+    { value: 'user_id' as const, label: t('admin.membership.quotaReset.identifierId'), icon: <span className="font-ui text-xs font-bold">#</span> },
 ]
 
 export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPanelProps) {
@@ -58,15 +59,15 @@ export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPan
     const periodsValid = periods.length > 0
     const canSubmit = periodsValid && userTargetValid && !resetting
     const validationMessage = !periodsValid
-        ? t('admin.creditCodes.quotaReset.validation.period')
+        ? t('admin.membership.quotaReset.validation.period')
         : !userTargetValid
-          ? t('admin.creditCodes.quotaReset.validation.target')
+          ? t('admin.membership.quotaReset.validation.target')
           : null
 
-    const periodLabel = periods.map((period) => t(`admin.creditCodes.quotaReset.periods.${period}`)).join(', ')
+    const periodLabel = periods.map((period) => t(`admin.membership.quotaReset.periods.${period}`)).join(', ')
     const targetLabel =
         target === 'all'
-            ? t('admin.creditCodes.quotaReset.targetAll')
+            ? t('admin.membership.quotaReset.targetAll')
             : identifierMode === 'user_hash'
               ? userHash.trim()
               : `#${Math.trunc(parsedUserId)}`
@@ -94,9 +95,9 @@ export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPan
             <div className="flex flex-col gap-5 p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
-                        <SectionHeader icon={RotateCcw} title={t('admin.creditCodes.quotaReset.title')} tone="arcane" />
+                        <SectionHeader icon={RotateCcw} title={t('admin.membership.quotaReset.title')} tone="arcane" />
                         <p className="mt-1 max-w-[62ch] font-ui text-[13px] leading-relaxed text-parchment-300">
-                            {t('admin.creditCodes.quotaReset.description')}
+                            {t('admin.membership.quotaReset.description')}
                         </p>
                     </div>
                     <Button
@@ -106,36 +107,36 @@ export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPan
                         disabled={!canSubmit}
                         onClick={() => setConfirmOpen(true)}
                     >
-                        {resetting ? t('admin.creditCodes.quotaReset.resetting') : t('admin.creditCodes.quotaReset.reset')}
+                        {resetting ? t('admin.membership.quotaReset.resetting') : t('admin.membership.quotaReset.reset')}
                     </Button>
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,.8fr)]">
                     <div className="flex flex-col gap-4">
                         <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-4">
-                            <Field label={t('admin.creditCodes.quotaReset.targetLabel')}>
+                            <Field label={t('admin.membership.quotaReset.targetLabel')}>
                                 <SegmentedControl
                                     showLabels
-                                    aria-label={t('admin.creditCodes.quotaReset.targetLabel')}
+                                    aria-label={t('admin.membership.quotaReset.targetLabel')}
                                     options={targetOptions(t)}
                                     value={target}
                                     onChange={setTarget}
                                 />
                             </Field>
-                            <Field label={t('admin.creditCodes.quotaReset.periodsLabel')} error={!periodsValid ? validationMessage : undefined}>
+                            <Field label={t('admin.membership.quotaReset.periodsLabel')} error={!periodsValid ? validationMessage : undefined}>
                                 <div className="flex flex-col gap-2">
                                     <SwitchRow
                                         variant="plain"
-                                        label={t('admin.creditCodes.quotaReset.periods.daily')}
-                                        description={t('admin.creditCodes.quotaReset.dailyDescription')}
+                                        label={t('admin.membership.quotaReset.periods.daily')}
+                                        description={t('admin.membership.quotaReset.dailyDescription')}
                                         checked={daily}
                                         onChange={setDaily}
                                         disabled={resetting}
                                     />
                                     <SwitchRow
                                         variant="plain"
-                                        label={t('admin.creditCodes.quotaReset.periods.monthly')}
-                                        description={t('admin.creditCodes.quotaReset.monthlyDescription')}
+                                        label={t('admin.membership.quotaReset.periods.monthly')}
+                                        description={t('admin.membership.quotaReset.monthlyDescription')}
                                         checked={monthly}
                                         onChange={setMonthly}
                                         disabled={resetting}
@@ -146,10 +147,10 @@ export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPan
 
                         {target === 'user' && (
                             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-4 border-t border-line-faint pt-4">
-                                <Field label={t('admin.creditCodes.quotaReset.identifierLabel')}>
+                                <Field label={t('admin.membership.quotaReset.identifierLabel')}>
                                     <SegmentedControl
                                         showLabels
-                                        aria-label={t('admin.creditCodes.quotaReset.identifierLabel')}
+                                        aria-label={t('admin.membership.quotaReset.identifierLabel')}
                                         options={identifierOptions(t)}
                                         value={identifierMode}
                                         onChange={setIdentifierMode}
@@ -157,19 +158,19 @@ export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPan
                                 </Field>
                                 {identifierMode === 'user_hash' ? (
                                     <Field
-                                        label={t('admin.creditCodes.quotaReset.userHashLabel')}
+                                        label={t('admin.membership.quotaReset.userHashLabel')}
                                         error={!userHashValid ? validationMessage ?? undefined : undefined}
                                     >
                                         <Input
                                             value={userHash}
                                             onChange={(event) => setUserHash(event.target.value)}
-                                            placeholder={t('admin.creditCodes.quotaReset.userHashPlaceholder')}
+                                            placeholder={t('admin.membership.quotaReset.userHashPlaceholder')}
                                             disabled={resetting}
                                         />
                                     </Field>
                                 ) : (
                                     <Field
-                                        label={t('admin.creditCodes.quotaReset.userIdLabel')}
+                                        label={t('admin.membership.quotaReset.userIdLabel')}
                                         error={!userIdValid ? validationMessage ?? undefined : undefined}
                                     >
                                         <Input
@@ -187,11 +188,11 @@ export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPan
                             </div>
                         )}
 
-                        <Field label={t('admin.creditCodes.quotaReset.reasonLabel')} helper={t('admin.creditCodes.quotaReset.reasonHelper')}>
+                        <Field label={t('admin.membership.quotaReset.reasonLabel')} helper={t('admin.membership.quotaReset.reasonHelper')}>
                             <Textarea
                                 value={reason}
                                 onChange={(event) => setReason(event.target.value)}
-                                placeholder={t('admin.creditCodes.quotaReset.reasonPlaceholder')}
+                                placeholder={t('admin.membership.quotaReset.reasonPlaceholder')}
                                 maxLength={255}
                                 disabled={resetting}
                                 className="min-h-[84px]"
@@ -205,22 +206,22 @@ export function QuotaResetPanel({ resetting, lastReset, onReset }: QuotaResetPan
 
             <ConfirmDialog
                 visible={confirmOpen}
-                title={t('admin.creditCodes.quotaReset.confirmTitle')}
+                title={t('admin.membership.quotaReset.confirmTitle')}
                 message={
                     <span className="space-y-3">
                         <span className="block">
                             {target === 'all'
-                                ? t('admin.creditCodes.quotaReset.confirmAll', { periods: periodLabel })
-                                : t('admin.creditCodes.quotaReset.confirmUser', { periods: periodLabel, target: targetLabel })}
+                                ? t('admin.membership.quotaReset.confirmAll', { periods: periodLabel })
+                                : t('admin.membership.quotaReset.confirmUser', { periods: periodLabel, target: targetLabel })}
                         </span>
-                        <span className="block text-parchment-300">{t('admin.creditCodes.quotaReset.confirmPayg')}</span>
+                        <span className="block text-parchment-300">{t('admin.membership.quotaReset.confirmPayg')}</span>
                     </span>
                 }
-                confirmLabel={t('admin.creditCodes.quotaReset.reset')}
+                confirmLabel={t('admin.membership.quotaReset.reset')}
                 cancelLabel={t('admin.common.cancel')}
                 variant="danger"
                 isProcessing={resetting}
-                processingLabel={t('admin.creditCodes.quotaReset.resetting')}
+                processingLabel={t('admin.membership.quotaReset.resetting')}
                 icon={<Icon icon={CalendarDays} size={20} />}
                 onConfirm={() => void handleConfirm()}
                 onCancel={() => setConfirmOpen(false)}
@@ -234,24 +235,24 @@ function QuotaResetResult({ result }: { result: QuotaResetResponse | null }) {
     if (!result) {
         return (
             <div className="py-3 font-ui text-sm text-parchment-300">
-                {t('admin.creditCodes.quotaReset.noResult')}
+                {t('admin.membership.quotaReset.noResult')}
             </div>
         )
     }
 
     return (
         <div className="border-l-2 border-verdant-500/40 pl-4">
-            <div className="font-ui text-sm font-semibold text-parchment-50">{t('admin.creditCodes.quotaReset.resultTitle')}</div>
+            <div className="font-ui text-sm font-semibold text-parchment-50">{t('admin.membership.quotaReset.resultTitle')}</div>
             <dl className="mt-3 space-y-2 font-ui text-sm text-parchment-200">
-                <ResultLine label={t('admin.creditCodes.quotaReset.resultTarget')}>
+                <ResultLine label={t('admin.membership.quotaReset.resultTarget')}>
                     {result.target === 'all'
-                        ? t('admin.creditCodes.quotaReset.targetAll')
-                        : result.target_user_hash ?? (result.target_user_id != null ? `#${result.target_user_id}` : t('admin.creditCodes.quotaReset.targetUser'))}
+                        ? t('admin.membership.quotaReset.targetAll')
+                        : result.target_user_hash ?? (result.target_user_id != null ? `#${result.target_user_id}` : t('admin.membership.quotaReset.targetUser'))}
                 </ResultLine>
-                {result.reset_at && <ResultLine label={t('admin.creditCodes.quotaReset.resultTime')}>{formatDateTime(result.reset_at)}</ResultLine>}
+                {result.reset_at && <ResultLine label={t('admin.membership.quotaReset.resultTime')}>{formatDateTime(result.reset_at)}</ResultLine>}
                 {result.daily && (
-                    <ResultLine label={t('admin.creditCodes.quotaReset.periods.daily')}>
-                        {t('admin.creditCodes.quotaReset.dailyCounts', {
+                    <ResultLine label={t('admin.membership.quotaReset.periods.daily')}>
+                        {t('admin.membership.quotaReset.dailyCounts', {
                             usage: result.daily.membership_usage_days,
                             operations: result.daily.membership_operation_usage_days,
                             aiCards: result.daily.ai_card_quota_days,
@@ -259,8 +260,8 @@ function QuotaResetResult({ result }: { result: QuotaResetResponse | null }) {
                     </ResultLine>
                 )}
                 {result.monthly && (
-                    <ResultLine label={t('admin.creditCodes.quotaReset.periods.monthly')}>
-                        {t('admin.creditCodes.quotaReset.monthlyResult', {
+                    <ResultLine label={t('admin.membership.quotaReset.periods.monthly')}>
+                        {t('admin.membership.quotaReset.monthlyResult', {
                             id: result.monthly.reset_id,
                             month: result.monthly.effective_month,
                         })}
@@ -278,8 +279,8 @@ function MembershipResult({ membership }: { membership: Membership }) {
     const max = membership.credits?.max
     if (remaining == null || max == null) return null
     return (
-        <ResultLine label={t('admin.creditCodes.quotaReset.membershipLabel')}>
-            {t('admin.creditCodes.quotaReset.membershipResult', { remaining, max })}
+        <ResultLine label={t('admin.membership.quotaReset.membershipLabel')}>
+            {t('admin.membership.quotaReset.membershipResult', { remaining, max })}
         </ResultLine>
     )
 }
@@ -293,8 +294,9 @@ function ResultLine({ label, children }: { label: string; children: ReactNode })
     )
 }
 
+/** Offset-less API stamps are UTC; parse them as such before localising. */
 function formatDateTime(value: string): string {
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) return value
+    const parsed = dateFromApiTimestamp(value)
+    if (!parsed) return value
     return parsed.toLocaleString()
 }

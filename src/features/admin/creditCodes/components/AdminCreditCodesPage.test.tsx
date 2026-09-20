@@ -12,7 +12,6 @@ const createEmailCreditGrants = vi.fn()
 const updateEmailCreditGrant = vi.fn()
 const disableEmailCreditGrant = vi.fn()
 const getCreditGrantsSummary = vi.fn()
-const resetMembershipQuotas = vi.fn()
 
 vi.mock('@/app/hooks', () => ({
     useAuth: () => mockUseAuth(),
@@ -30,7 +29,6 @@ vi.mock('@/infrastructure/api', () => ({
         updateEmailCreditGrant: (...args: unknown[]) => updateEmailCreditGrant(...args),
         disableEmailCreditGrant: (...args: unknown[]) => disableEmailCreditGrant(...args),
         getCreditGrantsSummary: (...args: unknown[]) => getCreditGrantsSummary(...args),
-        resetMembershipQuotas: (...args: unknown[]) => resetMembershipQuotas(...args),
     },
 }))
 
@@ -70,19 +68,6 @@ describe('AdminCreditCodesPage', () => {
         createCreditCodeGrant.mockResolvedValue({ ...activeCodeGrant, code_id: 2, label: null, credits: 100, code: 'CDE-RAW-XYZ' })
         updateCreditCodeGrant.mockResolvedValue({ ...activeCodeGrant, credits: 300 })
         disableCreditCodeGrant.mockResolvedValue({ ...activeCodeGrant, status: 'disabled' })
-        resetMembershipQuotas.mockResolvedValue({
-            outcome: 'accepted',
-            target: 'all',
-            periods: ['daily'],
-            reset_at: '2026-06-19T12:00:00Z',
-            daily: {
-                membership_usage_days: 2,
-                membership_operation_usage_days: 3,
-                ai_card_quota_days: 4,
-            },
-            monthly: null,
-            membership: null,
-        })
         createEmailCreditGrants.mockResolvedValue([
             {
                 grant_id: 5,
@@ -126,8 +111,7 @@ describe('AdminCreditCodesPage', () => {
     it('defaults to the active filter and lists existing codes', async () => {
         render(<AdminCreditCodesPage />)
 
-        expect(screen.getByRole('heading', { name: 'Membership Management' })).toBeInTheDocument()
-        expect(screen.getByText(/Reset quota counters/i)).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: 'Credit tokens' })).toBeInTheDocument()
         expect(await screen.findByText('Launch code')).toBeInTheDocument()
         await waitFor(() => {
             expect(listCreditCodeGrants).toHaveBeenCalledWith(expect.objectContaining({ status: 'active', sort: 'recent', offset: 0 }))
@@ -169,14 +153,30 @@ describe('AdminCreditCodesPage', () => {
         fireEvent.change(within(dialog).getByLabelText('Credits'), { target: { value: '300' } })
         fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
 
+        // A blank expiry omits the key: the PATCH endpoint rejects explicit nulls.
         await waitFor(() => {
             expect(updateCreditCodeGrant).toHaveBeenCalledWith(1, {
                 credits: 300,
                 label: 'Launch code',
-                expires_at: null,
                 reason: '',
             })
         })
+    })
+
+    it('sends a chosen expiry as a timezone-naive whole-second stamp', async () => {
+        render(<AdminCreditCodesPage />)
+        await screen.findByText('Launch code')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+        fireEvent.change(screen.getByLabelText('Expires'), { target: { value: '2026-09-24T09:34' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Create code' }))
+
+        await waitFor(() => {
+            expect(createCreditCodeGrant).toHaveBeenCalled()
+        })
+        const { expires_at: expires } = createCreditCodeGrant.mock.calls[0][0]
+        expect(expires).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/)
+        expect(Date.parse(`${expires}Z`)).toBe(new Date('2026-09-24T09:34').getTime())
     })
 
     it('disables a code through the confirm dialog', async () => {
@@ -213,91 +213,4 @@ describe('AdminCreditCodesPage', () => {
         })
     })
 
-    it('resets daily quotas for all users after confirmation', async () => {
-        render(<AdminCreditCodesPage />)
-        await screen.findByText('Launch code')
-
-        fireEvent.click(screen.getByRole('button', { name: 'Reset quotas' }))
-        const dialog = screen.getByRole('dialog', { name: 'Reset quotas?' })
-        expect(within(dialog).getByText(/all users/i)).toBeInTheDocument()
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Reset quotas' }))
-
-        await waitFor(() => {
-            expect(resetMembershipQuotas).toHaveBeenCalledWith({ target: 'all', periods: ['daily'], reason: null })
-        })
-        expect(await screen.findByText(/Daily rows: 2 usage \/ 3 operation \/ 4 AI-card/)).toBeInTheDocument()
-    })
-
-    it('resets quotas for one user by user hash', async () => {
-        resetMembershipQuotas.mockResolvedValueOnce({
-            outcome: 'accepted',
-            target: 'user',
-            target_user_hash: 'usr-target',
-            periods: ['daily', 'monthly'],
-            reset_at: '2026-06-19T12:00:00Z',
-            daily: {
-                membership_usage_days: 1,
-                membership_operation_usage_days: 1,
-                ai_card_quota_days: 1,
-            },
-            monthly: { reset_id: 42, effective_month: '2026-06', reset_at: '2026-06-19T12:00:00Z' },
-            membership: {
-                plan_code: 'basic',
-                display_name: 'Basic',
-                credits: { used: 0, max: 100, remaining: 100 },
-                payg: { balance: 0, enabled: true },
-                total_available_credits: 100,
-                limits: {},
-            },
-        })
-        render(<AdminCreditCodesPage />)
-        await screen.findByText('Launch code')
-
-        fireEvent.click(screen.getByRole('radio', { name: 'One user' }))
-        fireEvent.change(screen.getByPlaceholderText('usr-...'), { target: { value: 'usr-target' } })
-        fireEvent.click(screen.getByRole('switch', { name: 'Monthly' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Reset quotas' }))
-        fireEvent.click(within(screen.getByRole('dialog', { name: 'Reset quotas?' })).getByRole('button', { name: 'Reset quotas' }))
-
-        await waitFor(() => {
-            expect(resetMembershipQuotas).toHaveBeenCalledWith({
-                target: 'user',
-                user_hash: 'usr-target',
-                periods: ['daily', 'monthly'],
-                reason: null,
-            })
-        })
-        expect(await screen.findByText('Monthly reset #42 for 2026-06')).toBeInTheDocument()
-        expect(screen.getByText('Target now has 100 of 100 daily credits remaining.')).toBeInTheDocument()
-    })
-
-    it('prevents reset submission without a user target or selected period', async () => {
-        render(<AdminCreditCodesPage />)
-        await screen.findByText('Launch code')
-
-        fireEvent.click(screen.getByRole('radio', { name: 'One user' }))
-        expect(screen.getByRole('button', { name: 'Reset quotas' })).toBeDisabled()
-        expect(screen.getByText('Enter a target user.')).toBeInTheDocument()
-
-        fireEvent.change(screen.getByPlaceholderText('usr-...'), { target: { value: 'usr-target' } })
-        fireEvent.click(screen.getByRole('switch', { name: 'Daily' }))
-        expect(screen.getByRole('button', { name: 'Reset quotas' })).toBeDisabled()
-        expect(screen.getByText('Select at least one period.')).toBeInTheDocument()
-        expect(resetMembershipQuotas).not.toHaveBeenCalled()
-    })
-
-    it('surfaces quota reset API errors', async () => {
-        resetMembershipQuotas.mockRejectedValueOnce(new Error('quota reset refused'))
-        render(<AdminCreditCodesPage />)
-        await screen.findByText('Launch code')
-
-        fireEvent.click(screen.getByRole('button', { name: 'Reset quotas' }))
-        fireEvent.click(within(screen.getByRole('dialog', { name: 'Reset quotas?' })).getByRole('button', { name: 'Reset quotas' }))
-
-        await waitFor(() => {
-            expect(resetMembershipQuotas).toHaveBeenCalledWith({ target: 'all', periods: ['daily'], reason: null })
-        })
-        expect(await screen.findByText('Quota reset failed')).toBeInTheDocument()
-        expect(screen.getAllByRole('alert')[0]).toHaveTextContent('quota reset refused')
-    })
 })

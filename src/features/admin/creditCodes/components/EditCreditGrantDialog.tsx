@@ -48,10 +48,14 @@ export function EditCreditGrantDialog({ open, kind, grant, saving, onSave, onClo
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         if (!canSave) return
+        // The PATCH endpoints reject null on any field that is present, so a
+        // cleared expiry omits the key instead of sending null (empty label /
+        // reason are sent as '' because the server reads those as "clear").
+        const expires = toIsoOrNull(expiresAt)
         onSave({
             credits: Math.floor(creditsValue),
             label: label.trim(),
-            expires_at: toIsoOrNull(expiresAt),
+            ...(expires ? { expires_at: expires } : {}),
             reason: reason.trim(),
         })
     }

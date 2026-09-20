@@ -16,11 +16,11 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { Eye, History, ImagePlus, ImageUp, Music2, Sparkles, Trash2 } from 'lucide-react'
-import type { CardMediaTargetType, CardPortraitRequest, ThemeSongJobPublic } from '@/shared'
+import { Eye, History, ImagePlus, ImageUp, Music2, Sparkles, Trash2, Zap } from 'lucide-react'
+import type { CardMediaTargetType, CardPortraitRequest, ThemeSongJobPublic, ThemeSongModelAlias } from '@/shared'
 import { useBackgroundTasks } from '@/app/hooks'
 import { apiService, resolveMediaUrl, type ImageJobPublicResponse } from '@/infrastructure/api'
-import { Button, Eyebrow, Icon, IconButton, ImageLightbox, Portrait, SectionHeader } from '@/ui/primitives'
+import { Button, Eyebrow, Icon, IconButton, ImageLightbox, Portrait, SectionHeader, SegmentedControl, Switch, type SegmentedControlOption } from '@/ui/primitives'
 import { AudioWavePlayer } from '@/ui/components/audio'
 import { ImageGenerationStatus, type ImageGenerationStage } from '@/ui/components'
 import { CreatorField, CreatorTextarea } from './CreatorField'
@@ -105,6 +105,7 @@ export interface MediaStudioSectionProps {
 }
 
 const EXTRA_DIRECTION_MAX = 600
+const DEFAULT_THEME_MODEL: ThemeSongModelAlias = 'minimax_music_3'
 
 function mediaErrorCopy(error: unknown, noun: string, t: TFunction): string {
     const err = error as { message?: string; category?: string; status?: number; retryAfterSeconds?: number; requestId?: string }
@@ -289,6 +290,8 @@ export function MediaStudioSection({
 
     /* ------------------------------ theme ------------------------------ */
     const [songDirection, setSongDirection] = useState('')
+    const [themeModel, setThemeModel] = useState<ThemeSongModelAlias>(DEFAULT_THEME_MODEL)
+    const [themeInstrumental, setThemeInstrumental] = useState(false)
     const [themeUrl, setThemeUrl] = useState<string | undefined>(themeSongUrl)
     const [themeBusy, setThemeBusy] = useState(false)
     const [themeError, setThemeError] = useState<string | null>(null)
@@ -376,7 +379,7 @@ export function MediaStudioSection({
             const themeFor = template.name.trim() || t('creation.common.media.notices.defaultThemeTarget', { noun })
             const description = songDirection.trim() || t('creation.common.media.notices.defaultThemeDescription', { name: themeFor })
             const job = await apiService.generateThemeSong(
-                { target_type: cardType, target_id: targetId, description },
+                { target_type: cardType, target_id: targetId, description, model_alias: themeModel, instrumental: themeInstrumental },
                 { signal: controller.signal },
             )
             if (!mountedRef.current) return
@@ -404,6 +407,40 @@ export function MediaStudioSection({
             themeAbortRef.current = null
         }
     }
+
+    // Model picker + instrumental toggle. The backend keeps a separate lyric/style
+    // writer prompt per model, so the choice changes how the song is written, not
+    // just which engine renders it.
+    const themeModelOptions: SegmentedControlOption<ThemeSongModelAlias>[] = [
+        { value: 'minimax_music_3', label: t('creation.common.media.models.minimax_music_3.label'), icon: <Icon icon={Sparkles} size={14} /> },
+        { value: 'ace_step', label: t('creation.common.media.models.ace_step.label'), icon: <Icon icon={Zap} size={14} /> },
+    ]
+    const themeControls = (
+        <div className="flex flex-col gap-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <SegmentedControl
+                    options={themeModelOptions}
+                    value={themeModel}
+                    onChange={setThemeModel}
+                    showLabels
+                    aria-label={t('creation.common.media.modelLabel')}
+                />
+                <div className="inline-flex items-center gap-2 font-ui text-xs text-parchment-300">
+                    <span>{t('creation.common.media.instrumentalLabel')}</span>
+                    <Switch
+                        size="sm"
+                        checked={themeInstrumental}
+                        onChange={setThemeInstrumental}
+                        disabled={themeBusy}
+                        aria-label={t('creation.common.media.instrumentalLabel')}
+                    />
+                </div>
+            </div>
+            <p className="font-ui text-[11px] leading-snug text-parchment-400">
+                {themeInstrumental ? t('creation.common.media.instrumentalHint') : t(`creation.common.media.models.${themeModel}.hint`)}
+            </p>
+        </div>
+    )
 
     /* --------------------------- media history --------------------------- */
     const [historyOpen, setHistoryOpen] = useState(false)
@@ -590,6 +627,7 @@ export function MediaStudioSection({
                         maxLength={EXTRA_DIRECTION_MAX}
                         placeholder={t('creation.common.media.songDirectionPlaceholderCompact')}
                     />
+                    {themeControls}
                     {themeDisabledReason ? (
                         <Eyebrow tone="muted">{themeDisabledReason}</Eyebrow>
                     ) : (
@@ -716,6 +754,7 @@ export function MediaStudioSection({
                         placeholder={t('creation.common.media.songDirectionPlaceholder')}
                     />
                 </CreatorField>
+                {themeControls}
                 {themeDisabledReason ? (
                     <Eyebrow tone="muted">{themeDisabledReason}</Eyebrow>
                 ) : (

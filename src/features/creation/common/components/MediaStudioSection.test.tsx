@@ -168,3 +168,42 @@ describe('MediaStudioSection image generation', () => {
         expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 })
+
+describe('MediaStudioSection theme generation', () => {
+    const themeMock = apiService.generateThemeSong as unknown as Mock
+    const listMock = apiService.listThemeSongs as unknown as Mock
+
+    it('sends the default model and no instrumental flag', async () => {
+        listMock.mockResolvedValue({ items: [] })
+        themeMock.mockResolvedValue({ job_id: 't1', status: 'pending', assets: [] })
+        renderPanel({ ensureSaved: vi.fn().mockResolvedValue('card-1'), themeTargetId: 'card-1' })
+
+        fireEvent.click(screen.getByRole('button', { name: /generate theme/i }))
+
+        await waitFor(() => expect(themeMock).toHaveBeenCalledTimes(1))
+        expect(themeMock.mock.calls[0][0]).toEqual({
+            target_type: 'character',
+            target_id: 'card-1',
+            description: 'An evocative theme song for Elara.',
+            model_alias: 'minimax_music_3',
+            instrumental: false,
+        })
+        expect(await screen.findByText(/composing in tasks/i)).toBeInTheDocument()
+    })
+
+    it.each(['compact', 'full'] as const)('forwards the chosen model and instrumental toggle in the %s layout', async (layout) => {
+        listMock.mockResolvedValue({ items: [] })
+        themeMock.mockResolvedValue({ job_id: 't2', status: 'pending', assets: [] })
+        renderPanel({ layout, ensureSaved: vi.fn().mockResolvedValue('card-1'), themeTargetId: 'card-1' })
+
+        fireEvent.click(screen.getByRole('radio', { name: 'ACE-Step' }))
+        expect(screen.getByRole('radio', { name: 'ACE-Step' })).toBeChecked()
+        expect(screen.getByText(/quick, lighter take/i)).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('switch', { name: /instrumental/i }))
+        expect(screen.getByText(/no vocals/i)).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: /generate theme/i }))
+
+        await waitFor(() => expect(themeMock).toHaveBeenCalledTimes(1))
+        expect(themeMock.mock.calls[0][0]).toMatchObject({ model_alias: 'ace_step', instrumental: true })
+    })
+})

@@ -47,6 +47,7 @@ const PAGE_TO_HASH: Record<PageType, string> = {
     'admin-voices': '#/admin/voices',
     'admin-agents': '#/admin/agents',
     'admin-credit-codes': '#/admin/credit-codes',
+    'admin-membership': '#/admin/membership',
     docs: '#/docs',
     about: '#/about',
     contact: '#/contact',
@@ -73,7 +74,8 @@ const HASH_TO_PAGE = Object.entries(PAGE_TO_HASH).reduce<Record<string, PageType
     return acc
 }, {})
 
-HASH_TO_PAGE['#/admin/membership-management'] = 'admin-credit-codes'
+// Legacy deep link: the membership console used to live on the credit-codes page.
+HASH_TO_PAGE['#/admin/membership-management'] = 'admin-membership'
 
 export interface GalleryHashTarget {
     type: GalleryType

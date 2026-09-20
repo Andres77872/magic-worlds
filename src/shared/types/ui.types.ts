@@ -36,6 +36,7 @@ export type PageType =
     | 'admin-voices'
     | 'admin-agents'
     | 'admin-credit-codes'
+    | 'admin-membership'
     | 'docs'
     | 'about'
     | 'contact'

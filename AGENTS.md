@@ -14,7 +14,8 @@ src/
 │   │                       #   cards (preview modal), characterChat (1:1 chat), creation (character/world/item/
 │   │                       #   adventure creators + shared engine), gallery (+ media), interaction (adventure
 │   │                       #   play loop), landing, legal, lorebook, novel (Story Studio, TipTap), profile,
-│   │                       #   tasks (background-job drawer), docs
+│   │                       #   tasks (background-job drawer), docs, admin (root consoles: voices, agents,
+│   │                       #   creditCodes = credit tokens, membership = plans / members / usage)
 ├── infrastructure/api/     # Backend layer: index.ts (apiService singleton), chatSocket.ts (per-session
 │   │                       #   WebSocket), baseUrl.ts (env resolution), useAuthenticatedMediaUrl.ts, __tests__/
 ├── shared/                 # types/ (per-domain *.types.ts + barrel index.ts) and cross-feature hooks/
@@ -64,7 +65,7 @@ Frontend (this repo: React 19 SPA)
         ├─ HTTP ─▶ api.magic_llm     POST /v1/chat/completions with inline agent graphs ("agt")
         │             ├─ imports ─▶ magic-agents   graph runtime (run_agent, node system)
         │             └─ imports ─▶ magic-llm      provider abstraction (OpenAI/Anthropic/Google/MiniMax…)
-        └─ direct ─▶ fal.ai (images) · MiniMax (TTS speech-2.8-turbo + theme songs music-2.6)
+        └─ direct ─▶ fal.ai (images · theme songs: fal-ai/ace-step, minimax/music-3) · MiniMax (TTS speech-2.8-turbo)
 ```
 
 - **Frontend → backend.** All traffic goes through the `apiService` singleton (`src/infrastructure/api/index.ts`). The base URL comes from `VITE_API_BASE_URL` (`.env`); a literal `{hostname}` placeholder is replaced at runtime with `window.location.hostname` (default fallback `http://localhost:8000`, dev value `:8010`). Local/LAN same-site HTTP uses `SameSite=lax` + `Secure=false`; cross-site production requires HTTPS, `SameSite=None` + `Secure=true`, and the exact SPA origin in credentialed CORS allow-lists. The access token lives in `localStorage` (`magic_worlds:token`); refresh rides the HttpOnly cookie. `AuthProvider` syncs on the `auth:expired` (terminal) and `auth:refreshed` (new token) custom events; a 401 triggers an automatic refresh-and-retry.
@@ -72,7 +73,7 @@ Frontend (this repo: React 19 SPA)
 - **magic-worlds-api** — the only backend the frontend calls. FastAPI on `APP_PORT` (default 8000, `:8010` in this dev setup), MySQL via raw SQL over `aiomysql` (no ORM). Its routers mirror the frontend features: `/auth`, `/user`, cards (`/characters`, `/worlds`, `/items`, `/adventure-templates`), `/adventure-sessions`, `/character-chats`, `/images`, `/tts`, `/theme-songs`, `/lorebooks`, `/stories`, `/tasks`, `/card-assistant`, `/lorebook-assistant`. It **does not import** `magic-agents`/`magic-llm` (enforced by tests) — it calls `api.auth` and `api.magic_llm` over HTTP and ships server-owned JSON agent graphs from `src/agent_graphs/`.
 - **api.auth** — issues JWT access tokens + rotating refresh tokens (argon2 hashing, Redis-backed). `magic-worlds-api` validates tokens against it with a TTL cache + circuit breaker; login/register require `PROJECT_HASH` / `USER_GROUP_HASH`.
 - **api.magic_llm** — an OpenAI-compatible "agents API". The backend posts inline agent graphs to `POST /v1/chat/completions` for AI card generation, adventure/character chat, and the card/lorebook assistants. Internally it runs `magic-agents` (the graph runtime — `run_agent`, node system) over `magic-llm` (multi-provider LLM client; also embeddings/TTS).
-- **Media.** Images via fal.ai; TTS and theme songs via MiniMax. All are async **jobs** — the frontend surfaces them through `BackgroundTasksProvider` and fetches finished assets as authed blobs.
+- **Media.** Images and theme songs via fal.ai (theme songs: the client picks `model_alias` `minimax_music_3` | `ace_step` plus an optional `instrumental` flag; the backend writes each model's own tags/prompt + lyrics with a per-model LLM writer graph and transcodes the provider WAV to an owned MP3); TTS via MiniMax. All are async **jobs** — the frontend surfaces them through `BackgroundTasksProvider` and fetches finished assets as authed blobs.
 
 **Key env vars.** Frontend: `VITE_API_BASE_URL` (+ optional `VITE_AI_CARD_CLIENT_TIMEOUT_MS`). Backend (`magic-worlds-api/.env`, see its `.env.example`): required `CORS_ORIGINS`, `AUTH_API_URL`, `MAGIC_LLM_API_URL`, `MYSQL_PASSWORD`; route-gated `PROJECT_HASH`, `USER_GROUP_HASH`; LLM `CARD_LLM_*`, `ADVENTURE_CHAT_LLM_*`; media `FAL_KEY`, `MINIMAX_*`; runtime `APP_PORT`, `MYSQL_*`.
 

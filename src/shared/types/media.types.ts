@@ -68,8 +68,24 @@ export interface ThemeSongAssetPublic {
     output_format: 'mp3'
 }
 
+/**
+ * Music models a theme song can be composed with. Both run on fal.ai behind the
+ * backend; the backend writes each model's own style text + lyrics with its LLM
+ * writer, the client only picks the alias.
+ */
+export type ThemeSongModelAlias = 'minimax_music_3' | 'ace_step'
+
+export const THEME_SONG_MODEL_ALIASES: ThemeSongModelAlias[] = ['minimax_music_3', 'ace_step']
+
+/**
+ * Where the sung text came from. `writer` = backend LLM writer, `user` =
+ * caller-supplied lyrics, `instrumental` = no vocals, `optimizer` = retired
+ * MiniMax path kept only for stored history.
+ */
+export type ThemeSongLyricsSource = 'writer' | 'user' | 'instrumental' | 'optimizer'
+
 export interface ThemeSongLyricsPublic {
-    source: 'user' | 'optimizer'
+    source: ThemeSongLyricsSource
     lyrics_sha256?: string | null
     lyrics_length_chars?: number | null
 }
@@ -85,7 +101,9 @@ export interface ThemeSongJobPublic {
     target: ThemeSongTargetRef
     operation: 'theme_song'
     status: ThemeSongJobStatus
-    model_alias: string
+    /** Selectable alias, or a retired one (`music_3_0` / `music_2_6`) on old history rows. */
+    model_alias: ThemeSongModelAlias | string
+    instrumental?: boolean
     status_url: string
     result_url: string
     lyrics?: ThemeSongLyricsPublic | null
@@ -123,8 +141,14 @@ export interface UserThemeSongListResponse {
 export interface ThemeSongCreateRequest {
     target_type: CardMediaTargetType
     target_id: string
+    /** Free-text song direction; the backend folds card facts in and writes the real model inputs. */
     description: string
+    /** Optional final lyrics sung verbatim; mutually exclusive with `instrumental`. */
     lyrics?: string | null
+    /** Omitted selects the backend default. */
+    model_alias?: ThemeSongModelAlias
+    /** Compose without vocals. */
+    instrumental?: boolean
 }
 
 /**

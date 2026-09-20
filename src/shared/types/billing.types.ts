@@ -292,3 +292,165 @@ export interface BillingReconcileResponse {
     subscription?: BillingSubscriptionStatus | null
     membership: Membership
 }
+
+// --- Membership plans & members (root console, /admin/billing/{plans,memberships}) --
+
+/** Per-operation quota row of a plan (`membership_plan_limit`). */
+export interface MembershipPlanLimit {
+    daily_request_limit: number
+    max_in_flight: number
+    credit_cost: number
+}
+
+/**
+ * A membership plan as the root console sees it. `is_default` marks the three
+ * plans provisioned by the schema (`free`, `plus`, `pro`); `is_billing_synced`
+ * marks the paid defaults whose name and included credits mirror api.auth's
+ * Stripe catalog and therefore cannot be edited locally.
+ */
+export interface MembershipPlan {
+    plan_code: string
+    display_name: string
+    credit_reset_period: 'daily' | string
+    daily_credit_limit: number
+    is_active: boolean
+    is_default: boolean
+    is_billing_synced: boolean
+    member_count: number
+    limits: Record<string, MembershipPlanLimit>
+    created_at: string | null
+    updated_at: string | null
+}
+
+export interface MembershipPlanListResponse {
+    items: MembershipPlan[]
+    /** Every runtime operation a plan must define a limit for, in display order. */
+    operations: string[]
+}
+
+export interface MembershipPlanCreateRequest {
+    plan_code: string
+    display_name: string
+    daily_credit_limit: number
+    is_active?: boolean
+    limits: Record<string, MembershipPlanLimit>
+}
+
+export interface MembershipPlanUpdateRequest {
+    display_name?: string | null
+    daily_credit_limit?: number | null
+    is_active?: boolean | null
+    limits?: Record<string, MembershipPlanLimit> | null
+}
+
+export type MembershipMemberSort = 'recent' | 'usage_today' | 'usage_month' | 'payg' | 'username'
+
+export interface MembershipMemberListParams {
+    plan_code?: string
+    search?: string
+    sort?: MembershipMemberSort
+    limit?: number
+    offset?: number
+}
+
+/** One account with its plan, today's included usage, month ledger usage, and PAYG balances. */
+export interface MembershipMember {
+    user_id: number
+    user_hash: string
+    username: string
+    display_name: string | null
+    user_type: string
+    created_at: string | null
+    plan_code: string
+    plan_display_name: string
+    daily_credit_limit: number
+    is_default_plan: boolean
+    /** True when the account has no membership row yet and is treated as `free`. */
+    implicit_free: boolean
+    membership_status: string
+    started_at: string | null
+    updated_at: string | null
+    credits_used_today: number
+    credits_used_month: number
+    included_credits_used_month: number
+    payg_credits_used_month: number
+    payg_free_balance: number
+    payg_billed_balance: number
+    payg_balance: number
+}
+
+export interface MembershipMemberListResponse {
+    items: MembershipMember[]
+    limit: number
+    offset: number
+    next_offset: number | null
+    total: number
+    usage_date: string
+    month: string
+}
+
+export interface MembershipAssignRequest {
+    user_id?: number | null
+    user_hash?: string | null
+    plan_code: string
+    reason?: string | null
+}
+
+export interface MembershipAssignResponse {
+    outcome: 'accepted' | string
+    user_id: number
+    user_hash: string
+    username: string
+    plan_code: string
+    previous_plan_code: string
+    changed: boolean
+    membership: Membership
+}
+
+export interface MembershipOverviewTotals {
+    users: number
+    plans: number
+    active_plans: number
+    custom_plans: number
+    active_users_today: number
+    credits_used_today: number
+    active_users_month: number
+    credits_used_month: number
+    included_credits_used_month: number
+    payg_credits_used_month: number
+    payg_wallets: number
+    payg_free_balance: number
+    payg_billed_balance: number
+}
+
+export interface MembershipOverviewPlan {
+    plan_code: string
+    display_name: string
+    is_active: boolean
+    is_default: boolean
+    is_billing_synced: boolean
+    member_count: number
+    active_users_today: number
+    credits_used_today: number
+    active_users_month: number
+    credits_used_month: number
+    included_credits_used_month: number
+    payg_credits_used_month: number
+}
+
+export interface MembershipOverviewOperation {
+    operation: string
+    active_users: number
+    used: number
+    credits_used: number
+}
+
+export interface MembershipOverviewResponse {
+    usage_date: string
+    month: string
+    month_start: string
+    month_end: string
+    totals: MembershipOverviewTotals
+    plans: MembershipOverviewPlan[]
+    operations_month: MembershipOverviewOperation[]
+}

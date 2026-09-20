@@ -57,6 +57,7 @@ const AdminVoicesPage = lazy(() => import('../../features/admin/voices/component
 const VoiceStudioPage = lazy(() => import('../../features/voices/components/VoiceStudioPage').then(m => ({ default: m.VoiceStudioPage })))
 const AdminAgentsPage = lazy(() => import('../../features/admin/agents/components/AdminAgentsPage').then(m => ({ default: m.AdminAgentsPage })))
 const AdminCreditCodesPage = lazy(() => import('../../features/admin/creditCodes/components/AdminCreditCodesPage').then(m => ({ default: m.AdminCreditCodesPage })))
+const AdminMembershipPage = lazy(() => import('../../features/admin/membership/components/AdminMembershipPage').then(m => ({ default: m.AdminMembershipPage })))
 const NotFoundPage = lazy(() => import('../../features/errorPages/components/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
 
 export function AppRouter() {
@@ -178,6 +179,7 @@ export function AppRouter() {
                                     {currentPage === 'admin-voices' && <AdminVoicesPage />}
                                     {currentPage === 'admin-agents' && <AdminAgentsPage />}
                                     {currentPage === 'admin-credit-codes' && <AdminCreditCodesPage />}
+                                    {currentPage === 'admin-membership' && <AdminMembershipPage />}
                                     {currentPage === 'docs' && <DocsPage />}
                                     {currentPage === 'about' && <LegalPage page="about" />}
                                     {currentPage === 'contact' && <LegalPage page="contact" />}

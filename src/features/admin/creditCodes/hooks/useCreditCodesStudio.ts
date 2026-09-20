@@ -16,8 +16,6 @@ import type {
     CreditGrantListStatus,
     CreditGrantSummaryResponse,
     EmailCreditGrant,
-    QuotaResetRequest,
-    QuotaResetResponse,
 } from '@/shared'
 import { downloadCreditGrantsCsv } from '../components/creditCodeCsv'
 
@@ -73,8 +71,6 @@ export function useCreditCodesStudio(isRoot: boolean) {
     const [pendingDisable, setPendingDisable] = useState<PendingDisable | null>(null)
     const [mutatingId, setMutatingId] = useState<number | null>(null)
     const [exporting, setExporting] = useState(false)
-    const [resettingQuotas, setResettingQuotas] = useState(false)
-    const [lastQuotaReset, setLastQuotaReset] = useState<QuotaResetResponse | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [toast, setToast] = useState<StudioToast | null>(null)
 
@@ -176,31 +172,6 @@ export function useCreditCodesStudio(isRoot: boolean) {
         void loadFirstPage()
         void refreshSummary()
     }, [loadFirstPage, refreshSummary])
-
-    const resetMembershipQuotas = useCallback(
-        async (request: QuotaResetRequest): Promise<QuotaResetResponse | null> => {
-            if (!isRoot || resettingQuotas) return null
-            setResettingQuotas(true)
-            setError(null)
-            try {
-                const result = await apiService.resetMembershipQuotas(request)
-                setLastQuotaReset(result)
-                const periods = result.periods
-                    .map((period) => t(`admin.creditCodes.quotaReset.periods.${period}`))
-                    .join(', ')
-                setToast({ tone: 'success', title: t('admin.creditCodes.quotaReset.toastSuccess'), message: periods })
-                return result
-            } catch (err) {
-                const message = err instanceof Error ? err.message : t('admin.creditCodes.quotaReset.errors.reset')
-                setError(message)
-                setToast({ tone: 'error', title: t('admin.creditCodes.quotaReset.toastFailed'), message })
-                return null
-            } finally {
-                setResettingQuotas(false)
-            }
-        },
-        [isRoot, resettingQuotas, t],
-    )
 
     const confirmDisable = useCallback(async () => {
         const target = pendingDisable
@@ -320,9 +291,6 @@ export function useCreditCodesStudio(isRoot: boolean) {
         confirmDisable,
         editGrant,
         handleCreated,
-        resettingQuotas,
-        lastQuotaReset,
-        resetMembershipQuotas,
         // export
         exporting,
         exportCsv,

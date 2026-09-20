@@ -14,7 +14,6 @@ import { CreditGrantSummaryTiles } from './CreditGrantSummaryTiles'
 import { CreditTokensToolbar } from './CreditTokensToolbar'
 import { EditCreditGrantDialog, type EditableGrant } from './EditCreditGrantDialog'
 import { EmailCreditGrantsList } from './EmailCreditGrantsList'
-import { QuotaResetPanel } from './QuotaResetPanel'
 
 interface EditingTarget {
     kind: CreditGrantKind
@@ -87,12 +86,6 @@ export function AdminCreditCodesPage() {
                     </Button>
                 </div>
             )}
-
-            <QuotaResetPanel
-                resetting={studio.resettingQuotas}
-                lastReset={studio.lastQuotaReset}
-                onReset={studio.resetMembershipQuotas}
-            />
 
             <CreditGrantSummaryTiles counts={counts} activeStatus={studio.status} onSelect={studio.setStatus} />
 

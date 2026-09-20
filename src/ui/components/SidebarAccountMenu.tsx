@@ -25,6 +25,7 @@ import {
     LogOut,
     Ticket,
     UserRound,
+    WalletCards,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
@@ -333,6 +334,12 @@ export function SidebarAccountMenu({
                                     label={t('sidebar.agentAdmin')}
                                     current={currentPage === 'admin-agents'}
                                     onClick={() => navigate('admin-agents')}
+                                />
+                                <AccountMenuRow
+                                    icon={WalletCards}
+                                    label={t('sidebar.membershipAdmin')}
+                                    current={currentPage === 'admin-membership'}
+                                    onClick={() => navigate('admin-membership')}
                                 />
                                 <AccountMenuRow
                                     icon={Ticket}

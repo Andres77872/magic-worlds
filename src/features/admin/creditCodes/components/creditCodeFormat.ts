@@ -4,6 +4,7 @@
  * tone / label, and formats created / expiry / claimed stamps.
  */
 import type { TFunction } from 'i18next'
+import { dateFromApiTimestamp } from '@/utils/time'
 import type { BadgeTone } from '@/ui/primitives'
 import type { CreditGrantStatus, CreditGrantViewStatus } from '@/shared'
 
@@ -40,10 +41,14 @@ export function statusLabel(status: CreditGrantViewStatus, t: TFunction): string
     return t(`admin.creditCodes.status.${status}`, { defaultValue: status })
 }
 
-/** Short, locale-aware date+time; returns null for empty/invalid stamps. */
+/**
+ * Short, locale-aware date+time; returns null for empty stamps and echoes
+ * unparseable ones. Offset-less API stamps are UTC, so they go through
+ * {@link dateFromApiTimestamp} rather than a bare `new Date`.
+ */
 export function formatStamp(value: string | null | undefined, locale?: string): string | null {
     if (!value) return null
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return value
+    const date = dateFromApiTimestamp(value)
+    if (!date) return value
     return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
