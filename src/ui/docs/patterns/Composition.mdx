@@ -1,0 +1,76 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+import { SectionHeader } from '../../primitives/SectionHeader'
+import { SwitchRow } from '../../primitives/Switch'
+import { Stage } from '../Swatch'
+
+<Meta title="Design System/Patterns/Composition" />
+
+# Composition
+
+Reverie keeps the story and the current task prominent. Related content shares
+a canvas; spacing and headings establish groups before borders or background fills.
+
+## Choose the boundary for the job
+
+- **Open sections** group form fields, settings, usage details, and narrative content. Use a semantic section, an appropriate heading, and `gap-5` or `gap-6`.
+- **Divided lists** organize repeated rows such as history, notifications, attributes, and reference entries. Use `divide-y divide-line-faint` or a single edge between groups.
+- **Cards** represent distinct browseable objects and previews, such as a character or saved scene. Avoid a card around a list of cards.
+- **Overlays and controls** retain their visible boundary. Inputs, menus, dialogs, and selected states still need clear affordances.
+
+One visible boundary per group is the starting point, not a quota. Add another
+only when it explains a different interaction or ownership of the content.
+Removing layout wrappers alone does not remove visual complexity; remove
+redundant backgrounds, outlines, shadows, and duplicated labels together.
+
+## Use the existing components
+
+Use `PageHeader` for page identity and primary actions, `SectionHeader` for
+subsections (`as` follows the document outline), and `StudioSection` for anchored
+creator fields. Keep filtering below the page heading when it competes with actions.
+
+Use `SwitchRow variant="plain"` inside an existing section. Its default surface
+variant is appropriate for a standalone setting that needs separation.
+
+<Stage>
+  <section aria-label="Narrative settings" className="w-full max-w-md">
+    <SectionHeader title="Narrative settings" />
+    <div className="mt-3 divide-y divide-line-faint">
+      <SwitchRow variant="plain" label="Keep context" description="Carry this lore into future scenes." checked onChange={() => {}} />
+      <SwitchRow variant="plain" label="Always include" description="Include this entry even without a keyword match." checked={false} onChange={() => {}} />
+    </div>
+  </section>
+</Stage>
+
+## Keep the reading rhythm
+
+Conversation turns put the speaker and time above the prose, then utilities
+below it. Suggestions are one list with generous click targets, not separate
+cards. Choosing one fills and focuses the composer so it remains editable.
+Images own their frame without another decorative container around them.
+
+Use display serif for headings, narrative serif for story content, and UI sans
+for guidance and controls. Ember highlights the main action; arcane identifies
+AI content without tinting every surrounding surface.
+
+## Check narrow layouts and focus
+
+Allow title/actions and row controls to wrap, apply `min-w-0` to flex/grid children,
+and choose columns based on available panel width. Do not hide overflow to mask
+clipped controls. On touch screens, compact icon actions occupy real 44px targets;
+invisible overlapping hit areas cannot provide independent targets. Preserve
+the global focus ring and respect reduced-motion preferences.
+
+Review a 390px phone, a tablet, and a desktop with realistic long names, translated
+copy, empty states, and populated data. A flatter layout must remain understandable
+and keyboard operable.
+
+## Research behind the pattern
+
+[NN/g's visual hierarchy guidance](https://www.nngroup.com/articles/visual-hierarchy-ux-definition/)
+recommends establishing hierarchy with spacing and using extra backgrounds and borders sparingly.
+[The proximity principle](https://www.nngroup.com/articles/gestalt-proximity/)
+explains how spacing communicates relationships.
+[Common-region guidance](https://www.nngroup.com/articles/common-region/)
+describes where containers help and where whitespace reduces complexity.
+[WCAG target-size guidance](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum)
+defines minimum target sizing and spacing; Reverie uses larger touch targets for compact icon controls.
