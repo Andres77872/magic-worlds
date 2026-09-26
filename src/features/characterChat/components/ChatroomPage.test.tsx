@@ -102,7 +102,7 @@ describe('ChatroomPage', () => {
         expect(screen.getByText('Lyra')).toBeInTheDocument()
         expect(screen.getByText('Sable')).toBeInTheDocument()
         expect(screen.getByText('Lyra, Sable')).toBeInTheDocument()
-        expect(loadData).toHaveBeenCalledWith({ silent: true })
+        expect(loadData).toHaveBeenCalledWith({ silent: true, entryPage: 'chatroom' })
 
         fireEvent.click(screen.getByRole('button', { name: 'Resume chat: Lyra' }))
 

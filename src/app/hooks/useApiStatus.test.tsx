@@ -33,6 +33,7 @@ describe('useApiStatus', () => {
 
     afterEach(() => {
         vi.useRealTimers()
+        vi.restoreAllMocks()
     })
 
     it('checks immediately and polls every 60 seconds by default', async () => {
@@ -161,6 +162,24 @@ describe('useApiStatus', () => {
 
         expect(getDependencyHealth).toHaveBeenCalledTimes(1)
         expect(getHealth).not.toHaveBeenCalled()
+    })
+
+    it('pauses health polling when unfocused and checks on focus', async () => {
+        const focusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+        getDependencyHealth.mockResolvedValue({ status: 'ok', services: [] })
+        renderHook(() => useApiStatus(), { wrapper })
+        await flushPromises()
+        expect(getDependencyHealth).toHaveBeenCalledTimes(1)
+
+        focusSpy.mockReturnValue(false)
+        act(() => window.dispatchEvent(new Event('blur')))
+        await act(async () => { await vi.advanceTimersByTimeAsync(180_000) })
+        expect(getDependencyHealth).toHaveBeenCalledTimes(1)
+
+        focusSpy.mockReturnValue(true)
+        act(() => window.dispatchEvent(new Event('focus')))
+        await flushPromises()
+        expect(getDependencyHealth).toHaveBeenCalledTimes(2)
     })
 
     it('aborts the active health request on unmount', async () => {

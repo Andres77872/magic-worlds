@@ -14,6 +14,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, BookOpenText, Feather, Gem, Globe, MessageCircle, Swords, Users, Wand2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
+import { isPageFocused, usePageFocus } from '@/app/hooks/usePageFocus'
 import type { Adventure, Character, CharacterChatSession, Item, Lorebook, PageType, Story, StoryCreateRequest, World } from '@/shared'
 import { MODE_META } from '@/shared/modes'
 import { NovelCreateModal } from '@/features/novel/components/NovelCreateModal'
@@ -72,6 +73,8 @@ export function LandingPage() {
     const { t } = useTranslation()
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
+    const pageFocused = usePageFocus()
+    const entryRefreshStartedRef = useRef(false)
     const {
         characters,
         worlds,
@@ -127,9 +130,11 @@ export function LandingPage() {
     // re-fetches and picks up media (theme/portrait) the creators persisted
     // without a loadData. Silent → no full-screen spinner, no unmount loop.
     useEffect(() => {
-        void loadData({ silent: true })
+        if (!pageFocused || !isPageFocused() || entryRefreshStartedRef.current) return
+        entryRefreshStartedRef.current = true
+        void loadData({ silent: true, entryPage: 'landing' })
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [pageFocused])
 
     const [query, setQuery] = useState('')
     const [filter, setFilter] = useState('All')

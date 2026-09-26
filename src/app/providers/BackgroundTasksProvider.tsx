@@ -12,6 +12,7 @@ import { Toast, type ToastTone } from '@/ui/primitives'
 import { parseApiTimestamp } from '@/utils/time'
 import { useAuth } from '../hooks/useAuth'
 import { useData } from '../hooks/useData'
+import { isPageFocused, usePageFocus } from '../hooks/usePageFocus'
 import { BackgroundTasksContext, type BackgroundTasksContextValue } from './backgroundTasksContext'
 
 const ACTIVE_STATUS_SET = new Set<string>(BACKGROUND_TASK_ACTIVE_STATUSES)
@@ -59,6 +60,7 @@ interface TaskNotice {
 
 export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     const { t } = useTranslation()
+    const pageFocused = usePageFocus()
     const { isAuthenticated, authEpoch = Number(isAuthenticated), accountKey = 'legacy' } = useAuth()
     const { loadData } = useData()
     const [tasks, setTasks] = useState<BackgroundTaskPublic[]>([])
@@ -68,6 +70,8 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     const [terminalHasMore, setTerminalHasMore] = useState<Record<'completed' | 'failed', boolean>>({ completed: false, failed: false })
     const previousStatusesRef = useRef<Map<string, string>>(new Map())
     const refreshInFlightRef = useRef(false)
+    const catchUpAfterFlightRef = useRef(false)
+    const [catchUpTick, setCatchUpTick] = useState(0)
     // Read inside refreshTasks (long-lived poll) without churning its identity.
     // `loadData` is a fresh closure on every DataProvider render; depending on it
     // directly made refreshTasks unstable, which restarted both poll effects (and
@@ -83,11 +87,12 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         drawerOpenRef.current = drawerOpen
     }, [drawerOpen])
 
-    const refreshTasks = useCallback(async () => {
-        if (!isAuthenticated || refreshInFlightRef.current) return
+    const refreshTasks = useCallback(async (automatic = false) => {
+        if (!isAuthenticated || (automatic && !isPageFocused()) || refreshInFlightRef.current) return
         refreshInFlightRef.current = true
         try {
             const owner = { authEpoch, accountKey }
+            let focusLost = false
             const fetchPages = async (
                 state: 'active' | 'terminal',
                 statuses: BackgroundTaskPublic['status'][],
@@ -99,6 +104,10 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 let page = 0
                 let hasMore = false
                 while (pages === undefined || page < pages) {
+                    if (automatic && !isPageFocused()) {
+                        focusLost = true
+                        throw new Error('Background poll paused')
+                    }
                     const response = await apiService.listTasks({
                         state,
                         operation: 'theme_song',
@@ -126,6 +135,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 { bucket: 'failed' as const, statuses: BACKGROUND_TASK_FAILED_STATUSES, request: fetchPages('terminal', BACKGROUND_TASK_FAILED_STATUSES, terminalPages.failed) },
             ]
             const results = await Promise.allSettled(groups.map((group) => group.request))
+            if (automatic && (focusLost || !isPageFocused())) return
             if (authOwnerRef.current.authEpoch !== owner.authEpoch || authOwnerRef.current.accountKey !== owner.accountKey) return
             const fulfilled = results.flatMap((result, index) => result.status === 'fulfilled'
                 ? [{ response: result.value, statuses: groups[index].statuses, bucket: groups[index].bucket }]
@@ -136,7 +146,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 for (const result of fulfilled) {
                     if (result.bucket !== 'active') next[result.bucket] = result.response.hasMore
                 }
-                return next
+                return next.completed === current.completed && next.failed === current.failed ? current : next
             })
             const refreshedStatuses = new Set(fulfilled.flatMap((item) => item.statuses))
             const nextTasks = mergeTaskLists(fulfilled.map((item) => item.response.items))
@@ -182,6 +192,10 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
             // Background task polling is non-critical; the next tick will retry.
         } finally {
             refreshInFlightRef.current = false
+            if (catchUpAfterFlightRef.current) {
+                catchUpAfterFlightRef.current = false
+                if (isPageFocused()) setCatchUpTick((tick) => tick + 1)
+            }
         }
     }, [accountKey, authEpoch, isAuthenticated, t, terminalPages])
 
@@ -254,10 +268,14 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     }, [isAuthenticated])
 
     useEffect(() => {
-        if (!isAuthenticated) return
-        const timer = window.setTimeout(() => void refreshTasks(), 0)
+        if (!isAuthenticated || !pageFocused) return
+        const timer = window.setTimeout(() => {
+            if (!isPageFocused()) return
+            if (refreshInFlightRef.current) catchUpAfterFlightRef.current = true
+            else void refreshTasks(true)
+        }, 0)
         return () => window.clearTimeout(timer)
-    }, [isAuthenticated, refreshTasks])
+    }, [catchUpTick, isAuthenticated, pageFocused, refreshTasks])
 
     const visibleTasks = useMemo(() => (isAuthenticated ? tasks : []), [isAuthenticated, tasks])
     const activeTasks = useMemo(() => visibleTasks.filter(isActiveTask), [visibleTasks])
@@ -271,11 +289,12 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     )
 
     useEffect(() => {
-        if (!isAuthenticated) return
-        const interval = activeTasks.length > 0 || drawerOpen ? 4_000 : 30_000
-        const id = window.setInterval(() => void refreshTasks(), interval)
+        if (!isAuthenticated || !pageFocused || (activeTasks.length === 0 && !drawerOpen)) return
+        const id = window.setInterval(() => {
+            if (isPageFocused()) void refreshTasks(true)
+        }, 4_000)
         return () => window.clearInterval(id)
-    }, [activeTasks.length, drawerOpen, isAuthenticated, refreshTasks])
+    }, [activeTasks.length, drawerOpen, isAuthenticated, pageFocused, refreshTasks])
 
     const value: BackgroundTasksContextValue = {
         tasks: visibleTasks,
@@ -283,7 +302,10 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         activeTasks,
         activeCount: activeTasks.length,
         drawerOpen: isAuthenticated && drawerOpen,
-        openDrawer: () => setDrawerOpen(true),
+        openDrawer: () => {
+            setDrawerOpen(true)
+            if (pageFocused) void refreshTasks()
+        },
         closeDrawer: () => setDrawerOpen(false),
         refreshTasks,
         registerTask,

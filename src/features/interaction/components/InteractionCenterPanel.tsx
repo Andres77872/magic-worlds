@@ -4,6 +4,7 @@ import {useTranslation} from 'react-i18next'
 import type {ChatNarratorIdentity, ChatResponseSegment, ChatSpeakerRosterEntry, ForwardOption, TurnEntry} from '../../../shared'
 import {apiService, type ImageJobPublicResponse, type TtsJobPublicResponse} from '../../../infrastructure/api'
 import {useAuth} from '../../../app/hooks'
+import {isPageFocused, usePageFocus} from '@/app/hooks/usePageFocus'
 import {ArrowDown, Loader2, RotateCcw, Sparkles, X} from 'lucide-react'
 import {Button, Icon, IconButton} from '../../../ui/primitives'
 import {ConfirmDialog} from '@/ui/components'
@@ -127,6 +128,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const { isAuthenticated, openLoginModal, token } = useAuth()
+    const pageFocused = usePageFocus()
     // `retryable` marks errors from a failed generation, where the banner can
     // offer a one-tap retry (regenerate / answer the trailing user turn).
     const [errorState, setErrorState] = useState<{ message: string; retryable: boolean } | null>(null)
@@ -325,7 +327,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
     }, [])
 
     const hydrateTurnsFromApi = useCallback(async () => {
-        if (!isAuthenticated || Number.isNaN(sessionId)) return
+        if (!isAuthenticated || Number.isNaN(sessionId) || !isPageFocused()) return
         // Never hydrate over an in-flight stream: the server projection can't
         // contain the streaming turn yet, so applying it would orphan
         // streamingIdRef and silently drop the rest of the generation.
@@ -354,19 +356,25 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         }
     }, [config, isAuthenticated, resolveTurnIdentities, sessionId, setTurnState, setError])
 
+    const imagePollInFlightRef = useRef(false)
     const pollNonTerminalImageJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
-        const jobs = snapshot.filter(hasNonTerminalImageJob)
-        for (const turn of jobs) {
-            if (!turn.imageJobId) continue
-            try {
-                const result: ImageJobPublicResponse = await apiService.getImageJob(turn.imageJobId)
-                const next = upsertImageJobResult(turnsRef.current, result)
-                if (next !== turnsRef.current) {
-                    setTurnState(next)
+        if (!isPageFocused() || imagePollInFlightRef.current) return
+        imagePollInFlightRef.current = true
+        try {
+            const jobs = snapshot.filter(hasNonTerminalImageJob)
+            for (const turn of jobs) {
+                if (!isPageFocused()) return
+                if (!turn.imageJobId) continue
+                try {
+                    const result: ImageJobPublicResponse = await apiService.getImageJob(turn.imageJobId)
+                    const next = upsertImageJobResult(turnsRef.current, result)
+                    if (next !== turnsRef.current) setTurnState(next)
+                } catch (err) {
+                    console.warn('Failed to poll image job:', err)
                 }
-            } catch (err) {
-                console.warn('Failed to poll image job:', err)
             }
+        } finally {
+            imagePollInFlightRef.current = false
         }
     }, [setTurnState])
 
@@ -374,25 +382,31 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         const next = upsertChatImageFrame(turnsRef.current, frame)
         if (next !== turnsRef.current) {
             setTurnState(next)
-            void pollNonTerminalImageJobs(next)
+            if (isPageFocused()) void pollNonTerminalImageJobs(next)
         }
     }, [pollNonTerminalImageJobs, setTurnState])
 
+    const ttsPollInFlightRef = useRef(false)
     const pollNonTerminalTtsJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
-        const jobs = snapshot.filter(hasNonTerminalTtsJob)
-        for (const turn of jobs) {
-            // A multi-voice turn has one job per clip; poll each non-terminal one.
-            for (const jobId of nonTerminalTtsJobIds(turn)) {
-                try {
-                    const result: TtsJobPublicResponse = await apiService.getTtsJob(jobId)
-                    const next = upsertTtsJobResult(turnsRef.current, result)
-                    if (next !== turnsRef.current) {
-                        setTurnState(next)
+        if (!isPageFocused() || ttsPollInFlightRef.current) return
+        ttsPollInFlightRef.current = true
+        try {
+            const jobs = snapshot.filter(hasNonTerminalTtsJob)
+            for (const turn of jobs) {
+                // A multi-voice turn has one job per clip; poll each non-terminal one.
+                for (const jobId of nonTerminalTtsJobIds(turn)) {
+                    if (!isPageFocused()) return
+                    try {
+                        const result: TtsJobPublicResponse = await apiService.getTtsJob(jobId)
+                        const next = upsertTtsJobResult(turnsRef.current, result)
+                        if (next !== turnsRef.current) setTurnState(next)
+                    } catch (err) {
+                        console.warn('Failed to poll tts job:', err)
                     }
-                } catch (err) {
-                    console.warn('Failed to poll tts job:', err)
                 }
             }
+        } finally {
+            ttsPollInFlightRef.current = false
         }
     }, [setTurnState])
 
@@ -412,7 +426,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         const next = upsertChatTtsFrame(turnsRef.current, frame)
         if (next !== turnsRef.current) {
             setTurnState(next)
-            void pollNonTerminalTtsJobs(next)
+            if (isPageFocused()) void pollNonTerminalTtsJobs(next)
         }
     }, [pollNonTerminalTtsJobs, setTurnState, t])
 
@@ -444,7 +458,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                 if (active) recoveryRef.current = { assistantMessageId: active.assistantMessageId, turnId: active.turnId, requestId: typeof active.metadata?.request_id === 'string' ? active.metadata.request_id : undefined, until: Date.now() + 30_000 }
                 deltaBatchRef.current?.flush()
                 failStreamingTurn(t('streaming.reconnecting'))
-                void hydrateTurnsFromApi()
+                if (isPageFocused()) void hydrateTurnsFromApi()
             },
             onDelta: (content) => {
                 if (!streamingIdRef.current) return
@@ -526,8 +540,10 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                 rawResponseRef.current = ''
                 restoreRef.current = null
                 setIsLoading(false)
-                void hydrateTurnsFromApi()
-                void pollNonTerminalImageJobs(next)
+                if (isPageFocused()) {
+                    void hydrateTurnsFromApi()
+                    void pollNonTerminalImageJobs(next)
+                }
                 // Auto-narrate: request TTS for the just-finished GM turn. The audio
                 // streams back over the same socket; playback still needs a tap (see
                 // TurnNarration) because WS callbacks have no user-gesture context.
@@ -610,17 +626,29 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         setHasNewBelow(true)
     }, [turns])
 
+    // Reconcile after a connection opens or the reader returns to this tab.
+    const hasPendingImageJob = turns.some(hasNonTerminalImageJob)
+    const hasPendingTtsJob = turns.some(hasNonTerminalTtsJob)
+    const lastPresenceRef = useRef({ socketStatus: 'closed' as typeof socketStatus, pageFocused })
     useEffect(() => {
-        if (socketStatus === 'open') {
-            void hydrateTurnsFromApi()
+        const previous = lastPresenceRef.current
+        lastPresenceRef.current = { socketStatus, pageFocused }
+        const resumed = pageFocused && !previous.pageFocused
+        const connected = pageFocused && socketStatus === 'open' && previous.socketStatus !== 'open'
+        if (resumed && recoveryRef.current) recoveryRef.current.until = Date.now() + 30_000
+        if (resumed || connected) void hydrateTurnsFromApi()
+        if (resumed) {
+            if (hasPendingImageJob) void pollNonTerminalImageJobs()
+            if (hasPendingTtsJob) void pollNonTerminalTtsJobs()
         }
-    }, [hydrateTurnsFromApi, socketStatus])
+    }, [hasPendingImageJob, hasPendingTtsJob, hydrateTurnsFromApi, pageFocused, pollNonTerminalImageJobs, pollNonTerminalTtsJobs, socketStatus])
 
     // Reconnect may race the server's interrupted-turn commit. Re-read briefly,
     // without replaying the chat or replacing visible partial text with a spinner.
     useEffect(() => {
+        if (!pageFocused) return
         const timer = window.setInterval(() => {
-            if (!recoveryRef.current) return
+            if (!isPageFocused() || !recoveryRef.current) return
             if (Date.now() > recoveryRef.current.until) {
                 console.warn('text_stream_recovery_failed', { requestId: recoveryRef.current.requestId, surface: 'chat' })
                 recoveryRef.current = null
@@ -629,7 +657,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             void hydrateTurnsFromApi()
         }, 2_000)
         return () => window.clearInterval(timer)
-    }, [hydrateTurnsFromApi])
+    }, [hydrateTurnsFromApi, pageFocused])
 
     // The parent-seeded turns render before the first hydration, so attach
     // roster portraits to them once at mount (both callbacks are stable).
@@ -642,27 +670,22 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
     // streamed chunk, so an interval keyed on it was cleared and recreated many times
     // a second and never reached its 3s tick — precisely during the stream the poller
     // exists to recover from. Both callbacks read the latest turns through a ref.
-    const hasPendingImageJob = turns.some(hasNonTerminalImageJob)
-    const hasPendingTtsJob = turns.some(hasNonTerminalTtsJob)
     useEffect(() => {
-        if (!hasPendingImageJob && !hasPendingTtsJob) return
+        if (!pageFocused || (!hasPendingImageJob && !hasPendingTtsJob)) return
         const timer = window.setInterval(() => {
+            if (!isPageFocused()) return
             if (hasPendingImageJob) void pollNonTerminalImageJobs()
             if (hasPendingTtsJob) void pollNonTerminalTtsJobs()
         }, 3_000)
         return () => window.clearInterval(timer)
-    }, [hasPendingImageJob, hasPendingTtsJob, pollNonTerminalImageJobs, pollNonTerminalTtsJobs])
+    }, [hasPendingImageJob, hasPendingTtsJob, pageFocused, pollNonTerminalImageJobs, pollNonTerminalTtsJobs])
 
     useEffect(() => {
         const recover = () => {
-            if (document.visibilityState === 'visible') {
-                void hydrateTurnsFromApi()
-            }
+            if (isPageFocused()) void hydrateTurnsFromApi()
         }
-        document.addEventListener('visibilitychange', recover)
         window.addEventListener('online', recover)
         return () => {
-            document.removeEventListener('visibilitychange', recover)
             window.removeEventListener('online', recover)
         }
     }, [hydrateTurnsFromApi])

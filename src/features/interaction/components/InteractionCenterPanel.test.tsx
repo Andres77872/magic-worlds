@@ -12,6 +12,7 @@ vi.mock('../../../infrastructure/api/useAuthenticatedMediaUrl', () => ({
 
 const hookMocks = vi.hoisted(() => ({
     useAdventureChatSocket: vi.fn(),
+    pageFocused: true,
 }))
 
 vi.mock('../../../app/hooks', () => ({
@@ -25,6 +26,11 @@ vi.mock('../../../app/hooks', () => ({
 
 vi.mock('../hooks/useAdventureChatSocket', () => ({
     useAdventureChatSocket: hookMocks.useAdventureChatSocket,
+}))
+
+vi.mock('@/app/hooks/usePageFocus', () => ({
+    usePageFocus: () => hookMocks.pageFocused,
+    isPageFocused: () => hookMocks.pageFocused,
 }))
 
 const initialTurns: TurnEntry[] = [
@@ -71,6 +77,7 @@ describe('InteractionCenterPanel message deletion', () => {
     beforeEach(() => {
         localStorage.clear()
         vi.restoreAllMocks()
+        hookMocks.pageFocused = true
         // The session-lore hook lists attachments on mount; keep it empty + offline-safe.
         vi.spyOn(apiService, 'listLorebookAttachments').mockResolvedValue([])
         hookMocks.useAdventureChatSocket.mockReturnValue({
@@ -86,6 +93,7 @@ describe('InteractionCenterPanel message deletion', () => {
     })
 
     afterEach(() => {
+        vi.useRealTimers()
         vi.unstubAllEnvs()
     })
 
@@ -636,4 +644,152 @@ describe('InteractionCenterPanel message deletion', () => {
         await waitFor(() => expect(sendChat).toHaveBeenCalled())
         expect(sendChat).toHaveBeenCalledWith('Look around', expect.any(String))
     })
+    it('pauses image job polling while unfocused and catches up when focus returns', async () => {
+        hookMocks.pageFocused = false
+        const seed: TurnEntry[] = [{
+            id: '201',
+            type: 'ai',
+            content: 'The mirror catches candlelight.',
+            timestamp: '2026-06-04T00:00:01',
+            assistantMessageId: 201,
+            turnId: 'turn-char-1',
+            imageStatus: 'in_progress',
+            imageJobId: 'img-char-1',
+        }]
+        const loadTurns = vi.fn(async () => seed)
+        const getImageJob = vi.spyOn(apiService, 'getImageJob').mockResolvedValue({
+            job_id: 'img-char-1',
+            status: 'in_progress',
+            status_url: '',
+            result_url: '',
+        })
+        vi.useFakeTimers()
+        renderPanel(makeConfig({ loadTurns }), seed)
+
+        await act(async () => { vi.advanceTimersByTime(9_000) })
+        expect(loadTurns).not.toHaveBeenCalled()
+        expect(getImageJob).not.toHaveBeenCalled()
+
+        hookMocks.pageFocused = true
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Back on this tab' } })
+        await act(async () => {})
+        expect(loadTurns).toHaveBeenCalledTimes(1)
+        expect(getImageJob).toHaveBeenCalledTimes(1)
+
+        await act(async () => { vi.advanceTimersByTime(3_000) })
+        expect(getImageJob).toHaveBeenCalledTimes(2)
+
+        hookMocks.pageFocused = false
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Away again' } })
+        await act(async () => { vi.advanceTimersByTime(9_000) })
+        expect(getImageJob).toHaveBeenCalledTimes(2)
+    })
+
+
+    it('keeps image and narration polling single-flight during slow responses', async () => {
+        const seed: TurnEntry[] = [{
+            id: '201',
+            type: 'ai',
+            content: 'The mirror catches candlelight.',
+            timestamp: '2026-06-04T00:00:01',
+            assistantMessageId: 201,
+            turnId: 'turn-char-1',
+            imageStatus: 'in_progress',
+            imageJobId: 'img-char-1',
+            ttsStatus: 'in_progress',
+            ttsJobId: 'tts-char-1',
+        }]
+        const imageResult = { job_id: 'img-char-1', status: 'in_progress' as const, status_url: '', result_url: '' }
+        const ttsResult = { job_id: 'tts-char-1', status: 'in_progress' as const, status_url: '', result_url: '' }
+        let finishImage!: (value: typeof imageResult) => void
+        let finishTts!: (value: typeof ttsResult) => void
+        const getImageJob = vi.spyOn(apiService, 'getImageJob')
+            .mockImplementationOnce(() => new Promise((resolve) => { finishImage = resolve }))
+            .mockResolvedValue(imageResult)
+        const getTtsJob = vi.spyOn(apiService, 'getTtsJob')
+            .mockImplementationOnce(() => new Promise((resolve) => { finishTts = resolve }))
+            .mockResolvedValue(ttsResult)
+        vi.useFakeTimers()
+        renderPanel(makeConfig({ loadTurns: vi.fn(async () => seed) }), seed)
+
+        await act(async () => { vi.advanceTimersByTime(12_000) })
+        expect(getImageJob).toHaveBeenCalledTimes(1)
+        expect(getTtsJob).toHaveBeenCalledTimes(1)
+
+        await act(async () => {
+            finishImage(imageResult)
+            finishTts(ttsResult)
+        })
+        await act(async () => { vi.advanceTimersByTime(3_000) })
+        expect(getImageJob).toHaveBeenCalledTimes(2)
+        expect(getTtsJob).toHaveBeenCalledTimes(2)
+    })
+
+
+    it('stops a sequential media scan before its next job when focus is lost mid-request', async () => {
+        const seed: TurnEntry[] = [201, 202].map((id) => ({
+            id: String(id),
+            type: 'ai',
+            content: 'The mirror catches candlelight.',
+            timestamp: '2026-06-04T00:00:01',
+            assistantMessageId: id,
+            turnId: 'turn-char-1',
+            imageStatus: 'in_progress',
+            imageJobId: 'img-char-' + id,
+            ttsStatus: 'in_progress',
+            ttsJobId: 'tts-char-' + id,
+        }))
+        const imageResult = { job_id: 'img-char-201', status: 'in_progress' as const, status_url: '', result_url: '' }
+        const ttsResult = { job_id: 'tts-char-201', status: 'in_progress' as const, status_url: '', result_url: '' }
+        let finishImage!: (value: typeof imageResult) => void
+        let finishTts!: (value: typeof ttsResult) => void
+        const getImageJob = vi.spyOn(apiService, 'getImageJob')
+            .mockImplementationOnce(() => new Promise((resolve) => { finishImage = resolve }))
+            .mockResolvedValue(imageResult)
+        const getTtsJob = vi.spyOn(apiService, 'getTtsJob')
+            .mockImplementationOnce(() => new Promise((resolve) => { finishTts = resolve }))
+            .mockResolvedValue(ttsResult)
+        vi.useFakeTimers()
+        renderPanel(makeConfig({ loadTurns: vi.fn(async () => seed) }), seed)
+
+        await act(async () => { vi.advanceTimersByTime(3_000) })
+        expect(getImageJob).toHaveBeenCalledTimes(1)
+        expect(getTtsJob).toHaveBeenCalledTimes(1)
+
+        // This changes the live focus reading before React cleans up either interval.
+        hookMocks.pageFocused = false
+        await act(async () => {
+            finishImage(imageResult)
+            finishTts(ttsResult)
+        })
+        expect(getImageJob).toHaveBeenCalledTimes(1)
+        expect(getTtsJob).toHaveBeenCalledTimes(1)
+    })
+
+    it('defers interrupted-turn recovery until the page regains focus', async () => {
+        hookMocks.pageFocused = false
+        let handlers: { onConnectionLost: () => void } | undefined
+        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, callbacks: never) => {
+            handlers = callbacks
+            return { status: 'open', sendChat: vi.fn(), sendTts: vi.fn(), cancel: vi.fn() }
+        })
+        const loadTurns = vi.fn(async () => [])
+        vi.useFakeTimers()
+        renderPanel(makeConfig({ loadTurns }), [])
+
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        act(() => handlers!.onConnectionLost())
+        await act(async () => { vi.advanceTimersByTime(6_000) })
+        expect(loadTurns).not.toHaveBeenCalled()
+
+        hookMocks.pageFocused = true
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Back on this tab' } })
+        await act(async () => {})
+        expect(loadTurns).toHaveBeenCalledTimes(1)
+
+        await act(async () => { vi.advanceTimersByTime(2_000) })
+        expect(loadTurns).toHaveBeenCalledTimes(2)
+    })
+
 })

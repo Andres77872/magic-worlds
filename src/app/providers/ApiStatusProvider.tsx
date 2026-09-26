@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { isPageFocused, usePageFocus } from '@/app/hooks/usePageFocus'
 import { apiService } from '@/infrastructure/api'
 import { ApiStatusContext, type ApiStatus, type ApiStatusContextValue } from './apiStatusContext'
 
@@ -17,6 +18,8 @@ export function ApiStatusProvider({
     pollIntervalMs = API_STATUS_POLL_INTERVAL_MS,
     timeoutMs = API_STATUS_TIMEOUT_MS,
 }: ApiStatusProviderProps) {
+    const pageFocused = usePageFocus()
+    const offlineChecksRef = useRef(0)
     const [value, setValue] = useState<ApiStatusContextValue>({
         status: 'checking',
         services: [],
@@ -24,28 +27,28 @@ export function ApiStatusProvider({
     })
 
     useEffect(() => {
+        if (!pageFocused) return
         let isMounted = true
         let isInFlight = false
         let controller: AbortController | null = null
-        let offlineChecks = 0
         const toApiStatus = (status: string): ApiStatus =>
             status === 'ok' ? 'online' : status === 'degraded' ? 'degraded' : 'offline'
 
         const updateStatus = (nextValue: Omit<ApiStatusContextValue, 'showServicesDownBanner'>) => {
             if (nextValue.status === 'offline') {
-                offlineChecks += 1
+                offlineChecksRef.current += 1
             } else {
-                offlineChecks = 0
+                offlineChecksRef.current = 0
             }
 
             setValue({
                 ...nextValue,
-                showServicesDownBanner: offlineChecks >= API_STATUS_BANNER_OFFLINE_THRESHOLD,
+                showServicesDownBanner: offlineChecksRef.current >= API_STATUS_BANNER_OFFLINE_THRESHOLD,
             })
         }
 
         const check = async () => {
-            if (isInFlight) return
+            if (!isPageFocused() || isInFlight) return
             isInFlight = true
             controller = new AbortController()
             const timeoutId = window.setTimeout(() => controller?.abort(), timeoutMs)
@@ -93,7 +96,7 @@ export function ApiStatusProvider({
             controller?.abort()
             window.clearInterval(intervalId)
         }
-    }, [pollIntervalMs, timeoutMs])
+    }, [pageFocused, pollIntervalMs, timeoutMs])
 
     return <ApiStatusContext.Provider value={value}>{children}</ApiStatusContext.Provider>
 }

@@ -4,7 +4,7 @@ import type { TextGenerationOptions } from '@/shared/types/textGeneration.types'
  * Uses API for data persistence instead of localStorage
  */
 
-import { createContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type {
     Character,
     World,
@@ -41,8 +41,20 @@ import {
     writableAdventureSnapshot,
 } from '../../features/interaction/utils/adventureSnapshot'
 import { useAuth } from '../hooks/useAuth'
+import { isPageFocused, usePageFocus } from '../hooks/usePageFocus'
+import { NavigationContext } from './NavigationProvider'
+import { pageFromHash } from '../../features/gallery/galleryLinks'
 
 export type CharacterChatMode = 'text' | 'voice'
+
+type EntryRefreshPage = 'landing' | 'chatroom' | 'active-adventures'
+interface DataLoadOptions {
+    silent?: boolean
+    /** Automatic refresh on entering one of the library-backed pages. */
+    entryPage?: EntryRefreshPage
+    /** Internal: marks an auth-triggered load so its first page mount can reuse it. */
+    automatic?: boolean
+}
 
 interface DataContextValue {
     // Characters
@@ -145,7 +157,7 @@ interface DataContextValue {
 
     // Actions
     /** `silent` refreshes lists in place without flipping the global loading spinner. */
-    loadData: (opts?: { silent?: boolean }) => Promise<void>
+    loadData: (opts?: DataLoadOptions) => Promise<void>
     clearAllData: () => Promise<void>
 }
 
@@ -358,6 +370,13 @@ export function DataProvider({ children }: DataProviderProps) {
     // Auth state for graceful degradation
     const auth = useAuth()
     const { isAuthenticated, openLoginModal } = auth
+    const pageFocused = usePageFocus()
+    const navigation = useContext(NavigationContext)
+    const currentPage = navigation?.currentPage ?? pageFromHash()
+    const currentPageRef = useRef(currentPage)
+    useLayoutEffect(() => {
+        currentPageRef.current = currentPage
+    }, [currentPage])
     const authEpoch = auth.authEpoch ?? Number(isAuthenticated)
     const accountKey = auth.accountKey ?? (isAuthenticated ? 'legacy-authenticated' : 'legacy-signed-out')
     const sessionPhase = auth.sessionPhase ?? (isAuthenticated ? 'authenticated' : 'signed_out')
@@ -366,6 +385,22 @@ export function DataProvider({ children }: DataProviderProps) {
     const activeStoryOwnerRef = useRef<string | null>(null)
     const authExpiredEventRef = useRef(false)
     const expiredAccountKeyRef = useRef<string | null>(null)
+    const signedOutHandledRef = useRef(false)
+    const startedAuthLoadRef = useRef<{ authEpoch: number; accountKey: string } | null>(null)
+    const bootstrapLoadRef = useRef<{
+        authEpoch: number
+        accountKey: string
+        page: string | null
+        promise: Promise<void> | null
+        consumed: boolean
+    } | null>(null)
+    const skipNextEntryRef = useRef<{ authEpoch: number; accountKey: string; page: string | null } | null>(null)
+
+    // A bootstrap skip belongs only to the page that was already selected when
+    // the full library load completed. Navigating elsewhere invalidates it.
+    useEffect(() => {
+        if (skipNextEntryRef.current?.page !== currentPage) skipNextEntryRef.current = null
+    }, [currentPage])
 
     const setOwnedActiveStory: typeof setActiveStory = (next) => {
         setActiveStory((current) => {
@@ -963,9 +998,28 @@ export function DataProvider({ children }: DataProviderProps) {
     // AppRouter swaps the whole page for <LoadingSpinner/> whenever isLoading is true,
     // so a silent run is what lets the dashboard re-fetch on every visit (picking up
     // media persisted by the creators) without the unmount/flicker/loop.
-    const loadData = async (opts?: { silent?: boolean }) => {
+    const loadData = async (opts?: DataLoadOptions) => {
         const silent = opts?.silent ?? false
         const loadOwner = { authEpoch, accountKey }
+        if (opts?.entryPage) {
+            if (!isAuthenticated || !isPageFocused() || !hasLoadedOnceRef.current) return
+            // A child page effect can run before this provider's auth effect. Its
+            // entry load then owns the new auth epoch so the parent does not
+            // launch a second full sweep in the same commit.
+            const started = startedAuthLoadRef.current
+            if (isAuthenticated && (started?.authEpoch !== authEpoch || started.accountKey !== accountKey)) {
+                startedAuthLoadRef.current = { authEpoch, accountKey }
+            }
+            const pending = bootstrapLoadRef.current
+            const skip = skipNextEntryRef.current
+            skipNextEntryRef.current = null
+            if (pending && pending.authEpoch === authEpoch && pending.accountKey === accountKey) {
+                pending.consumed = true
+                if (pending.page === opts.entryPage && pending.promise) return pending.promise
+            }
+            if (skip && skip.authEpoch === authEpoch && skip.accountKey === accountKey
+                && skip.page === opts.entryPage && currentPage === opts.entryPage) return
+        }
         const ownerIsCurrent = () => authOwnerRef.current.authEpoch === loadOwner.authEpoch
             && authOwnerRef.current.accountKey === loadOwner.accountKey
         try {
@@ -1111,6 +1165,17 @@ export function DataProvider({ children }: DataProviderProps) {
                 }
                 return { isLoading: false, error: nextError }
             })
+            if (opts?.automatic && !silent && failures.length === 0) {
+                const bootstrap = bootstrapLoadRef.current
+                if (bootstrap && !bootstrap.consumed && bootstrap.authEpoch === authEpoch
+                    && bootstrap.accountKey === accountKey && currentPageRef.current === bootstrap.page) {
+                    skipNextEntryRef.current = {
+                        authEpoch,
+                        accountKey,
+                        page: bootstrap.page,
+                    }
+                }
+            }
             hasLoadedOnceRef.current = true
             authExpiredEventRef.current = false
             expiredAccountKeyRef.current = null
@@ -1187,14 +1252,42 @@ export function DataProvider({ children }: DataProviderProps) {
     // Restoring a saved login flips isAuthenticated without changing authEpoch:
     // the session coordinator already initialized that ownership from storage.
     useEffect(() => {
+        if (!isAuthenticated) {
+            if (signedOutHandledRef.current) return
+            signedOutHandledRef.current = true
+            startedAuthLoadRef.current = null
+            bootstrapLoadRef.current = null
+            skipNextEntryRef.current = null
+            void loadData({ silent: hasLoadedOnceRef.current })
+            return
+        }
+        signedOutHandledRef.current = false
+        const started = startedAuthLoadRef.current
+        if (started?.authEpoch === authEpoch && started.accountKey === accountKey) return
+        // Keep the initial spinner in place while a background tab waits for focus.
+        if (!pageFocused || !isPageFocused()) return
+        startedAuthLoadRef.current = { authEpoch, accountKey }
+
         // An older session's blocking request can no longer finish after ownership
         // changes. Release its spinner before starting this session's silent load.
         if (hasLoadedOnceRef.current) {
             setLoadingState((prev) => prev.isLoading ? { ...prev, isLoading: false } : prev)
         }
-        loadData({ silent: hasLoadedOnceRef.current })
+        const bootstrap = {
+            authEpoch,
+            accountKey,
+            page: currentPage,
+            promise: null as Promise<void> | null,
+            consumed: false,
+        }
+        bootstrapLoadRef.current = bootstrap
+        const promise = loadData({ silent: hasLoadedOnceRef.current, automatic: true })
+        bootstrap.promise = promise
+        void promise.finally(() => {
+            if (bootstrapLoadRef.current === bootstrap) bootstrapLoadRef.current = null
+        })
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [authEpoch, isAuthenticated])
+    }, [accountKey, authEpoch, isAuthenticated, pageFocused])
     
     // Extract isLoading and error from loadingState
     const { isLoading = false, error = null } = loadingState

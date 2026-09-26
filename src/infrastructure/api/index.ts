@@ -3287,6 +3287,65 @@ class ApiService {
         })
     }
 
+    private isPageFocused(): boolean {
+        return typeof document === 'undefined' || (document.visibilityState === 'visible' && document.hasFocus())
+    }
+
+    /** Wait for the next poll slot, suspending automatic requests outside the focused page. */
+    private waitForFocusedPoll(intervalMs: number, signal?: AbortSignal): Promise<void> {
+        if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
+        if (typeof document === 'undefined' || typeof window === 'undefined') return this.delay(intervalMs, signal)
+
+        const focused = () => this.isPageFocused()
+        if (intervalMs === 0 && focused()) return Promise.resolve()
+
+        return new Promise((resolve, reject) => {
+            let timer: ReturnType<typeof setTimeout> | null = null
+            let paused = !focused()
+            const cleanup = () => {
+                if (timer !== null) clearTimeout(timer)
+                window.removeEventListener('focus', onFocusChange)
+                window.removeEventListener('blur', onFocusChange)
+                document.removeEventListener('visibilitychange', onFocusChange)
+                signal?.removeEventListener('abort', onAbort)
+            }
+            const onAbort = () => {
+                cleanup()
+                reject(new DOMException('Aborted', 'AbortError'))
+            }
+            const onFocusChange = () => {
+                if (!focused()) {
+                    paused = true
+                    if (timer !== null) clearTimeout(timer)
+                    timer = null
+                    return
+                }
+                if (paused) {
+                    cleanup()
+                    resolve()
+                    return
+                }
+                if (timer === null) {
+                    timer = setTimeout(() => {
+                        timer = null
+                        if (focused()) {
+                            cleanup()
+                            resolve()
+                        } else {
+                            paused = true
+                        }
+                    }, intervalMs)
+                }
+            }
+            window.addEventListener('focus', onFocusChange)
+            window.addEventListener('blur', onFocusChange)
+            document.addEventListener('visibilitychange', onFocusChange)
+            signal?.addEventListener('abort', onAbort, { once: true })
+            if (signal?.aborted) onAbort()
+            else onFocusChange()
+        })
+    }
+
     /**
      * Poll `fetchJob` until its `status` leaves `nonTerminalStatuses` or the
      * deadline passes, returning the last job either way. Shared by the TTS,
@@ -3300,13 +3359,47 @@ class ApiService {
     ): Promise<T> {
         const nonTerminal = new Set<string>(nonTerminalStatuses)
         const interval = opts.intervalMs ?? defaults.intervalMs
-        const deadline = Date.now() + (opts.maxWaitMs ?? defaults.maxWaitMs)
-        for (;;) {
-            const job = await fetchJob()
-            opts.onUpdate?.(job)
-            if (!nonTerminal.has(job.status)) return job
-            if (Date.now() >= deadline) return job
-            await this.delay(interval, opts.signal)
+        const maxWaitMs = opts.maxWaitMs ?? defaults.maxWaitMs
+        let focusedElapsedMs = 0
+        let focusedAt: number | null = this.isPageFocused() ? Date.now() : null
+        const trackFocus = () => {
+            const now = Date.now()
+            if (this.isPageFocused()) {
+                if (focusedAt === null) focusedAt = now
+            } else if (focusedAt !== null) {
+                focusedElapsedMs += now - focusedAt
+                focusedAt = null
+            }
+        }
+        if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+            window.addEventListener('focus', trackFocus)
+            window.addEventListener('blur', trackFocus)
+            document.addEventListener('visibilitychange', trackFocus)
+        }
+        try {
+            let nextInterval = 0
+            for (;;) {
+                await this.waitForFocusedPoll(nextInterval, opts.signal)
+                // Focus can change between the wake-up event and this continuation.
+                if (!this.isPageFocused()) {
+                    nextInterval = 0
+                    continue
+                }
+                const job = await fetchJob()
+                opts.signal?.throwIfAborted()
+                opts.onUpdate?.(job)
+                if (!nonTerminal.has(job.status)) return job
+                trackFocus()
+                const activeTimeMs = focusedElapsedMs + (focusedAt === null ? 0 : Date.now() - focusedAt)
+                if (activeTimeMs >= maxWaitMs) return job
+                nextInterval = interval
+            }
+        } finally {
+            if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+                window.removeEventListener('focus', trackFocus)
+                window.removeEventListener('blur', trackFocus)
+                document.removeEventListener('visibilitychange', trackFocus)
+            }
         }
     }
 

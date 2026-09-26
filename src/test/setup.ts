@@ -26,6 +26,10 @@ class NoopObserver {
 globalThis.IntersectionObserver ??= NoopObserver as unknown as typeof IntersectionObserver
 globalThis.ResizeObserver ??= NoopObserver as unknown as typeof ResizeObserver
 
+// jsdom has no focused browsing context. Model the normal foreground tab by default;
+// focus-sensitive tests can override this method and dispatch focus/blur events.
+Object.defineProperty(document, 'hasFocus', { configurable: true, value: () => true })
+
 beforeEach(() => {
     installMockBrowserMedia()
 })

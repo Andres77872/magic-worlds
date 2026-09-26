@@ -3,16 +3,22 @@
  * must never unmount the current page (silent reload) nor destroy the open
  * story (expiry-safe clearing). Explicit logout still clears everything.
  */
-import { useContext } from 'react'
+import { useContext, useEffect } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const openLoginModal = vi.fn()
 let authenticated = true
 let authEpoch: number | undefined
+let pageFocused = true
 
 vi.mock('../hooks/useAuth', () => ({
     useAuth: () => ({ isAuthenticated: authenticated, authEpoch, openLoginModal }),
+}))
+
+vi.mock('../hooks/usePageFocus', () => ({
+    usePageFocus: () => pageFocused,
+    isPageFocused: () => pageFocused,
 }))
 
 vi.mock('@/infrastructure', () => {
@@ -67,6 +73,7 @@ function Probe() {
             <span data-testid="persona-names">{ctx?.characters.filter((card) => card.role === 'persona').map((card) => card.name).join(', ')}</span>
             <button type="button" onClick={() => ctx?.setActiveStory(STORY)}>Open story</button>
             <button type="button" onClick={() => void ctx?.loadData()}>Reload data</button>
+            <button type="button" onClick={() => void ctx?.loadData({ silent: true, entryPage: 'landing' })}>Enter landing</button>
             <span data-testid="loading-log">{loadingLog.some((v, i) => v && i > 0 && !loadingLog[i - 1]) ? 'respun' : 'stable'}</span>
             <span data-testid="is-loading">{String(ctx?.isLoading ?? false)}</span>
         </div>
@@ -81,12 +88,24 @@ function renderProvider() {
     )
 }
 
+function EntryOnMountProbe() {
+    const ctx = useContext(DataContext)
+    useEffect(() => {
+        void ctx?.loadData({ silent: true, entryPage: 'landing' })
+        // Test the child-before-parent passive effect ordering on auth transition.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+    return <span data-testid="entry-ready">{String(ctx?.isLoading === false)}</span>
+}
+
 describe('DataProvider auth transitions', () => {
     beforeEach(() => {
         vi.clearAllMocks()
         vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
         authenticated = true
         authEpoch = undefined
+        pageFocused = true
+        window.history.replaceState(null, '', '#/')
         loadingLog.length = 0
         vi.mocked(apiService.getCharacters).mockResolvedValue([])
         vi.mocked(apiService.getStories).mockResolvedValue([STORY])
@@ -94,6 +113,80 @@ describe('DataProvider auth transitions', () => {
 
     afterEach(() => {
         vi.unstubAllEnvs()
+    })
+
+
+
+    it('does one full sweep when a child entry effect runs before the provider auth effect', async () => {
+        authenticated = false
+        const view = renderProvider()
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
+        authenticated = true
+        view.rerender(<DataProvider><EntryOnMountProbe /></DataProvider>)
+        await waitFor(() => expect(apiService.getCharacters).toHaveBeenCalledTimes(1))
+        expect(screen.getByTestId('entry-ready')).toHaveTextContent('true')
+    })
+
+    it('waits for focus before the authenticated bootstrap and does not reload on every focus return', async () => {
+        pageFocused = false
+        const view = renderProvider()
+        expect(apiService.getCharacters).not.toHaveBeenCalled()
+
+        pageFocused = true
+        view.rerender(<DataProvider><Probe /></DataProvider>)
+        await waitFor(() => expect(apiService.getCharacters).toHaveBeenCalledTimes(1))
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
+
+        pageFocused = false
+        view.rerender(<DataProvider><Probe /></DataProvider>)
+        pageFocused = true
+        view.rerender(<DataProvider><Probe /></DataProvider>)
+        expect(apiService.getCharacters).toHaveBeenCalledTimes(1)
+    })
+
+    it('uses the bootstrap result for one immediate page entry, then refreshes on later entry and manually', async () => {
+        renderProvider()
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
+        expect(apiService.getCharacters).toHaveBeenCalledTimes(1)
+
+        act(() => screen.getByRole('button', { name: 'Enter landing' }).click())
+        expect(apiService.getCharacters).toHaveBeenCalledTimes(1)
+
+        act(() => screen.getByRole('button', { name: 'Enter landing' }).click())
+        await waitFor(() => expect(apiService.getCharacters).toHaveBeenCalledTimes(2))
+
+        act(() => screen.getByRole('button', { name: 'Reload data' }).click())
+        await waitFor(() => expect(apiService.getCharacters).toHaveBeenCalledTimes(3))
+    })
+
+    it('refreshes on first page entry when bootstrap loaded a different page', async () => {
+        window.history.replaceState(null, '', '#/gallery/characters')
+        renderProvider()
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
+        expect(apiService.getCharacters).toHaveBeenCalledTimes(1)
+
+        act(() => screen.getByRole('button', { name: 'Enter landing' }).click())
+        await waitFor(() => expect(apiService.getCharacters).toHaveBeenCalledTimes(2))
+    })
+    it('does not preserve a bootstrap skip after navigating away during loading', async () => {
+        let releaseCharacters!: () => void
+        const gate = new Promise<void>((resolve) => { releaseCharacters = resolve })
+        vi.mocked(apiService.getCharacters).mockImplementationOnce(async () => {
+            await gate
+            return []
+        })
+        const view = renderProvider()
+        expect(apiService.getCharacters).toHaveBeenCalledTimes(1)
+
+        window.history.replaceState(null, '', '#/gallery/characters')
+        view.rerender(<DataProvider><Probe /></DataProvider>)
+        await act(async () => { releaseCharacters(); await Promise.resolve() })
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
+
+        window.history.replaceState(null, '', '#/')
+        view.rerender(<DataProvider><Probe /></DataProvider>)
+        act(() => screen.getByRole('button', { name: 'Enter landing' }).click())
+        await waitFor(() => expect(apiService.getCharacters).toHaveBeenCalledTimes(2))
     })
 
     it('loads saved personas when persisted login becomes ready without advancing the auth epoch', async () => {

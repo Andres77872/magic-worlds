@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { MessageCircle, MessageCirclePlus, Search, Users, X } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
+import { isPageFocused, usePageFocus } from '@/app/hooks/usePageFocus'
 import type { Character, CharacterChatSession } from '@/shared'
 import { EmptyState, ConfirmDialog, LoadingSpinner } from '@/ui/components'
 import { Button, Icon, IconButton, IconTile, Input, PageHeader, Toast } from '@/ui/primitives'
@@ -33,6 +34,8 @@ export function ChatroomPage() {
     const { t } = useTranslation()
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
+    const pageFocused = usePageFocus()
+    const entryRefreshStartedRef = useRef(false)
     const {
         characters,
         characterChats,
@@ -58,16 +61,20 @@ export function ChatroomPage() {
     }, [])
 
     useEffect(() => {
-        let current = true
-        if (isAuthenticated) {
-            void loadData({ silent: true }).finally(() => {
-                if (current) setRefreshing(false)
-            })
+        if (!isAuthenticated) {
+            entryRefreshStartedRef.current = false
+            return
         }
+        if (!pageFocused || !isPageFocused() || entryRefreshStartedRef.current) return
+        entryRefreshStartedRef.current = true
+        let current = true
+        void loadData({ silent: true, entryPage: 'chatroom' }).finally(() => {
+            if (current) setRefreshing(false)
+        })
         // Refresh the gallery on entry without swapping the whole app to loading.
         return () => { current = false }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAuthenticated])
+    }, [isAuthenticated, pageFocused])
 
     const refreshLibrary = async () => {
         setRefreshing(true)

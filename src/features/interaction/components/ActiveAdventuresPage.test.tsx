@@ -66,7 +66,7 @@ describe('ActiveAdventuresPage', () => {
         expect(screen.getByTestId('active-adventures-page')).toBeInTheDocument()
         expect(screen.getByText('Lost Keep')).toBeInTheDocument()
         expect(screen.getByText('Sunken Gate')).toBeInTheDocument()
-        expect(loadData).toHaveBeenCalledWith({ silent: true })
+        expect(loadData).toHaveBeenCalledWith({ silent: true, entryPage: 'active-adventures' })
 
         fireEvent.click(screen.getByRole('button', { name: 'Continue the tale: Lost Keep' }))
 

@@ -3,9 +3,9 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BackgroundTaskPublic } from '@/shared'
 
-const authMock = vi.hoisted(() => ({ isAuthenticated: true }))
+const authMock = vi.hoisted(() => ({ isAuthenticated: true, authEpoch: 1, accountKey: 'account-a' }))
 vi.mock('../hooks/useAuth', () => ({
-    useAuth: () => ({ isAuthenticated: authMock.isAuthenticated }),
+    useAuth: () => authMock,
 }))
 
 const loadData = vi.fn(async () => {})
@@ -69,6 +69,7 @@ function Probe() {
             <span data-testid="drawer-open">{String(ctx?.drawerOpen ?? false)}</span>
             <button onClick={() => { void ctx?.clearTerminalTasks('completed').catch(() => undefined) }}>clear completed</button>
             <button onClick={() => { void ctx?.loadMoreTerminalTasks('completed') }}>load completed</button>
+            <button onClick={() => ctx?.openDrawer()}>open drawer</button>
         </div>
     )
 }
@@ -89,11 +90,14 @@ describe('BackgroundTasksProvider', () => {
         phase = 1
         archived = false
         authMock.isAuthenticated = true
+        authMock.authEpoch = 1
+        authMock.accountKey = 'account-a'
         mockListTasks()
     })
 
     afterEach(() => {
         vi.useRealTimers()
+        vi.restoreAllMocks()
     })
 
     // Regression: the logged-out reset effect once fed its own dependencies
@@ -109,6 +113,92 @@ describe('BackgroundTasksProvider', () => {
 
         expect(screen.getByTestId('visible-count')).toHaveTextContent('0')
         expect(apiService.listTasks).not.toHaveBeenCalled()
+    })
+
+    it('pauses active task polling when unfocused and refreshes on focus', async () => {
+        const focusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+        renderProvider()
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+        expect(apiService.listTasks).toHaveBeenCalledTimes(3)
+
+        focusSpy.mockReturnValue(false)
+        act(() => window.dispatchEvent(new Event('blur')))
+        await act(async () => { await vi.advanceTimersByTimeAsync(12_000) })
+        expect(apiService.listTasks).toHaveBeenCalledTimes(3)
+
+        focusSpy.mockReturnValue(true)
+        act(() => window.dispatchEvent(new Event('focus')))
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+        expect(apiService.listTasks).toHaveBeenCalledTimes(6)
+    })
+
+    it('retries the focus catch-up after an older request finishes', async () => {
+        const focusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+        let releaseFirst!: () => void
+        const firstBatch = new Promise<void>((resolve) => { releaseFirst = resolve })
+        vi.mocked(apiService.listTasks).mockImplementation(async (opts) => {
+            if (vi.mocked(apiService.listTasks).mock.calls.length <= 3) await firstBatch
+            const statuses = new Set<string>(opts?.statuses ?? [])
+            return { items: statuses.has('in_progress') ? [baseTask] : [] } as Awaited<ReturnType<typeof apiService.listTasks>>
+        })
+
+        renderProvider()
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+        expect(apiService.listTasks).toHaveBeenCalledTimes(3)
+
+        focusSpy.mockReturnValue(false)
+        act(() => window.dispatchEvent(new Event('blur')))
+        focusSpy.mockReturnValue(true)
+        act(() => window.dispatchEvent(new Event('focus')))
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+        expect(apiService.listTasks).toHaveBeenCalledTimes(3)
+
+        await act(async () => {
+            releaseFirst()
+            await Promise.resolve()
+        })
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+        expect(apiService.listTasks).toHaveBeenCalledTimes(6)
+    })
+
+    it('loads a new account after an old account request completes', async () => {
+        let releaseFirst!: () => void
+        const firstBatch = new Promise<void>((resolve) => { releaseFirst = resolve })
+        vi.mocked(apiService.listTasks).mockImplementation(async (opts) => {
+            if (vi.mocked(apiService.listTasks).mock.calls.length <= 3) await firstBatch
+            const statuses = new Set<string>(opts?.statuses ?? [])
+            return { items: statuses.has('in_progress') ? [baseTask] : [] } as Awaited<ReturnType<typeof apiService.listTasks>>
+        })
+
+        const view = renderProvider()
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+        expect(apiService.listTasks).toHaveBeenCalledTimes(3)
+
+        authMock.authEpoch = 2
+        authMock.accountKey = 'account-b'
+        view.rerender(<BackgroundTasksProvider><Probe /></BackgroundTasksProvider>)
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+        expect(apiService.listTasks).toHaveBeenCalledTimes(3)
+
+        await act(async () => {
+            releaseFirst()
+            await Promise.resolve()
+        })
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+        expect(apiService.listTasks).toHaveBeenCalledTimes(6)
+    })
+
+    it('stops idle polling and refreshes when the drawer opens', async () => {
+        phase = 2
+        renderProvider()
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+        expect(apiService.listTasks).toHaveBeenCalledTimes(3)
+
+        await act(async () => { await vi.advanceTimersByTimeAsync(120_000) })
+        expect(apiService.listTasks).toHaveBeenCalledTimes(3)
+
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'open drawer' })) })
+        expect(apiService.listTasks).toHaveBeenCalledTimes(6)
     })
 
     it('toasts when an active task completes, with an action that opens the drawer', async () => {
@@ -192,6 +282,29 @@ describe('BackgroundTasksProvider', () => {
 
         expect(apiService.archiveTask).toHaveBeenCalledTimes(2)
         expect(screen.getByTestId('completed-count')).toHaveTextContent('1')
+    })
+
+    it('does not fetch later task pages after focus is lost', async () => {
+        const focusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+        let releaseFirst!: () => void
+        const firstPage = new Promise<void>((resolve) => { releaseFirst = resolve })
+        vi.mocked(apiService.listTasks).mockImplementation(async (opts) => {
+            const statuses = new Set<string>(opts?.statuses ?? [])
+            if (!statuses.has('in_progress')) return { items: [], limit: 20, offset: opts?.offset ?? 0, next_offset: null } as Awaited<ReturnType<typeof apiService.listTasks>>
+            if ((opts?.offset ?? 0) === 0) {
+                await firstPage
+                return { items: Array.from({ length: 20 }, (_, index) => ({ ...baseTask, task_id: `task-${index}` })), limit: 20, offset: 0, next_offset: 20 } as Awaited<ReturnType<typeof apiService.listTasks>>
+            }
+            return { items: [baseTask], limit: 20, offset: 20, next_offset: null } as Awaited<ReturnType<typeof apiService.listTasks>>
+        })
+
+        renderProvider()
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+        focusSpy.mockReturnValue(false)
+        act(() => window.dispatchEvent(new Event('blur')))
+        await act(async () => { releaseFirst(); await Promise.resolve() })
+
+        expect(apiService.listTasks).not.toHaveBeenCalledWith(expect.objectContaining({ offset: 20 }))
     })
 
     it('consumes every active page with duplicate protection', async () => {

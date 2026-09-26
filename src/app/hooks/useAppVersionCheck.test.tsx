@@ -26,6 +26,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 afterEach(() => {
     vi.restoreAllMocks()
+    vi.useRealTimers()
 })
 
 describe('useAppVersionCheck', () => {
@@ -98,12 +99,61 @@ describe('useAppVersionCheck', () => {
 
         await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
 
+        visibilitySpy.mockReturnValue('hidden')
+        act(() => document.dispatchEvent(new Event('visibilitychange')))
         remoteBuild = nextBuild
+        visibilitySpy.mockReturnValue('visible')
         act(() => document.dispatchEvent(new Event('visibilitychange')))
 
         await waitFor(() => expect(result.current.updateAvailable).toBe(true))
         expect(fetcher).toHaveBeenCalledTimes(2)
         visibilitySpy.mockRestore()
+    })
+
+    it('pauses periodic checks when unfocused and checks once on focus', async () => {
+        vi.useFakeTimers()
+        const fetcher = vi.fn(async () => jsonResponse(currentBuild))
+        const focusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+
+        renderHook(() => useAppVersionCheck({ currentBuildInfo: currentBuild, enabled: true, fetcher, intervalMs: 1_000 }))
+        await act(async () => { await Promise.resolve() })
+        expect(fetcher).toHaveBeenCalledTimes(1)
+
+        focusSpy.mockReturnValue(false)
+        act(() => window.dispatchEvent(new Event('blur')))
+        await act(async () => { await vi.advanceTimersByTimeAsync(5_000) })
+        expect(fetcher).toHaveBeenCalledTimes(1)
+
+        focusSpy.mockReturnValue(true)
+        act(() => window.dispatchEvent(new Event('focus')))
+        await act(async () => { await Promise.resolve() })
+        expect(fetcher).toHaveBeenCalledTimes(2)
+    })
+
+    it('aborts a stale version fetch on blur and retries on focus', async () => {
+        const focusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+        let attempts = 0
+        const observed: { signal?: AbortSignal } = {}
+        const fetcher = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+            attempts += 1
+            if (attempts === 1) {
+                observed.signal = init?.signal as AbortSignal
+                return new Promise<Response>(() => undefined)
+            }
+            return Promise.resolve(jsonResponse(currentBuild))
+        })
+
+        renderHook(() => useAppVersionCheck({ currentBuildInfo: currentBuild, enabled: true, fetcher }))
+        await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+        expect(observed.signal?.aborted).toBe(false)
+
+        focusSpy.mockReturnValue(false)
+        act(() => window.dispatchEvent(new Event('blur')))
+        expect(observed.signal?.aborted).toBe(true)
+
+        focusSpy.mockReturnValue(true)
+        act(() => window.dispatchEvent(new Event('focus')))
+        await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
     })
 
     it('shows the update state for Vite preload errors', async () => {

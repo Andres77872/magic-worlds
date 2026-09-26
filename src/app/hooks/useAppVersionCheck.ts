@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { isPageFocused, usePageFocus } from './usePageFocus'
 
 const DEFAULT_CHECK_INTERVAL_MS = 2 * 60 * 1000
 
@@ -49,56 +50,56 @@ export function useAppVersionCheck(options: UseAppVersionCheckOptions = {}): Use
     const intervalMs = options.intervalMs ?? DEFAULT_CHECK_INTERVAL_MS
     const versionUrl = options.versionUrl ?? '/version.json'
     const [updateAvailable, setUpdateAvailable] = useState(false)
+    const pageFocused = usePageFocus()
+    const inFlightRef = useRef<AbortController | null>(null)
 
     const checkNow = useCallback(async () => {
-        if (!enabled || updateAvailable || !fetcher) return
+        if (!enabled || updateAvailable || !fetcher || inFlightRef.current) return
+        const controller = new AbortController()
+        inFlightRef.current = controller
 
         try {
             const separator = versionUrl.includes('?') ? '&' : '?'
             const response = await fetcher(`${versionUrl}${separator}ts=${Date.now()}`, {
                 cache: 'no-store',
                 headers: { Accept: 'application/json' },
+                signal: controller.signal,
             })
 
             if (!response.ok) return
 
             const remoteBuildInfo: unknown = await response.json()
-            if (isBuildInfo(remoteBuildInfo) && remoteBuildInfo.buildId !== currentBuildInfo.buildId) {
+            if (!controller.signal.aborted && isBuildInfo(remoteBuildInfo) && remoteBuildInfo.buildId !== currentBuildInfo.buildId) {
                 setUpdateAvailable(true)
             }
         } catch {
             // Version checks are advisory; failed checks must not interrupt the app.
+        } finally {
+            if (inFlightRef.current === controller) inFlightRef.current = null
         }
     }, [currentBuildInfo.buildId, enabled, fetcher, updateAvailable, versionUrl])
 
     useEffect(() => {
-        if (!enabled || updateAvailable) return
+        if (!enabled || updateAvailable || !pageFocused) return
 
-        void checkNow()
-        const intervalId = window.setInterval(() => void checkNow(), intervalMs)
-
-        return () => window.clearInterval(intervalId)
-    }, [checkNow, enabled, intervalMs, updateAvailable])
-
-    useEffect(() => {
-        if (!enabled || updateAvailable) return
-
-        const checkOnVisible = () => {
-            if (document.visibilityState === 'visible') void checkNow()
-        }
-
-        const checkOnWindowEvent = () => void checkNow()
-
-        window.addEventListener('focus', checkOnWindowEvent)
-        window.addEventListener('online', checkOnWindowEvent)
-        document.addEventListener('visibilitychange', checkOnVisible)
+        let active = true
+        queueMicrotask(() => { if (active && isPageFocused()) void checkNow() })
+        const intervalId = window.setInterval(() => { if (isPageFocused()) void checkNow() }, intervalMs)
 
         return () => {
-            window.removeEventListener('focus', checkOnWindowEvent)
-            window.removeEventListener('online', checkOnWindowEvent)
-            document.removeEventListener('visibilitychange', checkOnVisible)
+            active = false
+            window.clearInterval(intervalId)
+            inFlightRef.current?.abort()
+            inFlightRef.current = null
         }
-    }, [checkNow, enabled, updateAvailable])
+    }, [checkNow, enabled, intervalMs, pageFocused, updateAvailable])
+
+    useEffect(() => {
+        if (!enabled || updateAvailable || !pageFocused) return
+        const checkOnOnline = () => { if (isPageFocused()) void checkNow() }
+        window.addEventListener('online', checkOnOnline)
+        return () => window.removeEventListener('online', checkOnOnline)
+    }, [checkNow, enabled, pageFocused, updateAvailable])
 
     useEffect(() => {
         if (!enabled) return

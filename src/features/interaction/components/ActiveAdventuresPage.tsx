@@ -2,10 +2,11 @@
  * Active adventures - full list of started adventure sessions.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CirclePlay, Search, Swords, X } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
+import { isPageFocused, usePageFocus } from '@/app/hooks/usePageFocus'
 import type { Adventure } from '@/shared'
 import { ConfirmDialog, EmptyState } from '@/ui/components'
 import { Button, Icon, IconButton, IconTile, PageHeader, Toast, controlClass } from '@/ui/primitives'
@@ -23,6 +24,8 @@ export function ActiveAdventuresPage() {
     const { t } = useTranslation()
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
+    const pageFocused = usePageFocus()
+    const entryRefreshStartedRef = useRef(false)
     const {
         inProgressAdventures,
         editInProgress,
@@ -36,10 +39,16 @@ export function ActiveAdventuresPage() {
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null)
 
     useEffect(() => {
-        if (isAuthenticated) void loadData({ silent: true })
+        if (!isAuthenticated) {
+            entryRefreshStartedRef.current = false
+            return
+        }
+        if (!pageFocused || !isPageFocused() || entryRefreshStartedRef.current) return
+        entryRefreshStartedRef.current = true
+        void loadData({ silent: true, entryPage: 'active-adventures' })
         // Refresh the session list on entry without replacing the page with the global loader.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAuthenticated])
+    }, [isAuthenticated, pageFocused])
 
     const requireAuth = (action: () => void) => {
         if (!isAuthenticated) {
