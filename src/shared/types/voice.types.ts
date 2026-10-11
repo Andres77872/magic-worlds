@@ -98,7 +98,6 @@ export type VoiceSocketClientFrame =
         audio: VoiceAudioPreferences
         capabilities: VoiceClientCapabilities
     }
-    | { type: 'voice_segment_meta' }
     | { type: 'voice_resume'; voice_session_id: string; last_segment_seq: number }
     | { type: 'voice_barge_in'; reason: 'barge_in' }
     | { type: 'voice_end'; reason: 'user' }
@@ -110,7 +109,21 @@ export interface VoiceCallLimits {
     remaining_daily_seconds: number
     remaining_voice_credits?: number
     seconds_per_credit?: number
+    /** Longest segment the server accepts; the VAD cuts a little before it. */
+    max_segment_duration_ms?: number
 }
+
+/** Why the server ended a call (`voice_ended.reason`). */
+export type VoiceEndReason =
+    | 'user'
+    | 'quota'
+    | 'superseded'
+    | 'disconnected'
+    | 'idle_timeout'
+    | 'max_duration'
+    | 'server_shutdown'
+
+export type VoiceCancelReason = 'barge_in' | 'end_call' | 'superseded' | 'provider_disconnected'
 
 export type VoiceSocketServerFrame =
     | {
@@ -161,9 +174,9 @@ export type VoiceSocketServerFrame =
     }
     | { type: 'voice_audio_final'; voice_session_id: string; turn_id: string; last_seq: number }
     | { type: 'voice_turn_end'; voice_session_id: string; turn_id: string; status: 'completed' | 'interrupted' | 'failed'; partial: boolean; duration_ms: number }
-    | { type: 'voice_cancelled'; voice_session_id: string; turn_id?: string; reason: 'barge_in' | 'end_call' | 'provider_disconnected' }
+    | { type: 'voice_cancelled'; voice_session_id: string; turn_id?: string; reason: VoiceCancelReason }
     | { type: 'voice_error'; category: VoiceErrorCategory; code?: string; message: string; retry_after_seconds?: number; fatal?: boolean }
-    | { type: 'voice_ended'; voice_session_id: string; reason: 'user' | 'idle_timeout' | 'max_duration' | 'quota' | 'server_shutdown' }
+    | { type: 'voice_ended'; voice_session_id: string; reason: VoiceEndReason }
     | { type: 'voice_pong'; voice_session_id?: string }
 
 export interface VoiceSegmentUploadRequest {
@@ -184,8 +197,14 @@ export interface VoiceSegmentUploadResponse {
     voice_session_id: string
     segment_id: string
     seq: number
-    status: 'received' | 'accepted' | 'duplicate' | 'rejected'
-    reason?: 'too_short' | 'too_long' | 'too_large' | 'unsupported_encoding' | 'no_speech' | 'quota' | 'call_not_active'
+    /**
+     * `cancelled`: a newer utterance superseded this one before the character
+     * replied (its text was merged into the next turn), or the call ended.
+     */
+    status: 'received' | 'accepted' | 'duplicate' | 'rejected' | 'cancelled'
+    /** Rejection category (e.g. `no_speech`, `unsupported_media`) or cancel reason (`superseded`, `end_call`). */
+    reason?: string
+    turn_id?: string | null
 }
 
 /** One past voice call (call-history entry). Server: GET /voice-calls + .../calls. */

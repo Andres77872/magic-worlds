@@ -3536,10 +3536,14 @@ class ApiService {
         })
     }
 
+    /**
+     * End a call over HTTP. `keepalive` lets the request outlive the page
+     * (pagehide / tab close), where the socket's own `voice_end` may be lost.
+     */
     async endVoiceCall(
         sessionId: number,
         body: { voiceSessionId: string; reason?: 'user' },
-        options: { signal?: AbortSignal } = {},
+        options: { signal?: AbortSignal; keepalive?: boolean } = {},
     ): Promise<VoiceEndResponse> {
         this.assertCallsEnabled()
         const token = this.getStoredToken()
@@ -3550,6 +3554,7 @@ class ApiService {
                 reason: 'user',
             } as unknown as BodyInit,
             signal: options.signal,
+            ...(options.keepalive ? { keepalive: true } : {}),
         })
     }
 

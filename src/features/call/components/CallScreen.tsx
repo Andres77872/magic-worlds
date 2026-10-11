@@ -7,23 +7,25 @@
  *   - `CallScreenView` (pure): the immersive layout — a large character portrait that
  *     pulses while listening / glows while the character speaks, a big status line + timer,
  *     a live waveform driven by the mic level, live captions, and large Mute / End /
- *     Interrupt controls. It takes plain props, so stories + unit tests drive it directly
- *     without a socket. Turn-taking is automatic (VAD) — there is no push-to-talk.
+ *     Interrupt controls. Once the call ends it explains why (quota, silence, max
+ *     length, connection) and offers to call again. It takes plain props, so stories +
+ *     unit tests drive it directly without a socket. Turn-taking is automatic (VAD) — there is no push-to-talk.
  */
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Loader2, MessageSquareText, Mic, MicOff, PhoneOff, Volume2, Waves } from 'lucide-react'
+import { AlertTriangle, Headphones, Loader2, MessageSquareText, Mic, MicOff, Phone, PhoneOff, Volume2, Waves, X } from 'lucide-react'
 import { useAuth } from '@/app/hooks'
 import type { Character } from '@/shared'
-import type { VoiceCallState } from '@/shared/types/voice.types'
+import type { VoiceCallState, VoiceEndReason } from '@/shared/types/voice.types'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
-import { Avatar, Button, GlowBackdrop, Icon, cx } from '@/ui/primitives'
+import { Avatar, Button, GlowBackdrop, Icon, IconButton, cx } from '@/ui/primitives'
 import { useVoiceCallController, type VoiceCallControllerError } from '@/features/interaction/hooks/useVoiceCallController'
 import { VoiceConsentModal } from '@/features/interaction/components/VoiceConsentModal'
 import {
     ACTIVE_CALL_STATES,
     callStateLabel,
     callErrorCopy,
+    endReasonCopy,
     formatElapsed,
 } from '@/features/interaction/voiceCallLabels'
 import { CallWaveform } from './CallWaveform'
@@ -57,6 +59,8 @@ export function CallScreen({ character, sessionId, ensureSession, onSwitchToText
 
     const name = character?.name?.trim() || t('call.screen.fallbackName')
 
+    // Runs from the click itself: startCall unlocks audio playback synchronously
+    // before its first await (iOS only allows that inside a user gesture).
     const acceptConsent = async () => {
         if (isAccepting) return
         setIsAccepting(true)
@@ -81,14 +85,20 @@ export function CallScreen({ character, sessionId, ensureSession, onSwitchToText
             state={controller.state}
             isMuted={controller.isMuted}
             elapsedSeconds={controller.elapsedSeconds}
+            remainingSeconds={controller.remainingSeconds}
             inputLevel={controller.inputLevel}
-            vadActive={controller.vadActive}
             transcript={controller.transcript}
             assistantText={controller.assistantText}
             error={controller.error}
+            endReason={controller.endReason}
+            autoplayBlocked={controller.autoplayBlocked}
+            echoCancellationOff={controller.echoCancellationOff}
             consentOpen={consentOpen}
             isAccepting={isAccepting}
             onAcceptConsent={acceptConsent}
+            onCallAgain={acceptConsent}
+            onResumePlayback={() => void controller.resumePlayback()}
+            onDismissError={controller.dismissError}
             onDeclineConsent={() => {
                 setConsentOpen(false)
                 onSwitchToText()
@@ -109,16 +119,25 @@ export interface CallScreenViewProps {
     state: VoiceCallState
     isMuted: boolean
     elapsedSeconds: number
+    /** Seconds left before the call's max length; a warning shows in the last minute. */
+    remainingSeconds?: number | null
     /** Live mic level 0..1 for the reactive waveform. */
     inputLevel: number
-    /** False when the AudioWorklet VAD couldn't load (degraded, chunked capture). */
-    vadActive: boolean
     transcript?: string | null
     assistantText?: string
     error?: VoiceCallControllerError | null
+    /** Why the call ended, shown on the end panel. */
+    endReason?: VoiceEndReason | null
+    /** The browser blocked autoplay of the character's voice. */
+    autoplayBlocked?: boolean
+    /** Echo cancellation is off: voice barge-in is disabled, suggest headphones. */
+    echoCancellationOff?: boolean
     consentOpen: boolean
     isAccepting: boolean
     onAcceptConsent: () => void
+    onCallAgain?: () => void
+    onResumePlayback?: () => void
+    onDismissError?: () => void
     onDeclineConsent: () => void
     onMute: () => void
     onUnmute: () => void
@@ -134,14 +153,20 @@ export function CallScreenView({
     state,
     isMuted,
     elapsedSeconds,
+    remainingSeconds = null,
     inputLevel,
-    vadActive,
     transcript,
     assistantText,
     error,
+    endReason = null,
+    autoplayBlocked = false,
+    echoCancellationOff = false,
     consentOpen,
     isAccepting,
     onAcceptConsent,
+    onCallAgain,
+    onResumePlayback,
+    onDismissError,
     onDeclineConsent,
     onMute,
     onUnmute,
@@ -155,7 +180,11 @@ export function CallScreenView({
     const isSpeaking = state === 'assistant_speaking'
     const isUserTurn = state === 'listening' || state === 'user_speaking'
     const isConnecting = state === 'connecting' || state === 'reconnecting' || state === 'requesting_permission'
+    // A fatal error or a server/user end leaves the call over: explain why and offer a redial.
+    const isOver = !consentOpen && (state === 'ended' || state === 'error')
     const visibleError = callErrorCopy(t, error, state)
+    const endCopy = state === 'ended' ? endReasonCopy(t, endReason) : visibleError
+    const showTimeLeft = isActive && remainingSeconds !== null && remainingSeconds <= 60
 
     const avatarRing = isAssistant ? 'arcane' : 'ember'
     const avatarStatus = state === 'assistant_thinking' ? 'think' : isUserTurn ? 'live' : 'none'
@@ -181,7 +210,16 @@ export function CallScreenView({
                 <Button variant="ghost" size="sm" iconLeft={<Icon icon={MessageSquareText} size={15} />} onClick={onSwitchToText}>
                     {t('call.screen.switchToText')}
                 </Button>
-                {isActive && <span className="font-mono text-sm text-parchment-300">{formatElapsed(elapsedSeconds)}</span>}
+                {isActive && (
+                    <span className="flex items-center gap-2 font-mono text-sm text-parchment-300">
+                        {showTimeLeft && (
+                            <span className="text-amber-500" role="status">
+                                {t('call.screen.timeLeft', { time: formatElapsed(remainingSeconds ?? 0) })}
+                            </span>
+                        )}
+                        {formatElapsed(elapsedSeconds)}
+                    </span>
+                )}
             </div>
 
             {profileControl && <div className="relative z-10 px-4 pb-3">{profileControl}</div>}
@@ -217,38 +255,74 @@ export function CallScreenView({
                     )}
                 </div>
 
-                {!vadActive && (
-                    <p className="rounded-lg border border-ember-500/30 bg-ember-500/10 px-3 py-1.5 text-caption text-ember-200">
-                        {t('call.screen.vadDegraded')}
-                    </p>
-                )}
-
-                {visibleError && (
-                    <p role="alert" className="flex max-w-[560px] items-start gap-2 rounded-lg border border-blood-500/30 bg-blood-500/10 px-3 py-2 text-sm text-blood-500">
-                        <Icon icon={AlertTriangle} size={16} className="mt-0.5 shrink-0" />
-                        <span>
-                            {visibleError}
-                            {error?.code && <span className="ml-1 font-mono text-caption opacity-70">({error.code})</span>}
-                        </span>
+                {echoCancellationOff && isActive && (
+                    <p className="flex max-w-[560px] items-start gap-2 rounded-lg border border-ember-500/30 bg-ember-500/10 px-3 py-1.5 text-left text-caption text-ember-200">
+                        <Icon icon={Headphones} size={14} className="mt-0.5 shrink-0" />
+                        <span>{t('call.screen.headphonesHint')}</span>
                     </p>
                 )}
                 </div>
             </div>
 
-            {/* Bottom: large controls */}
-            <div className="relative z-10 flex shrink-0 items-center justify-center gap-4 px-6 pb-5 pt-3">
-                <CallControlButton
-                    label={isMuted ? t('call.screen.unmute') : t('call.screen.mute')}
-                    tone={isMuted ? 'danger' : 'neutral'}
-                    onClick={() => (isMuted ? onUnmute() : onMute())}
-                    disabled={!isActive}
-                    icon={isMuted ? MicOff : Mic}
-                />
-                {isSpeaking && (
-                    <CallControlButton label={t('call.screen.interrupt')} tone="arcane" onClick={onBargeIn} icon={Waves} />
-                )}
-                <CallControlButton label={t('call.screen.endCall')} tone="danger" prominent onClick={onEnd} icon={PhoneOff} />
-            </div>
+            {/* Prompts and notices sit above the controls so they never scroll out of view */}
+            {autoplayBlocked && isActive && onResumePlayback && (
+                <div className="relative z-10 flex shrink-0 justify-center px-6 pt-2">
+                    <Button variant="arcane" size="sm" iconLeft={<Icon icon={Volume2} size={15} />} onClick={onResumePlayback}>
+                        {t('call.screen.tapToListen', { name })}
+                    </Button>
+                </div>
+            )}
+            {!isOver && visibleError && (
+                <div className="relative z-10 flex shrink-0 justify-center px-6 pt-2">
+                    <div role="alert" className="flex w-full min-w-0 max-w-[560px] items-start gap-2 rounded-lg border border-blood-500/30 bg-blood-500/10 px-3 py-2 text-left text-sm text-blood-500">
+                        <Icon icon={AlertTriangle} size={16} className="mt-0.5 shrink-0" />
+                        <span className="min-w-0 flex-1">
+                            {visibleError}
+                            {error?.code && <span className="ml-1 break-all font-mono text-caption opacity-70">({error.code})</span>}
+                        </span>
+                        {onDismissError && !error?.fatal && (
+                            <IconButton label={t('call.screen.dismiss')} size="sm" onClick={onDismissError}>
+                                <Icon icon={X} size={14} />
+                            </IconButton>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Bottom: the end-of-call panel replaces the controls, so its actions never scroll away */}
+            {isOver ? (
+                <div className="relative z-10 flex shrink-0 justify-center px-6 pb-3 pt-3">
+                    <div role="status" className="flex w-full max-w-[420px] flex-col items-center gap-3 rounded-xl border border-parchment-50/10 bg-ink-800/80 px-5 py-4">
+                        <p className="font-display text-h3 font-semibold text-parchment-50">{t('call.screen.endedTitle')}</p>
+                        {endCopy && <p className="text-sm text-parchment-200">{endCopy}</p>}
+                        {state === 'error' && error?.code && <p className="break-all font-mono text-caption text-parchment-400">{error.code}</p>}
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                            {onCallAgain && (
+                                <Button variant="primary" size="sm" iconLeft={<Icon icon={Phone} size={15} />} onClick={onCallAgain} disabled={isAccepting}>
+                                    {t('call.screen.callAgain')}
+                                </Button>
+                            )}
+                            <Button variant="ghost" size="sm" iconLeft={<Icon icon={MessageSquareText} size={15} />} onClick={onSwitchToText}>
+                                {t('call.screen.backToChat')}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="relative z-10 flex shrink-0 items-center justify-center gap-4 px-6 pb-5 pt-3">
+                    <CallControlButton
+                        label={isMuted ? t('call.screen.unmute') : t('call.screen.mute')}
+                        tone={isMuted ? 'danger' : 'neutral'}
+                        onClick={() => (isMuted ? onUnmute() : onMute())}
+                        disabled={!isActive}
+                        icon={isMuted ? MicOff : Mic}
+                    />
+                    {isSpeaking && (
+                        <CallControlButton label={t('call.screen.interrupt')} tone="arcane" onClick={onBargeIn} icon={Waves} />
+                    )}
+                    <CallControlButton label={t('call.screen.endCall')} tone="danger" prominent onClick={onEnd} icon={PhoneOff} />
+                </div>
+            )}
 
             <p className="relative z-10 shrink-0 px-6 pb-4 text-center text-caption text-parchment-400">
                 {t('call.screen.privacyNote')}

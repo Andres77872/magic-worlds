@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { VoiceSocket, type VoiceSocketStatus } from '@/infrastructure/api'
-import type { VoiceCallState, VoiceSocketClientFrame, VoiceSocketServerFrame } from '@/shared/types/voice.types'
+import type { VoiceSocketClientFrame, VoiceSocketServerFrame } from '@/shared/types/voice.types'
 
 type VoiceStartFrame = Extract<VoiceSocketClientFrame, { type: 'voice_start' }>
-type VoiceSegmentMetaFrame = Extract<VoiceSocketClientFrame, { type: 'voice_segment_meta' }>
 type VoiceBargeInFrame = Extract<VoiceSocketClientFrame, { type: 'voice_barge_in' }>
 type VoiceReadyFrame = Extract<VoiceSocketServerFrame, { type: 'voice_ready' }>
 type VoiceStateSnapshotFrame = Extract<VoiceSocketServerFrame, { type: 'voice_state_snapshot' }>
@@ -20,6 +19,8 @@ type VoiceErrorFrame = Extract<VoiceSocketServerFrame, { type: 'voice_error' }>
 type VoiceEndedFrame = Extract<VoiceSocketServerFrame, { type: 'voice_ended' }>
 
 export interface VoiceCallSocketHandlers {
+    /** Transport status; `connecting` after ready means the call is being resumed. */
+    onSocketStatus?: (status: VoiceSocketStatus) => void
     onReady?: (frame: VoiceReadyFrame) => void
     onStateSnapshot?: (frame: VoiceStateSnapshotFrame) => void
     onStatus?: (frame: VoiceStatusFrame) => void
@@ -37,13 +38,10 @@ export interface VoiceCallSocketHandlers {
 
 export interface VoiceCallSocketApi {
     socketStatus: VoiceSocketStatus
-    voiceState: VoiceCallState
-    ready: VoiceReadyFrame | null
-    error: VoiceErrorFrame | null
-    voiceSessionId: string | null
     start: (frame: VoiceStartFrame) => void
-    sendSegmentMeta: (frame: VoiceSegmentMetaFrame) => boolean
     bargeIn: (frame: VoiceBargeInFrame) => boolean
+    /** Record the highest uploaded segment seq (sent in `voice_resume`). */
+    noteSegmentSeq: (seq: number) => void
     end: () => boolean
     close: () => void
 }
@@ -51,8 +49,9 @@ export interface VoiceCallSocketApi {
 /**
  * React wrapper around the imperative VoiceSocket. Like useAdventureChatSocket,
  * callbacks are read through refs so render-time handler changes do not tear down
- * an active socket. The hook stores only protocol metadata and never stores raw
- * microphone Blob/bytes, so reconnect cannot replay captured audio.
+ * an active socket. The call state machine lives in useVoiceCallController; this
+ * hook only routes typed frames and reports the transport status. It never
+ * stores raw microphone Blob/bytes, so a reconnect cannot replay captured audio.
  */
 export function useVoiceCallSocket(
     sessionId: number | null,
@@ -68,84 +67,61 @@ export function useVoiceCallSocket(
     const socketRef = useRef<VoiceSocket | null>(null)
     const pendingStartRef = useRef<VoiceStartFrame | null>(null)
     const [socketStatus, setSocketStatus] = useState<VoiceSocketStatus>('closed')
-    const [voiceState, setVoiceState] = useState<VoiceCallState>('idle')
-    const [ready, setReady] = useState<VoiceReadyFrame | null>(null)
-    const [error, setError] = useState<VoiceErrorFrame | null>(null)
-    const [voiceSessionId, setVoiceSessionId] = useState<string | null>(null)
 
     // Only auth *availability* gates the socket. The token value itself must not
     // be an effect dependency: VoiceSocket reads the stored token fresh on every
     // connect and the server authenticates only the handshake, so recreating the
-    // socket on each `auth:refreshed` would close a live call that cannot resume.
+    // socket on each `auth:refreshed` would close a live call.
     const authDisabled = authKey === null
 
     useEffect(() => {
-        setReady(null)
-        setError(null)
-        setVoiceSessionId(null)
-        setVoiceState('idle')
         if (sessionId === null || Number.isNaN(sessionId) || authDisabled) return
 
         const socket = new VoiceSocket(sessionId, {
             onStatusChange: (nextStatus) => {
                 setSocketStatus(nextStatus)
-                if (nextStatus === 'connecting') setVoiceState((current) => current === 'idle' ? 'connecting' : 'reconnecting')
+                handlersRef.current.onSocketStatus?.(nextStatus)
             },
             onMessage: (message) => {
                 const current = handlersRef.current
                 switch (message.type) {
                     case 'voice_ready':
-                        setReady(message)
-                        setVoiceSessionId(message.voice_session_id)
-                        setVoiceState('listening')
                         current.onReady?.(message)
                         break
                     case 'voice_state_snapshot':
-                        setVoiceSessionId(message.voice_session_id)
-                        setVoiceState(message.state)
                         current.onStateSnapshot?.(message)
                         break
                     case 'voice_status':
-                        setVoiceState(message.state)
                         current.onStatus?.(message)
                         break
                     case 'voice_segment_ack':
-                        if (message.status === 'received' || message.status === 'accepted') setVoiceState('transcribing')
                         current.onSegmentAck?.(message)
                         break
                     case 'transcript_final':
-                        setVoiceState('assistant_thinking')
                         current.onTranscriptFinal?.(message)
                         break
                     case 'voice_turn_start':
-                        setVoiceState('assistant_thinking')
                         current.onTurnStart?.(message)
                         break
                     case 'voice_assistant_delta':
                         current.onAssistantDelta?.(message)
                         break
                     case 'voice_audio_chunk':
-                        setVoiceState('assistant_speaking')
                         current.onAudioChunk?.(message)
                         break
                     case 'voice_audio_final':
                         current.onAudioFinal?.(message)
                         break
                     case 'voice_turn_end':
-                        setVoiceState(message.status === 'failed' ? 'error' : 'listening')
                         current.onTurnEnd?.(message)
                         break
                     case 'voice_cancelled':
-                        setVoiceState('listening')
                         current.onCancelled?.(message)
                         break
                     case 'voice_error':
-                        setError(message)
-                        setVoiceState('error')
                         current.onError?.(message)
                         break
                     case 'voice_ended':
-                        setVoiceState('ended')
                         current.onEnded?.(message)
                         break
                     case 'voice_pong':
@@ -168,27 +144,20 @@ export function useVoiceCallSocket(
     }, [sessionId, authDisabled, basePath])
 
     const start = useCallback((frame: VoiceStartFrame) => {
-        setError(null)
-        setVoiceState('connecting')
         if (socketRef.current) socketRef.current.connect(frame)
         else pendingStartRef.current = frame
     }, [])
 
-    const sendSegmentMeta = useCallback((frame: VoiceSegmentMetaFrame) => socketRef.current?.sendSegmentMeta(frame) ?? false, [])
-    const bargeIn = useCallback((frame: VoiceBargeInFrame) => {
-        setVoiceState('barge_in')
-        return socketRef.current?.sendBargeIn(frame) ?? false
-    }, [])
+    const bargeIn = useCallback((frame: VoiceBargeInFrame) => socketRef.current?.sendBargeIn(frame) ?? false, [])
+    const noteSegmentSeq = useCallback((seq: number) => socketRef.current?.noteSegmentSeq(seq), [])
     const end = useCallback(() => {
         pendingStartRef.current = null
-        setVoiceState('ending')
         return socketRef.current?.end() ?? false
     }, [])
     const close = useCallback(() => {
         pendingStartRef.current = null
         socketRef.current?.close()
-        setVoiceState('ended')
     }, [])
 
-    return { socketStatus, voiceState, ready, error, voiceSessionId, start, sendSegmentMeta, bargeIn, end, close }
+    return { socketStatus, start, bargeIn, noteSegmentSeq, end, close }
 }

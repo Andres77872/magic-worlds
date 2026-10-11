@@ -11,9 +11,27 @@ vi.mock('@/infrastructure/api', () => ({
 }))
 
 // Every protected asset resolves instantly to a fake object URL.
+const requestedMedia: Array<string | null | undefined> = []
 vi.mock('@/infrastructure/api/useAuthenticatedMediaUrl', () => ({
-    useAuthenticatedMediaUrl: (url?: string | null) => ({ src: url ? 'blob:fake' : undefined, loading: false, error: null }),
+    useAuthenticatedMediaUrl: (url?: string | null) => {
+        requestedMedia.push(url)
+        return { src: url ? 'blob:fake' : undefined, loading: false, error: null }
+    },
 }))
+
+/** IntersectionObserver whose targets are visible right away (setup.ts's stub never fires). */
+class VisibleObserver {
+    private readonly callback: IntersectionObserverCallback
+    constructor(callback: IntersectionObserverCallback) {
+        this.callback = callback
+    }
+    observe(target: Element) {
+        this.callback([{ isIntersecting: true, target } as IntersectionObserverEntry], this as unknown as IntersectionObserver)
+    }
+    unobserve() {}
+    disconnect() {}
+    takeRecords() { return [] }
+}
 
 const CALL: CallSummary = {
     voice_session_id: 'vs-1',
@@ -33,10 +51,15 @@ beforeEach(() => {
     })
 })
 
-afterEach(() => vi.clearAllMocks())
+afterEach(() => {
+    vi.clearAllMocks()
+    vi.unstubAllGlobals()
+    requestedMedia.length = 0
+})
 
 describe('CallTranscriptView', () => {
     it('renders user and character transcript lines with playback for character audio only', async () => {
+        vi.stubGlobal('IntersectionObserver', VisibleObserver)
         render(<CallTranscriptView call={CALL} characters={[]} onBack={vi.fn()} />)
 
         expect(await screen.findByText('Hello there.')).toBeInTheDocument()
@@ -46,6 +69,14 @@ describe('CallTranscriptView', () => {
         // Exactly one playable clip — the character line. User audio is never stored.
         await waitFor(() => expect(screen.getAllByTestId('voice-clip-player')).toHaveLength(1))
         expect(getVoiceCallTranscript).toHaveBeenCalledWith('vs-1')
+    })
+
+    it('defers fetching a clip until its line nears the viewport', async () => {
+        render(<CallTranscriptView call={CALL} characters={[]} onBack={vi.fn()} />)
+
+        expect(await screen.findByText('Well met, traveller.')).toBeInTheDocument()
+        expect(screen.queryByTestId('voice-clip-player')).not.toBeInTheDocument()
+        expect(requestedMedia.filter(Boolean)).toEqual([])
     })
 
     it('shows an empty state when the call has no transcript', async () => {

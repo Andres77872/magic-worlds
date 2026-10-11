@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { VoiceCallState } from '@/shared/types/voice.types'
 import { CallScreenView, type CallScreenViewProps } from './CallScreen'
@@ -11,7 +11,6 @@ function baseProps(overrides: Partial<CallScreenViewProps> = {}): CallScreenView
         isMuted: false,
         elapsedSeconds: 0,
         inputLevel: 0,
-        vadActive: true,
         transcript: null,
         assistantText: '',
         error: null,
@@ -85,11 +84,13 @@ describe('CallScreenView', () => {
     })
 
     it('surfaces a traceable error code alongside the human copy', () => {
+        const onDismissError = vi.fn()
         render(
             <CallScreenView
                 {...baseProps({
-                    state: 'error',
+                    state: 'listening',
                     error: { category: 'provider_submission', code: 'VOICE_PROVIDER_SUBMISSION', message: 'raw secret leak', fatal: false },
+                    onDismissError,
                 })}
             />,
         )
@@ -99,11 +100,63 @@ describe('CallScreenView', () => {
         expect(alert).toHaveTextContent('VOICE_PROVIDER_SUBMISSION')
         // The raw provider message (which may carry secrets) is never shown.
         expect(alert).not.toHaveTextContent('raw secret leak')
+        // A transient notice keeps the call controls and can be dismissed.
+        expect(screen.getByRole('button', { name: 'Mute microphone' })).toBeEnabled()
+        fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+        expect(onDismissError).toHaveBeenCalledTimes(1)
     })
 
-    it('warns when voice detection is degraded', () => {
-        render(<CallScreenView {...baseProps({ vadActive: false })} />)
-        expect(screen.getByText(/voice detection is degraded/i)).toBeInTheDocument()
+    it('never shows raw rejection codes for a rejected segment', () => {
+        render(<CallScreenView {...baseProps({ error: { category: 'unsupported_media', code: 'VOICE_SEGMENT_UNSUPPORTED_MEDIA', message: 'call_not_active', fatal: false } })} />)
+        expect(screen.getByRole('alert')).toHaveTextContent(/could not be processed/i)
+        expect(screen.getByRole('alert')).not.toHaveTextContent('call_not_active')
+    })
+
+    it.each([
+        ['quota', /used all of your voice time/i],
+        ['idle_timeout', /after a long silence/i],
+        ['max_duration', /maximum length/i],
+        ['disconnected', /connection dropped/i],
+        ['superseded', /another tab or device/i],
+    ] as const)('explains a call ended with reason %s and offers to call again', (endReason, copy) => {
+        const onCallAgain = vi.fn()
+        const onSwitchToText = vi.fn()
+        render(<CallScreenView {...baseProps({ state: 'ended', endReason, onCallAgain, onSwitchToText })} />)
+
+        const panel = screen.getByRole('status')
+        expect(within(panel).getByText('Call ended')).toBeInTheDocument()
+        expect(within(panel).getByText(copy)).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Mute microphone' })).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Call again' }))
+        expect(onCallAgain).toHaveBeenCalledTimes(1)
+        fireEvent.click(screen.getByRole('button', { name: 'Back to chat' }))
+        expect(onSwitchToText).toHaveBeenCalledTimes(1)
+    })
+
+    it('shows a fatal error on the end panel with its code', () => {
+        render(<CallScreenView {...baseProps({ state: 'error', error: { category: 'internal', code: 'VOICE_CONNECTION_LOST', message: 'lost', fatal: true } })} />)
+        expect(screen.getByText(/connection was lost/i)).toBeInTheDocument()
+        expect(screen.getByText('VOICE_CONNECTION_LOST')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'End call' })).not.toBeInTheDocument()
+    })
+
+    it('warns in the final minute of the call', () => {
+        const { rerender } = render(<CallScreenView {...baseProps({ elapsedSeconds: 500, remainingSeconds: 100 })} />)
+        expect(screen.queryByText(/left$/)).not.toBeInTheDocument()
+        rerender(<CallScreenView {...baseProps({ elapsedSeconds: 552, remainingSeconds: 48 })} />)
+        expect(screen.getByText('0:48 left')).toBeInTheDocument()
+    })
+
+    it('offers a tap-to-listen fallback when autoplay is blocked', () => {
+        const onResumePlayback = vi.fn()
+        render(<CallScreenView {...baseProps({ state: 'assistant_speaking', autoplayBlocked: true, onResumePlayback })} />)
+        fireEvent.click(screen.getByRole('button', { name: 'Tap to hear Lyra' }))
+        expect(onResumePlayback).toHaveBeenCalledTimes(1)
+    })
+
+    it('suggests headphones when echo cancellation is off', () => {
+        render(<CallScreenView {...baseProps({ echoCancellationOff: true })} />)
+        expect(screen.getByText(/use headphones/i)).toBeInTheDocument()
     })
 
     it('gates on the consent modal and runs the accept handler', () => {

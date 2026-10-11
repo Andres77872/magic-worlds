@@ -68,6 +68,14 @@ function startFrame(): Extract<VoiceSocketClientFrame, { type: 'voice_start' }> 
     }
 }
 
+const READY_FRAME = {
+    type: 'voice_ready',
+    voice_session_id: 'voice-1',
+    server_time_ms: 1,
+    limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 60 },
+    upload_url: '/character-chats/7/voice-segments',
+}
+
 describe('VoiceSocket', () => {
     beforeEach(() => {
         vi.useRealTimers()
@@ -123,32 +131,25 @@ describe('VoiceSocket', () => {
         expect(MockWebSocket.instances[0].send).toHaveBeenCalledWith(JSON.stringify({ type: 'voice_ping', voice_session_id: 'voice-1' }))
     })
 
-    it('ends an established call once after two missed heartbeat windows', async () => {
+    it('resumes an established call after two missed heartbeat windows', async () => {
         vi.useFakeTimers()
         const onMessage = vi.fn()
         const onStatusChange = vi.fn()
         const socket = new VoiceSocket(7, { onMessage, onStatusChange })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
-        MockWebSocket.instances[0].emitMessage({
-            type: 'voice_ready',
-            voice_session_id: 'voice-1',
-            server_time_ms: 1,
-            limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 60 },
-            upload_url: '/character-chats/7/voice-segments',
-        })
+        MockWebSocket.instances[0].emitMessage(READY_FRAME)
+        socket.noteSegmentSeq(4)
 
         await vi.advanceTimersByTimeAsync(50_000)
-        await vi.advanceTimersByTimeAsync(50_000)
-
         expect(MockWebSocket.instances[0].close).toHaveBeenCalledTimes(1)
-        expect(onStatusChange).toHaveBeenLastCalledWith('closed')
-        expect(onMessage).toHaveBeenCalledTimes(2)
-        expect(onMessage).toHaveBeenLastCalledWith(expect.objectContaining({
-            type: 'voice_error',
-            fatal: true,
-            message: 'The voice connection ended. Start a new call.',
-        }))
+        expect(onStatusChange).toHaveBeenLastCalledWith('connecting')
+
+        await vi.advanceTimersByTimeAsync(500)
+        expect(MockWebSocket.instances).toHaveLength(2)
+        MockWebSocket.instances[1].emitOpen()
+        expect(MockWebSocket.instances[1].send).toHaveBeenCalledWith(JSON.stringify({ type: 'voice_resume', voice_session_id: 'voice-1', last_segment_seq: 4 }))
+        expect(onMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_error' }))
     })
 
     it('resets the liveness deadline on every valid inbound frame', async () => {
@@ -254,29 +255,149 @@ describe('VoiceSocket', () => {
         expect(MockWebSocket.instances).toHaveLength(2)
     })
 
-    it('fails visibly on a transient close after ready instead of sending voice_resume', async () => {
+    it('resumes the call with voice_resume after a transient close', async () => {
         vi.useFakeTimers()
         const onMessage = vi.fn()
         const socket = new VoiceSocket(7, { onMessage })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
-        MockWebSocket.instances[0].emitMessage({
-            type: 'voice_ready',
-            voice_session_id: 'voice-1',
-            server_time_ms: 1,
-            limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 60 },
-            upload_url: '/character-chats/7/voice-segments',
-        })
+        MockWebSocket.instances[0].emitMessage(READY_FRAME)
+        socket.noteSegmentSeq(2)
 
         MockWebSocket.instances[0].emitClose(1006)
-        await vi.advanceTimersByTimeAsync(30_000)
+        expect(socket.isResuming).toBe(true)
+        await vi.advanceTimersByTimeAsync(500)
+        expect(MockWebSocket.instances).toHaveLength(2)
+        MockWebSocket.instances[1].emitOpen()
+        expect(MockWebSocket.instances[1].send).toHaveBeenCalledWith(JSON.stringify({ type: 'voice_resume', voice_session_id: 'voice-1', last_segment_seq: 2 }))
 
-        expect(MockWebSocket.instances).toHaveLength(1)
+        MockWebSocket.instances[1].emitMessage({
+            type: 'voice_state_snapshot',
+            voice_session_id: 'voice-1',
+            state: 'listening',
+            status: 'active',
+            last_segment_seq: 2,
+            last_audio_seq: 0,
+            server_time_ms: 2,
+        })
+        expect(socket.isResuming).toBe(false)
+        expect(onMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_error' }))
+    })
+
+    it('gives up once the resume window passes', async () => {
+        vi.useFakeTimers()
+        const onMessage = vi.fn()
+        const socket = new VoiceSocket(7, { onMessage })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage(READY_FRAME)
+
+        MockWebSocket.instances[0].emitClose(1006)
+        // Every resume attempt fails at the network level.
+        for (let elapsed = 0; elapsed < 20_000; elapsed += 250) {
+            await vi.advanceTimersByTimeAsync(250)
+            const latest = MockWebSocket.instances[MockWebSocket.instances.length - 1]
+            if (latest.readyState === MockWebSocket.CONNECTING) latest.emitClose(1006)
+        }
+
         expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({
             type: 'voice_error',
             category: 'internal',
+            code: 'VOICE_CONNECTION_LOST',
             fatal: true,
         }))
+        const attempts = MockWebSocket.instances.length
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(MockWebSocket.instances).toHaveLength(attempts)
+    })
+
+    it('refreshes the token once when the handshake fails before any frame', async () => {
+        const refresh = vi.fn().mockImplementation(async () => {
+            localStorage.setItem('magic_worlds:token', 'new-token')
+            return 'new-token'
+        })
+        configureVoiceSocketAuthRefresh(refresh)
+        const socket = new VoiceSocket(7, { onMessage: vi.fn() })
+        socket.connect(startFrame())
+
+        MockWebSocket.instances[0].emitClose(1006)
+        await flushPromises()
+
+        expect(refresh).toHaveBeenCalledTimes(1)
+        expect(MockWebSocket.instances).toHaveLength(2)
+        expect(protocolsOf(MockWebSocket.instances[1])).toEqual(['mw.bearer.v1', 'new-token'])
+        MockWebSocket.instances[1].emitOpen()
+        expect(MockWebSocket.instances[1].send).toHaveBeenCalledWith(JSON.stringify(startFrame()))
+    })
+
+    it('lets the 4401 close recover a rejected token instead of surfacing the typed auth frame', async () => {
+        const refresh = vi.fn().mockImplementation(async () => {
+            localStorage.setItem('magic_worlds:token', 'new-token')
+            return 'new-token'
+        })
+        configureVoiceSocketAuthRefresh(refresh)
+        const onMessage = vi.fn()
+        const socket = new VoiceSocket(7, { onMessage })
+        socket.connect(startFrame())
+
+        // Server contract C3: accept, typed voice_error, then close 4401.
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage({ type: 'voice_error', category: 'auth', code: 'auth_required', message: 'Authentication required.', fatal: true })
+        MockWebSocket.instances[0].emitClose(4401)
+        await flushPromises()
+
+        expect(onMessage).not.toHaveBeenCalled()
+        expect(refresh).toHaveBeenCalledTimes(1)
+        MockWebSocket.instances[1].emitOpen()
+        expect(MockWebSocket.instances[1].send).toHaveBeenCalledWith(JSON.stringify(startFrame()))
+    })
+
+    it('refreshes and resumes when the token expired during a network drop', async () => {
+        vi.useFakeTimers()
+        configureVoiceSocketAuthRefresh(vi.fn().mockImplementation(async () => {
+            localStorage.setItem('magic_worlds:token', 'new-token')
+            return 'new-token'
+        }))
+        const onMessage = vi.fn()
+        const socket = new VoiceSocket(7, { onMessage })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage(READY_FRAME)
+        onMessage.mockClear()
+
+        MockWebSocket.instances[0].emitClose(1006)
+        await vi.advanceTimersByTimeAsync(500)
+        MockWebSocket.instances[1].emitOpen()
+        MockWebSocket.instances[1].emitMessage({ type: 'voice_error', category: 'auth', code: 'auth_required', message: 'Authentication required.', fatal: true })
+        MockWebSocket.instances[1].emitClose(4401)
+        await vi.advanceTimersByTimeAsync(0)
+
+        expect(MockWebSocket.instances).toHaveLength(3)
+        MockWebSocket.instances[2].emitOpen()
+        expect(MockWebSocket.instances[2].send).toHaveBeenCalledWith(JSON.stringify({ type: 'voice_resume', voice_session_id: 'voice-1', last_segment_seq: 0 }))
+        expect(onMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_error' }))
+    })
+
+    it('still reports a rejected origin as a terminal auth error', () => {
+        const onMessage = vi.fn()
+        const socket = new VoiceSocket(7, { onMessage })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage({ type: 'voice_error', category: 'auth', code: 'origin_forbidden', message: 'Origin not allowed.', fatal: true })
+
+        expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_error', code: 'origin_forbidden', fatal: true }))
+    })
+
+    it('starts a fresh call with voice_start after a previous call ended', () => {
+        const socket = new VoiceSocket(7, { onMessage: vi.fn() })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage(READY_FRAME)
+        socket.close()
+
+        socket.connect({ ...startFrame(), client_call_id: 'call-2' })
+        MockWebSocket.instances[1].emitOpen()
+        expect(MockWebSocket.instances[1].send).toHaveBeenCalledWith(JSON.stringify({ ...startFrame(), client_call_id: 'call-2' }))
     })
 
     it('refuses raw-audio JSON control payloads', () => {

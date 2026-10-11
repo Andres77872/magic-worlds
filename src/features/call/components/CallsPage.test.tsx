@@ -13,6 +13,7 @@ const loadData = vi.fn()
 
 let authed = true
 let characters: Character[] = []
+let characterChats: CharacterChatSession[] = []
 let libraryState: { isLoading: boolean; error: string | null } = { isLoading: false, error: null }
 
 const PERSONA: Character = { id: 'p1', name: 'Aria', stats: {}, role: 'persona', is_default_persona: true } as Character
@@ -23,7 +24,7 @@ const MIRA_WITH_DEFAULT: Character = { ...MIRA, default_persona_id: 'p2' } as Ch
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: authed, openLoginModal }),
     useNavigation: () => ({ setPage }),
-    useData: () => ({ characters, startCharacterChat, resumeCharacterChat, loadingState: libraryState, loadData }),
+    useData: () => ({ characters, characterChats, startCharacterChat, resumeCharacterChat, loadingState: libraryState, loadData }),
 }))
 
 // GalleryCard reaches for the playlist (theme-song button); stub the deep import.
@@ -41,6 +42,7 @@ beforeEach(() => {
     vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
     authed = true
     characters = [MIRA, PERSONA]
+    characterChats = []
     libraryState = { isLoading: false, error: null }
     getRecentVoiceCalls.mockResolvedValue({ items: [] })
     getVoiceCallTranscript.mockResolvedValue({ call: {}, segments: [] })
@@ -123,6 +125,46 @@ describe('CallsPage', () => {
 
         expect(await screen.findByTestId('call-transcript-view')).toBeInTheDocument()
         await waitFor(() => expect(getVoiceCallTranscript).toHaveBeenCalledWith('vs-1'))
+    })
+
+    it('calls again inside the same chat when it is still available', async () => {
+        const savedChat = { id: '1', kind: 'character', character: MIRA } as CharacterChatSession
+        characterChats = [savedChat]
+        getRecentVoiceCalls.mockResolvedValue({
+            items: [{ voice_session_id: 'vs-1', chat_id: 1, character_card_id: 'c1', character_name: 'Mira', duration_seconds: 42 }],
+        })
+        render(<CallsPage />)
+
+        fireEvent.click(await screen.findByRole('button', { name: /call again/i }))
+
+        expect(resumeCharacterChat).toHaveBeenCalledWith(savedChat, { mode: 'voice' })
+        expect(startCharacterChat).not.toHaveBeenCalled()
+        expect(setPage).toHaveBeenCalledWith('character-chat')
+    })
+
+    it('starts a new chat to call again when the original chat is gone', async () => {
+        getRecentVoiceCalls.mockResolvedValue({
+            items: [{ voice_session_id: 'vs-1', chat_id: 99, character_card_id: 'c1', character_name: 'Mira', duration_seconds: 42 }],
+        })
+        render(<CallsPage />)
+
+        fireEvent.click(await screen.findByRole('button', { name: /call again/i }))
+
+        await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(MIRA, PERSONA))
+    })
+
+    it('pages through older calls with load more', async () => {
+        const page = (start: number, count: number) => Array.from({ length: count }, (_, index) => ({
+            voice_session_id: `vs-${start + index}`, chat_id: 1, character_card_id: 'c1', character_name: 'Mira', duration_seconds: 10,
+        }))
+        getRecentVoiceCalls.mockResolvedValueOnce({ items: page(0, 30) }).mockResolvedValueOnce({ items: page(30, 2) })
+        render(<CallsPage />)
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Load more calls' }))
+
+        await waitFor(() => expect(screen.getAllByRole('button', { name: 'Transcript' })).toHaveLength(32))
+        expect(getRecentVoiceCalls).toHaveBeenLastCalledWith({ skip: 30, limit: 30 })
+        expect(screen.queryByRole('button', { name: 'Load more calls' })).not.toBeInTheDocument()
     })
 
     it('renders signed-out visitors and gates only starting a call', () => {

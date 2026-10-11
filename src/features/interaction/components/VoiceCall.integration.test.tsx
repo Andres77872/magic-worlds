@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Character, CharacterChatSession } from '@/shared'
 import type { CapturedVoiceSegment } from '../audio/voiceVadWorklet'
+import type { VoicePlaybackState } from '../audio/voicePlaybackBuffer'
 import type { MicrophoneCaptureApi, UseMicrophoneCaptureOptions } from '../hooks/useMicrophoneCapture'
 import type { VoiceCallSocketApi, VoiceCallSocketHandlers } from '../hooks/useVoiceCallSocket'
 import { CallScreen } from '../../call'
@@ -26,7 +27,11 @@ const integration = vi.hoisted(() => ({
         finalize: ReturnType<typeof vi.fn>
         cancel: ReturnType<typeof vi.fn>
         dispose: ReturnType<typeof vi.fn>
+        unlock: ReturnType<typeof vi.fn>
+        resume: ReturnType<typeof vi.fn>
+        addStateListener: ReturnType<typeof vi.fn>
     } | null,
+    playbackListener: null as ((state: VoicePlaybackState) => void) | null,
     setPage: vi.fn(),
     openLoginModal: vi.fn(),
     resumeCharacterChat: vi.fn(),
@@ -132,6 +137,11 @@ function readyFrame() {
     }
 }
 
+/** Drive the (mocked) playback buffer's audible state, as the real audio element would. */
+function emitPlayback(status: VoicePlaybackState['status'], turnId: string | null = 'turn-1') {
+    act(() => integration.playbackListener?.({ status, voiceSessionId: 'voice-session-1', turnId }))
+}
+
 async function startVoiceCallThroughConsent() {
     // CallScreen opens the consent modal automatically — no separate "Start" button.
     fireEvent.click(screen.getByRole('button', { name: 'I consent and start call' }))
@@ -163,13 +173,9 @@ describe('Voice call integration proof', () => {
         integration.apiService.fetchProtectedMediaBlob.mockResolvedValue(new Blob())
         integration.socketApi = {
             socketStatus: 'closed',
-            voiceState: 'idle',
-            ready: null,
-            error: null,
-            voiceSessionId: null,
             start: vi.fn(),
-            sendSegmentMeta: vi.fn(() => true),
             bargeIn: vi.fn(() => true),
+            noteSegmentSeq: vi.fn(),
             end: vi.fn(() => true),
             close: vi.fn(),
         }
@@ -183,13 +189,24 @@ describe('Voice call integration proof', () => {
             stop: vi.fn(),
             mute: vi.fn(),
             unmute: vi.fn(),
+            configure: vi.fn(),
+            echoCancellation: true,
+            rawFallbackActive: false,
+            errorCode: null,
         }
+        integration.playbackListener = null
         integration.playback = {
             startTurn: vi.fn(),
             appendChunk: vi.fn(() => true),
             finalize: vi.fn(),
             cancel: vi.fn(),
             dispose: vi.fn(),
+            unlock: vi.fn(),
+            resume: vi.fn(async () => true),
+            addStateListener: vi.fn((listener: (state: VoicePlaybackState) => void) => {
+                integration.playbackListener = listener
+                return () => { integration.playbackListener = null }
+            }),
         }
         Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
             configurable: true,
@@ -218,12 +235,17 @@ describe('Voice call integration proof', () => {
             seq: 1,
             audio: expect.any(Blob),
         }), expect.objectContaining({ signal: expect.any(AbortSignal) })))
-        expect(integration.socketApi!.sendSegmentMeta).toHaveBeenCalledWith({ type: 'voice_segment_meta' })
+        expect(integration.socketApi!.noteSegmentSeq).toHaveBeenCalledWith(1)
+        // The click itself unlocked playback (iOS autoplay) before any await.
+        expect(integration.playback!.unlock).toHaveBeenCalled()
 
         act(() => integration.socketHandlers?.onTranscriptFinal?.({ type: 'transcript_final', voice_session_id: 'voice-session-1', seq: 1, turn_id: 'turn-1', text: 'Hello there.' }))
         act(() => integration.socketHandlers?.onTurnStart?.({ type: 'voice_turn_start', voice_session_id: 'voice-session-1', turn_id: 'turn-1', user_message_id: 10, assistant_message_id: 11 }))
         act(() => integration.socketHandlers?.onAssistantDelta?.({ type: 'voice_assistant_delta', voice_session_id: 'voice-session-1', turn_id: 'turn-1', content: 'Welcome back.' }))
         act(() => integration.socketHandlers?.onAudioChunk?.({ type: 'voice_audio_chunk', voice_session_id: 'voice-session-1', turn_id: 'turn-1', seq: 1, content_type: 'audio/mpeg', sample_rate: 32000, channels: 1, data_b64: 'SUQzBA==', is_final: false }))
+        // Buffered but not yet audible still reads as thinking.
+        expect(screen.getByText('Thinking')).toBeInTheDocument()
+        emitPlayback('playing')
 
         expect(screen.getByText('Speaking')).toBeInTheDocument()
         expect(screen.getByText(/Hello there\./)).toBeInTheDocument()
@@ -233,11 +255,14 @@ describe('Voice call integration proof', () => {
 
         act(() => integration.socketHandlers?.onAudioFinal?.({ type: 'voice_audio_final', voice_session_id: 'voice-session-1', turn_id: 'turn-1', last_seq: 1 }))
         act(() => integration.socketHandlers?.onTurnEnd?.({ type: 'voice_turn_end', voice_session_id: 'voice-session-1', turn_id: 'turn-1', status: 'completed', partial: false, duration_ms: 1200 }))
+        // The server finished sending, but the character is still audible.
+        expect(screen.getByText('Speaking')).toBeInTheDocument()
+        emitPlayback('idle', null)
         expect(screen.getByText('Listening')).toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: 'End call' }))
 
-        await waitFor(() => expect(integration.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-session-1', reason: 'user' }))
+        await waitFor(() => expect(integration.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-session-1', reason: 'user' }, { keepalive: true }))
         expect(integration.microphoneApi!.stop).toHaveBeenCalled()
         expect(integration.socketApi!.close).toHaveBeenCalled()
         expect(integration.playback!.cancel).toHaveBeenCalled()
@@ -293,10 +318,10 @@ describe('Voice call integration proof', () => {
         act(() => window.dispatchEvent(new CustomEvent('auth:expired')))
         expect(integration.microphoneApi!.stop).toHaveBeenCalled()
         expect(integration.socketApi!.close).toHaveBeenCalled()
-        expect(screen.getByRole('alert')).toHaveTextContent(/session has expired/i)
+        expect(screen.getByRole('status')).toHaveTextContent(/session expired/i)
 
         unmount()
-        await waitFor(() => expect(integration.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-session-1', reason: 'user' }))
+        await waitFor(() => expect(integration.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-session-1', reason: 'user' }, { keepalive: true }))
         expect(integration.playback!.dispose).toHaveBeenCalled()
     })
 
@@ -311,6 +336,7 @@ describe('Voice call integration proof', () => {
         act(() => integration.socketHandlers?.onReady?.(readyFrame()))
         act(() => integration.socketHandlers?.onTurnStart?.({ type: 'voice_turn_start', voice_session_id: 'voice-session-1', turn_id: 'turn-1', user_message_id: 10, assistant_message_id: 11 }))
         act(() => integration.socketHandlers?.onAudioChunk?.({ type: 'voice_audio_chunk', voice_session_id: 'voice-session-1', turn_id: 'turn-1', seq: 4, content_type: 'audio/mpeg', sample_rate: 32000, channels: 1, data_b64: 'UFJJVkFURQ==', is_final: false }))
+        emitPlayback('playing')
 
         fireEvent.click(screen.getByRole('button', { name: 'Interrupt' }))
 

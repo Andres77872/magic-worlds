@@ -2,8 +2,13 @@
  * VoiceSocket — per-character-chat WebSocket transport for live voice calls.
  *
  * This is intentionally separate from ChatSocket. It carries voice lifecycle,
- * VAD metadata, transcript/status, barge-in controls, and assistant MP3 chunks;
- * microphone bytes are uploaded through the HTTP voice-segments route instead.
+ * transcript/status, barge-in controls, and assistant MP3 chunks; microphone
+ * bytes are uploaded through the HTTP voice-segments route instead.
+ *
+ * After `voice_ready`, an abnormal close does not end the call: the server keeps
+ * it alive for a short grace period, so the socket reconnects with
+ * `voice_resume` until `voice_state_snapshot` confirms the call is back, and only
+ * gives up once RESUME_WINDOW_MS has passed.
  */
 
 import type { VoiceErrorCategory, VoiceSocketClientFrame, VoiceSocketServerFrame } from '../../shared/types/voice.types'
@@ -14,6 +19,9 @@ const WS_BEARER_SUBPROTOCOL = 'mw.bearer.v1'
 const HEARTBEAT_MS = 25_000
 const LIVENESS_TIMEOUT_MS = HEARTBEAT_MS * 2
 const MAX_RECONNECT_MS = 30_000
+/** Must stay below the server's VOICE_RESUME_GRACE_SECONDS (20 s). */
+const RESUME_WINDOW_MS = 15_000
+const MAX_RESUME_BACKOFF_MS = 4_000
 
 /** Stable, greppable code for a voice error category — mirrors the backend `VOICE_<CATEGORY>`. */
 export function voiceErrorCode(category: string): string {
@@ -79,6 +87,7 @@ type RefreshFailureShape = {
 }
 
 type VoiceStartFrame = Extract<VoiceSocketClientFrame, { type: 'voice_start' }>
+type VoiceResumeFrame = Extract<VoiceSocketClientFrame, { type: 'voice_resume' }>
 type VoiceBargeInFrame = Extract<VoiceSocketClientFrame, { type: 'voice_barge_in' }>
 
 export type VoiceSocketStatus = 'connecting' | 'open' | 'closed'
@@ -138,11 +147,13 @@ export class VoiceSocket {
     private closedByUser = false
     private authRecoveryAttempted = false
     private terminalAuthReported = false
-    private livenessFatalReported = false
     private lastFrameAt = 0
     private socketOwner: Pick<AuthSessionSnapshot, 'authEpoch' | 'accountKey' | 'userHash'> | null = null
     private startFrame: VoiceStartFrame | null = null
     private voiceSessionId: string | null = null
+    private lastSegmentSeq = 0
+    /** Set while a post-ready connection is being resumed; the deadline ends the call. */
+    private resumeDeadline: number | null = null
     private readonly cancelledTurns = new Set<string>()
     private readonly highestAudioSeqByTurn = new Map<string, number>()
 
@@ -153,13 +164,34 @@ export class VoiceSocket {
     }
 
     connect(startFrame?: VoiceStartFrame): void {
-        if (startFrame) this.startFrame = startFrame
+        if (startFrame) {
+            // A new start is a new call: forget the previous call's identity so the
+            // handshake is `voice_start`, never a `voice_resume` of an ended call.
+            this.startFrame = startFrame
+            this.voiceSessionId = null
+            this.lastSegmentSeq = 0
+            this.resumeDeadline = null
+            this.reconnectAttempts = 0
+            this.authRecoveryAttempted = false
+            this.terminalAuthReported = false
+            this.cancelledTurns.clear()
+            this.highestAudioSeqByTurn.clear()
+        }
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer)
+            this.reconnectTimer = null
+        }
         this.closedByUser = false
         this.openSocket()
     }
 
-    sendSegmentMeta(frame: Extract<VoiceSocketClientFrame, { type: 'voice_segment_meta' }>): boolean {
-        return this.sendFrame(frame)
+    /** Highest segment seq the client has uploaded; sent in `voice_resume`. */
+    noteSegmentSeq(seq: number): void {
+        if (Number.isInteger(seq) && seq > this.lastSegmentSeq) this.lastSegmentSeq = seq
+    }
+
+    get isResuming(): boolean {
+        return this.resumeDeadline !== null
     }
 
     sendBargeIn(frame: VoiceBargeInFrame): boolean {
@@ -189,6 +221,7 @@ export class VoiceSocket {
 
     close(code = 1000): void {
         this.closedByUser = true
+        this.resumeDeadline = null
         this.stopHeartbeat()
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer)
@@ -224,12 +257,13 @@ export class VoiceSocket {
         try {
             ws = new WebSocket(url, [WS_BEARER_SUBPROTOCOL, token])
         } catch {
-            this.scheduleReconnect()
+            this.reconnectAfterFailure()
             return
         }
 
         this.detach(this.ws)
         this.ws = ws
+        let opened = false
 
         ws.onopen = () => {
             if (this.ws !== ws) return
@@ -237,7 +271,8 @@ export class VoiceSocket {
                 this.retireSocket()
                 return
             }
-            this.reconnectAttempts = 0
+            opened = true
+            if (!this.isResuming) this.reconnectAttempts = 0
             this.lastFrameAt = Date.now()
             this.setStatus('open')
             this.startHeartbeat()
@@ -268,15 +303,18 @@ export class VoiceSocket {
 
             if (event.code === 4401) {
                 if (!this.isSocketOwnerCurrent()) return
-                if (this.voiceSessionId) {
-                    this.emitError('auth', 'The voice connection ended after authentication changed. Start a new call.', true)
-                } else {
+                // Before ready, or while resuming, the token may simply have expired:
+                // refresh once and reconnect (a resume keeps the same call).
+                if (!this.voiceSessionId || this.isResuming) {
                     void this.recoverFromAuthClose()
+                } else {
+                    this.emitError('auth', 'The voice connection ended after authentication changed. Start a new call.', true)
                 }
                 return
             }
 
             if (event.code === 4403) {
+                this.resumeDeadline = null
                 this.emitError('auth', 'Voice connection was rejected by the origin policy.', true)
                 return
             }
@@ -284,15 +322,18 @@ export class VoiceSocket {
             if (event.code === 4408) {
                 // The server also sent a typed voice_error frame (with its real category/code/
                 // message) just before this close; this is the fallback if that didn't arrive.
+                this.resumeDeadline = null
                 this.emitError('busy', 'The call could not start. Please try again.', true)
                 return
             }
 
             if (!this.closedByUser && event.code !== 1000) {
                 if (this.voiceSessionId) {
-                    // The backend releases a call when its socket disconnects, so
-                    // post-ready resume would target an already-ended session.
-                    this.emitError('internal', 'The voice connection ended. Start a new call.', true)
+                    this.beginResume()
+                } else if (!opened && event.code === 1006 && !this.authRecoveryAttempted && refreshAccessTokenForVoiceSocket) {
+                    // A rejected handshake (expired token, older servers closing before
+                    // accept) reaches the browser as a bare 1006: refresh once first.
+                    void this.recoverFromAuthClose()
                 } else {
                     this.scheduleReconnect()
                 }
@@ -302,8 +343,33 @@ export class VoiceSocket {
         ws.onerror = () => {}
     }
 
-    private buildHandshakeFrame(): VoiceStartFrame | null {
+    private buildHandshakeFrame(): VoiceStartFrame | VoiceResumeFrame | null {
+        if (this.voiceSessionId) {
+            return { type: 'voice_resume', voice_session_id: this.voiceSessionId, last_segment_seq: this.lastSegmentSeq }
+        }
         return this.startFrame
+    }
+
+    private reconnectAfterFailure(): void {
+        if (this.voiceSessionId) this.beginResume()
+        else this.scheduleReconnect()
+    }
+
+    /** Keep a post-ready call alive across a dropped connection (server grace period). */
+    private beginResume(): void {
+        if (this.closedByUser || !this.voiceSessionId) return
+        if (this.resumeDeadline === null) {
+            this.resumeDeadline = Date.now() + RESUME_WINDOW_MS
+            this.reconnectAttempts = 0
+            console.warn('[voice-call][RESUMING] voice socket dropped; resuming the call', { voiceSessionId: this.voiceSessionId })
+        }
+        if (Date.now() >= this.resumeDeadline) {
+            this.resumeDeadline = null
+            this.closedByUser = true
+            this.emitError('internal', 'The voice connection was lost. Start a new call.', true, 'VOICE_CONNECTION_LOST')
+            return
+        }
+        this.scheduleReconnect(MAX_RESUME_BACKOFF_MS, 500)
     }
 
     private handleIncoming(data: unknown): void {
@@ -320,6 +386,10 @@ export class VoiceSocket {
         this.lastFrameAt = Date.now()
         if (this.shouldDropStaleFrame(message)) return
         this.trackServerFrame(message)
+        // The server announces a rejected token with a typed frame and then closes 4401.
+        // The close owns the outcome (refresh-and-retry, or a terminal auth error), so the
+        // frame must not reach the call first and tear it down mid-recovery.
+        if (message.type === 'voice_error' && message.category === 'auth' && message.code === 'auth_required') return
         if (message.type === 'voice_error') {
             const code = message.code || voiceErrorCode(message.category)
             console.error(`[voice-call][${code}] ${message.message}`, { category: message.category, fatal: message.fatal === true, voiceSessionId: this.voiceSessionId })
@@ -349,10 +419,12 @@ export class VoiceSocket {
             case 'voice_ready':
                 this.voiceSessionId = message.voice_session_id
                 this.authRecoveryAttempted = false
-                this.livenessFatalReported = false
                 break
             case 'voice_state_snapshot':
                 this.voiceSessionId = message.voice_session_id
+                this.resumeDeadline = null
+                this.reconnectAttempts = 0
+                this.authRecoveryAttempted = false
                 break
             case 'voice_segment_ack':
                 break
@@ -402,7 +474,7 @@ export class VoiceSocket {
                 this.emitError('auth', 'Authentication service is temporarily unavailable. Please try again shortly.', false)
                 if (this.isTransientRefreshFailure(error)) {
                     this.authRecoveryAttempted = false
-                    this.scheduleReconnect()
+                    this.reconnectAfterFailure()
                 }
             }
             return
@@ -454,8 +526,7 @@ export class VoiceSocket {
         this.emitError('auth', 'Your session has expired. Please log in again.', true)
     }
 
-    private emitError(category: VoiceErrorCategory, message: string, fatal: boolean): void {
-        const code = voiceErrorCode(category)
+    private emitError(category: VoiceErrorCategory, message: string, fatal: boolean, code = voiceErrorCode(category)): void {
         console.error(`[voice-call][${code}] ${message}`, { category, fatal, voiceSessionId: this.voiceSessionId })
         this.handlers.onMessage({ type: 'voice_error', category, code, message, fatal })
     }
@@ -469,17 +540,11 @@ export class VoiceSocket {
         this.heartbeat = setInterval(() => {
             if (!this.isOpen) return
             if (Date.now() - this.lastFrameAt >= LIVENESS_TIMEOUT_MS) {
-                const established = Boolean(this.voiceSessionId)
+                // A silently dead connection (no pong): drop it and reconnect —
+                // resuming the call when one is established.
                 this.retireSocket()
-                if (established) {
-                    this.closedByUser = true
-                    if (!this.livenessFatalReported) {
-                        this.livenessFatalReported = true
-                        this.emitError('internal', 'The voice connection ended. Start a new call.', true)
-                    }
-                } else if (!this.closedByUser) {
-                    this.scheduleReconnect()
-                }
+                if (this.voiceSessionId) this.beginResume()
+                else if (!this.closedByUser) this.scheduleReconnect()
                 return
             }
             this.ping()
@@ -510,10 +575,11 @@ export class VoiceSocket {
         }
     }
 
-    private scheduleReconnect(): void {
+    private scheduleReconnect(maxDelayMs = MAX_RECONNECT_MS, baseDelayMs = 1_000): void {
         if (this.closedByUser || this.reconnectTimer) return
-        const delay = Math.min(MAX_RECONNECT_MS, 1_000 * 2 ** this.reconnectAttempts)
+        const delay = Math.min(maxDelayMs, baseDelayMs * 2 ** this.reconnectAttempts)
         this.reconnectAttempts += 1
+        this.setStatus('connecting')
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null
             this.openSocket()

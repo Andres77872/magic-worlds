@@ -170,7 +170,7 @@ export function formatProviderOptions(options: Record<string, unknown> | undefin
     return options && Object.keys(options).length > 0 ? JSON.stringify(options, null, 2) : ''
 }
 
-const CAPABILITY_KEYS = new Set(['chat', 'streaming', 'tools', 'json', 'vision', 'reasoning', 'agent'])
+const CAPABILITY_KEYS = new Set(['chat', 'streaming', 'tools', 'json', 'json_schema', 'vision', 'reasoning', 'agent'])
 
 /** Human label for a model capability; unknown ones are shown as their code. */
 export function capabilityLabel(capability: string, t: TFunction): string {

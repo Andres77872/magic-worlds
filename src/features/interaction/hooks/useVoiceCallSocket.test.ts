@@ -9,8 +9,8 @@ const socketInstances: Array<{
     basePath: string
     connect: ReturnType<typeof vi.fn>
     close: ReturnType<typeof vi.fn>
-    sendSegmentMeta: ReturnType<typeof vi.fn>
     sendBargeIn: ReturnType<typeof vi.fn>
+    noteSegmentSeq: ReturnType<typeof vi.fn>
     end: ReturnType<typeof vi.fn>
 }> = []
 
@@ -20,8 +20,8 @@ vi.mock('@/infrastructure/api', () => ({
         readonly basePath: string
         connect = vi.fn()
         close = vi.fn()
-        sendSegmentMeta = vi.fn(() => true)
         sendBargeIn = vi.fn(() => true)
+        noteSegmentSeq = vi.fn()
         end = vi.fn(() => true)
 
         constructor(_sessionId: number, handlers: { onMessage: (message: VoiceSocketServerFrame) => void; onStatusChange?: (status: string) => void }, _basePath: string) {
@@ -86,7 +86,6 @@ describe('useVoiceCallSocket', () => {
 
         act(() => result.current.start(startFrame()))
         expect(socketInstances[0].connect).toHaveBeenCalledWith(startFrame())
-        expect(result.current.voiceState).toBe('connecting')
 
         unmount()
         expect(socketInstances[0].close).toHaveBeenCalledTimes(1)
@@ -114,25 +113,26 @@ describe('useVoiceCallSocket', () => {
         expect(secondReady).toHaveBeenCalledTimes(1)
     })
 
-    it('updates deterministic state for ready/resume snapshot/status/error frames', () => {
+    it('routes typed frames and transport status to the handlers', () => {
+        const onSocketStatus = vi.fn()
+        const onReady = vi.fn()
         const onStateSnapshot = vi.fn()
-        const onStatus = vi.fn()
         const onError = vi.fn()
-        const { result } = renderHook(() => useVoiceCallSocket(7, { onStateSnapshot, onStatus, onError }, 'token-1'))
+        const onEnded = vi.fn()
+        const { result } = renderHook(() => useVoiceCallSocket(7, { onSocketStatus, onReady, onStateSnapshot, onError, onEnded }, 'token-1'))
 
         act(() => socketHandlers?.onStatusChange?.('connecting'))
         expect(result.current.socketStatus).toBe('connecting')
-        expect(result.current.voiceState).toBe('connecting')
+        expect(onSocketStatus).toHaveBeenCalledWith('connecting')
 
         act(() => socketHandlers?.onMessage({
             type: 'voice_ready',
             voice_session_id: 'voice-1',
             server_time_ms: 1,
-            limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 120 },
+            limits: { max_call_seconds: 600, idle_timeout_seconds: 120, remaining_daily_seconds: 120, max_segment_duration_ms: 30_000 },
             upload_url: '/character-chats/7/voice-segments',
         }))
-        expect(result.current.voiceSessionId).toBe('voice-1')
-        expect(result.current.voiceState).toBe('listening')
+        expect(onReady).toHaveBeenCalledWith(expect.objectContaining({ voice_session_id: 'voice-1' }))
 
         act(() => socketHandlers?.onMessage({
             type: 'voice_state_snapshot',
@@ -140,32 +140,29 @@ describe('useVoiceCallSocket', () => {
             state: 'listening',
             status: 'active',
             last_segment_seq: 2,
-            last_audio_seq: 4,
+            last_audio_seq: 0,
             server_time_ms: 2,
         }))
-        expect(result.current.voiceSessionId).toBe('voice-1')
-        expect(result.current.voiceState).toBe('listening')
         expect(onStateSnapshot).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_state_snapshot', last_segment_seq: 2 }))
 
-        act(() => socketHandlers?.onMessage({ type: 'voice_status', state: 'transcribing', message: 'Transcribing.' }))
-        expect(result.current.voiceState).toBe('transcribing')
-        expect(onStatus).toHaveBeenCalledWith(expect.objectContaining({ state: 'transcribing' }))
-
         act(() => socketHandlers?.onMessage({ type: 'voice_error', category: 'quota_exceeded', message: 'Daily limit reached.', fatal: true }))
-        expect(result.current.voiceState).toBe('error')
-        expect(result.current.error).toMatchObject({ category: 'quota_exceeded' })
         expect(onError).toHaveBeenCalledTimes(1)
+
+        act(() => socketHandlers?.onMessage({ type: 'voice_ended', voice_session_id: 'voice-1', reason: 'idle_timeout' }))
+        expect(onEnded).toHaveBeenCalledWith(expect.objectContaining({ reason: 'idle_timeout' }))
     })
 
-    it('dispatches voice frames without storing or replaying raw audio', () => {
+    it('forwards barge-in and the uploaded segment seq without carrying raw audio', () => {
         const { result } = renderHook(() => useVoiceCallSocket(7, {}, 'token-1'))
 
-        act(() => result.current.sendSegmentMeta({
-            type: 'voice_segment_meta',
-        }))
+        act(() => {
+            result.current.noteSegmentSeq(3)
+            result.current.bargeIn({ type: 'voice_barge_in', reason: 'barge_in' })
+        })
 
-        expect(socketInstances[0].sendSegmentMeta).toHaveBeenCalledTimes(1)
-        expect(socketInstances[0].sendSegmentMeta.mock.calls[0][0]).not.toHaveProperty('audio')
+        expect(socketInstances[0].noteSegmentSeq).toHaveBeenCalledWith(3)
+        expect(socketInstances[0].sendBargeIn).toHaveBeenCalledWith({ type: 'voice_barge_in', reason: 'barge_in' })
+        expect(socketInstances[0].sendBargeIn.mock.calls[0][0]).not.toHaveProperty('audio')
     })
 
     it('keeps the live call socket when the access token rotates', () => {
@@ -187,8 +184,6 @@ describe('useVoiceCallSocket', () => {
         expect(socketInstances).toHaveLength(1)
         expect(socketInstances[0].close).not.toHaveBeenCalled()
         expect(socketInstances[0].connect).toHaveBeenCalledExactlyOnceWith(startFrame())
-        expect(result.current.voiceSessionId).toBe('voice-1')
-        expect(result.current.voiceState).toBe('listening')
 
         unmount()
         expect(socketInstances[0].close).toHaveBeenCalledTimes(1)

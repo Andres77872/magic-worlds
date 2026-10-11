@@ -12,7 +12,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'The immersive, hands-free voice-call surface. The portrait pulses while listening, glows while the character speaks, and shows a thinking ring between turns. Turn-taking is automatic (VAD) — there is no push-to-talk. These stories drive the pure `CallScreenView`; the live `CallScreen` container wires it to `useVoiceCallController`.',
+                    'The immersive, hands-free voice-call surface. The portrait pulses while listening, glows while the character speaks, and shows a thinking ring between turns. Turn-taking is automatic (VAD) — there is no push-to-talk. When the call ends it explains why and offers to call again. These stories drive the pure `CallScreenView`; the live `CallScreen` container wires it to `useVoiceCallController`.',
             },
         },
     },
@@ -30,13 +30,15 @@ const meta = {
         isMuted: false,
         elapsedSeconds: 74,
         inputLevel: 0.4,
-        vadActive: true,
         transcript: null,
         assistantText: '',
         error: null,
         consentOpen: false,
         isAccepting: false,
         onAcceptConsent: noop,
+        onCallAgain: noop,
+        onResumePlayback: noop,
+        onDismissError: noop,
         onDeclineConsent: noop,
         onMute: noop,
         onUnmute: noop,
@@ -75,15 +77,43 @@ export const CharacterSpeaking: Story = {
     },
 }
 
-export const DegradedVad: Story = {
-    name: 'Degraded VAD',
-    args: { state: 'listening', vadActive: false },
+export const NoEchoCancellation: Story = {
+    name: 'Echo cancellation off',
+    args: { state: 'listening', echoCancellationOff: true },
 }
 
-export const ProviderError: Story = {
+export const AutoplayBlocked: Story = {
+    args: { state: 'assistant_speaking', autoplayBlocked: true, assistantText: 'Are you still there? The bells are ringing again.' },
+}
+
+export const FinalMinute: Story = {
+    name: 'Final minute',
+    args: { state: 'listening', elapsedSeconds: 552, remainingSeconds: 48 },
+}
+
+export const TransientNotice: Story = {
+    name: 'Transient notice',
+    args: {
+        state: 'listening',
+        error: { category: 'unsupported_media', code: 'VOICE_SEGMENT_UNSUPPORTED_MEDIA', message: 'unsupported_media', fatal: false },
+    },
+}
+
+export const EndedByQuota: Story = {
+    name: 'Ended (voice time used)',
+    args: { state: 'ended', endReason: 'quota', inputLevel: 0 },
+}
+
+export const EndedAfterSilence: Story = {
+    name: 'Ended (long silence)',
+    args: { state: 'ended', endReason: 'idle_timeout', inputLevel: 0 },
+}
+
+export const FatalError: Story = {
     args: {
         state: 'error',
-        error: { category: 'provider_submission', code: 'VOICE_PROVIDER_SUBMISSION', message: 'provider failed', fatal: false },
+        inputLevel: 0,
+        error: { category: 'internal', code: 'VOICE_CONNECTION_LOST', message: 'The voice connection was lost.', fatal: true },
     },
 }
 

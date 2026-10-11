@@ -3,10 +3,11 @@
  *
  * User lines are STT text only (raw microphone audio is never stored). Character lines
  * additionally play the saved MiniMax TTS via the shared VoiceClipPlayer, fetched as an
- * authenticated blob (the asset URL is protected).
+ * authenticated blob (the asset URL is protected). Clips are fetched only once their line
+ * nears the viewport, so opening a long call does not download every clip in parallel.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, ArrowLeft, Mic, PhoneCall, Volume2 } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
@@ -23,11 +24,37 @@ interface CallTranscriptViewProps {
     onBack: () => void
 }
 
+/** One-shot visibility gate (same approach as the lazy Portrait): flips true once the node nears the viewport. */
+function useNearViewport<T extends Element>(enabled: boolean) {
+    const ref = useRef<T>(null)
+    const [near, setNear] = useState(() => !enabled || typeof IntersectionObserver === 'undefined')
+
+    useEffect(() => {
+        if (near) return
+        const node = ref.current
+        if (!node) return
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) {
+                    setNear(true)
+                    observer.disconnect()
+                }
+            },
+            { rootMargin: '200px 0px', threshold: 0 },
+        )
+        observer.observe(node)
+        return () => observer.disconnect()
+    }, [near])
+
+    return [ref, near] as const
+}
+
 function CharacterTranscriptLine({ segment, speaker }: { segment: CallTranscriptSegment; speaker: string }) {
     const { t } = useTranslation()
-    const { src, loading } = useAuthenticatedMediaUrl(segment.audio_url ?? undefined, 'audio/mpeg')
+    const [lineRef, nearViewport] = useNearViewport<HTMLDivElement>(Boolean(segment.audio_url))
+    const { src, loading } = useAuthenticatedMediaUrl(nearViewport ? segment.audio_url ?? undefined : undefined, 'audio/mpeg')
     return (
-        <div className="border-l-2 border-arcane-500/30 py-2 pl-4 text-body text-parchment-100">
+        <div ref={lineRef} className="border-l-2 border-arcane-500/30 py-2 pl-4 text-body text-parchment-100">
             <p>
                 <span className="mb-1 flex items-center gap-1 text-caption font-semibold text-arcane-300">
                     <Icon icon={Volume2} size={12} />

@@ -1,12 +1,51 @@
 /**
  * voiceVadWorklet.ts — the MAIN-THREAD half of the voice VAD.
  *
- * Holds the segment types, WAV/sha helpers, and `VoiceVadWorkletSegmenter` (which turns
- * worklet `segment` messages into uploadable `CapturedVoiceSegment`s). The AudioWorklet
- * processor itself lives in the sibling plain-JS file `voiceVadProcessor.worklet.js`
- * (loaded via addModule) — it MUST be plain JS so it loads in dev AND prod.
+ * Holds the segment types, the worklet message/option contract, WAV/sha helpers, and
+ * `VoiceVadWorkletSegmenter` (which turns worklet `segment` messages into uploadable
+ * `CapturedVoiceSegment`s). The AudioWorklet processor itself lives in the sibling plain-JS
+ * file `voiceVadProcessor.worklet.js` (loaded via addModule) — it MUST be plain JS so it
+ * loads in dev AND prod, so the types below mirror it by hand.
  */
 import type { VoiceAudioEncoding, VoiceVadAggressiveness, VoiceVadSource } from '@/shared/types/voice.types'
+
+/** Name the processor registers under (`registerProcessor` in voiceVadProcessor.worklet.js). */
+export const VOICE_VAD_PROCESSOR_NAME = 'voice-vad-processor'
+/** Sample rate of every segment the worklet posts (it resamples whatever the context runs at). */
+export const VOICE_VAD_SAMPLE_RATE = 16_000
+/** Worklet default for `maxSegmentMs` (pre-roll included); the server rejects segments over 8 s. */
+export const VOICE_VAD_DEFAULT_MAX_SEGMENT_MS = 7_500
+/** Worklet default for `preRollMs`: audio kept from before the speech onset. */
+export const VOICE_VAD_DEFAULT_PRE_ROLL_MS = 300
+
+export interface VoiceVadTuning {
+    /** Silence (ms) before a turn ends. Default ~800ms (natural pause). */
+    silenceMsToEnd?: number
+    /** Minimum detected speech (ms) before a turn fires — ignores coughs/clicks. */
+    minSpeechMs?: number
+    /** Max single-segment length (ms), pre-roll included. Default 7500. */
+    maxSegmentMs?: number
+    /** RMS energy floor for speech; the adaptive noise floor can only raise it. */
+    speechThreshold?: number
+}
+
+/** `processorOptions` accepted by the worklet constructor. */
+export interface VoiceVadProcessorOptions extends VoiceVadTuning {
+    aggressiveness?: VoiceVadAggressiveness
+    /** Audio (ms) kept from before the speech onset and prepended to the segment. Default 300. */
+    preRollMs?: number
+    /** Interval (ms) between `level` messages. Default 50. */
+    levelIntervalMs?: number
+}
+
+/** Main thread → worklet: retune a live processor; applies from the next render quantum. */
+export type VoiceVadConfigureMessage = { type: 'configure' } & VoiceVadTuning
+
+/** Worklet → main thread. */
+export type VoiceVadProcessorMessage =
+    | { type: 'vad'; state: 'speech_start' | 'speech_end'; at_ms: number; rms: number }
+    | { type: 'level'; rms: number }
+    | { type: 'segment'; samples: Int16Array; sample_rate: number; started_at_ms: number; speech_ms: number; silence_ms: number }
 
 export interface CapturedVoiceSegment {
     seq: number
@@ -127,7 +166,7 @@ export async function buildPcm16WavSegment(input: Pcm16SegmentInput): Promise<Ca
 }
 
 export class VoiceVadWorkletSegmenter {
-    private nextSeq = 1
+    private seqCursor: number
     private readonly onSegment: (segment: CapturedVoiceSegment) => void
     private readonly source: VoiceVadSource
     private readonly aggressiveness: VoiceVadAggressiveness
@@ -138,16 +177,29 @@ export class VoiceVadWorkletSegmenter {
         source?: VoiceVadSource
         aggressiveness?: VoiceVadAggressiveness
         sampleRate?: number
+        /** First seq to assign. Carry the previous segmenter's `nextSeq` across an internal
+         *  capture restart so seqs stay unique for the whole voice session. */
+        startSeq?: number
     }) {
+        this.seqCursor = Math.max(1, Math.floor(options.startSeq ?? 1))
         this.onSegment = options.onSegment
         this.source = options.source ?? 'audio_worklet'
         this.aggressiveness = options.aggressiveness ?? 'balanced'
         this.sampleRate = options.sampleRate ?? 16_000
     }
 
+    /** The seq the next segment will get. Seqs are reserved synchronously, so segments still
+     *  being hashed already count. */
+    get nextSeq(): number {
+        return this.seqCursor
+    }
+
     async emitPcm16(samples: Int16Array | readonly number[], options: Partial<Omit<Pcm16SegmentInput, 'seq' | 'samples'>> = {}): Promise<CapturedVoiceSegment> {
+        // Reserve before the await: two segments posted back to back must not share a seq.
+        const seq = this.seqCursor
+        this.seqCursor += 1
         const segment = await buildPcm16WavSegment({
-            seq: this.nextSeq,
+            seq,
             startedAtMs: options.startedAtMs ?? performance.now(),
             samples,
             sampleRate: options.sampleRate ?? this.sampleRate,
@@ -156,7 +208,6 @@ export class VoiceVadWorkletSegmenter {
             source: options.source ?? this.source,
             aggressiveness: options.aggressiveness ?? this.aggressiveness,
         })
-        this.nextSeq += 1
         this.onSegment(segment)
         return segment
     }

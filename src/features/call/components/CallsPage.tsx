@@ -4,6 +4,8 @@
  * Top: an image-forward gallery of the user's characters to start a call from.
  * Below: the user's recent calls, each opening a saved transcript (with the character's
  * spoken audio). Selecting a call swaps the page into a master/detail transcript view.
+ * "Call again" continues the call's own chat when it is still in the chat list, so the
+ * character keeps the conversation instead of a new chat being created per call.
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -18,6 +20,8 @@ import { useStartCall } from '../useStartCall'
 import { CallHistoryRow } from './CallHistoryRow'
 import { CallTranscriptView } from './CallTranscriptView'
 
+const CALLS_PAGE_SIZE = 30
+
 function hasVoice(character: Character): boolean {
     return Boolean(character.voice?.voice_id)
 }
@@ -25,7 +29,7 @@ function hasVoice(character: Character): boolean {
 export function CallsPage() {
     const { t } = useTranslation()
     const { isAuthenticated } = useAuth()
-    const { characters, loadingState, loadData } = useData()
+    const { characters, characterChats, loadingState, loadData } = useData()
     const { setPage } = useNavigation()
     const call = useStartCall()
 
@@ -35,6 +39,9 @@ export function CallsPage() {
     const [callsError, setCallsError] = useState(false)
     const [reloadCalls, setReloadCalls] = useState(0)
     const [selectedCall, setSelectedCall] = useState<CallSummary | null>(null)
+    const [hasMoreCalls, setHasMoreCalls] = useState(false)
+    const [loadingMoreCalls, setLoadingMoreCalls] = useState(false)
+    const [moreCallsError, setMoreCallsError] = useState(false)
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -42,15 +49,20 @@ export function CallsPage() {
             setSelectedCall(null)
             setLoadingCalls(false)
             setCallsError(false)
+            setHasMoreCalls(false)
             return
         }
         let cancelled = false
         setLoadingCalls(true)
         setCallsError(false)
+        setMoreCallsError(false)
         apiService
-            .getRecentVoiceCalls({ limit: 30 })
+            .getRecentVoiceCalls({ limit: CALLS_PAGE_SIZE })
             .then((response) => {
-                if (!cancelled) setRecentCalls(response.items ?? [])
+                if (cancelled) return
+                const items = response.items ?? []
+                setRecentCalls(items)
+                setHasMoreCalls(items.length >= CALLS_PAGE_SIZE)
             })
             .catch((error) => {
                 console.error('Failed to load recent calls:', error)
@@ -63,6 +75,38 @@ export function CallsPage() {
             cancelled = true
         }
     }, [isAuthenticated, reloadCalls])
+
+    const loadMoreCalls = async () => {
+        if (loadingMoreCalls) return
+        setLoadingMoreCalls(true)
+        setMoreCallsError(false)
+        try {
+            const response = await apiService.getRecentVoiceCalls({ skip: recentCalls.length, limit: CALLS_PAGE_SIZE })
+            const items = response.items ?? []
+            setRecentCalls((current) => {
+                const seen = new Set(current.map((entry) => entry.voice_session_id))
+                return [...current, ...items.filter((entry) => !seen.has(entry.voice_session_id))]
+            })
+            setHasMoreCalls(items.length >= CALLS_PAGE_SIZE)
+        } catch (error) {
+            console.error('Failed to load more calls:', error)
+            setMoreCallsError(true)
+        } finally {
+            setLoadingMoreCalls(false)
+        }
+    }
+
+    /** Continue the call's own chat when we still have it; otherwise start a fresh one. */
+    const callAgainHandler = (entry: CallSummary) => {
+        const chat = entry.chat_id != null
+            ? (characterChats ?? []).find((candidate) => candidate.id === String(entry.chat_id) && candidate.kind !== 'character_group')
+            : undefined
+        if (chat) return () => call.resumeCall(chat)
+        const character = entry.character_card_id
+            ? (characters ?? []).find((candidate) => candidate.id === entry.character_card_id)
+            : undefined
+        return character ? () => call.startCall(character) : undefined
+    }
 
     // Callable characters: real characters (not personas), voice-configured first.
     const callableCharacters = useMemo(() => {
@@ -186,7 +230,7 @@ export function CallsPage() {
                     <h2 id="calls-recent-heading" className="font-display text-h3 font-semibold text-parchment-100">
                         {t('call.page.recentHeading')}
                     </h2>
-                    {recentCalls.length > 0 && <Badge tone="glass">{recentCalls.length}</Badge>}
+                    {recentCalls.length > 0 && <Badge tone="glass">{hasMoreCalls ? `${recentCalls.length}+` : recentCalls.length}</Badge>}
                 </div>
 
                 {loadingCalls ? (
@@ -202,20 +246,30 @@ export function CallsPage() {
                     </div>
                 ) : recentCalls.length > 0 ? (
                     <div className="flex flex-col gap-2">
-                        {recentCalls.map((entry) => {
-                            const match = entry.character_card_id
-                                ? (characters ?? []).find((character) => character.id === entry.character_card_id)
-                                : undefined
-                            return (
-                                <CallHistoryRow
-                                    key={entry.voice_session_id}
-                                    call={entry}
-                                    characters={characters ?? []}
-                                    onView={() => setSelectedCall(entry)}
-                                    onCallAgain={match ? () => call.startCall(match) : undefined}
-                                />
-                            )
-                        })}
+                        {recentCalls.map((entry) => (
+                            <CallHistoryRow
+                                key={entry.voice_session_id}
+                                call={entry}
+                                characters={characters ?? []}
+                                onView={() => setSelectedCall(entry)}
+                                onCallAgain={callAgainHandler(entry)}
+                            />
+                        ))}
+                        {moreCallsError && (
+                            <p role="alert" className="text-caption text-blood-500">{t('common.loadError')}</p>
+                        )}
+                        {hasMoreCalls && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="self-center"
+                                onClick={() => void loadMoreCalls()}
+                                disabled={loadingMoreCalls}
+                                aria-busy={loadingMoreCalls}
+                            >
+                                {loadingMoreCalls ? t('common.loading') : t('call.page.loadMore')}
+                            </Button>
+                        )}
                     </div>
                 ) : (
                     <EmptyState icon={<Icon icon={PhoneCall} size={40} />} message={t('call.page.noCallsYet')} secondaryText={t('call.page.noCallsHelper')} />
