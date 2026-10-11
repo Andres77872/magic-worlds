@@ -168,19 +168,41 @@ describe('useVoiceCallSocket', () => {
         expect(socketInstances[0].sendSegmentMeta.mock.calls[0][0]).not.toHaveProperty('audio')
     })
 
-    it('recreates the socket when the auth key changes', () => {
-        const { rerender, unmount } = renderHook(
+    it('keeps the live call socket when the access token rotates', () => {
+        const { result, rerender, unmount } = renderHook(
             ({ authKey }) => useVoiceCallSocket(7, {}, authKey),
             { initialProps: { authKey: 'old-token' as string | null } },
         )
+        act(() => result.current.start(startFrame()))
+        act(() => socketHandlers?.onMessage({
+            type: 'voice_ready',
+            voice_session_id: 'voice-1',
+            server_time_ms: 1,
+            limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 120 },
+            upload_url: '/character-chats/7/voice-segments',
+        }))
 
         rerender({ authKey: 'new-token' })
 
-        expect(socketInstances).toHaveLength(2)
-        expect(socketInstances[0].close).toHaveBeenCalledTimes(1)
-        expect(socketInstances[1].sessionId).toBe(7)
+        expect(socketInstances).toHaveLength(1)
+        expect(socketInstances[0].close).not.toHaveBeenCalled()
+        expect(socketInstances[0].connect).toHaveBeenCalledExactlyOnceWith(startFrame())
+        expect(result.current.voiceSessionId).toBe('voice-1')
+        expect(result.current.voiceState).toBe('listening')
 
         unmount()
-        expect(socketInstances[1].close).toHaveBeenCalledTimes(1)
+        expect(socketInstances[0].close).toHaveBeenCalledTimes(1)
+    })
+
+    it('closes the socket when auth becomes unavailable', () => {
+        const { rerender } = renderHook(
+            ({ authKey }) => useVoiceCallSocket(7, {}, authKey),
+            { initialProps: { authKey: 'token-1' as string | null } },
+        )
+
+        rerender({ authKey: null })
+
+        expect(socketInstances).toHaveLength(1)
+        expect(socketInstances[0].close).toHaveBeenCalledTimes(1)
     })
 })

@@ -73,12 +73,18 @@ export function useVoiceCallSocket(
     const [error, setError] = useState<VoiceErrorFrame | null>(null)
     const [voiceSessionId, setVoiceSessionId] = useState<string | null>(null)
 
+    // Only auth *availability* gates the socket. The token value itself must not
+    // be an effect dependency: VoiceSocket reads the stored token fresh on every
+    // connect and the server authenticates only the handshake, so recreating the
+    // socket on each `auth:refreshed` would close a live call that cannot resume.
+    const authDisabled = authKey === null
+
     useEffect(() => {
         setReady(null)
         setError(null)
         setVoiceSessionId(null)
         setVoiceState('idle')
-        if (sessionId === null || Number.isNaN(sessionId) || authKey === null) return
+        if (sessionId === null || Number.isNaN(sessionId) || authDisabled) return
 
         const socket = new VoiceSocket(sessionId, {
             onStatusChange: (nextStatus) => {
@@ -159,7 +165,7 @@ export function useVoiceCallSocket(
             socketRef.current = null
             setSocketStatus('closed')
         }
-    }, [sessionId, authKey, basePath])
+    }, [sessionId, authDisabled, basePath])
 
     const start = useCallback((frame: VoiceStartFrame) => {
         setError(null)
