@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), extract: vi.
 let initial: Lorebook
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: true, openLoginModal: vi.fn() }),
-    useNavigation: () => ({ setPage: vi.fn() }),
+    useNavigation: () => ({ setPage: vi.fn(), currentHash: '', replaceHash: vi.fn() }),
     useData: () => ({ editingLorebook: initial, lorebooks: [], setEditingLorebook: mocks.setEditing, setLorebooks: mocks.setBooks }),
 }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
@@ -16,7 +16,7 @@ vi.mock('@/infrastructure/api', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/infrastructure/api')>(),
     apiService: { createLorebook: mocks.create, updateLorebook: mocks.update, extractLorebookResource: mocks.extract, getLorebookResourceExtraction: mocks.reconcile },
 }))
-vi.mock('./LorebookAssistantChatbot', () => ({ LorebookAssistantChatbot: () => null }))
+vi.mock('@/features/creation/common/components/assistant/AssistantChatbot', () => ({ AssistantChatbot: () => null }))
 vi.mock('./LorebookAttachPanel', () => ({ LorebookAttachPanel: () => null }))
 vi.mock('./ActivationPreviewPanel', () => ({ ActivationPreviewPanel: () => null }))
 vi.mock('./LorebookResourcePickerDrawer', () => ({ LorebookResourcePickerDrawer: () => null }))

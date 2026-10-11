@@ -7,11 +7,10 @@ const mocks = vi.hoisted(() => ({
     loadData: vi.fn(),
     openLoginModal: vi.fn(),
     registerThemeSongJob: vi.fn(),
-    createCardAssistantConversation: vi.fn(),
-    listCardAssistantConversations: vi.fn(),
-    getCardAssistantConversation: vi.fn(),
-    sendCardAssistantMessage: vi.fn(),
-    streamCardAssistantMessage: vi.fn(),
+    createAssistantConversation: vi.fn(),
+    listAssistantConversations: vi.fn(),
+    getAssistantConversation: vi.fn(),
+    streamAssistantMessage: vi.fn(),
     setEditingCharacter: vi.fn(),
     replaceHash: vi.fn(),
     createCharacter: vi.fn(),
@@ -34,7 +33,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, cardEdit: mocks.cardEdit, replaceHash: mocks.replaceHash, registerNavigationInterceptor: () => () => {} }),
+    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, cardEdit: mocks.cardEdit, currentHash: '', replaceHash: mocks.replaceHash, registerNavigationInterceptor: () => () => {} }),
     useData: () => ({
         editingCharacter: mocks.editingCharacter,
         setEditingCharacter: mocks.setEditingCharacter,
@@ -50,11 +49,10 @@ vi.mock('@/infrastructure/api', () => ({
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
     isProtectedMediaUrl: () => false,
     apiService: {
-        createCardAssistantConversation: mocks.createCardAssistantConversation,
-        listCardAssistantConversations: mocks.listCardAssistantConversations,
-        getCardAssistantConversation: mocks.getCardAssistantConversation,
-        sendCardAssistantMessage: mocks.sendCardAssistantMessage,
-        streamCardAssistantMessage: mocks.streamCardAssistantMessage,
+        createAssistantConversation: mocks.createAssistantConversation,
+        listAssistantConversations: mocks.listAssistantConversations,
+        getAssistantConversation: mocks.getAssistantConversation,
+        streamAssistantMessage: mocks.streamAssistantMessage,
         createCharacter: mocks.createCharacter,
         updateCharacter: mocks.updateCharacter,
         generateCardPortrait: mocks.generateCardPortrait,
@@ -85,19 +83,20 @@ describe('CharacterCreator AI generation', () => {
         mocks.isAuthenticated = true
         mocks.editingCharacter = null
         mocks.cardEdit = null
-        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
-        mocks.createCardAssistantConversation.mockResolvedValue({
-            conversation: { conversation_id: 1, card_type: 'character', card_id: null, title: 'Untitled Character' },
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.createAssistantConversation.mockResolvedValue({
+            conversation: { conversation_id: 1, kind: 'card', card_type: 'character', card_id: null, title: 'Untitled Character' },
             messages: [],
-            card: null,
+            target: null,
+            target_cas: null,
         })
         const assistantResponse = {
-            conversation: { conversation_id: 1, card_type: 'character', card_id: 'char-1', title: 'Untitled Character' },
+            conversation: { conversation_id: 1, kind: 'card', card_type: 'character', card_id: 'char-1', title: 'Untitled Character' },
             messages: [
                 { message_id: 10, conversation_id: 1, sequence_no: 1, role: 'user', status: 'completed', content: 'Generate a moon scout' },
                 { message_id: 11, conversation_id: 1, sequence_no: 2, role: 'assistant', status: 'completed', content: 'Created Nyra.' },
             ],
-            card: {
+            target: {
                 id: 'char-1',
                 name: 'Nyra',
                 race: 'moon elf',
@@ -106,8 +105,7 @@ describe('CharacterCreator AI generation', () => {
                 category: [{ name: 'Stats', attributes: [{ Agility: '8', Wisdom: '6' }] }],
             },
         }
-        mocks.sendCardAssistantMessage.mockResolvedValue(assistantResponse)
-        mocks.streamCardAssistantMessage.mockImplementation(async (_conversationId: number, _body: unknown, onEvent: (event: Record<string, unknown>) => void) => {
+        mocks.streamAssistantMessage.mockImplementation(async (_conversationId: number, _body: unknown, onEvent: (event: Record<string, unknown>) => void) => {
             onEvent({ type: 'final', ...assistantResponse })
         })
         mocks.loadData.mockResolvedValue(undefined)
@@ -121,22 +119,23 @@ describe('CharacterCreator AI generation', () => {
         fireEvent.change(screen.getByPlaceholderText(/ask for a change/i), { target: { value: 'Generate a moon scout' } })
         fireEvent.click(screen.getByRole('button', { name: /send message/i }))
 
-        await waitFor(() => expect(mocks.createCardAssistantConversation).toHaveBeenCalledTimes(1))
-        expect(mocks.createCardAssistantConversation).toHaveBeenCalledWith(
+        await waitFor(() => expect(mocks.createAssistantConversation).toHaveBeenCalledTimes(1))
+        expect(mocks.createAssistantConversation).toHaveBeenCalledWith(
             {
+                kind: 'card',
                 card_type: 'character',
-                card_id: undefined,
                 title: 'Untitled Character',
             },
             expect.any(Object),
         )
-        await waitFor(() => expect(mocks.streamCardAssistantMessage).toHaveBeenCalledTimes(1))
-        expect(mocks.streamCardAssistantMessage).toHaveBeenCalledWith(
+        await waitFor(() => expect(mocks.streamAssistantMessage).toHaveBeenCalledTimes(1))
+        expect(mocks.streamAssistantMessage).toHaveBeenCalledWith(
             1,
             {
+                kind: 'card',
                 message: 'Generate a moon scout',
                 card_type: 'character',
-                current_card: null,
+                current: null,
             },
             expect.any(Function),
             expect.objectContaining({ requestId: expect.stringMatching(/^mw-card-assistant-/) }),
@@ -158,9 +157,8 @@ describe('CharacterCreator AI generation', () => {
         fireEvent.click(screen.getByRole('button', { name: /open card assistant/i }))
 
         await waitFor(() => expect(mocks.openLoginModal).toHaveBeenCalledTimes(1))
-        expect(mocks.createCardAssistantConversation).not.toHaveBeenCalled()
-        expect(mocks.sendCardAssistantMessage).not.toHaveBeenCalled()
-        expect(mocks.streamCardAssistantMessage).not.toHaveBeenCalled()
+        expect(mocks.createAssistantConversation).not.toHaveBeenCalled()
+        expect(mocks.streamAssistantMessage).not.toHaveBeenCalled()
         expect(mocks.loadData).not.toHaveBeenCalled()
     })
 })
@@ -171,7 +169,7 @@ describe('CharacterCreator role payload', () => {
         mocks.isAuthenticated = true
         mocks.editingCharacter = null
         mocks.cardEdit = null
-        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
         mocks.createCharacter.mockResolvedValue({ id: 'p1', name: 'Aria', race: 'Human', role: 'persona', is_default_persona: true })
         mocks.loadData.mockResolvedValue(undefined)
     })
@@ -285,7 +283,7 @@ describe('CharacterCreator navigation', () => {
         mocks.cardEdit = null
         mocks.createCharacter.mockResolvedValue({ id: 'c4', name: 'Bren', race: 'Dwarf' })
         mocks.loadData.mockResolvedValue(undefined)
-        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
     })
 
     it('stays in the editor after creating a new character (draft/publish from here)', async () => {
@@ -411,7 +409,7 @@ describe('CharacterCreator deep-link bootstrap', () => {
         mocks.isAuthenticated = true
         mocks.editingCharacter = null
         mocks.cardEdit = null
-        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
         mocks.getCardDraft.mockResolvedValue({ id: 'char-1', is_draft: false, latest_version_number: 2 })
         // Reflect the editing card back into the mocked DataProvider so the editor re-renders
         // (the real provider does this; here setEditingCharacter is a stub).

@@ -279,6 +279,28 @@ describe('Sidebar API status', () => {
         expect(activeAdventures).toHaveAttribute('aria-current', 'page')
     })
 
+    it('places the assistant next to Explore and Community and opens it', async () => {
+        vi.stubEnv('VITE_FEATURE_APP_ASSISTANT_ENABLED', 'true')
+        renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
+
+        const nav = screen.getByRole('navigation', { name: 'Primary' })
+        const primary = within(nav).getAllByRole('button').slice(0, 3).map((button) => button.getAttribute('aria-label'))
+        expect(primary).toEqual(['Explore', 'Community', 'Assistant'])
+
+        const assistant = screen.getByRole('button', { name: 'Assistant' })
+        fireEvent.click(assistant)
+        expect(assistant).toHaveAttribute('aria-current', 'page')
+        expect(window.location.hash).toBe('#/assistant')
+    })
+
+    it('hides the assistant when its feature is off', async () => {
+        vi.stubEnv('VITE_FEATURE_APP_ASSISTANT_ENABLED', 'false')
+        renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
+
+        expect(await screen.findByRole('button', { name: 'Community' })).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Assistant' })).not.toBeInTheDocument()
+    })
+
     it('hides both adventure nav items when the adventures feature is off', async () => {
         vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })

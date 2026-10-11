@@ -29,7 +29,8 @@ import {
     CreatorInput,
     CreatorTextarea,
     AttributeManager,
-    CardAssistantChatbot,
+    AssistantChatbot,
+    cardAssistantAdapter,
     SavedCardGenerator,
     MediaStudioSection,
     GeneratedDraftNotice,
@@ -470,12 +471,15 @@ export function CharacterCreator() {
     const greetingVisible = !isPersona || Boolean(greeting.trim()) || greetingRevealed
 
     const chatbot = (
-        <CardAssistantChatbot<CharacterCardResponse>
-            cardType="character"
-            cardId={editingCharacter?.id ?? null}
-            title={name.trim() || t('creation.character.untitled')}
-            currentCard={buildPayload()}
-            onCard={applyAssistantCard}
+        <AssistantChatbot
+            adapter={cardAssistantAdapter}
+            binding={{
+                cardType: 'character',
+                targetId: editingCharacter?.id ?? null,
+                title: name.trim() || t('creation.character.untitled'),
+                current: buildPayload(),
+            }}
+            onTarget={applyAssistantCard}
             isAuthenticated={isAuthenticated}
             onAuthRequired={openLoginModal}
         />

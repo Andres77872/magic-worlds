@@ -123,6 +123,37 @@ describe('useVoiceCallController', () => {
         vi.useRealTimers()
     })
 
+    it('leaves a new call as a local draft until consent and microphone access succeed', async () => {
+        const ensureSession = vi.fn(async () => 19)
+        const { result } = renderController({ sessionId: null, ensureSession })
+        expect(ensureSession).not.toHaveBeenCalled()
+        await act(async () => { await expect(result.current.startCall()).resolves.toBe(true) })
+        expect(ensureSession).toHaveBeenCalledTimes(1)
+        expect(vi.mocked(mocks.microphoneApi!.start).mock.invocationCallOrder[0]).toBeLessThan(ensureSession.mock.invocationCallOrder[0])
+        expect(mocks.apiService.saveVoiceConsent).toHaveBeenCalledWith(19)
+        expect(mocks.socketApi!.start).toHaveBeenCalledTimes(1)
+        expect(mocks.microphoneApi!.stop).not.toHaveBeenCalled()
+        expect(mocks.socketApi!.close).not.toHaveBeenCalled()
+    })
+
+    it('does not create a draft chat when microphone permission is denied', async () => {
+        const ensureSession = vi.fn(async () => 19)
+        vi.mocked(mocks.microphoneApi!.start).mockResolvedValue(false)
+        mocks.microphoneApi!.status = 'permission_denied'
+        const { result } = renderController({ sessionId: null, ensureSession })
+        await act(async () => { await expect(result.current.startCall()).resolves.toBe(false) })
+        expect(ensureSession).not.toHaveBeenCalled()
+        expect(mocks.apiService.saveVoiceConsent).not.toHaveBeenCalled()
+    })
+
+    it('does not create a draft chat when voice consent has not been granted', async () => {
+        const ensureSession = vi.fn(async () => 19)
+        const { result } = renderController({ sessionId: null, ensureSession, consentGranted: false })
+        await act(async () => { await expect(result.current.startCall()).resolves.toBe(false) })
+        expect(ensureSession).not.toHaveBeenCalled()
+        expect(mocks.microphoneApi!.start).not.toHaveBeenCalled()
+    })
+
     it('starts after explicit consent, then ends with full local teardown', async () => {
         const { result } = renderController()
 

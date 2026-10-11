@@ -66,6 +66,7 @@ export function useVoiceCallSocket(
     })
 
     const socketRef = useRef<VoiceSocket | null>(null)
+    const pendingStartRef = useRef<VoiceStartFrame | null>(null)
     const [socketStatus, setSocketStatus] = useState<VoiceSocketStatus>('closed')
     const [voiceState, setVoiceState] = useState<VoiceCallState>('idle')
     const [ready, setReady] = useState<VoiceReadyFrame | null>(null)
@@ -147,6 +148,11 @@ export function useVoiceCallSocket(
             },
         }, basePath)
         socketRef.current = socket
+        if (pendingStartRef.current) {
+            const frame = pendingStartRef.current
+            pendingStartRef.current = null
+            socket.connect(frame)
+        }
 
         return () => {
             socket.close()
@@ -158,7 +164,8 @@ export function useVoiceCallSocket(
     const start = useCallback((frame: VoiceStartFrame) => {
         setError(null)
         setVoiceState('connecting')
-        socketRef.current?.connect(frame)
+        if (socketRef.current) socketRef.current.connect(frame)
+        else pendingStartRef.current = frame
     }, [])
 
     const sendSegmentMeta = useCallback((frame: VoiceSegmentMetaFrame) => socketRef.current?.sendSegmentMeta(frame) ?? false, [])
@@ -167,10 +174,12 @@ export function useVoiceCallSocket(
         return socketRef.current?.sendBargeIn(frame) ?? false
     }, [])
     const end = useCallback(() => {
+        pendingStartRef.current = null
         setVoiceState('ending')
         return socketRef.current?.end() ?? false
     }, [])
     const close = useCallback(() => {
+        pendingStartRef.current = null
         socketRef.current?.close()
         setVoiceState('ended')
     }, [])

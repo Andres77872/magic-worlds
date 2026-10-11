@@ -12,6 +12,8 @@ interface AssistantComposerProps {
     placeholder?: string
     onSend: (text: string) => void
     onStop: () => void
+    /** Extra classes for the outer band (e.g. a page-level framed composer). */
+    className?: string
 }
 
 /**
@@ -19,7 +21,7 @@ interface AssistantComposerProps {
  * type=submit button mid-click fires a phantom submit under React 19's
  * synchronous discrete-event commits, so both buttons stay type="button".
  */
-export function AssistantComposer({ streaming, disabled, placeholder, onSend, onStop }: AssistantComposerProps) {
+export function AssistantComposer({ streaming, disabled, placeholder, onSend, onStop, className }: AssistantComposerProps) {
     const { t } = useTranslation()
     const [input, setInput] = useState('')
     const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -43,7 +45,7 @@ export function AssistantComposer({ streaming, disabled, placeholder, onSend, on
     const nearLimit = input.length >= MAX_LENGTH - 500
 
     return (
-        <div className="border-t border-parchment-50/[.08] bg-ink-700 p-3">
+        <div className={cx('border-t border-parchment-50/[.08] bg-ink-700 p-3', className)}>
             <div className="flex items-end gap-2">
                 <textarea
                     ref={inputRef}

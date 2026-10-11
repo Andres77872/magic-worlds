@@ -1,33 +1,17 @@
 import type { TFunction } from 'i18next'
-import type { CardAssistantAppliedAction } from '@/shared/types/aiCard.types'
+import type { AssistantAppliedAction, AssistantChatMessage } from '@/shared/types/assistant.types'
 
-/** Human-readable summary of one card mutation the assistant performed. */
+/** Human-readable summary of one card or lorebook mutation the assistant performed. */
 export interface AppliedChangeSummary {
     kind: 'replace' | 'patch'
     subject?: 'lorebook'
-    cardId?: string
-    lorebookId?: string
+    targetId?: string
     fields: string[]
 }
 
-export interface AssistantChatMessage {
-    message_id: number
-    conversation_id: number
-    sequence_no: number
-    sequence?: number
-    role: 'system' | 'user' | 'assistant' | 'tool'
-    status: 'pending' | 'completed' | 'failed'
-    content: string
-    created_at?: string
-    tool_calls?: unknown
-    tool_call_id?: string | null
-    tool_name?: string | null
-    metadata?: Record<string, unknown>
-}
-
 /** A visible chat turn (user or assistant) with its changes attached. */
-export interface AssistantTurnBase<TMessage extends AssistantChatMessage = AssistantChatMessage> {
-    message: TMessage
+export interface AssistantTurnBase {
+    message: AssistantChatMessage
     appliedChanges: AppliedChangeSummary[]
 }
 
@@ -41,35 +25,26 @@ export function parseAppliedActions(actions: unknown): AppliedChangeSummary[] {
     const summaries: AppliedChangeSummary[] = []
     for (const raw of actions) {
         if (!raw || typeof raw !== 'object') continue
-        const action = raw as CardAssistantAppliedAction
-        const cardId = typeof action.card_id === 'string' ? action.card_id : undefined
+        const action = raw as AssistantAppliedAction
+        const targetId = typeof action.target_id === 'string' ? action.target_id : undefined
+        const fields = Array.isArray(action.fields)
+            ? action.fields.filter((field): field is string => typeof field === 'string').map(humanizeField)
+            : []
         if (action.type === 'replace_card') {
-            summaries.push({ kind: 'replace', cardId, fields: [] })
+            summaries.push({ kind: 'replace', targetId, fields: [] })
         } else if (action.type === 'patch_card') {
-            const fields = Array.isArray(action.fields)
-                ? action.fields.filter((field): field is string => typeof field === 'string').map(humanizeField)
-                : []
-            summaries.push({ kind: 'patch', cardId, fields })
+            summaries.push({ kind: 'patch', targetId, fields })
         } else if (action.type === 'replace_lorebook') {
-            const lorebookId = typeof (action as { lorebook_id?: unknown }).lorebook_id === 'string'
-                ? (action as { lorebook_id: string }).lorebook_id
-                : undefined
-            summaries.push({ kind: 'replace', subject: 'lorebook', lorebookId, fields: [] })
+            summaries.push({ kind: 'replace', subject: 'lorebook', targetId, fields: [] })
         } else if (action.type === 'patch_lorebook') {
-            const lorebookId = typeof (action as { lorebook_id?: unknown }).lorebook_id === 'string'
-                ? (action as { lorebook_id: string }).lorebook_id
-                : undefined
-            const fields = Array.isArray(action.fields)
-                ? action.fields.filter((field): field is string => typeof field === 'string').map(humanizeField)
-                : []
-            summaries.push({ kind: 'patch', subject: 'lorebook', lorebookId, fields })
+            summaries.push({ kind: 'patch', subject: 'lorebook', targetId, fields })
         }
-        // mw_no_card_change and unknown action types carry no card mutation.
+        // mw_no_card_change and unknown action types carry no mutation.
     }
     return summaries
 }
 
-/** Persisted tool messages carry `{applied_actions, card_id}` as JSON content. */
+/** Persisted tool messages carry `{applied_actions, target_id}` as JSON content. */
 export function parseToolMessageActions(message: AssistantChatMessage): AppliedChangeSummary[] {
     if (message.role !== 'tool' || !message.content) return []
     try {
@@ -86,12 +61,12 @@ export function parseToolMessageActions(message: AssistantChatMessage): AppliedC
  * message. Live actions (from the `final` stream event) win over the
  * tool-message reconstruction for the same assistant message.
  */
-export function attachAppliedChanges<TMessage extends AssistantChatMessage>(
-    messages: TMessage[],
+export function attachAppliedChanges(
+    messages: AssistantChatMessage[],
     liveActions?: Map<number, AppliedChangeSummary[]>,
-): AssistantTurnBase<TMessage>[] {
-    const turns: AssistantTurnBase<TMessage>[] = []
-    let lastAssistant: AssistantTurnBase<TMessage> | null = null
+): AssistantTurnBase[] {
+    const turns: AssistantTurnBase[] = []
+    let lastAssistant: AssistantTurnBase | null = null
     for (const message of messages) {
         if (message.role === 'user') {
             turns.push({ message, appliedChanges: [] })
@@ -100,7 +75,7 @@ export function attachAppliedChanges<TMessage extends AssistantChatMessage>(
         }
         if (message.role === 'assistant') {
             const live = liveActions?.get(message.message_id)
-            const turn: AssistantTurnBase<TMessage> = { message, appliedChanges: live ? [...live] : [] }
+            const turn: AssistantTurnBase = { message, appliedChanges: live ? [...live] : [] }
             turns.push(turn)
             lastAssistant = turn
             continue

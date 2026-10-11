@@ -65,11 +65,11 @@ function makeConfig(overrides: Partial<ChatSessionConfig> = {}): ChatSessionConf
     }
 }
 
-function renderPanel(config: ChatSessionConfig, seed: TurnEntry[] = initialTurns, sessionId = 7, speakerRoster?: ChatSpeakerRosterEntry[], observe?: (turns: TurnEntry[]) => void) {
+function renderPanel(config: ChatSessionConfig, seed: TurnEntry[] = initialTurns, sessionId = 7, speakerRoster?: ChatSpeakerRosterEntry[], observe?: (turns: TurnEntry[]) => void, ensureSession?: () => Promise<number>) {
     function Harness() {
         const [turns, setTurns] = useState<TurnEntry[]>(seed)
         useEffect(() => { observe?.(turns) }, [turns])
-        return <InteractionCenterPanel sessionId={sessionId} turns={turns} setTurns={setTurns} config={config} speakerRoster={speakerRoster} />
+        return <InteractionCenterPanel sessionId={sessionId} ensureSession={ensureSession} turns={turns} setTurns={setTurns} config={config} speakerRoster={speakerRoster} />
     }
 
     return render(<Harness />)
@@ -104,6 +104,61 @@ describe('InteractionCenterPanel message deletion', () => {
     afterEach(() => {
         vi.useRealTimers()
         vi.unstubAllEnvs()
+    })
+
+    it('keeps a draft disconnected and ignores whitespace without creating a session', () => {
+        const ensureSession = vi.fn(async () => 19)
+        const config = makeConfig()
+        renderPanel(config, [], Number.NaN, undefined, undefined, ensureSession)
+        expect(hookMocks.useAdventureChatSocket).toHaveBeenLastCalledWith(null, expect.any(Object), 'token', 'adventure-sessions', undefined)
+        fireEvent.change(screen.getByPlaceholderText('What next?'), { target: { value: '  ' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        expect(ensureSession).not.toHaveBeenCalled()
+        expect(config.loadTurns).not.toHaveBeenCalled()
+        expect(apiService.listLorebookAttachments).not.toHaveBeenCalled()
+    })
+
+    it('creates the draft on Send and sends the first message exactly once on its new socket', async () => {
+        let finish!: (id: number) => void
+        const ensureSession = vi.fn(() => new Promise<number>((resolve) => { finish = resolve }))
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'closed', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+        renderPanel(makeConfig(), [], Number.NaN, undefined, undefined, ensureSession)
+        fireEvent.change(screen.getByPlaceholderText('What next?'), { target: { value: 'Hello Lyra' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        expect(ensureSession).toHaveBeenCalledTimes(1)
+        expect(sendChat).not.toHaveBeenCalled()
+        await act(async () => { finish(19) })
+        expect(hookMocks.useAdventureChatSocket).toHaveBeenLastCalledWith(19, expect.any(Object), 'token', 'adventure-sessions', undefined)
+        expect(sendChat).toHaveBeenCalledExactlyOnceWith('Hello Lyra', expect.any(String))
+        expect(screen.getByText('Hello Lyra')).toBeInTheDocument()
+    })
+
+    it('preserves the first message when creation fails and retries from the composer', async () => {
+        const ensureSession = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(19)
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'closed', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+        renderPanel(makeConfig(), [], Number.NaN, undefined, undefined, ensureSession)
+        fireEvent.change(screen.getByPlaceholderText('What next?'), { target: { value: 'Hello Lyra' } })
+        await act(async () => { fireEvent.click(screen.getByLabelText('Send message')) })
+        expect(screen.getByPlaceholderText('What next?')).toHaveValue('Hello Lyra')
+        expect(sendChat).not.toHaveBeenCalled()
+        await act(async () => { fireEvent.click(screen.getByLabelText('Send message')) })
+        expect(sendChat).toHaveBeenCalledExactlyOnceWith('Hello Lyra', expect.any(String))
+        expect(ensureSession).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not send a first message if the draft was left while creation was pending', async () => {
+        let finish!: (id: number) => void
+        const ensureSession = vi.fn(() => new Promise<number>((resolve) => { finish = resolve }))
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'closed', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+        const { unmount } = renderPanel(makeConfig(), [], Number.NaN, undefined, undefined, ensureSession)
+        fireEvent.change(screen.getByPlaceholderText('What next?'), { target: { value: 'Hello Lyra' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        unmount()
+        await act(async () => { finish(19) })
+        expect(sendChat).not.toHaveBeenCalled()
     })
 
     it('opens a compact delete popover', () => {

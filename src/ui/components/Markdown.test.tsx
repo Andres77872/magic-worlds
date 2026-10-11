@@ -1,6 +1,10 @@
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { Markdown } from './Markdown'
+import { Markdown, type MarkdownLinkProps } from './Markdown'
+
+function TaggedLink(props: MarkdownLinkProps) {
+    return <a data-custom="" {...props} />
+}
 
 describe('Markdown', () => {
     it('renders into the .chat-prose wrapper that the theme styles target', () => {
@@ -28,5 +32,20 @@ describe('Markdown', () => {
             <Markdown content="hi" trailing={<span data-testid="dots">…</span>} />,
         )
         expect(container.firstElementChild).toContainElement(getByTestId('dots'))
+    })
+
+    it('renders links with a custom component, keeping the markdown-link class', () => {
+        render(<Markdown content="See [Mira](#/gallery/characters?card=c1)." linkComponent={TaggedLink} />)
+        const link = screen.getByRole('link', { name: 'Mira' })
+        expect(link).toHaveAttribute('data-custom')
+        expect(link).toHaveClass('markdown-link')
+        expect(link).toHaveAttribute('href', '#/gallery/characters?card=c1')
+    })
+
+    it('keeps the same link element across re-renders (nothing anchored to it detaches)', () => {
+        const { rerender } = render(<Markdown content="See [Mira](#/a) and more" />)
+        const before = screen.getByRole('link', { name: 'Mira' })
+        rerender(<Markdown content="See [Mira](#/a) and more text" />)
+        expect(screen.getByRole('link', { name: 'Mira' })).toBe(before)
     })
 })

@@ -40,6 +40,7 @@ const PAGE_TO_HASH: Record<PageType, string> = {
     notifications: '#/notifications',
     calls: '#/calls',
     community: '#/community',
+    assistant: '#/assistant',
     'shared-card': '#/shared',
     profile: '#/profile',
     'llm-profiles': '#/models',

@@ -126,7 +126,7 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
 
             <ScenarioSection scenario={scenario} editable={editable} onSave={handleSaveScenario} />
 
-            {lorebooksEnabled && <SessionLorebookPanel targetKind="adventure_session" targetId={adventure.id} framed={false} />}
+            {lorebooksEnabled && !adventure.draft && <SessionLorebookPanel targetKind="adventure_session" targetId={adventure.id} framed={false} />}
 
             <section className="flex flex-col gap-2.5">
                 <SectionHeader

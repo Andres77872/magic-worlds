@@ -34,7 +34,8 @@ import {
     CreatorField,
     CreatorTextarea,
     AttributeManager,
-    CardAssistantChatbot,
+    AssistantChatbot,
+    cardAssistantAdapter,
     SavedCardGenerator,
     MediaStudioSection,
     GeneratedDraftNotice,
@@ -519,12 +520,15 @@ export function AdventureCreator() {
     const firstClass = template?.firstClassExamples ?? {}
 
     const chatbot = (
-        <CardAssistantChatbot<AdventureTemplateCardResponse>
-            cardType="adventure_template"
-            cardId={editingTemplate?.id ?? null}
-            title={derivedTitle}
-            currentCard={buildPayload()}
-            onCard={applyAssistantCard}
+        <AssistantChatbot
+            adapter={cardAssistantAdapter}
+            binding={{
+                cardType: 'adventure_template',
+                targetId: editingTemplate?.id ?? null,
+                title: derivedTitle,
+                current: buildPayload(),
+            }}
+            onTarget={applyAssistantCard}
             isAuthenticated={isAuthenticated}
             onAuthRequired={openLoginModal}
         />

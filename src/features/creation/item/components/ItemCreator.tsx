@@ -26,7 +26,8 @@ import {
     CreatorInput,
     CreatorTextarea,
     AttributeManager,
-    CardAssistantChatbot,
+    AssistantChatbot,
+    cardAssistantAdapter,
     SavedCardGenerator,
     MediaStudioSection,
     GeneratedDraftNotice,
@@ -390,12 +391,15 @@ export function ItemCreator() {
     const firstClass = template?.firstClassExamples ?? {}
 
     const chatbot = (
-        <CardAssistantChatbot<ItemCardResponse>
-            cardType="item"
-            cardId={editingItem?.id ?? null}
-            title={name.trim() || t('creation.item.untitled')}
-            currentCard={buildPayload()}
-            onCard={applyAssistantCard}
+        <AssistantChatbot
+            adapter={cardAssistantAdapter}
+            binding={{
+                cardType: 'item',
+                targetId: editingItem?.id ?? null,
+                title: name.trim() || t('creation.item.untitled'),
+                current: buildPayload(),
+            }}
+            onTarget={applyAssistantCard}
             isAuthenticated={isAuthenticated}
             onAuthRequired={openLoginModal}
         />

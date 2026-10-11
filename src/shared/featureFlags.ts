@@ -9,6 +9,7 @@ export type FrontendFeatureFlag =
     | 'novels'
     | 'groupChats'
     | 'adventures'
+    | 'appAssistant'
 
 function envFlag(name: string): boolean {
     return import.meta.env[name] === 'true'
@@ -46,6 +47,11 @@ export function isAdventuresFeatureEnabled(): boolean {
     return envFlag('VITE_FEATURE_ADVENTURES_ENABLED')
 }
 
+/** The app-wide assistant chat (`#/assistant`); off until the BFF serves the `app` kind of `/assistant/conversations`. */
+export function isAppAssistantFeatureEnabled(): boolean {
+    return envFlag('VITE_FEATURE_APP_ASSISTANT_ENABLED')
+}
+
 export function isFeatureEnabled(feature: FrontendFeatureFlag): boolean {
     switch (feature) {
         case 'communityCards':
@@ -64,6 +70,8 @@ export function isFeatureEnabled(feature: FrontendFeatureFlag): boolean {
             return isGroupChatsFeatureEnabled()
         case 'adventures':
             return isAdventuresFeatureEnabled()
+        case 'appAssistant':
+            return isAppAssistantFeatureEnabled()
     }
 }
 
@@ -90,6 +98,8 @@ export function isPageFeatureEnabled(page: PageType): boolean {
         case 'active-adventures':
         case 'interaction':
             return isAdventuresFeatureEnabled()
+        case 'assistant':
+            return isAppAssistantFeatureEnabled()
         default:
             return true
     }

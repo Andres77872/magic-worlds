@@ -84,6 +84,9 @@
   /* Live call waveform: bars gently bounce while the character speaks (no client-side
      audio analysis). Transform only. */
   --animate-call-wave: call-wave 0.9s var(--ease-in-out) infinite alternate;
+  /* Assistant hover card: the bar fills while the card is transient, then the
+     card locks open. Its length matches HOVER_TIMING.lockAfter. Transform only. */
+  --animate-hover-lock: hover-lock 1s linear forwards;
 
   /* ---------- type scale → text-* (size + line-height) ---------- */
   --text-display: clamp(44px, 6vw, 84px);
@@ -211,6 +214,16 @@
   }
   100% {
     background-position: -200% 0;
+  }
+}
+
+/* Hover card lock bar (see --animate-hover-lock). scaleX only (composited). */
+@keyframes hover-lock {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }
 
@@ -462,6 +475,17 @@
     overflow-x: auto;
     margin: 0.5rem 0;
     white-space: pre-wrap;
+  }
+  .chat-prose .markdown-link {
+    color: var(--color-ember-300);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--color-ember-400) 45%, transparent);
+    text-underline-offset: 3px;
+    transition: color 220ms var(--ease-out), text-decoration-color 220ms var(--ease-out);
+  }
+  .chat-prose .markdown-link:hover {
+    color: var(--color-ember-200);
+    text-decoration-color: currentColor;
   }
   .chat-prose .markdown-divider {
     margin: 1.5rem 0;

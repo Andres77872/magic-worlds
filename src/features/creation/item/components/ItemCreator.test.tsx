@@ -7,11 +7,10 @@ const mocks = vi.hoisted(() => ({
     loadData: vi.fn(),
     openLoginModal: vi.fn(),
     registerThemeSongJob: vi.fn(),
-    createCardAssistantConversation: vi.fn(),
-    listCardAssistantConversations: vi.fn(),
-    getCardAssistantConversation: vi.fn(),
-    sendCardAssistantMessage: vi.fn(),
-    streamCardAssistantMessage: vi.fn(),
+    createAssistantConversation: vi.fn(),
+    listAssistantConversations: vi.fn(),
+    getAssistantConversation: vi.fn(),
+    streamAssistantMessage: vi.fn(),
     setEditingItem: vi.fn(),
     replaceHash: vi.fn(),
     createItem: vi.fn(),
@@ -33,7 +32,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, cardEdit: mocks.cardEdit, replaceHash: mocks.replaceHash, registerNavigationInterceptor: () => () => {} }),
+    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, cardEdit: mocks.cardEdit, currentHash: '', replaceHash: mocks.replaceHash, registerNavigationInterceptor: () => () => {} }),
     useData: () => ({ editingItem: mocks.editingItem, setEditingItem: mocks.setEditingItem, loadData: mocks.loadData }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
     useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
@@ -44,11 +43,10 @@ vi.mock('@/infrastructure/api', () => ({
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
     isProtectedMediaUrl: () => false,
     apiService: {
-        createCardAssistantConversation: mocks.createCardAssistantConversation,
-        listCardAssistantConversations: mocks.listCardAssistantConversations,
-        getCardAssistantConversation: mocks.getCardAssistantConversation,
-        sendCardAssistantMessage: mocks.sendCardAssistantMessage,
-        streamCardAssistantMessage: mocks.streamCardAssistantMessage,
+        createAssistantConversation: mocks.createAssistantConversation,
+        listAssistantConversations: mocks.listAssistantConversations,
+        getAssistantConversation: mocks.getAssistantConversation,
+        streamAssistantMessage: mocks.streamAssistantMessage,
         createItem: mocks.createItem,
         updateItem: mocks.updateItem,
         generateCardPortrait: mocks.generateCardPortrait,
@@ -74,7 +72,7 @@ describe('ItemCreator guided payload', () => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true
         mocks.editingItem = null
-        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
         mocks.createItem.mockResolvedValue({ id: 'item-1', name: 'Moonlit Compass' })
         mocks.loadData.mockResolvedValue(undefined)
     })
@@ -148,7 +146,7 @@ describe('ItemCreator navigation', () => {
         mocks.editingItem = null
         mocks.createItem.mockResolvedValue({ id: 'item-1', name: 'Moonlit Compass' })
         mocks.loadData.mockResolvedValue(undefined)
-        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
     })
 
     it('stays in the editor after creating a new item (draft/publish from here)', async () => {

@@ -1,11 +1,11 @@
-/** Shared Storybook fixtures for the card assistant module. Not shipped in the app bundle. */
+/** Shared Storybook fixtures for the assistant module. Not shipped in the app bundle. */
 
-import type { CardAssistantConversation, CardAssistantMessage } from '@/shared/types/aiCard.types'
-import type { AssistantTurn } from './useCardAssistant'
+import type { AssistantChatMessage, AssistantConversation } from '@/shared/types/assistant.types'
+import type { AssistantTurn } from './assistantModel'
 
 let sequence = 0
 
-export function assistantMessage(overrides: Partial<CardAssistantMessage>): CardAssistantMessage {
+export function assistantMessage(overrides: Partial<AssistantChatMessage>): AssistantChatMessage {
     sequence += 1
     return {
         message_id: sequence,
@@ -20,7 +20,7 @@ export function assistantMessage(overrides: Partial<CardAssistantMessage>): Card
 }
 
 export function turn(overrides: {
-    message: Partial<CardAssistantMessage>
+    message: Partial<AssistantChatMessage>
     appliedChanges?: AssistantTurn['appliedChanges']
     isStreaming?: boolean
     isInterrupted?: boolean
@@ -41,7 +41,7 @@ export const SAMPLE_CONVERSATION_TURNS: AssistantTurn[] = [
             content:
                 'I drafted **The Vitrine Expanse** — an endless sea of fused sand where storms polish the dunes to mirrors.\n\n- **Type:** desert\n- **Triggers:** glass, desert, mirage\n\nWant me to deepen the factions next?',
         },
-        appliedChanges: [{ kind: 'replace', cardId: 'world-1', fields: [] }],
+        appliedChanges: [{ kind: 'replace', targetId: 'world-1', fields: [] }],
     }),
     turn({ message: { role: 'user', content: 'Yes — add a faction that harvests the glass.' } }),
     turn({
@@ -50,13 +50,14 @@ export const SAMPLE_CONVERSATION_TURNS: AssistantTurn[] = [
             content:
                 'Added the *Shardwrights* — nomadic artisans who carve caravans straight out of the dunes. The description and triggers now mention them.',
         },
-        appliedChanges: [{ kind: 'patch', cardId: 'world-1', fields: ['description', 'triggers'] }],
+        appliedChanges: [{ kind: 'patch', targetId: 'world-1', fields: ['description', 'triggers'] }],
     }),
 ]
 
-export function conversation(overrides: Partial<CardAssistantConversation> = {}): CardAssistantConversation {
+export function conversation(overrides: Partial<AssistantConversation> = {}): AssistantConversation {
     return {
         conversation_id: 1,
+        kind: 'card',
         card_type: 'world',
         card_id: 'world-1',
         title: 'The Vitrine Expanse',
@@ -65,7 +66,7 @@ export function conversation(overrides: Partial<CardAssistantConversation> = {})
     }
 }
 
-export const SAMPLE_CONVERSATIONS: CardAssistantConversation[] = [
+export const SAMPLE_CONVERSATIONS: AssistantConversation[] = [
     conversation(),
     conversation({
         conversation_id: 2,

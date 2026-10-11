@@ -26,6 +26,7 @@ export function CharacterChat() {
         activeCharacterChatMode,
         editCharacter,
         resumeCharacterChat,
+        ensureCharacterChatSession,
         addCharacterChatCodexCards,
         toggleCharacterChatCodexCard,
         removeCharacterChatCodexCard,
@@ -68,9 +69,10 @@ export function CharacterChat() {
     if (mode === 'voice') {
         return (
             <CallScreen
-                key={`${activeCharacterChat.id}:voice`}
+                key={`${activeCharacterChat.draftId ?? activeCharacterChat.id}:voice`}
                 character={activeCast[0]}
                 sessionId={Number(activeCharacterChat.id)}
+                ensureSession={activeCharacterChat.isDraft ? () => ensureCharacterChatSession(activeCharacterChat) : undefined}
                 onSwitchToText={() => handleSetMode('text')}
             />
         )
@@ -80,9 +82,10 @@ export function CharacterChat() {
     // (and the socket) reset cleanly — no derived-state effect needed.
     return (
         <CharacterChatView
-            key={`${activeCharacterChat.id}:text`}
+            key={`${activeCharacterChat.draftId ?? activeCharacterChat.id}:text`}
             chat={activeCharacterChat}
             voiceEnabled={voiceEnabled}
+            ensureSession={activeCharacterChat.isDraft ? () => ensureCharacterChatSession(activeCharacterChat) : undefined}
             onAddCodexCards={(cards) => addCharacterChatCodexCards(activeCharacterChat.id, cards)}
             onToggleCodexCard={(card, enabled) => toggleCharacterChatCodexCard(activeCharacterChat.id, card.id, enabled)}
             onRemoveCodexCard={(card) => removeCharacterChatCodexCard(activeCharacterChat.id, card.id)}
@@ -96,6 +99,7 @@ export function CharacterChat() {
 interface CharacterChatViewProps {
     chat: CharacterChatSession
     voiceEnabled: boolean
+    ensureSession?: () => Promise<number>
     onAddCodexCards: (cards: CodexLibraryCardSelection[]) => Promise<unknown>
     onToggleCodexCard: (card: CharacterChatCodexCard, enabled: boolean) => Promise<unknown>
     onRemoveCodexCard: (card: CharacterChatCodexCard) => Promise<unknown>
@@ -107,6 +111,7 @@ interface CharacterChatViewProps {
 function CharacterChatView({
     chat,
     voiceEnabled,
+    ensureSession,
     onAddCodexCards,
     onToggleCodexCard,
     onRemoveCodexCard,
@@ -156,7 +161,7 @@ function CharacterChatView({
                 {/* Left: single-character sidebar */}
                 <SidePanelDrawer side="left" open={sidebarOpen} onClose={() => setSidebarOpen(false)} label={t('characterChat.sidebarLabel')}>
                     <CharacterChatSidebar
-                        sessionId={chat.id}
+                        sessionId={chat.isDraft ? undefined : chat.id}
                         character={cast[0]}
                         characters={cast}
                         title={chatTitle}
@@ -178,6 +183,7 @@ function CharacterChatView({
                 <div className="min-w-0 flex-1">
                     <InteractionCenterPanel
                         sessionId={Number(chat.id)}
+                        ensureSession={ensureSession}
                         turns={turns}
                         setTurns={setTurns}
                         config={chatConfig}

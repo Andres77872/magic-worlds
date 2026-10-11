@@ -5,11 +5,10 @@ import { Chip, Eyebrow, IconTile } from '@/ui/primitives'
 import { AssistantMessage } from './AssistantMessage'
 import { StreamingDots } from './AssistantMarkdown'
 import type { AssistantSuggestion } from './suggestions'
-import type { VisibleAssistantTurn } from './AssistantMessage'
-import type { AssistantStatus } from './useCardAssistant'
+import type { AssistantStatus, AssistantTurn } from './assistantModel'
 
 interface AssistantMessageListProps {
-    turns: VisibleAssistantTurn[]
+    turns: AssistantTurn[]
     status: AssistantStatus
     suggestions: AssistantSuggestion[]
     onSuggestion: (prompt: string) => void

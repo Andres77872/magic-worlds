@@ -7,11 +7,10 @@ const mocks = vi.hoisted(() => ({
     loadData: vi.fn(),
     openLoginModal: vi.fn(),
     registerThemeSongJob: vi.fn(),
-    createCardAssistantConversation: vi.fn(),
-    listCardAssistantConversations: vi.fn(),
-    getCardAssistantConversation: vi.fn(),
-    sendCardAssistantMessage: vi.fn(),
-    streamCardAssistantMessage: vi.fn(),
+    createAssistantConversation: vi.fn(),
+    listAssistantConversations: vi.fn(),
+    getAssistantConversation: vi.fn(),
+    streamAssistantMessage: vi.fn(),
     setEditingWorld: vi.fn(),
     replaceHash: vi.fn(),
     createWorld: vi.fn(),
@@ -34,7 +33,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/app/hooks', () => ({
-    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, cardEdit: mocks.cardEdit, replaceHash: mocks.replaceHash, registerNavigationInterceptor: () => () => {} }),
+    useNavigation: () => ({ setPage: mocks.setPage, goBack: mocks.goBack, cardEdit: mocks.cardEdit, currentHash: '', replaceHash: mocks.replaceHash, registerNavigationInterceptor: () => () => {} }),
     useData: () => ({ editingWorld: mocks.editingWorld, setEditingWorld: mocks.setEditingWorld, loadData: mocks.loadData }),
     useAuth: () => ({ isAuthenticated: mocks.isAuthenticated, openLoginModal: mocks.openLoginModal }),
     useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
@@ -45,11 +44,10 @@ vi.mock('@/infrastructure/api', () => ({
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
     isProtectedMediaUrl: () => false,
     apiService: {
-        createCardAssistantConversation: mocks.createCardAssistantConversation,
-        listCardAssistantConversations: mocks.listCardAssistantConversations,
-        getCardAssistantConversation: mocks.getCardAssistantConversation,
-        sendCardAssistantMessage: mocks.sendCardAssistantMessage,
-        streamCardAssistantMessage: mocks.streamCardAssistantMessage,
+        createAssistantConversation: mocks.createAssistantConversation,
+        listAssistantConversations: mocks.listAssistantConversations,
+        getAssistantConversation: mocks.getAssistantConversation,
+        streamAssistantMessage: mocks.streamAssistantMessage,
         createWorld: mocks.createWorld,
         createWorldAI: mocks.createWorldAI,
         updateWorld: mocks.updateWorld,
@@ -87,19 +85,20 @@ describe('WorldCreator AI generation', () => {
         vi.clearAllMocks()
         mocks.isAuthenticated = true
         mocks.editingWorld = null
-        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
-        mocks.createCardAssistantConversation.mockResolvedValue({
-            conversation: { conversation_id: 2, card_type: 'world', card_id: null, title: 'Untitled World' },
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.createAssistantConversation.mockResolvedValue({
+            conversation: { conversation_id: 2, kind: 'card', card_type: 'world', card_id: null, title: 'Untitled World' },
             messages: [],
-            card: null,
+            target: null,
+            target_cas: null,
         })
         const assistantResponse = {
-            conversation: { conversation_id: 2, card_type: 'world', card_id: 'world-1', title: 'Untitled World' },
+            conversation: { conversation_id: 2, kind: 'card', card_type: 'world', card_id: 'world-1', title: 'Untitled World' },
             messages: [
                 { message_id: 20, conversation_id: 2, sequence_no: 1, role: 'user', status: 'completed', content: 'Generate a glass desert' },
                 { message_id: 21, conversation_id: 2, sequence_no: 2, role: 'assistant', status: 'completed', content: 'Created Glass.' },
             ],
-            card: {
+            target: {
                 id: 'world-1',
                 name: 'Glass',
                 type: 'desert',
@@ -108,8 +107,7 @@ describe('WorldCreator AI generation', () => {
                 triggers: ['glass', 'desert'],
             },
         }
-        mocks.sendCardAssistantMessage.mockResolvedValue(assistantResponse)
-        mocks.streamCardAssistantMessage.mockImplementation(async (_conversationId: number, _body: unknown, onEvent: (event: Record<string, unknown>) => void) => {
+        mocks.streamAssistantMessage.mockImplementation(async (_conversationId: number, _body: unknown, onEvent: (event: Record<string, unknown>) => void) => {
             onEvent({ type: 'final', ...assistantResponse })
         })
         mocks.loadData.mockResolvedValue(undefined)
@@ -122,22 +120,23 @@ describe('WorldCreator AI generation', () => {
         fireEvent.change(screen.getByPlaceholderText(/ask for a change/i), { target: { value: 'Generate a glass desert' } })
         fireEvent.click(screen.getByRole('button', { name: /send message/i }))
 
-        await waitFor(() => expect(mocks.createCardAssistantConversation).toHaveBeenCalledTimes(1))
-        expect(mocks.createCardAssistantConversation).toHaveBeenCalledWith(
+        await waitFor(() => expect(mocks.createAssistantConversation).toHaveBeenCalledTimes(1))
+        expect(mocks.createAssistantConversation).toHaveBeenCalledWith(
             {
+                kind: 'card',
                 card_type: 'world',
-                card_id: undefined,
                 title: 'Untitled World',
             },
             expect.any(Object),
         )
-        await waitFor(() => expect(mocks.streamCardAssistantMessage).toHaveBeenCalledTimes(1))
-        expect(mocks.streamCardAssistantMessage).toHaveBeenCalledWith(
+        await waitFor(() => expect(mocks.streamAssistantMessage).toHaveBeenCalledTimes(1))
+        expect(mocks.streamAssistantMessage).toHaveBeenCalledWith(
             2,
             {
+                kind: 'card',
                 message: 'Generate a glass desert',
                 card_type: 'world',
-                current_card: null,
+                current: null,
             },
             expect.any(Function),
             expect.objectContaining({ requestId: expect.stringMatching(/^mw-card-assistant-/) }),
@@ -165,9 +164,8 @@ describe('WorldCreator AI generation', () => {
         fireEvent.click(screen.getByRole('button', { name: /open card assistant/i }))
 
         await waitFor(() => expect(mocks.openLoginModal).toHaveBeenCalledTimes(1))
-        expect(mocks.createCardAssistantConversation).not.toHaveBeenCalled()
-        expect(mocks.sendCardAssistantMessage).not.toHaveBeenCalled()
-        expect(mocks.streamCardAssistantMessage).not.toHaveBeenCalled()
+        expect(mocks.createAssistantConversation).not.toHaveBeenCalled()
+        expect(mocks.streamAssistantMessage).not.toHaveBeenCalled()
         expect(mocks.loadData).not.toHaveBeenCalled()
     })
 })
@@ -241,7 +239,7 @@ describe('WorldCreator navigation', () => {
         mocks.editingWorld = null
         mocks.createWorld.mockResolvedValue({ id: 'world-2', name: 'Glass Province' })
         mocks.loadData.mockResolvedValue(undefined)
-        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
     })
 
     it('stays in the editor after creating a new world (draft/publish from here)', async () => {
@@ -277,11 +275,12 @@ describe('WorldCreator place type payloads', () => {
         mocks.editingWorld = null
         mocks.createWorld.mockResolvedValue({ id: 'world-2', name: 'Glass Province' })
         mocks.loadData.mockResolvedValue(undefined)
-        mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
-        mocks.createCardAssistantConversation.mockResolvedValue({
-            conversation: { conversation_id: 2, card_type: 'world', card_id: null, title: 'Untitled World' },
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.createAssistantConversation.mockResolvedValue({
+            conversation: { conversation_id: 2, kind: 'card', card_type: 'world', card_id: null, title: 'Untitled World' },
             messages: [],
-            card: null,
+            target: null,
+            target_cas: null,
         })
     })
 

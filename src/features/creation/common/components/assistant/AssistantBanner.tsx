@@ -1,13 +1,14 @@
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Info, X } from 'lucide-react'
 import { Button, cx, IconButton } from '@/ui/primitives'
-import type { AssistantNotice } from './useCardAssistant'
+import type { AssistantNotice } from './assistantModel'
 
 interface AssistantBannerProps {
     notice: AssistantNotice
-    onRetry: () => void
-    onReload: () => void
-    onDismiss: () => void
+    onRetry?: () => void
+    onReload?: () => void
+    /** Omitted for a standing state the reader cannot dismiss. */
+    onDismiss?: () => void
 }
 
 /** Error/info strip above the composer with Retry / Check-conversation actions. */
@@ -27,19 +28,21 @@ export function AssistantBanner({ notice, onRetry, onReload, onDismiss }: Assist
                 : <Info size={14} className="mt-0.5 shrink-0 text-amber-500" />}
             <p className="min-w-0 flex-1 font-ui text-[12px] leading-relaxed text-parchment-100">{notice.message}</p>
             <div className="flex shrink-0 items-center gap-1">
-                {notice.canRetry && (
+                {notice.canRetry && onRetry && (
                     <Button variant="ghost" size="sm" className="px-2 py-1 text-ember-300" onClick={onRetry}>
                         {t('creation.common.assistant.retry')}
                     </Button>
                 )}
-                {notice.canReload && (
+                {notice.canReload && onReload && (
                     <Button variant="ghost" size="sm" className="px-2 py-1 text-ember-300" onClick={onReload}>
                         {t('creation.common.assistant.checkConversation')}
                     </Button>
                 )}
-                <IconButton label={t('creation.common.assistant.dismissNotice')} size="sm" onClick={onDismiss}>
-                    <X size={13} />
-                </IconButton>
+                {onDismiss && (
+                    <IconButton label={t('creation.common.assistant.dismissNotice')} size="sm" onClick={onDismiss}>
+                        <X size={13} />
+                    </IconButton>
+                )}
             </div>
         </div>
     )

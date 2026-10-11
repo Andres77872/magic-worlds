@@ -39,6 +39,8 @@ interface ExtendedTurnEntry extends TurnEntry {
 interface InteractionCenterPanelProps {
     /** Numeric session id (adventure_id or character-chat id). */
     sessionId: number
+    /** Resolve a local draft only after a non-empty message is submitted. */
+    ensureSession?: () => Promise<number>
     turns: TurnEntry[]
     setTurns: (turns: TurnEntry[]) => void
     /** Mode-specific wiring (stored history endpoints, copy, forward options, basePath). */
@@ -139,8 +141,12 @@ function storedMessageId(turn?: TurnEntry | null): number | undefined {
     return undefined
 }
 
-export function InteractionCenterPanel({sessionId, turns, setTurns, config, speakerRoster, llmFeature}: InteractionCenterPanelProps) {
+export function InteractionCenterPanel({sessionId: initialSessionId, ensureSession, turns, setTurns, config, speakerRoster, llmFeature}: InteractionCenterPanelProps) {
     const { t } = useTranslation()
+    const [createdSessionId, setCreatedSessionId] = useState<number | null>(null)
+    const sessionId = createdSessionId ?? initialSessionId
+    const firstMessageRef = useRef<string | null>(null)
+    const creatingSessionRef = useRef<{ stopped: boolean } | null>(null)
     // Session-attached lorebook triggers: underline matching words in the composer and
     // transcript, Ctrl/Cmd-click to open the entry's floating card.
     const loreTargetKind = config.kind === 'adventure' ? 'adventure_session' : 'character_chat'
@@ -1152,14 +1158,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         else if (last.type === 'ai') void replaceLatestReply(last.id)
     }
 
-    const handleSubmit = () => {
-        if (!input.trim() || isLoading || isMutatingTurns) return
-        if (!isAuthenticated) {
-            openLoginModal()
-            return
-        }
-
-        const userInput = input.trim()
+    const submitMessage = (userInput: string) => {
         const userTurn: TurnEntry = {
             id: generateUUID(),
             type: 'user',
@@ -1181,8 +1180,49 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         startGeneration(newTurns.slice(0, -1), aiTurn)
     }
 
+    // The socket hook's effect runs first, so the first message can queue on the
+    // newly created socket without waiting for a second click or an open event.
+    const submitMessageRef = useRef(submitMessage)
+    useEffect(() => { submitMessageRef.current = submitMessage })
+    useEffect(() => {
+        const content = firstMessageRef.current
+        if (content === null || Number.isNaN(sessionId)) return
+        firstMessageRef.current = null
+        submitMessageRef.current(content)
+    }, [createdSessionId, sessionId])
+
+    const handleSubmit = () => {
+        if (!input.trim() || isLoading || isMutatingTurns || creatingSessionRef.current) return
+        if (!isAuthenticated) { openLoginModal(); return }
+        const content = input.trim()
+        if (!Number.isNaN(sessionId)) { submitMessage(content); return }
+        if (!ensureSession) { setError(t('interaction.center.invalidSession')); return }
+        const fence = { stopped: false }
+        creatingSessionRef.current = fence
+        setIsLoading(true)
+        setError(null)
+        void ensureSession().then((id) => {
+            if (!mountedRef.current || fence.stopped) return
+            if (!Number.isSafeInteger(id) || id < 1) throw new Error('Invalid session id')
+            firstMessageRef.current = content
+            setCreatedSessionId(id)
+        }).catch(() => {
+            if (mountedRef.current && !fence.stopped) {
+                setIsLoading(false)
+                setError(t('interaction.center.generateFailed'))
+            }
+        }).finally(() => {
+            if (creatingSessionRef.current === fence) creatingSessionRef.current = null
+        })
+    }
+
     const handleStop = () => {
         if (!stopArmedRef.current) return
+        if (creatingSessionRef.current) {
+            creatingSessionRef.current.stopped = true
+            setIsLoading(false)
+            return
+        }
         if (retryLookupRef.current) {
             retryLookupRef.current.abort(); retryLookupRef.current = null; setIsLoading(false)
             return

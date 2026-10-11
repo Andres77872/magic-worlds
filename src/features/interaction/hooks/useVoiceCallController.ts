@@ -39,6 +39,8 @@ export interface VoiceCallControllerError {
 
 export interface UseVoiceCallControllerOptions {
     sessionId: number | null
+    /** Create a draft chat after consent and successful microphone access. */
+    ensureSession?: () => Promise<number>
     authKey?: string | null
     consentGranted: boolean
     enabled?: boolean
@@ -85,6 +87,10 @@ const TERMINAL_ERROR_CATEGORIES = new Set<VoiceErrorCategory>([
 ])
 
 export function useVoiceCallController(options: UseVoiceCallControllerOptions): VoiceCallControllerApi {
+    const [createdSessionId, setCreatedSessionId] = useState<number | null>(null)
+    const sessionId = createdSessionId ?? options.sessionId
+    const sessionIdRef = useRef(sessionId)
+    useEffect(() => { sessionIdRef.current = sessionId }, [sessionId])
     const featureEnabled = options.enabled ?? isFrontendVoiceModeEnabled()
     const mountedRef = useRef(true)
     const stateRef = useRef<VoiceCallState>(featureEnabled ? 'idle' : 'disabled')
@@ -188,7 +194,6 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
 
     const uploadSegment = useCallback(async (segment: CapturedVoiceSegment) => {
         const currentVoiceSessionId = voiceSessionIdRef.current
-        const sessionId = options.sessionId
         if (!currentVoiceSessionId || sessionId === null) {
             pendingSegmentsRef.current.push(segment)
             updateUploadQueueDepth()
@@ -231,7 +236,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             inFlightUploadsRef.current.delete(controller)
             updateUploadQueueDepth()
         }
-    }, [mapError, options.sessionId, setControllerError, updateState, updateUploadQueueDepth])
+    }, [mapError, sessionId, setControllerError, updateState, updateUploadQueueDepth])
 
     const flushPendingSegments = useCallback(() => {
         const pending = pendingSegmentsRef.current.splice(0)
@@ -362,7 +367,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         void uploadSegment(segment)
     }, [uploadSegment])
 
-    const socket = useVoiceCallSocket(options.sessionId, {
+    const socket = useVoiceCallSocket(sessionId, {
         onReady: handleReady,
         onSegmentAck: handleSegmentAck,
         onTranscriptFinal: handleTranscriptFinal,
@@ -399,7 +404,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             updateState('disabled')
             return false
         }
-        if (options.sessionId === null || options.authKey === null) {
+        if ((sessionId === null && !options.ensureSession) || options.authKey === null) {
             setControllerError({ category: 'auth', message: 'Authentication is required before starting a voice call.', fatal: true })
             updateState('error')
             return false
@@ -424,8 +429,15 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             return false
         }
 
+        let currentSessionId = sessionId
         try {
-            const consent = await apiService.saveVoiceConsent(options.sessionId)
+            if (currentSessionId === null) {
+                currentSessionId = await options.ensureSession!()
+                if (!mountedRef.current) { stopLocalResources({ closeSocket: true }); return false }
+                setCreatedSessionId(currentSessionId)
+            }
+            const consent = await apiService.saveVoiceConsent(currentSessionId)
+            if (!mountedRef.current) { stopLocalResources({ closeSocket: true }); return false }
             setLimits(consent.limits)
         } catch (consentError) {
             console.error('[voice-call][VOICE_CONSENT_REQUIRED] voice consent could not be saved', consentError)
@@ -438,7 +450,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         // A fresh client_call_id per start makes every "Call" an unambiguously new call
         // (the backend supersedes any leftover active session). A caller-pinned id wins.
         clientCallIdRef.current = options.clientCallId ?? createClientCallId()
-        console.info('[voice-call][CONNECTING] starting voice call', { sessionId: options.sessionId, clientCallId: clientCallIdRef.current })
+        console.info('[voice-call][CONNECTING] starting voice call', { sessionId: currentSessionId, clientCallId: clientCallIdRef.current })
         updateState('connecting')
         socketRef.current?.start(buildVoiceStartFrame({ clientCallId: clientCallIdRef.current }))
         // If voice_ready never arrives, captured segments queue silently and the call sits
@@ -452,11 +464,11 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             updateState('error')
         }, VOICE_READY_TIMEOUT_MS)
         return true
-    }, [clearReadyTimeout, featureEnabled, mapError, options.authKey, options.clientCallId, options.consentGranted, options.sessionId, setControllerError, stopLocalResources, updateState])
+    }, [clearReadyTimeout, featureEnabled, mapError, options.authKey, options.clientCallId, options.consentGranted, options.ensureSession, sessionId, setControllerError, stopLocalResources, updateState])
 
     const endCall = useCallback(async () => {
         updateState('ending')
-        const currentSessionId = options.sessionId
+        const currentSessionId = sessionId
         const currentVoiceSessionId = voiceSessionIdRef.current
         socketRef.current?.end()
         stopLocalResources({ closeSocket: true })
@@ -472,7 +484,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             }
         }
         updateState('ended')
-    }, [options.sessionId, stopLocalResources, updateState])
+    }, [sessionId, stopLocalResources, updateState])
 
     const bargeIn = useCallback((): boolean => {
         const currentVoiceSessionId = voiceSessionIdRef.current
@@ -502,14 +514,14 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         mountedRef.current = true
         return () => {
             mountedRef.current = false
-            const currentSessionId = options.sessionId
+            const currentSessionId = sessionIdRef.current
             const currentVoiceSessionId = voiceSessionIdRef.current
             stopLocalResources({ closeSocket: true, disposePlayback: true })
             if (currentSessionId !== null && currentVoiceSessionId) {
                 void apiService.endVoiceCall(currentSessionId, { voiceSessionId: currentVoiceSessionId, reason: 'user' }).catch(() => undefined)
             }
         }
-    }, [options.sessionId, stopLocalResources])
+    }, [stopLocalResources])
 
     return {
         state,

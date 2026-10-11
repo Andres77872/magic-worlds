@@ -39,6 +39,7 @@ const ChatroomPage = lazy(() => import('../../features/characterChat/components/
 const CallsPage = lazy(() => import('../../features/call/components/CallsPage').then(m => ({ default: m.CallsPage })))
 const GalleryPage = lazy(() => import('../../features/gallery/components/GalleryPage').then(m => ({ default: m.GalleryPage })))
 const CommunityGalleryPage = lazy(() => import('../../features/gallery/components/CommunityGalleryPage').then(m => ({ default: m.CommunityGalleryPage })))
+const AppAssistantPage = lazy(() => import('../../features/appAssistant/components/AppAssistantPage').then(m => ({ default: m.AppAssistantPage })))
 const SharedCardPage = lazy(() => import('../../features/gallery/components/SharedCardPage').then(m => ({ default: m.SharedCardPage })))
 const MediaGalleryPage = lazy(() => import('../../features/gallery/media/components/MediaGalleryPage').then(m => ({ default: m.MediaGalleryPage })))
 const LorebookGalleryPage = lazy(() => import('../../features/lorebook/components/LorebookGalleryPage').then(m => ({ default: m.LorebookGalleryPage })))
@@ -133,6 +134,7 @@ export function AppRouter() {
                                     {currentPage === 'gallery-stories' && <NovelGalleryPage />}
                                     {currentPage === 'gallery-media' && <MediaGalleryPage />}
                                     {currentPage === 'community' && <CommunityGalleryPage />}
+                                    {currentPage === 'assistant' && <AppAssistantPage />}
                                     {currentPage === 'shared-card' && <SharedCardPage />}
                                     {currentPage === 'character' && <CharacterCreator />}
                                     {currentPage === 'world' && <WorldCreator />}

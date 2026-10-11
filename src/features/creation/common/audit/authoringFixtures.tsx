@@ -44,8 +44,7 @@ export function installAuthoringApi(state: AuditState = 'populated') {
         getLorebookResource: async () => auditResource,
         getStories: async (_skip, _limit, query) => state === 'empty' || query ? [] : [auditStory],
         listLorebookAttachments: async () => state === 'empty' ? [] : [{id:'attachment-fixture',lorebookId:auditLorebook.id,targetKind:'character_chat',targetId:'fixture',mode:'linked',enabled:true,priority:0}],
-        listCardAssistantConversations: async () => ({ conversations: [] }),
-        listLorebookAssistantConversations: async () => ({ conversations: [] }),
+        listAssistantConversations: async () => ({ conversations: [] }),
         listImageJobs: async () => ({ items: state === 'empty' ? [] : [{job_id:'image-fixture',status:'completed',created_at:'2026-09-19T12:00:00Z',assets:[{asset_id:'image-asset-fixture',url:new URL(characterArtwork, window.location.href).href}]}], next_offset: null }),
         listThemeSongs: async () => ({ items: state === 'empty' ? [] : [{job_id:'theme-fixture',status:'completed',target:{type:'character',id:'fixture',display_name:'Lyra Dawnwhisper'},created_at:'2026-09-19T12:00:00Z',assets:[{asset_id:'theme-asset-fixture',url:'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=',duration_ms:90000}]}], next_offset: null }),
     }

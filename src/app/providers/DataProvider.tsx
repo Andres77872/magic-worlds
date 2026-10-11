@@ -33,12 +33,14 @@ import {
     isNovelsFeatureEnabled,
 } from '../../shared/featureFlags'
 import { parseApiTimestamp } from '../../utils/time'
+import { generateUUID } from '../../utils/uuid'
 import { asArray, transformCharacters, transformItems, transformTemplates, transformWorlds } from '../../utils/cardTransforms'
 import { normalizeLorebookList } from '../../features/lorebook/lorebookTransforms'
 import {
     adventureFieldsFromSnapshot,
     asSnapshot,
     writableAdventureSnapshot,
+    libraryCardToSnapshotCard,
 } from '../../features/interaction/utils/adventureSnapshot'
 import { useAuth } from '../hooks/useAuth'
 import { isPageFocused, usePageFocus } from '../hooks/usePageFocus'
@@ -94,6 +96,8 @@ interface DataContextValue {
     setEditingInProgress: (adventure: Adventure | null) => void
     editTemplate: (adventure: Adventure) => void
     startTemplate: (template: Adventure, persona: Character) => Promise<Adventure>
+    /** Called only for the first submitted interaction, never on navigation. */
+    ensureAdventureSession: (adventure: Adventure) => Promise<number>
     deleteTemplate: (index: number) => Promise<void>
     /** Id-based variant for searched/paginated views that don't index into the provider list. */
     deleteTemplateById: (id: string) => Promise<void>
@@ -137,10 +141,12 @@ interface DataContextValue {
     activeCharacterChat: CharacterChatSession | null
     setActiveCharacterChat: (chat: CharacterChatSession | null) => void
     activeCharacterChatMode: CharacterChatMode
-    /** Start a fresh 1:1 chat with a character; caller navigates to 'character-chat'. */
+    /** Open a local 1:1 draft; caller navigates to 'character-chat'. */
     startCharacterChat: (character: Character, persona: Character) => Promise<CharacterChatSession>
-    /** Start a fresh group chat with 2-6 AI character cards; caller navigates to 'character-chat'. */
+    /** Open a local group draft with 2-6 AI cards; caller navigates to 'character-chat'. */
     startCharacterGroupChat: (characters: Character[], persona: Character) => Promise<CharacterChatSession>
+    /** Called only for the first submitted message or accepted voice call. */
+    ensureCharacterChatSession: (chat: CharacterChatSession) => Promise<number>
     /** Past 1:1 chats (the "Recent chats" shelf); loaded alongside the other lists. */
     characterChats: CharacterChatSession[]
     /** Reopen an existing chat from the list; caller navigates to 'character-chat'. */
@@ -360,6 +366,10 @@ export function DataProvider({ children }: DataProviderProps) {
     const [activeCharacterChat, setActiveCharacterChat] = useState<CharacterChatSession | null>(null)
     const [activeCharacterChatMode, setActiveCharacterChatMode] = useState<CharacterChatMode>('text')
     const [characterChats, setCharacterChats] = useState<CharacterChatSession[]>([])
+    // Coalesce concurrent first interactions and reuse a created session on retry.
+    const draftRequestsRef = useRef(new Map<string, Promise<number>>())
+    const createdDraftsRef = useRef(new Map<string, Adventure>())
+    const createdChatDraftsRef = useRef(new Map<string, CharacterChatSession>())
 
     // UI state
     const [loadingState, setLoadingState] = useState<LoadingState>({ isLoading: true })
@@ -508,32 +518,66 @@ export function DataProvider({ children }: DataProviderProps) {
         if (!persona?.id) {
             throw new Error('Choose a persona before starting an adventure')
         }
-        try {
-            // Create a new adventure session via API. The backend clones the
-            // template's cards into the session snapshot and returns it.
-            const session = await apiService.createAdventureSession(template.id, persona.id)
-
-            // Build the in-progress adventure from the session's own cloned snapshot
-            // so edits affect this adventure's copy, never the original template.
-            const snapshot = resolveAdventureSnapshot(session.template_snapshot)
-            const newInProgressAdventure: Adventure = {
-                ...template,
-                ...buildInProgressAdventure(session, template, snapshot),
-            }
-            
-            // Update state
-            setInProgressAdventures(prev => [...prev, newInProgressAdventure])
-
-            // Set as the current editing adventure
-            setEditingInProgress(newInProgressAdventure)
-            return newInProgressAdventure
-        } catch (error) {
-            // Thrown to the caller, which owns the user-facing error surface —
-            // writing it into loadingState.error would double-report it in the
-            // global data-load banner.
-            console.error('Failed to start adventure from template:', error)
-            throw error
+        const draftId = `draft-${generateUUID()}`
+        const adventure: Adventure = {
+            ...structuredClone(template),
+            id: draftId,
+            draftId,
+            draft: { templateId: template.id, personaId: persona.id },
+            persona: structuredClone(persona),
+            turns: [],
+            status: 'draft',
+            snapshot: {
+                ...structuredClone(template.snapshot),
+                template_card_id: template.id,
+                template: {
+                    ...structuredClone(template.snapshot?.template),
+                    id: template.id,
+                    description: template.scenario,
+                    persona: libraryCardToSnapshotCard(persona, 'character'),
+                    characters: template.characters.map((card) => libraryCardToSnapshotCard(card, 'character')),
+                    world: (template.worlds ?? (template.world ? [template.world] : [])).map((card) => libraryCardToSnapshotCard(card, 'world')),
+                    image_url: template.image_url,
+                    theme_song_url: template.theme_song_url,
+                },
+            },
         }
+        setEditingInProgress(adventure)
+        return adventure
+    }
+
+    const ensureAdventureSession = async (selected: Adventure): Promise<number> => {
+        if (!isAuthenticated) { openLoginModal(); throw new Error('Login required to start adventures') }
+        if (!isAdventuresFeatureEnabled()) throw disabledFeatureError('Adventures')
+        if (!selected.draft) return Number(selected.id)
+        const draft = editingInProgress?.id === selected.id ? editingInProgress : selected
+        const key = `${accountKey}:adventure:${draft.id}`
+        const pending = draftRequestsRef.current.get(key)
+        if (pending) return pending
+        const owner = authOwnerRef.current
+        const request = (async () => {
+            let adventure = createdDraftsRef.current.get(key)
+            if (!adventure) {
+                const session = await apiService.createAdventureSession(draft.draft!.templateId, draft.draft!.personaId)
+                adventure = { ...draft, ...buildInProgressAdventure(session, draft, resolveAdventureSnapshot(session.template_snapshot)), draft: undefined, draftId: draft.draftId }
+                createdDraftsRef.current.set(key, adventure)
+            }
+            if (draft.draft?.snapshotEdited && draft.snapshot) {
+                const response = await apiService.updateAdventureSnapshot(Number(adventure.id), writableAdventureSnapshot(draft.snapshot))
+                const snapshot = resolveAdventureSnapshot(response?.template_snapshot) ?? draft.snapshot
+                adventure = { ...adventure, ...adventureFieldsFromSnapshot(snapshot), snapshot }
+                createdDraftsRef.current.set(key, adventure)
+            }
+            if (authOwnerRef.current.authEpoch !== owner.authEpoch || authOwnerRef.current.accountKey !== owner.accountKey) {
+                throw new Error('Authentication changed while starting the adventure')
+            }
+            const saved = adventure
+            setInProgressAdventures((prev) => [saved, ...prev.filter((item) => item.id !== saved.id)])
+            setEditingInProgress((prev) => prev?.id === draft.id ? saved : prev)
+            return Number(saved.id)
+        })()
+        draftRequestsRef.current.set(key, request)
+        try { return await request } catch (error) { draftRequestsRef.current.delete(key); throw error }
     }
     
     const deleteTemplate = async (index: number) => {
@@ -580,6 +624,12 @@ export function DataProvider({ children }: DataProviderProps) {
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to edit adventure cards')
+        }
+        if (editingInProgress?.id === adventureId && editingInProgress.draft) {
+            const fields = adventureFieldsFromSnapshot(snapshot)
+            setEditingInProgress({ ...editingInProgress, ...fields, snapshot,
+                draft: { ...editingInProgress.draft, snapshotEdited: true } })
+            return
         }
         // Persist to this adventure's own snapshot — never the library/template card.
         const writableSnapshot = writableAdventureSnapshot(snapshot)
@@ -847,7 +897,7 @@ export function DataProvider({ children }: DataProviderProps) {
         await apiService.discardStoryGeneration(storyId, generationId)
     }
     
-    // Start a fresh 1:1 character chat seeded with the character's greeting.
+    // Prepare a local chat. Selecting cards must never create a server session.
     // The caller navigates to the 'character-chat' page.
     const startCharacterChat = async (character: Character, persona: Character): Promise<CharacterChatSession> => {
         if (!isAuthenticated) {
@@ -857,19 +907,16 @@ export function DataProvider({ children }: DataProviderProps) {
         if (!persona?.id) {
             throw new Error('Choose a persona before starting a chat')
         }
-        try {
-            const session = await apiService.createCharacterChat(character.id, persona.id)
-            const chat = normalizeCharacterChat(session, characters, [character], persona)
-            setActiveCharacterChatMode('text')
-            setActiveCharacterChat(chat)
-            // Upsert into the "Recent chats" list so a first chat shows up without a reload.
-            setCharacterChats((prev) => [chat, ...prev.filter((c) => c.id !== chat.id)])
-            return chat
-        } catch (error) {
-            // Thrown to the caller (persona picker / gallery), which surfaces it.
-            console.error('Failed to start character chat:', error)
-            throw error
+        const draftId = `draft-${generateUUID()}`
+        const chat: CharacterChatSession = {
+            id: draftId, draftId, isDraft: true, kind: 'character',
+            character_id: character.id, character_ids: [character.id], persona_id: persona.id,
+            character: structuredClone(character), characters: [structuredClone(character)], persona: structuredClone(persona),
+            codexCards: [], turns: [],
         }
+        setActiveCharacterChatMode('text')
+        setActiveCharacterChat(chat)
+        return chat
     }
 
     const startCharacterGroupChat = async (selectedCharacters: Character[], persona: Character): Promise<CharacterChatSession> => {
@@ -885,18 +932,55 @@ export function DataProvider({ children }: DataProviderProps) {
         if (characterIds.length < 2 || characterIds.length > 6 || new Set(characterIds).size !== characterIds.length) {
             throw new Error('Choose 2 to 6 different characters for a group chat')
         }
-        try {
-            const session = await apiService.createCharacterGroupChat(characterIds, persona.id)
-            const chat = normalizeCharacterChat(session, characters, selectedCharacters, persona)
-            setActiveCharacterChatMode('text')
-            setActiveCharacterChat(chat)
-            setCharacterChats((prev) => [chat, ...prev.filter((existing) => existing.id !== chat.id)])
-            return chat
-        } catch (error) {
-            // Thrown to the caller (group chat setup), which surfaces it.
-            console.error('Failed to start character group chat:', error)
-            throw error
+        const draftId = `draft-${generateUUID()}`
+        const chat: CharacterChatSession = {
+            id: draftId, draftId, isDraft: true, kind: 'character_group',
+            character_id: characterIds[0], character_ids: characterIds, persona_id: persona.id,
+            character: structuredClone(selectedCharacters[0]), characters: structuredClone(selectedCharacters),
+            persona: structuredClone(persona), codexCards: [], turns: [],
         }
+        setActiveCharacterChatMode('text')
+        setActiveCharacterChat(chat)
+        return chat
+    }
+
+    const ensureCharacterChatSession = async (chat: CharacterChatSession): Promise<number> => {
+        if (!isAuthenticated) { openLoginModal(); throw new Error('Login required to chat with characters') }
+        if (chat.kind === 'character_group' && !isGroupChatsFeatureEnabled()) throw disabledFeatureError('Group chats')
+        if (!chat.isDraft) return Number(chat.id)
+        const draft = activeCharacterChat?.id === chat.id ? activeCharacterChat : chat
+        const key = `${accountKey}:chat:${chat.id}`
+        const pending = draftRequestsRef.current.get(key)
+        if (pending) return pending
+        const owner = authOwnerRef.current
+        const request = (async () => {
+            let saved = createdChatDraftsRef.current.get(key)
+            const remember = (session: unknown) => {
+                const value = { ...normalizeCharacterChat(session, characters, draft.characters, draft.persona), draftId: draft.draftId }
+                createdChatDraftsRef.current.set(key, value)
+                return value
+            }
+            if (!saved) {
+                saved = remember(draft.kind === 'character_group'
+                    ? await apiService.createCharacterGroupChat(draft.character_ids!, draft.persona_id!)
+                    : await apiService.createCharacterChat(draft.character_id!, draft.persona_id!))
+            }
+            const missing = (draft.codexCards ?? []).filter((card) => !saved!.codexCards?.some((stored) => stored.kind === card.kind && stored.cardId === card.cardId))
+            if (missing.length) saved = remember(await apiService.addCharacterChatCodexCards(Number(saved.id), missing.map(({ kind, cardId }) => ({ kind, cardId }))))
+            for (const card of draft.codexCards ?? []) {
+                const stored = saved.codexCards?.find((entry) => entry.kind === card.kind && entry.cardId === card.cardId)
+                if (stored && stored.enabled !== card.enabled) saved = remember(await apiService.updateCharacterChatCodexCard(Number(saved.id), stored.id, card.enabled))
+            }
+            if (authOwnerRef.current.authEpoch !== owner.authEpoch || authOwnerRef.current.accountKey !== owner.accountKey) {
+                throw new Error('Authentication changed while starting the chat')
+            }
+            const persisted = saved
+            setCharacterChats((prev) => [persisted, ...prev.filter((item) => item.id !== persisted.id)])
+            setActiveCharacterChat((prev) => prev?.id === chat.id ? persisted : prev)
+            return Number(persisted.id)
+        })()
+        draftRequestsRef.current.set(key, request)
+        try { return await request } catch (error) { draftRequestsRef.current.delete(key); throw error }
     }
 
     // Reopen a chat from the list. No network call needed: the chat view re-hydrates
@@ -914,7 +998,7 @@ export function DataProvider({ children }: DataProviderProps) {
     }
 
     const upsertCharacterChat = (chat: CharacterChatSession) => {
-        setCharacterChats((prev) => [chat, ...prev.filter((existing) => existing.id !== chat.id)])
+        if (!chat.isDraft) setCharacterChats((prev) => [chat, ...prev.filter((existing) => existing.id !== chat.id)])
         setActiveCharacterChat((prev) => (prev && prev.id === chat.id ? chat : prev))
         return chat
     }
@@ -934,6 +1018,18 @@ export function DataProvider({ children }: DataProviderProps) {
             if (!current) throw new Error('Character chat not found')
             return current
         }
+        if (activeCharacterChat?.id === chatId && activeCharacterChat.isDraft) {
+            const staged = [...(activeCharacterChat.codexCards ?? [])]
+            for (const { kind, cardId } of cards) {
+                if (staged.some((card) => card.kind === kind && card.cardId === cardId)) continue
+                const library = kind === 'character' ? characters : kind === 'world' ? worlds : kind === 'item' ? items : templateAdventures
+                const card = library.find((entry) => entry.id === cardId)
+                if (!card) throw new Error('Library card not found')
+                staged.push({ id: `draft-${generateUUID()}`, kind, cardId, enabled: true, precedence: staged.length,
+                    snapshot: structuredClone(card) as unknown as Record<string, unknown> })
+            }
+            return upsertCharacterChat({ ...activeCharacterChat, codexCards: staged })
+        }
         const updated = await apiService.addCharacterChatCodexCards(Number(chatId), cards)
         return upsertCharacterChat(normalizeCharacterChat(updated, characters))
     }
@@ -947,6 +1043,10 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to edit chat codex')
         }
+        if (activeCharacterChat?.id === chatId && activeCharacterChat.isDraft) {
+            return upsertCharacterChat({ ...activeCharacterChat,
+                codexCards: activeCharacterChat.codexCards?.map((card) => card.id === codexCardId ? { ...card, enabled } : card) })
+        }
         const updated = await apiService.updateCharacterChatCodexCard(Number(chatId), codexCardId, enabled)
         return upsertCharacterChat(normalizeCharacterChat(updated, characters))
     }
@@ -955,6 +1055,10 @@ export function DataProvider({ children }: DataProviderProps) {
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error('Login required to edit chat codex')
+        }
+        if (activeCharacterChat?.id === chatId && activeCharacterChat.isDraft) {
+            return upsertCharacterChat({ ...activeCharacterChat,
+                codexCards: activeCharacterChat.codexCards?.filter((card) => card.id !== codexCardId) })
         }
         const updated = await apiService.deleteCharacterChatCodexCard(Number(chatId), codexCardId)
         return upsertCharacterChat(normalizeCharacterChat(updated, characters))
@@ -1325,6 +1429,7 @@ export function DataProvider({ children }: DataProviderProps) {
         setEditingInProgress,
         editTemplate,
         startTemplate,
+        ensureAdventureSession,
         deleteTemplate,
         deleteTemplateById,
         editInProgress,
@@ -1365,6 +1470,7 @@ export function DataProvider({ children }: DataProviderProps) {
         activeCharacterChatMode,
         startCharacterChat,
         startCharacterGroupChat,
+        ensureCharacterChatSession,
         characterChats,
         resumeCharacterChat,
         addCharacterChatCodexCards,

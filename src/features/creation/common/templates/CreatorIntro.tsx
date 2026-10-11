@@ -17,7 +17,7 @@ export interface CreatorIntroProps {
     onBack: () => void
     /** The TemplateGallery. */
     children: ReactNode
-    /** Floating extras (CardAssistantChatbot). */
+    /** Floating extras (AssistantChatbot). */
     overlay?: ReactNode
 }
 

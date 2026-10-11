@@ -25,6 +25,10 @@ export interface CharacterChatCodexCard {
 }
 
 export interface CharacterChatSession {
+    /** Local setup only; no server session exists until the first interaction. */
+    isDraft?: boolean
+    /** Keeps the mounted composer/call stable when the server assigns an id. */
+    draftId?: string
     /** Chat session id (string form of the backend chat_id). */
     id: string
     /** Backend discriminator. */

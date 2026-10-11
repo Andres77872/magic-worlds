@@ -12,9 +12,15 @@ import { adventureChatConfig } from '../chatSessionConfig'
 import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel, InteractionTopBar, SidePanelDrawer} from './index'
 
 export function AdventureInteraction() {
+    const { editingInProgress } = useData()
+    return <AdventureInteractionView key={editingInProgress?.draftId ?? editingInProgress?.id ?? 'none'} />
+}
+
+function AdventureInteractionView() {
     const { t } = useTranslation()
     const { goBack, setPage } = useNavigation()
-    const { editingInProgress, saveInProgressSnapshot } = useData()
+    const { editingInProgress, saveInProgressSnapshot, ensureAdventureSession } = useData()
+    const [initialDraftId] = useState(() => editingInProgress?.draft ? editingInProgress.draftId : undefined)
     const { isAuthenticated } = useAuth()
     const [currentAdventure, setCurrentAdventure] = useState<Adventure | null>(null)
     const [turns, setTurns] = useState<TurnEntry[]>([])
@@ -56,6 +62,13 @@ export function AdventureInteraction() {
         let isMounted = true
         setIsLoading(true)
         setLoadError(null)
+
+        // Drafts have no history endpoint. Their id changes on the first send;
+        // keep the live composer and optimistic turns intact through that change.
+        if (currentAdventure.draft || (initialDraftId && currentAdventure.draftId === initialDraftId)) {
+            setIsLoading(false)
+            return
+        }
 
         const loadTurns = async () => {
             try {
@@ -145,7 +158,12 @@ export function AdventureInteraction() {
                 </SidePanelDrawer>
 
                 <div className="min-w-0 flex-1">
-                    <InteractionCenterPanel sessionId={Number(currentAdventure.id)} turns={turns} setTurns={setTurns} config={chatConfig} />
+                    <InteractionCenterPanel
+                        key={currentAdventure.draftId ?? currentAdventure.id}
+                        sessionId={Number(currentAdventure.id)}
+                        ensureSession={currentAdventure.draft ? () => ensureAdventureSession(currentAdventure) : undefined}
+                        turns={turns} setTurns={setTurns} config={chatConfig}
+                    />
                 </div>
 
                 <SidePanelDrawer side="right" open={openPanelId === 'right'} onClose={closePanels} label={t('interaction.panels.logLabel')} dockAt="xl">

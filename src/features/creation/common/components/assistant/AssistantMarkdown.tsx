@@ -1,4 +1,6 @@
+import { useContext } from 'react'
 import { Markdown } from '@/ui/components'
+import { AssistantLinkContext } from './assistantLinkContext'
 
 interface AssistantMarkdownProps {
     content: string
@@ -24,11 +26,13 @@ export function StreamingDots() {
  * {@link Markdown} component, keeping only the streaming-dots wrapper.
  */
 export function AssistantMarkdown({ content, isStreaming }: AssistantMarkdownProps) {
+    const linkComponent = useContext(AssistantLinkContext) ?? undefined
     return (
         <Markdown
             content={content}
             className="text-[15px] leading-[1.6]"
             trailing={isStreaming ? <StreamingDots /> : null}
+            linkComponent={linkComponent}
         />
     )
 }

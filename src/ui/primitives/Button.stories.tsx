@@ -11,7 +11,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'The primary action control. `primary` is the ember (candlelight gold) hero action, `arcane` signals AI / magic, `danger` is destructive. Sizes sm/md/lg; pass `iconLeft`/`iconRight` for lucide glyphs.',
+          'The primary action control. `primary` is the ember (candlelight gold) hero action, `arcane` signals AI / magic, `danger` is destructive. Sizes xs/sm/md/lg (xs is for dense surfaces like hover-card footers); pass `iconLeft`/`iconRight` for lucide glyphs.',
       },
     },
   },
@@ -22,7 +22,7 @@ const meta = {
       description:
         'Action emphasis. `primary` = ember hero · `arcane` = AI/magic · `danger` = destructive · `danger-ghost` = quiet destructive (row and footer actions).',
     },
-    size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] },
+    size: { control: 'inline-radio', options: ['xs', 'sm', 'md', 'lg'] },
     full: { control: 'boolean', description: 'Stretch to fill the container width.' },
     disabled: { control: 'boolean' },
     children: { control: 'text', description: 'Label (sentence case, 1–3 words).' },
@@ -104,6 +104,7 @@ export const Sizes: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
     <div className="flex items-center gap-3">
+      <Button size="xs">Extra small</Button>
       <Button size="sm">Small</Button>
       <Button size="md">Medium</Button>
       <Button size="lg">Large</Button>

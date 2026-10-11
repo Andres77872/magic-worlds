@@ -29,6 +29,7 @@ export type PageType =
     | 'notifications'
     | 'calls'
     | 'community'
+    | 'assistant'
     | 'shared-card'
     | 'profile'
     | 'llm-profiles'

@@ -1,13 +1,14 @@
 /**
  * Reverie button — variants: primary (ember), secondary (outline), ghost,
- * arcane (AI), danger, danger-ghost (quiet destructive). Sizes sm/md/lg. `variant` is the design-system term for
+ * arcane (AI), danger, danger-ghost (quiet destructive). Sizes xs/sm/md/lg (xs only for
+ * dense surfaces such as hover-card footers). `variant` is the design-system term for
  * action emphasis (accent-coloured decor uses `tone` instead).
  */
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { cx } from './cx'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'arcane' | 'danger' | 'danger-ghost'
-export type ButtonSize = 'sm' | 'md' | 'lg'
+export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: ButtonVariant
@@ -38,7 +39,9 @@ const VARIANT: Record<ButtonVariant, string> = {
 }
 
 const SIZE: Record<ButtonSize, string> = {
-    sm: 'text-label px-3.5 py-2 gap-1.5',
+    // Dense surfaces only (hover cards, popover footers): a fixed 28px row.
+    xs: 'h-7 text-caption px-2.5 gap-1',
+    sm:'text-label px-3.5 py-2 gap-1.5',
     md: 'text-sm px-[18px] py-[11px] gap-2',
     lg: 'text-base px-6 py-3.5 gap-2.5',
 }

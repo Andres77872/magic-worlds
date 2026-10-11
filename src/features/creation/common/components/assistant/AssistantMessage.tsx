@@ -5,19 +5,14 @@ import { Badge, Eyebrow } from '@/ui/primitives'
 import { formatApiTime } from '@/utils/time'
 import { formatAppliedChange } from './appliedActions'
 import { AssistantMarkdown } from './AssistantMarkdown'
-import type { AssistantTurnBase } from './appliedActions'
-
-export interface VisibleAssistantTurn extends AssistantTurnBase {
-    isStreaming: boolean
-    isInterrupted: boolean
-}
+import type { AssistantTurn } from './assistantModel'
 
 function turnTime(value?: string): string {
     return formatApiTime(value)
 }
 
 /** One visible chat turn: ember bubble for the user, literary prose + change chips for the assistant. */
-export function AssistantMessage({ turn }: { turn: VisibleAssistantTurn }) {
+export function AssistantMessage({ turn }: { turn: AssistantTurn }) {
     const { t } = useTranslation()
     const { message, appliedChanges, isStreaming, isInterrupted } = turn
     const time = turnTime(message.created_at)

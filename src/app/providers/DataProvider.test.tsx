@@ -1,5 +1,5 @@
 import { useContext, useState } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdventureSnapshot } from '../../shared'
 
@@ -139,6 +139,11 @@ function ChatProbe() {
             {ctx?.characterChats.map((chat) => (
                 <span key={chat.id} data-testid={`chat-${chat.id}`}>{chat.character?.name}</span>
             ))}
+            <button onClick={() => { if (ctx?.activeCharacterChat) void ctx.ensureCharacterChatSession(ctx.activeCharacterChat).catch(() => {}) }}>interact</button>
+            <button onClick={() => ctx?.setWorlds([{ id: 'w2', name: 'Harbor', type: 'City', details: {} }])}>load draft world</button>
+            <button onClick={() => { if (ctx?.activeCharacterChat) void ctx.addCharacterChatCodexCards(ctx.activeCharacterChat.id, [{ kind: 'world', cardId: 'w2' }]) }}>draft add codex</button>
+            <button onClick={() => { if (ctx?.activeCharacterChat?.codexCards?.[0]) void ctx.toggleCharacterChatCodexCard(ctx.activeCharacterChat.id, ctx.activeCharacterChat.codexCards[0].id, false) }}>draft toggle codex</button>
+            <button onClick={() => { if (ctx?.activeCharacterChat?.codexCards?.[0]) void ctx.removeCharacterChatCodexCard(ctx.activeCharacterChat.id, ctx.activeCharacterChat.codexCards[0].id) }}>draft remove codex</button>
             <button onClick={() => ctx?.startCharacterChat(CHAT_CHARACTER, CHAT_PERSONA)}>start chat</button>
             <button onClick={() => ctx?.startCharacterGroupChat([CHAT_CHARACTER, { id: 'c2', name: 'Dorn', race: 'Dwarf', role: 'character' as const, stats: {} }], CHAT_PERSONA)}>
                 start group chat
@@ -193,7 +198,7 @@ describe('DataProvider character chats', () => {
         expect(screen.getByTestId('first-chat-codex-count')).toHaveTextContent('1')
     })
 
-    it('starts a fresh character chat with the selected persona id', async () => {
+    it('opens a local draft and creates the chat only on the first interaction', async () => {
         vi.mocked(apiService.createCharacterChat).mockResolvedValue({
             chat_id: 10,
             character_id: 'c1',
@@ -212,14 +217,19 @@ describe('DataProvider character chats', () => {
 
         fireEvent.click(screen.getByText('start chat'))
 
-        await waitFor(() => expect(apiService.createCharacterChat).toHaveBeenCalledWith('c1', 'p1'))
+        expect(apiService.createCharacterChat).not.toHaveBeenCalled()
+        expect(screen.getByTestId('active-chat')).toHaveTextContent('draft-')
+        expect(screen.getByTestId('chat-count')).toHaveTextContent('1')
+        fireEvent.click(screen.getByText('interact'))
+        fireEvent.click(screen.getByText('interact'))
+        await waitFor(() => expect(apiService.createCharacterChat).toHaveBeenCalledExactlyOnceWith('c1', 'p1'))
         await waitFor(() => expect(screen.getByTestId('active-chat')).toHaveTextContent('10'))
         expect(screen.getByTestId('active-chat-mode')).toHaveTextContent('text')
         expect(screen.getByTestId('active-persona')).toHaveTextContent('Aria')
         expect(screen.getByTestId('chat-count')).toHaveTextContent('2')
     })
 
-    it('creates a fresh group chat with selected character ids', async () => {
+    it('opens a group draft without creating a saved chat until an interaction', async () => {
         vi.mocked(apiService.createCharacterGroupChat).mockResolvedValue({
             chat_id: 12,
             kind: 'character_group',
@@ -243,10 +253,86 @@ describe('DataProvider character chats', () => {
 
         fireEvent.click(screen.getByText('start group chat'))
 
-        await waitFor(() => expect(apiService.createCharacterGroupChat).toHaveBeenCalledWith(['c1', 'c2'], 'p1'))
+        expect(apiService.createCharacterGroupChat).not.toHaveBeenCalled()
+        expect(screen.getByTestId('active-chat')).toHaveTextContent('draft-')
+        fireEvent.click(screen.getByText('interact'))
+        fireEvent.click(screen.getByText('interact'))
+        await waitFor(() => expect(apiService.createCharacterGroupChat).toHaveBeenCalledExactlyOnceWith(['c1', 'c2'], 'p1'))
         await waitFor(() => expect(screen.getByTestId('active-chat')).toHaveTextContent('12'))
         expect(screen.getByTestId('active-chat-mode')).toHaveTextContent('text')
         expect(screen.getByTestId('active-persona')).toHaveTextContent('Aria')
+    })
+
+    it('opening multiple new chats leaves the saved list unchanged', async () => {
+        render(<DataProvider><ChatProbe /></DataProvider>)
+        await waitFor(() => expect(screen.getByTestId('chat-count')).toHaveTextContent('1'))
+        for (let i = 0; i < 5; i++) fireEvent.click(screen.getByText('start chat'))
+        expect(apiService.createCharacterChat).not.toHaveBeenCalled()
+        expect(screen.getByTestId('chat-count')).toHaveTextContent('1')
+    })
+
+    it('stages Codex selections without saving a chat and applies them before its first message', async () => {
+        const saved = { chat_id: 10, character_id: 'c1', persona_id: 'p1', codex_cards: [] }
+        const card = { id: 'server-codex', kind: 'world', card_id: 'w2', enabled: true, snapshot: { name: 'Harbor' } }
+        vi.mocked(apiService.createCharacterChat).mockResolvedValueOnce(saved)
+        vi.mocked(apiService.addCharacterChatCodexCards).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ ...saved, codex_cards: [card] })
+        vi.mocked(apiService.updateCharacterChatCodexCard).mockResolvedValueOnce({ ...saved, codex_cards: [{ ...card, enabled: false }] })
+        render(<DataProvider><ChatProbe /></DataProvider>)
+        await waitFor(() => expect(screen.getByTestId('chat-count')).toHaveTextContent('1'))
+        fireEvent.click(screen.getByText('start chat'))
+        fireEvent.click(screen.getByText('load draft world'))
+        fireEvent.click(screen.getByText('draft add codex'))
+        fireEvent.click(screen.getByText('draft toggle codex'))
+        expect(screen.getByTestId('active-codex-count')).toHaveTextContent('1')
+        expect(apiService.createCharacterChat).not.toHaveBeenCalled()
+        expect(apiService.addCharacterChatCodexCards).not.toHaveBeenCalled()
+        expect(apiService.updateCharacterChatCodexCard).not.toHaveBeenCalled()
+        await act(async () => { fireEvent.click(screen.getByText('interact')) })
+        expect(screen.getByTestId('active-chat')).toHaveTextContent('draft-')
+        fireEvent.click(screen.getByText('interact'))
+        await waitFor(() => expect(screen.getByTestId('active-chat')).toHaveTextContent('10'))
+        expect(apiService.createCharacterChat).toHaveBeenCalledTimes(1)
+        expect(apiService.addCharacterChatCodexCards).toHaveBeenLastCalledWith(10, [{ kind: 'world', cardId: 'w2' }])
+        expect(apiService.updateCharacterChatCodexCard).toHaveBeenCalledWith(10, 'server-codex', false)
+    })
+
+    it('removing a staged Codex card never creates a saved chat', async () => {
+        render(<DataProvider><ChatProbe /></DataProvider>)
+        await waitFor(() => expect(screen.getByTestId('chat-count')).toHaveTextContent('1'))
+        fireEvent.click(screen.getByText('start chat'))
+        fireEvent.click(screen.getByText('load draft world'))
+        fireEvent.click(screen.getByText('draft add codex'))
+        fireEvent.click(screen.getByText('draft remove codex'))
+        expect(screen.getByTestId('active-codex-count')).toHaveTextContent('0')
+        expect(apiService.createCharacterChat).not.toHaveBeenCalled()
+        expect(apiService.deleteCharacterChatCodexCard).not.toHaveBeenCalled()
+    })
+
+    it('keeps the draft after a failed creation and allows retry', async () => {
+        vi.mocked(apiService.createCharacterChat).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ chat_id: 10, character_id: 'c1', persona_id: 'p1' })
+        render(<DataProvider><ChatProbe /></DataProvider>)
+        await waitFor(() => expect(screen.getByTestId('chat-count')).toHaveTextContent('1'))
+        fireEvent.click(screen.getByText('start chat'))
+        await act(async () => { fireEvent.click(screen.getByText('interact')) })
+        expect(screen.getByTestId('active-chat')).toHaveTextContent('draft-')
+        expect(screen.getByTestId('chat-count')).toHaveTextContent('1')
+        fireEvent.click(screen.getByText('interact'))
+        await waitFor(() => expect(screen.getByTestId('active-chat')).toHaveTextContent('10'))
+        expect(apiService.createCharacterChat).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not replace a newer draft when an older interaction finishes', async () => {
+        let finish!: (chat: unknown) => void
+        vi.mocked(apiService.createCharacterChat).mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+        render(<DataProvider><ChatProbe /></DataProvider>)
+        await waitFor(() => expect(screen.getByTestId('chat-count')).toHaveTextContent('1'))
+        fireEvent.click(screen.getByText('start chat'))
+        fireEvent.click(screen.getByText('interact'))
+        fireEvent.click(screen.getByText('start chat'))
+        const newerDraft = screen.getByTestId('active-chat').textContent
+        await act(async () => { finish({ chat_id: 10, character_id: 'c1', persona_id: 'p1' }) })
+        expect(screen.getByTestId('active-chat')).toHaveTextContent(newerDraft!)
+        expect(apiService.createCharacterChat).toHaveBeenCalledTimes(1)
     })
 
     it('forces text mode when resuming a group chat with a voice intent', async () => {
@@ -350,6 +436,10 @@ function AdventureProbe() {
     return (
         <div>
             <span data-testid="started-adventure">{startedId}</span>
+            <span data-testid="adventure-count">{ctx?.inProgressAdventures.length}</span>
+            <span data-testid="active-adventure">{ctx?.editingInProgress?.id}</span>
+            <button onClick={() => { if (ctx?.editingInProgress) void ctx.ensureAdventureSession(ctx.editingInProgress).catch((err: Error) => setError(err.message)) }}>adventure interact</button>
+            <button onClick={() => { if (ctx?.editingInProgress) void ctx.saveInProgressSnapshot(ctx.editingInProgress.id, SNAPSHOT) }}>edit draft snapshot</button>
             {error && <span role="alert">{error}</span>}
             <button
                 onClick={() => {
@@ -385,7 +475,7 @@ describe('DataProvider adventure starts', () => {
         vi.unstubAllEnvs()
     })
 
-    it('starts an adventure session with the selected persona id', async () => {
+    it('opens an adventure draft and creates it only on the first interaction', async () => {
         render(
             <DataProvider>
                 <AdventureProbe />
@@ -394,11 +484,31 @@ describe('DataProvider adventure starts', () => {
 
         fireEvent.click(screen.getByText('start adventure'))
 
-        await waitFor(() => expect(apiService.createAdventureSession).toHaveBeenCalledWith('t1', 'p1'))
-        await waitFor(() => expect(screen.getByTestId('started-adventure')).toHaveTextContent('11'))
+        await waitFor(() => expect(screen.getByTestId('started-adventure')).toHaveTextContent('draft-'))
+        expect(apiService.createAdventureSession).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByText('adventure interact'))
+        fireEvent.click(screen.getByText('adventure interact'))
+        await waitFor(() => expect(apiService.createAdventureSession).toHaveBeenCalledExactlyOnceWith('t1', 'p1'))
+        await waitFor(() => expect(screen.getByTestId('active-adventure')).toHaveTextContent('11'))
     })
 
-    it('rejects the returned promise when adventure session creation fails', async () => {
+    it('stages adventure edits locally and reuses the session if saving them fails', async () => {
+        vi.mocked(apiService.updateAdventureSnapshot).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ template_snapshot: SNAPSHOT })
+        render(<DataProvider><AdventureProbe /></DataProvider>)
+        fireEvent.click(screen.getByText('start adventure'))
+        await waitFor(() => expect(screen.getByTestId('started-adventure')).toHaveTextContent('draft-'))
+        fireEvent.click(screen.getByText('edit draft snapshot'))
+        expect(apiService.createAdventureSession).not.toHaveBeenCalled()
+        expect(apiService.updateAdventureSnapshot).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByText('adventure interact'))
+        expect(await screen.findByRole('alert')).toHaveTextContent('offline')
+        fireEvent.click(screen.getByText('adventure interact'))
+        await waitFor(() => expect(screen.getByTestId('active-adventure')).toHaveTextContent('11'))
+        expect(apiService.createAdventureSession).toHaveBeenCalledTimes(1)
+        expect(apiService.updateAdventureSnapshot).toHaveBeenCalledTimes(2)
+    })
+
+    it('keeps the adventure draft when its first interaction fails to create a session', async () => {
         vi.mocked(apiService.createAdventureSession).mockRejectedValueOnce(new Error('session failed'))
         render(
             <DataProvider>
@@ -408,8 +518,11 @@ describe('DataProvider adventure starts', () => {
 
         fireEvent.click(screen.getByText('start adventure'))
 
+        await waitFor(() => expect(screen.getByTestId('started-adventure')).toHaveTextContent('draft-'))
+        fireEvent.click(screen.getByText('adventure interact'))
         expect(await screen.findByRole('alert')).toHaveTextContent('session failed')
-        expect(screen.getByTestId('started-adventure')).toHaveTextContent('none')
+        expect(screen.getByTestId('active-adventure')).toHaveTextContent('draft-')
+        expect(screen.getByTestId('started-adventure')).toHaveTextContent('draft-')
     })
 })
 

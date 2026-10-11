@@ -2,10 +2,11 @@
  * useStartCall — the single shared entry point for launching a character VOICE call.
  *
  * Used by the Calls page, character gallery cards, and the chat header. Character-card
- * calls start a fresh 1:1 character-chat session, then flip it into voice mode and
+ * calls open a local 1:1 character-chat draft, then flip it into voice mode and
  * navigate to the chat page (which mounts the immersive CallScreen). Saved chat/call
  * surfaces can resume an existing session in voice mode. Final call transcripts are
- * saved server-side and surfaced in the Calls history.
+ * saved server-side and surfaced in the Calls history. The chat is created after
+ * the user accepts consent and grants microphone access.
  */
 
 import { useState } from 'react'

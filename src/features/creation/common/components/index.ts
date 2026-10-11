@@ -38,8 +38,8 @@ export type { StringListFieldProps } from './StringListField';
 export { AiGeneratePanel } from './AiGeneratePanel';
 export type { AiGenerateOptions, AiGeneratePanelProps } from './AiGeneratePanel';
 
-export { CardAssistantChatbot } from './assistant';
-export type { CardAssistantChatbotProps } from './assistant';
+export { AssistantChatbot, cardAssistantAdapter } from './assistant';
+export type { AssistantChatbotProps } from './assistant';
 
 export { MediaStudioSection } from './MediaStudioSection';
 export type { MediaStudioSectionProps } from './MediaStudioSection';

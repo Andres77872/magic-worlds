@@ -27,6 +27,7 @@ import {
     Images,
     ListChecks,
     MessageCircle,
+    MessagesSquare,
     Phone,
     Sparkles,
     Swords,
@@ -57,6 +58,7 @@ interface NavGroup {
 const NAV_PRIMARY: RailItem[] = [
     { page: 'landing', labelKey: 'sidebar.nav.landing', icon: Compass },
     { page: 'community', labelKey: 'sidebar.nav.community', icon: Sparkles },
+    { page: 'assistant', labelKey: 'sidebar.nav.assistant', icon: MessagesSquare },
 ]
 
 // Collapsible sections. The library items open the full galleries; the creators

@@ -46,7 +46,7 @@ export const CardSaved: Story = {
   args: {
     turn: turn({
       message: { role: 'assistant', content: 'Done — the card is drafted and saved.' },
-      appliedChanges: [{ kind: 'replace', cardId: 'world-1', fields: [] }],
+      appliedChanges: [{ kind: 'replace', targetId: 'world-1', fields: [] }],
     }),
   },
 }
@@ -57,7 +57,7 @@ export const FieldsPatched: Story = {
     turn: turn({
       message: { role: 'assistant', content: 'I tightened the prose and refreshed the metadata.' },
       appliedChanges: [
-        { kind: 'patch', cardId: 'world-1', fields: ['name', 'description', 'triggers', 'greeting', 'system instructions'] },
+        { kind: 'patch', targetId: 'world-1', fields: ['name', 'description', 'triggers', 'greeting', 'system instructions'] },
       ],
     }),
   },

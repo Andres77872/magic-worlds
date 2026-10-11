@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Check, History, Plus, Trash2 } from 'lucide-react'
 import { cx, IconButton } from '@/ui/primitives'
 import { formatApiDateTime, formatRelativeTime } from '@/utils/time'
-import { conversationKey } from './useCardAssistant'
+import { conversationKey } from './assistantModel'
 
 interface AssistantConversationMenuItem {
     id?: number

@@ -12,6 +12,8 @@ import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { ConfirmDialog } from '@/ui/components'
 import { Badge, Button, Field, Icon, IconTile, Input, PageHeader, SwitchRow, Textarea, Toast } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
+import { AssistantChatbot } from '@/features/creation/common/components/assistant/AssistantChatbot'
+import { lorebookAssistantAdapter } from '../lorebookAssistantAdapter'
 import {
     blankEntryDraft,
     blankLorebookDraft,
@@ -22,7 +24,6 @@ import {
 } from '../lorebookTransforms'
 import { ActivationPreviewPanel } from './ActivationPreviewPanel'
 import { LorebookAttachPanel } from './LorebookAttachPanel'
-import { LorebookAssistantChatbot } from './LorebookAssistantChatbot'
 import { LoreEntryEditor } from './LoreEntryEditor'
 import { LoreEntryTable } from './LoreEntryTable'
 import { LorebookIssueList } from './LorebookIssueList'
@@ -470,11 +471,14 @@ export function LorebookStudio() {
                 autoCloseMs={3200}
                 onClose={() => setNotice(null)}
             />
-            <LorebookAssistantChatbot
-                lorebookId={draft.id || null}
-                title={draft.name.trim() || t('lorebookStudio.shell.header.untitled')}
-                currentLorebook={draft as unknown as Record<string, unknown>}
-                onLorebook={applyAssistantLorebook}
+            <AssistantChatbot
+                adapter={lorebookAssistantAdapter}
+                binding={{
+                    targetId: draft.id || null,
+                    title: draft.name.trim() || t('lorebookStudio.shell.header.untitled'),
+                    current: draft,
+                }}
+                onTarget={applyAssistantLorebook}
                 isAuthenticated={isAuthenticated}
                 onAuthRequired={openLoginModal}
             />

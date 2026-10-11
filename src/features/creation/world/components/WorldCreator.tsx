@@ -34,7 +34,8 @@ import {
     CreatorInput,
     CreatorTextarea,
     AttributeManager,
-    CardAssistantChatbot,
+    AssistantChatbot,
+    cardAssistantAdapter,
     SavedCardGenerator,
     MediaStudioSection,
     GeneratedDraftNotice,
@@ -440,12 +441,15 @@ export function WorldCreator() {
     const firstClass = template?.firstClassExamples ?? {}
 
     const chatbot = (
-        <CardAssistantChatbot<WorldCardResponse>
-            cardType="world"
-            cardId={editingWorld?.id ?? null}
-            title={name.trim() || t('creation.world.untitled')}
-            currentCard={buildPayload()}
-            onCard={applyAssistantCard}
+        <AssistantChatbot
+            adapter={cardAssistantAdapter}
+            binding={{
+                cardType: 'world',
+                targetId: editingWorld?.id ?? null,
+                title: name.trim() || t('creation.world.untitled'),
+                current: buildPayload(),
+            }}
+            onTarget={applyAssistantCard}
             isAuthenticated={isAuthenticated}
             onAuthRequired={openLoginModal}
         />

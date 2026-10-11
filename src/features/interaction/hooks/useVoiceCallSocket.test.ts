@@ -54,6 +54,28 @@ describe('useVoiceCallSocket', () => {
         vi.clearAllMocks()
     })
 
+    it('queues the accepted call until the draft receives its session id', () => {
+        const { result, rerender } = renderHook(
+            ({ id }: { id: number | null }) => useVoiceCallSocket(id, {}, 'token-1'),
+            { initialProps: { id: null as number | null } },
+        )
+        expect(socketInstances).toHaveLength(0)
+        act(() => result.current.start(startFrame()))
+        rerender({ id: 19 })
+        expect(socketInstances).toHaveLength(1)
+        expect(socketInstances[0].connect).toHaveBeenCalledExactlyOnceWith(startFrame())
+    })
+
+    it('drops a queued call when the user leaves before session creation finishes', () => {
+        const { result, rerender } = renderHook(
+            ({ id }: { id: number | null }) => useVoiceCallSocket(id, {}, 'token-1'),
+            { initialProps: { id: null as number | null } },
+        )
+        act(() => { result.current.start(startFrame()); result.current.close() })
+        rerender({ id: 19 })
+        expect(socketInstances[0].connect).not.toHaveBeenCalled()
+    })
+
     it('creates a VoiceSocket, starts it on demand, and closes on unmount', () => {
         const { result, unmount } = renderHook(() => useVoiceCallSocket(7, {}, 'token-1'))
 

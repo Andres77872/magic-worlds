@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, apiService } from '../index'
-import { cardAssistantTurnFixture } from '@/test/assistantFixtures'
 
 const fetchMock = vi.fn()
 function generatedCard(requestId: string, name = 'Nyra') {
@@ -10,12 +9,6 @@ function generatedCard(requestId: string, name = 'Nyra') {
             revision_id: '33333333-3333-4333-8333-333333333333', resolution_source: 'system_default',
             credential_mode: 'platform', replayed: false } }
 }
-const currentCard = {
-    id: 'char-1', name: 'Nyra', description: 'A wandering scout.', category: null,
-    latest_version_id: null, latest_version_number: 0, has_draft: false,
-    draft_updated_at: null, draft_based_on_version_number: null,
-}
-const targetSnapshot = { expected_revision: '2026-09-19T00:43:33', expected_content_hash: 'a'.repeat(64) }
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
     return new Response(JSON.stringify(body), {
@@ -71,117 +64,6 @@ describe('AI card API methods', () => {
         expect(fetchMock.mock.calls[0][0]).toMatch(/\/worlds\/ai\/$/)
         expect(fetchMock.mock.calls[1][0]).toMatch(/\/items\/ai\/$/)
         expect(fetchMock.mock.calls[2][0]).toMatch(/\/adventure-templates\/ai\/$/)
-    })
-
-    it('POSTs card assistant conversations and turns with live card context', async () => {
-        fetchMock
-            .mockResolvedValueOnce(jsonResponse({
-                conversation: { conversation_id: 7, card_type: 'character', card_id: 'char-1' },
-                messages: [],
-                card: null,
-            }))
-            .mockResolvedValueOnce(jsonResponse(cardAssistantTurnFixture('turn-req', {
-                conversation: { conversation_id: 7, card_type: 'character', card_id: 'char-1' },
-                card: { id: 'char-1', name: 'Nyra' }, applied_actions: [{ type: 'patch_card' }],
-            })))
-
-        await apiService.createCardAssistantConversation({
-            card_type: 'character',
-            card_id: 'char-1',
-            title: 'Nyra',
-        }, { requestId: 'conv-req' })
-        await apiService.sendCardAssistantMessage(7, {
-            message: 'Make her older',
-            card_type: 'character',
-            current_card: currentCard,
-            ...targetSnapshot,
-        }, { requestId: 'turn-req' })
-
-        const [conversationUrl, conversationInit] = fetchMock.mock.calls[0] as [string, RequestInit]
-        expect(conversationUrl).toMatch(/\/card-assistant\/conversations$/)
-        expect(conversationInit.headers).toMatchObject({
-            Authorization: 'Bearer test-token',
-            'X-Request-Id': 'conv-req',
-        })
-        expect(JSON.parse(String(conversationInit.body))).toEqual({
-            card_type: 'character',
-            card_id: 'char-1',
-            title: 'Nyra',
-        })
-
-        const [turnUrl, turnInit] = fetchMock.mock.calls[1] as [string, RequestInit]
-        expect(turnUrl).toMatch(/\/card-assistant\/conversations\/7\/messages$/)
-        expect(turnInit.headers).toMatchObject({
-            Authorization: 'Bearer test-token',
-            'X-Request-Id': 'turn-req',
-        })
-        expect(JSON.parse(String(turnInit.body))).toEqual({
-            message: 'Make her older',
-            card_type: 'character',
-            current_card: currentCard,
-            ...targetSnapshot,
-            llm: { selection: { mode: 'inherit' } },
-        })
-    })
-
-    it('POSTs card assistant stream turns and parses SSE events', async () => {
-        const encoder = new TextEncoder()
-        const stream = new ReadableStream({
-            start(controller) {
-                controller.enqueue(encoder.encode([
-                    'event: assistant_delta',
-                    'data: {"delta":"Updated "}',
-                    '',
-                    'event: assistant_delta',
-                    'data: {"delta":"Nyra."}',
-                    '',
-                    'event: final',
-                    `data: ${JSON.stringify(cardAssistantTurnFixture('turn-req', { conversation: { conversation_id: 7, card_type: 'character', card_id: 'char-1' }, card: { id: 'char-1', name: 'Nyra' }, applied_actions: [{ type: 'patch_card' }] }))}`,
-                    '',
-                    'event: done',
-                    'data: {"request_id":"turn-req"}',
-                    '',
-                ].join('\n')))
-                controller.close()
-            },
-        })
-        fetchMock.mockResolvedValueOnce(new Response(stream, {
-            status: 200,
-            headers: { 'Content-Type': 'text/event-stream', 'X-Request-Id': 'turn-req' },
-        }))
-
-        const events: unknown[] = []
-        await apiService.streamCardAssistantMessage(7, {
-            message: 'Make her older',
-            card_type: 'character',
-            current_card: currentCard,
-            ...targetSnapshot,
-        }, (event) => {
-            events.push(event)
-        }, { requestId: 'turn-req' })
-
-        const [turnUrl, turnInit] = fetchMock.mock.calls[0] as [string, RequestInit]
-        expect(turnUrl).toMatch(/\/card-assistant\/conversations\/7\/messages\/stream$/)
-        expect(turnInit.headers).toMatchObject({
-            Authorization: 'Bearer test-token',
-            Accept: 'text/event-stream',
-            'X-Request-Id': 'turn-req',
-        })
-        expect(JSON.parse(String(turnInit.body))).toEqual({
-            message: 'Make her older',
-            card_type: 'character',
-            current_card: currentCard,
-            ...targetSnapshot,
-            llm: { selection: { mode: 'inherit' } },
-        })
-        expect(events).toEqual([
-            { type: 'assistant_delta', delta: 'Updated ' },
-            { type: 'assistant_delta', delta: 'Nyra.' },
-            {
-                type: 'final',
-                ...cardAssistantTurnFixture('turn-req', { conversation: { conversation_id: 7, card_type: 'character', card_id: 'char-1' }, card: { id: 'char-1', name: 'Nyra' }, applied_actions: [{ type: 'patch_card' }] }),
-            },
-        ])
     })
 
     it('parses structured AI-card errors into ApiError metadata', async () => {

@@ -5,18 +5,17 @@ import { AssistantComposer } from './AssistantComposer'
 import { AssistantHeader } from './AssistantHeader'
 import { AssistantMessageList } from './AssistantMessageList'
 import { AssistantShell } from './AssistantShell'
-import { AssistantPendingCardBanner } from './CardAssistantChatbot'
+import { AssistantPendingTargetBanner } from './AssistantChatbot'
 import { ConversationMenu } from './ConversationMenu'
 import { SAMPLE_CONVERSATIONS, SAMPLE_CONVERSATION_TURNS } from './assistantFixtures'
 import { ASSISTANT_SUGGESTIONS } from './suggestions'
-import type { AssistantNotice, AssistantStatus, AssistantTurn } from './useCardAssistant'
+import type { AssistantNotice, AssistantStatus, AssistantTurn } from './assistantModel'
 
 /**
- * Static composition of the full Card Assistant panel. The real
- * `CardAssistantChatbot` drives these exact pieces through the
- * `useCardAssistant` hook (live SSE streaming + API calls), which a story
- * can't host — so this assembles the same layout from the presentational
- * parts to document the end-to-end look.
+ * Static composition of the full assistant panel. The real `AssistantChatbot`
+ * drives these exact pieces through the `useAssistant` hook (live SSE
+ * streaming + API calls), which a story can't host — so this assembles the
+ * same layout from the presentational parts to document the end-to-end look.
  */
 function PanelComposition({
   turns = SAMPLE_CONVERSATION_TURNS,
@@ -24,12 +23,14 @@ function PanelComposition({
   streaming = false,
   notice = null,
   pendingCard = false,
+  unavailable = false,
 }: {
   turns?: AssistantTurn[]
   status?: AssistantStatus
   streaming?: boolean
   notice?: AssistantNotice | null
   pendingCard?: boolean
+  unavailable?: boolean
 }) {
   return (
     <AssistantShell open onOpen={() => {}} fabLabel="Open card assistant" dialogLabel="Card assistant">
@@ -50,16 +51,17 @@ function PanelComposition({
           />
         )}
       />
-      {pendingCard && <AssistantPendingCardBanner onApply={() => {}} onDismiss={() => {}} />}
+      {pendingCard && <AssistantPendingTargetBanner onApply={() => {}} onDismiss={() => {}} />}
       <AssistantMessageList
         turns={turns}
         status={status}
-        suggestions={ASSISTANT_SUGGESTIONS.world}
+        suggestions={unavailable ? [] : ASSISTANT_SUGGESTIONS.world}
         onSuggestion={() => {}}
         conversationKey={1}
       />
+      {unavailable && <AssistantBanner notice={{ kind: 'info', message: 'This assistant is switched off on this server.' }} />}
       {notice && <AssistantBanner notice={notice} onRetry={() => {}} onReload={() => {}} onDismiss={() => {}} />}
-      <AssistantComposer streaming={streaming} onSend={() => {}} onStop={() => {}} />
+      <AssistantComposer streaming={streaming} disabled={unavailable} onSend={() => {}} onStop={() => {}} />
     </AssistantShell>
   )
 }
@@ -72,7 +74,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          'The floating AI copilot for the card creators (FAB bottom-right -> this 420px panel). Composed here statically from the assistant subcomponents; in the app, `CardAssistantChatbot` + `useCardAssistant` add live SSE streaming, tool-call application, quick new-chat reset, and conversation management on top of this exact layout.',
+          'The floating AI copilot for the card creators and the lorebook studio (FAB bottom-right -> this 420px panel). Composed here statically from the assistant subcomponents; in the app, `AssistantChatbot` + `useAssistant` (with a card or lorebook adapter) add live SSE streaming, tool-call application, quick new-chat reset, and conversation management on top of this exact layout.',
       },
     },
   },
@@ -114,6 +116,11 @@ export const WithErrorBanner: Story = {
       notice={{ kind: 'error', message: 'The assistant is briefly unavailable. Try again in a moment.', canRetry: true }}
     />
   ),
+}
+
+/** The server switched this assistant off (`503 ASSISTANT_DISABLED`): a quiet note, no suggestions, a disabled composer. */
+export const Unavailable: Story = {
+  render: () => <PanelComposition turns={[]} unavailable />,
 }
 
 /** The collapsed launcher — an ember FAB pinned bottom-right in the app. */

@@ -10,6 +10,10 @@ import type { World } from './world.types'
 
 export interface Adventure {
     id: string
+    /** Local setup only; no server session exists until the first interaction. */
+    draft?: { templateId: string; personaId: string; snapshotEdited?: boolean }
+    /** Keeps the mounted interaction stable when the server assigns an id. */
+    draftId?: string
     scenario: string
     /** The player's persona (protagonist). Embedded snapshot on templates. */
     persona?: Character

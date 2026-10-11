@@ -18,6 +18,7 @@ const STATIC_PAGE_HASHES: Array<[PageType, string]> = [
     ['chatroom', '#/chatroom'],
     ['active-adventures', '#/active-adventures'],
     ['community', '#/community'],
+    ['assistant', '#/assistant'],
     ['admin-voices', '#/admin/voices'],
     ['admin-agents', '#/admin/agents'],
     ['about', '#/about'],

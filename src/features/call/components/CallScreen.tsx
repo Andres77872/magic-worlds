@@ -32,11 +32,12 @@ import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
 interface CallScreenProps {
     character?: Character
     sessionId: number
+    ensureSession?: () => Promise<number>
     /** Leave the call and return to the text chat. */
     onSwitchToText: () => void
 }
 
-export function CallScreen({ character, sessionId, onSwitchToText }: CallScreenProps) {
+export function CallScreen({ character, sessionId, ensureSession, onSwitchToText }: CallScreenProps) {
     const { t } = useTranslation()
     const { isAuthenticated, token } = useAuth()
     const voiceEnabled = isFrontendVoiceModeEnabled()
@@ -45,6 +46,7 @@ export function CallScreen({ character, sessionId, onSwitchToText }: CallScreenP
 
     const controller = useVoiceCallController({
         sessionId: voiceEnabled && isAuthenticated && token && !Number.isNaN(sessionId) ? sessionId : null,
+        ensureSession,
         authKey: token ?? null,
         consentGranted: true,
         enabled: voiceEnabled,

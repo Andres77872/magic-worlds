@@ -1,4 +1,4 @@
-import type { CardAssistantCardType } from '@/shared/types/aiCard.types'
+import type { AssistantCardType } from '@/shared/types/assistant.types'
 
 export interface AssistantSuggestion {
     /** i18n key for the chip label (UI copy); resolved with t() at the call site. */
@@ -8,7 +8,7 @@ export interface AssistantSuggestion {
 }
 
 /** Starter prompts shown in the empty state; clicking one sends it directly. */
-export const ASSISTANT_SUGGESTIONS: Record<CardAssistantCardType, AssistantSuggestion[]> = {
+export const ASSISTANT_SUGGESTIONS: Record<AssistantCardType, AssistantSuggestion[]> = {
     character: [
         {
             labelKey: 'creation.common.suggestions.character.createNew',

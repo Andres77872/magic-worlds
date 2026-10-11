@@ -1,4 +1,4 @@
-import { verifyAssistantExecution } from './assistantContract'
+import { verifyAssistantTurn } from './assistantContract'
 import { assertPublicLlmData, assertEffectiveLlmProfile, assertLlmCapacityUsage, assertLlmProfileCompatibility, assertLlmProviderUsage } from './llmProfileContract'
 import { prepareLlmRequest, prepareRetainedLlmRequest } from './llmPreparation'
 import { isLlmRequestSpent, llmIntents } from './llmIntent'
@@ -105,6 +105,7 @@ import { API_BASE_URL } from './baseUrl'
 import { getProtectedMediaPath } from './mediaUrl'
 import { isPatreonFeatureEnabled } from '../../shared/patreonFeatureFlag'
 import {
+    isAppAssistantFeatureEnabled,
     isTextStreamingFeatureEnabled,
     isCallsFeatureEnabled,
     isCommunityCardsFeatureEnabled,
@@ -128,15 +129,23 @@ import type { StoredConversationMessage, ChatTurnReconciliation, ChatImageAsset,
 import type { VoiceCallLimits, VoiceCallListResponse, VoiceCallTranscriptResponse, VoiceSegmentUploadRequest, VoiceSegmentUploadResponse } from '../../shared/types/voice.types'
 import type { AdventureSnapshot } from '../../shared/types/adventure.types'
 import type {
+    AssistantConversationCreate,
+    AssistantConversationListResponse,
+    AssistantConversationResponse,
+    AssistantConversationScope,
+    AssistantKind,
+    AssistantLlmFeature,
+    AssistantRequestOptions,
+    AssistantStreamEvent,
+    AssistantTurnRequest,
+    AssistantTurnResponse,
+    AssistantTurnStatus,
+} from '../../shared/types/assistant.types'
+import type {
     LoreActivationPreviewRequest,
     LoreActivationPreviewResponse,
     Lorebook,
     LorebookAttachment,
-    LorebookAssistantConversationListResponse,
-    LorebookAssistantConversationResponse,
-    LorebookAssistantRequestOptions,
-    LorebookAssistantStreamEvent,
-    LorebookAssistantTurnResponse,
     LorebookDraft,
     LorebookEntry,
     LorebookEntryDraft,
@@ -147,13 +156,6 @@ import type {
 import type {
     AdventureTemplateCardResponse,
     AiCardRequestOptions,
-    CardAssistantConversationListResponse,
-    CardAssistantConversationResponse,
-    CardAssistantCardType,
-    CardAssistantRequestOptions,
-    CardAssistantStreamEvent,
-    CardAssistantTurnResponse,
-    CardAssistantTurnRequest,
     AiCardGeneratedResult,
     CharacterCardResponse,
     ItemCardResponse,
@@ -600,6 +602,18 @@ class ApiService {
 
     private assertCommunityCardsEnabled() {
         if (!isCommunityCardsFeatureEnabled()) throw new Error('Community card sharing is disabled.')
+    }
+
+    /** Card assistants are always on; lorebook and app assistants follow their feature flags. */
+    private assistantKindEnabled(kind: AssistantKind): boolean {
+        if (kind === 'lorebook') return isLorebooksFeatureEnabled()
+        if (kind === 'app') return isAppAssistantFeatureEnabled()
+        return true
+    }
+
+    private assertAssistantKindEnabled(kind: AssistantKind) {
+        if (kind === 'lorebook') this.assertLorebooksEnabled()
+        if (kind === 'app' && !isAppAssistantFeatureEnabled()) throw new Error('The app assistant is disabled.')
     }
 
     private assertLorebooksEnabled() {
@@ -1357,29 +1371,12 @@ class ApiService {
         }
     }
 
-    private cardAssistantHeaders(options: CardAssistantRequestOptions = {}): Record<string, string> {
+    private assistantRequestOptions(options: AssistantRequestOptions): Pick<ApiRequestOptions, 'headers' | 'signal' | 'timeoutMs'> {
         return {
-            'Content-Type': 'application/json',
-            'X-Request-Id': options.requestId || this.createClientId('mw-card-assistant-req'),
-        }
-    }
-
-    private cardAssistantRequestOptions(options: CardAssistantRequestOptions): Pick<ApiRequestOptions, 'signal' | 'timeoutMs'> {
-        return {
-            signal: options.signal,
-            timeoutMs: options.timeoutMs,
-        }
-    }
-
-    private lorebookAssistantHeaders(options: LorebookAssistantRequestOptions = {}): Record<string, string> {
-        return {
-            'Content-Type': 'application/json',
-            'X-Request-Id': options.requestId || this.createClientId('mw-lorebook-assistant-req'),
-        }
-    }
-
-    private lorebookAssistantRequestOptions(options: LorebookAssistantRequestOptions): Pick<ApiRequestOptions, 'signal' | 'timeoutMs'> {
-        return {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Request-Id': options.requestId || this.createClientId('mw-assistant-req'),
+            },
             signal: options.signal,
             timeoutMs: options.timeoutMs,
         }
@@ -3093,97 +3090,93 @@ class ApiService {
         return this.generateCard<AdventureTemplateCardResponse>('/adventure-templates/ai', description, options)
     }
 
-    async createCardAssistantConversation(
-        body: {
-            card_type: CardAssistantCardType
-            card_id?: string | null
-            title?: string | null
-        },
-        options: CardAssistantRequestOptions = {},
-    ): Promise<CardAssistantConversationResponse> {
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<CardAssistantConversationResponse>('/card-assistant/conversations', token, {
+    // --- Assistants (/assistant/conversations) ---------------------------------
+    // One conversation, turn, and reconcile protocol for every kind: `card` and
+    // `lorebook` edit a saved document through tool calls; `app` streams a plain
+    // Markdown answer from a client-built context.
+
+    async createAssistantConversation<K extends AssistantKind>(
+        body: AssistantConversationCreate<K>,
+        options: AssistantRequestOptions = {},
+    ): Promise<AssistantConversationResponse<K>> {
+        this.assertAssistantKindEnabled(body.kind)
+        return this.authenticatedRequest<AssistantConversationResponse<K>>('/assistant/conversations', this.getStoredToken(), {
             method: 'POST',
-            headers: this.cardAssistantHeaders(options),
             body: body as unknown as BodyInit,
-            ...this.cardAssistantRequestOptions(options),
+            ...this.assistantRequestOptions(options),
         })
     }
 
-    async listCardAssistantConversations(
-        cardType: CardAssistantCardType,
-        cardId?: string | null,
-        options: CardAssistantRequestOptions = {},
-    ): Promise<CardAssistantConversationListResponse> {
-        const token = this.getStoredToken()
-        const params = new URLSearchParams({ card_type: cardType })
-        if (cardId) params.set('card_id', cardId)
-        return this.authenticatedRequest<CardAssistantConversationListResponse>(`/card-assistant/conversations?${params.toString()}`, token, {
+    /**
+     * Conversations in a scope (without a target id, the unbound ones of that
+     * kind), or with a null scope the whole history: every kind the server and
+     * this build offer, bound or not, newest first.
+     */
+    async listAssistantConversations(
+        scope: AssistantConversationScope | null,
+        options: AssistantRequestOptions = {},
+    ): Promise<AssistantConversationListResponse> {
+        if (!scope) {
+            const history = await this.authenticatedRequest<AssistantConversationListResponse>('/assistant/conversations', this.getStoredToken(), {
+                method: 'GET',
+                ...this.assistantRequestOptions(options),
+            })
+            return { conversations: history.conversations.filter((conversation) => this.assistantKindEnabled(conversation.kind)) }
+        }
+        this.assertAssistantKindEnabled(scope.kind)
+        const params = new URLSearchParams({ kind: scope.kind })
+        if (scope.kind === 'card') {
+            params.set('card_type', scope.card_type)
+            if (scope.card_id) params.set('card_id', scope.card_id)
+        }
+        if (scope.kind === 'lorebook' && scope.lorebook_id) params.set('lorebook_id', scope.lorebook_id)
+        return this.authenticatedRequest<AssistantConversationListResponse>(`/assistant/conversations?${params.toString()}`, this.getStoredToken(), {
             method: 'GET',
-            headers: this.cardAssistantHeaders(options),
-            ...this.cardAssistantRequestOptions(options),
+            ...this.assistantRequestOptions(options),
         })
     }
 
-    async getCardAssistantConversation(
+    async getAssistantConversation<K extends AssistantKind>(
+        kind: K,
         conversationId: number,
-        options: CardAssistantRequestOptions = {},
-    ): Promise<CardAssistantConversationResponse> {
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<CardAssistantConversationResponse>(`/card-assistant/conversations/${conversationId}`, token, {
+        options: AssistantRequestOptions = {},
+    ): Promise<AssistantConversationResponse<K>> {
+        this.assertAssistantKindEnabled(kind)
+        return this.authenticatedRequest<AssistantConversationResponse<K>>(`/assistant/conversations/${conversationId}`, this.getStoredToken(), {
             method: 'GET',
-            headers: this.cardAssistantHeaders(options),
-            ...this.cardAssistantRequestOptions(options),
+            ...this.assistantRequestOptions(options),
         })
     }
 
     /** Delete an assistant conversation and its messages. 409 while a turn is in flight. */
-    async deleteCardAssistantConversation(
-        conversationId: number,
-        options: CardAssistantRequestOptions = {},
-    ): Promise<void> {
-        const token = this.getStoredToken()
-        await this.authenticatedRequest<void>(`/card-assistant/conversations/${conversationId}`, token, {
+    async deleteAssistantConversation(kind: AssistantKind, conversationId: number, options: AssistantRequestOptions = {}): Promise<void> {
+        this.assertAssistantKindEnabled(kind)
+        await this.authenticatedRequest<void>(`/assistant/conversations/${conversationId}`, this.getStoredToken(), {
             method: 'DELETE',
-            headers: this.cardAssistantHeaders(options),
-            ...this.cardAssistantRequestOptions(options),
+            ...this.assistantRequestOptions(options),
         })
     }
 
-    async sendCardAssistantMessage(
+    async streamAssistantMessage<K extends AssistantKind>(
         conversationId: number,
-        body: CardAssistantTurnRequest,
-        options: CardAssistantRequestOptions = {},
-    ): Promise<CardAssistantTurnResponse> {
-        const requestId = options.requestId || this.createClientId('mw-card-assistant-turn')
-        return this.withLlmIntent('card_assistant', requestId, options.llm, options.signal, async (llm) => this.withAssistantRetry('card', conversationId, requestId, llm, options.signal, async () => {
-            const token = this.getStoredToken()
-            const result = await this.authenticatedRequest<CardAssistantTurnResponse>(`/card-assistant/conversations/${conversationId}/messages`, token, {
-                method: 'POST',
-                headers: this.cardAssistantHeaders({ ...options, requestId }),
-                body: { ...body, llm: llm } as unknown as BodyInit,
-                ...this.cardAssistantRequestOptions(options),
-            })
-            this.assertAssistantExecutionResult(result, 'card', conversationId, requestId)
-            return result
-        }))
-    }
-
-    async streamCardAssistantMessage(
-        conversationId: number,
-        body: CardAssistantTurnRequest,
-        onEvent: (event: CardAssistantStreamEvent) => void,
-        options: CardAssistantRequestOptions = {},
+        body: AssistantTurnRequest<K>,
+        onEvent: (event: AssistantStreamEvent<K>) => void,
+        options: AssistantRequestOptions = {},
     ): Promise<void> {
-        const requestId = options.requestId || this.createClientId('mw-card-assistant-turn')
+        const kind: AssistantKind = body.kind
+        this.assertAssistantKindEnabled(kind)
+        const feature: AssistantLlmFeature = `${kind}_assistant`
+        const requestId = options.requestId || this.createClientId('mw-assistant-turn')
         const outcome = { finished: false }
-        return this.withLlmIntent('card_assistant', requestId, options.llm, options.signal, async (llm) => this.withAssistantRetry('card', conversationId, requestId, llm, options.signal, async () => {
+        return this.withLlmIntent(feature, requestId, options.llm, options.signal, async (llm) => this.withAssistantRetry(conversationId, requestId, llm, options.signal, async () => {
             outcome.finished = false
-            await this.authenticatedStream<CardAssistantStreamEvent>(`/card-assistant/conversations/${conversationId}/messages/stream`,
-                { ...body, llm: llm }, this.assistantIntentEvents<CardAssistantStreamEvent>((event) => {
+            await this.authenticatedStream<AssistantStreamEvent<K>>(`/assistant/conversations/${conversationId}/messages/stream`,
+                { ...body, llm }, this.assistantIntentEvents<AssistantStreamEvent<K>>((event) => {
                     if (event.type === 'final') {
-                        const { type: _type, ...turn } = event
-                        this.assertAssistantExecutionResult(turn, 'card', conversationId, requestId)
+                        // The turn is the final event without its SSE type.
+                        const turn: Record<string, unknown> = { ...event }
+                        delete turn.type
+                        this.assertAssistantTurn(turn, kind, conversationId, requestId)
                     }
                     onEvent(event)
                 }, outcome), { ...options, requestId })
@@ -3197,11 +3190,18 @@ class ApiService {
      */
     private assistantIntentEvents<E extends { type: string }>(onEvent: (event: E) => void, outcome: { finished: boolean }): (event: E) => void {
         let started = false
-        return (event) => {
+        return (incoming) => {
+            let event = incoming
             let code: unknown
             if (event.type === 'error') {
-                const failure = event as { error?: { code?: unknown }; detail?: unknown }
-                code = failure.error?.code ?? (failure.detail && typeof failure.detail === 'object' ? (failure.detail as { code?: unknown }).code : undefined)
+                const failure = event as { error?: Record<string, unknown>; detail?: unknown }
+                if (failure.detail && typeof failure.detail === 'object') {
+                    // Profile and execution failures carry only a stable code
+                    // ({detail: {code}}); consumers read it from `error`.
+                    const { detail, ...rest } = failure
+                    event = { ...rest, error: { ...(detail as Record<string, unknown>), ...failure.error } } as unknown as E
+                }
+                code = (event as { error?: { code?: unknown } }).error?.code
             }
             if (code === 'BYOK_CREDENTIAL_REQUIRED' && !started) throw new ApiError(409, 'A key is required to continue this request.', { code, retryable: false })
             if (code === 'LLM_EXECUTION_FINISHED' || code === 'LLM_EXECUTION_UPSTREAM_FAILED') {
@@ -3213,139 +3213,24 @@ class ApiService {
         }
     }
 
-    async getCardAssistantTurn(conversationId: number, requestId: string, options: CardAssistantRequestOptions = {}): Promise<CardAssistantTurnResponse | null> {
-        const result = await this.authenticatedRequest<{ status: string; request_id: string; turn?: CardAssistantTurnResponse }>(
-            `/card-assistant/conversations/${conversationId}/turns/${encodeURIComponent(requestId)}`, this.getStoredToken(),
-            { method: 'GET', ...this.cardAssistantRequestOptions(options) })
+    /** Reconcile a turn whose stream dropped: null until the server finished it. */
+    async getAssistantTurn<K extends AssistantKind>(
+        kind: K,
+        conversationId: number,
+        requestId: string,
+        options: AssistantRequestOptions = {},
+    ): Promise<AssistantTurnResponse<K> | null> {
+        this.assertAssistantKindEnabled(kind)
+        const result = await this.authenticatedRequest<AssistantTurnStatus<K>>(
+            `/assistant/conversations/${conversationId}/turns/${encodeURIComponent(requestId)}`, this.getStoredToken(),
+            { method: 'GET', signal: options.signal, timeoutMs: options.timeoutMs })
         if (result.request_id !== requestId) throw new ApiError(502, 'Assistant reconciliation returned a different request.')
         if (result.status !== 'completed') return null
-        this.assertAssistantExecutionResult(result.turn, 'card', conversationId, requestId)
+        this.assertAssistantTurn(result.turn, kind, conversationId, requestId)
         return result.turn!
     }
 
-    async createLorebookAssistantConversation(
-        body: {
-            lorebookId?: string | null
-            title?: string | null
-        },
-        options: LorebookAssistantRequestOptions = {},
-    ): Promise<LorebookAssistantConversationResponse> {
-        this.assertLorebooksEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<LorebookAssistantConversationResponse>('/lorebook-assistant/conversations', token, {
-            method: 'POST',
-            headers: this.lorebookAssistantHeaders(options),
-            body: body as unknown as BodyInit,
-            ...this.lorebookAssistantRequestOptions(options),
-        })
-    }
-
-    async listLorebookAssistantConversations(
-        lorebookId?: string | null,
-        options: LorebookAssistantRequestOptions = {},
-    ): Promise<LorebookAssistantConversationListResponse> {
-        this.assertLorebooksEnabled()
-        const token = this.getStoredToken()
-        const params = new URLSearchParams()
-        if (lorebookId) params.set('lorebookId', lorebookId)
-        const suffix = params.toString() ? `?${params.toString()}` : ''
-        return this.authenticatedRequest<LorebookAssistantConversationListResponse>(`/lorebook-assistant/conversations${suffix}`, token, {
-            method: 'GET',
-            headers: this.lorebookAssistantHeaders(options),
-            ...this.lorebookAssistantRequestOptions(options),
-        })
-    }
-
-    async getLorebookAssistantConversation(
-        conversationId: number,
-        options: LorebookAssistantRequestOptions = {},
-    ): Promise<LorebookAssistantConversationResponse> {
-        this.assertLorebooksEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<LorebookAssistantConversationResponse>(`/lorebook-assistant/conversations/${conversationId}`, token, {
-            method: 'GET',
-            headers: this.lorebookAssistantHeaders(options),
-            ...this.lorebookAssistantRequestOptions(options),
-        })
-    }
-
-    async deleteLorebookAssistantConversation(
-        conversationId: number,
-        options: LorebookAssistantRequestOptions = {},
-    ): Promise<void> {
-        this.assertLorebooksEnabled()
-        const token = this.getStoredToken()
-        await this.authenticatedRequest<void>(`/lorebook-assistant/conversations/${conversationId}`, token, {
-            method: 'DELETE',
-            headers: this.lorebookAssistantHeaders(options),
-            ...this.lorebookAssistantRequestOptions(options),
-        })
-    }
-
-    async sendLorebookAssistantMessage(
-        conversationId: number,
-        body: {
-            message: string
-            currentLorebook?: Record<string, unknown> | null
-            expectedRevision?: string
-            expectedContentHash?: string
-        },
-        options: LorebookAssistantRequestOptions = {},
-    ): Promise<LorebookAssistantTurnResponse> {
-        this.assertLorebooksEnabled()
-        const requestId = options.requestId || this.createClientId('mw-lorebook-assistant-turn')
-        return this.withLlmIntent('lorebook_assistant', requestId, options.llm, options.signal, async (llm) => this.withAssistantRetry('lorebook', conversationId, requestId, llm, options.signal, async () => {
-            const token = this.getStoredToken()
-            const result = await this.authenticatedRequest<LorebookAssistantTurnResponse>(`/lorebook-assistant/conversations/${conversationId}/messages`, token, {
-                method: 'POST',
-                headers: this.lorebookAssistantHeaders({ ...options, requestId }),
-                body: { ...body, llm: llm } as unknown as BodyInit,
-                ...this.lorebookAssistantRequestOptions(options),
-            })
-            this.assertAssistantExecutionResult(result, 'lorebook', conversationId, requestId)
-            return result
-        }))
-    }
-
-    async streamLorebookAssistantMessage(
-        conversationId: number,
-        body: {
-            message: string
-            currentLorebook?: Record<string, unknown> | null
-            expectedRevision?: string
-            expectedContentHash?: string
-        },
-        onEvent: (event: LorebookAssistantStreamEvent) => void,
-        options: LorebookAssistantRequestOptions = {},
-    ): Promise<void> {
-        this.assertLorebooksEnabled()
-        const requestId = options.requestId || this.createClientId('mw-lorebook-assistant-turn')
-        const outcome = { finished: false }
-        return this.withLlmIntent('lorebook_assistant', requestId, options.llm, options.signal, async (llm) => this.withAssistantRetry('lorebook', conversationId, requestId, llm, options.signal, async () => {
-            outcome.finished = false
-            await this.authenticatedStream<LorebookAssistantStreamEvent>(`/lorebook-assistant/conversations/${conversationId}/messages/stream`,
-                { ...body, llm: llm }, this.assistantIntentEvents<LorebookAssistantStreamEvent>((event) => {
-                    if (event.type === 'final') {
-                        const { type: _type, ...turn } = event
-                        this.assertAssistantExecutionResult(turn, 'lorebook', conversationId, requestId)
-                    }
-                    onEvent(event)
-                }, outcome), { ...options, requestId })
-        }), () => outcome.finished)
-    }
-
-    async getLorebookAssistantTurn(conversationId: number, requestId: string, options: LorebookAssistantRequestOptions = {}): Promise<LorebookAssistantTurnResponse | null> {
-        this.assertLorebooksEnabled()
-        const result = await this.authenticatedRequest<{ status: string; request_id: string; turn?: LorebookAssistantTurnResponse }>(
-            `/lorebook-assistant/conversations/${conversationId}/turns/${encodeURIComponent(requestId)}`, this.getStoredToken(),
-            { method: 'GET', ...this.lorebookAssistantRequestOptions(options) })
-        if (result.request_id !== requestId) throw new ApiError(502, 'Assistant reconciliation returned a different request.')
-        if (result.status !== 'completed') return null
-        this.assertAssistantExecutionResult(result.turn, 'lorebook', conversationId, requestId)
-        return result.turn!
-    }
-
-    private async withAssistantRetry<T>(kind: 'card' | 'lorebook', conversationId: number, requestId: string,
+    private async withAssistantRetry<T>(conversationId: number, requestId: string,
         llm: LlmRequest, signal: AbortSignal | undefined, send: () => Promise<T>): Promise<T> {
         const owner = authSession.getSnapshot()
         try {
@@ -3355,7 +3240,7 @@ class ApiService {
             if (error instanceof ApiError && !signal?.aborted
                 && ['LLM_EXECUTION_UPSTREAM_FAILED', 'LLM_EXECUTION_FINISHED'].includes(error.code || '')) {
                 const status = await this.authenticatedRequest<unknown>(
-                    `/${kind}-assistant/conversations/${conversationId}/turns/${encodeURIComponent(requestId)}`,
+                    `/assistant/conversations/${conversationId}/turns/${encodeURIComponent(requestId)}`,
                     this.getStoredToken(), { method: 'GET', signal, timeoutMs: 5000 },
                 ).catch(() => null)
                 this.assertCurrentOwner(owner)
@@ -3376,8 +3261,8 @@ class ApiService {
         }
     }
 
-    private assertAssistantExecutionResult(result: CardAssistantTurnResponse | LorebookAssistantTurnResponse | undefined, kind: 'card' | 'lorebook', conversationId: number, requestId: string): void {
-        if (!verifyAssistantExecution(result, kind, conversationId, requestId)) {
+    private assertAssistantTurn(result: unknown, kind: AssistantKind, conversationId: number, requestId: string): void {
+        if (!verifyAssistantTurn(result, kind, conversationId, requestId)) {
             throw new ApiError(502, 'Assistant returned an invalid execution result.', {
                 code: 'assistant_execution_contract', category: 'upstream_contract', retryable: false,
             })

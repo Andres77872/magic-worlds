@@ -1,11 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { CardAssistantMessage } from '@/shared/types/aiCard.types'
-import { AssistantMessage, type VisibleAssistantTurn } from './AssistantMessage'
+import type { AssistantChatMessage } from '@/shared/types/assistant.types'
+import { AssistantMessage } from './AssistantMessage'
+import type { AssistantTurn } from './assistantModel'
 
 const originalClipboard = navigator.clipboard
 
-function message(overrides: Partial<CardAssistantMessage>): CardAssistantMessage {
+function message(overrides: Partial<AssistantChatMessage>): AssistantChatMessage {
     return {
         message_id: 1,
         conversation_id: 1,
@@ -18,7 +19,7 @@ function message(overrides: Partial<CardAssistantMessage>): CardAssistantMessage
     }
 }
 
-function turn(overrides: Partial<VisibleAssistantTurn>): VisibleAssistantTurn {
+function turn(overrides: Partial<AssistantTurn>): AssistantTurn {
     return {
         message: message({}),
         appliedChanges: [],

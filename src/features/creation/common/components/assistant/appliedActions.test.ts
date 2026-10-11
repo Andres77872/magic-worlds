@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { i18n } from '@/app/i18n'
-import type { CardAssistantMessage } from '@/shared/types/aiCard.types'
+import type { AssistantChatMessage } from '@/shared/types/assistant.types'
 import {
     attachAppliedChanges,
     formatAppliedChange,
@@ -12,7 +12,7 @@ import {
 
 const t = i18n.t.bind(i18n)
 
-function message(overrides: Partial<CardAssistantMessage>): CardAssistantMessage {
+function message(overrides: Partial<AssistantChatMessage>): AssistantChatMessage {
     return {
         message_id: 1,
         conversation_id: 10,
@@ -27,14 +27,25 @@ function message(overrides: Partial<CardAssistantMessage>): CardAssistantMessage
 describe('parseAppliedActions', () => {
     it('maps replace_card and patch_card, dropping no-change and unknown actions', () => {
         const result = parseAppliedActions([
-            { type: 'replace_card', card_id: 'card-1' },
-            { type: 'patch_card', card_id: 'card-1', fields: ['name', 'image_url'] },
+            { type: 'replace_card', target_id: 'card-1' },
+            { type: 'patch_card', target_id: 'card-1', fields: ['name', 'image_url'] },
             { type: 'no_card_change' },
             { type: 'mystery' },
         ])
         expect(result).toEqual([
-            { kind: 'replace', cardId: 'card-1', fields: [] },
-            { kind: 'patch', cardId: 'card-1', fields: ['name', 'image url'] },
+            { kind: 'replace', targetId: 'card-1', fields: [] },
+            { kind: 'patch', targetId: 'card-1', fields: ['name', 'image url'] },
+        ])
+    })
+
+    it('maps the lorebook actions with the lorebook subject', () => {
+        expect(parseAppliedActions([
+            { type: 'replace_lorebook', target_id: 'lb-1' },
+            { type: 'patch_lorebook', target_id: 'lb-1', fields: ['entries'] },
+            { type: 'no_lorebook_change' },
+        ])).toEqual([
+            { kind: 'replace', subject: 'lorebook', targetId: 'lb-1', fields: [] },
+            { kind: 'patch', subject: 'lorebook', targetId: 'lb-1', fields: ['entries'] },
         ])
     })
 
@@ -43,7 +54,7 @@ describe('parseAppliedActions', () => {
         expect(parseAppliedActions('nope')).toEqual([])
         expect(parseAppliedActions([null, 42, 'x'])).toEqual([])
         expect(parseAppliedActions([{ type: 'patch_card', fields: 'name' }])).toEqual([
-            { kind: 'patch', cardId: undefined, fields: [] },
+            { kind: 'patch', targetId: undefined, fields: [] },
         ])
     })
 })
@@ -52,9 +63,9 @@ describe('parseToolMessageActions', () => {
     it('parses applied_actions from tool message JSON content', () => {
         const tool = message({
             role: 'tool',
-            content: JSON.stringify({ applied_actions: [{ type: 'patch_card', fields: ['description'] }], card_id: 'card-1' }),
+            content: JSON.stringify({ applied_actions: [{ type: 'patch_card', fields: ['description'] }], target_id: 'card-1' }),
         })
-        expect(parseToolMessageActions(tool)).toEqual([{ kind: 'patch', cardId: undefined, fields: ['description'] }])
+        expect(parseToolMessageActions(tool)).toEqual([{ kind: 'patch', targetId: undefined, fields: ['description'] }])
     })
 
     it('returns [] for non-tool roles, empty content, and malformed JSON', () => {
@@ -66,13 +77,13 @@ describe('parseToolMessageActions', () => {
 })
 
 describe('attachAppliedChanges', () => {
-    const history: CardAssistantMessage[] = [
+    const history: AssistantChatMessage[] = [
         message({ message_id: 1, role: 'user', content: 'make a world' }),
         message({ message_id: 2, role: 'assistant', content: 'Done!' }),
         message({
             message_id: 3,
             role: 'tool',
-            content: JSON.stringify({ applied_actions: [{ type: 'replace_card', card_id: 'w-1' }] }),
+            content: JSON.stringify({ applied_actions: [{ type: 'replace_card', target_id: 'w-1' }] }),
         }),
         message({ message_id: 4, role: 'user', content: 'rename it' }),
         message({ message_id: 5, role: 'assistant', content: 'Renamed.' }),
@@ -86,19 +97,19 @@ describe('attachAppliedChanges', () => {
     it('attaches tool changes to the nearest preceding assistant turn and hides tool/system rows', () => {
         const turns = attachAppliedChanges(history)
         expect(turns.map((turn) => turn.message.message_id)).toEqual([1, 2, 4, 5])
-        expect(turns[1].appliedChanges).toEqual([{ kind: 'replace', cardId: 'w-1', fields: [] }])
-        expect(turns[3].appliedChanges).toEqual([{ kind: 'patch', cardId: undefined, fields: ['name'] }])
+        expect(turns[1].appliedChanges).toEqual([{ kind: 'replace', targetId: 'w-1', fields: [] }])
+        expect(turns[3].appliedChanges).toEqual([{ kind: 'patch', targetId: undefined, fields: ['name'] }])
         expect(turns[0].appliedChanges).toEqual([])
     })
 
     it('prefers live actions over the tool-message reconstruction for the same assistant message', () => {
         const live = new Map<number, AppliedChangeSummary[]>([
-            [2, [{ kind: 'patch', cardId: 'w-1', fields: ['description'] }]],
+            [2, [{ kind: 'patch', targetId: 'w-1', fields: ['description'] }]],
         ])
         const turns = attachAppliedChanges(history, live)
-        expect(turns[1].appliedChanges).toEqual([{ kind: 'patch', cardId: 'w-1', fields: ['description'] }])
+        expect(turns[1].appliedChanges).toEqual([{ kind: 'patch', targetId: 'w-1', fields: ['description'] }])
         // Message 5 has no live entry, so its tool message still applies.
-        expect(turns[3].appliedChanges).toEqual([{ kind: 'patch', cardId: undefined, fields: ['name'] }])
+        expect(turns[3].appliedChanges).toEqual([{ kind: 'patch', targetId: undefined, fields: ['name'] }])
     })
 
     it('drops tool messages with no preceding assistant turn', () => {
