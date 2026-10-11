@@ -18,6 +18,7 @@ const GOOGLE_ERROR_MESSAGE_KEY: Record<string, string> = {
     google_denied: 'denied',
     google_invalid_callback: 'invalidCallback',
     google_account_denied: 'accountDenied',
+    google_link_required: 'linkRequired',
     google_unavailable: 'unavailable',
     google_start_failed: 'unavailable',
 }

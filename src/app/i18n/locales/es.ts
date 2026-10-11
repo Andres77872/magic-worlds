@@ -807,6 +807,10 @@ export const es = {
                             title: 'Esta cuenta no puede iniciar sesión',
                             body: 'No pudimos iniciar tu sesión con esta cuenta de Google. Puede que no esté permitida para esta app o que aún no esté configurada; prueba con otra cuenta o contacta a soporte.',
                         },
+                        linkRequired: {
+                            title: 'Inicia sesión en tu cuenta existente',
+                            body: 'Este correo ya pertenece a una cuenta. Inicia sesión con el método que usas habitualmente.',
+                        },
                         unavailable: {
                             title: 'Inicio de sesión no disponible temporalmente',
                             body: 'El inicio de sesión con Google no está disponible por el momento. Inténtalo de nuevo en un momento.',

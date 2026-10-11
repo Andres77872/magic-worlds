@@ -797,6 +797,10 @@ export const en = {
                             title: "This account can't sign in",
                             body: "We couldn't sign you in with this Google account. It may not be permitted for this app, or it hasn't been set up yet — try a different account or contact support.",
                         },
+                        linkRequired: {
+                            title: 'Sign in to your existing account',
+                            body: 'This email already belongs to an account. Sign in using your existing method.',
+                        },
                         unavailable: {
                             title: 'Sign-in temporarily unavailable',
                             body: 'Google sign-in is temporarily unavailable. Please try again in a moment.',
