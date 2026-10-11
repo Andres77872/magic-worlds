@@ -103,3 +103,22 @@ describe('AiGeneratePanel', () => {
         expect(onGenerate.mock.calls[1][1].idempotencyKey).toBe(onGenerate.mock.calls[0][1].idempotencyKey)
     })
 })
+
+it('creates fresh request IDs on the next click only for a confirmed terminal attempt', async () => {
+    const { ApiError } = await import('@/infrastructure/api')
+    const failed = new ApiError(502, 'Execution failed.', { category: 'upstream_unavailable' })
+    failed.llmRetry = { retry_of_execution_id: '44444444-4444-4444-8444-444444444444',
+        selection: { mode: 'profile', profile_id: '22222222-2222-4222-8222-222222222222' },
+        expected_revision_id: '33333333-3333-4333-8333-333333333333' }
+    const onGenerate = vi.fn().mockRejectedValueOnce(failed).mockResolvedValueOnce(undefined)
+    render(<AiGeneratePanel noun="character" onGenerate={onGenerate} />)
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Generate a moon scout' } })
+    fireEvent.click(screen.getByRole('button', { name: /generate character/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /generate character/i })).toBeEnabled())
+    expect(onGenerate).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: /generate character/i }))
+    await waitFor(() => expect(onGenerate).toHaveBeenCalledTimes(2))
+    expect(onGenerate.mock.calls[1][1].requestId).not.toBe(onGenerate.mock.calls[0][1].requestId)
+    expect(onGenerate.mock.calls[1][1].idempotencyKey).not.toBe(onGenerate.mock.calls[0][1].idempotencyKey)
+    expect(onGenerate.mock.calls[1][1].llm).toEqual(failed.llmRetry)
+})

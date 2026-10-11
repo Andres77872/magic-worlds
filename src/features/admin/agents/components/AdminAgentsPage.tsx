@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import {
     Bot,
     CornerDownLeft,
-    FlaskConical,
     History,
     Loader2,
     Lock,
@@ -15,10 +14,11 @@ import {
     Trash2,
 } from 'lucide-react'
 import { useAuth } from '@/app/hooks'
-import { apiService } from '@/infrastructure/api'
+import { makeRequestId } from '@/utils/uuid'
+import { apiService, ApiError } from '@/infrastructure/api'
+import type { LlmRequest } from '@/shared/types/llm.types'
 import type {
     AgentDetail,
-    AgentModelOption,
     AgentOutputMode,
     AgentSummary,
     AgentTestResponse,
@@ -38,7 +38,6 @@ import {
     SectionHeader,
     Select,
     type SelectOption,
-    SwitchRow,
     Textarea,
     Toast,
     controlClass,
@@ -46,6 +45,8 @@ import {
 } from '@/ui/primitives'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { EmptyState } from '@/ui/components/common/EmptyState'
+import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
+import { llmRecoveryMessage } from '@/features/llmProfiles/llmRecovery'
 import {
     INPUT_TOKEN,
     type AgentForm,
@@ -58,7 +59,6 @@ import {
     validateAgentForm,
 } from '../agentValidation'
 
-const ENV_MODEL = '{{env.CARD_LLM_MODEL}}'
 const NEW_KEY = '__new__'
 
 const OUTPUT_MODE_LABEL: Record<AgentOutputMode, string> = {
@@ -70,6 +70,11 @@ const OUTPUT_MODE_LABEL: Record<AgentOutputMode, string> = {
 type ToastState = { tone: 'success' | 'error'; title: string; message?: string } | null
 
 export function AdminAgentsPage() {
+    const { user } = useAuth()
+    return <AgentStudioPage key={user?.user_hash ?? 'signed-out'} />
+}
+
+function AgentStudioPage() {
     const { t } = useTranslation()
     const { isAuthenticated, user, openLoginModal } = useAuth()
     const isRoot = isAuthenticated && user?.user_type === 'root'
@@ -79,7 +84,6 @@ export function AdminAgentsPage() {
     const [detail, setDetail] = useState<AgentDetail | null>(null)
     const [form, setForm] = useState<AgentForm | null>(null)
     const [baseline, setBaseline] = useState<AgentForm | null>(null)
-    const [models, setModels] = useState<AgentModelOption[]>([])
     const [loadingList, setLoadingList] = useState(false)
     const [loadingDetail, setLoadingDetail] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -94,7 +98,7 @@ export function AdminAgentsPage() {
     const [rollingBack, setRollingBack] = useState(false)
 
     const isNew = selectedKey === NEW_KEY
-    const isImmutable = !isNew && detail?.storage === 'file'
+    const isImmutable = !isNew && detail?.kind !== 'custom'
     const errors = useMemo(
         () => (form ? validateAgentForm(form, { isNew, schemaModel: detail?.schema_model ?? null }, t) : {}),
         [form, isNew, detail?.schema_model, t],
@@ -117,10 +121,6 @@ export function AdminAgentsPage() {
     useEffect(() => {
         if (!isRoot) return
         void refreshAgents()
-        apiService
-            .listAgentModels()
-            .then((res) => setModels(res.models))
-            .catch(() => setModels([]))
     }, [isRoot, refreshAgents])
 
     const applyDetail = useCallback((next: AgentDetail) => {
@@ -185,13 +185,13 @@ export function AdminAgentsPage() {
 
     const save = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
-        if (!form || hasErrors || saving) return
+        if (!form || hasErrors || saving || (!isNew && detail?.kind !== 'custom')) return
         setSaving(true)
         setError(null)
         try {
             const next = isNew
                 ? await apiService.createAgent(toCreateRequest(form))
-                : await apiService.updateAgentDraft(detail!.workflow_key, toUpdateRequest(form, isImmutable))
+                : await apiService.updateAgentDraft(detail!.workflow_key, toUpdateRequest(form, isImmutable), detail!.kind === 'custom' ? detail!.row_version : 0)
             applyDetail(next)
             await refreshAgents()
             setToast({ tone: 'success', title: isNew ? 'Agent created' : 'Draft saved', message: next.display_name })
@@ -205,15 +205,15 @@ export function AdminAgentsPage() {
     }
 
     const publish = async () => {
-        if (!detail || isNew || publishing) return
+        if (detail?.kind !== 'custom' || isNew || publishing) return
         setPublishing(true)
         setError(null)
         try {
-            const next = await apiService.publishAgent(detail.workflow_key)
+            const next = await apiService.publishAgent(detail.workflow_key, detail.row_version)
             applyDetail(next)
             await refreshAgents()
             if (versionsOpen) await loadVersions(next.workflow_key)
-            setToast({ tone: 'success', title: 'Published', message: `Version ${next.published_version_number}` })
+            setToast({ tone: 'success', title: 'Published', message: `Version ${next.current_version_number}` })
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Could not publish.'
             setError(message)
@@ -241,10 +241,10 @@ export function AdminAgentsPage() {
     const confirmRollback = async () => {
         const target = pendingRollback
         setPendingRollback(null)
-        if (!target || !detail) return
+        if (!target || detail?.kind !== 'custom') return
         setRollingBack(true)
         try {
-            const next = await apiService.rollbackAgentVersion(detail.workflow_key, target.version_id)
+            const next = await apiService.rollbackAgentVersion(detail.workflow_key, target.version_id, detail.row_version)
             applyDetail(next)
             await refreshAgents()
             await loadVersions(next.workflow_key)
@@ -261,10 +261,10 @@ export function AdminAgentsPage() {
     const confirmDelete = async () => {
         const target = pendingDelete
         setPendingDelete(null)
-        if (!target) return
+        if (target?.kind !== 'custom') return
         setDeleting(true)
         try {
-            await apiService.deleteAgent(target.workflow_key)
+            await apiService.deleteAgent(target.workflow_key, target.row_version)
             setAgents((current) => current.filter((agent) => agent.workflow_key !== target.workflow_key))
             if (selectedKey === target.workflow_key) {
                 setSelectedKey(null)
@@ -301,7 +301,7 @@ export function AdminAgentsPage() {
                 eyebrowTone="arcane"
                 icon={<IconTile icon={Bot} tone="arcane" />}
                 title="Agent Studio"
-                subtitle="Configure the prompts, model, and parameters behind AI generation. Drafts stay private until you publish."
+                subtitle="Version prompts and workflows for AI generation. Execution settings come from the selected profile."
                 size="lg"
                 actions={
                     <div className="flex gap-2">
@@ -353,14 +353,13 @@ export function AdminAgentsPage() {
                     <AgentEditor
                         form={form}
                         detail={detail}
-                        models={models}
                         errors={errors}
                         isNew={isNew}
                         isImmutable={isImmutable}
                         sourceOptions={agents.map((agent) => ({
                             value: agent.workflow_key,
                             label: agent.display_name,
-                            description: agent.storage === 'file' ? 'Built-in file agent' : 'Custom database agent',
+                            description: agent.kind !== 'custom' ? 'Built-in file agent' : 'Custom database agent',
                         }))}
                         dirty={dirty}
                         loading={loadingDetail}
@@ -458,9 +457,10 @@ function RootAccessState({
 
 function statusBadge(detail: AgentDetail | null, isNew: boolean, dirty: boolean) {
     if (isNew) return <Badge tone="ember">New · unsaved</Badge>
-    if (!detail?.has_published) return <Badge tone="ember">Draft · never published</Badge>
-    if (dirty || detail.has_unpublished_draft) return <Badge tone="ember">Unpublished changes</Badge>
-    return <Badge tone="arcane">Published v{detail.published_version_number}</Badge>
+    if (!detail) return null
+    if (detail.kind !== 'custom') return <Badge tone="neutral">Built-in v{detail.builtin_version}</Badge>
+    if (dirty || detail.has_draft_changes) return <Badge tone="ember">Unpublished changes</Badge>
+    return <Badge tone="arcane">Published v{detail.current_version_number}</Badge>
 }
 
 function AgentList({
@@ -521,13 +521,12 @@ function AgentList({
                             </span>
                             <span className="flex flex-wrap items-center gap-1.5">
                                 <Badge tone="glass">{OUTPUT_MODE_LABEL[agent.output_mode]}</Badge>
-                                {agent.has_unpublished_draft && agent.has_published && (
+                                {agent.kind === 'custom' && agent.has_draft_changes && (
                                     <Badge tone="ember">Draft</Badge>
                                 )}
-                                {!agent.has_published && <Badge tone="ember">Unpublished</Badge>}
                             </span>
                         </button>
-                        {agent.storage === 'file' ? (
+                        {agent.kind !== 'custom' ? (
                             <Badge tone="neutral" icon={<Icon icon={Lock} size={10} />}>
                                 File
                             </Badge>
@@ -546,7 +545,6 @@ function AgentList({
 interface EditorProps {
     form: AgentForm
     detail: AgentDetail | null
-    models: AgentModelOption[]
     errors: Record<string, string>
     isNew: boolean
     isImmutable: boolean
@@ -571,10 +569,10 @@ interface EditorProps {
 }
 
 function AgentEditor(props: EditorProps) {
+    const { t } = useTranslation()
     const {
         form,
         detail,
-        models,
         errors,
         isNew,
         isImmutable,
@@ -597,24 +595,7 @@ function AgentEditor(props: EditorProps) {
     const e = form.editable
     const readOnly = isNew || isImmutable
 
-    const modelOptions = useMemo<SelectOption[]>(() => {
-        const opts: SelectOption[] = [
-            { value: ENV_MODEL, label: 'Server default', description: 'Uses the CARD_LLM_MODEL env value' },
-        ]
-        for (const model of models) {
-            opts.push({
-                value: model.id,
-                label: model.label ?? model.id,
-                description: model.owned_by ?? undefined,
-            })
-        }
-        if (e.model && !opts.some((option) => option.value === e.model)) {
-            opts.push({ value: e.model, label: e.model })
-        }
-        return opts
-    }, [models, e.model])
-
-    const outputModeOptions: SelectOption[] = isImmutable || isNew
+    const outputModeOptions: SelectOption[] = isImmutable || isNew || !!detail?.schema_model
         ? [{ value: form.outputMode, label: OUTPUT_MODE_LABEL[form.outputMode] }]
         : [
               ...(detail?.schema_model
@@ -682,16 +663,7 @@ function AgentEditor(props: EditorProps) {
                             aria-label="Output mode"
                         />
                     </Field>
-                    <Field label="Model" error={errors.model} helper="Provider credentials stay server-side (env).">
-                        <Select
-                            options={modelOptions}
-                            value={e.model || null}
-                            onChange={(value) => onPatch({ model: value })}
-                            placeholder="Select a model"
-                            aria-label="Model"
-                            disabled={readOnly}
-                        />
-                    </Field>
+
                 </div>
             </section>
 
@@ -715,97 +687,7 @@ function AgentEditor(props: EditorProps) {
                 />
             </section>
 
-            <section className="flex flex-col gap-5 border-t border-line-faint pt-6 first:border-t-0 first:pt-0">
-                <SectionHeader icon={FlaskConical} title="Generation parameters" tone="arcane" />
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,160px),1fr))] gap-4">
-                    <NumberField
-                        label="Temperature"
-                        value={e.temperature}
-                        error={errors.temperature}
-                        min={0}
-                        max={2}
-                        step={0.05}
-                        onChange={(value) => onPatch({ temperature: value ?? 0 })}
-                        disabled={readOnly}
-                    />
-                    <NumberField
-                        label="Top-p"
-                        value={e.top_p}
-                        error={errors.top_p}
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        allowEmpty
-                        onChange={(value) => onPatch({ top_p: value })}
-                        disabled={readOnly}
-                    />
-                    <NumberField
-                        label="Max tokens"
-                        value={e.max_tokens}
-                        error={errors.max_tokens}
-                        min={1}
-                        max={32000}
-                        step={1}
-                        onChange={(value) => onPatch({ max_tokens: value ?? 0 })}
-                        disabled={readOnly}
-                    />
-                </div>
-                <SwitchRow
-                    label="JSON output"
-                    description="Derived from the output mode and not editable directly."
-                    checked={e.json_output}
-                    onChange={() => undefined}
-                    disabled
-                />
-            </section>
-
-            <section className="flex flex-col gap-5 border-t border-line-faint pt-6 first:border-t-0 first:pt-0">
-                <SectionHeader icon={History} title="Context window" tone="ember" />
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,160px),1fr))] gap-4">
-                    <NumberField
-                        label="Max messages"
-                        value={e.max_messages}
-                        error={errors.max_messages}
-                        min={1}
-                        max={64}
-                        step={1}
-                        onChange={(value) => onPatch({ max_messages: value ?? 0 })}
-                        disabled={readOnly}
-                    />
-                    <NumberField
-                        label="Max input tokens"
-                        value={e.max_input_tokens}
-                        error={errors.max_input_tokens}
-                        min={256}
-                        max={200000}
-                        step={256}
-                        onChange={(value) => onPatch({ max_input_tokens: value ?? 0 })}
-                        disabled={readOnly}
-                    />
-                    <Field label="Truncation">
-                        <Select
-                            options={[
-                                { value: 'tail', label: 'Tail (drop oldest)' },
-                                { value: 'token_budget', label: 'Token budget' },
-                            ]}
-                            value={e.truncation_strategy}
-                            onChange={(value) => onPatch({ truncation_strategy: value as 'tail' | 'token_budget' })}
-                            aria-label="Truncation strategy"
-                            disabled={readOnly}
-                        />
-                    </Field>
-                    <NumberField
-                        label="Timeout (seconds)"
-                        value={e.timeout}
-                        error={errors.timeout}
-                        min={1}
-                        max={600}
-                        step={1}
-                        onChange={(value) => onPatch({ timeout: value ?? 0 })}
-                        disabled={readOnly}
-                    />
-                </div>
-            </section>
+            <p className="font-ui text-sm text-parchment-300">{t('admin.agents.profileSettings')}</p>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex gap-2">
@@ -855,7 +737,7 @@ function AgentEditor(props: EditorProps) {
                                     size="sm"
                                     iconLeft={<Icon icon={publishing ? Loader2 : Rocket} size={14} className={publishing ? 'animate-spin' : undefined} />}
                                     onClick={onPublish}
-                                    disabled={publishing || !canSave}
+                                    disabled={publishing || !canSave || dirty}
                                 >
                                     Publish custom version
                                 </Button>
@@ -865,7 +747,7 @@ function AgentEditor(props: EditorProps) {
                 </div>
             </div>
 
-            {!isNew && detail && <AgentTestPanel workflowKey={detail.workflow_key} setToast={props.setToast} setError={props.setError} />}
+            {!isNew && detail && <AgentTestPanel key={detail.workflow_key} workflowKey={detail.workflow_key} outputMode={detail.output_mode} source={detail.kind === 'custom' ? 'draft' : 'current'} setToast={props.setToast} setError={props.setError} />}
         </form>
     )
 }
@@ -936,50 +818,6 @@ function PromptTemplateField({
     )
 }
 
-function NumberField({
-    label,
-    value,
-    error,
-    min,
-    max,
-    step,
-    allowEmpty = false,
-    disabled = false,
-    onChange,
-}: {
-    label: string
-    value: number | null
-    error?: string
-    min: number
-    max: number
-    step: number
-    allowEmpty?: boolean
-    disabled?: boolean
-    onChange: (value: number | null) => void
-}) {
-    return (
-        <Field label={label} error={error}>
-            <Input
-                type="number"
-                value={value ?? ''}
-                min={min}
-                max={max}
-                step={step}
-                disabled={disabled}
-                onChange={(event) => {
-                    const raw = event.target.value
-                    if (raw === '' && allowEmpty) {
-                        onChange(null)
-                        return
-                    }
-                    const parsed = Number(raw)
-                    onChange(Number.isNaN(parsed) ? null : parsed)
-                }}
-            />
-        </Field>
-    )
-}
-
 function VersionHistoryDrawer({
     open,
     versions,
@@ -1009,8 +847,8 @@ function VersionHistoryDrawer({
                                 <Badge tone="neutral">{OUTPUT_MODE_LABEL[version.output_mode]}</Badge>
                             </div>
                             <p className="mt-1 font-mono text-xs text-parchment-400">{version.graph_version}</p>
-                            {version.published_at && (
-                                <p className="font-mono text-xs text-parchment-400">{version.published_at}</p>
+                            {version.created_at && (
+                                <p className="font-mono text-xs text-parchment-400">{version.created_at}</p>
                             )}
                         </div>
                         {!version.is_current && (
@@ -1027,26 +865,41 @@ function VersionHistoryDrawer({
 
 function AgentTestPanel({
     workflowKey,
+    outputMode,
+    source,
     setToast,
     setError,
 }: {
     workflowKey: string
+    outputMode: AgentOutputMode
+    source: 'draft' | 'current'
     setToast: (toast: ToastState) => void
     setError: (message: string | null) => void
 }) {
+    const { t } = useTranslation()
     const [input, setInput] = useState('')
     const [running, setRunning] = useState(false)
     const [result, setResult] = useState<AgentTestResponse | null>(null)
+    // A failed run of the same test keeps its request ID, so trying again
+    // recovers that run instead of paying for a second one.
+    const attemptRef = useRef<{ key: string; requestId: string; llm?: LlmRequest; nextRetry?: LlmRequest } | null>(null)
 
     const run = async () => {
         if (!input.trim() || running) return
         setRunning(true)
         setError(null)
+        const key = JSON.stringify([workflowKey, source, outputMode, input.trim()])
+        if (attemptRef.current?.key !== key) attemptRef.current = { key, requestId: makeRequestId('mw-agent-test') }
+        if (attemptRef.current.nextRetry) attemptRef.current = { key, requestId: makeRequestId('mw-agent-test'), llm: attemptRef.current.nextRetry }
+        const attempt = attemptRef.current
         try {
-            const res = await apiService.testAgent(workflowKey, { input_text: input.trim(), source: 'draft' })
+            const res = await apiService.testAgent(workflowKey, { input_text: input.trim(), source, ...(attempt.llm ? { llm: attempt.llm } : {}) }, attempt.requestId,
+                outputMode === 'markdown' ? 'novel' : 'card_generation')
+            if (attemptRef.current === attempt) attemptRef.current = null
             setResult(res)
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Test failed.'
+            if (err instanceof ApiError && err.llmRetry && attemptRef.current === attempt) attempt.nextRetry = { ...err.llmRetry }
+            const message = llmRecoveryMessage(err, t) ?? (err instanceof Error ? err.message : 'Test failed.')
             setError(message)
             setToast({ tone: 'error', title: 'Test failed', message })
         } finally {
@@ -1063,11 +916,12 @@ function AgentTestPanel({
             <div className="flex flex-col gap-4 p-5">
                 <SectionHeader
                     icon={Play}
-                    title="Test (current draft)"
+                    title={t(source === 'draft' ? 'admin.agents.testDraft' : 'admin.agents.testCurrent')}
                     tone="ember"
                     right={<Badge tone="ember">Not saved as a card</Badge>}
                 />
-                <Field label="Sample input" helper="Runs the current draft once; nothing is persisted.">
+                <LlmFeatureControl feature={outputMode === 'markdown' ? 'novel' : 'card_generation'} disabled={running} />
+                <Field label="Sample input" helper={t('admin.agents.testExecution')}>
                     <Textarea
                         value={input}
                         onChange={(event) => setInput(event.target.value)}
@@ -1087,6 +941,7 @@ function AgentTestPanel({
                         Run test
                     </Button>
                 </div>
+                {result && <Badge tone="arcane">{result.llm_execution.credential_mode} · {result.llm_execution.revision_id}</Badge>}
                 {result && (
                     <pre className="max-h-[360px] overflow-auto rounded-lg border border-parchment-50/[.08] bg-ink-900 p-4 font-mono text-xs leading-relaxed text-parchment-200 whitespace-pre-wrap">
                         {rendered}

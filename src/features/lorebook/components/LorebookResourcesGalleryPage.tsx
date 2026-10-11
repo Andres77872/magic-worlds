@@ -2,7 +2,8 @@ import { useRef, useState } from 'react'
 import { FilePlus2, FileText, Link2, Loader2, Search, Upload, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useNavigation } from '@/app/hooks'
-import { apiService, type LorebookResourceMetadataSaveOptions } from '@/infrastructure/api'
+import { apiService } from '@/infrastructure/api'
+import { authSession } from '@/infrastructure/api/authSession'
 import type { LorebookResource } from '@/shared'
 import { buildResourceHash } from '@/features/gallery/galleryLinks'
 import { ConfirmDialog } from '@/ui/components'
@@ -17,6 +18,8 @@ import {
     validateLorebookResources,
 } from '../lorebookResources'
 import { useLorebookResourceGallery } from '../hooks/useLorebookResourceGallery'
+import { useLorebookExtraction } from '../hooks/useLorebookExtraction'
+import { applyLorebookExtraction } from '../lorebookExtractionSession'
 import { ResourceGrid } from './resources/ResourceGrid'
 import { ResourceDetailView } from './resources/ResourceDetailView'
 import { useLorebookResourceRoute } from './resources/useLorebookResourceRoute'
@@ -26,6 +29,7 @@ export function LorebookResourcesGalleryPage() {
     const { isAuthenticated, openLoginModal } = useAuth()
     const { resourceEdit, setPage, goBack, replaceHash } = useNavigation()
     const gallery = useLorebookResourceGallery(undefined, { enabled: isAuthenticated })
+    const extractResource = useLorebookExtraction()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [saving, setSaving] = useState(false)
     const [notice, setNotice] = useState<string | null>(null)
@@ -88,7 +92,7 @@ export function LorebookResourcesGalleryPage() {
         }
     }
 
-    const saveResource = async (resource: LorebookResource, options: LorebookResourceMetadataSaveOptions = {}): Promise<boolean> => {
+    const saveResource = async (resource: LorebookResource, options: { extractMetadata?: boolean } = {}): Promise<boolean> => {
         if (!isAuthenticated) {
             openLoginModal()
             return false
@@ -99,23 +103,33 @@ export function LorebookResourcesGalleryPage() {
             return false
         }
         const creating = resourceEdit?.resourceId === 'new'
+        const owner = authSession.getSnapshot()
+        let sourceSaved = false
         setSaving(true)
         setError(null)
         try {
             const payload = lorebookResourceToApiPayload(resource)
             const raw = creating
-                ? await apiService.createLorebookResource(payload, options)
-                : await apiService.updateLorebookResource(resource.id, payload, options)
+                ? await apiService.createLorebookResource(payload)
+                : await apiService.updateLorebookResource(resource.id, payload)
             const saved = normalizeLorebookResource(raw)
-            if (saved) {
-                gallery.upsertItem(saved)
-                if (creating) replaceHash(buildResourceHash(saved.id))
+            if (!saved) throw new Error(t('lorebookResourcesGallery.errors.saveFailed'))
+            if (!authSession.isCurrent(owner)) return false
+            gallery.upsertItem(saved)
+            if (creating) replaceHash(buildResourceHash(saved.id))
+            sourceSaved = true
+            if (options.extractMetadata && (saved.extractionStatus !== 'completed' || saved.metadataOutdated)) {
+                const result = await extractResource(saved)
+                if (!authSession.isCurrent(owner)) return false
+                gallery.upsertItem(applyLorebookExtraction(saved, result))
             }
             setNotice(creating ? t('lorebookResourcesGallery.notices.created') : t('lorebookResourcesGallery.notices.updated'))
             return true
         } catch (err) {
-            setError(err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
-            return false
+            if (!authSession.isCurrent(owner)) return false
+            setError(sourceSaved ? t('lorebookResourcesGallery.errors.extractionAfterSave') : err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
+            // A successful source save must leave creation mode even if extraction failed.
+            return sourceSaved
         } finally {
             setSaving(false)
         }
@@ -128,14 +142,16 @@ export function LorebookResourcesGalleryPage() {
         }
         setSaving(true)
         setError(null)
+        const owner = authSession.getSnapshot()
         try {
-            const raw = await apiService.syncLorebookResourceMetadata(resource.id)
-            const saved = normalizeLorebookResource(raw)
-            if (saved) gallery.upsertItem(saved)
+            const result = await extractResource(resource)
+            if (!authSession.isCurrent(owner)) return false
+            gallery.upsertItem(applyLorebookExtraction(resource, result))
             setNotice(t('lorebookResourcesGallery.notices.metadataSynced'))
             return true
         } catch (err) {
-            setError(err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
+            if (!authSession.isCurrent(owner)) return false
+            setError(t('lorebookResourcesGallery.errors.extractionAfterSave'))
             return false
         } finally {
             setSaving(false)

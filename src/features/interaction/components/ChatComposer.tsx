@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useRef } from 'react'
-import type { KeyboardEvent, RefObject } from 'react'
+import type { KeyboardEvent, ReactNode, RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RotateCcw, Send, Square, Volume2 } from 'lucide-react'
+import { Eraser, Send, Square, Volume2 } from 'lucide-react'
 import { Button, cx, IconButton } from '@/ui/primitives'
 import { HighlightedTextarea, matcherIsEmpty, type TriggerMatcher } from '@/features/lorebook'
 
@@ -25,6 +25,8 @@ interface ChatComposerProps {
     /** Disable Reset when there is nothing to clear. */
     canReset: boolean
     placeholder: string
+    /** Compact control shown in the toolbar after the icon buttons (e.g. the model chip). */
+    accessory?: ReactNode
     /** Lets suggested replies focus the same composer after inserting their draft. */
     inputRef?: RefObject<HTMLTextAreaElement | null>
     /** When set, underline session-lore triggers as the player types (Ctrl/Cmd-click opens). */
@@ -58,6 +60,7 @@ export const ChatComposer = memo(function ChatComposer({
     onToggleAutoNarrate,
     onReset,
     canReset,
+    accessory,
     placeholder,
     inputRef,
     loreMatcher,
@@ -167,8 +170,9 @@ export const ChatComposer = memo(function ChatComposer({
                             onClick={onReset}
                             disabled={isLoading || isMutating || !canReset}
                         >
-                            <RotateCcw size={16} strokeWidth={1.75} />
+                            <Eraser size={16} strokeWidth={1.75} />
                         </IconButton>
+                        {accessory && <div className="ml-1 flex min-w-0 items-center">{accessory}</div>}
                         {nearLimit && (
                             <span className="ml-1 font-mono text-caption text-parchment-400">
                                 {value.length}/{MAX_LENGTH}

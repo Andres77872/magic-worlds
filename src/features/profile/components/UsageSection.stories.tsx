@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { activeCapacityUsage, emptyCapacityUsage } from '../llmCapacityUsage.fixtures'
 import { membership, baseProfile } from './ProfileView.stories'
 import { UsageSection } from './UsageSection'
 
@@ -11,12 +12,12 @@ const meta = {
     docs: {
       description: {
         component:
-          'Combined usage monitor from `GET /user/me`: today shows daily allowance and operation limits, while month-to-date shows accumulated credits and operation counts without implying a monthly cap.',
+          'Combined usage monitor from `GET /user/me`: today shows daily allowance and operation limits, while month-to-date shows accumulated credits and operation counts without implying a monthly cap. The optional BYOK panel (`GET /llm/capacity-usage`) counts requests on the user\'s own provider key separately: they use no app credits and are capped by the same daily operation limit.',
       },
     },
   },
   decorators: [(Story) => <div className="w-[760px] max-w-full"><Story /></div>],
-  argTypes: { profile: { control: false } },
+  argTypes: { profile: { control: false }, llmUsage: { control: false } },
   args: { profile: baseProfile },
 } satisfies Meta<typeof UsageSection>
 
@@ -90,4 +91,24 @@ export const NoMonthlyData: Story = {
       },
     },
   },
+}
+
+/** BYOK chat and story requests beside platform credits, plus converted history with no recorded payer. */
+export const WithByokUsage: Story = {
+  args: { llmUsage: { status: 'ready', usage: activeCapacityUsage } },
+}
+
+/** Profiles are enabled but the account has not used its own key this month. */
+export const ByokEmpty: Story = {
+  args: { llmUsage: { status: 'ready', usage: emptyCapacityUsage } },
+}
+
+/** The own-key counts are still loading; the credit monitor is already authoritative. */
+export const ByokLoading: Story = {
+  args: { llmUsage: { status: 'loading', usage: null } },
+}
+
+/** Profiles are disabled or the request failed; no counts are invented. */
+export const ByokUnavailable: Story = {
+  args: { llmUsage: { status: 'unavailable', usage: null } },
 }

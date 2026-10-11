@@ -10,6 +10,7 @@ import { AssistantShell } from './AssistantShell'
 import { ConversationMenu } from './ConversationMenu'
 import { ASSISTANT_SUGGESTIONS } from './suggestions'
 import { conversationKey, useCardAssistant } from './useCardAssistant'
+import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
 
 export interface CardAssistantChatbotProps<TCard extends CardAssistantCardResponse = CardAssistantCardResponse> {
     cardType: CardAssistantCardType
@@ -87,6 +88,7 @@ export function CardAssistantChatbot<TCard extends CardAssistantCardResponse = C
                 )}
             />
 
+            <div className="p-3"><LlmFeatureControl feature="card_assistant" disabled={busy} /></div>
             {assistant.pendingCard && (
                 <AssistantPendingCardBanner onApply={assistant.applyPendingCard} onDismiss={assistant.dismissPendingCard} />
             )}

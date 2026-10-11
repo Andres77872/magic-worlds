@@ -4,20 +4,25 @@
  * Bars are proportional to the largest value in their column so the busiest
  * plan / operation reads at a glance.
  */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Activity, Gauge } from 'lucide-react'
 import { useLanguage } from '@/app/hooks'
 import type { MembershipOverviewResponse } from '@/shared'
-import { Badge, SectionHeader, cx } from '@/ui/primitives'
+import { Badge, Chip, SectionHeader, cx } from '@/ui/primitives'
 import { formatMonth, formatNumber, operationName, percentOf } from './membershipFormat'
 
 interface UsageBreakdownProps {
     overview: MembershipOverviewResponse | null
 }
 
+type PayerFilter = 'all' | MembershipOverviewResponse['capacity_month'][number]['payer_mode']
+const PAYER_FILTERS: readonly PayerFilter[] = ['all', 'platform', 'user_byok', 'unattributed']
+
 export function UsageBreakdown({ overview }: UsageBreakdownProps) {
     const { t } = useTranslation()
     const { intlLocale } = useLanguage()
+    const [payerFilter, setPayerFilter] = useState<PayerFilter>('all')
 
     if (!overview) {
         return <p className="font-ui text-sm text-parchment-300">{t('admin.membership.usage.empty')}</p>
@@ -26,6 +31,7 @@ export function UsageBreakdown({ overview }: UsageBreakdownProps) {
     const maxMonth = Math.max(0, ...overview.plans.map((plan) => plan.credits_used_month))
     const maxOperation = Math.max(0, ...overview.operations_month.map((operation) => operation.credits_used))
     const monthLabel = formatMonth(overview.month, intlLocale)
+    const capacityRows = overview.capacity_month.filter((row) => payerFilter === 'all' || row.payer_mode === payerFilter)
 
     return (
         <div className="flex flex-col gap-8">
@@ -110,6 +116,47 @@ export function UsageBreakdown({ overview }: UsageBreakdownProps) {
                         </li>
                     ))}
                 </ul>
+            </section>
+            <section className="flex flex-col gap-3" aria-labelledby="usage-capacity-heading">
+                <SectionHeader
+                    icon={Activity}
+                    title={<span id="usage-capacity-heading">{t('admin.membership.usage.capacityTitle')}</span>}
+                    right={<Badge tone="neutral">{monthLabel}</Badge>}
+                />
+                <p className="max-w-prose font-ui text-label text-parchment-300">
+                    {t('admin.membership.usage.capacityDescription')}
+                </p>
+                {overview.capacity_month.length > 0 && (
+                    <div className="flex flex-wrap gap-2" role="group" aria-label={t('admin.membership.usage.payerFilter')}>
+                        {PAYER_FILTERS.map((filter) => (
+                            <Chip key={filter} active={payerFilter === filter} aria-pressed={payerFilter === filter} onClick={() => setPayerFilter(filter)}>
+                                {t(`admin.membership.usage.payerFilterOptions.${filter}`)}
+                            </Chip>
+                        ))}
+                    </div>
+                )}
+                {overview.capacity_month.length === 0 ? (
+                    <p className="font-ui text-label text-parchment-300">{t('admin.membership.usage.empty')}</p>
+                ) : capacityRows.length === 0 ? (
+                    <p className="font-ui text-label text-parchment-300">{t('admin.membership.usage.payerFilterEmpty')}</p>
+                ) : (
+                    <ul className="flex flex-col divide-y divide-line-faint">
+                        {capacityRows.map((row) => (
+                            <li key={`${row.operation}:${row.payer_mode}`} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-ui text-label font-semibold text-parchment-100">{operationName(row.operation, t)}</span>
+                                    <Badge tone={row.payer_mode === 'user_byok' ? 'arcane' : 'neutral'}>
+                                        {t(`admin.membership.usage.payers.${row.payer_mode}`)}
+                                    </Badge>
+                                </div>
+                                <span className="font-ui text-label tabular-nums text-parchment-200">
+                                    {t('admin.membership.usage.requests', { count: row.request_count })} ·{' '}
+                                    {t('admin.membership.usage.operationUsers', { count: row.active_users })}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </section>
         </div>
     )

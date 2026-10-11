@@ -54,7 +54,7 @@ function task(status: BackgroundTaskPublic['status'], id: string, targetName = '
                       duration_ms: 94_000,
                       output_format: 'mp3',
                   }],
-                  lyrics: { source: 'optimizer' },
+                  lyrics: { source: 'writer', lyrics_sha256: 'a'.repeat(64), lyrics_length_chars: 80 },
               }
             : null,
         error: status === 'failed' ? { category: 'timeout', detail: 'Theme song generation timed out.' } : null,

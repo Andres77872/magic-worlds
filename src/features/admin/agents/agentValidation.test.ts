@@ -10,7 +10,7 @@ import {
     toUpdateRequest,
     validateAgentForm,
 } from './agentValidation'
-import type { AgentDetail } from '@/shared'
+import type { BuiltinAgentDetail } from '@/shared'
 
 // Echoes the key plus any interpolation values so assertions can match on key
 // substrings (e.g. "reserved") and interpolated tokens.
@@ -22,7 +22,6 @@ function newForm() {
     form.displayName = 'My Generator'
     form.slug = 'my_generator'
     form.sourceWorkflowKey = 'character_generation'
-    form.editable.model = 'gpt-4o'
     return form
 }
 
@@ -55,17 +54,6 @@ describe('agentValidation', () => {
         expect(validateAgentForm(form, { isNew: true, schemaModel: null }, t).slug).toBeUndefined()
     })
 
-    it('flags numeric ranges', () => {
-        const form = newForm()
-        form.editable.temperature = 3
-        form.editable.max_tokens = 0
-        form.editable.top_p = 2
-        const errors = validateAgentForm(form, { isNew: true, schemaModel: null }, t)
-        expect(errors.temperature).toBeDefined()
-        expect(errors.max_tokens).toBeDefined()
-        expect(errors.top_p).toBeDefined()
-    })
-
     it('builds the exact detached-copy create request', () => {
         const form = newForm()
         const request = toCreateRequest(form)
@@ -77,34 +65,20 @@ describe('agentValidation', () => {
     })
 
     it('omits output_mode for built-in updates and includes it for custom', () => {
-        const detail: AgentDetail = {
+        const detail: BuiltinAgentDetail = {
             workflow_key: 'character_generation',
             kind: 'builtin_card',
-            storage: 'file',
             display_name: 'Character generator',
             output_mode: 'strict_card_schema',
             schema_model: 'Character',
-            is_system: true,
-            has_published: true,
-            has_unpublished_draft: false,
-            published_version_number: 1,
-            latest_version_number: 1,
-            updated_at: null,
+            builtin_version: 2,
+            graph_version: 'mw-content-character-v2',
             graph_version_prefix: 'mw-content-character',
-            draft: {
+            editable: {
                 system_message: 'sys',
                 prompt_template: INPUT_TOKEN,
-                model: '{{env.CARD_LLM_MODEL}}',
-                temperature: 0.7,
-                max_tokens: 4096,
-                top_p: null,
                 json_output: true,
-                max_messages: 4,
-                max_input_tokens: 8000,
-                truncation_strategy: 'tail',
-                timeout: 120,
             },
-            published: null,
         }
         const builtinForm = formFromDetail(detail)
         expect(toUpdateRequest(builtinForm, true)).not.toHaveProperty('output_mode')
@@ -119,11 +93,9 @@ describe('agentValidation', () => {
         form.displayName = 'x'.repeat(129)
         form.editable.system_message = 'x'.repeat(20001)
         form.editable.prompt_template = `${INPUT_TOKEN}${'x'.repeat(40000)}`
-        form.editable.model = 'x'.repeat(256)
         const errors = validateAgentForm(form, { isNew: true, schemaModel: 'Character' }, t)
         expect(errors.displayName).toBeDefined()
         expect(errors.system_message).toBeDefined()
         expect(errors.prompt_template).toBeDefined()
-        expect(errors.model).toBeDefined()
     })
 })

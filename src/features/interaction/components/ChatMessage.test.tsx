@@ -60,3 +60,41 @@ describe('ChatMessage lore trigger marking', () => {
         expect(container.querySelector('.lore-trigger')).toBeNull()
     })
 })
+
+describe('ChatMessage roleplay formatting', () => {
+    it('renders single-tilde actions as actions, not strikethrough', () => {
+        const { container } = render(
+            <ChatMessage content="~risita~ ¡Hola, hola~! ~se acomoda el pelo~ Pasa." isUser={false} />,
+        )
+        expect(container.querySelector('del')).toBeNull()
+        const actions = [...container.querySelectorAll('em.rp-action')].map((node) => node.textContent)
+        expect(actions).toEqual(['risita', 'se acomoda el pelo'])
+        // A playful trailing tilde stays as written.
+        expect(container).toHaveTextContent('¡Hola, hola~!')
+    })
+
+    it('keeps double-tilde strikethrough', () => {
+        const { container } = render(<ChatMessage content="It was ~~never~~ finished." isUser={false} />)
+        expect(container.querySelector('del')).toHaveTextContent('never')
+    })
+
+    it('formats tilde actions inside speech segments too', () => {
+        const { container } = render(
+            <ChatMessage content="" isUser={false} segments={[{ kind: 'speech', content: '~sonríe~ Hola', speaker_id: 'kai', speaker_name: 'Kai' }]} />,
+        )
+        expect(container.querySelector('.chat-segment em.rp-action')).toHaveTextContent('sonríe')
+    })
+
+    it('drops the repeated speaker header for the only character of a 1:1 chat', () => {
+        const segments = [
+            { kind: 'speech' as const, content: 'Hola', speaker_id: 'kai', speaker_name: 'Kai' },
+            { kind: 'thought' as const, content: 'Qué alto', speaker_id: 'kai', speaker_name: 'Kai' },
+        ]
+        const { container, rerender } = render(<ChatMessage content="" isUser={false} segments={segments} />)
+        expect(container).toHaveTextContent('KaiHola')
+        rerender(<ChatMessage content="" isUser={false} segments={segments} soloSpeakerId="kai" />)
+        expect(container).not.toHaveTextContent('KaiHola')
+        // Thoughts keep their label: it marks them as unspoken.
+        expect(container).toHaveTextContent('Kai thinks')
+    })
+})

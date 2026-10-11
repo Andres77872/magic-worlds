@@ -34,6 +34,23 @@ describe('GeneratedImage lifecycle feedback', () => {
         expect(screen.getByRole('img')).toHaveClass('opacity-100')
     })
 
+    it('opens the painted scene full size and closes it again', () => {
+        render(<GeneratedImage status="completed" url="/scene.png" />)
+        const trigger = screen.getByRole('button', { name: 'View scene full size' })
+        // Nothing to enlarge until the bytes paint.
+        expect(trigger).toBeDisabled()
+
+        fireEvent.load(screen.getByRole('img', { name: 'Generated scene' }))
+        expect(trigger).toBeEnabled()
+        fireEvent.click(trigger)
+
+        const viewer = screen.getByRole('dialog', { name: 'Generated scene' })
+        expect(viewer.querySelector('img')).toHaveAttribute('src', '/scene.png')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
     it('restarts loading feedback when the image URL changes', () => {
         const { rerender } = render(<GeneratedImage status="completed" url="/first.png" />)
         fireEvent.load(screen.getByRole('img'))

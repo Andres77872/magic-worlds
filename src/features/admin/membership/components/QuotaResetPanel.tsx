@@ -255,7 +255,6 @@ function QuotaResetResult({ result }: { result: QuotaResetResponse | null }) {
                         {t('admin.membership.quotaReset.dailyCounts', {
                             usage: result.daily.membership_usage_days,
                             operations: result.daily.membership_operation_usage_days,
-                            aiCards: result.daily.ai_card_quota_days,
                         })}
                     </ResultLine>
                 )}

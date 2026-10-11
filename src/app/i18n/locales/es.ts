@@ -8,7 +8,9 @@ type TranslationValueShape<T> = T extends string
 
 type TranslationResource = TranslationValueShape<EnShape>
 
+import { llmProfilesEs } from './llmProfiles'
 export const es = {
+    llmProfiles: llmProfilesEs,
     imageGeneration: {
         stages: {
             starting: 'Iniciando la generación de imagen…',
@@ -390,8 +392,8 @@ export const es = {
                     extractOnSave: {
                         label: 'Sincronizar metadatos con IA al guardar',
                         description: 'Guardar con esto desactivado es gratis. Activalo para actualizar recursos embebidos pendientes o desactualizados.',
-                        warning_one: 'Guardar usará {{count}} uso de metadatos de recurso si la extracción termina correctamente.',
-                        warning_other: 'Guardar usará {{count}} usos de metadatos de recurso si la extracción termina correctamente.',
+                        warning_one: 'La extracción ejecuta {{count}} solicitud con tu perfil LLM activo y sus límites de uso.',
+                        warning_other: 'La extracción ejecuta {{count}} solicitudes con tu perfil LLM activo y sus límites de uso.',
                         noPending: 'No hay recursos embebidos pendientes o desactualizados que necesiten sincronización.',
                     },
                     delete: 'Quitar {{title}}',
@@ -443,6 +445,7 @@ export const es = {
                         size: '{{name}} supera {{count}} caracteres.',
                         triggers: '{{name}} tiene mas de {{count}} disparadores de recurso.',
                         detachFailed: 'No se pudo desvincular el recurso.',
+                        extractionAfterSave: 'Lorebook guardado. Algunos metadatos siguen pendientes. Guarda con sincronización de metadatos para consultar las solicitudes existentes.',
                     },
                     extraction: {
                         keywords: 'Palabras clave',
@@ -1972,6 +1975,7 @@ export const es = {
                     fileType: '{{name}} debe ser un archivo .md o .txt.',
                     size: '{{name}} supera {{count}} caracteres.',
                     notFound: 'No se encontro ese recurso.',
+                    extractionAfterSave: 'Recurso guardado. La extracción de metadatos no terminó. Sincroniza los metadatos para consultar la solicitud existente.',
                 },
                 deleteDialog: {
                     title: 'Eliminar recurso',
@@ -2043,8 +2047,8 @@ export const es = {
                     outdated: 'Estos metadatos se extrajeron de contenido anterior. Sincroniza metadatos para actualizarlos.',
                     syncOnSaveLabel: 'Sincronizar metadatos con IA al guardar',
                     syncOnSaveDescription: 'Guardar con esto desactivado es gratis. Activalo para actualizar los metadatos de este recurso.',
-                    saveUsageWarning: 'Guardar con sincronización de metadatos con IA usa 1 uso de metadatos de recurso si la extracción termina correctamente.',
-                    syncUsageWarning: 'Sincronizar metadatos usa 1 uso de metadatos de recurso si la extracción termina correctamente.',
+                    saveUsageWarning: 'Guardar primero conserva la fuente. La sincronización usa tu perfil LLM activo y sus límites de uso.',
+                    syncUsageWarning: 'La sincronización usa tu perfil LLM activo. Una solicitud interrumpida se consulta antes de otra extracción.',
                     updated: 'Actualizado {{date}}',
                     shortSummary: 'Resumen corto',
                     longSummary: 'Resumen largo',
@@ -2388,10 +2392,10 @@ export const es = {
                 danger: {
                     title: 'Zona de riesgo',
                     deleteAllTitle: 'Eliminar todos mis datos',
-                    deleteAllBody: 'Elimina permanentemente todo lo que has creado: personajes, mundos, objetos, aventuras, chats y medios generados. Tu cuenta permanece activa.',
+                    deleteAllBody: 'WIP — En desarrollo: la eliminación es incompleta. Elimina personajes, mundos, objetos, aventuras, chats, historias, libros de conocimiento y registros de medios. Los archivos de imagen/audio generados, los perfiles personales de IA y los datos almacenados de solicitudes/resultados de IA permanecen. Tu cuenta sigue activa; se conservan la membresía, los créditos y el historial de facturación.',
                     deleteAllAction: 'Eliminar todos los datos',
                     dialogTitle: 'Eliminar todos mis datos',
-                    dialogBody: 'Esto elimina permanentemente cada personaje, mundo, aventura, chat, imagen generada y tema musical que has creado. Tu cuenta — usuario, rol y créditos — permanece activa.',
+                    dialogBody: 'WIP — En desarrollo: la eliminación es incompleta. Esto elimina tus personajes, mundos, objetos, aventuras, chats, historias, libros de conocimiento y registros de medios. Los archivos de imagen/audio generados, los perfiles personales de IA y los datos almacenados de solicitudes/resultados de IA permanecen. Tu cuenta sigue activa; se conservan la membresía, los créditos y el historial de facturación.',
                     irreversible: 'Esto no se puede deshacer.',
                     typeToConfirm: 'Escribe {{username}} para confirmar',
                     inputLabel: 'Escribe tu usuario para confirmar la eliminación',
@@ -2547,6 +2551,15 @@ export const es = {
                 includedPayg: '{{included}} incluidos / {{payg}} PAYG',
                 of: '{{used}} de {{max}}',
                 usageToday: 'Uso de {{label}} hoy',
+                byokTitle: 'Tu clave de proveedor (BYOK)',
+                byokSubtitle: 'Solicitudes ejecutadas con tu propia cuenta de proveedor en este proyecto. No usan créditos de la app; tu proveedor puede facturar el uso.',
+                byokLoading: 'Cargando uso BYOK…',
+                byokUnavailable: 'El uso BYOK no está disponible en este momento.',
+                byokEmpty: 'Sin solicitudes BYOK este mes.',
+                byokCounts: '{{today}} hoy · {{month}} este mes',
+                byokMeterLabel: 'Solicitudes BYOK de {{label}} hoy',
+                historicalRequests_one: '{{value}} solicitud anterior no tiene pagador registrado. Se convirtió desde el historial y nunca se vuelve a cobrar.',
+                historicalRequests_other: '{{value}} solicitudes anteriores no tienen pagador registrado. Se convirtieron desde el historial y nunca se vuelven a cobrar.',
             },
             ui: {
                 toast: {
@@ -4307,6 +4320,11 @@ export const es = {
                     deleteMessageConfirm: '¿Eliminar mensaje?',
                     editMessage: 'Editar mensaje',
                     regenerate: 'Regenerar',
+                    versions: 'Versiones de la respuesta',
+                    previousVersion: 'Versión anterior',
+                    nextVersion: 'Versión siguiente',
+                    versionCount: '{{index}} / {{count}}',
+                    versionOf: 'Versión {{index}} de {{count}}',
                 },
                 addCard: {
                     untitled: 'Sin título',
@@ -4443,12 +4461,18 @@ export const es = {
                     narrationFailed: 'La narración falló: {{detail}}',
                     narrationUnavailable: 'La narración no está disponible en este momento.',
                     newMessages: 'Mensajes nuevos',
+                    regenerateFailed: 'No se pudo escribir otra respuesta. Inténtalo de nuevo.',
+                    replyFailed: '{{name}} no pudo terminar esta respuesta',
+                    replyNotSaved: 'No se guardó, así que no forma parte de la conversación.',
+                    replyStopped: 'Detuviste esta respuesta',
                     reconnecting: 'Conexión perdida — reconectando…',
                     resetBody: 'Esto elimina el historial de mensajes visible de esta conversación.',
                     resetCancel: 'Conservar mensajes',
                     resetTitle: 'Borrar mensajes',
                     retry: 'Reintentar',
+                    tryAgain: 'Intentar de nuevo',
                     unknownError: 'Error desconocido',
+                    versionFailed: 'No se pudo cambiar a esa versión. Inténtalo de nuevo.',
                 },
                 chat: {
                     fallbackCharacter: 'Personaje',
@@ -4489,6 +4513,7 @@ export const es = {
                     conjuring: 'Conjurando la escena…',
                     failed: 'La generación de la imagen falló.',
                     loadFailed: 'No se pudo cargar la imagen. Actualiza la página para intentarlo de nuevo.',
+                    viewFullSize: 'Ver escena en tamaño completo',
                 },
                 leftPanel: {
                     addCharacter: 'Agregar personaje',
@@ -4715,6 +4740,14 @@ export const es = {
                             split: 'Incluidos / PAYG',
                         },
                         operationsTitle: 'Operaciones este mes',
+                        capacityTitle: 'Solicitudes de perfiles por pagador',
+                        capacityDescription: 'Solicitudes contabilizadas para los cupos de este proyecto y grupo. BYOK usa cero créditos de la app; el proveedor cobra por separado. Las solicitudes históricas conservan su pagador desconocido.',
+                        payers: { platform: 'Plataforma', user_byok: 'BYOK · cero créditos de la app', unattributed: 'Histórico · pagador desconocido' },
+                        payerFilter: 'Filtrar solicitudes por pagador',
+                        payerFilterOptions: { all: 'Todos los pagadores', platform: 'Plataforma', user_byok: 'BYOK', unattributed: 'Histórico' },
+                        payerFilterEmpty: 'Sin solicitudes de este pagador este mes.',
+                        requests_one: '{{count}} solicitud',
+                        requests_other: '{{count}} solicitudes',
                         operationsDescription: 'Acciones aceptadas y créditos por operación en todos los planes.',
                         operationUsed_one: '{{count}} acción',
                         operationUsed_other: '{{count}} acciones',
@@ -4723,6 +4756,19 @@ export const es = {
                         credits_one: '{{count}} crédito',
                         credits_other: '{{count}} créditos',
                         empty: 'Aún no hay uso registrado.',
+                        providerCost: {
+                            title: 'Costo del proveedor por pagador',
+                            range: '{{from}} → {{to}}',
+                            description: 'Estimaciones según los precios publicados por los proveedores para este proyecto, no créditos de la app. Lo de plataforma es costo de la app; lo de BYOK se cobra en la cuenta del proveedor de cada miembro; las solicitudes históricas no tienen pagador conocido.',
+                            loading: 'Cargando estimaciones del proveedor…',
+                            unavailable: 'Las estimaciones del proveedor no están disponibles ahora.',
+                            payers: { platform: 'Plataforma', user_byok: 'BYOK', unattributed: 'Histórico' },
+                            billedTo: { platform: 'Lo paga la app', user_byok: 'Se cobra en la cuenta del proveedor de cada miembro', unattributed: 'Pagador desconocido' },
+                            tokens: '{{input}} de entrada · {{output}} de salida (tokens)',
+                            noEstimate: 'Sin estimación',
+                            unknownCost_one: '{{count}} llamada sin precio · costo desconocido',
+                            unknownCost_other: '{{count}} llamadas sin precio · costo desconocido',
+                        },
                     },
                     errors: {
                         loadOverview: 'No se pudo cargar el resumen de membresías.',
@@ -4767,7 +4813,7 @@ export const es = {
                         resultTitle: 'Último restablecimiento',
                         resultTarget: 'Destino',
                         resultTime: 'Restablecido a las',
-                        dailyCounts: 'Filas diarias: {{usage}} uso / {{operations}} operación / {{aiCards}} carta IA',
+                        dailyCounts: 'Filas diarias: {{usage}} uso / {{operations}} operación',
                         seeded: 'Membresías creadas: {{count}}',
                         monthlyResult: 'Restablecimiento mensual n.º {{id}} para {{month}}',
                         membershipLabel: 'Membresía',
@@ -4918,6 +4964,11 @@ export const es = {
                     },
                 },
                 agents: {
+                    profileSettings: "El modelo, los límites de contexto y los parámetros vienen del perfil de ejecución.",
+                    testDraft: "Probar draft guardado",
+                    testCurrent: "Probar workflow actual",
+                    testExecution: "Usa el perfil efectivo de esta función. Las pruebas platform consumen créditos; se conserva el resultado de la ejecución.",
+
                     validation: {
                         nameRequired: 'Escribe un nombre visible.',
                         nameTooLong: 'El nombre visible debe tener 128 caracteres o menos.',
@@ -4929,14 +4980,6 @@ export const es = {
                         systemMessageTooLong: 'El mensaje de sistema debe tener 20,000 caracteres o menos.',
                         inputTokenRequired: 'La plantilla del prompt debe incluir {{token}}.',
                         promptTooLong: 'La plantilla del prompt debe tener 40,000 caracteres o menos.',
-                        modelRequired: 'Selecciona un modelo.',
-                        modelTooLong: 'El modelo debe tener 255 caracteres o menos.',
-                        temperatureRange: 'La temperatura debe estar entre 0 y 2.',
-                        topPRange: 'El top-p debe estar entre 0 y 1.',
-                        maxTokensRange: 'Los tokens máximos deben estar entre 1 y 32000.',
-                        maxMessagesRange: 'Los mensajes máximos deben estar entre 1 y 64.',
-                        maxInputTokensRange: 'Los tokens de entrada máximos deben estar entre 256 y 200000.',
-                        timeoutRange: 'El tiempo de espera debe estar entre 1 y 600 segundos.',
                     },
                 },
                 voices: {

@@ -4,7 +4,7 @@ import type { LorebookAssistantStreamEvent } from '@/shared'
 
 const mocks = vi.hoisted(() => ({
     createLorebookAssistantConversation: vi.fn(), listLorebookAssistantConversations: vi.fn(),
-    getLorebookAssistantConversation: vi.fn(), streamLorebookAssistantMessage: vi.fn(),
+    getLorebookAssistantTurn: vi.fn(), getLorebookAssistantConversation: vi.fn(), streamLorebookAssistantMessage: vi.fn(),
 }))
 vi.mock('@/infrastructure/api', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/infrastructure/api')>(), apiService: mocks,
@@ -28,10 +28,33 @@ function controlledStream() {
 beforeEach(() => {
     vi.resetAllMocks()
     mocks.createLorebookAssistantConversation.mockResolvedValue({ conversation, messages: [], lorebook: null })
+    mocks.getLorebookAssistantTurn.mockResolvedValue(null)
     mocks.listLorebookAssistantConversations.mockResolvedValue({ conversations: [] })
 })
 
 describe('lorebook assistant stream ownership', () => {
+    it('retry resumes a rejected-before-completion turn under its request ID, then starts fresh once spent', async () => {
+        const wire = controlledStream()
+        const { result } = renderHook(() => useLorebookAssistant(options()))
+        const fail = async (code: string, pending: Promise<void> = Promise.resolve()) => {
+            await act(async () => { wire.emit({ type: 'error', error: { code, retryable: true } }); wire.finish(); await pending })
+        }
+        let pending!: Promise<void>
+        act(() => { pending = result.current.send('Create lore') })
+        await waitFor(() => expect(wire.requestId).not.toBe(''))
+        const first = wire.requestId
+        await fail('LLM_EXECUTION_IN_PROGRESS', pending)
+        expect(result.current.notice?.message).toBe('This request is still running. Wait a moment, then try again to pick up its result.')
+        wire.requestId = ''
+        act(() => result.current.retry())
+        await waitFor(() => expect(wire.requestId).toBe(first))
+        await fail('LLM_EXECUTION_INTENT_CHANGED')
+        wire.requestId = ''
+        act(() => result.current.retry())
+        await waitFor(() => expect(wire.requestId).not.toBe(''))
+        expect(wire.requestId).not.toBe(first)
+    })
+
     it('invalidates an active turn when the editor switches lorebooks', async () => {
         const wire = controlledStream()
         const props = { ...options(), lorebookId: null as string | null }
@@ -48,7 +71,7 @@ describe('lorebook assistant stream ownership', () => {
 
     it('keeps partial text when recovery finds only an older completed reply', async () => {
         const props = options()
-        mocks.getLorebookAssistantConversation.mockResolvedValue({ conversation, messages: [{ message_id: 1, role: 'assistant', status: 'completed', content: 'Old reply', metadata: { request_id: 'old-request' } }], lorebook: { id: 'old-book' } })
+        mocks.getLorebookAssistantTurn.mockResolvedValue({ conversation, messages: [{ message_id: 1, role: 'assistant', status: 'completed', content: 'Old reply', metadata: { request_id: 'old-request' } }], lorebook: { id: 'old-book' } })
         mocks.streamLorebookAssistantMessage.mockImplementation(async (_id: number, _body: unknown, emit: (event: LorebookAssistantStreamEvent) => void) => {
             emit({ type: 'assistant_delta', delta: 'New partial lore' })
             throw new ApiError(0, 'Stream ended', { code: 'stream_incomplete', action: 'reload_conversation' })
@@ -79,4 +102,37 @@ describe('lorebook assistant stream ownership', () => {
         await act(async () => { second.emit({ type: 'error', detail: 'Stopped' }); second.finish(); await secondPending })
         expect(result.current.status).toBe('idle')
     })
+    it('links a confirmed terminal retry, preserves its body, and deduplicates the acknowledged user', async () => {
+        const command = { retry_of_execution_id: '44444444-4444-4444-8444-444444444444', selection: { mode: 'inherit' as const } }
+        const { result } = renderHook(() => useLorebookAssistant(options()))
+        let retryEvent: ((event: LorebookAssistantStreamEvent) => void) | undefined
+        let finishRetry: (() => void) | undefined
+        const user = { message_id: 20, conversation_id: conversation.conversation_id, sequence_no: 1, role: 'user' as const,
+            status: 'completed' as const, content: 'Generate it', metadata: { request_id: 'origin' } }
+        mocks.streamLorebookAssistantMessage.mockImplementationOnce(async (_id: number, _body: unknown, emit: (event: LorebookAssistantStreamEvent) => void) => {
+            emit({ type: 'user_message', user_message: user })
+            const error = new ApiError(502, 'Failed', { code: 'LLM_EXECUTION_UPSTREAM_FAILED', retryable: true })
+            error.llmRetry = command
+            throw error
+        }).mockImplementationOnce((_id: number, _body: unknown, emit: (event: LorebookAssistantStreamEvent) => void) => {
+            retryEvent = emit
+            return new Promise<void>((resolve) => { finishRetry = resolve })
+        })
+        await act(async () => result.current.send('Generate it'))
+        const first = mocks.streamLorebookAssistantMessage.mock.calls[0]
+        expect(mocks.streamLorebookAssistantMessage).toHaveBeenCalledOnce()
+        act(() => result.current.retry())
+        await waitFor(() => expect(retryEvent).toBeDefined())
+        const second = mocks.streamLorebookAssistantMessage.mock.calls[1]
+        expect(second[1]).toEqual(first[1])
+        expect(second[3]).toMatchObject({ llm: command })
+        expect(second[3].requestId).not.toBe(first[3].requestId)
+        act(() => retryEvent!({ type: 'user_message', user_message: user }))
+        expect(result.current.turns.filter((turn) => turn.message.role === 'user')).toHaveLength(1)
+        await act(async () => {
+            retryEvent!({ type: 'error', detail: 'Stopped' })
+            finishRetry!()
+        })
+    })
+
 })

@@ -10,6 +10,7 @@ import type {
     MembershipPlan,
     MembershipPlanLimit,
 } from '@/shared'
+import type { LlmProviderUsage } from '@/shared/types/llmProfile.types'
 
 export const MEMBERSHIP_OPERATIONS = [
     'ai_card_generation',
@@ -268,4 +269,44 @@ export const overview: MembershipOverviewResponse = {
         { operation: 'voice_call', active_users: 5, used: 1_400, credits_used: 1_400 },
         { operation: 'lorebook_resource_extraction', active_users: 9, used: 600, credits_used: 600 },
     ],
+    capacity_month: [
+        { operation: 'chat_interaction', payer_mode: 'platform', active_users: 90, request_count: 21_400 },
+        { operation: 'chat_interaction', payer_mode: 'user_byok', active_users: 2, request_count: 17 },
+        { operation: 'chat_interaction', payer_mode: 'unattributed', active_users: 1, request_count: 3 },
+    ],
+}
+
+/** Provider estimates by payer for June: BYOK is billed to members, history has no payer. */
+export const providerUsage: LlmProviderUsage = {
+    from_date: '2026-06-01',
+    to_date: '2026-06-19',
+    by_payer: {
+        platform: {
+            requests: 21_400,
+            prompt_tokens: 18_200_000,
+            completion_tokens: 2_950_000,
+            cached_tokens_read: 4_100_000,
+            reasoning_tokens: 0,
+            unknown_cost_calls: 0,
+            provider_estimates: [{ currency: 'USD', amount: '84.125', estimated_calls: 21_400 }],
+        },
+        user_byok: {
+            requests: 17,
+            prompt_tokens: 41_000,
+            completion_tokens: 6_200,
+            cached_tokens_read: 0,
+            reasoning_tokens: 1_100,
+            unknown_cost_calls: 2,
+            provider_estimates: [{ currency: 'USD', amount: '0.2675', estimated_calls: 15 }],
+        },
+        unattributed: {
+            requests: 3,
+            prompt_tokens: 2_400,
+            completion_tokens: 300,
+            cached_tokens_read: 0,
+            reasoning_tokens: 0,
+            unknown_cost_calls: 3,
+            provider_estimates: [],
+        },
+    },
 }

@@ -67,12 +67,12 @@ export function ChatroomPage() {
         }
         if (!pageFocused || !isPageFocused() || entryRefreshStartedRef.current) return
         entryRefreshStartedRef.current = true
-        let current = true
+        // The started ref stops a re-run (StrictMode replay, focus change) from
+        // retrying, so settle on the page's mounted ref rather than the effect run.
         void loadData({ silent: true, entryPage: 'chatroom' }).finally(() => {
-            if (current) setRefreshing(false)
+            if (mountedRef.current) setRefreshing(false)
         })
         // Refresh the gallery on entry without swapping the whole app to loading.
-        return () => { current = false }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated, pageFocused])
 

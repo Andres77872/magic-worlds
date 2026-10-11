@@ -9,7 +9,7 @@
 import {
     useId,
     type HTMLAttributes,
-    type InputHTMLAttributes,
+    type ComponentPropsWithRef,
     type ReactNode,
     type TextareaHTMLAttributes,
 } from 'react'
@@ -60,7 +60,7 @@ export function Field({ label, error, helper, htmlFor, className, children, ...r
     )
 }
 
-export function Input({ className, id, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ className, id, ...rest }: ComponentPropsWithRef<'input'>) {
     const ctx = useFieldContext()
     return (
         <input

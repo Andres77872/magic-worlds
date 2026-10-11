@@ -31,6 +31,9 @@ import { NovelChapterRail } from './NovelChapterRail'
 import { NovelGenerationHistoryDrawer } from './NovelGenerationHistoryDrawer'
 import { NovelStudioHeader } from './NovelStudioHeader'
 import { StudioStatusStrip } from './StudioStatusStrip'
+import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
+import { isLlmRequestSpent } from '@/infrastructure/api/llmIntent'
+import { makeRequestId } from '@/utils/uuid'
 
 export function NovelStudio() {
     const { t } = useTranslation()
@@ -55,6 +58,9 @@ export function NovelStudio() {
     const [cardPickerQuery, setCardPickerQuery] = useState('')
     const [wordGoalSaveFailed, setWordGoalSaveFailed] = useState(false)
     const [saveBlocked, setSaveBlocked] = useState(false)
+    // An unfinished generation keeps its request ID, so asking again for the same
+    // command recovers that request instead of generating (and charging) twice.
+    const attemptRef = useRef<{ key: string; requestId: string } | null>(null)
 
     const openCodexEntry = useOpenCodexEntry()
     const openCardPicker = useCallback(
@@ -103,12 +109,24 @@ export function NovelStudio() {
         if (!activeChapter) throw new Error(t('novelEditor.studio.noChapter'))
         // No contextSettings override: the backend resolves the story's stored
         // activeContext itself, so sending a copy is pure duplication.
-        const generation = await generateStoryCandidate(story.id, {
+        const candidate = {
             chapterId: activeChapter.id,
             command: request.command,
             instruction: request.instruction,
             selection: request.selection,
-        }, options)
+        }
+        const key = JSON.stringify([story.id, candidate])
+        if (attemptRef.current?.key !== key) attemptRef.current = { key, requestId: makeRequestId('mw-story-generate') }
+        const attempt = attemptRef.current
+        let generation: StoryGeneration
+        try {
+            generation = await generateStoryCandidate(story.id, candidate, { ...options, requestId: attempt.requestId })
+            if (attemptRef.current === attempt) attemptRef.current = null
+        } catch (error) {
+            // A deliberate stop or a spent request starts fresh next time.
+            if (attemptRef.current === attempt && (options?.signal?.aborted || isLlmRequestSpent(error))) attemptRef.current = null
+            throw error
+        }
         // The story payload only refreshes on accept — record locally so the
         // history drawer shows this generation even if it gets declined, and so
         // the prompt outlives the request that carried it.
@@ -142,6 +160,7 @@ export function NovelStudio() {
                 }}
             />
 
+            <div className="border-b border-line p-3"><LlmFeatureControl feature="novel" disabled={suggestionActive} /></div>
             <div
                 className={cx(
                     'grid min-h-0 flex-1 grid-cols-1',

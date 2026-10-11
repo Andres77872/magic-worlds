@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AdminMembershipPage } from './AdminMembershipPage'
-import { MEMBERSHIP_OPERATIONS, freePlan, members, overview, plans, plusPlan, proPlan, sponsorPlan, uniformLimits } from '../membership.fixtures'
+import { MEMBERSHIP_OPERATIONS, freePlan, members, overview, plans, plusPlan, proPlan, providerUsage, sponsorPlan, uniformLimits } from '../membership.fixtures'
 
 const mockUseAuth = vi.fn()
 const getMembershipOverview = vi.fn()
@@ -11,6 +11,7 @@ const createMembershipPlan = vi.fn()
 const updateMembershipPlan = vi.fn()
 const assignMembershipPlan = vi.fn()
 const resetMembershipQuotas = vi.fn()
+const getLlmProviderUsage = vi.fn()
 
 vi.mock('@/app/hooks', () => ({
     useAuth: () => mockUseAuth(),
@@ -27,6 +28,7 @@ vi.mock('@/infrastructure/api', () => ({
         updateMembershipPlan: (...args: unknown[]) => updateMembershipPlan(...args),
         assignMembershipPlan: (...args: unknown[]) => assignMembershipPlan(...args),
         resetMembershipQuotas: (...args: unknown[]) => resetMembershipQuotas(...args),
+        getLlmProviderUsage: (...args: unknown[]) => getLlmProviderUsage(...args),
     },
 }))
 
@@ -42,8 +44,9 @@ async function openTab(name: string) {
 describe('AdminMembershipPage', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        mockUseAuth.mockReturnValue({ isAuthenticated: true, user: rootUser, openLoginModal: vi.fn() })
+        mockUseAuth.mockReturnValue({ isAuthenticated: true, user: rootUser, accountKey: 'acct-root', openLoginModal: vi.fn() })
         getMembershipOverview.mockResolvedValue(overview)
+        getLlmProviderUsage.mockResolvedValue(providerUsage)
         listMembershipPlans.mockResolvedValue({ items: plans, operations: [...MEMBERSHIP_OPERATIONS] })
         listMembershipMembers.mockResolvedValue({
             items: members,
@@ -89,7 +92,7 @@ describe('AdminMembershipPage', () => {
             target: 'all',
             periods: ['daily'],
             reset_at: '2026-06-19T12:00:00Z',
-            daily: { membership_usage_days: 2, membership_operation_usage_days: 3, ai_card_quota_days: 4 },
+            daily: { membership_usage_days: 2, membership_operation_usage_days: 3 },
             monthly: null,
             membership: null,
         })
@@ -240,6 +243,21 @@ describe('AdminMembershipPage', () => {
 
         expect(await screen.findByRole('heading', { name: 'Usage by plan' })).toBeInTheDocument()
         expect(screen.getByRole('heading', { name: 'Operations this month' })).toBeInTheDocument()
+        const capacity = screen.getByRole('region', { name: 'Profile requests by payer' })
+        expect(within(capacity).getByText('BYOK · zero app credits')).toBeInTheDocument()
+        expect(within(capacity).getByText('17 requests · 2 accounts')).toBeInTheDocument()
+        expect(within(capacity).getByText('Historical · payer unknown')).toBeInTheDocument()
+        expect(within(capacity).queryByText('17 credits')).not.toBeInTheDocument()
+
+        expect(within(capacity).getByText(/^21.?400 requests/)).toBeInTheDocument()
+        const filters = within(capacity).getByRole('group', { name: 'Filter requests by payer' })
+        fireEvent.click(within(filters).getByRole('button', { name: 'BYOK' }))
+        expect(within(filters).getByRole('button', { name: 'BYOK' })).toHaveAttribute('aria-pressed', 'true')
+        expect(within(capacity).getByText('17 requests · 2 accounts')).toBeInTheDocument()
+        expect(within(capacity).queryByText('Historical · payer unknown')).not.toBeInTheDocument()
+        expect(within(capacity).queryByText(/^21.?400 requests/)).toBeNull()
+        fireEvent.click(within(filters).getByRole('button', { name: 'All payers' }))
+        expect(within(capacity).getByText('Historical · payer unknown')).toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: 'Reset quotas' }))
         const confirm = screen.getByRole('dialog', { name: 'Reset quotas?' })
@@ -250,6 +268,39 @@ describe('AdminMembershipPage', () => {
         })
         expect(await screen.findByText('Quotas reset')).toBeInTheDocument()
         expect(getMembershipOverview).toHaveBeenCalledTimes(2)
+    })
+
+    it('loads provider cost by payer only when the usage tab opens', async () => {
+        render(<AdminMembershipPage />)
+        await screen.findByTestId('plan-card-free')
+        expect(getLlmProviderUsage).not.toHaveBeenCalled()
+
+        await openTab('Usage')
+        const cost = await screen.findByRole('region', { name: 'Provider cost by payer' })
+        expect(await within(cost).findByText('$84.125')).toBeInTheDocument()
+        expect(getLlmProviderUsage).toHaveBeenCalledTimes(1)
+        expect(within(cost).getByText('2026-06-01 → 2026-06-19')).toBeInTheDocument()
+        expect(within(cost).getByText("Billed to each member's provider account")).toBeInTheDocument()
+        expect(within(cost).getByText('$0.2675')).toBeInTheDocument()
+        expect(within(cost).getByText('2 calls without a price · cost unknown')).toBeInTheDocument()
+        expect(within(cost).getByText('No estimate')).toBeInTheDocument()
+        expect(within(cost).getByText('3 calls without a price · cost unknown')).toBeInTheDocument()
+        expect(within(cost).queryByText(/\d+ credits?$/)).toBeNull()
+
+        await openTab('Plans')
+        await openTab('Usage')
+        expect(getLlmProviderUsage).toHaveBeenCalledTimes(1)
+    })
+
+    it('says provider estimates are unavailable instead of showing zero', async () => {
+        getLlmProviderUsage.mockRejectedValueOnce(new Error('upstream down'))
+        render(<AdminMembershipPage />)
+        await screen.findByTestId('plan-card-free')
+        await openTab('Usage')
+
+        const cost = await screen.findByRole('region', { name: 'Provider cost by payer' })
+        expect(await within(cost).findByText('Provider estimates are unavailable right now.')).toBeInTheDocument()
+        expect(within(cost).queryByText(/\$0/)).toBeNull()
     })
 
     it('surfaces quota reset API errors', async () => {

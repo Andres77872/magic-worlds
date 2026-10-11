@@ -316,7 +316,9 @@ describe('ChatSocket auth recovery', () => {
 
         expect(JSON.parse(String(MockWebSocket.instances[1].send.mock.calls[0][0]))).toEqual({
             type: 'chat',
+            llm: { selection: { mode: 'inherit' } },
             content: 'hello',
+            request_id: expect.any(String),
         })
     })
 
@@ -338,7 +340,9 @@ describe('ChatSocket auth recovery', () => {
         expect(MockWebSocket.instances).toHaveLength(1)
         expect(JSON.parse(String(MockWebSocket.instances[0].send.mock.calls[0][0]))).toEqual({
             type: 'chat',
+            llm: { selection: { mode: 'inherit' } },
             content: 'hello',
+            request_id: expect.any(String),
         })
     })
 
@@ -385,7 +389,9 @@ describe('ChatSocket auth recovery', () => {
         expect(frames.map((frame) => frame.type)).toEqual(['chat', 'tts', 'cancel', 'ping'])
         expect(frames[0]).toEqual({
             type: 'chat',
+            llm: { selection: { mode: 'inherit' } },
             content: 'hello',
+            request_id: expect.any(String),
         })
         expect(JSON.stringify(frames)).not.toContain('raw_audio')
         expect(JSON.stringify(frames)).not.toContain('audio_b64')
@@ -449,6 +455,7 @@ describe('ChatSocket auth recovery', () => {
 
         expect(JSON.parse(String(MockWebSocket.instances[0].send.mock.calls[0][0]))).toEqual({
             type: 'chat',
+            llm: { selection: { mode: 'inherit' } },
             content: 'hello',
             request_id: 'request-7',
         })
@@ -461,7 +468,7 @@ describe('ChatSocket auth recovery', () => {
         MockWebSocket.instances[0].emitOpen()
 
         expect(JSON.parse(String(MockWebSocket.instances[0].send.mock.calls[0][0]))).toEqual({
-            type: 'chat', content: 'hello', request_id: 'retry-7', existing_user_message_id: 100,
+            type: 'chat', content: 'hello', request_id: 'retry-7', existing_user_message_id: 100, llm: { selection: { mode: 'inherit' } },
         })
     })
 })

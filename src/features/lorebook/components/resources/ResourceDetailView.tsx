@@ -19,6 +19,7 @@ import {
 } from '../../markdownNewImport'
 import { ResourceContentView, type ContentView } from './ResourceContentView'
 import { ResourceExtractionMetadata } from './ResourceExtractionMetadata'
+import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
 import { Stat } from './Stat'
 import { statusTone } from './resourceStatus'
 
@@ -315,6 +316,9 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                         onChange={setExtractMetadata}
                         disabled={saving}
                     />
+                    {extractMetadata && (
+                        <LlmFeatureControl feature="lorebook_extraction" disabled={saving} />
+                    )}
                     {extractMetadata && (
                         <Callout tone="warning" role="note">
                             {t('lorebookResourcesGallery.metadata.saveUsageWarning')}

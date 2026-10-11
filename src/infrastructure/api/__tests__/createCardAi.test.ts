@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, apiService } from '../index'
+import { cardAssistantTurnFixture } from '@/test/assistantFixtures'
 
 const fetchMock = vi.fn()
+function generatedCard(requestId: string, name = 'Nyra') {
+    const id = '11111111-1111-4111-8111-111111111111'
+    return { id, name, description: 'A quiet forest.', request_id: requestId,
+        llm_execution: { execution_id: id, profile_id: '22222222-2222-4222-8222-222222222222',
+            revision_id: '33333333-3333-4333-8333-333333333333', resolution_source: 'system_default',
+            credential_mode: 'platform', replayed: false } }
+}
 const currentCard = {
     id: 'char-1', name: 'Nyra', description: 'A wandering scout.', category: null,
     latest_version_id: null, latest_version_number: 0, has_draft: false,
@@ -20,6 +28,7 @@ describe('AI card API methods', () => {
     beforeEach(() => {
         vi.useRealTimers()
         vi.clearAllMocks()
+        fetchMock.mockReset()
         localStorage.clear()
         localStorage.setItem('magic_worlds:token', 'test-token')
         vi.stubGlobal('fetch', fetchMock)
@@ -27,7 +36,7 @@ describe('AI card API methods', () => {
 
     it('POSTs trimmed character description with auth, request id, idempotency key, and signal', async () => {
         const controller = new AbortController()
-        fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'char-1', uuid: 'char-1', name: 'Nyra' }))
+        fetchMock.mockResolvedValueOnce(jsonResponse(generatedCard('req-1')))
 
         await apiService.createCharacterAI('  Create Nyra  ', {
             signal: controller.signal,
@@ -46,14 +55,14 @@ describe('AI card API methods', () => {
             'X-Request-Id': 'req-1',
             'Idempotency-Key': 'idem-1',
         })
-        expect(JSON.parse(String(init.body))).toEqual({ description: 'Create Nyra' })
+        expect(JSON.parse(String(init.body))).toEqual({ description: 'Create Nyra', llm: { selection: { mode: 'inherit' } } })
     })
 
     it('uses sibling endpoints for world, item, and adventure template generation', async () => {
         fetchMock
-            .mockResolvedValueOnce(jsonResponse({ id: 'world-1', name: 'Glass' }))
-            .mockResolvedValueOnce(jsonResponse({ id: 'item-1', name: 'Moonlit Compass', description: 'Finds safe roads.' }))
-            .mockResolvedValueOnce(jsonResponse({ id: 'tmpl-1', name: 'Gate' }))
+            .mockResolvedValueOnce(jsonResponse(generatedCard('req-w', 'Glass')))
+            .mockResolvedValueOnce(jsonResponse(generatedCard('req-i', 'Moonlit Compass')))
+            .mockResolvedValueOnce(jsonResponse(generatedCard('req-a', 'Gate')))
 
         await apiService.createWorldAI('Create a world', { requestId: 'req-w', idempotencyKey: 'idem-w' })
         await apiService.createItemAI('Create an item', { requestId: 'req-i', idempotencyKey: 'idem-i' })
@@ -71,12 +80,10 @@ describe('AI card API methods', () => {
                 messages: [],
                 card: null,
             }))
-            .mockResolvedValueOnce(jsonResponse({
+            .mockResolvedValueOnce(jsonResponse(cardAssistantTurnFixture('turn-req', {
                 conversation: { conversation_id: 7, card_type: 'character', card_id: 'char-1' },
-                assistant_message: { message_id: 2, conversation_id: 7, sequence_no: 2, role: 'assistant', status: 'completed', content: 'Updated.' },
-                card: { id: 'char-1', name: 'Nyra' },
-                applied_actions: [{ type: 'patch_card' }],
-            }))
+                card: { id: 'char-1', name: 'Nyra' }, applied_actions: [{ type: 'patch_card' }],
+            })))
 
         await apiService.createCardAssistantConversation({
             card_type: 'character',
@@ -113,6 +120,7 @@ describe('AI card API methods', () => {
             card_type: 'character',
             current_card: currentCard,
             ...targetSnapshot,
+            llm: { selection: { mode: 'inherit' } },
         })
     })
 
@@ -128,7 +136,7 @@ describe('AI card API methods', () => {
                     'data: {"delta":"Nyra."}',
                     '',
                     'event: final',
-                    'data: {"conversation":{"conversation_id":7,"card_type":"character","card_id":"char-1"},"messages":[],"card":{"id":"char-1","name":"Nyra"},"applied_actions":[{"type":"patch_card"}]}',
+                    `data: ${JSON.stringify(cardAssistantTurnFixture('turn-req', { conversation: { conversation_id: 7, card_type: 'character', card_id: 'char-1' }, card: { id: 'char-1', name: 'Nyra' }, applied_actions: [{ type: 'patch_card' }] }))}`,
                     '',
                     'event: done',
                     'data: {"request_id":"turn-req"}',
@@ -164,16 +172,14 @@ describe('AI card API methods', () => {
             card_type: 'character',
             current_card: currentCard,
             ...targetSnapshot,
+            llm: { selection: { mode: 'inherit' } },
         })
         expect(events).toEqual([
             { type: 'assistant_delta', delta: 'Updated ' },
             { type: 'assistant_delta', delta: 'Nyra.' },
             {
                 type: 'final',
-                conversation: { conversation_id: 7, card_type: 'character', card_id: 'char-1' },
-                messages: [],
-                card: { id: 'char-1', name: 'Nyra' },
-                applied_actions: [{ type: 'patch_card' }],
+                ...cardAssistantTurnFixture('turn-req', { conversation: { conversation_id: 7, card_type: 'character', card_id: 'char-1' }, card: { id: 'char-1', name: 'Nyra' }, applied_actions: [{ type: 'patch_card' }] }),
             },
         ])
     })
@@ -241,4 +247,31 @@ describe('AI card API methods', () => {
             retryable: true,
         })
     })
+})
+
+it('exposes a secret-free retry command only after an owned terminal status is read', async () => {
+    localStorage.setItem('magic_worlds:token', 'test-token')
+    const parent = '44444444-4444-4444-8444-444444444444'
+    const llm = { selection: { mode: 'profile' as const, profile_id: '22222222-2222-4222-8222-222222222222' },
+        expected_revision_id: '33333333-3333-4333-8333-333333333333' }
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockResolvedValueOnce(jsonResponse({ detail: 'Execution failed.', error: { code: 'LLM_EXECUTION_UPSTREAM_FAILED', message: 'Execution failed.' } }, { status: 502 }))
+        .mockResolvedValueOnce(jsonResponse({ status: 'failed', request_id: 'terminal-card', execution_id: parent, recovery_required: true }))
+    const error = await apiService.createCharacterAI('A quiet moon scout', { requestId: 'terminal-card', idempotencyKey: 'terminal-idem', llm }).catch(error => error)
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error.llmRetry).toEqual({ ...llm, retry_of_execution_id: parent })
+    expect(Object.keys(error.llmRetry).sort()).toEqual(['expected_revision_id', 'retry_of_execution_id', 'selection'])
+    expect(fetchMock.mock.calls[1][0]).toMatch(/\/characters\/ai\/result$/)
+})
+
+it('keeps an uncertain execution on its original request rather than suggesting a new attempt', async () => {
+    localStorage.setItem('magic_worlds:token', 'test-token')
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockResolvedValueOnce(jsonResponse({ detail: 'Lost upstream response.' }, { status: 502 }))
+        .mockResolvedValueOnce(jsonResponse({ status: 'running', request_id: 'uncertain-card', execution_id: '44444444-4444-4444-8444-444444444444', recovery_required: true }))
+    const error = await apiService.createCharacterAI('A quiet moon scout', { requestId: 'uncertain-card', idempotencyKey: 'uncertain-idem' }).catch(error => error)
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error.llmRetry).toBeUndefined()
 })

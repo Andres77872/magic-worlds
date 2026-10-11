@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { ArrowLeft, BookOpen, Library, Save, Search, Settings2, Tags } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
+import { authSession } from '@/infrastructure/api/authSession'
+import { useLorebookExtraction } from '../hooks/useLorebookExtraction'
+import { applyLorebookExtraction } from '../lorebookExtractionSession'
 import { makeRequestId } from '@/utils/uuid'
 import type { Lorebook, LorebookEntry } from '@/shared'
 import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
@@ -85,6 +88,7 @@ export function LorebookStudio() {
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
     const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
     const [extractResourceMetadata, setExtractResourceMetadata] = useState(false)
+    const extractResource = useLorebookExtraction()
     const editorRef = useRef<HTMLElement>(null)
     const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
     const visibleDraft = useMemo(() => (
@@ -203,23 +207,43 @@ export function LorebookStudio() {
             return
         }
         setSaving(true)
+        const owner = authSession.getSnapshot()
+        let sourceSaved = false
         try {
             const payload = {
                 ...lorebookToApiPayload(draft),
                 entries: draft.entries.map(entryToApiPayload),
             }
             const raw = draft.id
-                ? await apiService.updateLorebook(draft.id, payload, { extractMetadata: extractResourceMetadata })
-                : await apiService.createLorebook(payload, { extractMetadata: extractResourceMetadata })
-            const savedLorebook = normalizeLorebook(raw)
+                ? await apiService.updateLorebook(draft.id, payload)
+                : await apiService.createLorebook(payload)
+            let savedLorebook = normalizeLorebook(raw)
+            if (!authSession.isCurrent(owner)) return
             setDraft(savedLorebook)
             setEditingLorebook(savedLorebook)
             setLorebooks(upsertLorebook(lorebooks, savedLorebook))
             setSelectedId((current) => current && savedLorebook.entries.some((entry) => entry.id === current) ? current : savedLorebook.entries[0]?.id)
+            sourceSaved = true
+            // Persist the ID before inference; partial extraction never turns a saved book into a draft.
+            if (extractResourceMetadata) {
+                const savedResources = embeddedLorebookResourcesFromMetadata(savedLorebook.metadata)
+                for (const resource of savedResources) {
+                    if (resource.extractionStatus === 'completed' && !resource.metadataOutdated) continue
+                    const result = await extractResource(resource, undefined, savedLorebook.id)
+                    if (!authSession.isCurrent(owner)) return
+                    const completed = applyLorebookExtraction(resource, result)
+                    const nextResources = embeddedLorebookResourcesFromMetadata(savedLorebook.metadata).map((item) => item.id === resource.id ? completed : item)
+                    savedLorebook = { ...savedLorebook, metadata: withLorebookResources(savedLorebook.metadata, nextResources) }
+                    setDraft(savedLorebook)
+                    setEditingLorebook(savedLorebook)
+                    setLorebooks(upsertLorebook(lorebooks, savedLorebook))
+                }
+            }
             setExtractResourceMetadata(false)
             setNotice(draft.id ? t('lorebookStudio.shell.notices.updated') : t('lorebookStudio.shell.notices.created'))
         } catch (error) {
-            setSaveError(error instanceof Error ? error.message : t('lorebookStudio.shell.errors.saveFailed'))
+            if (!authSession.isCurrent(owner)) return
+            setSaveError(sourceSaved ? t('lorebookStudio.resources.errors.extractionAfterSave') : error instanceof Error ? error.message : t('lorebookStudio.shell.errors.saveFailed'))
         } finally {
             setSaving(false)
         }

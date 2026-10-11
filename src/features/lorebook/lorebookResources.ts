@@ -83,7 +83,7 @@ export function nextLorebookResourceFileName(resources: LorebookResource[], file
 }
 
 function normalizeSnippet(raw: unknown): LorebookResourceSnippet | null {
-    if (!isRecord(raw)) return null
+    if (!isRecord(raw) || Object.keys(raw).some((key) => !['id', 'title', 'content', 'triggers', 'source'].includes(key))) return null
     const content = stringValue(raw.content).trim()
     if (!content) return null
     return {
@@ -96,47 +96,49 @@ function normalizeSnippet(raw: unknown): LorebookResourceSnippet | null {
 }
 
 function normalizeExtraction(raw: unknown): LorebookResourceExtraction | null {
-    if (!isRecord(raw)) return null
+    if (!isRecord(raw) || Object.keys(raw).some((key) => !['keywords', 'shortSummary', 'longSummary', 'notes', 'snippets', 'model', 'schemaVersion', 'sourceHash', 'updatedAt'].includes(key))) return null
     return {
         keywords: stringArray(raw.keywords),
-        shortSummary: stringValue(raw.shortSummary ?? raw.short_summary),
-        longSummary: stringValue(raw.longSummary ?? raw.long_summary),
+        shortSummary: stringValue(raw.shortSummary),
+        longSummary: stringValue(raw.longSummary),
         notes: stringArray(raw.notes),
         snippets: Array.isArray(raw.snippets) ? raw.snippets.map(normalizeSnippet).filter((snippet): snippet is LorebookResourceSnippet => Boolean(snippet)) : [],
         model: maybeString(raw.model) ?? undefined,
-        schemaVersion: maybeString(raw.schemaVersion ?? raw.schema_version) ?? undefined,
-        sourceHash: maybeString(raw.sourceHash ?? raw.source_hash) ?? undefined,
-        updatedAt: maybeString(raw.updatedAt ?? raw.updated_at) ?? undefined,
+        schemaVersion: maybeString(raw.schemaVersion) ?? undefined,
+        sourceHash: maybeString(raw.sourceHash) ?? undefined,
+        updatedAt: maybeString(raw.updatedAt) ?? undefined,
     }
 }
 
 export function normalizeLorebookResource(raw: unknown): LorebookResource | null {
-    if (!isRecord(raw)) return null
-    const fileName = stringValue(raw.fileName ?? raw.file_name, 'resource.txt').trim() || 'resource.txt'
+    if (!isRecord(raw) || Object.keys(raw).some((key) => !['id', 'title', 'description', 'triggers', 'fileName', 'fileType', 'content', 'contentLength', 'contentHash', 'evaluationHash', 'extractionStatus', 'extraction', 'metadataOutdated', 'linkCount', 'createdAt', 'updatedAt'].includes(key))
+        || typeof raw.id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(raw.id)
+        || typeof raw.fileName !== 'string' || !raw.fileName.trim() || typeof raw.content !== 'string') return null
+    const fileName = raw.fileName.trim()
     const content = stringValue(raw.content)
-    const status = stringValue(raw.extractionStatus ?? raw.extraction_status, 'pending')
-    const rawLinkCount = raw.linkCount ?? raw.link_count
-    const evaluationHash = maybeString(raw.evaluationHash ?? raw.evaluation_hash) ?? undefined
+    const status = stringValue(raw.extractionStatus, 'pending')
+    const rawLinkCount = raw.linkCount
+    const evaluationHash = maybeString(raw.evaluationHash) ?? undefined
     const extraction = normalizeExtraction(raw.extraction)
-    const metadataOutdated = maybeBool(raw.metadataOutdated ?? raw.metadata_outdated)
+    const metadataOutdated = maybeBool(raw.metadataOutdated)
         ?? Boolean(extraction?.sourceHash && evaluationHash && extraction.sourceHash !== evaluationHash)
     return {
-        id: stringValue(raw.id, makeRequestId('resource')),
+        id: raw.id,
         title: stringValue(raw.title, resourceTitleFromFileName(fileName)).trim() || resourceTitleFromFileName(fileName),
         description: maybeString(raw.description),
         triggers: stringArray(raw.triggers),
         fileName,
         fileType: lorebookResourceFileTypeFromName(fileName),
         content,
-        contentLength: typeof raw.contentLength === 'number' ? raw.contentLength : typeof raw.content_length === 'number' ? raw.content_length : content.length,
-        contentHash: maybeString(raw.contentHash ?? raw.content_hash) ?? undefined,
+        contentLength: typeof raw.contentLength === 'number' ? raw.contentLength : content.length,
+        contentHash: maybeString(raw.contentHash) ?? undefined,
         evaluationHash,
         extractionStatus: status === 'completed' || status === 'failed' ? status : 'pending',
         extraction,
         metadataOutdated,
         linkCount: typeof rawLinkCount === 'number' ? rawLinkCount : undefined,
-        createdAt: maybeString(raw.createdAt ?? raw.created_at) ?? undefined,
-        updatedAt: maybeString(raw.updatedAt ?? raw.updated_at) ?? undefined,
+        createdAt: maybeString(raw.createdAt) ?? undefined,
+        updatedAt: maybeString(raw.updatedAt) ?? undefined,
     }
 }
 

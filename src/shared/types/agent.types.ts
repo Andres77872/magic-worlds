@@ -1,101 +1,76 @@
-/**
- * Agent Studio types (root-only). The frontend only ever sees the structured
- * "editable surface" — provider credentials (api_key/base_url) stay server-side
- * as {{env.CARD_LLM_*}} placeholders and never appear in any of these shapes.
- */
+/** Workflows version prompts/topology; profiles own models and execution settings. */
+import type { LlmExecutionProvenance, LlmRequest } from './llm.types'
 
 export type AgentOutputMode = 'strict_card_schema' | 'json_object' | 'markdown'
-export type AgentTruncationStrategy = 'tail' | 'token_budget'
 
-/** The fields the Studio form edits, 1:1 with the backend AgentEditableFields. */
 export interface AgentEditable {
     system_message: string
     prompt_template: string
-    model: string
-    temperature: number
-    max_tokens: number
-    top_p: number | null
-    max_messages: number
-    max_input_tokens: number
-    truncation_strategy: AgentTruncationStrategy
-    timeout: number
 }
-
-export interface AgentEditableEcho extends AgentEditable {
-    /** Derived from output_mode (markdown → false, else true). */
-    json_output: boolean
-}
-
-export interface AgentPublishedEcho extends AgentEditableEcho {
+export interface AgentEditableEcho extends AgentEditable { json_output: boolean }
+export interface AgentCurrentEcho extends AgentEditableEcho {
     version_number: number
     graph_version: string
+    output_mode: AgentOutputMode
+    schema_model: string | null
 }
-
-export interface AgentSummary {
+interface WorkflowSummary {
     workflow_key: string
-    kind: string
-    storage: 'file' | 'database'
     display_name: string
     output_mode: AgentOutputMode
     schema_model: string | null
-    is_system: boolean
-    has_published: boolean
-    has_unpublished_draft: boolean
-    published_version_number: number | null
+}
+export interface BuiltinAgentSummary extends WorkflowSummary {
+    kind: 'builtin_card' | 'builtin_story'
+    builtin_version: number
+    graph_version: string
+}
+export interface CustomAgentSummary extends WorkflowSummary {
+    kind: 'custom'
+    row_version: number
+    has_draft_changes: boolean
+    /** Null while unpublished: a draft-only workflow the profile cutover kept without a current. */
+    current_version_number: number | null
     latest_version_number: number
     updated_at: string | null
 }
-
-export interface AgentDetail extends AgentSummary {
+export type AgentSummary = BuiltinAgentSummary | CustomAgentSummary
+export interface BuiltinAgentDetail extends BuiltinAgentSummary {
+    graph_version_prefix: string
+    editable: AgentEditableEcho
+}
+export interface CustomAgentDetail extends CustomAgentSummary {
     graph_version_prefix: string
     draft: AgentEditableEcho
-    published: AgentPublishedEcho | null
+    current: AgentCurrentEcho | null
 }
-
+export type AgentDetail = BuiltinAgentDetail | CustomAgentDetail
 export interface AgentVersion {
     version_id: string
     version_number: number
     graph_version: string
     output_mode: AgentOutputMode
     is_current: boolean
-    published_at: string | null
-    published_by_user_id: number | null
+    created_at: string | null
+    created_by_user_id: number | null
 }
-
-export interface AgentVersionsResponse {
-    versions: AgentVersion[]
-}
-
-export interface AgentModelOption {
-    id: string
-    label: string | null
-    owned_by: string | null
-    context_length: number | null
-    status: string | null
-}
-
-export interface AgentModelsResponse {
-    models: AgentModelOption[]
-}
-
+export interface AgentVersionsResponse { versions: AgentVersion[] }
 export interface AgentCreateRequest {
     display_name: string
     slug: string
     source_workflow_key: string
+    expected_source_version?: number
 }
-
-export interface AgentUpdateDraftRequest extends AgentEditable {
-    output_mode?: AgentOutputMode
-}
-
+export interface AgentUpdateDraftRequest extends AgentEditable { output_mode?: AgentOutputMode }
 export interface AgentTestRequest {
     input_text: string
-    source?: 'draft' | 'published'
+    source: 'draft' | 'current'
+    llm: LlmRequest
 }
-
 export interface AgentTestResponse {
     output_mode: AgentOutputMode
     graph_version: string
+    llm_execution: LlmExecutionProvenance
     json_output?: Record<string, unknown> | null
     text_output?: string | null
 }

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     createCardAssistantConversation: vi.fn(),
     listCardAssistantConversations: vi.fn(),
     getCardAssistantConversation: vi.fn(),
+    getCardAssistantTurn: vi.fn(),
     deleteCardAssistantConversation: vi.fn(),
     streamCardAssistantMessage: vi.fn(),
 }))
@@ -32,6 +33,7 @@ vi.mock('@/infrastructure/api', () => {
 
 import { ApiError } from '@/infrastructure/api'
 import { useCardAssistant } from './useCardAssistant'
+import { cardAssistantTurnFixture } from '@/test/assistantFixtures'
 
 const CONVO = { conversation_id: 2, card_type: 'world' as const, card_id: null, title: 'Untitled World', updated_at: '2026-06-10T10:00:00Z' }
 const TARGET_CAS = { revision: '2026-09-19T00:43:33', content_hash: 'a'.repeat(64) }
@@ -96,6 +98,7 @@ beforeEach(() => {
     mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
     mocks.createCardAssistantConversation.mockResolvedValue({ conversation: CONVO, messages: [], card: null })
     mocks.getCardAssistantConversation.mockResolvedValue({ conversation: CONVO, messages: [], card: null })
+    mocks.getCardAssistantTurn.mockResolvedValue(null)
     mocks.deleteCardAssistantConversation.mockResolvedValue(undefined)
     mocks.streamCardAssistantMessage.mockResolvedValue(undefined)
 })
@@ -157,7 +160,7 @@ describe('useCardAssistant: send + streaming', () => {
             conversation, messages: [], target_cas: TARGET_CAS,
             card: { id: 'card-1', name: 'Saved name', ...PUBLISHED_REVISION, is_draft: false },
         })
-        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, emit) => emit({ type: 'final', conversation }))
+        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, emit, settings) => emit({ type: 'final', ...cardAssistantTurnFixture(settings.requestId, { conversation }) }))
         const { result } = renderHook(() => useCardAssistant(hookOptions({
             cardType, cardId: 'card-1', currentCard: { name: 'Unsaved name', category: null },
         })))
@@ -178,7 +181,7 @@ describe('useCardAssistant: send + streaming', () => {
             conversation, messages: [], target_cas: TARGET_CAS,
             card: { id: 'world-1', ...PUBLISHED_REVISION },
         })
-        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, emit) => emit({ type: 'final', conversation }))
+        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, emit, settings) => emit({ type: 'final', ...cardAssistantTurnFixture(settings.requestId, { conversation }) }))
         const { result } = renderHook(() => useCardAssistant(hookOptions({ cardId: 'world-1', currentCard: { name: 'Glass' } })))
         await act(async () => { await result.current.send('First edit') })
 
@@ -197,10 +200,10 @@ describe('useCardAssistant: send + streaming', () => {
     })
 
     it('sends adventure concurrency values without versioned-card metadata', async () => {
-        const conversation = { ...CONVO, card_type: 'adventure_template', card_id: 'adventure-1' }
+        const conversation = { ...CONVO, card_type: 'adventure_template' as const, card_id: 'adventure-1' }
         mocks.createCardAssistantConversation.mockResolvedValue({ conversation, messages: [] })
         mocks.getCardAssistantConversation.mockResolvedValue({ conversation, messages: [], target_cas: TARGET_CAS })
-        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, emit) => emit({ type: 'final', conversation }))
+        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, emit, settings) => emit({ type: 'final', ...cardAssistantTurnFixture(settings.requestId, { conversation }) }))
         const { result } = renderHook(() => useCardAssistant(hookOptions({
             cardType: 'adventure_template', cardId: 'adventure-1', currentCard: { name: 'A quest' },
         })))
@@ -324,6 +327,7 @@ describe('useCardAssistant: send + streaming', () => {
         const card = { id: 'world-1', name: 'Glass' }
         act(() => stream.emit!({
             type: 'final',
+            ...cardAssistantTurnFixture(stream.lastOptions!.requestId!),
             conversation: { ...CONVO, card_id: 'world-1' },
             user_message: message({ message_id: 20, content: 'Generate it' }),
             assistant_message: message({ message_id: 21, role: 'assistant', content: 'Created Glass.' }),
@@ -345,7 +349,7 @@ describe('useCardAssistant: send + streaming', () => {
         expect(result.current.notice).toBeNull()
     })
 
-    it('final without messages reconciles the optimistic and placeholder messages', async () => {
+    it('a complete final replaces the optimistic and preview messages', async () => {
         const stream = controllableStream()
         const { result } = renderHook(() => useCardAssistant(hookOptions()))
 
@@ -357,6 +361,7 @@ describe('useCardAssistant: send + streaming', () => {
         act(() => stream.emit!({ type: 'assistant_delta', delta: 'Working' }))
         act(() => stream.emit!({
             type: 'final',
+            ...cardAssistantTurnFixture(stream.lastOptions!.requestId!),
             conversation: CONVO,
             user_message: message({ message_id: 20, content: 'Generate it' }),
             assistant_message: message({ message_id: 21, role: 'assistant', content: 'Done.' }),
@@ -389,6 +394,41 @@ describe('useCardAssistant: send + streaming', () => {
         act(() => result.current.retry())
         await waitFor(() => expect(mocks.streamCardAssistantMessage).toHaveBeenCalledTimes(2))
         expect(mocks.streamCardAssistantMessage.mock.calls[1][1]).toMatchObject({ message: 'Generate it' })
+    })
+
+    it('retry resumes an unfinished turn under its request ID until that request is spent', async () => {
+        const stream = controllableStream()
+        const { result } = renderHook(() => useCardAssistant(hookOptions()))
+        const finish = async (event: CardAssistantStreamEvent, promise: Promise<void>) => {
+            await waitFor(() => expect(stream.emit).toBeDefined())
+            act(() => stream.emit!(event))
+            act(() => stream.resolve!())
+            await act(async () => { await promise })
+        }
+        const ids = () => mocks.streamCardAssistantMessage.mock.calls.map((call) => (call[3] as { requestId: string }).requestId)
+
+        let pending!: Promise<void>
+        act(() => { pending = result.current.send('Generate it') })
+        await finish({ type: 'error', error: { code: 'LLM_EXECUTION_RECOVERY_REQUIRED', retryable: true } }, pending)
+        expect(result.current.notice?.message).toBe('The connection dropped before the result arrived. Try again to recover it without running it twice.')
+
+        stream.emit = undefined
+        act(() => { result.current.retry() })
+        await waitFor(() => expect(mocks.streamCardAssistantMessage).toHaveBeenCalledTimes(2))
+        await finish({ type: 'error', error: { code: 'LLM_EXECUTION_FINISHED', retryable: true } }, Promise.resolve())
+        expect(ids()[1]).toBe(ids()[0])
+
+        // The spent request is never reused, and a fresh send never resumes another turn.
+        stream.emit = undefined
+        act(() => { result.current.retry() })
+        await waitFor(() => expect(mocks.streamCardAssistantMessage).toHaveBeenCalledTimes(3))
+        await finish({ type: 'error', error: { code: 'LLM_EXECUTION_RECOVERY_REQUIRED', retryable: true } }, Promise.resolve())
+        expect(ids()[2]).not.toBe(ids()[0])
+        stream.emit = undefined
+        act(() => { pending = result.current.send('Generate it') })
+        await waitFor(() => expect(mocks.streamCardAssistantMessage).toHaveBeenCalledTimes(4))
+        await finish({ type: 'error', error: { code: 'LLM_EXECUTION_RECOVERY_REQUIRED', retryable: true } }, pending)
+        expect(new Set(ids()).size).toBe(3)
     })
 
     it('409 busy removes the optimistic message and offers reload + retry', async () => {
@@ -469,7 +509,7 @@ describe('useCardAssistant: send + streaming', () => {
         await waitFor(() => expect(result.current.activeConversation).not.toBeNull())
 
         const recoveredCard = { id: 'world-1', name: 'Recovered Glass' }
-        mocks.getCardAssistantConversation.mockImplementation(async () => ({
+        mocks.getCardAssistantTurn.mockImplementation(async (_id, requestId) => cardAssistantTurnFixture(requestId, {
             conversation: CONVO,
             messages: [
                 message({ message_id: 20, content: 'Generate it' }),
@@ -487,8 +527,8 @@ describe('useCardAssistant: send + streaming', () => {
         act(() => stream.resolve!())
         await act(async () => { await sendPromise })
 
-        // Initial open + recovery reload.
-        expect(mocks.getCardAssistantConversation).toHaveBeenCalledTimes(2)
+        expect(mocks.getCardAssistantConversation).toHaveBeenCalledTimes(1)
+        expect(mocks.getCardAssistantTurn).toHaveBeenCalledWith(2, stream.lastOptions!.requestId, expect.any(Object))
         expect(last(result.current.turns)?.message.content).toBe('Recovered reply.')
         expect(onCard).toHaveBeenCalledWith(recoveredCard)
         expect(result.current.pendingCard).toBeNull()
@@ -607,7 +647,7 @@ describe('assistant request isolation', () => {
         act(() => { pending = result.current.send('New request') })
         await waitFor(() => expect(stream.emit).toBeDefined())
         act(() => stream.emit!({ type: 'assistant_delta', delta: 'New partial' }))
-        mocks.getCardAssistantConversation.mockResolvedValue({ conversation: CONVO,
+        mocks.getCardAssistantTurn.mockResolvedValue({ conversation: CONVO,
             messages: [message({ message_id: 40, role: 'assistant', content: 'Old result', metadata: { request_id: 'older-request' } })],
             card: { id: 'old-card', name: 'Old' },
         })
@@ -633,7 +673,7 @@ describe('assistant request isolation', () => {
         await waitFor(() => expect(second.emit).toBeDefined())
         await act(async () => { await pending })
         expect(result.current.status).toBe('streaming')
-        act(() => late({ type: 'final', conversation: CONVO, card: { id: 'old', name: 'Old' }, applied_actions: [] }))
+        act(() => late({ type: 'final', ...cardAssistantTurnFixture(first.lastOptions!.requestId!, { conversation: CONVO, card: { id: 'old', name: 'Old' } }) }))
         expect(onCard).not.toHaveBeenCalled()
         act(() => second.emit!({ type: 'assistant_delta', delta: 'Second partial' }))
         act(() => result.current.stop())
@@ -654,4 +694,37 @@ describe('assistant request isolation', () => {
         expect(last(result.current.turns)?.isInterrupted).toBe(true)
         expect(result.current.notice?.kind).toBe('error')
     })
+    it('links a confirmed terminal retry, preserves its body, and deduplicates the acknowledged user', async () => {
+        const command = { retry_of_execution_id: '44444444-4444-4444-8444-444444444444', selection: { mode: 'inherit' as const } }
+        const { result } = renderHook(() => useCardAssistant(hookOptions()))
+        let retryEvent: ((event: CardAssistantStreamEvent) => void) | undefined
+        let finishRetry: (() => void) | undefined
+        const user = { message_id: 20, conversation_id: CONVO.conversation_id, sequence_no: 1, role: 'user' as const,
+            status: 'completed' as const, content: 'Generate it', metadata: { request_id: 'origin' } }
+        mocks.streamCardAssistantMessage.mockImplementationOnce(async (_id: number, _body: unknown, emit: (event: CardAssistantStreamEvent) => void) => {
+            emit({ type: 'user_message', user_message: user })
+            const error = new ApiError(502, 'Failed', { code: 'LLM_EXECUTION_UPSTREAM_FAILED', retryable: true })
+            error.llmRetry = command
+            throw error
+        }).mockImplementationOnce((_id: number, _body: unknown, emit: (event: CardAssistantStreamEvent) => void) => {
+            retryEvent = emit
+            return new Promise<void>((resolve) => { finishRetry = resolve })
+        })
+        await act(async () => result.current.send('Generate it'))
+        const first = mocks.streamCardAssistantMessage.mock.calls[0]
+        expect(mocks.streamCardAssistantMessage).toHaveBeenCalledOnce()
+        act(() => result.current.retry())
+        await waitFor(() => expect(retryEvent).toBeDefined())
+        const second = mocks.streamCardAssistantMessage.mock.calls[1]
+        expect(second[1]).toEqual(first[1])
+        expect(second[3]).toMatchObject({ llm: command })
+        expect(second[3].requestId).not.toBe(first[3].requestId)
+        act(() => retryEvent!({ type: 'user_message', user_message: user }))
+        expect(result.current.turns.filter((turn) => turn.message.role === 'user')).toHaveLength(1)
+        await act(async () => {
+            retryEvent!({ type: 'error', detail: 'Stopped' })
+            finishRetry!()
+        })
+    })
+
 })

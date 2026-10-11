@@ -80,6 +80,14 @@ export const StructuredSegments: Story = { args: { turn: structuredTurn } }
 /** Streaming — actions are hidden and the thinking dots show. */
 export const Streaming: Story = { args: { turn: { ...gmTurn, forwardOptions: undefined, isStreaming: true } } }
 
+/** Latest reply after two regenerations — ‹ 2 / 3 › switches the version shown and sent to the model. */
+export const WithVersions: Story = {
+  args: {
+    versions: { ids: ['v1', gmTurn.id, 'v3'], index: 1 },
+    onSelectVersion: () => {},
+  },
+}
+
 function ConversationPreview() {
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLTextAreaElement | null>(null)

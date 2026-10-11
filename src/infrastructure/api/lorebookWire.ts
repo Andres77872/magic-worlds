@@ -47,11 +47,6 @@ export function serializeLorebookResource(
         fileName: typeof resource.fileName === 'string' ? resource.fileName : 'resource.txt',
         fileType: resource.fileType === 'md' || resource.fileType === 'txt' ? resource.fileType : null,
         content: typeof resource.content === 'string' ? resource.content : '',
-        contentLength: typeof resource.contentLength === 'number'
-            ? resource.contentLength
-            : typeof resource.content === 'string'
-              ? resource.content.length
-              : 0,
     }
 }
 

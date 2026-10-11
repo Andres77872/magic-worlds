@@ -31,6 +31,14 @@ describe('API error normalization', () => {
         })?.message).toBe('Provider unavailable')
     })
 
+    it('keeps the stable code of profile and execution errors that carry no message', () => {
+        expect(normalizeApiErrorBody({ detail: { code: 'BYOK_CREDENTIAL_REQUIRED', role: 'primary' } }, { requestId: 'header-id' })).toMatchObject({
+            message: 'BYOK_CREDENTIAL_REQUIRED', code: 'BYOK_CREDENTIAL_REQUIRED', requestId: 'header-id',
+            details: { code: 'BYOK_CREDENTIAL_REQUIRED', role: 'primary' },
+        })
+        expect(normalizeApiErrorBody({ detail: { role: 'primary' } })).toBeNull()
+    })
+
     it('turns FastAPI validation arrays into a concise field message and preserves details', () => {
         const detail = [{
             type: 'string_too_long',

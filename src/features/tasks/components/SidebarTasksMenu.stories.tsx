@@ -22,7 +22,7 @@ function task(
         status_url: `/tasks/theme_song/${id}`,
         result_url: `/theme-songs/jobs/${id}/result`,
         cancel_url: status === 'pending' ? `/tasks/theme_song/${id}` : null,
-        result: status === 'completed' ? { assets: [], lyrics: { source: 'optimizer' } } : null,
+        result: status === 'completed' ? { assets: [], lyrics: { source: 'writer', lyrics_sha256: 'a'.repeat(64), lyrics_length_chars: 80 } } : null,
         error: status === 'failed' ? { category: 'timeout', detail: 'Theme song generation timed out.' } : null,
         created_at: '2026-06-07T10:00:00',
         updated_at: '2026-06-07T10:05:00',

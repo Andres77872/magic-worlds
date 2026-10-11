@@ -299,6 +299,8 @@ export function SidebarAccountMenu({
                                 onClick={() => navigate('profile')}
                             />
                         )}
+                        {isAuthenticated && <AccountMenuRow icon={Bot} label={t('llmProfiles.title')}
+                            current={currentPage === 'llm-profiles'} onClick={() => navigate('llm-profiles')} />}
                         <AccountMenuRow
                             icon={Info}
                             label={t('sidebar.docs')}
@@ -335,6 +337,8 @@ export function SidebarAccountMenu({
                                     current={currentPage === 'admin-agents'}
                                     onClick={() => navigate('admin-agents')}
                                 />
+                                <AccountMenuRow icon={Bot} label={t('llmProfiles.rootTitle')}
+                                    current={currentPage === 'admin-llm-profiles'} onClick={() => navigate('admin-llm-profiles')} />
                                 <AccountMenuRow
                                     icon={WalletCards}
                                     label={t('sidebar.membershipAdmin')}

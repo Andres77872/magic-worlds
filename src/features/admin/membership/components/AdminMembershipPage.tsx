@@ -1,8 +1,8 @@
 /**
  * Root console: Membership & plans. Three tabs over one data hook —
  * Plans (catalog + create / edit), Members (who is on what, with usage and a
- * Change plan action), and Usage (per-plan and per-operation consumption plus
- * the quota reset tool). KPI tiles sit above the tabs.
+ * Change plan action), and Usage (per-plan and per-operation consumption,
+ * provider cost by payer, and the quota reset tool). KPI tiles sit above the tabs.
  */
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,6 +18,7 @@ import { MembersToolbar } from './MembersToolbar'
 import { MembershipOverviewTiles } from './MembershipOverviewTiles'
 import { PlanEditorDialog, type PlanEditorMode } from './PlanEditorDialog'
 import { PlanList } from './PlanList'
+import { ProviderCostByPayer } from './ProviderCostByPayer'
 import { QuotaResetPanel } from './QuotaResetPanel'
 import { UsageBreakdown } from './UsageBreakdown'
 
@@ -170,6 +171,7 @@ export function AdminMembershipPage() {
 
             <TabPanel value="usage" idBase={TAB_ID_BASE} active={tab} className="flex flex-col gap-8">
                 <UsageBreakdown overview={admin.overview} />
+                <ProviderCostByPayer active={tab === 'usage'} />
                 <QuotaResetPanel
                     resetting={admin.resettingQuotas}
                     lastReset={admin.lastQuotaReset}

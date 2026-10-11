@@ -1,4 +1,5 @@
 import type { TextGenerationOptions } from '@/shared/types/textGeneration.types'
+import { llmRecoveryMessage } from '@/features/llmProfiles/llmRecovery'
 import { frameBatch } from '@/utils/frameBatch'
 /**
  * useInlineAI — orchestrates the inline suggestion lifecycle around the
@@ -201,9 +202,10 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
             if (token === tokenRef.current && !controller.signal.aborted) {
                 editorRef.current?.commands.aiCancelPending()
                 setError(
-                    generateError instanceof Error
-                        ? generateError.message
-                        : tRef.current('novelEditor.editor.generationFailed'),
+                    llmRecoveryMessage(generateError, tRef.current)
+                        ?? (generateError instanceof Error
+                            ? generateError.message
+                            : tRef.current('novelEditor.editor.generationFailed')),
                 )
             }
         } finally {

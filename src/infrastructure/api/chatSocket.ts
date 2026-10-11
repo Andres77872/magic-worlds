@@ -9,9 +9,11 @@
  * `Sec-WebSocket-Protocol` subprotocol since browsers can't set headers on a WS.
  */
 
+import type { LlmRequest } from '@/shared/types/llm.types'
 import type { ChatSocketServerMessage } from '../../shared/types/interaction.types'
 import { API_BASE_URL } from './baseUrl'
 import { authSession, type AuthSessionSnapshot } from './authSession'
+import { generateUUID } from '@/utils/uuid'
 
 const WS_BEARER_SUBPROTOCOL = 'mw.bearer.v1'
 const HEARTBEAT_MS = 25_000
@@ -98,6 +100,8 @@ export class ChatSocket {
     private lastFrameAt = 0
     // A chat frame requested before the socket is OPEN; flushed on connect.
     private pendingChat: string | null = null
+    private pendingLlm: (() => LlmRequest) | null = null
+    private pendingExpiry: ReturnType<typeof setTimeout> | null = null
     private sentChat = false
     private sentRequestId: string | undefined
 
@@ -145,7 +149,7 @@ export class ChatSocket {
                 const pendingFrame = this.pendingChat
                 const storedToken = getStoredToken()
                 if (!storedToken) {
-                    this.pendingChat = null
+                    this.clearPendingChat()
                     this.expireAuth()
                     return
                 }
@@ -153,10 +157,8 @@ export class ChatSocket {
                     void this.refreshBeforeSendingPendingChat(pendingFrame)
                     return
                 }
-                this.sentChat = true
-                this.sentRequestId = JSON.parse(this.pendingChat).request_id
-                ws.send(this.pendingChat)
-                this.pendingChat = null
+                this.sendChatFrame(ws, this.pendingChat, this.pendingLlm ?? (() => ({ selection: { mode: 'inherit' } })))
+                this.clearPendingChat()
             }
         }
 
@@ -201,7 +203,7 @@ export class ChatSocket {
                 // Origin rejected by the server (CORS_ORIGINS misconfiguration).
                 // No amount of reconnecting can succeed — surface a terminal
                 // error instead of looping on backoff forever.
-                this.pendingChat = null
+                this.clearPendingChat()
                 this.handlers.onMessage({
                     type: 'error',
                     message: 'This chat connection was rejected by the server. Please reload; if the problem persists, contact support.',
@@ -219,12 +221,48 @@ export class ChatSocket {
         ws.onerror = () => {}
     }
 
+    private clearPendingChat(): void {
+        this.pendingChat = null
+        this.pendingLlm = null
+        if (this.pendingExpiry !== null) clearTimeout(this.pendingExpiry)
+        this.pendingExpiry = null
+    }
+
+    private queueChat(frame: string, materialize: () => LlmRequest): void {
+        this.clearPendingChat()
+        this.pendingChat = frame
+        this.pendingLlm = materialize
+        this.pendingExpiry = setTimeout(() => {
+            if (this.pendingChat !== frame) return
+            const requestId = JSON.parse(frame).request_id
+            this.clearPendingChat()
+            this.handlers.onMessage({ type: 'error', category: 'request', message: 'Chat connection wait expired.', request_id: requestId })
+        }, 30_000)
+    }
+
+    private sendChatFrame(ws: WebSocket, frame: string, materialize: () => LlmRequest): void {
+        let llm: LlmRequest | null = null
+        const request = JSON.parse(frame)
+        try {
+            llm = materialize()
+            if (llm.credentials && !API_BASE_URL.startsWith('https://')) throw new Error('LLM_CREDENTIAL_HTTPS_REQUIRED')
+            ws.send(JSON.stringify({ ...request, llm }))
+            this.sentChat = true
+            this.sentRequestId = request.request_id
+        } catch {
+            this.handlers.onMessage({ type: 'error', category: 'request', message: 'Chat profile or credential is unavailable.', request_id: request.request_id })
+        } finally {
+            if (llm) delete llm.credentials
+        }
+    }
+
     /** Request a generation. Queues until the socket is OPEN, (re)connecting if needed. */
-    sendChat(content: string, requestId?: string, existingUserMessageId?: number): void {
+    sendChat(content: string, requestId?: string, existingUserMessageId?: number, materializeLlm: () => LlmRequest = () => ({ selection: { mode: 'inherit' } })): void {
+        const id = requestId ?? generateUUID()
         const frame = JSON.stringify({
             type: 'chat',
             content,
-            ...(requestId ? { request_id: requestId } : {}),
+            request_id: id,
             ...(existingUserMessageId !== undefined ? { existing_user_message_id: existingUserMessageId } : {}),
         })
         const token = getStoredToken()
@@ -233,17 +271,15 @@ export class ChatSocket {
             return
         }
         if (shouldRefreshBeforeChat(token)) {
-            this.pendingChat = frame
+            this.queueChat(frame, materializeLlm)
             void this.refreshBeforeSendingPendingChat(frame)
             return
         }
         if (this.isOpen) {
-            this.sentChat = true
-            this.sentRequestId = requestId
-            this.ws!.send(frame)
+            this.sendChatFrame(this.ws!, frame, materializeLlm)
             return
         }
-        this.pendingChat = frame
+        this.queueChat(frame, materializeLlm)
         // CONNECTING: the in-flight onopen will flush pendingChat.
         if (this.ws?.readyState === WebSocket.CONNECTING) return
         // null / CLOSING / CLOSED: drop the dead socket and (re)connect so the
@@ -278,13 +314,18 @@ export class ChatSocket {
 
     /** Cancel the in-flight generation (no-op if the socket isn't open). */
     cancel(): void {
-        this.pendingChat = null
+        const pendingRequest = this.pendingChat ? JSON.parse(this.pendingChat).request_id : null
+        this.clearPendingChat()
+        if (pendingRequest) {
+            this.handlers.onMessage({ type: 'done', interrupted: true, request_id: pendingRequest })
+            return
+        }
         if (this.isOpen) this.ws!.send(JSON.stringify({ type: 'cancel' }))
     }
 
     close(): void {
         this.closedByUser = true
-        this.pendingChat = null
+        this.clearPendingChat()
         this.stopHeartbeat()
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer)
@@ -353,7 +394,7 @@ export class ChatSocket {
         if (this.closedByUser || this.pendingChat !== expectedFrame) return
         this.retireCurrentSocketForAuthRefresh()
         if (!refreshAccessTokenForSocket) {
-            this.pendingChat = null
+            this.clearPendingChat()
             this.expireAuth()
             return
         }
@@ -363,7 +404,7 @@ export class ChatSocket {
         } catch (error) {
             if (this.closedByUser || this.pendingChat !== expectedFrame) return
             if (this.pendingChat === expectedFrame) {
-                this.pendingChat = null
+                this.clearPendingChat()
             }
             if (this.isTerminalRefreshError(error)) {
                 if (!this.closedByUser) this.expireAuth()

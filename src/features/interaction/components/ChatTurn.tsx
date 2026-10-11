@@ -8,6 +8,8 @@ import { isSafeAssetUrl } from '../utils/chatImageTurnState'
 import { ChatAvatar } from './ChatAvatar'
 import { ChatMessage } from './ChatMessage'
 import { ChatActions } from './ChatActions'
+import { ReplyVersionSwitcher } from './ReplyVersionSwitcher'
+import type { ReplyVersions } from '../utils/chatTurnVisibility'
 import { ForwardOptions } from './ForwardOptions'
 import { EditMode } from './EditMode'
 import { GeneratedImage } from './GeneratedImage'
@@ -46,12 +48,19 @@ interface ChatTurnProps {
     deleting?: boolean
     /** Session-lore matcher passed to ChatMessage for inline trigger marking. */
     loreMatcher?: TriggerMatcher | null
+    /** The single AI character of a 1:1 chat: its portrait replaces the GM glyph. */
+    aiSpeaker?: { id: string; name: string; imageUrl?: string | null }
+    /** Stored versions of the latest reply; with a selector, the player can switch between them. */
+    versions?: ReplyVersions
+    onSelectVersion?: (turnId: string) => void
+    /** Separate from `actionsDisabled` so a switch in flight keeps focus on its button. */
+    versionsDisabled?: boolean
 }
 
 // Memoized: the panel re-renders on every streaming delta and composer
 // keystroke — untouched turns keep their object identity and must not re-run
 // their markdown rendering.
-export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onConfirmDeleteClick, onCancelDeleteClick, onEditClick, onRequestNarration, aiLabel, showForwardOptions = true, showImage = true, actionsDisabled = false, confirmingDelete = false, deleting = false, loreMatcher }: ChatTurnProps) {
+export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onConfirmDeleteClick, onCancelDeleteClick, onEditClick, onRequestNarration, aiLabel, showForwardOptions = true, showImage = true, actionsDisabled = false, confirmingDelete = false, deleting = false, loreMatcher, aiSpeaker, versions, onSelectVersion, versionsDisabled = false }: ChatTurnProps) {
     const { t } = useTranslation()
     const resolvedAiLabel = aiLabel ?? t('interaction.chat.gameMaster')
     const isUser = turn.type === 'user'
@@ -77,7 +86,7 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
 
     return (
         <article className={cx('mb-8 flex gap-3', isUser && 'flex-row-reverse')}>
-            <ChatAvatar isUser={isUser} />
+            <ChatAvatar isUser={isUser} aiName={aiSpeaker?.name} aiImageUrl={aiSpeaker?.imageUrl} thinking={turn.isStreaming} />
 
             <div className={cx('flex min-w-0 max-w-[640px] flex-1 flex-col gap-2', isUser ? 'items-end' : 'items-start')}>
                 <header className={cx('flex min-h-8 w-full min-w-0 items-center gap-3', isUser && 'flex-row-reverse')}>
@@ -98,7 +107,7 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
                             onCancel={handleEditCancel}
                         />
                     ) : (
-                        <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} narratorIdentity={turn.narratorIdentity} aiLabel={resolvedAiLabel} loreMatcher={loreMatcher} />
+                        <ChatMessage content={turn.content} isUser={isUser} isStreaming={turn.isStreaming} segments={turn.segments} narratorIdentity={turn.narratorIdentity} aiLabel={resolvedAiLabel} loreMatcher={loreMatcher} soloSpeakerId={aiSpeaker?.id} />
                     )}
                     {!isUser && !isEditing && showImage && (
                         <GeneratedImage
@@ -115,6 +124,14 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
                     Keep them visible for keyboard, touch, and first-time readers. */}
                 {!isEditing && (
                     <div className="flex max-w-full flex-wrap items-center gap-0.5">
+                        {versions && onSelectVersion && versions.ids.length > 1 && (
+                            <ReplyVersionSwitcher
+                                index={versions.index}
+                                count={versions.ids.length}
+                                disabled={versionsDisabled || turn.isStreaming}
+                                onSelect={(index) => onSelectVersion(versions.ids[index])}
+                            />
+                        )}
                         {!isUser && onRequestNarration && (
                             <TurnNarration
                                 status={turn.ttsStatus}
@@ -141,10 +158,6 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
                             onCancelDelete={onCancelDeleteClick}
                         />
                     </div>
-                )}
-
-                {!isUser && !turn.isStreaming && turn.metadata?.interrupted === true && (
-                    <p className="text-caption text-parchment-400">{t('streaming.interrupted')}</p>
                 )}
 
                 {showForwardOptions && (

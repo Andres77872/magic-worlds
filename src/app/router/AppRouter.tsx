@@ -47,6 +47,8 @@ const LorebookStudio = lazy(() => import('../../features/lorebook/components/Lor
 const NovelGalleryPage = lazy(() => import('../../features/novel/components/NovelGalleryPage').then(m => ({ default: m.NovelGalleryPage })))
 const NovelStudio = lazy(() => import('../../features/novel/components/NovelStudio').then(m => ({ default: m.NovelStudio })))
 const ProfilePage = lazy(() => import('../../features/profile/components/ProfilePage').then(m => ({ default: m.ProfilePage })))
+const LlmProfilesPage = lazy(() => import('../../features/llmProfiles/LlmProfilesPage').then(m => ({ default: m.LlmProfilesPage })))
+const AdminLlmProfilesPage = lazy(() => import('../../features/llmProfiles/LlmProfilesPage').then(m => ({ default: m.AdminLlmProfilesPage })))
 const BillingPage = lazy(() => import('../../features/billing/components/BillingPage').then(m => ({ default: m.BillingPage })))
 const PasswordResetPage = lazy(() => import('../../features/auth/PasswordResetPage').then(m => ({ default: m.PasswordResetPage })))
 const EmailVerifyPage = lazy(() => import('../../features/auth/EmailVerifyPage').then(m => ({ default: m.EmailVerifyPage })))
@@ -171,6 +173,8 @@ export function AppRouter() {
                                     {currentPage === 'chatroom' && <ChatroomPage />}
                                     {currentPage === 'calls' && <CallsPage />}
                                     {currentPage === 'profile' && <ProfilePage />}
+                                    {currentPage === 'llm-profiles' && <LlmProfilesPage key={accountKey} />}
+                                    {currentPage === 'admin-llm-profiles' && <AdminLlmProfilesPage key={accountKey} />}
                                     {currentPage === 'billing' && <BillingPage />}
                                     {currentPage === 'password-reset' && <PasswordResetPage />}
                                     {currentPage === 'verify-email' && <EmailVerifyPage />}

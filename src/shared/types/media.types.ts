@@ -79,10 +79,9 @@ export const THEME_SONG_MODEL_ALIASES: ThemeSongModelAlias[] = ['minimax_music_3
 
 /**
  * Where the sung text came from. `writer` = backend LLM writer, `user` =
- * caller-supplied lyrics, `instrumental` = no vocals, `optimizer` = retired
- * MiniMax path kept only for stored history.
+ * caller-supplied lyrics, `instrumental` = no vocals.
  */
-export type ThemeSongLyricsSource = 'writer' | 'user' | 'instrumental' | 'optimizer'
+export type ThemeSongLyricsSource = 'writer' | 'user' | 'instrumental'
 
 export interface ThemeSongLyricsPublic {
     source: ThemeSongLyricsSource
@@ -101,8 +100,7 @@ export interface ThemeSongJobPublic {
     target: ThemeSongTargetRef
     operation: 'theme_song'
     status: ThemeSongJobStatus
-    /** Selectable alias, or a retired one (`music_3_0` / `music_2_6`) on old history rows. */
-    model_alias: ThemeSongModelAlias | string
+    model_alias: ThemeSongModelAlias
     instrumental?: boolean
     status_url: string
     result_url: string

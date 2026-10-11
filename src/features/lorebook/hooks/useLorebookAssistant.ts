@@ -2,6 +2,8 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiService, ApiError } from '@/infrastructure/api'
+import { isLlmRequestSpent } from '@/infrastructure/api/llmIntent'
+import { llmRecoveryMessage } from '@/features/llmProfiles/llmRecovery'
 import { frameBatch } from '@/utils/frameBatch'
 import { makeRequestId } from '@/utils/uuid'
 import type {
@@ -21,6 +23,8 @@ import {
     type AssistantStatus,
 } from '@/features/creation/common/components/assistant/useCardAssistant'
 import { lorebookToApiPayload } from '../lorebookTransforms'
+
+type LorebookAssistantTurnBody = { message: string; currentLorebook: Record<string, unknown> | null; expectedRevision?: string; expectedContentHash?: string }
 
 const DEFAULT_TIMEOUT_MS = 180_000
 const META_TIMEOUT_MS = 15_000
@@ -67,6 +71,8 @@ function createRequestId(): string {
 }
 
 function assistantErrorMessage(error: unknown, t: TFunction): string {
+    const recovery = llmRecoveryMessage(error, t)
+    if (recovery) return recovery
     if (error instanceof ApiError) {
         return error.isTransient
             ? t('creation.common.assistant.notices.transient')
@@ -133,6 +139,9 @@ export function useLorebookAssistant({
     const userStoppedRef = useRef(false)
     const lastSentRef = useRef<string | null>(null)
     const lastRequestIdRef = useRef<string | null>(null)
+    // An unfinished turn's request ID; Retry resumes that request instead of starting another.
+    const retryRequestRef = useRef<{ text: string; requestId: string; body?: LorebookAssistantTurnBody; llm?: ApiError['llmRetry'] } | null>(null)
+    const retryingRef = useRef(false)
     const prevLorebookIdRef = useRef<string | null>(lorebookId ?? null)
 
     const nextLocalId = () => {
@@ -256,8 +265,11 @@ export function useLorebookAssistant({
         const requestId = lastRequestIdRef.current
         const owner = activeRequestRef.current
         try {
-            const detail = await apiService.getLorebookAssistantConversation(id, { timeoutMs: META_TIMEOUT_MS })
+            const detail = requestId
+                ? await apiService.getLorebookAssistantTurn(id, requestId, { timeoutMs: META_TIMEOUT_MS })
+                : await apiService.getLorebookAssistantConversation(id, { timeoutMs: META_TIMEOUT_MS })
             if (owner !== activeRequestRef.current || id !== conversationKey(activeConversationRef.current)) return false
+            if (!detail) return false
             const lastAssistant = [...(detail.messages ?? [])].reverse().find((message) => message.role === 'assistant')
             const recovered = Boolean(lastAssistant?.status === 'completed'
                 && (!requestId || lastAssistant.metadata?.request_id === requestId)
@@ -280,6 +292,8 @@ export function useLorebookAssistant({
     }, [])
 
     const send = useCallback(async (rawText: string) => {
+        const retrying = retryingRef.current
+        retryingRef.current = false
         if (!isAuthenticated) {
             onAuthRequired()
             return
@@ -288,13 +302,14 @@ export function useLorebookAssistant({
         if (!text || streamControllerRef.current) return
 
         lastSentRef.current = text
+        const retryIntent = retrying && retryRequestRef.current?.text === text ? retryRequestRef.current : null
         setNotice(null)
         setStatus('streaming')
         userStoppedRef.current = false
 
         const optimisticId = nextLocalId()
         const placeholderId = nextLocalId()
-        setMessages((prev) => [
+        setMessages((prev) => retryIntent?.llm ? prev : [
             ...prev,
             {
                 message_id: optimisticId,
@@ -310,7 +325,13 @@ export function useLorebookAssistant({
         let receivedError = false
         let receivedText = false
         let userAcknowledged = false
-        const requestId = createRequestId()
+        const retained = retryIntent && !retryIntent.llm ? retryIntent.requestId : null
+        retryRequestRef.current = null
+        const requestId = retained ?? createRequestId()
+        let turnBody: LorebookAssistantTurnBody | undefined
+        const keepForRetry = (llm?: ApiError['llmRetry']) => {
+            retryRequestRef.current = { text, requestId, ...(turnBody ? { body: structuredClone(turnBody) } : {}), ...(llm ? { llm } : {}) }
+        }
         const controller = new AbortController()
         lastRequestIdRef.current = requestId
         activeRequestRef.current = requestId
@@ -339,9 +360,23 @@ export function useLorebookAssistant({
             if (activeRequestRef.current !== requestId) return
             const id = conversationKey(conversation)
             if (!id) throw new Error('Missing assistant conversation id')
+            const body: LorebookAssistantTurnBody = retryIntent?.body ? structuredClone(retryIntent.body) : {
+                message: text, currentLorebook: currentLorebookPayload(currentLorebookRef.current),
+            }
+            turnBody = body
+            if (conversation.lorebook_id && !retryIntent?.body) {
+                const detail = await apiService.getLorebookAssistantConversation(id, { timeoutMs: META_TIMEOUT_MS, signal: controller.signal })
+                controller.signal.throwIfAborted()
+                if (activeRequestRef.current !== requestId) return
+                if (detail.conversation.lorebook_id !== conversation.lorebook_id || !detail.target_cas) {
+                    throw new Error('Missing lorebook assistant target snapshot')
+                }
+                body.expectedRevision = detail.target_cas.revision
+                body.expectedContentHash = detail.target_cas.content_hash
+            }
             await apiService.streamLorebookAssistantMessage(
                 id,
-                { message: text, currentLorebook: currentLorebookPayload(currentLorebookRef.current) },
+                body,
                 (event) => {
                     if (activeRequestRef.current !== requestId || controller.signal.aborted || (event.request_id && event.request_id !== requestId)) return
                     if (event.type !== 'assistant_delta') updates.flush()
@@ -351,9 +386,11 @@ export function useLorebookAssistant({
                     }
                     if (event.type === 'user_message' && event.user_message) {
                         userAcknowledged = true
-                        setMessages((prev) => prev.map((message) => (
-                            message.message_id === optimisticId ? event.user_message! : message
-                        )))
+                        setMessages((prev) => {
+                            const remaining = prev.filter((message) => message.message_id !== optimisticId)
+                            return remaining.some((message) => message.message_id === event.user_message!.message_id)
+                                ? remaining : [...remaining, event.user_message!]
+                        })
                         return
                     }
                     if (event.type === 'assistant_delta') {
@@ -378,22 +415,15 @@ export function useLorebookAssistant({
                                 setLiveActions((prev) => new Map(prev).set(event.assistant_message!.message_id, summaries))
                             }
                         }
-                        if (event.messages?.length) {
-                            setMessages(event.messages)
-                        } else {
-                            setMessages((prev) => [
-                                ...prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId && message.message_id !== event.user_message?.message_id && message.message_id !== event.assistant_message?.message_id),
-                                ...(event.user_message ? [event.user_message] : []),
-                                ...(event.assistant_message ? [event.assistant_message] : []),
-                            ])
-                        }
+                        setMessages(event.messages)
                         setStreamingMessageId(null)
                         if (event.lorebook) onLorebookRef.current(event.lorebook)
                         return
                     }
                     if (event.type === 'error') {
                         receivedError = true
-                        const message = event.detail || event.error?.message || tRef.current('creation.common.assistant.notices.generic')
+                        if (!isLlmRequestSpent(event.error)) keepForRetry()
+                        const message = llmRecoveryMessage(event.error, tRef.current) || event.detail || event.error?.message || tRef.current('creation.common.assistant.notices.generic')
                         setMessages((prev) => prev.some((item) => item.message_id === placeholderId)
                             ? prev.map((item) => item.message_id === placeholderId ? { ...item, status: 'failed' } : item)
                             : [...prev, { message_id: placeholderId, conversation_id: id, sequence_no: prev.length + 1,
@@ -403,13 +433,14 @@ export function useLorebookAssistant({
                         setNotice({ kind: 'error', message, canRetry: event.error?.retryable !== false })
                     }
                 },
-                { requestId, timeoutMs, signal: controller.signal },
+                { requestId, timeoutMs, signal: controller.signal, ...(retryIntent?.llm ? { llm: retryIntent.llm } : {}) },
             )
             if (activeRequestRef.current !== requestId) return
             if (!receivedFinal && !receivedError) {
                 const recovered = await reloadConversation()
                 if (activeRequestRef.current !== requestId) return
                 if (!recovered) {
+                    keepForRetry()
                     setNotice({
                         kind: 'error',
                         message: tRef.current('creation.common.assistant.notices.streamEnded'),
@@ -422,6 +453,9 @@ export function useLorebookAssistant({
             updates.flush()
             if (activeRequestRef.current !== requestId) return
             if (!userAcknowledged && !receivedText) setMessages((prev) => prev.filter((item) => item.message_id !== optimisticId))
+            // A deliberate stop or a spent request starts fresh; anything else may still finish.
+            if (err instanceof ApiError && err.llmRetry) keepForRetry(err.llmRetry)
+            else if (!(isAbortError(err) && userStoppedRef.current) && !isLlmRequestSpent(err)) keepForRetry()
             if (isAbortError(err)) {
                 if (userStoppedRef.current) {
                     setInterruptedIds((prev) => new Set(prev).add(placeholderId))
@@ -435,7 +469,7 @@ export function useLorebookAssistant({
                 setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                 setNotice({
                     kind: 'error',
-                    message: tRef.current('creation.common.assistant.notices.busy'),
+                    message: llmRecoveryMessage(err, tRef.current) ?? tRef.current('creation.common.assistant.notices.busy'),
                     canRetry: true,
                     canReload: true,
                 })
@@ -471,6 +505,7 @@ export function useLorebookAssistant({
         const text = lastSentRef.current
         if (!text) return
         setNotice(null)
+        retryingRef.current = true
         void send(text)
     }, [send])
 

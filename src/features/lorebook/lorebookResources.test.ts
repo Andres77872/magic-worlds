@@ -10,13 +10,19 @@ import {
 } from './lorebookResources'
 
 describe('lorebook resource utilities', () => {
+    it('rejects removed aliases and missing identity rather than fabricating a stored resource', () => {
+        expect(normalizeLorebookResource({ id: 'resource-1', file_name: 'court.md', content: 'Court' })).toBeNull()
+        expect(normalizeLorebookResource({ fileName: 'court.md', content: 'Court' })).toBeNull()
+        expect(normalizeLorebookResource({ id: 'resource-1', fileName: 'court.md', content: 'Court', extraction_status: 'completed' })).toBeNull()
+        expect(normalizeLorebookResource({ id: 'resource-1', fileName: 'court.md', content: 'Court', extraction: { short_summary: 'Old alias' } })?.extraction).toBeNull()
+    })
     it('normalizes backend link counts and derives file type from the file name', () => {
         const resource = normalizeLorebookResource({
             id: 'resource-1',
             title: 'Court archive',
-            file_name: 'court.md',
+            fileName: 'court.md',
             content: '# Court notes',
-            link_count: 3,
+            linkCount: 3,
         })
 
         expect(resource).toMatchObject({
@@ -30,15 +36,15 @@ describe('lorebook resource utilities', () => {
     it('normalizes extraction source hash and metadata freshness', () => {
         const resource = normalizeLorebookResource({
             id: 'resource-1',
-            file_name: 'court.md',
+            fileName: 'court.md',
             content: '# Court notes',
-            extraction_status: 'completed',
-            evaluation_hash: 'hash-new',
+            extractionStatus: 'completed',
+            evaluationHash: 'hash-new',
             extraction: {
                 keywords: ['mirror court'],
-                short_summary: 'Court notes.',
-                long_summary: 'Long court notes.',
-                source_hash: 'hash-old',
+                shortSummary: 'Court notes.',
+                longSummary: 'Long court notes.',
+                sourceHash: 'hash-old',
                 snippets: [],
             },
         })
@@ -50,13 +56,13 @@ describe('lorebook resource utilities', () => {
     it('marks completed extraction as stale when resource fields change', () => {
         const resource = normalizeLorebookResource({
             id: 'resource-1',
-            file_name: 'court.md',
+            fileName: 'court.md',
             content: '# Court notes',
-            extraction_status: 'completed',
+            extractionStatus: 'completed',
             extraction: {
                 keywords: ['mirror court'],
-                short_summary: 'Court notes.',
-                long_summary: 'Long court notes.',
+                shortSummary: 'Court notes.',
+                longSummary: 'Long court notes.',
                 snippets: [{ title: 'Mirror oath', content: 'Names bind.', triggers: [] }],
             },
         })
@@ -72,25 +78,25 @@ describe('lorebook resource utilities', () => {
     it('counts snippets and keywords only for completed extraction', () => {
         const completed = normalizeLorebookResource({
             id: 'resource-1',
-            file_name: 'court.md',
+            fileName: 'court.md',
             content: 'Court notes',
-            extraction_status: 'completed',
+            extractionStatus: 'completed',
             extraction: {
                 keywords: ['mirror court'],
-                short_summary: 'Court notes.',
-                long_summary: 'Long court notes.',
+                shortSummary: 'Court notes.',
+                longSummary: 'Long court notes.',
                 snippets: [{ title: 'Mirror oath', content: 'Names bind.', triggers: [] }],
             },
         })
         const pending = normalizeLorebookResource({
             id: 'resource-2',
-            file_name: 'stale.md',
+            fileName: 'stale.md',
             content: 'Stale notes',
-            extraction_status: 'pending',
+            extractionStatus: 'pending',
             extraction: {
                 keywords: ['stale'],
-                short_summary: 'Stale.',
-                long_summary: 'Stale.',
+                shortSummary: 'Stale.',
+                longSummary: 'Stale.',
                 snippets: [{ title: 'Stale', content: 'Stale.', triggers: [] }],
             },
         })
@@ -151,7 +157,6 @@ describe('lorebook resource utilities', () => {
             resources: [{
                 ...embeddedResource,
                 description: null,
-                contentLength: embeddedResource.content.length,
             }],
         })
     })

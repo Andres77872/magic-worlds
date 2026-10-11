@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { apiService, ApiError } from '@/infrastructure/api'
+import { isLlmRequestSpent } from '@/infrastructure/api/llmIntent'
+import { llmRecoveryMessage } from '@/features/llmProfiles/llmRecovery'
 import { frameBatch } from '@/utils/frameBatch'
 import { makeRequestId } from '@/utils/uuid'
 import type {
@@ -72,11 +74,13 @@ function createRequestId(): string {
     return makeRequestId('mw-card-assistant')
 }
 
-export function conversationKey(conversation: { conversation_id?: number; id?: number } | null | undefined): number | null {
-    return conversation?.conversation_id ?? conversation?.id ?? null
+export function conversationKey(conversation: { conversation_id: number } | null | undefined): number | null {
+    return conversation?.conversation_id ?? null
 }
 
 function assistantErrorMessage(error: unknown, t: TFunction): string {
+    const recovery = llmRecoveryMessage(error, t)
+    if (recovery) return recovery
     if (error instanceof ApiError) {
         return error.isTransient
             ? t('creation.common.assistant.notices.transient')
@@ -179,6 +183,9 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
     const userStoppedRef = useRef(false)
     const lastSentRef = useRef<string | null>(null)
     const lastRequestIdRef = useRef<string | null>(null)
+    // An unfinished turn's request ID; Retry resumes that request instead of starting another.
+    const retryRequestRef = useRef<{ text: string; requestId: string; body?: CardAssistantTurnRequest; llm?: ApiError['llmRetry'] } | null>(null)
+    const retryingRef = useRef(false)
     const prevCardIdRef = useRef<string | null>(cardId ?? null)
 
     const nextLocalId = () => {
@@ -315,8 +322,11 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
         const requestId = lastRequestIdRef.current
         const owner = activeRequestRef.current
         try {
-            const detail = await apiService.getCardAssistantConversation(id, { timeoutMs: META_TIMEOUT_MS })
+            const detail = requestId
+                ? await apiService.getCardAssistantTurn(id, requestId, { timeoutMs: META_TIMEOUT_MS })
+                : await apiService.getCardAssistantConversation(id, { timeoutMs: META_TIMEOUT_MS })
             if (owner !== activeRequestRef.current || id !== conversationKey(activeConversationRef.current)) return false
+            if (!detail) return false
             const lastAssistant = [...(detail.messages ?? [])].reverse().find((message) => message.role === 'assistant')
             const recovered = Boolean(lastAssistant?.status === 'completed'
                 && (!requestId || lastAssistant.metadata?.request_id === requestId)
@@ -347,6 +357,8 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
     }, [])
 
     const send = useCallback(async (rawText: string) => {
+        const retrying = retryingRef.current
+        retryingRef.current = false
         if (!isAuthenticated) {
             onAuthRequired()
             return
@@ -355,13 +367,14 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
         if (!text || streamControllerRef.current) return
 
         lastSentRef.current = text
+        const retryIntent = retrying && retryRequestRef.current?.text === text ? retryRequestRef.current : null
         setNotice(null)
         setStatus('streaming')
         userStoppedRef.current = false
 
         const optimisticId = nextLocalId()
         const placeholderId = nextLocalId()
-        setMessages((prev) => [
+        setMessages((prev) => retryIntent?.llm ? prev : [
             ...prev,
             {
                 message_id: optimisticId,
@@ -377,7 +390,13 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
         let receivedError = false
         let receivedText = false
         let userAcknowledged = false
-        const requestId = createRequestId()
+        const retained = retryIntent && !retryIntent.llm ? retryIntent.requestId : null
+        retryRequestRef.current = null
+        const requestId = retained ?? createRequestId()
+        let turnBody: CardAssistantTurnRequest | undefined
+        const keepForRetry = (llm?: ApiError['llmRetry']) => {
+            retryRequestRef.current = { text, requestId, ...(turnBody ? { body: structuredClone(turnBody) } : {}), ...(llm ? { llm } : {}) }
+        }
         const controller = new AbortController()
         lastRequestIdRef.current = requestId
         activeRequestRef.current = requestId
@@ -410,8 +429,9 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
             if (activeRequestRef.current !== requestId) return
             const id = conversationKey(conversation)
             if (!id) throw new Error('Missing assistant conversation id')
-            const body: CardAssistantTurnRequest = { message: text, card_type: cardType, current_card: null }
-            if (targetId) {
+            const body: CardAssistantTurnRequest = retryIntent?.body ? structuredClone(retryIntent.body) : { message: text, card_type: cardType, current_card: null }
+            turnBody = body
+            if (targetId && !retryIntent?.body) {
                 // Saves, publishes, restores and assistant turns can all advance the
                 // editable snapshot. Fetch it on each send without hydrating the form
                 // or losing the user's unsaved changes. The server checks these CAS
@@ -438,9 +458,11 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                     }
                     if (event.type === 'user_message' && event.user_message) {
                         userAcknowledged = true
-                        setMessages((prev) => prev.map((message) => (
-                            message.message_id === optimisticId ? event.user_message! : message
-                        )))
+                        setMessages((prev) => {
+                            const remaining = prev.filter((message) => message.message_id !== optimisticId)
+                            return remaining.some((message) => message.message_id === event.user_message!.message_id)
+                                ? remaining : [...remaining, event.user_message!]
+                        })
                         return
                     }
                     if (event.type === 'assistant_delta') {
@@ -466,15 +488,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                                 setLiveActions((prev) => new Map(prev).set(assistantId, summaries))
                             }
                         }
-                        if (event.messages?.length) {
-                            setMessages(event.messages)
-                        } else {
-                            setMessages((prev) => [
-                                ...prev.filter((message) => message.message_id !== optimisticId && message.message_id !== placeholderId && message.message_id !== event.user_message?.message_id && message.message_id !== event.assistant_message?.message_id),
-                                ...(event.user_message ? [event.user_message] : []),
-                                ...(event.assistant_message ? [event.assistant_message] : []),
-                            ])
-                        }
+                        setMessages(event.messages)
                         setStreamingMessageId(null)
                         if (event.card) onCardRef.current(event.card as TCard)
                         return
@@ -485,7 +499,8 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                         // A rejected turn has no completed result to recover. Reload
                         // must instead stage the current saved card for review.
                         if (staleTarget) lastRequestIdRef.current = null
-                        const message = event.detail || event.error?.message || tRef.current('creation.common.assistant.notices.generic')
+                        else if (!isLlmRequestSpent(event.error)) keepForRetry()
+                        const message = llmRecoveryMessage(event.error, tRef.current) || event.detail || event.error?.message || tRef.current('creation.common.assistant.notices.generic')
                         setMessages((prev) => prev.some((item) => item.message_id === placeholderId)
                             ? prev.map((item) => item.message_id === placeholderId ? { ...item, status: 'failed' } : item)
                             : [...prev, { message_id: placeholderId, conversation_id: id, sequence_no: prev.length + 1,
@@ -501,7 +516,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                     // 'done' alone never reports success; the post-stream
                     // recovery below handles a missing 'final'.
                 },
-                { requestId, timeoutMs, signal: controller.signal },
+                { requestId, timeoutMs, signal: controller.signal, ...(retryIntent?.llm ? { llm: retryIntent.llm } : {}) },
             )
             if (activeRequestRef.current !== requestId) return
             if (!receivedFinal && !receivedError) {
@@ -510,6 +525,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                 const recovered = await reloadConversation({ applyCard: true })
                 if (activeRequestRef.current !== requestId) return
                 if (!recovered) {
+                    keepForRetry()
                     setNotice({
                         kind: 'error',
                         message: tRef.current('creation.common.assistant.notices.streamEnded'),
@@ -522,6 +538,10 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
             updates.flush()
             if (activeRequestRef.current !== requestId) return
             if (!userAcknowledged && !receivedText) setMessages((prev) => prev.filter((item) => item.message_id !== optimisticId))
+            // A deliberate stop or a spent request starts fresh; anything else may still finish.
+            const stale = err instanceof ApiError && err.category === 'target_snapshot_stale' ? err : null
+            if (err instanceof ApiError && err.llmRetry) keepForRetry(err.llmRetry)
+            else if (!(isAbortError(err) && userStoppedRef.current) && !stale && !isLlmRequestSpent(err)) keepForRetry()
             if (isAbortError(err)) {
                 if (userStoppedRef.current) {
                     setInterruptedIds((prev) => new Set(prev).add(placeholderId))
@@ -532,14 +552,14 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
                     })
                 }
                 // Otherwise the panel closed/unmounted — nothing to surface.
-            } else if (err instanceof ApiError && err.category === 'target_snapshot_stale') {
+            } else if (stale) {
                 lastRequestIdRef.current = null
-                setNotice({ kind: 'error', message: err.message, canReload: true })
+                setNotice({ kind: 'error', message: stale.message, canReload: true })
             } else if (err instanceof ApiError && err.status === 409) {
                 setInterruptedIds((prev) => new Set(prev).add(placeholderId))
                 setNotice({
                     kind: 'error',
-                    message: tRef.current('creation.common.assistant.notices.busy'),
+                    message: llmRecoveryMessage(err, tRef.current) ?? tRef.current('creation.common.assistant.notices.busy'),
                     canRetry: true,
                     canReload: true,
                 })
@@ -579,6 +599,7 @@ export function useCardAssistant<TCard extends CardAssistantCardResponse = CardA
         const text = lastSentRef.current
         if (!text) return
         setNotice(null)
+        retryingRef.current = true
         void send(text)
     }, [send])
 

@@ -1,24 +1,31 @@
 import { frameBatch } from '@/utils/frameBatch'
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useTranslation} from 'react-i18next'
 import type {ChatNarratorIdentity, ChatResponseSegment, ChatSpeakerRosterEntry, ForwardOption, TurnEntry} from '../../../shared'
 import {apiService, type ImageJobPublicResponse, type TtsJobPublicResponse} from '../../../infrastructure/api'
 import {useAuth} from '../../../app/hooks'
 import {isPageFocused, usePageFocus} from '@/app/hooks/usePageFocus'
-import {ArrowDown, Loader2, RotateCcw, Sparkles, X} from 'lucide-react'
+import {ArrowDown, Eraser, Loader2, RotateCcw, Sparkles, X} from 'lucide-react'
 import {Button, Icon, IconButton} from '../../../ui/primitives'
 import {ConfirmDialog} from '@/ui/components'
 import {ChatComposer} from './ChatComposer'
 import {ChatTurn} from './ChatTurn'
+import {UnsavedReplyNotice} from './UnsavedReplyNotice'
 import {useSessionLorebookEntries} from '@/features/lorebook'
 import {generateUUID} from '../../../utils/uuid'
 import type {ChatSessionConfig} from '../chatSessionConfig'
-import {useAdventureChatSocket} from '../hooks/useAdventureChatSocket'
+import {useAdventureChatSocket, type AdventureChatSocketErrorDetail} from '../hooks/useAdventureChatSocket'
+import { authSession } from '@/infrastructure/api/authSession'
 import {hasNonTerminalImageJob, mergeHydratedImageTurns, upsertChatImageFrame, upsertImageJobResult} from '../utils/chatImageTurnState'
 import {hasNonTerminalTtsJob, mergeHydratedTtsTurns, nonTerminalTtsJobIds, upsertChatTtsFrame, upsertTtsJobResult} from '../utils/chatTtsTurnState'
 import {mergeHydratedChatTurns} from '../utils/chatTurnMerge'
+import {isUnsavedReply, lastUserIndex, latestExchangeReply, transcriptItems, unsavedReplyReason} from '../utils/chatTurnVisibility'
 import {finalizeResponseSegments, resolveSegmentIdentity, segmentsToPlainText, streamingXmlToPlainText, streamingXmlToSegments} from '@/utils/chatSegments'
 import { scrollBehavior } from '@/utils/motion'
+import type { LlmFeature } from '@/shared/types/llm.types'
+import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
+import { llmRecoveryMessage } from '@/features/llmProfiles/llmRecovery'
+import { isLlmRequestSpent } from '@/infrastructure/api/llmIntent'
 
 // Extend TurnEntry to include forward options and the (out-of-scope) image prompt
 interface ExtendedTurnEntry extends TurnEntry {
@@ -36,6 +43,7 @@ interface InteractionCenterPanelProps {
     setTurns: (turns: TurnEntry[]) => void
     /** Mode-specific wiring (stored history endpoints, copy, forward options, basePath). */
     config: ChatSessionConfig
+    llmFeature?: LlmFeature
     /**
      * Known AI cast for the session (speaker_id = card id). Persisted segments only
      * carry speaker_id/speaker_name — portraits live in the transient `speakers`
@@ -44,26 +52,16 @@ interface InteractionCenterPanelProps {
     speakerRoster?: ChatSpeakerRosterEntry[]
 }
 
-// Snapshot of an AI turn used to restore it if a regeneration fails.
-interface TurnRestore {
+interface ChatAttempt {
+    requestId: string
     content: string
-    forwardOptions?: ForwardOption[]
-    segments?: ChatResponseSegment[]
-    imagePrompt?: string
-    imageJobId?: string
-    imageStatus?: ExtendedTurnEntry['imageStatus']
-    imageStatusUrl?: string
-    imageResultUrl?: string
-    imageAssets?: ExtendedTurnEntry['imageAssets']
-    imageUrl?: string
-    imageError?: ExtendedTurnEntry['imageError']
-    ttsJobId?: string
-    ttsStatus?: ExtendedTurnEntry['ttsStatus']
-    ttsStatusUrl?: string
-    ttsResultUrl?: string
-    ttsAssets?: ExtendedTurnEntry['ttsAssets']
-    ttsUrl?: string
-    ttsError?: ExtendedTurnEntry['ttsError']
+    existingUserMessageId?: number
+    aiTurnId: string
+    accountKey: string
+    sessionKey: string
+    target?: AdventureChatSocketErrorDetail['llmRetry']
+    /** Set once the hook confirmed the request is spent: a retry starts a fresh reply. */
+    llmRetry?: AdventureChatSocketErrorDetail['llmRetry']
 }
 
 // Cleared TTS lifecycle fields, applied whenever an AI turn is (re)generated or
@@ -106,6 +104,31 @@ function ttsRequestId(assistantMessageId: number, turnId: string): string {
     return `tts-${assistantMessageId}-${turnId}`
 }
 
+// A reply that never became part of the conversation: the server stores failed
+// and stopped replies empty and keeps them out of the model's context, so the
+// streamed text is dropped and the turn renders as a notice, not a message.
+function unsavedReply(turn: ExtendedTurnEntry, category?: 'cancelled'): ExtendedTurnEntry {
+    return {
+        ...turn,
+        isStreaming: false,
+        content: '',
+        segments: undefined,
+        forwardOptions: undefined,
+        imagePrompt: undefined,
+        narratorIdentity: undefined,
+        metadata: { ...turn.metadata, interrupted: true, ...(category ? { error_category: category } : {}) },
+    }
+}
+
+// Mirror the server's version bookkeeping: one stored reply per player message
+// is active, the rest are kept as inactive versions.
+function withVersionState(turn: TurnEntry, inactive: boolean): TurnEntry {
+    const metadata = { ...turn.metadata }
+    delete metadata.inactive_variant
+    if (inactive) metadata.inactive_variant = true
+    return { ...turn, metadata }
+}
+
 function storedMessageId(turn?: TurnEntry | null): number | undefined {
     if (!turn) return undefined
     const direct = Number(turn.id)
@@ -116,7 +139,7 @@ function storedMessageId(turn?: TurnEntry | null): number | undefined {
     return undefined
 }
 
-export function InteractionCenterPanel({sessionId, turns, setTurns, config, speakerRoster}: InteractionCenterPanelProps) {
+export function InteractionCenterPanel({sessionId, turns, setTurns, config, speakerRoster, llmFeature}: InteractionCenterPanelProps) {
     const { t } = useTranslation()
     // Session-attached lorebook triggers: underline matching words in the composer and
     // transcript, Ctrl/Cmd-click to open the entry's floating card.
@@ -129,18 +152,18 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
     const [isLoading, setIsLoading] = useState(false)
     const { isAuthenticated, openLoginModal, token } = useAuth()
     const pageFocused = usePageFocus()
-    // `retryable` marks errors from a failed generation, where the banner can
-    // offer a one-tap retry (regenerate / answer the trailing user turn).
-    const [errorState, setErrorState] = useState<{ message: string; retryable: boolean } | null>(null)
-    const error = errorState?.message ?? null
-    const errorRetryable = errorState?.retryable ?? false
-    const setError = useCallback((message: string | null, retryable = false) => {
-        setErrorState(message === null ? null : { message, retryable })
+    // `generation` errors belong to the reply at the tail and render inline in its
+    // notice; `retryable` ones offer a one-tap retry there. Everything else
+    // (edit, delete, clear, narration) uses the banner.
+    const [errorState, setErrorState] = useState<{ message: string; retryable: boolean; generation: boolean } | null>(null)
+    const setError = useCallback((message: string | null, retryable = false, generation = retryable) => {
+        setErrorState(message === null ? null : { message, retryable, generation })
     }, [])
     const [pendingDeleteTurn, setPendingDeleteTurn] = useState<TurnEntry | null>(null)
     const [isDeletingTurn, setIsDeletingTurn] = useState(false)
     const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
     const [isClearingTurns, setIsClearingTurns] = useState(false)
+    const [isSwitchingVersion, setIsSwitchingVersion] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     // Screen-reader announcement of the just-finished AI turn. Streaming mutates a
     // turn in place token-by-token, so the visual log can't be `aria-live` (it would
@@ -164,8 +187,12 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
     const streamingIdRef = useRef<string | null>(null)
     const rawResponseRef = useRef('')
     const recoveryRef = useRef<{ assistantMessageId?: number; turnId?: string; requestId?: string; until: number } | null>(null)
+    // The last request this panel sent, kept until it settles so Retry can resume
+    // it by the same request ID (and frame) instead of running the turn twice.
+    const attemptRef = useRef<ChatAttempt | null>(null)
+    const retryLookupRef = useRef<AbortController | null>(null)
     const mountedRef = useRef(true)
-    useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false } }, [])
+    useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; retryLookupRef.current?.abort() } }, [])
     const deltaBatchRef = useRef<ReturnType<typeof frameBatch<string>> | null>(null)
     // Speaker roster + narrator identity (seeded from the session cast, refreshed by
     // the `speakers` frame). Read inside the long-lived socket callbacks to resolve
@@ -183,7 +210,9 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         map: seededRosterMap(),
         narrator: null,
     })
-    const restoreRef = useRef<TurnRestore | null>(null)
+    // A regeneration between its server sync and its socket request. Stop flags
+    // it; hydration waits for it so the optimistic reply slot isn't dropped.
+    const regeneratingRef = useRef<{ stopped: boolean } | null>(null)
     // Read by the long-lived socket `onDone` callback (which fires from a WS event,
     // not a render) so it always sees the latest toggle value.
     const autoNarrateRef = useRef(autoNarrate)
@@ -252,52 +281,17 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         }
     }, [])
 
-    // Finalize the in-flight AI turn after a failure (server `error` frame or the
-    // generation watchdog): restore the previous answer on a failed regeneration,
-    // otherwise retain the partial reply and mark it interrupted.
+    // Finalize the in-flight AI turn after a failure (server `error` frame, lost
+    // connection, or the generation watchdog). The server keeps nothing of a
+    // failed reply, so neither does the transcript: the turn becomes a notice.
     const failStreamingTurn = useCallback((message: string) => {
         clearGenerationWatchdog()
         const id = streamingIdRef.current
-        const restore = restoreRef.current
-        const next = id
-            ? turnsRef.current.map((t) => {
-                if (t.id !== id) return t
-                const entry = t as ExtendedTurnEntry
-                if (restore && restore.content) {
-                    return {
-                        ...entry,
-                        isStreaming: false,
-                        content: restore.content,
-                        forwardOptions: restore.forwardOptions,
-                        segments: restore.segments,
-                        imagePrompt: restore.imagePrompt,
-                        // Keep the current attempt's stored ids: the restored
-                        // reply's row was deleted before regeneration started.
-                        imageJobId: restore.imageJobId,
-                        imageStatus: restore.imageStatus,
-                        imageStatusUrl: restore.imageStatusUrl,
-                        imageResultUrl: restore.imageResultUrl,
-                        imageAssets: restore.imageAssets,
-                        imageUrl: restore.imageUrl,
-                        imageError: restore.imageError,
-                        ttsJobId: restore.ttsJobId,
-                        ttsStatus: restore.ttsStatus,
-                        ttsStatusUrl: restore.ttsStatusUrl,
-                        ttsResultUrl: restore.ttsResultUrl,
-                        ttsAssets: restore.ttsAssets,
-                        ttsUrl: restore.ttsUrl,
-                        ttsError: restore.ttsError,
-                    }
-                }
-                return { ...entry, isStreaming: false, segments: finalizeResponseSegments(entry.segments), metadata: { ...entry.metadata, interrupted: true } }
-            })
-            : turnsRef.current
         if (id) {
-            setTurnState(next)
+            setTurnState(turnsRef.current.map((t) => (t.id === id ? unsavedReply(t as ExtendedTurnEntry) : t)))
         }
         streamingIdRef.current = null
         rawResponseRef.current = ''
-        restoreRef.current = null
         setIsLoading(false)
         setError(message, true)
     }, [clearGenerationWatchdog, setError, setTurnState])
@@ -326,35 +320,41 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         })
     }, [])
 
+    // Adopt a server projection. Hydration owns ordering/deletions, while the live
+    // stream may temporarily be the only source with parsed response segments;
+    // image then TTS state fold in with terminal-precedence merges so a staler
+    // response can't clobber live socket state.
+    const adoptServerTurns = useCallback((hydrated: TurnEntry[]): TurnEntry[] => {
+        const textMerged = mergeHydratedChatTurns(turnsRef.current, hydrated)
+        const imageMerged = mergeHydratedImageTurns(turnsRef.current, textMerged)
+        const next = resolveTurnIdentities(mergeHydratedTtsTurns(imageMerged, textMerged))
+        setTurnState(next)
+        return next
+    }, [resolveTurnIdentities, setTurnState])
+
     const hydrateTurnsFromApi = useCallback(async () => {
         if (!isAuthenticated || Number.isNaN(sessionId) || !isPageFocused()) return
         // Never hydrate over an in-flight stream: the server projection can't
         // contain the streaming turn yet, so applying it would orphan
-        // streamingIdRef and silently drop the rest of the generation.
-        if (streamingIdRef.current) return
+        // streamingIdRef and silently drop the rest of the generation. A
+        // regeneration still syncing is in the same position.
+        if (streamingIdRef.current || regeneratingRef.current) return
         try {
             const hydrated = await config.loadTurns(sessionId)
             // A generation may have started while the projection was loading
             // (rapid follow-up send) — that projection is stale; drop it.
-            if (!mountedRef.current || streamingIdRef.current) return
+            if (!mountedRef.current || streamingIdRef.current || regeneratingRef.current) return
             const recovery = recoveryRef.current
             if (recovery && hydrated.some((turn) => turn.type === 'ai' && !turn.isStreaming &&
                 ((recovery.assistantMessageId && turn.assistantMessageId === recovery.assistantMessageId) || (recovery.turnId && turn.turnId === recovery.turnId) || (recovery.requestId && turn.metadata?.request_id === recovery.requestId)))) {
                 recoveryRef.current = null
                 setError(null)
             }
-            // Hydration owns ordering/deletions, while the live stream may
-            // temporarily be the only source with parsed response segments.
-            const textMerged = mergeHydratedChatTurns(turnsRef.current, hydrated)
-            // Fold image then TTS state in; both apply terminal-precedence merges
-            // so a staler response can't clobber live socket state.
-            const imageMerged = mergeHydratedImageTurns(turnsRef.current, textMerged)
-            const next = resolveTurnIdentities(mergeHydratedTtsTurns(imageMerged, textMerged))
-            setTurnState(next)
+            adoptServerTurns(hydrated)
         } catch (err) {
             console.warn('Failed to hydrate chat media state:', err)
         }
-    }, [config, isAuthenticated, resolveTurnIdentities, sessionId, setTurnState, setError])
+    }, [adoptServerTurns, config, isAuthenticated, sessionId, setError])
 
     const imagePollInFlightRef = useRef(false)
     const pollNonTerminalImageJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
@@ -447,11 +447,12 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             },
             onTurnStarted: (frame) => {
                 const index = turnsRef.current.findIndex((turn) => turn.id === streamingIdRef.current)
-                if (index > 0 && turnsRef.current[index - 1].type === 'user') {
+                if (!frame.execution_attempt && index > 0 && turnsRef.current[index - 1].type === 'user') {
                     setTurnState(turnsRef.current.map((turn, i) => i === index - 1
                         ? { ...turn, id: String(frame.user_message_id), turnId: frame.turn_id } : turn))
                 }
-                updateStreamingTurn((turn) => ({ ...turn, assistantMessageId: frame.assistant_message_id, turnId: frame.turn_id }))
+                updateStreamingTurn((turn) => ({ ...turn, assistantMessageId: frame.assistant_message_id, turnId: frame.turn_id,
+                    ...(frame.execution_attempt ? { metadata: { ...turn.metadata, execution_attempt: { ...frame.execution_attempt } } } : {}) }))
             },
             onConnectionLost: () => {
                 const active = turnsRef.current.find((turn) => turn.id === streamingIdRef.current)
@@ -500,6 +501,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                 deltaBatchRef.current?.flush()
                 if (!streamingIdRef.current) return
                 clearGenerationWatchdog()
+                if (!interrupted) attemptRef.current = null
                 const id = streamingIdRef.current
                 const streamingIndex = turnsRef.current.findIndex((turn) => turn.id === id)
                 let userIndex = streamingIndex - 1
@@ -509,18 +511,24 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                 const next = turnsRef.current.map((t, index) => {
                     if (t.id === id) {
                         const entry = t as ExtendedTurnEntry
+                        const ids = { id: assistantMessageId ? String(assistantMessageId) : t.id, assistantMessageId, turnId }
+                        // A stopped reply is stored empty and never reaches the model.
+                        if (interrupted) return { ...unsavedReply(entry, 'cancelled'), ...ids }
                         return {
                             ...entry,
-                            id: assistantMessageId ? String(assistantMessageId) : t.id,
+                            ...ids,
                             isStreaming: false,
                             metadata: { ...entry.metadata, interrupted },
                             segments: finalizeResponseSegments(entry.segments),
-                            assistantMessageId,
-                            turnId,
                         }
                     }
                     if (userMessageId && index === userIndex && !storedMessageId(t)) {
                         return { ...t, id: String(userMessageId), turnId }
+                    }
+                    // A finished reply becomes the active version; the earlier
+                    // replies to the same message stay stored, out of context.
+                    if (!interrupted && index > userIndex && t.type === 'ai' && !t.isStreaming && !isUnsavedReply(t)) {
+                        return withVersionState(t, true)
                     }
                     return t
                 })
@@ -530,7 +538,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                 // in `next`, so look it up by that — not the old streaming id.
                 const finishedId = assistantMessageId ? String(assistantMessageId) : id
                 const finished = next.find((turn) => turn.id === finishedId) as ExtendedTurnEntry | undefined
-                const announceText = finished
+                const announceText = finished && !interrupted
                     ? finished.segments?.length
                         ? segmentsToPlainText(finished.segments)
                         : finished.content ?? ''
@@ -538,7 +546,6 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                 if (announceText.trim()) setLiveAnnouncement(announceText.trim())
                 streamingIdRef.current = null
                 rawResponseRef.current = ''
-                restoreRef.current = null
                 setIsLoading(false)
                 if (isPageFocused()) {
                     void hydrateTurnsFromApi()
@@ -568,11 +575,17 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                     turnId: detail.turnId,
                 })
                 deltaBatchRef.current?.flush()
-                failStreamingTurn(message || t('interaction.center.generateFailed'))
+                if (isLlmRequestSpent(detail) && !['LLM_EXECUTION_UPSTREAM_FAILED', 'LLM_EXECUTION_FINISHED'].includes(detail.code || '')) attemptRef.current = null
+                if (attemptRef.current && (!detail.requestId || detail.requestId === attemptRef.current.requestId)) attemptRef.current.llmRetry = detail.llmRetry
+                failStreamingTurn(llmRecoveryMessage(detail, t) ?? (message || t('interaction.center.generateFailed')))
+                // While the hook confirms the request is spent, the notice explains
+                // without offering a retry that could race the confirmation.
+                if (detail.retryPending) setError(llmRecoveryMessage(detail, t) ?? message, false, true)
             },
         },
         token,
-        config.basePath
+        config.basePath,
+        llmFeature
     )
 
     // Surface the connection state once a real connection has existed — the
@@ -691,8 +704,28 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
     }, [hydrateTurnsFromApi])
 
     // Check if we can generate an AI response (last message is from user)
-    const isMutatingTurns = isDeletingTurn || isClearingTurns
+    const isMutatingTurns = isDeletingTurn || isClearingTurns || isSwitchingVersion
     const canGenerateResponse = turns.length > 0 && turns[turns.length - 1].type === 'user' && !isLoading && !isMutatingTurns
+
+    // The transcript shows what the model sees: inactive versions and unsaved
+    // replies collapse. Only the latest reply can be regenerated or switched —
+    // every later turn was written against the reply an older message kept.
+    const transcript = useMemo(() => transcriptItems(turns), [turns])
+    const tail = turns[turns.length - 1] as ExtendedTurnEntry | undefined
+    const tailIsUnsaved = isUnsavedReply(tail)
+    // A greeting answers no player message (no latest exchange), so there is
+    // nothing to regenerate it from. A failed tail offers its own retry.
+    const latestShown = latestExchangeReply(turns).shown
+    const latestReplyId = latestShown && !latestShown.isStreaming && !tailIsUnsaved ? latestShown.id : undefined
+    // A failed request is explained where its reply would be; the banner keeps the rest.
+    const inlineError = errorState?.generation && (tailIsUnsaved || tail?.type === 'user') ? errorState : null
+    const bannerError = inlineError ? null : errorState
+    // A 1:1 chat's single character speaks every reply: its portrait replaces the
+    // GM glyph and its speech skips the repeated per-segment name.
+    const aiSpeaker = useMemo(() => {
+        const solo = config.kind === 'character' && speakerRoster?.length === 1 ? speakerRoster[0] : undefined
+        return solo ? { id: solo.speaker_id, name: solo.name, imageUrl: solo.image_url } : undefined
+    }, [config.kind, speakerRoster])
 
     const handleReset = () => {
         if (isLoading || turnsRef.current.length === 0 || isMutatingTurns) return
@@ -768,7 +801,9 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
 
     // Put the targeted AI turn into a clean streaming state and request a
     // generation over the socket. `history` is everything before that AI turn.
-    const startGeneration = (history: TurnEntry[], aiTurn: ExtendedTurnEntry, restore?: TurnRestore) => {
+    // `resume` resends an unsettled request under its own ID and frame.
+    const startGeneration = (history: TurnEntry[], aiTurn: ExtendedTurnEntry,
+        resume?: ChatAttempt, target?: AdventureChatSocketErrorDetail['llmRetry']) => {
         if (Number.isNaN(sessionId)) {
             setError(t('interaction.center.invalidSession'))
             setIsLoading(false)
@@ -780,16 +815,15 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         streamingIdRef.current = aiTurn.id
         rawResponseRef.current = ''
         rosterRef.current = { map: seededRosterMap(), narrator: null }
-        restoreRef.current = restore ?? null
 
-        const requestId = generateUUID()
+        const requestId = resume?.requestId ?? generateUUID()
         const precedingUser = [...history].reverse().find((turn) => turn.type === 'user')
         const streamingTurns = turnsRef.current.map((t) =>
             t.id === aiTurn.id
                 ? {
                     ...(t as ExtendedTurnEntry),
                     isStreaming: true,
-                    metadata: { ...t.metadata, request_id: requestId, interrupted: false },
+                    metadata: { ...t.metadata, request_id: requestId, interrupted: false, error_category: undefined },
                     content: '',
                     forwardOptions: undefined,
                     segments: undefined,
@@ -800,20 +834,25 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                     ...RESET_IMAGE_FIELDS,
                     ...RESET_TTS_FIELDS,
                 }
-                : t.id === precedingUser?.id ? { ...t, metadata: { ...t.metadata, request_id: requestId } } : t
+                : !resume && t.id === precedingUser?.id ? { ...t, metadata: { ...t.metadata, request_id: requestId } } : t
         )
         setTurnState(streamingTurns)
 
         // The server owns the durable history and prompt construction. A chat
         // request carries the latest input and, for a retry, its durable id.
         // Sending stored text as new input would append a duplicate user row.
-        const content = precedingUser?.content.trim()
+        // A resumed request resends its original frame so the server recognizes it.
+        const content = resume ? resume.content : precedingUser?.content.trim()
         if (!content) {
             failStreamingTurn(t('interaction.center.generateFailed'))
             return
         }
-        const existingUserMessageId = storedMessageId(precedingUser)
-        if (existingUserMessageId !== undefined) sendChat(content, requestId, existingUserMessageId)
+        const existingUserMessageId = resume ? resume.existingUserMessageId : storedMessageId(precedingUser)
+        attemptRef.current = { requestId, content, existingUserMessageId, aiTurnId: aiTurn.id,
+            accountKey: authSession.getSnapshot().accountKey, sessionKey: JSON.stringify([config.basePath, sessionId]),
+            ...(target ? { target } : {}) }
+        if (resume && target) sendChat(content, requestId, existingUserMessageId, target, true)
+        else if (existingUserMessageId !== undefined) sendChat(content, requestId, existingUserMessageId)
         else sendChat(content, requestId)
         armGenerationWatchdog()
     }
@@ -825,86 +864,81 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         startGenerationRef.current = startGeneration
     })
 
-    const handleRegenerateResponse = useCallback(async (turnId: string) => {
-        if (streamingIdRef.current) return
-        if (!isAuthenticated) {
-            openLoginModal()
-            return
-        }
-
-        // Snapshot via ref: this callback stays stable across renders (memoized
-        // ChatTurn prop) yet always operates on the latest turn list.
-        const currentTurns = turnsRef.current
-        const turnIndex = currentTurns.findIndex((turn) => turn.id === turnId)
-        if (turnIndex === -1) return
-
-        // Find the last user message before this AI response
-        let userMessageIndex = turnIndex - 1
-        while (userMessageIndex >= 0 && currentTurns[userMessageIndex].type !== 'user') {
-            userMessageIndex--
-        }
-        if (userMessageIndex < 0) return // No user message found
-
-        const existingAiTurn = currentTurns[turnIndex] as ExtendedTurnEntry
-        const restore: TurnRestore = {
-            content: existingAiTurn.content,
-            forwardOptions: existingAiTurn.forwardOptions,
-            segments: existingAiTurn.segments,
-            imagePrompt: existingAiTurn.imagePrompt,
-            imageJobId: existingAiTurn.imageJobId,
-            imageStatus: existingAiTurn.imageStatus,
-            imageStatusUrl: existingAiTurn.imageStatusUrl,
-            imageResultUrl: existingAiTurn.imageResultUrl,
-            imageAssets: existingAiTurn.imageAssets,
-            imageUrl: existingAiTurn.imageUrl,
-            imageError: existingAiTurn.imageError,
-            ttsJobId: existingAiTurn.ttsJobId,
-            ttsStatus: existingAiTurn.ttsStatus,
-            ttsStatusUrl: existingAiTurn.ttsStatusUrl,
-            ttsResultUrl: existingAiTurn.ttsResultUrl,
-            ttsAssets: existingAiTurn.ttsAssets,
-            ttsUrl: existingAiTurn.ttsUrl,
-            ttsError: existingAiTurn.ttsError,
-        }
-
-        // Drop any subsequent turns but keep (and reset) the AI turn we regenerate.
-        const truncatedTurns = currentTurns.slice(0, turnIndex + 1)
-        const resetAiTurn: ExtendedTurnEntry = {
-            ...existingAiTurn,
-            id: generateUUID(),
-            content: '',
-            isStreaming: true,
-            forwardOptions: undefined,
-            segments: undefined,
-            imagePrompt: undefined,
-            assistantMessageId: undefined,
-            turnId: undefined,
-            ...RESET_IMAGE_FIELDS,
-            ...RESET_TTS_FIELDS,
-        }
-        const updatedTurns = [...truncatedTurns.slice(0, -1), resetAiTurn]
-        setTurnState(updatedTurns)
+    // Answer the latest player message again as a new version. Nothing is
+    // deleted: the server keeps every earlier reply, builds the model's history
+    // up to the player message, and makes the new reply the active version only
+    // once it completes — a failed or stopped one leaves the current reply in
+    // place. The list comes from a fresh projection so a request still running
+    // elsewhere is seen before another starts.
+    const regenerateLatestReply = async () => {
+        if (streamingIdRef.current || regeneratingRef.current) return
+        const fence = { stopped: false }
+        regeneratingRef.current = fence
         setIsLoading(true)
         setError(null)
-        // Every generation appends a fresh stored assistant row, so the
-        // replaced reply (and any stored turns after it) must be deleted first.
-        // The preceding user row is reused by id when generation starts.
-        const replacedIds = [existingAiTurn, ...currentTurns.slice(turnIndex + 1)]
-            .map((turn) => storedMessageId(turn))
-            .filter((id): id is number => id !== undefined)
         try {
-            for (const id of replacedIds) {
-                await config.deleteMessage(sessionId, id)
+            let list: TurnEntry[]
+            try {
+                list = adoptServerTurns(await config.loadTurns(sessionId))
+            } catch (err) {
+                console.error('Failed to read the conversation before regenerating:', err)
+                setIsLoading(false)
+                setError(t('interaction.center.regenerateFailed'))
+                return
             }
-        } catch (err) {
-            console.error('Failed to delete replaced turns before regenerating:', err)
-            setTurnState(currentTurns)
-            setIsLoading(false)
-            setError(t('interaction.center.generateFailed'), true)
-            return
+            const userIndex = lastUserIndex(list)
+            if (fence.stopped || userIndex < 0) {
+                setIsLoading(false)
+                return
+            }
+            if (list.slice(userIndex + 1).some((turn) => turn.isStreaming)) {
+                setIsLoading(false)
+                setError(t('llmProfiles.recovery.LLM_EXECUTION_IN_PROGRESS'), true)
+                return
+            }
+            const aiTurn: ExtendedTurnEntry = { id: generateUUID(), type: 'ai', content: '', timestamp: new Date().toISOString(), isStreaming: true }
+            const next = [...list, aiTurn]
+            forceScrollRef.current = true
+            setTurnState(next)
+            startGenerationRef.current(list, aiTurn)
+        } finally {
+            if (regeneratingRef.current === fence) regeneratingRef.current = null
         }
-        startGenerationRef.current(updatedTurns.slice(0, -1), resetAiTurn, restore)
-    }, [config, isAuthenticated, openLoginModal, sessionId, setError, setTurnState, t])
+    }
+
+    // Show (and send to the model) another stored version of the latest reply.
+    // The switch is optimistic; the server's projection then confirms it.
+    const switchingVersionRef = useRef(false)
+    const selectReplyVersion = async (turnId: string) => {
+        if (streamingIdRef.current || regeneratingRef.current || switchingVersionRef.current || isDeletingTurn || isClearingTurns) return
+        const previousTurns = turnsRef.current
+        const start = lastUserIndex(previousTurns)
+        const target = previousTurns.find((turn) => turn.id === turnId)
+        const messageId = storedMessageId(target)
+        if (!target || messageId === undefined || start < 0 || previousTurns.indexOf(target) < start) return
+        setTurnState(previousTurns.map((turn, index) => index > start && turn.type === 'ai' && !turn.isStreaming && !isUnsavedReply(turn)
+            ? withVersionState(turn, turn.id !== turnId) : turn))
+        switchingVersionRef.current = true
+        setIsSwitchingVersion(true)
+        setError(null)
+        try {
+            adoptServerTurns(await config.selectReply(sessionId, messageId))
+        } catch (error) {
+            console.error('Failed to switch reply version:', error)
+            setTurnState(previousTurns)
+            setError(t('interaction.center.versionFailed'))
+        } finally {
+            switchingVersionRef.current = false
+            setIsSwitchingVersion(false)
+        }
+    }
+    const selectReplyVersionRef = useRef(selectReplyVersion)
+    useEffect(() => {
+        selectReplyVersionRef.current = selectReplyVersion
+    })
+    const handleSelectVersion = useCallback((turnId: string) => {
+        void selectReplyVersionRef.current(turnId)
+    }, [])
 
     const handleDeleteTurn = useCallback((turnId: string) => {
         if (isMutatingTurns) return
@@ -999,18 +1033,123 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
         startGeneration(newTurns.slice(0, -1), aiTurn)
     }
 
-    // Retry from the error banner: regenerate the trailing (empty or restored)
-    // AI turn, or answer a trailing user turn.
+    // Before anything new runs, read what the server committed for the tail's
+    // request, including after a reload. Returns true when that settled the
+    // retry: the result was recovered or adopted, the request is still running,
+    // or the retry has to stop. False means the request is spent (failed or
+    // stopped) or unknown, and the caller starts a fresh reply in its place.
+    const resumeUnsettledAttempt = async (last: ExtendedTurnEntry): Promise<boolean> => {
+        const active = attemptRef.current
+        const attempt = active && (last.id === active.aiTurnId || last.metadata?.request_id === active.requestId) ? active : null
+        const basePath = config.basePath
+        const requestId = attempt?.requestId ?? last.metadata?.request_id
+        if (basePath !== 'adventure-sessions' && basePath !== 'character-chats') return false
+        if (typeof requestId !== 'string') return false
+        const owner = authSession.getSnapshot()
+        const sessionKey = JSON.stringify([basePath, sessionId])
+        if (attempt && (attempt.accountKey !== owner.accountKey || attempt.sessionKey !== sessionKey)) {
+            setError(t('llmProfiles.recovery.LLM_EXECUTION_INTENT_CHANGED'))
+            return true
+        }
+        if (turnsRef.current[turnsRef.current.length - 1]?.id !== last.id) {
+            setError(t('llmProfiles.recovery.LLM_EXECUTION_INTENT_CHANGED'))
+            return true
+        }
+        // The hook already confirmed this request ended without a result.
+        if (attempt?.llmRetry) return false
+        // Resend the same request in the same slot; the server recovers it
+        // instead of running it again.
+        const begin = (original: ChatAttempt, target?: AdventureChatSocketErrorDetail['llmRetry']) => {
+            const index = turnsRef.current.findIndex(turn => turn.id === last.id)
+            if (index !== turnsRef.current.length - 1 || index < 0) { setIsLoading(false); return }
+            const response: ExtendedTurnEntry = { ...last, isStreaming: true }
+            const updated = [...turnsRef.current.slice(0, index), response]
+            setTurnState(updated)
+            setIsLoading(true)
+            setError(null)
+            forceScrollRef.current = true
+            startGenerationRef.current(updated.slice(0, -1), response, original, target)
+        }
+        retryLookupRef.current?.abort()
+        const controller = new AbortController()
+        retryLookupRef.current = controller
+        setIsLoading(true)
+        try {
+            const state = await apiService.reconcileChatTurn(basePath, sessionId, requestId, controller.signal)
+            if (controller.signal.aborted || !mountedRef.current || !authSession.isCurrent(owner)) return true
+            setIsLoading(false)
+            if (state.status === 'completed') {
+                attemptRef.current = null
+                void hydrateTurnsFromApi()
+                return true
+            }
+            if (state.status === 'failed' || state.status === 'cancelled') return false
+            if (!state.recovery_required && state.status !== 'awaiting_credential') {
+                recoveryRef.current = { requestId, until: Date.now() + 30_000 }
+                setError(t('llmProfiles.recovery.LLM_EXECUTION_IN_PROGRESS'), true)
+                void hydrateTurnsFromApi()
+                return true
+            }
+            const command = state.dispatch
+            if (!command || attempt && (command.content !== attempt.content || (command.existing_user_message_id ?? undefined) !== attempt.existingUserMessageId)) {
+                setError(t('llmProfiles.recovery.LLM_EXECUTION_INTENT_CHANGED'))
+                return true
+            }
+            begin({ requestId, content: command.content, existingUserMessageId: command.existing_user_message_id ?? undefined,
+                aiTurnId: last.id, accountKey: owner.accountKey, sessionKey, target: command.llm }, command.llm)
+            return true
+        } catch (error) {
+            if (controller.signal.aborted || !mountedRef.current || !authSession.isCurrent(owner)) return true
+            setIsLoading(false)
+            if ((error as { code?: unknown })?.code === 'LLM_EXECUTION_NOT_FOUND' && attempt) {
+                // No admitted command exists. Resend only the exact unsatisfied frame.
+                begin(attempt, attempt.target)
+                return true
+            }
+            // The record can't be proven (edited, deleted, or unreadable). A fresh
+            // reply re-reads the conversation and refuses while a row is in flight.
+            return false
+        } finally {
+            if (retryLookupRef.current === controller) retryLookupRef.current = null
+        }
+    }
+
+    // Regenerate the latest reply, or Try again on the attempt at the tail. An
+    // unsettled request (dropped mid-stream, still running) is recovered by its
+    // own ID so it never runs twice; otherwise a new version is written.
+    const replaceLatestReply = async (turnId: string) => {
+        if (streamingIdRef.current || regeneratingRef.current || retryLookupRef.current) return
+        if (!isAuthenticated) {
+            openLoginModal()
+            return
+        }
+        const list = turnsRef.current
+        const tail = list[list.length - 1] as ExtendedTurnEntry | undefined
+        if (tail?.id === turnId && tail.type === 'ai') {
+            const attempt = attemptRef.current
+            const unsettled = isUnsavedReply(tail) || tail.isStreaming
+                || (attempt !== null && attempt.requestId === tail.metadata?.request_id)
+            if (unsettled && await resumeUnsettledAttempt(tail)) return
+        } else if (latestExchangeReply(list).shown?.id !== turnId) return
+        await regenerateLatestReply()
+    }
+    const replaceLatestReplyRef = useRef(replaceLatestReply)
+    useEffect(() => {
+        replaceLatestReplyRef.current = replaceLatestReply
+    })
+    const handleRegenerateResponse = useCallback((turnId: string) => {
+        void replaceLatestReplyRef.current(turnId)
+    }, [])
+
+    // Try again from the tail: answer a trailing player message, or replace the
+    // trailing reply (unsaved notice, or the banner after a failed request).
     const handleRetryGeneration = () => {
         if (isLoading || isMutatingTurns) return
         const last = turnsRef.current[turnsRef.current.length - 1]
         if (!last) return
         setError(null)
-        if (last.type === 'user') {
-            handleGenerateResponse()
-        } else if (last.type === 'ai') {
-            handleRegenerateResponse(last.id)
-        }
+        if (last.type === 'user') handleGenerateResponse()
+        else if (last.type === 'ai') void replaceLatestReply(last.id)
     }
 
     const handleSubmit = () => {
@@ -1028,27 +1167,11 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             timestamp: new Date().toISOString(),
         }
 
-        // Reuse a trailing empty AI turn left over from a previous error.
-        const lastTurn = turns[turns.length - 1] as ExtendedTurnEntry
-        const hasEmptyAiTurn = lastTurn && lastTurn.type === 'ai' && lastTurn.content === ''
-
-        let newTurns: TurnEntry[]
-        let aiTurn: ExtendedTurnEntry
-        if (hasEmptyAiTurn) {
-            newTurns = [...turns.slice(0, -1), userTurn, lastTurn]
-            aiTurn = lastTurn
-        } else {
-            aiTurn = {
-                id: generateUUID(),
-                type: 'ai',
-                content: '',
-                timestamp: new Date().toISOString(),
-                isStreaming: false,
-                forwardOptions: undefined,
-                segments: undefined,
-            }
-            newTurns = [...turns, userTurn, aiTurn]
+        const aiTurn: ExtendedTurnEntry = {
+            id: generateUUID(), type: 'ai', content: '', timestamp: new Date().toISOString(),
+            isStreaming: false, forwardOptions: undefined, segments: undefined,
         }
+        const newTurns = [...turns, userTurn, aiTurn]
 
         forceScrollRef.current = true
         setTurnState(newTurns)
@@ -1060,6 +1183,16 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
 
     const handleStop = () => {
         if (!stopArmedRef.current) return
+        if (retryLookupRef.current) {
+            retryLookupRef.current.abort(); retryLookupRef.current = null; setIsLoading(false)
+            return
+        }
+        // A regeneration still syncing/deleting has sent nothing yet: it checks
+        // this flag before its request goes out.
+        if (regeneratingRef.current) {
+            regeneratingRef.current.stopped = true
+            return
+        }
         deltaBatchRef.current?.flush()
         cancel()
         // With no open socket the cancel can't reach the server and no `done`
@@ -1076,11 +1209,11 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             <div className="sr-only" aria-live="polite" aria-atomic="true">
                 {liveAnnouncement}
             </div>
-            {error && (
-                <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-md border border-blood-500/30 bg-blood-500/10 px-4 py-2 text-[14px] text-blood-500">
-                    <span>{error}</span>
+            {bannerError && (
+                <div role="alert" className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-md border border-blood-500/30 bg-blood-500/10 px-4 py-2 text-[14px] text-blood-500">
+                    <span>{bannerError.message}</span>
                     <div className="flex shrink-0 items-center gap-2">
-                        {errorRetryable && !isLoading && !isMutatingTurns && turns.length > 0 && (
+                        {bannerError.retryable && !isLoading && !isMutatingTurns && turns.length > 0 && (
                             <Button
                                 size="sm"
                                 variant="primary"
@@ -1120,17 +1253,36 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                         </div>
                     ) : (
                         <>
-                            {turns.map((turn: ExtendedTurnEntry) => {
+                            {transcript.map((item) => {
+                                const { turn } = item
+                                if (item.kind === 'unsaved') {
+                                    return (
+                                        <UnsavedReplyNotice
+                                            key={turn.id}
+                                            reason={unsavedReplyReason(turn)}
+                                            aiLabel={config.aiLabel}
+                                            detail={inlineError?.message}
+                                            onRetry={handleRetryGeneration}
+                                            retrying={isLoading || isMutatingTurns || Boolean(inlineError && !inlineError.retryable)}
+                                        />
+                                    )
+                                }
                                 const isDeleteTarget = pendingDeleteTurn?.id === turn.id
                                 return (
                                     <ChatTurn
-                                        key={turn.id}
+                                        // Switching versions swaps the turn in one slot; a
+                                        // stable key keeps focus on the switcher.
+                                        key={item.versions ? 'latest-reply-versions' : turn.id}
                                         turn={turn}
+                                        versions={item.versions}
+                                        onSelectVersion={item.versions ? handleSelectVersion : undefined}
+                                        versionsDisabled={isLoading || isClearingTurns || isDeletingTurn}
                                         aiLabel={config.aiLabel}
+                                        aiSpeaker={aiSpeaker}
                                         showForwardOptions={config.showForwardOptions}
                                         showImage={config.showImages}
                                         onForwardOptionClick={handleForwardOptionClick}
-                                        onRegenerateClick={handleRegenerateResponse}
+                                        onRegenerateClick={turn.id === latestReplyId ? handleRegenerateResponse : undefined}
                                         onDeleteClick={handleDeleteTurn}
                                         onConfirmDeleteClick={handleConfirmDeleteTurn}
                                         onCancelDeleteClick={handleCancelDeleteTurn}
@@ -1138,7 +1290,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                                         onRequestNarration={handleRequestNarration}
                                         confirmingDelete={isDeleteTarget}
                                         deleting={isDeleteTarget && isDeletingTurn}
-                                        actionsDisabled={isLoading || isClearingTurns || (isDeletingTurn && !isDeleteTarget)}
+                                        actionsDisabled={isLoading || isClearingTurns || isSwitchingVersion || (isDeletingTurn && !isDeleteTarget)}
                                         loreMatcher={loreMatcher}
                                     />
                                 )
@@ -1153,6 +1305,11 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                                         <span className="text-label text-parchment-300">
                                             {config.copy.waitingHint}
                                         </span>
+                                        {inlineError && (
+                                            <span role="alert" className="text-label text-blood-500">
+                                                {inlineError.message}
+                                            </span>
+                                        )}
                                     </div>
                                     <Button
                                         onClick={handleGenerateResponse}
@@ -1196,6 +1353,8 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
                     onToggleAutoNarrate={handleToggleAutoNarrate}
                     onReset={handleReset}
                     canReset={turns.length > 0}
+                    accessory={<LlmFeatureControl feature={llmFeature ?? (config.kind === 'adventure' ? 'chat_adventure' : 'chat_character')}
+                        disabled={isLoading || isMutatingTurns} />}
                     placeholder={config.copy.placeholder}
                     loreMatcher={loreMatcher}
                 />
@@ -1219,7 +1378,7 @@ export function InteractionCenterPanel({sessionId, turns, setTurns, config, spea
             <ConfirmDialog
                 visible={resetConfirmOpen}
                 title={t('interaction.center.resetTitle')}
-                icon={<Icon icon={RotateCcw} size={21} className="text-blood-500" />}
+                icon={<Icon icon={Eraser} size={21} className="text-blood-500" />}
                 message={
                     <div className="flex flex-col gap-3">
                         <p>{config.copy.resetConfirm}</p>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatSpeakerRosterEntry, TurnEntry } from '../../../shared'
@@ -45,6 +45,7 @@ function makeConfig(overrides: Partial<ChatSessionConfig> = {}): ChatSessionConf
         loadTurns: vi.fn(async () => []),
         updateMessage: vi.fn(async () => initialTurns),
         deleteMessage: vi.fn(async (_sessionId, messageId) => initialTurns.filter((turn) => turn.id !== String(messageId))),
+        selectReply: vi.fn(async () => initialTurns),
         clearMessages: vi.fn(async () => []),
         aiLabel: 'Game Master',
         showForwardOptions: true,
@@ -64,9 +65,10 @@ function makeConfig(overrides: Partial<ChatSessionConfig> = {}): ChatSessionConf
     }
 }
 
-function renderPanel(config: ChatSessionConfig, seed: TurnEntry[] = initialTurns, sessionId = 7, speakerRoster?: ChatSpeakerRosterEntry[]) {
+function renderPanel(config: ChatSessionConfig, seed: TurnEntry[] = initialTurns, sessionId = 7, speakerRoster?: ChatSpeakerRosterEntry[], observe?: (turns: TurnEntry[]) => void) {
     function Harness() {
         const [turns, setTurns] = useState<TurnEntry[]>(seed)
+        useEffect(() => { observe?.(turns) }, [turns])
         return <InteractionCenterPanel sessionId={sessionId} turns={turns} setTurns={setTurns} config={config} speakerRoster={speakerRoster} />
     }
 
@@ -80,6 +82,13 @@ describe('InteractionCenterPanel message deletion', () => {
         hookMocks.pageFocused = true
         // The session-lore hook lists attachments on mount; keep it empty + offline-safe.
         vi.spyOn(apiService, 'listLorebookAttachments').mockResolvedValue([])
+        // A plain failed turn is spent on the server, so Retry starts a new request.
+        vi.spyOn(apiService, 'reconcileChatTurn').mockImplementation(async (_basePath, _sessionId, requestId) => {
+            const send = hookMocks.useAdventureChatSocket.mock.results[hookMocks.useAdventureChatSocket.mock.results.length - 1]?.value.sendChat
+            const command = send?.mock.calls.find((call: unknown[]) => call[1] === requestId)
+            return { status: 'failed', request_id: requestId, execution_id: '44444444-4444-4444-8444-444444444444', recovery_required: true,
+                dispatch: { content: command?.[0] ?? 'Open the door', existing_user_message_id: command?.[2] ?? null, llm: { selection: { mode: 'inherit' } } } }
+        })
         hookMocks.useAdventureChatSocket.mockReturnValue({
             status: 'open',
             sendChat: vi.fn(),
@@ -381,18 +390,123 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.queryByRole('button', { name: 'New messages' })).toBeNull()
     })
 
-    it('deletes the replaced stored reply before regenerating', async () => {
+    it('regenerates a new version of the reply and keeps the current one', async () => {
+        let handlers: import('../hooks/useAdventureChatSocket').AdventureChatHandlers = {}
         const sendChat = vi.fn()
-        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
-        const deleteMessage = vi.fn(async () => [initialTurns[0]])
-        const config = makeConfig({ deleteMessage })
-
-        renderPanel(config)
+        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: typeof handlers) => {
+            handlers = h
+            return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
+        })
+        const observe = vi.fn()
+        const config = makeConfig()
+        renderPanel(config, initialTurns, 7, undefined, observe)
         fireEvent.click(screen.getByLabelText('Regenerate'))
 
-        // The old stored assistant row goes first, or hydration resurrects it.
-        await waitFor(() => expect(deleteMessage).toHaveBeenCalledWith(7, 101))
         await waitFor(() => expect(sendChat).toHaveBeenCalledWith('Open the door', expect.any(String), 100))
+        expect(config.deleteMessage).not.toHaveBeenCalled()
+        // The new version is written in the reply's slot, as the second of two.
+        expect(screen.queryByText('The door opens.')).toBeNull()
+        expect(screen.getByText('Version 2 of 2')).toBeInTheDocument()
+        expect(screen.getByLabelText('Next version')).toBeDisabled()
+        act(() => {
+            handlers.onTurnStarted?.({ type: 'turn_started', user_message_id: 100, assistant_message_id: 102, turn_id: 'turn-2' })
+            handlers.onDelta?.('The door is locked.')
+            handlers.onDone?.({ interrupted: false, userMessageId: 100, assistantMessageId: 102, turnId: 'turn-2' })
+        })
+
+        const latest = observe.mock.calls[observe.mock.calls.length - 1][0] as TurnEntry[]
+        expect(latest.map((turn) => [turn.id, turn.metadata?.inactive_variant === true])).toEqual([
+            ['100', false], ['101', true], ['102', false],
+        ])
+        // (The live region repeats the finished text, so read the transcript itself.)
+        const articles = document.querySelectorAll('article')
+        expect(articles).toHaveLength(2)
+        expect(articles[1]).toHaveTextContent('The door is locked.')
+        expect(screen.queryByText('The door opens.')).toBeNull()
+        expect(screen.getByLabelText('Previous version')).toBeEnabled()
+    })
+
+    it('switches the shown version through the server', async () => {
+        const versions: TurnEntry[] = [
+            initialTurns[0],
+            { ...initialTurns[1], metadata: { inactive_variant: true } },
+            { id: '102', type: 'ai', content: 'The door is locked.', timestamp: '', assistantMessageId: 102, turnId: 'turn-2' },
+        ]
+        const selectReply = vi.fn(async () => [versions[0], { ...versions[1], metadata: {} }, { ...versions[2], metadata: { inactive_variant: true } }])
+        const config = makeConfig({ selectReply })
+        renderPanel(config, versions)
+        expect(screen.getByText('The door is locked.')).toBeInTheDocument()
+        expect(screen.queryByText('The door opens.')).toBeNull()
+        expect(screen.getByText('Version 2 of 2')).toBeInTheDocument()
+
+        const previous = screen.getByLabelText('Previous version')
+        previous.focus()
+        fireEvent.click(previous)
+        // Optimistic: the earlier version shows at once, in the same slot.
+        expect(screen.getByText('The door opens.')).toBeInTheDocument()
+        expect(screen.getByText('Version 1 of 2')).toBeInTheDocument()
+        expect(document.activeElement).toBe(previous)
+        await waitFor(() => expect(selectReply).toHaveBeenCalledWith(7, 101))
+        expect(screen.queryByText('The door is locked.')).toBeNull()
+        expect(screen.getAllByLabelText('Regenerate')).toHaveLength(1)
+    })
+
+    it('rolls back a version switch the server rejects', async () => {
+        const versions: TurnEntry[] = [
+            initialTurns[0],
+            { ...initialTurns[1], metadata: { inactive_variant: true } },
+            { id: '102', type: 'ai', content: 'The door is locked.', timestamp: '', assistantMessageId: 102, turnId: 'turn-2' },
+        ]
+        const config = makeConfig({ selectReply: vi.fn(async () => { throw new Error('conflict') }) })
+        renderPanel(config, versions)
+        fireEvent.click(screen.getByLabelText('Previous version'))
+
+        expect(await screen.findByText("Couldn't switch to that version. Please try again.")).toBeInTheDocument()
+        expect(screen.getByText('The door is locked.')).toBeInTheDocument()
+        expect(screen.getByText('Version 2 of 2')).toBeInTheDocument()
+    })
+
+    it('shows no version switcher on older exchanges', () => {
+        renderPanel(makeConfig(), [
+            initialTurns[0],
+            { ...initialTurns[1], metadata: { inactive_variant: true } },
+            { id: '102', type: 'ai', content: 'The door is locked.', timestamp: '', assistantMessageId: 102 },
+            { id: '103', type: 'user', content: 'Knock', timestamp: '' },
+            { id: '104', type: 'ai', content: 'Nobody answers.', timestamp: '', assistantMessageId: 104 },
+        ])
+        // The earlier exchange shows only the version the conversation continued from.
+        expect(screen.getByText('The door is locked.')).toBeInTheDocument()
+        expect(screen.queryByText('The door opens.')).toBeNull()
+        expect(screen.queryByLabelText('Previous version')).toBeNull()
+    })
+
+    it('offers regenerate only on the latest reply', () => {
+        renderPanel(makeConfig(), [
+            ...initialTurns,
+            { id: '102', type: 'user', content: 'Step inside', timestamp: '' },
+            { id: '103', type: 'ai', content: 'The hall is dark.', timestamp: '', assistantMessageId: 103 },
+        ])
+        expect(screen.getAllByLabelText('Regenerate')).toHaveLength(1)
+    })
+
+    it('hides failed attempts and keeps every stored reply when regenerating', async () => {
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+        const seed: TurnEntry[] = [
+            initialTurns[0],
+            { id: '150', type: 'ai', content: '', timestamp: '', assistantMessageId: 150,
+                metadata: { interrupted: true, error_category: 'execution_failed', request_id: 'first' } },
+            { ...initialTurns[1], id: '151', assistantMessageId: 151 },
+        ]
+        const config = makeConfig({ loadTurns: vi.fn(async () => seed) })
+        renderPanel(config, seed)
+        expect(screen.queryByTestId('unsaved-reply')).toBeNull()
+        expect(document.querySelectorAll('article')).toHaveLength(2)
+
+        fireEvent.click(screen.getByLabelText('Regenerate'))
+        // The server answers the stored player message again; nothing is deleted.
+        await waitFor(() => expect(sendChat).toHaveBeenCalledWith('Open the door', expect.any(String), 100))
+        expect(config.deleteMessage).not.toHaveBeenCalled()
     })
 
     it.each(['adventure', 'character'] as const)('keeps one stored user message after a failed %s turn, retry, and reload', async (kind) => {
@@ -421,7 +535,7 @@ describe('InteractionCenterPanel message deletion', () => {
         })
         const config = makeConfig({
             kind, basePath: kind === 'character' ? 'character-chats' : 'adventure-sessions',
-            loadTurns: vi.fn(async () => [...stored]),
+            loadTurns: vi.fn(async () => stored.map((turn) => ({ ...turn }))),
             deleteMessage: vi.fn(async (_sessionId, messageId) => {
                 stored = stored.filter((turn) => turn.id !== String(messageId))
                 return [...stored]
@@ -432,11 +546,15 @@ describe('InteractionCenterPanel message deletion', () => {
         fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Open the door' } })
         fireEvent.click(screen.getByLabelText('Send message'))
         act(() => {
-            stored[1].isStreaming = false
+            // The server stores a failed reply empty, outside the model's context.
+            Object.assign(stored[1], { isStreaming: false, metadata: { interrupted: true, error_category: 'execution_failed' } })
             handlers.onError?.('Generation failed', {})
         })
-        fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
         await waitFor(() => expect(sendChat).toHaveBeenCalledTimes(2))
+        // The failed attempt stays stored, outside the context, and is not shown.
+        expect(config.deleteMessage).not.toHaveBeenCalled()
+        expect(sendChat).toHaveBeenLastCalledWith('Open the door', expect.any(String), 100)
         act(() => {
             const assistant = stored[stored.length - 1]
             assistant.content = 'The door opens.'
@@ -447,32 +565,31 @@ describe('InteractionCenterPanel message deletion', () => {
                 assistantMessageId: Number(assistant.id), turnId: assistant.turnId,
             })
         })
-        await waitFor(() => expect(config.loadTurns).toHaveBeenCalledTimes(2))
-        view.unmount()
-        renderPanel(config, [...stored])
+        // Mount, the pre-regenerate sync, then the post-done reconciliation.
         await waitFor(() => expect(config.loadTurns).toHaveBeenCalledTimes(3))
+        view.unmount()
+        renderPanel(config, stored.map((turn) => ({ ...turn })))
+        await waitFor(() => expect(config.loadTurns).toHaveBeenCalledTimes(4))
         expect(screen.getAllByText('Open the door')).toHaveLength(1)
         expect(screen.getByText('The door opens.')).toBeInTheDocument()
-        expect(stored.filter((turn) => turn.type === 'user').map((turn) => turn.id)).toEqual(['100'])
+        expect(screen.queryByTestId('unsaved-reply')).toBeNull()
+        expect(stored.map((turn) => [turn.type, turn.id])).toEqual([['user', '100'], ['ai', '101'], ['ai', '102']])
     })
 
-    it('restores the previous reply and skips generation when the pre-regenerate delete fails', async () => {
+    it('keeps the reply and skips generation when the conversation cannot be read first', async () => {
         const sendChat = vi.fn()
         hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
-        const deleteMessage = vi.fn(async () => {
-            throw new Error('conflict')
-        })
-        const config = makeConfig({ deleteMessage })
+        const config = makeConfig({ loadTurns: vi.fn(async () => { throw new Error('offline') }) })
 
         renderPanel(config)
         fireEvent.click(screen.getByLabelText('Regenerate'))
 
-        expect(await screen.findByText('Could not generate a response. Please try again.')).toBeInTheDocument()
+        expect(await screen.findByText('Could not write another reply. Please try again.')).toBeInTheDocument()
         expect(sendChat).not.toHaveBeenCalled()
         expect(screen.getByText('The door opens.')).toBeInTheDocument()
     })
 
-    it.each([true, false])('retries a failed regeneration using current stored ids (acknowledged: %s)', async (acknowledged) => {
+    it.each([true, false])('keeps the reply when a regeneration fails and tries again as another version (acknowledged: %s)', async (acknowledged) => {
         let handlers: import('../hooks/useAdventureChatSocket').AdventureChatHandlers = {}
         const sendChat = vi.fn()
         hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: typeof handlers) => {
@@ -489,11 +606,15 @@ describe('InteractionCenterPanel message deletion', () => {
             })
             handlers.onError?.('Generation failed', {})
         })
+        // A failed version changes nothing: the current reply is still the one in context.
         expect(screen.getByText('The door opens.')).toBeInTheDocument()
-        fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+        expect(screen.queryByText('Version 1 of 1')).toBeNull()
+        expect(screen.getByTestId('unsaved-reply')).toHaveTextContent("Game Master couldn't finish this reply")
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
         await waitFor(() => expect(sendChat).toHaveBeenCalledTimes(2))
-        expect(vi.mocked(config.deleteMessage).mock.calls).toEqual(acknowledged ? [[7, 101], [7, 201]] : [[7, 101]])
+        expect(config.deleteMessage).not.toHaveBeenCalled()
         expect(sendChat).toHaveBeenLastCalledWith('Open the door', expect.any(String), 100)
+        expect(sendChat.mock.calls[1][1]).not.toBe(sendChat.mock.calls[0][1])
     })
 
     it('reuses a trailing stored user message when requesting its missing reply', async () => {
@@ -792,4 +913,138 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(loadTurns).toHaveBeenCalledTimes(2)
     })
 
+
+    describe('retained history after reload', () => {
+        const parent = '44444444-4444-4444-8444-444444444444'
+        const child = '55555555-5555-4555-8555-555555555555'
+        const seed: TurnEntry[] = [
+            { id: '100', type: 'user', content: 'Open the door', timestamp: '', turnId: parent, metadata: { request_id: 'original' } },
+            { id: '101', type: 'ai', content: '', timestamp: '', assistantMessageId: 101, turnId: parent,
+                metadata: { request_id: 'original', interrupted: true, error_category: 'execution_failed' } },
+        ]
+        const command = { content: 'Open the door', existing_user_message_id: null, llm: { selection: { mode: 'inherit' as const } } }
+
+        it.each(['adventure', 'character'] as const)('answers a confirmed %s failure anew and keeps the attempt stored', async kind => {
+            const sendChat = vi.fn(), observe = vi.fn()
+            hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+            vi.mocked(apiService.reconcileChatTurn).mockResolvedValueOnce({ status: 'failed', request_id: 'original', execution_id: parent,
+                recovery_required: true, dispatch: command })
+            const config = makeConfig({ kind, basePath: kind === 'adventure' ? 'adventure-sessions' : 'character-chats', loadTurns: vi.fn(async () => seed) })
+            renderPanel(config, seed, 7, undefined, observe)
+            // A failed reply is a notice, not a message with its own actions.
+            expect(screen.queryByLabelText('Regenerate')).toBeNull()
+            fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+            await waitFor(() => expect(sendChat).toHaveBeenCalledOnce())
+            expect(sendChat).toHaveBeenCalledWith('Open the door', expect.any(String), 100)
+            expect(sendChat.mock.calls[0][1]).not.toBe('original')
+            expect(config.deleteMessage).not.toHaveBeenCalled()
+            const latest = observe.mock.calls[observe.mock.calls.length - 1][0] as TurnEntry[]
+            expect(latest.map((turn) => turn.type)).toEqual(['user', 'ai', 'ai'])
+            expect(latest[2].isStreaming).toBe(true)
+            expect(screen.queryByTestId('unsaved-reply')).toBeNull()
+        })
+
+        it('recovers a pending child with its original request and tuple after reload', async () => {
+            const sendChat = vi.fn()
+            hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+            const pending: TurnEntry[] = [...seed, { id: '102', type: 'ai', content: '', timestamp: '', assistantMessageId: 102,
+                turnId: child, metadata: { request_id: 'child-request', interrupted: true } }]
+            const target = { selection: { mode: 'inherit' as const }, retry_of_execution_id: parent }
+            vi.mocked(apiService.reconcileChatTurn).mockResolvedValueOnce({ status: 'running', request_id: 'child-request', execution_id: child,
+                recovery_required: true, dispatch: { ...command, llm: target } })
+            const config = makeConfig({ loadTurns: vi.fn(async () => pending) })
+            renderPanel(config, pending)
+            // Only the latest attempt surfaces, as a single notice.
+            expect(screen.getAllByTestId('unsaved-reply')).toHaveLength(1)
+            fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+            await waitFor(() => expect(sendChat).toHaveBeenCalledOnce())
+            expect(sendChat).toHaveBeenCalledWith('Open the door', 'child-request', undefined, target, true)
+            expect(config.deleteMessage).not.toHaveBeenCalled()
+            expect(screen.getAllByText('Open the door')).toHaveLength(1)
+        })
+
+        it('does not send after a retry lookup was canceled', async () => {
+            const sendChat = vi.fn()
+            hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+            let finish!: (value: Awaited<ReturnType<typeof apiService.reconcileChatTurn>>) => void
+            let signal: AbortSignal | undefined
+            vi.mocked(apiService.reconcileChatTurn).mockImplementationOnce((_base, _id, _request, received) => {
+                signal = received; return new Promise(resolve => { finish = resolve })
+            })
+            const config = makeConfig({ loadTurns: vi.fn(async () => seed) })
+            renderPanel(config, seed)
+            fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+            await waitFor(() => expect(signal).toBeDefined())
+            await act(async () => { await new Promise(resolve => setTimeout(resolve, 25)) })
+            fireEvent.click(screen.getByLabelText('Stop response'))
+            expect(signal?.aborted).toBe(true)
+            await act(async () => finish({ status: 'failed', request_id: 'original', execution_id: parent, recovery_required: true, dispatch: command }))
+            expect(sendChat).not.toHaveBeenCalled(); expect(config.deleteMessage).not.toHaveBeenCalled()
+        })
+    })
+
+    describe('same-request recovery', () => {
+        function sendFirstTurn() {
+            let handlers: import('../hooks/useAdventureChatSocket').AdventureChatHandlers = {}
+            const sendChat = vi.fn()
+            hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: typeof handlers) => {
+                handlers = h
+                return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
+            })
+            const config = makeConfig()
+            renderPanel(config, [])
+            fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Open the door' } })
+            fireEvent.click(screen.getByLabelText('Send message'))
+            const requestId = sendChat.mock.calls[0][1] as string
+            act(() => handlers.onTurnStarted?.({ type: 'turn_started', request_id: requestId, user_message_id: 100, assistant_message_id: 201, turn_id: 'turn-1' }))
+            return { handlers: () => handlers, sendChat, config, requestId }
+        }
+
+        it('resumes an unfinished turn with its request ID and original frame, deleting nothing', async () => {
+            const { handlers, sendChat, config, requestId } = sendFirstTurn()
+            act(() => handlers().onError?.('Chat execution requires recovery.', { category: 'conflict', code: 'LLM_EXECUTION_RECOVERY_REQUIRED', requestId }))
+            expect(screen.getByText('The connection dropped before the result arrived. Try again to recover it without running it twice.')).toBeInTheDocument()
+            vi.mocked(apiService.reconcileChatTurn).mockResolvedValueOnce({ status: 'running', request_id: requestId, execution_id: '44444444-4444-4444-8444-444444444444', recovery_required: true, dispatch: { content: 'Open the door', existing_user_message_id: null, llm: { selection: { mode: 'inherit' } } } })
+
+            fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+            await waitFor(() => expect(sendChat).toHaveBeenCalledTimes(2))
+            expect(apiService.reconcileChatTurn).toHaveBeenCalledWith('adventure-sessions', 7, requestId, expect.any(AbortSignal))
+            expect(sendChat.mock.calls[1]).toEqual(['Open the door', requestId, undefined, { selection: { mode: 'inherit' } }, true])
+            expect(config.deleteMessage).not.toHaveBeenCalled()
+        })
+
+        it('follows a turn that is still running instead of starting it again', async () => {
+            const { handlers, sendChat, requestId } = sendFirstTurn()
+            act(() => handlers().onConnectionLost?.())
+            vi.mocked(apiService.reconcileChatTurn).mockResolvedValueOnce({ status: 'running', request_id: requestId, execution_id: '44444444-4444-4444-8444-444444444444', recovery_required: false, dispatch: { content: 'Open the door', existing_user_message_id: null, llm: { selection: { mode: 'inherit' } } } })
+
+            fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+            expect(await screen.findByText('This request is still running. Wait a moment, then try again to pick up its result.')).toBeInTheDocument()
+            expect(sendChat).toHaveBeenCalledOnce()
+        })
+
+        it('starts a fresh reply in the same slot once the spent turn is confirmed', async () => {
+            const { handlers, sendChat, config, requestId } = sendFirstTurn()
+            act(() => handlers().onError?.('Chat execution failed.', { category: 'conflict', code: 'LLM_EXECUTION_FINISHED', requestId }))
+
+            fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+            await waitFor(() => expect(sendChat).toHaveBeenCalledTimes(2))
+            expect(apiService.reconcileChatTurn).toHaveBeenCalledOnce()
+            expect(config.deleteMessage).not.toHaveBeenCalled()
+            expect(sendChat.mock.calls[1]).toEqual(['Open the door', expect.any(String), 100])
+            expect(sendChat.mock.calls[1][1]).not.toBe(requestId)
+        })
+
+        it('shows a stopped reply as a notice without a connection error', async () => {
+            const { handlers } = sendFirstTurn()
+            act(() => {
+                handlers().onDelta?.('The door creaks')
+                handlers().onDone?.({ interrupted: true, userMessageId: 100, assistantMessageId: 201, turnId: 'turn-1' })
+            })
+            const notice = await screen.findByTestId('unsaved-reply')
+            expect(notice).toHaveTextContent('You stopped this reply')
+            expect(screen.queryByText('The door creaks')).toBeNull()
+            expect(screen.queryByRole('alert')).toBeNull()
+        })
+    })
 })

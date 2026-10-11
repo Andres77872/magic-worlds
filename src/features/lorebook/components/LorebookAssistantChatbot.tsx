@@ -10,6 +10,7 @@ import { ConversationMenu } from '@/features/creation/common/components/assistan
 import { LOREBOOK_ASSISTANT_SUGGESTIONS } from '@/features/creation/common/components/assistant/suggestions'
 import { conversationKey } from '@/features/creation/common/components/assistant/useCardAssistant'
 import { useLorebookAssistant } from '../hooks/useLorebookAssistant'
+import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
 
 interface LorebookAssistantChatbotProps {
     lorebookId?: string | null
@@ -54,6 +55,7 @@ export function LorebookAssistantChatbot(props: LorebookAssistantChatbotProps) {
                 )}
             />
 
+            <div className="p-3"><LlmFeatureControl feature="lorebook_assistant" disabled={busy} /></div>
             {assistant.pendingLorebook && (
                 <AssistantPendingCardBanner
                     snapshotLabel={t('lorebookStudio.assistant.snapshotLabel')}

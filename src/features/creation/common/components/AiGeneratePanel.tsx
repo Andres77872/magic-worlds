@@ -17,6 +17,10 @@ import { frameBatch } from '@/utils/frameBatch'
 import type { TextGenerationEvent } from '@/shared/types/textGeneration.types'
 import { makeRequestId } from '@/utils/uuid'
 import { CreatorTextarea } from './CreatorField'
+import { ApiError } from '@/infrastructure/api'
+import { isLlmRequestSpent } from '@/infrastructure/api/llmIntent'
+import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
+import { llmRecoveryMessage } from '@/features/llmProfiles/llmRecovery'
 
 export type AiGenerateOptions = AiCardRequestOptions
 
@@ -45,6 +49,8 @@ function quotaRetry(t: TFunction, retryAfterSeconds?: number): string {
 function aiErrorCopy(error: unknown, noun: string, t: TFunction): string {
     const err = error as { message?: string; category?: string; code?: string; requestId?: string; retryAfterSeconds?: number }
     const suffix = supportSuffix(t, err.requestId)
+    const recovery = llmRecoveryMessage(error, t)
+    if (recovery) return `${recovery}${suffix}`
     switch (err.category) {
         case 'description_invalid':
             return `${err.message || t('creation.common.aiGenerate.errors.descriptionInvalid')}${suffix}`
@@ -80,7 +86,7 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
     const [completed, setCompleted] = useState(false)
     const [stage, setStage] = useState<'generating' | 'validating' | 'saving'>('generating')
     const controllerRef = useRef<AbortController | null>(null)
-    const attemptRef = useRef<{ description: string; requestId: string; idempotencyKey: string } | null>(null)
+    const attemptRef = useRef<{ description: string; requestId: string; idempotencyKey: string; llm?: AiCardRequestOptions['llm'] } | null>(null)
     const mountedRef = useRef(true)
 
     const label = noun.charAt(0).toUpperCase() + noun.slice(1)
@@ -107,7 +113,7 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
         }
     }, [])
 
-    const attemptFor = (prompt: string) => {
+    const attemptFor = (prompt: string): NonNullable<typeof attemptRef.current> => {
         if (attemptRef.current?.description === prompt) return attemptRef.current
         const next = {
             description: prompt,
@@ -150,6 +156,7 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
                 requestId: attempt.requestId,
                 idempotencyKey: attempt.idempotencyKey,
                 timeoutMs,
+                llm: attempt.llm,
                 onEvent: (event) => {
                     if (controller.signal.aborted || controllerRef.current !== controller) return
                     if (event.type === 'progress') setStage(event.stage)
@@ -161,6 +168,13 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
             // On success the creator reloads and navigates away — nothing to do.
         } catch (err) {
             if (!mountedRef.current) return
+            if (err instanceof ApiError && err.llmRetry) {
+                attemptRef.current = { description: prompt, requestId: createClientId('mw-ai-card-req'),
+                    idempotencyKey: createClientId('mw-ai-card-idem'), llm: err.llmRetry }
+            } else if (isLlmRequestSpent(err)) {
+                // A spent request ID can never finish; the next click starts a new request.
+                attemptRef.current = null
+            }
             if (controller.signal.aborted && !(err as { category?: string })?.category) {
                 setError(t('creation.common.aiGenerate.canceledLocally', { noun }))
             } else {
@@ -179,6 +193,7 @@ export function AiGeneratePanel({ noun, placeholder, onGenerate, timeoutMs = AI_
     return (
         <div className="flex flex-col gap-4 rounded-md border border-arcane-500/30 bg-arcane-500/[.06] p-6">
             <SectionHeader icon={Sparkles} tone="arcane" title={t('creation.common.aiGenerate.title')} />
+            <LlmFeatureControl feature="card_generation" disabled={isGenerating} />
             <p className="font-narrative text-sm text-parchment-400">
                 {t('creation.common.aiGenerate.prompt', { noun })}
             </p>

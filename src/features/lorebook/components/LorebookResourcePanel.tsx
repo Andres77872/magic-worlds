@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, FilePlus2, FileText, Library, Link2, Plus, S
 import type { LorebookResource } from '@/shared'
 import { Badge, Button, Callout, Field, Icon, IconButton, Input, SwitchRow, Tag, Textarea, cx } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
+import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
 import {
     LOREBOOK_RESOURCE_ACCEPT,
     LOREBOOK_RESOURCE_MAX_CHARS,
@@ -199,6 +200,9 @@ export function LorebookResourcePanel({
                         onChange={onExtractMetadataOnSaveChange}
                         disabled={saving}
                     />
+                    {extractMetadataOnSave && (
+                        <LlmFeatureControl feature="lorebook_extraction" disabled={saving} />
+                    )}
                     {extractMetadataOnSave && (
                         <Callout tone="warning" role="note">
                             {pendingExtractionCount > 0

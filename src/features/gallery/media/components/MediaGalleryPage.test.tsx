@@ -95,10 +95,10 @@ const THEME_JOB: ThemeSongJobPublic = {
     target: { type: 'world', id: 'card-2', display_name: 'Rivendell' },
     operation: 'theme_song',
     status: 'completed',
-    model_alias: 'music_2_6',
+    model_alias: 'minimax_music_3',
     status_url: '',
     result_url: '',
-    lyrics: { source: 'optimizer' },
+    lyrics: { source: 'writer', lyrics_sha256: 'a'.repeat(64), lyrics_length_chars: 80 },
     assets: [
         {
             asset_id: 'theme-1',

@@ -1,3 +1,19 @@
+import { verifyAssistantExecution } from './assistantContract'
+import { assertPublicLlmData, assertEffectiveLlmProfile, assertLlmCapacityUsage, assertLlmProfileCompatibility, assertLlmProviderUsage } from './llmProfileContract'
+import { prepareLlmRequest, prepareRetainedLlmRequest } from './llmPreparation'
+import { isLlmRequestSpent, llmIntents } from './llmIntent'
+import type { LlmFeature, LlmRequest, LlmSelection } from '@/shared/types/llm.types'
+import type {
+    LlmPage, LlmProfileSummary, LlmProfileDetail, LlmProfileMutation, LlmPreferences,
+    LlmPreferencesView, LlmFeatureView, LlmCatalogModel, LlmConnection,
+    EffectiveLlmProfile, LlmAuditEvent, LlmProfileTestResult, LlmProfileTestTarget, LlmCapacityUsage, LlmProfileCompatibility,
+    LlmProviderUsage, LlmExecutionState,
+} from '@/shared/types/llmProfile.types'
+import { verifyThemeSongJob, verifyThemeSongList, verifyUserThemeSongList } from './themeSongContract'
+import { verifyCardGeneration } from './cardContract'
+import { verifyLorebookExtraction, verifyLorebookExtractionStatus, matchesLorebookExtractionProfile, extractionContainsCredential } from './lorebookExtractionContract'
+import type { LorebookExtractionCommand, LorebookExtractionOptions, LorebookExtractionResult, LorebookExtractionStatus } from '@/shared/types/lorebookExtraction.types'
+import { verifyAgentList, verifyAgentDetail, verifyCustomAgentDetail, verifyAgentVersions, verifyAgentTest } from './workflowContract'
 import type { TextGenerationEvent, TextGenerationOptions } from '@/shared/types/textGeneration.types'
 /**
  * API infrastructure - centralized API request handling
@@ -27,7 +43,7 @@ import type {
 import type {
     AgentCreateRequest,
     AgentDetail,
-    AgentModelsResponse,
+    CustomAgentDetail,
     AgentSummary,
     AgentTestRequest,
     AgentTestResponse,
@@ -108,7 +124,7 @@ import {
     serializeLorebookEntry,
     serializeLorebookResource,
 } from './lorebookWire'
-import type { StoredConversationMessage, ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from '../../shared/types/interaction.types'
+import type { StoredConversationMessage, ChatTurnReconciliation, ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from '../../shared/types/interaction.types'
 import type { VoiceCallLimits, VoiceCallListResponse, VoiceCallTranscriptResponse, VoiceSegmentUploadRequest, VoiceSegmentUploadResponse } from '../../shared/types/voice.types'
 import type { AdventureSnapshot } from '../../shared/types/adventure.types'
 import type {
@@ -138,6 +154,7 @@ import type {
     CardAssistantStreamEvent,
     CardAssistantTurnResponse,
     CardAssistantTurnRequest,
+    AiCardGeneratedResult,
     CharacterCardResponse,
     ItemCardResponse,
     WorldCardResponse,
@@ -280,6 +297,7 @@ export class ApiError extends Error {
     readonly retryable?: boolean
     readonly retryAfterSeconds?: number
     readonly action?: string
+    llmRetry?: Pick<LlmRequest, 'retry_of_execution_id' | 'selection' | 'expected_revision_id'>
     /** The raw structured `detail` object, when the server returned one (e.g. a 409 already-imported conflict). */
     readonly details?: Record<string, unknown>
 
@@ -359,15 +377,17 @@ export function normalizeApiErrorBody(
         ?? (typeof deeper.message === 'string' ? deeper.message : undefined)
         ?? (typeof deeper.detail === 'string' ? deeper.detail : undefined)
         ?? (typeof body.message === 'string' ? body.message : undefined)
-    if (!message) return null
-
     const metadata = deeper === nested ? nested : { ...nested, ...deeper }
+    const code = typeof metadata.code === 'string' ? metadata.code : undefined
+    // Profile and execution errors carry only a stable code ({detail: {code}}).
+    if (!message && !code) return null
+
     const numberValue = (candidate: unknown) => typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : undefined
     const booleanValue = (candidate: unknown) => typeof candidate === 'boolean' ? candidate : undefined
     return {
-        message,
+        message: message ?? code!,
         category: typeof metadata.category === 'string' ? metadata.category : undefined,
-        code: typeof metadata.code === 'string' ? metadata.code : undefined,
+        code,
         requestId: typeof metadata.request_id === 'string'
             ? metadata.request_id
             : typeof body.request_id === 'string'
@@ -391,14 +411,188 @@ type AuthRequestOwner = Pick<AuthSessionSnapshot, 'authEpoch' | 'accountKey' | '
     token: string
 }
 
-export interface LorebookResourceMetadataSaveOptions {
-    extractMetadata?: boolean
-    requestId?: string
-    idempotencyKey?: string
-}
-
 class ApiService {
     private baseUrl: string
+
+    private async profileRequest<T>(path: string, method = 'GET', payload?: unknown, version?: number): Promise<T> {
+        if (payload !== undefined) assertPublicLlmData(payload)
+        if (version !== undefined && (!Number.isSafeInteger(version) || version < 0)) throw new Error('Invalid profile version.')
+        const result = await this.authenticatedRequest<T>(path, this.getStoredToken(), {
+            method, cache: 'no-store',
+            headers: version === undefined ? {} : { 'If-Match': `"${version}"` },
+            ...(payload === undefined ? {} : { body: payload as BodyInit }),
+        })
+        assertPublicLlmData(result)
+        return result
+    }
+
+    getLlmFeatures(): Promise<{ features: LlmFeatureView[] }> {
+        return this.profileRequest('/llm/features')
+    }
+
+    getLlmModels(params: { feature?: LlmFeature; provider_target?: string; role?: string; credential_mode?: string; limit?: number; offset?: number } = {}): Promise<LlmPage<LlmCatalogModel>> {
+        const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value)]))
+        return this.profileRequest(`/llm/models?${query}`)
+    }
+
+    getLlmProfiles(scope: 'available' | 'user' | 'system' = 'available', offset = 0, systemAdmin = false): Promise<LlmPage<LlmProfileSummary>> {
+        return this.profileRequest(systemAdmin ? `/admin/llm/profiles?limit=25&offset=${offset}` : `/llm/profiles?scope=${scope}&limit=25&offset=${offset}`)
+    }
+
+    getLlmProfile(id: string, systemAdmin = false): Promise<LlmProfileDetail> {
+        return this.profileRequest(`${systemAdmin ? '/admin/llm/profiles' : '/llm/profiles'}/${encodeURIComponent(id)}`)
+    }
+
+    saveLlmProfile(payload: LlmProfileMutation, systemAdmin: boolean, existing?: { id: string; version: number }): Promise<LlmProfileDetail> {
+        const base = systemAdmin ? '/admin/llm/profiles' : '/user/llm/profiles'
+        return this.profileRequest(existing ? `${base}/${encodeURIComponent(existing.id)}${systemAdmin ? '/draft' : ''}` : base,
+            existing ? 'PATCH' : 'POST', payload, existing?.version)
+    }
+
+    archiveLlmProfile(id: string, version: number, systemAdmin = false): Promise<{ profile_id: string; status: 'archived'; row_version: number }> {
+        return this.profileRequest(`${systemAdmin ? '/admin/llm/profiles' : '/user/llm/profiles'}/${encodeURIComponent(id)}/archive`, 'POST', {}, version)
+    }
+
+    getLlmPreferences(systemAdmin = false): Promise<LlmPreferencesView> {
+        return this.profileRequest(systemAdmin ? '/admin/llm/policy' : '/user/llm/preferences')
+    }
+
+    saveLlmPreferences(payload: LlmPreferences, version: number, systemAdmin = false): Promise<LlmPreferencesView> {
+        return this.profileRequest(systemAdmin ? '/admin/llm/policy' : '/user/llm/preferences', 'PUT', payload, version)
+    }
+
+    async resolveLlmProfile(feature: LlmFeature, selection: LlmSelection = { mode: 'inherit' }): Promise<EffectiveLlmProfile> {
+        const result = await this.profileRequest<EffectiveLlmProfile>(`/llm/features/${encodeURIComponent(feature)}/resolve`, 'POST', selection)
+        assertEffectiveLlmProfile(result)
+        return result
+    }
+
+    async getLlmRetryProfile(feature: LlmFeature, executionId: string): Promise<EffectiveLlmProfile> {
+        const result = await this.profileRequest<EffectiveLlmProfile>(`/llm/features/${encodeURIComponent(feature)}/retry-profiles/${encodeURIComponent(executionId)}`)
+        assertEffectiveLlmProfile(result)
+        return result
+    }
+
+    async getLlmRecoveryProfile(feature: LlmFeature, requestId: string, signal?: AbortSignal): Promise<EffectiveLlmProfile> {
+        const result = await this.authenticatedRequest<EffectiveLlmProfile>(`/llm/features/${feature}/executions/${encodeURIComponent(requestId)}/profile`,
+            this.getStoredToken(), { method: 'GET', cache: 'no-store', timeoutMs: 5000, signal })
+        assertEffectiveLlmProfile(result)
+        return result
+    }
+
+    validateLlmProfile(id: string): Promise<{ valid: true; row_version: number; affected_features: LlmFeature[] }> {
+        return this.profileRequest(`/admin/llm/profiles/${encodeURIComponent(id)}/validate`, 'POST', {})
+    }
+
+    publishLlmProfile(id: string, version: number): Promise<LlmProfileDetail> {
+        return this.profileRequest(`/admin/llm/profiles/${encodeURIComponent(id)}/publish`, 'POST', {}, version)
+    }
+
+    rollbackLlmProfile(id: string, revisionId: string, version: number): Promise<LlmProfileDetail> {
+        return this.profileRequest(`/admin/llm/profiles/${encodeURIComponent(id)}/rollback`, 'POST', { revision_id: revisionId }, version)
+    }
+
+    getLlmConnections(): Promise<{ connections: LlmConnection[] }> {
+        return this.profileRequest('/admin/llm/connections')
+    }
+
+    syncLlmCatalog(): Promise<{ model_count: number; connection_count: number; catalog_revisions: string[] }> {
+        return this.profileRequest('/admin/llm/catalog/sync', 'POST', {})
+    }
+
+    /** Per-feature compatibility of a configuration as the server would resolve it; nothing is saved. */
+    async checkLlmProfileCompatibility(config: LlmProfileMutation['config'], systemAdmin: boolean): Promise<LlmProfileCompatibility> {
+        const result = await this.profileRequest<LlmProfileCompatibility>(`${systemAdmin ? '/admin' : '/user'}/llm/profiles/compatibility`, 'POST', config)
+        assertLlmProfileCompatibility(result)
+        return result
+    }
+
+    /** The caller's own LLM request counts per payer (platform credits, own key, unattributed history). */
+    async getLlmCapacityUsage(): Promise<LlmCapacityUsage> {
+        const result = await this.profileRequest<LlmCapacityUsage>('/llm/capacity-usage')
+        assertLlmCapacityUsage(result)
+        return result
+    }
+
+    /** Root: this project's provider estimates by payer for a UTC date range (defaults to this month). */
+    async getLlmProviderUsage(range: { from: string; to: string } | null = null): Promise<LlmProviderUsage> {
+        const day = /^\d{4}-\d{2}-\d{2}$/
+        if (range && (!day.test(range.from) || !day.test(range.to) || range.from > range.to)) throw new Error('Invalid provider usage range.')
+        const query = range ? `?from_date=${range.from}&to_date=${range.to}` : ''
+        const result = await this.profileRequest<LlmProviderUsage>(`/admin/llm/provider-usage${query}`)
+        assertLlmProviderUsage(result)
+        if (range && (result.from_date !== range.from || result.to_date !== range.to)) throw new Error('Invalid LLM provider usage.')
+        return result
+    }
+
+    getLlmAudit(offset = 0, profileId?: string): Promise<LlmPage<LlmAuditEvent>> {
+        return this.profileRequest(`/admin/llm/audit?limit=25&offset=${offset}${profileId ? `&profile_id=${encodeURIComponent(profileId)}` : ''}`)
+    }
+
+    /** Test one feature contract (every role it uses) against a published revision or, for root, the saved draft version. */
+    async testLlmProfile(id: string, target: LlmProfileTestTarget, feature: LlmFeature, requestId: string, systemAdmin: boolean, credentials?: { api_key: string }, retryOfExecutionId?: string): Promise<LlmProfileTestResult> {
+        const owner = authSession.getSnapshot()
+        if (credentials && !this.baseUrl.startsWith('https://')) throw new Error('Personal credentials require HTTPS.')
+        if (systemAdmin && credentials) throw new Error('Platform tests cannot use personal credentials.')
+        if (target.kind === 'draft' && !systemAdmin) throw new Error('Only system drafts can be tested before publishing.')
+        const body: { feature: LlmFeature; expected_revision_id?: string; expected_draft_version?: number; credentials?: { api_key: string }; retry_of_execution_id?: string } = { feature,
+            ...(retryOfExecutionId ? { retry_of_execution_id: retryOfExecutionId } : {}),
+            ...(target.kind === 'published' ? { expected_revision_id: target.revisionId } : { expected_draft_version: target.draftVersion }),
+            ...(credentials ? { credentials: { ...credentials } } : {}) }
+        try {
+            const result = await this.authenticatedRequest<LlmProfileTestResult>(`${systemAdmin ? '/admin/llm/profiles' : '/user/llm/profiles'}/${encodeURIComponent(id)}/test`, this.getStoredToken(), {
+                method: 'POST', cache: 'no-store', headers: { 'X-Request-Id': requestId }, body: body as unknown as BodyInit,
+            })
+            assertPublicLlmData(result)
+            if (credentials && extractionContainsCredential(result, credentials.api_key)) throw new Error('Invalid profile test response.')
+            const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+            if (Object.keys(result).sort().join(',') !== 'execution_id,feature,output,payer_mode,profile_id,replayed,revision_id,roles,target'
+                || !uuid.test(result.execution_id) || !uuid.test(result.revision_id)
+                || typeof result.replayed !== 'boolean' || result.payer_mode !== (systemAdmin ? 'platform' : 'user_byok')
+                || typeof result.output !== 'string' || !result.output.trim() || result.output.length > 4096
+                || result.profile_id !== id || result.feature !== feature || result.target !== target.kind
+                || target.kind === 'published' && result.revision_id !== target.revisionId
+                || !Array.isArray(result.roles) || result.roles[0] !== 'primary' || new Set(result.roles).size !== result.roles.length
+                || result.roles.some(role => !['primary', 'metadata', 'preflight'].includes(role))) throw new Error('Invalid profile test response.')
+            return result
+        } catch (error) {
+            await this.confirmTerminalLlmAttempt(error, feature, requestId, { selection: { mode: 'profile', profile_id: id },
+                ...(target.kind === 'published' ? { expected_revision_id: target.revisionId } : {}) }, owner)
+            throw error
+        } finally {
+            delete body.credentials
+        }
+    }
+
+    async getLlmExecutionState(feature: LlmFeature, requestId: string, signal?: AbortSignal): Promise<LlmExecutionState> {
+        const value = await this.authenticatedRequest<Record<string, unknown>>(`/llm/features/${feature}/executions/${encodeURIComponent(requestId)}`,
+            this.getStoredToken(), { method: 'GET', cache: 'no-store', timeoutMs: 5000, signal })
+        const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        if (!value || Object.keys(value).sort().join(',') !== 'execution_id,recovery_required,request_id,status'
+            || value.request_id !== requestId || typeof value.execution_id !== 'string' || !uuid.test(value.execution_id)
+            || typeof value.recovery_required !== 'boolean'
+            || !['admitted', 'running', 'completed', 'failed', 'cancelled', 'awaiting_credential'].includes(String(value.status))
+            || value.status === 'completed' && value.recovery_required) {
+            throw new ApiError(502, 'Execution reconciliation returned an invalid state.', { code: 'llm_execution_state_contract', retryable: false })
+        }
+        return { execution_id: value.execution_id, request_id: requestId,
+            status: value.status as LlmExecutionState['status'], recovery_required: value.recovery_required }
+    }
+
+    private async confirmTerminalLlmAttempt(error: unknown, feature: LlmFeature, requestId: string, target: LlmRequest,
+        owner: ReturnType<typeof authSession.getSnapshot>): Promise<void> {
+        this.assertCurrentOwner(owner)
+        if (!(error instanceof ApiError) || error.category === 'timeout'
+            || error.code === 'workflow_execution_contract' || error.code === 'llm_execution_state_contract'
+            || !(error.status === 0 || error.status >= 500 || ['LLM_EXECUTION_UPSTREAM_FAILED', 'LLM_EXECUTION_FINISHED'].includes(error.code || ''))) return
+        const retained = await this.getLlmExecutionState(feature, requestId).catch(() => null)
+        this.assertCurrentOwner(owner)
+        if (retained && ['failed', 'cancelled'].includes(retained.status) && retained.recovery_required) {
+            error.llmRetry = { retry_of_execution_id: retained.execution_id,
+                selection: target.selection ? { ...target.selection } : { mode: 'inherit' },
+                ...(target.expected_revision_id ? { expected_revision_id: target.expected_revision_id } : {}) }
+        }
+    }
 
     constructor() {
         this.baseUrl = API_BASE_URL
@@ -1067,16 +1261,91 @@ class ApiService {
         }
     }
 
-    private assertAiCardSynchronousContract(value: unknown): void {
-        if (!value || typeof value !== 'object') return
-        const body = value as Record<string, unknown>
-        if ('job_id' in body || 'status_url' in body || body.status === 'pending' || body.status === 'in_progress') {
-            throw new ApiError(502, 'AI card generation returned an unsupported async response.', {
-                category: 'configuration_unavailable',
-                code: 'ai_card_unexpected_async_contract',
-                retryable: true,
-                action: 'try_again_later',
+    private assertAiCardSynchronousContract(value: unknown, requestId?: string): void {
+        if (!verifyCardGeneration(value, requestId)) {
+            throw new ApiError(502, 'Card generation returned an invalid execution result.', {
+                category: 'upstream_contract', code: 'card_execution_contract', retryable: false,
             })
+        }
+    }
+
+    private async generateCard<T>(endpoint: string, description: string, options: AiCardRequestOptions): Promise<AiCardGeneratedResult<T>> {
+        const owner = authSession.getSnapshot()
+        const requestOptions = { ...options, requestId: options.requestId || this.createClientId('mw-ai-card-req'),
+            idempotencyKey: options.idempotencyKey || this.createClientId('mw-ai-card-idem') }
+        return this.withLlmIntent('card_generation', requestOptions.requestId, options.llm, options.signal, async (llm) => {
+            try {
+                const body = { description: description.trim(), llm }
+                if (options.onEvent && isTextStreamingFeatureEnabled()) {
+                    return await this.streamGeneratedResult<AiCardGeneratedResult<T>>(`${endpoint}/stream`, body, 'card', requestOptions)
+                }
+                const result = await this.authenticatedRequest<AiCardGeneratedResult<T>>(`${endpoint}/`, this.getStoredToken(), {
+                    method: 'POST', headers: this.aiHeaders(requestOptions), body: body as unknown as BodyInit,
+                    ...this.aiRequestOptions(requestOptions),
+                })
+                this.assertAiCardSynchronousContract(result, requestOptions.requestId)
+                return result
+            } catch (error) {
+                this.assertCurrentOwner(owner)
+                if (error instanceof ApiError && error.category !== 'timeout'
+                    && error.code !== 'card_execution_contract' && !options.signal?.aborted
+                    && (error.status === 0 || error.status >= 500 || ['LLM_EXECUTION_RECOVERY_REQUIRED', 'LLM_EXECUTION_FINISHED'].includes(error.code || ''))) {
+                    const retained = await this.authenticatedRequest<{ status: string; request_id: string; execution_id?: string; recovery_required: boolean }>(
+                        `${endpoint}/result`, this.getStoredToken(), { method: 'GET', timeoutMs: 5000,
+                            headers: { 'Idempotency-Key': requestOptions.idempotencyKey, 'X-Request-Id': requestOptions.requestId } },
+                    ).catch(() => null)
+                    this.assertCurrentOwner(owner)
+                    if (retained && ['failed', 'cancelled'].includes(retained.status) && retained.recovery_required === true
+                        && retained.request_id === requestOptions.requestId
+                        && typeof retained.execution_id === 'string'
+                        && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(retained.execution_id)
+                        && Object.keys(retained).sort().join(',') === 'execution_id,recovery_required,request_id,status') {
+                        error.llmRetry = { retry_of_execution_id: retained.execution_id,
+                            selection: llm.selection ? { ...llm.selection } : { mode: 'inherit' },
+                            ...(llm.expected_revision_id ? { expected_revision_id: llm.expected_revision_id } : {}) }
+                    }
+                }
+                throw error
+            }
+        })
+    }
+
+    /**
+     * One logical LLM request. A retry of the same request ID reuses the target
+     * its first attempt froze and asks without a key, since a finished or
+     * platform execution needs none. Only when the server asks for a key does
+     * the user supply one, and only for that same profile revision.
+     */
+    private async withLlmIntent<T>(feature: LlmFeature, requestId: string, supplied: LlmRequest | undefined, signal: AbortSignal | undefined,
+        send: (llm: LlmRequest) => Promise<T>, finished: (value: T) => boolean = () => true,
+        settleError: (error: unknown) => boolean = isLlmRequestSpent): Promise<T> {
+        const owner = authSession.getSnapshot()
+        let llm = llmIntents.retained(feature, requestId) ?? await (supplied?.retry_of_execution_id
+            ? prepareRetainedLlmRequest(feature, supplied, signal) : prepareLlmRequest(feature, supplied, signal))
+        this.assertCurrentOwner(owner)
+        llmIntents.retain(feature, requestId, llm)
+        try {
+            let value: T
+            try {
+                value = await send(llm)
+            } catch (error) {
+                if (!(error instanceof ApiError) || error.code !== 'BYOK_CREDENTIAL_REQUIRED' || llm.credentials || !llm.expected_revision_id) throw error
+                const target = llm
+                llm = await prepareRetainedLlmRequest(feature, target, signal, requestId)
+                if (!llm.credentials || !llmIntents.matches(target, llm)) {
+                    delete llm.credentials
+                    throw new ApiError(409, 'The profile changed since this request started.', { code: 'LLM_EXECUTION_INTENT_CHANGED', requestId, retryable: false })
+                }
+                this.assertCurrentOwner(owner)
+                value = await send(llm)
+            }
+            if (finished(value)) llmIntents.settle(feature, requestId)
+            return value
+        } catch (error) {
+            if (settleError(error)) llmIntents.settle(feature, requestId)
+            throw error
+        } finally {
+            delete llm.credentials
         }
     }
 
@@ -1699,37 +1968,39 @@ class ApiService {
 
     async listAgents(): Promise<AgentSummary[]> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<AgentSummary[]>('/admin/agents', token, { method: 'GET' })
+        return this.authenticatedRequest<AgentSummary[]>('/admin/agents', token, { method: 'GET' }).then((result) => this.workflowResult(result, verifyAgentList))
     }
 
     async getAgent(workflowKey: string): Promise<AgentDetail> {
         const token = this.getStoredToken()
         return this.authenticatedRequest<AgentDetail>(`/admin/agents/${encodeURIComponent(workflowKey)}`, token, {
             method: 'GET',
-        })
+        }).then((result) => this.workflowResult(result, verifyAgentDetail))
     }
 
-    async createAgent(body: AgentCreateRequest): Promise<AgentDetail> {
+    async createAgent(body: AgentCreateRequest): Promise<CustomAgentDetail> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<AgentDetail>('/admin/agents', token, {
+        return this.authenticatedRequest<CustomAgentDetail>('/admin/agents', token, {
             method: 'POST',
             body: body as unknown as BodyInit,
-        })
+        }).then((result) => this.workflowResult(result, verifyCustomAgentDetail))
     }
 
-    async updateAgentDraft(workflowKey: string, body: AgentUpdateDraftRequest): Promise<AgentDetail> {
+    async updateAgentDraft(workflowKey: string, body: AgentUpdateDraftRequest, rowVersion: number): Promise<CustomAgentDetail> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<AgentDetail>(`/admin/agents/${encodeURIComponent(workflowKey)}/draft`, token, {
+        return this.authenticatedRequest<CustomAgentDetail>(`/admin/agents/${encodeURIComponent(workflowKey)}/draft`, token, {
             method: 'PUT',
+            headers: { 'If-Match': `"${rowVersion}"` },
             body: body as unknown as BodyInit,
-        })
+        }).then((result) => this.workflowResult(result, verifyCustomAgentDetail))
     }
 
-    async publishAgent(workflowKey: string): Promise<AgentDetail> {
+    async publishAgent(workflowKey: string, rowVersion: number): Promise<CustomAgentDetail> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<AgentDetail>(`/admin/agents/${encodeURIComponent(workflowKey)}/publish`, token, {
+        return this.authenticatedRequest<CustomAgentDetail>(`/admin/agents/${encodeURIComponent(workflowKey)}/publish`, token, {
             method: 'POST',
-        })
+            headers: { 'If-Match': `"${rowVersion}"` },
+        }).then((result) => this.workflowResult(result, verifyCustomAgentDetail))
     }
 
     async listAgentVersions(workflowKey: string): Promise<AgentVersionsResponse> {
@@ -1738,36 +2009,48 @@ class ApiService {
             `/admin/agents/${encodeURIComponent(workflowKey)}/versions`,
             token,
             { method: 'GET' },
-        )
+        ).then((result) => this.workflowResult(result, verifyAgentVersions))
     }
 
-    async rollbackAgentVersion(workflowKey: string, versionId: string): Promise<AgentDetail> {
+    async rollbackAgentVersion(workflowKey: string, versionId: string, rowVersion: number): Promise<CustomAgentDetail> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<AgentDetail>(
+        return this.authenticatedRequest<CustomAgentDetail>(
             `/admin/agents/${encodeURIComponent(workflowKey)}/rollback/${encodeURIComponent(versionId)}`,
             token,
-            { method: 'POST' },
-        )
+            { method: 'POST', headers: { 'If-Match': `"${rowVersion}"` } },
+        ).then((result) => this.workflowResult(result, verifyCustomAgentDetail))
     }
 
-    async deleteAgent(workflowKey: string): Promise<void> {
+    async deleteAgent(workflowKey: string, rowVersion: number): Promise<void> {
         const token = this.getStoredToken()
         await this.authenticatedRequest(`/admin/agents/${encodeURIComponent(workflowKey)}`, token, {
             method: 'DELETE',
+            headers: { 'If-Match': `"${rowVersion}"` },
         })
     }
 
-    async testAgent(workflowKey: string, body: AgentTestRequest): Promise<AgentTestResponse> {
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<AgentTestResponse>(`/admin/agents/${encodeURIComponent(workflowKey)}/test`, token, {
-            method: 'POST',
-            body: body as unknown as BodyInit,
-        })
+    /** Root test run; sending the same request ID again resumes it with the target it first froze. */
+    async testAgent(workflowKey: string, body: Omit<AgentTestRequest, 'llm'> & { llm?: LlmRequest }, requestId: string,
+        feature: LlmFeature = 'card_generation'): Promise<AgentTestResponse> {
+        const owner = authSession.getSnapshot()
+        return this.withLlmIntent(feature, requestId, body.llm, undefined, async (llm) => {
+            try {
+                const result = await this.authenticatedRequest<AgentTestResponse>(`/admin/agents/${encodeURIComponent(workflowKey)}/test`, this.getStoredToken(), {
+                    method: 'POST', cache: 'no-store', headers: { 'X-Request-Id': requestId }, body: { ...body, llm } as unknown as BodyInit,
+                })
+                return this.workflowResult(result, verifyAgentTest)
+            } catch (error) {
+                await this.confirmTerminalLlmAttempt(error, feature, requestId, llm, owner)
+                throw error
+            }
+        }, undefined, () => false)
     }
 
-    async listAgentModels(): Promise<AgentModelsResponse> {
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<AgentModelsResponse>('/admin/agents/models', token, { method: 'GET' })
+    private workflowResult<T>(value: unknown, verify: (value: unknown) => value is T): T {
+        if (!verify(value)) throw new ApiError(502, 'The workflow service returned an invalid response.', {
+            code: 'workflow_execution_contract', category: 'upstream_contract', retryable: false,
+        })
+        return value
     }
 
     /** Step 1 of cloning: upload an audio sample (multipart). The browser sets the boundary. */
@@ -1816,19 +2099,8 @@ class ApiService {
      * Generate + persist a new character from a description via the AI endpoint.
      * The backend creates the card and returns it.
      */
-    async createCharacterAI(description: string, options: AiCardRequestOptions = {}): Promise<CharacterCardResponse> {
-        if (options.onEvent && isTextStreamingFeatureEnabled()) return this.streamGeneratedResult<CharacterCardResponse>(
-            '/characters/ai/stream', { description: description.trim() }, 'card', options,
-        )
-        const token = this.getStoredToken()
-        const result = await this.authenticatedRequest<CharacterCardResponse>('/characters/ai/', token, {
-            method: 'POST',
-            headers: this.aiHeaders(options),
-            body: { description: description.trim() } as unknown as BodyInit,
-            ...this.aiRequestOptions(options),
-        })
-        this.assertAiCardSynchronousContract(result)
-        return result
+    async createCharacterAI(description: string, options: AiCardRequestOptions = {}): Promise<AiCardGeneratedResult<CharacterCardResponse>> {
+        return this.generateCard<CharacterCardResponse>('/characters/ai', description, options)
     }
 
     /** Select one owned persona as the account default. */
@@ -2109,19 +2381,8 @@ class ApiService {
      * Generate + persist a new world from a description via the AI endpoint.
      * The backend creates the card and returns it.
      */
-    async createWorldAI(description: string, options: AiCardRequestOptions = {}): Promise<WorldCardResponse> {
-        if (options.onEvent && isTextStreamingFeatureEnabled()) return this.streamGeneratedResult<WorldCardResponse>(
-            '/worlds/ai/stream', { description: description.trim() }, 'card', options,
-        )
-        const token = this.getStoredToken()
-        const result = await this.authenticatedRequest<WorldCardResponse>('/worlds/ai/', token, {
-            method: 'POST',
-            headers: this.aiHeaders(options),
-            body: { description: description.trim() } as unknown as BodyInit,
-            ...this.aiRequestOptions(options),
-        })
-        this.assertAiCardSynchronousContract(result)
-        return result
+    async createWorldAI(description: string, options: AiCardRequestOptions = {}): Promise<AiCardGeneratedResult<WorldCardResponse>> {
+        return this.generateCard<WorldCardResponse>('/worlds/ai', description, options)
     }
 
     /**
@@ -2141,39 +2402,14 @@ class ApiService {
     /**
      * Generate + persist a new item/object from a description via the AI endpoint.
      */
-    async createItemAI(description: string, options: AiCardRequestOptions = {}): Promise<ItemCardResponse> {
-        if (options.onEvent && isTextStreamingFeatureEnabled()) return this.streamGeneratedResult<ItemCardResponse>(
-            '/items/ai/stream', { description: description.trim() }, 'card', options,
-        )
-        const token = this.getStoredToken()
-        const result = await this.authenticatedRequest<ItemCardResponse>('/items/ai/', token, {
-            method: 'POST',
-            headers: this.aiHeaders(options),
-            body: { description: description.trim() } as unknown as BodyInit,
-            ...this.aiRequestOptions(options),
-        })
-        this.assertAiCardSynchronousContract(result)
-        return result
+    async createItemAI(description: string, options: AiCardRequestOptions = {}): Promise<AiCardGeneratedResult<ItemCardResponse>> {
+        return this.generateCard<ItemCardResponse>('/items/ai', description, options)
     }
 
     /** Build the shared list query string; `q` searches name/alias/triggers server-side. */
     private listQuery(skip: number, limit: number, q?: string): string {
         const term = q?.trim()
         return `?skip=${skip}&limit=${limit}${term ? `&q=${encodeURIComponent(term)}` : ''}`
-    }
-
-    private lorebookResourceMetadataHeaders(options: LorebookResourceMetadataSaveOptions = {}): Record<string, string> {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-        if (options.extractMetadata || options.requestId || options.idempotencyKey) {
-            const requestId = options.requestId || this.createClientId('mw-lorebook-resource-req')
-            headers['X-Request-Id'] = requestId
-            headers['Idempotency-Key'] = options.idempotencyKey || requestId
-        }
-        return headers
-    }
-
-    private extractMetadataQuery(shouldExtract?: boolean): string {
-        return shouldExtract ? '?extractMetadata=true' : ''
     }
 
     private sharedCardListQuery(
@@ -2311,22 +2547,22 @@ class ApiService {
         })
     }
 
-    async createLorebook(lorebook: LorebookDraft | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+    async createLorebook(lorebook: LorebookDraft | Record<string, unknown>): Promise<unknown> {
         this.assertLorebooksEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/lorebooks${this.extractMetadataQuery(options.extractMetadata)}`, token, {
+        return this.authenticatedRequest('/lorebooks', token, {
             method: 'POST',
-            headers: this.lorebookResourceMetadataHeaders(options),
+            headers: { 'Content-Type': 'application/json' },
             body: serializeLorebookDraft(lorebook as LorebookDraft & Record<string, unknown>) as unknown as BodyInit,
         })
     }
 
-    async updateLorebook(lorebookId: string, lorebook: Partial<LorebookDraft> | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+    async updateLorebook(lorebookId: string, lorebook: Partial<LorebookDraft> | Record<string, unknown>): Promise<unknown> {
         this.assertLorebooksEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}${this.extractMetadataQuery(options.extractMetadata)}`, token, {
+        return this.authenticatedRequest(`/lorebooks/${encodeURIComponent(lorebookId)}`, token, {
             method: 'PUT',
-            headers: this.lorebookResourceMetadataHeaders(options),
+            headers: { 'Content-Type': 'application/json' },
             body: serializeLorebookDraft(lorebook as LorebookDraft & Record<string, unknown>) as unknown as BodyInit,
         })
     }
@@ -2355,35 +2591,99 @@ class ApiService {
         })
     }
 
-    async createLorebookResource(resource: LorebookResource | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+    async createLorebookResource(resource: LorebookResource | Record<string, unknown>): Promise<unknown> {
         this.assertLorebookResourcesEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/lorebook-resources${this.extractMetadataQuery(options.extractMetadata)}`, token, {
+        return this.authenticatedRequest('/lorebook-resources', token, {
             method: 'POST',
-            headers: this.lorebookResourceMetadataHeaders(options),
+            headers: { 'Content-Type': 'application/json' },
             body: serializeLorebookResource(resource as Partial<LorebookResource> & Record<string, unknown>, { includeIdentity: true }) as unknown as BodyInit,
         })
     }
 
-    async updateLorebookResource(resourceId: string, resource: Partial<LorebookResource> | Record<string, unknown>, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+    async updateLorebookResource(resourceId: string, resource: Partial<LorebookResource> | Record<string, unknown>): Promise<unknown> {
         this.assertLorebookResourcesEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}${this.extractMetadataQuery(options.extractMetadata)}`, token, {
+        return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}`, token, {
             method: 'PUT',
-            headers: this.lorebookResourceMetadataHeaders(options),
+            headers: { 'Content-Type': 'application/json' },
             body: serializeLorebookResource(resource as Partial<LorebookResource> & Record<string, unknown>, { includeIdentity: false }) as unknown as BodyInit,
         })
     }
 
-    async syncLorebookResourceMetadata(resourceId: string, options: LorebookResourceMetadataSaveOptions = {}): Promise<unknown> {
+    async extractLorebookResource(resourceId: string, command: LorebookExtractionCommand, options: LorebookExtractionOptions, lorebookId: string | null = null): Promise<LorebookExtractionResult> {
         this.assertLorebookResourcesEnabled()
-        const token = this.getStoredToken()
-        const requestOptions = { ...options, extractMetadata: true }
-        return this.authenticatedRequest(`/lorebook-resources/${encodeURIComponent(resourceId)}/metadata-sync`, token, {
-            method: 'POST',
-            headers: this.lorebookResourceMetadataHeaders(requestOptions),
-            body: {} as unknown as BodyInit,
+        if (!/^[A-Za-z0-9._:-]{1,64}$/.test(options.requestId) || !/^[a-f0-9]{64}$/.test(command.expected_evaluation_hash)) {
+            throw new ApiError(422, 'Invalid extraction identity.', { code: 'lorebook_extraction_identity' })
+        }
+        return this.withLlmIntent('lorebook_extraction', options.requestId, command.llm, options.signal, async (llm) => {
+            const prepared = { ...command, llm }
+            const owner = authSession.getSnapshot()
+            this.assertCurrentOwner(owner)
+            options.signal?.throwIfAborted()
+            const path = lorebookId === null
+                ? `/lorebook-resources/${encodeURIComponent(resourceId)}/metadata-sync`
+                : `/lorebooks/${encodeURIComponent(lorebookId)}/resource-extractions/${encodeURIComponent(resourceId)}`
+            const safeResult = (result: unknown): result is LorebookExtractionResult =>
+                verifyLorebookExtraction(result, resourceId, command.expected_evaluation_hash, lorebookId)
+                && matchesLorebookExtractionProfile(result, prepared.llm)
+                && (!prepared.llm.credentials || result.llm_execution.credential_mode === 'user_byok'
+                    && !extractionContainsCredential(result, prepared.llm.credentials.api_key))
+            try {
+                const result = await this.authenticatedRequest<unknown>(path, this.getStoredToken(), {
+                    method: 'POST', body: prepared as unknown as BodyInit,
+                    headers: { 'Content-Type': 'application/json', 'X-Request-Id': options.requestId },
+                    signal: options.signal, timeoutMs: options.timeoutMs,
+                })
+                this.assertCurrentOwner(owner)
+                options.signal?.throwIfAborted()
+                if (!safeResult(result)) {
+                    throw new ApiError(502, 'Invalid extraction result.', { code: 'lorebook_extraction_contract' })
+                }
+                return result
+            } catch (error) {
+                this.assertCurrentOwner(owner)
+                options.signal?.throwIfAborted()
+                if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+                // A lost response can follow a committed result. Read this request only.
+                let status: LorebookExtractionStatus
+                try {
+                    status = await this.getLorebookResourceExtraction(resourceId, command.expected_evaluation_hash, options, lorebookId)
+                } catch {
+                    this.assertCurrentOwner(owner)
+                    options.signal?.throwIfAborted()
+                    throw new ApiError(0, 'Extraction outcome is unknown. Check this request before starting another.', {
+                        code: 'lorebook_extraction_unknown', requestId: options.requestId, retryable: false,
+                    })
+                }
+                this.assertCurrentOwner(owner)
+                if (status.status === 'completed') {
+                    if (!safeResult(status.result)) throw new ApiError(502, 'Invalid extraction result.', { code: 'lorebook_extraction_contract' })
+                    return status.result
+                }
+                throw new ApiError(409, 'Extraction has not completed. Check the existing request.', {
+                    code: `lorebook_extraction_${status.status}`, requestId: options.requestId, retryable: false,
+                })
+            }
         })
+    }
+
+    async getLorebookResourceExtraction(resourceId: string, expectedHash: string, options: LorebookExtractionOptions, lorebookId: string | null = null): Promise<LorebookExtractionStatus> {
+        this.assertLorebookResourcesEnabled()
+        const owner = authSession.getSnapshot()
+        options.signal?.throwIfAborted()
+        const path = lorebookId === null
+            ? `/lorebook-resources/${encodeURIComponent(resourceId)}/metadata-extractions/${encodeURIComponent(options.requestId)}`
+            : `/lorebooks/${encodeURIComponent(lorebookId)}/resource-extractions/${encodeURIComponent(resourceId)}/${encodeURIComponent(options.requestId)}`
+        const result = await this.authenticatedRequest<unknown>(path, this.getStoredToken(), {
+            method: 'GET', signal: options.signal, timeoutMs: options.timeoutMs,
+        })
+        this.assertCurrentOwner(owner)
+        options.signal?.throwIfAborted()
+        if (!verifyLorebookExtractionStatus(result, resourceId, expectedHash, options.requestId, lorebookId)) {
+            throw new ApiError(502, 'Invalid extraction status.', { code: 'lorebook_extraction_contract' })
+        }
+        return result
     }
 
     async deleteLorebookResource(resourceId: string): Promise<void> {
@@ -2602,34 +2902,68 @@ class ApiService {
         return this.authenticatedRequest<StoryContextTrace>(`/stories/${encodeURIComponent(storyId)}/context-preview`, token, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: request as unknown as BodyInit,
+            body: {
+                chapterId: request.chapterId, command: request.command, selection: request.selection,
+                instruction: request.instruction, contextSettings: request.contextSettings,
+            } as unknown as BodyInit,
         })
     }
 
     async generateStory(storyId: string, request: StoryGenerateRequest, options: TextGenerationOptions = {}): Promise<StoryGenerateResponse> {
         this.assertNovelsEnabled()
         const requestId = options.requestId || this.createClientId('mw-story-generate')
-        const owner = authSession.getSnapshot()
-        if (!isTextStreamingFeatureEnabled()) return this.authenticatedRequest<StoryGenerateResponse>(`/stories/${encodeURIComponent(storyId)}/generate`, this.getStoredToken(), {
-            method: 'POST', body: request as unknown as BodyInit,
-            headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId }, signal: options.signal, timeoutMs: options.timeoutMs,
-        })
-        try {
-            return await this.streamGeneratedResult<StoryGenerateResponse>(`/stories/${encodeURIComponent(storyId)}/generate/stream`, request, null, { ...options, requestId })
-        } catch (error) {
-            this.assertCurrentOwner(owner)
-            if (options.signal?.aborted) throw error
-            // Reconcile only the exact saved candidate; never start a second generation.
-            if (!(error instanceof ApiError) || error.status === 0) {
-                const story = await this.getStory(storyId).catch(() => null)
-                this.assertCurrentOwner(owner)
-                options.signal?.throwIfAborted()
-                const chapter = story?.chapters.find((item) => item.id === request.chapterId)
-                const generation = chapter?.generationHistory.find((item) => item.requestId === requestId)
-                if (chapter && generation) return { generation, chapter, stagedCardUpdates: [] }
-                console.warn('text_stream_recovery_failed', { requestId, surface: 'story' })
+        return this.withLlmIntent('novel', requestId, request.llm, options.signal, async (llm) => {
+            const payload = { ...request, llm }
+            const owner = authSession.getSnapshot()
+            if (!isTextStreamingFeatureEnabled()) {
+                const result = await this.authenticatedRequest<StoryGenerateResponse>(`/stories/${encodeURIComponent(storyId)}/generate`, this.getStoredToken(), {
+                    method: 'POST', body: payload as unknown as BodyInit,
+                    headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId }, signal: options.signal, timeoutMs: options.timeoutMs,
+                })
+                this.assertStoryExecutionResult(result, request.chapterId, requestId)
+                return result
             }
-            throw error
+            try {
+                const result = await this.streamGeneratedResult<StoryGenerateResponse>(`/stories/${encodeURIComponent(storyId)}/generate/stream`, payload, null, { ...options, requestId })
+                this.assertStoryExecutionResult(result, request.chapterId, requestId)
+                return result
+            } catch (error) {
+                this.assertCurrentOwner(owner)
+                if (options.signal?.aborted) throw error
+                // Reconcile only the exact saved candidate; never start a second generation.
+                if (!(error instanceof ApiError) || error.status === 0) {
+                    const saved = await this.authenticatedRequest<StoryGenerateResponse>(
+                        `/stories/${encodeURIComponent(storyId)}/generation-requests/${encodeURIComponent(requestId)}`,
+                        this.getStoredToken(), { method: 'GET', signal: options.signal },
+                    ).catch(() => null)
+                    this.assertCurrentOwner(owner)
+                    options.signal?.throwIfAborted()
+                    if (saved) {
+                        this.assertStoryExecutionResult(saved, request.chapterId, requestId)
+                        return saved
+                    }
+                    console.warn('text_stream_recovery_failed', { requestId, surface: 'story' })
+                }
+                throw error
+            }
+        })
+    }
+
+    private assertStoryExecutionResult(result: StoryGenerateResponse, chapterId: string, requestId: string): void {
+        const plan = result?.llm_execution
+        const generation = result?.generation
+        const keys = ['execution_id', 'profile_id', 'revision_id', 'resolution_source', 'credential_mode', 'replayed']
+        if (!plan || typeof plan !== 'object' || Array.isArray(plan)
+            || Object.keys(plan).some((key) => !keys.includes(key))
+            || ![plan.execution_id, plan.profile_id, plan.revision_id].every((value) => typeof value === 'string' && value.length > 0)
+            || !['user_feature', 'user_default', 'system_feature', 'system_default', 'explicit'].includes(plan.resolution_source)
+            || !['platform', 'user_byok'].includes(plan.credential_mode) || typeof plan.replayed !== 'boolean'
+            || generation?.id !== plan.execution_id || generation.requestId !== requestId
+            || generation.chapterId !== chapterId || result.chapter?.id !== chapterId
+            || typeof generation.output !== 'string' || !generation.output.trim()) {
+            throw new ApiError(502, 'Story generation returned an invalid execution result.', {
+                code: 'story_execution_contract', category: 'upstream_contract', retryable: false,
+            })
         }
     }
 
@@ -2646,12 +2980,12 @@ class ApiService {
                     if (!candidate || typeof candidate !== 'object' || typeof (candidate as { id?: unknown }).id !== 'string') {
                         throw new StreamContractError('The stream returned an invalid saved result.')
                     }
-                    if (resultKey) this.assertAiCardSynchronousContract(candidate)
+                    if (resultKey) this.assertAiCardSynchronousContract(candidate, options.requestId)
                     result = (resultKey ? candidate : event) as T
                 }
                 else if (event.type === 'error') {
-                    const detail = event.error as Record<string, unknown> | undefined
-                    failure = new ApiError(typeof event.status_code === 'number' ? event.status_code : 502, String(event.detail || detail?.message || 'Generation failed.'), {
+                    const detail = (event.error || (event.detail && typeof event.detail === 'object' ? event.detail : undefined)) as Record<string, unknown> | undefined
+                    failure = new ApiError(typeof event.status_code === 'number' ? event.status_code : 502, typeof event.detail === 'string' ? event.detail : String(detail?.message || 'Generation failed.'), {
                         category: typeof detail?.category === 'string' ? detail.category : 'generation',
                         code: typeof detail?.code === 'string' ? detail.code : undefined,
                         requestId: options.requestId,
@@ -2670,19 +3004,21 @@ class ApiService {
             this.assertCurrentOwner(owner)
             const stopped = options.signal?.aborted && options.signal.reason?.message === 'Stopped by user'
             if (resultKey && options.idempotencyKey && (!options.signal?.aborted || stopped)) {
-                for (let attempt = 0; attempt < 3; attempt++) {
-                    const recovered = await this.authenticatedRequest<{ status: string; card?: T; request_id: string }>(
+                const deadline = Date.now() + 11_000
+                for (let attempt = 0; attempt < 12 && Date.now() < deadline; attempt++) {
+                    this.assertCurrentOwner(owner)
+                    const recovered = await this.authenticatedRequest<{ status: string; card?: T; request_id: string; recovery_required?: boolean }>(
                         endpoint.replace(/\/stream$/, '/result'), this.getStoredToken(), {
                             method: 'GET', headers: { 'Idempotency-Key': options.idempotencyKey, 'X-Request-Id': options.requestId! }, timeoutMs: 5000,
                         }).catch(() => null)
                     this.assertCurrentOwner(owner)
                     if (options.signal?.aborted && !stopped) throw error
                     if (recovered?.status === 'completed' && recovered.card && recovered.request_id === options.requestId) {
-                        this.assertAiCardSynchronousContract(recovered.card)
+                        this.assertAiCardSynchronousContract(recovered.card, options.requestId)
                         return recovered.card
                     }
-                    if (!recovered || recovered.status !== 'in_flight') break
-                    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+                    if (!recovered || recovered.recovery_required || !['admitted', 'running'].includes(recovered.status)) break
+                    await new Promise((resolve) => setTimeout(resolve, Math.min(250 * (attempt + 1), 1000)))
                 }
                 if (!stopped) console.warn('text_stream_recovery_failed', { requestId: options.requestId, surface: 'card' })
             }
@@ -2753,19 +3089,8 @@ class ApiService {
      * Generate + persist a new adventure template from a description via the AI
      * endpoint. The backend creates the card and returns it.
      */
-    async createAdventureTemplateAI(description: string, options: AiCardRequestOptions = {}): Promise<AdventureTemplateCardResponse> {
-        if (options.onEvent && isTextStreamingFeatureEnabled()) return this.streamGeneratedResult<AdventureTemplateCardResponse>(
-            '/adventure-templates/ai/stream', { description: description.trim() }, 'card', options,
-        )
-        const token = this.getStoredToken()
-        const result = await this.authenticatedRequest<AdventureTemplateCardResponse>('/adventure-templates/ai/', token, {
-            method: 'POST',
-            headers: this.aiHeaders(options),
-            body: { description: description.trim() } as unknown as BodyInit,
-            ...this.aiRequestOptions(options),
-        })
-        this.assertAiCardSynchronousContract(result)
-        return result
+    async createAdventureTemplateAI(description: string, options: AiCardRequestOptions = {}): Promise<AiCardGeneratedResult<AdventureTemplateCardResponse>> {
+        return this.generateCard<AdventureTemplateCardResponse>('/adventure-templates/ai', description, options)
     }
 
     async createCardAssistantConversation(
@@ -2830,14 +3155,18 @@ class ApiService {
         body: CardAssistantTurnRequest,
         options: CardAssistantRequestOptions = {},
     ): Promise<CardAssistantTurnResponse> {
-        const token = this.getStoredToken()
         const requestId = options.requestId || this.createClientId('mw-card-assistant-turn')
-        return this.authenticatedRequest<CardAssistantTurnResponse>(`/card-assistant/conversations/${conversationId}/messages`, token, {
-            method: 'POST',
-            headers: this.cardAssistantHeaders({ ...options, requestId }),
-            body: body as unknown as BodyInit,
-            ...this.cardAssistantRequestOptions(options),
-        })
+        return this.withLlmIntent('card_assistant', requestId, options.llm, options.signal, async (llm) => this.withAssistantRetry('card', conversationId, requestId, llm, options.signal, async () => {
+            const token = this.getStoredToken()
+            const result = await this.authenticatedRequest<CardAssistantTurnResponse>(`/card-assistant/conversations/${conversationId}/messages`, token, {
+                method: 'POST',
+                headers: this.cardAssistantHeaders({ ...options, requestId }),
+                body: { ...body, llm: llm } as unknown as BodyInit,
+                ...this.cardAssistantRequestOptions(options),
+            })
+            this.assertAssistantExecutionResult(result, 'card', conversationId, requestId)
+            return result
+        }))
     }
 
     async streamCardAssistantMessage(
@@ -2846,7 +3175,52 @@ class ApiService {
         onEvent: (event: CardAssistantStreamEvent) => void,
         options: CardAssistantRequestOptions = {},
     ): Promise<void> {
-        return this.authenticatedStream(`/card-assistant/conversations/${conversationId}/messages/stream`, body, onEvent, options)
+        const requestId = options.requestId || this.createClientId('mw-card-assistant-turn')
+        const outcome = { finished: false }
+        return this.withLlmIntent('card_assistant', requestId, options.llm, options.signal, async (llm) => this.withAssistantRetry('card', conversationId, requestId, llm, options.signal, async () => {
+            outcome.finished = false
+            await this.authenticatedStream<CardAssistantStreamEvent>(`/card-assistant/conversations/${conversationId}/messages/stream`,
+                { ...body, llm: llm }, this.assistantIntentEvents<CardAssistantStreamEvent>((event) => {
+                    if (event.type === 'final') {
+                        const { type: _type, ...turn } = event
+                        this.assertAssistantExecutionResult(turn, 'card', conversationId, requestId)
+                    }
+                    onEvent(event)
+                }, outcome), { ...options, requestId })
+        }), () => outcome.finished)
+    }
+
+    /**
+     * Assistant streams report failures as events. A key demand before any turn
+     * output becomes an error so the intent can ask for that target's key and
+     * resend; a final turn or spent request releases the frozen target.
+     */
+    private assistantIntentEvents<E extends { type: string }>(onEvent: (event: E) => void, outcome: { finished: boolean }): (event: E) => void {
+        let started = false
+        return (event) => {
+            let code: unknown
+            if (event.type === 'error') {
+                const failure = event as { error?: { code?: unknown }; detail?: unknown }
+                code = failure.error?.code ?? (failure.detail && typeof failure.detail === 'object' ? (failure.detail as { code?: unknown }).code : undefined)
+            }
+            if (code === 'BYOK_CREDENTIAL_REQUIRED' && !started) throw new ApiError(409, 'A key is required to continue this request.', { code, retryable: false })
+            if (code === 'LLM_EXECUTION_FINISHED' || code === 'LLM_EXECUTION_UPSTREAM_FAILED') {
+                throw new ApiError(code === 'LLM_EXECUTION_FINISHED' ? 409 : 502, code, { code, retryable: true })
+            }
+            if (event.type !== 'progress') started = true
+            if (event.type === 'final' || isLlmRequestSpent({ code })) outcome.finished = true
+            onEvent(event)
+        }
+    }
+
+    async getCardAssistantTurn(conversationId: number, requestId: string, options: CardAssistantRequestOptions = {}): Promise<CardAssistantTurnResponse | null> {
+        const result = await this.authenticatedRequest<{ status: string; request_id: string; turn?: CardAssistantTurnResponse }>(
+            `/card-assistant/conversations/${conversationId}/turns/${encodeURIComponent(requestId)}`, this.getStoredToken(),
+            { method: 'GET', ...this.cardAssistantRequestOptions(options) })
+        if (result.request_id !== requestId) throw new ApiError(502, 'Assistant reconciliation returned a different request.')
+        if (result.status !== 'completed') return null
+        this.assertAssistantExecutionResult(result.turn, 'card', conversationId, requestId)
+        return result.turn!
     }
 
     async createLorebookAssistantConversation(
@@ -2913,18 +3287,24 @@ class ApiService {
         body: {
             message: string
             currentLorebook?: Record<string, unknown> | null
+            expectedRevision?: string
+            expectedContentHash?: string
         },
         options: LorebookAssistantRequestOptions = {},
     ): Promise<LorebookAssistantTurnResponse> {
         this.assertLorebooksEnabled()
-        const token = this.getStoredToken()
         const requestId = options.requestId || this.createClientId('mw-lorebook-assistant-turn')
-        return this.authenticatedRequest<LorebookAssistantTurnResponse>(`/lorebook-assistant/conversations/${conversationId}/messages`, token, {
-            method: 'POST',
-            headers: this.lorebookAssistantHeaders({ ...options, requestId }),
-            body: body as unknown as BodyInit,
-            ...this.lorebookAssistantRequestOptions(options),
-        })
+        return this.withLlmIntent('lorebook_assistant', requestId, options.llm, options.signal, async (llm) => this.withAssistantRetry('lorebook', conversationId, requestId, llm, options.signal, async () => {
+            const token = this.getStoredToken()
+            const result = await this.authenticatedRequest<LorebookAssistantTurnResponse>(`/lorebook-assistant/conversations/${conversationId}/messages`, token, {
+                method: 'POST',
+                headers: this.lorebookAssistantHeaders({ ...options, requestId }),
+                body: { ...body, llm: llm } as unknown as BodyInit,
+                ...this.lorebookAssistantRequestOptions(options),
+            })
+            this.assertAssistantExecutionResult(result, 'lorebook', conversationId, requestId)
+            return result
+        }))
     }
 
     async streamLorebookAssistantMessage(
@@ -2932,12 +3312,76 @@ class ApiService {
         body: {
             message: string
             currentLorebook?: Record<string, unknown> | null
+            expectedRevision?: string
+            expectedContentHash?: string
         },
         onEvent: (event: LorebookAssistantStreamEvent) => void,
         options: LorebookAssistantRequestOptions = {},
     ): Promise<void> {
         this.assertLorebooksEnabled()
-        return this.authenticatedStream(`/lorebook-assistant/conversations/${conversationId}/messages/stream`, body, onEvent, options)
+        const requestId = options.requestId || this.createClientId('mw-lorebook-assistant-turn')
+        const outcome = { finished: false }
+        return this.withLlmIntent('lorebook_assistant', requestId, options.llm, options.signal, async (llm) => this.withAssistantRetry('lorebook', conversationId, requestId, llm, options.signal, async () => {
+            outcome.finished = false
+            await this.authenticatedStream<LorebookAssistantStreamEvent>(`/lorebook-assistant/conversations/${conversationId}/messages/stream`,
+                { ...body, llm: llm }, this.assistantIntentEvents<LorebookAssistantStreamEvent>((event) => {
+                    if (event.type === 'final') {
+                        const { type: _type, ...turn } = event
+                        this.assertAssistantExecutionResult(turn, 'lorebook', conversationId, requestId)
+                    }
+                    onEvent(event)
+                }, outcome), { ...options, requestId })
+        }), () => outcome.finished)
+    }
+
+    async getLorebookAssistantTurn(conversationId: number, requestId: string, options: LorebookAssistantRequestOptions = {}): Promise<LorebookAssistantTurnResponse | null> {
+        this.assertLorebooksEnabled()
+        const result = await this.authenticatedRequest<{ status: string; request_id: string; turn?: LorebookAssistantTurnResponse }>(
+            `/lorebook-assistant/conversations/${conversationId}/turns/${encodeURIComponent(requestId)}`, this.getStoredToken(),
+            { method: 'GET', ...this.lorebookAssistantRequestOptions(options) })
+        if (result.request_id !== requestId) throw new ApiError(502, 'Assistant reconciliation returned a different request.')
+        if (result.status !== 'completed') return null
+        this.assertAssistantExecutionResult(result.turn, 'lorebook', conversationId, requestId)
+        return result.turn!
+    }
+
+    private async withAssistantRetry<T>(kind: 'card' | 'lorebook', conversationId: number, requestId: string,
+        llm: LlmRequest, signal: AbortSignal | undefined, send: () => Promise<T>): Promise<T> {
+        const owner = authSession.getSnapshot()
+        try {
+            return await send()
+        } catch (error) {
+            this.assertCurrentOwner(owner)
+            if (error instanceof ApiError && !signal?.aborted
+                && ['LLM_EXECUTION_UPSTREAM_FAILED', 'LLM_EXECUTION_FINISHED'].includes(error.code || '')) {
+                const status = await this.authenticatedRequest<unknown>(
+                    `/${kind}-assistant/conversations/${conversationId}/turns/${encodeURIComponent(requestId)}`,
+                    this.getStoredToken(), { method: 'GET', signal, timeoutMs: 5000 },
+                ).catch(() => null)
+                this.assertCurrentOwner(owner)
+                if (status && typeof status === 'object' && !Array.isArray(status)) {
+                    const retained = status as Record<string, unknown>
+                    if (Object.keys(retained).sort().join(',') === 'execution_id,recovery_required,request_id,status'
+                        && retained.request_id === requestId && retained.recovery_required === true
+                        && ['failed', 'cancelled'].includes(retained.status as string)
+                        && typeof retained.execution_id === 'string'
+                        && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(retained.execution_id)) {
+                        error.llmRetry = { retry_of_execution_id: retained.execution_id,
+                            selection: llm.selection ? { ...llm.selection } : { mode: 'inherit' },
+                            ...(llm.expected_revision_id ? { expected_revision_id: llm.expected_revision_id } : {}) }
+                    }
+                }
+            }
+            throw error
+        }
+    }
+
+    private assertAssistantExecutionResult(result: CardAssistantTurnResponse | LorebookAssistantTurnResponse | undefined, kind: 'card' | 'lorebook', conversationId: number, requestId: string): void {
+        if (!verifyAssistantExecution(result, kind, conversationId, requestId)) {
+            throw new ApiError(502, 'Assistant returned an invalid execution result.', {
+                code: 'assistant_execution_contract', category: 'upstream_contract', retryable: false,
+            })
+        }
     }
 
     /**
@@ -3079,6 +3523,44 @@ class ApiService {
         return { ...(response as AdventureSessionMessagesResponse), messages }
     }
 
+    /** Durable state of a chat request, read without running it; the completed turn itself comes from the history. */
+    async reconcileChatTurn(basePath: 'adventure-sessions' | 'character-chats', sessionId: number, requestId: string, signal?: AbortSignal): Promise<ChatTurnReconciliation> {
+        const result = await this.authenticatedRequest<Record<string, unknown>>(
+            `/${basePath}/${sessionId}/turns/${encodeURIComponent(requestId)}`, this.getStoredToken(), { method: 'GET', cache: 'no-store', signal, timeoutMs: 5000 })
+        const keys = Object.keys(result ?? {}).sort().join(',')
+        const status = result?.status
+        if ((keys !== 'dispatch,execution_id,recovery_required,request_id,status' && !(status === 'completed' && keys === 'execution_id,recovery_required,request_id,status,turn'))
+            || result.request_id !== requestId || typeof result.recovery_required !== 'boolean'
+            || typeof result.execution_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(result.execution_id)
+            || !['admitted', 'running', 'completed', 'failed', 'cancelled', 'awaiting_credential'].includes(status as string)
+            || (status === 'completed' && result.recovery_required)) {
+            throw new ApiError(502, 'Chat reconciliation returned an invalid state.')
+        }
+        let dispatch: ChatTurnReconciliation['dispatch']
+        if (status !== 'completed') {
+            const value = result.dispatch as Record<string, unknown> | undefined
+            const llm = value?.llm as Record<string, unknown> | undefined
+            const selection = llm?.selection as Record<string, unknown> | undefined
+            const uuid = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+            if (!value || Object.keys(value).sort().join(',') !== 'content,existing_user_message_id,llm'
+                || typeof value.content !== 'string' || !value.content.trim() || value.content.length > 32000
+                || value.existing_user_message_id !== null && (!Number.isSafeInteger(value.existing_user_message_id) || Number(value.existing_user_message_id) < 1)
+                || !llm || Object.keys(llm).some(key => !['selection', 'expected_revision_id', 'retry_of_execution_id'].includes(key))
+                || !selection || (selection.mode === 'inherit' ? Object.keys(selection).join(',') !== 'mode'
+                    : selection.mode !== 'profile' || Object.keys(selection).sort().join(',') !== 'mode,profile_id' || !uuid(selection.profile_id))
+                || llm.expected_revision_id !== undefined && !uuid(llm.expected_revision_id)
+                || llm.retry_of_execution_id !== undefined && !uuid(llm.retry_of_execution_id)) {
+                throw new ApiError(502, 'Chat reconciliation returned an invalid command.')
+            }
+            dispatch = { content: value.content, existing_user_message_id: value.existing_user_message_id as number | null,
+                llm: { selection: selection.mode === 'inherit' ? { mode: 'inherit' } : { mode: 'profile', profile_id: String(selection.profile_id) },
+                    ...(llm.expected_revision_id ? { expected_revision_id: String(llm.expected_revision_id) } : {}),
+                    ...(llm.retry_of_execution_id ? { retry_of_execution_id: String(llm.retry_of_execution_id) } : {}) } }
+        }
+        return { status: status as ChatTurnReconciliation['status'], request_id: requestId, execution_id: result.execution_id, recovery_required: result.recovery_required,
+            ...(dispatch ? { dispatch } : {}) }
+    }
+
     async updateAdventureSessionMessage(
         sessionId: number,
         messageId: number,
@@ -3089,6 +3571,14 @@ class ApiService {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: { content } as unknown as BodyInit,
+        })
+    }
+
+    /** Make this reply the active version of the latest exchange; the others stay stored. */
+    async activateAdventureSessionMessage(sessionId: number, messageId: number): Promise<StoredConversationMessage> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/adventure-sessions/${sessionId}/messages/${messageId}/activate`, token, {
+            method: 'POST'
         })
     }
 
@@ -3491,30 +3981,37 @@ class ApiService {
      */
     async generateThemeSong(body: ThemeSongCreateRequest, options: AiCardRequestOptions = {}): Promise<ThemeSongJobPublic> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<ThemeSongJobPublic>('/theme-songs', token, {
+        return this.authenticatedRequest<unknown>('/theme-songs', token, {
             method: 'POST',
             headers: this.aiHeaders(options),
             body: body as unknown as BodyInit,
             signal: options.signal,
             timeoutMs: options.timeoutMs,
-        })
+        }).then((value) => this.workflowResult(value, (value): value is ThemeSongJobPublic => verifyThemeSongJob(value)
+            && value.target.type === body.target_type && value.target.id === body.target_id
+            && value.instrumental === (body.instrumental ?? false)
+            && (body.model_alias === undefined || value.model_alias === body.model_alias)))
     }
 
     async getThemeSongJob(jobId: string): Promise<ThemeSongJobPublic> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/theme-songs/jobs/${encodeURIComponent(jobId)}`, token, { method: 'GET' })
+        return this.authenticatedRequest<unknown>(`/theme-songs/jobs/${encodeURIComponent(jobId)}`, token, { method: 'GET' })
+            .then((value) => this.workflowResult(value, (value): value is ThemeSongJobPublic => verifyThemeSongJob(value) && value.job_id === jobId))
     }
 
     async getThemeSongResult(jobId: string): Promise<ThemeSongJobPublic> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest(`/theme-songs/jobs/${encodeURIComponent(jobId)}/result`, token, { method: 'GET' })
+        return this.authenticatedRequest<unknown>(`/theme-songs/jobs/${encodeURIComponent(jobId)}/result`, token, { method: 'GET' })
+            .then((value) => this.workflowResult(value, (value): value is ThemeSongJobPublic => verifyThemeSongJob(value) && value.job_id === jobId))
     }
 
     /** List the theme songs attached to a given card (most recent first). */
     async listThemeSongs(targetType: CardMediaTargetType, targetId: string, limit = 20, offset = 0): Promise<ThemeSongListResponse> {
         const token = this.getStoredToken()
         const query = `target_type=${encodeURIComponent(targetType)}&target_id=${encodeURIComponent(targetId)}&limit=${limit}&offset=${offset}`
-        return this.authenticatedRequest(`/theme-songs?${query}`, token, { method: 'GET' })
+        return this.authenticatedRequest<unknown>(`/theme-songs?${query}`, token, { method: 'GET' })
+            .then((value) => this.workflowResult(value, (value): value is ThemeSongListResponse => verifyThemeSongList(value)
+                && value.target.type === targetType && value.target.id === targetId))
     }
 
     /**
@@ -3538,7 +4035,10 @@ class ApiService {
         if (opts.targetType) query += `&target_type=${encodeURIComponent(opts.targetType)}`
         if (opts.targetId) query += `&target_id=${encodeURIComponent(opts.targetId)}`
         if (opts.status) query += `&status=${encodeURIComponent(opts.status)}`
-        return this.authenticatedRequest(`/theme-songs/user?${query}`, token, { method: 'GET' })
+        return this.authenticatedRequest<unknown>(`/theme-songs/user?${query}`, token, { method: 'GET' })
+            .then((value) => this.workflowResult(value, (value): value is UserThemeSongListResponse => verifyUserThemeSongList(value)
+                && value.items.every((job) => (!opts.targetType || job.target.type === opts.targetType)
+                    && (!opts.targetId || job.target.id === opts.targetId) && (!opts.status || job.status === opts.status))))
     }
 
     /** Soft-delete a theme-song audio asset (removes it from the card's history). */
@@ -3758,6 +4258,14 @@ class ApiService {
             token,
             { method: 'GET' },
         )
+    }
+
+    /** Make this reply the active version of the latest exchange; the others stay stored. */
+    async activateCharacterChatMessage(chatId: number, messageId: number): Promise<StoredConversationMessage> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest(`/character-chats/${chatId}/messages/${messageId}/activate`, token, {
+            method: 'POST'
+        })
     }
 
     async deleteCharacterChatMessage(chatId: number, messageId: number): Promise<any> {

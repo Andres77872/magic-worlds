@@ -51,6 +51,21 @@ interface ChatMessageProps {
     aiLabel?: string
     /** Session-lore matcher; when set, words touching lore are underlined + Ctrl/Cmd-click openable. */
     loreMatcher?: TriggerMatcher | null
+    /**
+     * The only AI speaker of a 1:1 chat. The turn header already names them, so
+     * their speech segments skip the repeated avatar + name.
+     */
+    soloSpeakerId?: string
+}
+
+// Roleplay writers wrap actions in single tildes (`~se ríe~`) and end lines with
+// a playful `hola~`. GFM reads `~text~` as strikethrough, which crossed out
+// every action; a single-tilde span is an action, `~~text~~` stays a deletion.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function TildeSpan({ source, node, children }: { source: string; node?: any; children?: ReactNode }) {
+    const offset = node?.position?.start?.offset
+    const single = typeof offset === 'number' && source[offset] === '~' && source[offset + 1] !== '~'
+    return single ? <em className="rp-action">{children}</em> : <del>{children}</del>
 }
 
 // Process text nodes to handle dialogue formatting
@@ -102,6 +117,7 @@ function ProseMarkdown({ content }: { content: string }) {
                     )
                 },
                 em: ({children}) => <em className="rp-action">{children}</em>,
+                del: ({node, children}) => <TildeSpan source={content} node={node}>{children}</TildeSpan>,
                 strong: ({children}) => <strong className="rp-thought">{children}</strong>,
                 hr: () => <hr className="markdown-divider" />,
                 text: ({value}: any) => {
@@ -125,6 +141,7 @@ function SegmentMarkdown({ content, thought = false }: { content: string; though
                 [LORE_TRIGGER_TAG]: LoreTriggerComponent,
                 p: ({children}) => <p className={cx('m-0', thought && 'italic')}>{children}</p>,
                 em: ({children}) => <em className={thought ? undefined : 'rp-action'}>{children}</em>,
+                del: ({node, children}) => <TildeSpan source={content} node={node}>{children}</TildeSpan>,
                 strong: ({children}) => <strong className="rp-thought">{children}</strong>,
                 text: ({value}: any) => <>{processTextContent(value)}</>,
             } as Components}
@@ -134,7 +151,7 @@ function SegmentMarkdown({ content, thought = false }: { content: string; though
     )
 }
 
-function ChatSegments({ segments }: { segments: ChatResponseSegment[] }) {
+function ChatSegments({ segments, soloSpeakerId }: { segments: ChatResponseSegment[]; soloSpeakerId?: string }) {
     const { t } = useTranslation()
     return (
         <div className="flex w-full flex-col gap-5">
@@ -149,6 +166,8 @@ function ChatSegments({ segments }: { segments: ChatResponseSegment[] }) {
 
                 const isThought = segment.kind === 'thought'
                 const speakerName = segment.speaker_name || segment.speaker_id || t('interaction.chat.fallbackCharacter')
+                // Thoughts keep their "{name} thinks" label: it marks them as unspoken.
+                const showSpeaker = isThought || !soloSpeakerId || segment.speaker_id !== soloSpeakerId
                 return (
                     <div
                         key={`${segment.kind}-${segment.speaker_id || speakerName}-${index}`}
@@ -159,7 +178,7 @@ function ChatSegments({ segments }: { segments: ChatResponseSegment[] }) {
                                 : 'border-parchment-50/15 text-parchment-100',
                         )}
                     >
-                        <div className="mb-1.5 flex items-center gap-2">
+                        {showSpeaker && <div className="mb-1.5 flex items-center gap-2">
                             <Avatar
                                 name={speakerName}
                                 src={segment.image_url ?? undefined}
@@ -174,8 +193,8 @@ function ChatSegments({ segments }: { segments: ChatResponseSegment[] }) {
                             <Eyebrow tone={isThought ? 'arcane' : 'muted'} className="text-caption">
                                 {isThought ? t('interaction.chat.speakerThinks', { name: speakerName }) : speakerName}
                             </Eyebrow>
-                        </div>
-                        <div className="font-narrative text-narrative break-words">
+                        </div>}
+                        <div className="chat-segment font-narrative text-narrative break-words">
                             <SegmentMarkdown content={segment.content} thought={isThought} />
                         </div>
                     </div>
@@ -224,7 +243,7 @@ function StreamingStatus({ label }: { label: string }) {
 // markdown/segments only change when the turn itself does. Props all derive from
 // the stable `turn` object, so shallow compare skips the expensive react-markdown
 // re-parse for every message on each keystroke.
-export const ChatMessage = memo(function ChatMessage({ content, isUser, isStreaming, segments, narratorIdentity, aiLabel, loreMatcher }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ content, isUser, isStreaming, segments, narratorIdentity, aiLabel, loreMatcher, soloSpeakerId }: ChatMessageProps) {
     const { t } = useTranslation()
     if (isUser) {
         // Player voice stays distinct with a light ember wash, without a second outline.
@@ -243,7 +262,7 @@ export const ChatMessage = memo(function ChatMessage({ content, isUser, isStream
     return (
         <LoreTriggerContext.Provider value={loreMatcher ?? null}>
         <div className={hasSegments ? 'w-full' : 'chat-prose'}>
-            {hasSegments ? <ChatSegments segments={segments!} /> : <ProseMarkdown content={content} />}
+            {hasSegments ? <ChatSegments segments={segments!} soloSpeakerId={soloSpeakerId} /> : <ProseMarkdown content={content} />}
             {/* With segments, paint the live "{who} is …" status; otherwise the plain dots. */}
             {isStreaming &&
                 (hasSegments ? (

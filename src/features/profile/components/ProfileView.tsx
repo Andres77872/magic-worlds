@@ -20,6 +20,7 @@ import { Icon, Tabs, TabPanel, useIsDesktop, type TabOption } from '@/ui/primiti
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LogoutConfirmDialog } from '@/ui/components/LogoutConfirmDialog'
 import type { ProfileSharedCardsState } from '../hooks/useProfileSharedCards'
+import type { LlmCapacityUsageState } from '../hooks/useLlmCapacityUsage'
 import { AccountSecuritySection } from './AccountSecuritySection'
 import { DangerZone } from './DangerZone'
 import { DeleteDataDialog } from './DeleteDataDialog'
@@ -34,6 +35,8 @@ export type ProfileTab = 'membership' | 'usage' | 'sharing' | 'account' | 'secur
 interface ProfileViewProps {
     profile: UserProfile
     sharing?: ProfileSharedCardsState
+    /** Own-key (BYOK) request counts for the Usage tab; omitted in contexts without profile execution. */
+    llmUsage?: LlmCapacityUsageState
     onLogout: () => void
     /** Wipes all of the user's content (account kept). Rejects to surface an error in the dialog. */
     onDeleteAllData: () => Promise<void>
@@ -58,6 +61,7 @@ interface ProfileViewProps {
 export function ProfileView({
     profile,
     sharing,
+    llmUsage,
     onLogout,
     onDeleteAllData,
     onDisplayNameUpdated,
@@ -125,7 +129,7 @@ export function ProfileView({
                     </TabPanel>
 
                     <TabPanel value="usage" idBase="profile" active={tab}>
-                        <UsageSection profile={profile} />
+                        <UsageSection profile={profile} llmUsage={llmUsage} />
                     </TabPanel>
 
                     {sharingEnabled && (

@@ -1,8 +1,10 @@
 /**
  * Profile usage monitor. Daily usage remains a quota view; monthly usage is an
  * accumulated, month-to-date activity view and intentionally has no limit bars.
+ * Requests on the user's own provider key (BYOK) are a separate panel: they use
+ * no app credits, so they never mix into the credit totals above.
  */
-import { Gauge } from 'lucide-react'
+import { Gauge, KeyRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { useLanguage } from '@/app/hooks'
@@ -13,15 +15,19 @@ import type {
     MembershipOperationLimit,
     UserProfile,
 } from '@/shared'
+import type { LlmOperationCapacityUsage } from '@/shared/types/llmProfile.types'
 import { Badge, Eyebrow, SectionHeader } from '@/ui/primitives'
 import { cx } from '@/ui/primitives/cx'
+import type { LlmCapacityUsageState } from '../hooks/useLlmCapacityUsage'
 import { formatNumber, operationLabel, orderedLimitEntries } from './membership.helpers'
 
 interface UsageSectionProps {
     profile: UserProfile
+    /** Own-key request counts from `GET /llm/capacity-usage`; the panel is hidden when omitted. */
+    llmUsage?: LlmCapacityUsageState
 }
 
-export function UsageSection({ profile }: UsageSectionProps) {
+export function UsageSection({ profile, llmUsage }: UsageSectionProps) {
     const { t } = useTranslation()
     const { intlLocale } = useLanguage()
     const membership = profile.membership
@@ -44,7 +50,89 @@ export function UsageSection({ profile }: UsageSectionProps) {
                 <DailyUsagePanel membership={membership} operations={operations} t={t} locale={intlLocale} />
                 {monthly && <MonthlyUsagePanel monthly={monthly} operations={monthlyOperations} t={t} locale={intlLocale} />}
             </div>
+            {llmUsage && <ByokUsagePanel state={llmUsage} membership={membership} t={t} locale={intlLocale} />}
         </section>
+    )
+}
+
+function ByokUsagePanel({
+    state,
+    membership,
+    t,
+    locale,
+}: {
+    state: LlmCapacityUsageState
+    membership: Membership
+    t: TFunction
+    locale: string
+}) {
+    const operations = state.usage?.operations.filter((operation) => operation.byok_enabled) ?? []
+    const active = operations.filter((operation) => operation.month.user_byok > 0)
+    const historical = state.usage?.operations.reduce((total, operation) => total + operation.month.unattributed, 0) ?? 0
+
+    return (
+        <div className="flex flex-col gap-4 border-t border-line-faint pt-6" aria-labelledby="usage-byok-heading" role="group">
+            <div className="flex flex-col gap-1">
+                <span className="flex items-center gap-2">
+                    <KeyRound size={14} strokeWidth={1.75} className="text-arcane-300" aria-hidden />
+                    <Eyebrow tone="arcane" id="usage-byok-heading">{t('usage.byokTitle')}</Eyebrow>
+                </span>
+                <span className="max-w-prose font-ui text-[13px] text-fg-subtle">{t('usage.byokSubtitle')}</span>
+            </div>
+            {state.status === 'loading' && <p className="font-ui text-caption text-parchment-300" role="status">{t('usage.byokLoading')}</p>}
+            {state.status === 'unavailable' && <p className="font-ui text-caption text-parchment-300">{t('usage.byokUnavailable')}</p>}
+            {state.status === 'ready' && active.length === 0 && (
+                <p className="font-ui text-caption text-parchment-300">{t('usage.byokEmpty')}</p>
+            )}
+            {active.length > 0 && (
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-x-6 gap-y-3">
+                    {active.map((operation) => (
+                        <ByokOperationMeter
+                            key={operation.operation}
+                            operation={operation}
+                            dailyLimit={membership.limits?.[operation.operation]?.daily_limit ?? 0}
+                            t={t}
+                            locale={locale}
+                        />
+                    ))}
+                </div>
+            )}
+            {historical > 0 && (
+                <p className="max-w-prose font-ui text-[12px] text-fg-subtle">
+                    {t('usage.historicalRequests', { count: historical, value: formatNumber(historical, locale) })}
+                </p>
+            )}
+        </div>
+    )
+}
+
+function ByokOperationMeter({
+    operation,
+    dailyLimit,
+    t,
+    locale,
+}: {
+    operation: LlmOperationCapacityUsage
+    dailyLimit: number
+    t: TFunction
+    locale: string
+}) {
+    const label = operationName(operation.operation, t)
+    return (
+        <UsageMeter
+            label={label}
+            used={operation.today.user_byok}
+            max={dailyLimit}
+            ariaLabel={t('usage.byokMeterLabel', { label })}
+            valueLabel={t('usage.byokCounts', {
+                today: dailyLimit > 0
+                    ? t('usage.of', { used: formatNumber(operation.today.user_byok, locale), max: formatNumber(dailyLimit, locale) })
+                    : formatNumber(operation.today.user_byok, locale),
+                month: formatNumber(operation.month.user_byok, locale),
+            })}
+            t={t}
+            locale={locale}
+        />
     )
 }
 

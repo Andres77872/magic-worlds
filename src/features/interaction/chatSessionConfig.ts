@@ -46,6 +46,8 @@ export interface ChatSessionConfig {
     updateMessage: (sessionId: number, messageId: number, content: string) => Promise<TurnEntry[]>
     /** Delete one stored message, then return the authoritative history. */
     deleteMessage: (sessionId: number, messageId: number) => Promise<TurnEntry[]>
+    /** Make one stored version of the latest reply the active one, then return the authoritative history. */
+    selectReply: (sessionId: number, messageId: number) => Promise<TurnEntry[]>
     /** Clear all stored messages, then return the authoritative history. */
     clearMessages: (sessionId: number) => Promise<TurnEntry[]>
     /** Label shown on AI turns ("Game Master" or the character's name). */
@@ -138,6 +140,11 @@ export function adventureChatConfig(): ChatSessionConfig {
             const history = await apiService.getAdventureSessionMessages(sessionId)
             return storedMessagesToTurns(history.messages)
         },
+        selectReply: async (sessionId, messageId) => {
+            await apiService.activateAdventureSessionMessage(sessionId, messageId)
+            const history = await apiService.getAdventureSessionMessages(sessionId)
+            return storedMessagesToTurns(history.messages)
+        },
         clearMessages: async (sessionId) => {
             await apiService.clearAdventureSessionMessages(sessionId)
             const history = await apiService.getAdventureSessionMessages(sessionId)
@@ -177,6 +184,11 @@ export function characterChatConfig(characterName: string, opts?: { group?: bool
         },
         deleteMessage: async (sessionId, messageId) => {
             await apiService.deleteCharacterChatMessage(sessionId, messageId)
+            const history = await apiService.getCharacterChatMessages(sessionId)
+            return storedMessagesToTurns(history.messages)
+        },
+        selectReply: async (sessionId, messageId) => {
+            await apiService.activateCharacterChatMessage(sessionId, messageId)
             const history = await apiService.getCharacterChatMessages(sessionId)
             return storedMessagesToTurns(history.messages)
         },

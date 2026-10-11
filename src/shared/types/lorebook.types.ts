@@ -6,6 +6,8 @@
  * participates.
  */
 
+import type { LlmRequest, LlmExecutionProvenance } from './llm.types'
+
 export type LorebookEntryType =
     | 'character'
     | 'world'
@@ -203,7 +205,6 @@ export type LorebookAssistantRole = 'system' | 'user' | 'assistant' | 'tool'
 export type LorebookAssistantStatus = 'pending' | 'completed' | 'failed'
 
 export interface LorebookAssistantConversation {
-    id?: number
     conversation_id: number
     lorebook_id?: string | null
     title?: string | null
@@ -215,11 +216,9 @@ export interface LorebookAssistantConversation {
 }
 
 export interface LorebookAssistantMessage {
-    id?: number
     message_id: number
     conversation_id: number
     sequence_no: number
-    sequence?: number
     role: LorebookAssistantRole
     status: LorebookAssistantStatus
     content: string
@@ -233,6 +232,7 @@ export interface LorebookAssistantMessage {
 }
 
 export interface LorebookAssistantConversationResponse {
+    target_cas: { revision: string; content_hash: string } | null
     conversation: LorebookAssistantConversation
     messages: LorebookAssistantMessage[]
     lorebook?: Lorebook | null
@@ -249,13 +249,16 @@ export interface LorebookAssistantAppliedAction {
 }
 
 export interface LorebookAssistantTurnResponse {
+    request_id: string
+    llm_execution: LlmExecutionProvenance
+    target_cas: { revision: string; content_hash: string } | null
     conversation: LorebookAssistantConversation
-    user_message?: LorebookAssistantMessage
-    assistant_message?: LorebookAssistantMessage
-    tool_message?: LorebookAssistantMessage | null
-    messages?: LorebookAssistantMessage[]
-    lorebook?: Lorebook | null
-    applied_actions?: LorebookAssistantAppliedAction[]
+    user_message: LorebookAssistantMessage
+    assistant_message: LorebookAssistantMessage
+    tool_message: LorebookAssistantMessage
+    messages: LorebookAssistantMessage[]
+    lorebook: Lorebook | null
+    applied_actions: LorebookAssistantAppliedAction[]
 }
 
 export type LorebookAssistantStreamEvent =
@@ -292,6 +295,7 @@ export type LorebookAssistantStreamEvent =
     }
 
 export interface LorebookAssistantRequestOptions {
+    llm?: LlmRequest
     signal?: AbortSignal
     requestId?: string
     timeoutMs?: number

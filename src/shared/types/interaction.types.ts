@@ -1,6 +1,7 @@
 /**
  * Interaction and messaging types
  */
+import type { LlmRequest } from './llm.types'
 
 export interface Message {
     isLoading?: boolean
@@ -196,7 +197,7 @@ export type ChatSocketClientMessage =
     | { type: 'ping' }
 
 export type ChatSocketServerMessage = ChatFrameIdentity & (
-    | { type: 'turn_started'; user_message_id: number; assistant_message_id: number; turn_id: string }
+    | { type: 'turn_started'; user_message_id: number; assistant_message_id: number; turn_id: string; execution_attempt?: ChatExecutionAttempt }
     | { type: 'ready' }
     | { type: 'speakers'; roster: ChatSpeakerRosterEntry[]; narrator?: ChatNarratorIdentity | null }
     | { type: 'delta'; content: string }
@@ -211,8 +212,30 @@ export type ChatSocketServerMessage = ChatFrameIdentity & (
     | ({ type: 'tts_failed'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string | null; status: Extract<TtsLifecycleStatus, 'failed' | 'invalid' | 'unavailable' | 'quota_exceeded' | 'rate_limited' | 'timeout' | 'content_blocked'>; error: ChatTtsError; status_url?: string | null; result_url?: string | null } & ChatTtsSegmentFrameFields)
     | { type: 'action'; [key: string]: unknown } // reserved for future actions
     | { type: 'done'; interrupted?: boolean; user_message_id?: number; assistant_message_id?: number; turn_id?: string }
-    | { type: 'error'; message: string; category?: string }
+    | { type: 'error'; message: string; category?: string; code?: string }
     | { type: 'pong' }
 )
 
 export interface ChatFrameIdentity { request_id?: string; turn_id?: string }
+
+/** A new response to the original user input after a confirmed terminal attempt. */
+export interface ChatExecutionAttempt {
+    parent_execution_id: string
+    user_message_id: number
+    accepted_conversation_version: number
+}
+
+/** Durable state of one chat request (`GET /<basePath>/<id>/turns/<request_id>`); reading it never runs the turn. */
+export interface ChatTurnReconciliation {
+    status: 'admitted' | 'running' | 'completed' | 'failed' | 'cancelled' | 'awaiting_credential'
+    request_id: string
+    execution_id: string
+    /** The original executor is gone: resending the same request recovers it without a second run. */
+    recovery_required: boolean
+    /** The original public intent, proved against its retained native fingerprint. */
+    dispatch?: {
+        content: string
+        existing_user_message_id: number | null
+        llm: Pick<LlmRequest, 'retry_of_execution_id' | 'selection' | 'expected_revision_id'>
+    }
+}

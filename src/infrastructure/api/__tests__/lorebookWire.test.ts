@@ -89,7 +89,6 @@ describe('lorebook wire serializers', () => {
                     fileName: 'moon.md',
                     fileType: 'md',
                     content: '# Moon',
-                    contentLength: 6,
                 }],
             },
             entries: [{

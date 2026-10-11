@@ -212,7 +212,6 @@ describe('lorebook transforms', () => {
                 fileName: 'glass-archive.md',
                 fileType: 'md',
                 content: 'The mirror oath binds court names.',
-                contentLength: 36,
                 triggers: ['glass archive'],
             }],
         })

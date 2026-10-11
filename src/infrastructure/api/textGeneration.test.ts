@@ -13,6 +13,21 @@ function stream() {
     return { response, cancel, send: (type: string, data: unknown) => controller.enqueue(frame(type, data)), end: () => controller.close() }
 }
 
+function storyResult(requestId: string, replayed = false) {
+    return { generation: { id: 'execution-1', chapterId: 'chapter-1', requestId, output: 'Saved text' },
+        chapter: { id: 'chapter-1' }, stagedCardUpdates: [],
+        llm_execution: { execution_id: 'execution-1', profile_id: 'profile-1', revision_id: 'revision-1',
+            resolution_source: 'system_default', credential_mode: 'platform', replayed } }
+}
+
+const cardId = '11111111-1111-4111-8111-111111111111'
+function cardResult(requestId = 'req-1', replayed = false) {
+    return { id: cardId, name: 'Realm', description: 'A candlelit realm', request_id: requestId,
+        llm_execution: { execution_id: cardId, profile_id: '22222222-2222-4222-8222-222222222222',
+            revision_id: '33333333-3333-4333-8333-333333333333', resolution_source: 'system_default',
+            credential_mode: 'platform', replayed } }
+}
+
 beforeEach(() => {
     vi.clearAllMocks()
     authSession.authenticate('stream-test-user', 'test-token')
@@ -36,18 +51,18 @@ describe('saved generation streaming', () => {
         await vi.waitFor(() => expect(events).toHaveLength(1))
         expect(finished).toBe(false)
         expect(fetchMock.mock.calls[0][0]).toMatch(/\/ai\/stream$/)
-        wire.send('final', { request_id: 'req-1', card: { id: 'saved-1', name: 'Realm' } })
-        expect(await pending).toMatchObject({ id: 'saved-1' })
+        wire.send('final', { request_id: 'req-1', card: cardResult() })
+        expect(await pending).toMatchObject({ id: cardId })
         expect(fetchMock).toHaveBeenCalledOnce()
         expect(wire.cancel).toHaveBeenCalledOnce()
     })
 
     it('recovers a committed card by a read-only request after stream loss', async () => {
         const wire = stream()
-        fetchMock.mockResolvedValueOnce(wire.response).mockResolvedValueOnce(json({ status: 'completed', request_id: 'req-1', card: { id: 'saved-1' } }))
+        fetchMock.mockResolvedValueOnce(wire.response).mockResolvedValueOnce(json({ status: 'completed', request_id: 'req-1', card: cardResult('req-1', true) }))
         const pending = apiService.createWorldAI('A candlelit realm', { requestId: 'req-1', idempotencyKey: 'idem-1', onEvent: vi.fn() })
         wire.end()
-        expect(await pending).toMatchObject({ id: 'saved-1' })
+        expect(await pending).toMatchObject({ id: cardId })
         expect(fetchMock.mock.calls.map((call) => call[1].method)).toEqual(['POST', 'GET'])
         expect(fetchMock.mock.calls[1][0]).toMatch(/\/ai\/result$/)
     })
@@ -62,20 +77,43 @@ describe('saved generation streaming', () => {
 
     it('recovers exactly the saved Story Studio candidate without another generation', async () => {
         const wire = stream()
-        const generation = { id: 'gen-1', requestId: 'req-1', output: 'Saved text' }
-        fetchMock.mockResolvedValueOnce(wire.response).mockResolvedValueOnce(json({ chapters: [{ id: 'chapter-1', generationHistory: [generation] }] }))
+        const saved = storyResult('req-1', true)
+        fetchMock.mockResolvedValueOnce(wire.response).mockResolvedValueOnce(json(saved))
         const pending = apiService.generateStory('story-1', { chapterId: 'chapter-1', command: 'continue' }, { requestId: 'req-1' })
         wire.end()
-        expect(await pending).toMatchObject({ generation })
+        expect(await pending).toEqual(saved)
         expect(fetchMock.mock.calls.map((call) => call[1].method)).toEqual(['POST', 'GET'])
+        expect(fetchMock.mock.calls[1][0]).toMatch(/\/generation-requests\/req-1$/)
+        expect(fetchMock.mock.calls[1][1].body).toBeUndefined()
     })
 
     it('selects the synchronous fallback before starting a request', async () => {
         vi.stubEnv('VITE_FEATURE_TEXT_STREAMING_ENABLED', 'false')
-        fetchMock.mockResolvedValueOnce(json({ generation: { id: 'gen-1' } }))
-        await apiService.generateStory('story-1', { chapterId: 'chapter-1', command: 'continue' }, { onEvent: vi.fn() })
+        fetchMock.mockResolvedValueOnce(json(storyResult('req-1')))
+        await apiService.generateStory('story-1', { chapterId: 'chapter-1', command: 'continue' }, { requestId: 'req-1', onEvent: vi.fn() })
         expect(fetchMock).toHaveBeenCalledOnce()
         expect(fetchMock.mock.calls[0][0]).toMatch(/\/generate$/)
+    })
+
+    it('omits transient credentials from context previews', async () => {
+        fetchMock.mockResolvedValueOnce(json({ cards: [], chapters: [], loreEntries: [], totalEstimatedTokens: 0 }))
+        await apiService.previewStoryContext('story-1', { chapterId: 'chapter-1', command: 'continue',
+            llm: { expected_revision_id: 'revision-1', credentials: { api_key: 'FAKE_TRANSIENT_KEY' } } })
+        expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify({ chapterId: 'chapter-1', command: 'continue' }))
+    })
+
+    it.each(['missing_plan', 'different_request', 'different_execution', 'different_chapter', 'private_field'])('rejects %s in novel execution results', async (invalid) => {
+        vi.stubEnv('VITE_FEATURE_TEXT_STREAMING_ENABLED', 'false')
+        const result: Record<string, unknown> = storyResult('req-1')
+        if (invalid === 'missing_plan') delete result.llm_execution
+        else if (invalid === 'different_request') result.generation = { ...storyResult('req-1').generation, requestId: 'another' }
+        else if (invalid === 'different_execution') result.llm_execution = { ...storyResult('req-1').llm_execution, execution_id: 'another' }
+        else if (invalid === 'different_chapter') result.chapter = { id: 'another' }
+        else result.llm_execution = { ...storyResult('req-1').llm_execution, api_key: 'FAKE_TRANSIENT_KEY' }
+        fetchMock.mockResolvedValueOnce(json(result))
+        await expect(apiService.generateStory('story-1', { chapterId: 'chapter-1', command: 'continue' }, { requestId: 'req-1' }))
+            .rejects.toMatchObject({ code: 'story_execution_contract' })
+        expect(fetchMock).toHaveBeenCalledOnce()
     })
 
     it('stops a pending stream on an account change and never recovers it under another account', async () => {

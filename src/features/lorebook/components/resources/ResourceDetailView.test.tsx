@@ -310,7 +310,7 @@ describe('ResourceDetailView', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
         fireEvent.click(screen.getByRole('switch', { name: 'Sync AI metadata on save' }))
 
-        expect(screen.getByText('Saving with AI metadata sync enabled uses 1 resource metadata usage if extraction succeeds.')).toBeInTheDocument()
+        expect(screen.getByText('Saving first preserves the source. Metadata sync uses your active LLM profile and its usage limits.')).toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 

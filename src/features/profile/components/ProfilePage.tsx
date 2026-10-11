@@ -15,6 +15,7 @@ import { isCommunityCardsFeatureEnabled } from '@/shared/featureFlags'
 import { useBillingCatalog } from '@/features/billing/hooks/useBillingCatalog'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useProfileSharedCards } from '../hooks/useProfileSharedCards'
+import { useLlmCapacityUsage } from '../hooks/useLlmCapacityUsage'
 import { ProfileView, type ProfileTab } from './ProfileView'
 
 const PROFILE_TABS: readonly ProfileTab[] = ['membership', 'usage', 'sharing', 'account', 'security']
@@ -53,6 +54,8 @@ export function ProfilePage() {
     // `?tab=` and fall through to Membership, where their content lives.
     const requestedTab = tabFromHash(currentHash)
     const activeTab = requestedTab === 'sharing' && !communityCardsEnabled ? 'membership' : requestedTab ?? 'membership'
+    // Own-key counts load only while the Usage tab is open and re-load with /user/me.
+    const llmUsage = useLlmCapacityUsage(profile?.user_hash ?? null, isAuthenticated && activeTab === 'usage', profile)
     const handleTabChange = (tab: ProfileTab) => {
         if (tab === 'sharing' && !communityCardsEnabled) return
         setPage('profile', { hash: `#/profile?tab=${tab}` })
@@ -152,6 +155,7 @@ export function ProfilePage() {
         <ProfileView
             profile={profile}
             sharing={sharing}
+            llmUsage={llmUsage}
             onLogout={logout}
             onDeleteAllData={handleDeleteAllData}
             onDisplayNameUpdated={handleDisplayNameUpdated}

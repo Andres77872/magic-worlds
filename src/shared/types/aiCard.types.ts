@@ -1,4 +1,5 @@
 import type { TextGenerationOptions } from './textGeneration.types'
+import type { LlmRequest, LlmExecutionProvenance } from './llm.types'
 export const AI_CARD_DESCRIPTION_MIN_CHARS = 5
 export const AI_CARD_DESCRIPTION_MAX_CHARS = 4000
 export const AI_CARD_CLIENT_TIMEOUT_MS = Number(import.meta.env.VITE_AI_CARD_CLIENT_TIMEOUT_MS || 90_000)
@@ -22,6 +23,12 @@ export interface AiCardRequestOptions extends TextGenerationOptions {
     requestId?: string
     idempotencyKey?: string
     timeoutMs?: number
+    llm?: LlmRequest
+}
+
+export type AiCardGeneratedResult<T> = T & {
+    request_id: string
+    llm_execution: LlmExecutionProvenance
 }
 
 export interface AiCardPublicError {
@@ -120,7 +127,6 @@ export type CardAssistantStatus = 'pending' | 'completed' | 'failed'
 export type CardAssistantCardResponse = CharacterCardResponse | WorldCardResponse | AdventureTemplateCardResponse | ItemCardResponse
 
 export interface CardAssistantConversation {
-    id?: number
     conversation_id: number
     card_type: CardAssistantCardType
     card_id?: string | null
@@ -133,11 +139,9 @@ export interface CardAssistantConversation {
 }
 
 export interface CardAssistantMessage {
-    id?: number
     message_id: number
     conversation_id: number
     sequence_no: number
-    sequence?: number
     role: CardAssistantRole
     status: CardAssistantStatus
     content: string
@@ -183,14 +187,16 @@ export interface CardAssistantAppliedAction {
 }
 
 export interface CardAssistantTurnResponse {
+    request_id: string
+    llm_execution: LlmExecutionProvenance
     conversation: CardAssistantConversation
-    target_cas?: CardAssistantTargetCas | null
-    user_message?: CardAssistantMessage
-    assistant_message?: CardAssistantMessage
-    tool_message?: CardAssistantMessage | null
-    messages?: CardAssistantMessage[]
-    card?: CardAssistantCardResponse | null
-    applied_actions?: CardAssistantAppliedAction[]
+    target_cas: CardAssistantTargetCas | null
+    user_message: CardAssistantMessage
+    assistant_message: CardAssistantMessage
+    tool_message: CardAssistantMessage
+    messages: CardAssistantMessage[]
+    card: CardAssistantCardResponse | null
+    applied_actions: CardAssistantAppliedAction[]
 }
 
 export type CardAssistantStreamEvent =
@@ -227,6 +233,7 @@ export type CardAssistantStreamEvent =
     }
 
 export interface CardAssistantRequestOptions {
+    llm?: LlmRequest
     signal?: AbortSignal
     requestId?: string
     timeoutMs?: number

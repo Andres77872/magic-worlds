@@ -10,7 +10,7 @@
  *     Interrupt controls. It takes plain props, so stories + unit tests drive it directly
  *     without a socket. Turn-taking is automatic (VAD) — there is no push-to-talk.
  */
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Loader2, MessageSquareText, Mic, MicOff, PhoneOff, Volume2, Waves } from 'lucide-react'
 import { useAuth } from '@/app/hooks'
@@ -27,6 +27,7 @@ import {
     formatElapsed,
 } from '@/features/interaction/voiceCallLabels'
 import { CallWaveform } from './CallWaveform'
+import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
 
 interface CallScreenProps {
     character?: Character
@@ -72,6 +73,7 @@ export function CallScreen({ character, sessionId, onSwitchToText }: CallScreenP
 
     return (
         <CallScreenView
+            profileControl={<LlmFeatureControl feature="callbot" />}
             name={name}
             imageUrl={character?.image_url ?? null}
             state={controller.state}
@@ -99,6 +101,7 @@ export function CallScreen({ character, sessionId, onSwitchToText }: CallScreenP
 }
 
 export interface CallScreenViewProps {
+    profileControl?: ReactNode
     name: string
     imageUrl?: string | null
     state: VoiceCallState
@@ -123,6 +126,7 @@ export interface CallScreenViewProps {
 }
 
 export function CallScreenView({
+    profileControl,
     name,
     imageUrl,
     state,
@@ -178,6 +182,7 @@ export function CallScreenView({
                 {isActive && <span className="font-mono text-sm text-parchment-300">{formatElapsed(elapsedSeconds)}</span>}
             </div>
 
+            {profileControl && <div className="relative z-10 px-4 pb-3">{profileControl}</div>}
             {/* Center: identity + status + waveform + captions */}
             <div className="relative z-10 min-h-0 flex-1 overflow-y-auto px-6 text-center">
                 <div className="flex min-h-full flex-col items-center justify-center gap-5 py-5">

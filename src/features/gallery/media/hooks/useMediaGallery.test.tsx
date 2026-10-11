@@ -40,10 +40,10 @@ function themeJob(id: string, createdAt: string): ThemeSongJobPublic {
         target: { type: 'character', id: 'card-1', display_name: 'Lyra' },
         operation: 'theme_song',
         status: 'completed',
-        model_alias: 'music_2_6',
+        model_alias: 'minimax_music_3',
         status_url: '',
         result_url: '',
-        lyrics: { source: 'optimizer' },
+        lyrics: { source: 'writer', lyrics_sha256: 'a'.repeat(64), lyrics_length_chars: 80 },
         assets: [
             {
                 asset_id: `theme-${id}`,

@@ -38,7 +38,7 @@ const baseTask = {
 const completedTask = {
     ...baseTask,
     status: 'completed',
-    result: { lyrics: { source: 'optimizer' } },
+    result: { lyrics: { source: 'writer', lyrics_sha256: 'a'.repeat(64), lyrics_length_chars: 80 } },
     updated_at: '2026-06-01T00:01:00',
 } as unknown as BackgroundTaskPublic
 

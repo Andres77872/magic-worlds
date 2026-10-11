@@ -7,13 +7,15 @@ const mocks = vi.hoisted(() => ({
     useWordGoal: vi.fn(),
     setGoal: vi.fn(),
     setPage: vi.fn(),
+    generate: vi.fn(),
+    editor: { onGenerate: undefined as undefined | ((request: unknown, options?: { signal?: AbortSignal }) => Promise<unknown>) },
 }))
 
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: true, openLoginModal: vi.fn() }),
     useNavigation: () => ({ setPage: mocks.setPage }),
     useData: () => ({
-        generateStoryCandidate: vi.fn(),
+        generateStoryCandidate: mocks.generate,
         acceptStoryGeneration: vi.fn(),
         discardStoryGeneration: vi.fn(),
     }),
@@ -25,7 +27,9 @@ vi.mock('@/ui/primitives', () => ({
     Toast: ({ open, title }: { open: boolean; title: string }) => open ? <div role="alert">{title}</div> : null,
     cx: (...values: unknown[]) => values.filter(Boolean).join(' '),
 }))
-vi.mock('../editor/NovelEditor', () => ({ NovelEditor: () => null }))
+vi.mock('../editor/NovelEditor', () => ({
+    NovelEditor: ({ onGenerate }: { onGenerate: typeof mocks.editor.onGenerate }) => { mocks.editor.onGenerate = onGenerate; return null },
+}))
 vi.mock('../hooks/useNovelStudio', () => ({ useNovelStudio: mocks.useNovelStudio }))
 vi.mock('../hooks/useWordGoal', () => ({ useWordGoal: mocks.useWordGoal }))
 vi.mock('../hooks/useChapterDraft', () => ({
@@ -148,5 +152,48 @@ describe('NovelStudio word goal persistence', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Goal 1800' }))
 
         expect(await screen.findByRole('alert')).toHaveTextContent('Word goal not saved')
+    })
+})
+
+describe('NovelStudio generation requests', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        const activeChapter = chapter()
+        mocks.useNovelStudio.mockReturnValue({ story: story(activeChapter), chapters: [activeChapter], activeChapter,
+            focusMode: false, codexOpen: false, typewriter: false, historyOpen: false })
+        mocks.useWordGoal.mockReturnValue({ goal: 1800, setGoal: mocks.setGoal })
+    })
+
+    it('asks again for the same command under its request ID until it finishes or is spent', async () => {
+        render(<NovelStudio />)
+        const request = { command: 'continue', instruction: 'More rain', prompt: 'More rain' }
+        const generation = { id: 'generation-1', chapterId: 'chapter-1', output: 'Rain.' }
+        const ids = () => mocks.generate.mock.calls.map((call) => (call[2] as { requestId: string }).requestId)
+        mocks.generate.mockRejectedValueOnce(Object.assign(new Error('Dropped'), { code: 'LLM_EXECUTION_RECOVERY_REQUIRED' }))
+            .mockResolvedValueOnce(generation)
+            .mockRejectedValueOnce(Object.assign(new Error('Ended'), { code: 'LLM_EXECUTION_FINISHED' }))
+            .mockResolvedValueOnce(generation)
+        await expect(mocks.editor.onGenerate!(request)).rejects.toThrow('Dropped')
+        await mocks.editor.onGenerate!(request)
+        expect(ids()[1]).toBe(ids()[0])
+        await expect(mocks.editor.onGenerate!(request)).rejects.toThrow('Ended')
+        expect(ids()[2]).not.toBe(ids()[0])
+        await mocks.editor.onGenerate!(request)
+        expect(ids()[3]).not.toBe(ids()[2])
+        expect(mocks.generate.mock.calls[0][1]).toEqual({ chapterId: 'chapter-1', command: 'continue', instruction: 'More rain', selection: undefined })
+    })
+
+    it('starts a new request for another command or after a deliberate stop', async () => {
+        render(<NovelStudio />)
+        const ids = () => mocks.generate.mock.calls.map((call) => (call[2] as { requestId: string }).requestId)
+        mocks.generate.mockRejectedValue(Object.assign(new Error('Dropped'), { code: 'LLM_EXECUTION_RECOVERY_REQUIRED' }))
+        await expect(mocks.editor.onGenerate!({ command: 'continue' })).rejects.toThrow()
+        await expect(mocks.editor.onGenerate!({ command: 'rewrite' })).rejects.toThrow()
+        const stopped = new AbortController(); stopped.abort()
+        await expect(mocks.editor.onGenerate!({ command: 'rewrite' }, { signal: stopped.signal })).rejects.toThrow()
+        await expect(mocks.editor.onGenerate!({ command: 'rewrite' })).rejects.toThrow()
+        expect(ids()[1]).not.toBe(ids()[0])
+        expect(ids()[2]).toBe(ids()[1])
+        expect(ids()[3]).not.toBe(ids()[2])
     })
 })

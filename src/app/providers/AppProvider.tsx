@@ -12,6 +12,7 @@ import { CookieConsentProvider } from './CookieConsentProvider'
 import { DataProvider } from './DataProvider'
 import { LanguageProvider } from './LanguageProvider'
 import { NavigationProvider } from './NavigationProvider'
+import { LlmSessionProvider } from '@/features/llmProfiles/LlmSessionProvider'
 
 interface AppProviderProps {
     children: ReactNode
@@ -21,6 +22,7 @@ export function AppProvider({ children }: AppProviderProps) {
     return (
         <ApiStatusProvider>
             <AuthProvider>
+                <LlmSessionProvider>
                 <LanguageProvider>
                     <NavigationProvider>
                         <CookieConsentProvider>
@@ -36,6 +38,7 @@ export function AppProvider({ children }: AppProviderProps) {
                         </CookieConsentProvider>
                     </NavigationProvider>
                 </LanguageProvider>
+                </LlmSessionProvider>
             </AuthProvider>
         </ApiStatusProvider>
     )

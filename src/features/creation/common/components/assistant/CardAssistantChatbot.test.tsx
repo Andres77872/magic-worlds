@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     createCardAssistantConversation: vi.fn(),
     listCardAssistantConversations: vi.fn(),
     getCardAssistantConversation: vi.fn(),
+    getCardAssistantTurn: vi.fn(),
     deleteCardAssistantConversation: vi.fn(),
     streamCardAssistantMessage: vi.fn(),
 }))
@@ -35,6 +36,7 @@ vi.mock('@/infrastructure/api', () => {
 
 import { ApiError } from '@/infrastructure/api'
 import { CardAssistantChatbot } from './CardAssistantChatbot'
+import { cardAssistantTurnFixture } from '@/test/assistantFixtures'
 
 const CONVO = { conversation_id: 2, card_type: 'world' as const, card_id: null, title: 'Alpha', updated_at: '2026-06-10T10:00:00Z' }
 const OTHER = { conversation_id: 3, card_type: 'world' as const, card_id: null, title: 'Beta', updated_at: '2026-06-09T10:00:00Z' }
@@ -62,14 +64,8 @@ function sendMessage(text: string) {
     fireEvent.click(screen.getByRole('button', { name: /send message/i }))
 }
 
-function finalEvent(overrides: Record<string, unknown> = {}): CardAssistantStreamEvent {
-    return {
-        type: 'final',
-        conversation: CONVO,
-        user_message: { message_id: 20, conversation_id: 2, sequence_no: 1, role: 'user', status: 'completed', content: 'hi' },
-        assistant_message: { message_id: 21, conversation_id: 2, sequence_no: 2, role: 'assistant', status: 'completed', content: 'Done.' },
-        ...overrides,
-    } as CardAssistantStreamEvent
+function finalEvent(requestId: string, overrides: Parameters<typeof cardAssistantTurnFixture>[1] = {}): CardAssistantStreamEvent {
+    return { type: 'final', ...cardAssistantTurnFixture(requestId, { conversation: CONVO, ...overrides }) }
 }
 
 beforeEach(() => {
@@ -78,9 +74,10 @@ beforeEach(() => {
     mocks.listCardAssistantConversations.mockResolvedValue({ conversations: [] })
     mocks.createCardAssistantConversation.mockResolvedValue({ conversation: CONVO, messages: [], card: null })
     mocks.getCardAssistantConversation.mockResolvedValue({ conversation: CONVO, messages: [], card: null })
+    mocks.getCardAssistantTurn.mockResolvedValue(null)
     mocks.deleteCardAssistantConversation.mockResolvedValue(undefined)
-    mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, onEvent: (event: CardAssistantStreamEvent) => void) => {
-        onEvent(finalEvent())
+    mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, onEvent: (event: CardAssistantStreamEvent) => void, settings: { requestId: string }) => {
+        onEvent(finalEvent(settings.requestId))
     })
 })
 
@@ -156,8 +153,8 @@ describe('CardAssistantChatbot', () => {
     })
 
     it('renders assistant replies as markdown', async () => {
-        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, onEvent: (event: CardAssistantStreamEvent) => void) => {
-            onEvent(finalEvent({
+        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, onEvent: (event: CardAssistantStreamEvent) => void, settings: { requestId: string }) => {
+            onEvent(finalEvent(settings.requestId, {
                 assistant_message: { message_id: 21, conversation_id: 2, sequence_no: 2, role: 'assistant', status: 'completed', content: 'I renamed it to **Glass**.' },
             }))
         })
@@ -171,8 +168,8 @@ describe('CardAssistantChatbot', () => {
     })
 
     it('shows applied-change chips from the final event', async () => {
-        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, onEvent: (event: CardAssistantStreamEvent) => void) => {
-            onEvent(finalEvent({
+        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, onEvent: (event: CardAssistantStreamEvent) => void, settings: { requestId: string }) => {
+            onEvent(finalEvent(settings.requestId, {
                 applied_actions: [{ type: 'patch_card', card_id: 'world-1', fields: ['name', 'description'] }],
             }))
         })
@@ -296,8 +293,8 @@ describe('CardAssistantChatbot', () => {
 
         await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
 
-        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, onEvent: (event: CardAssistantStreamEvent) => void) => {
-            onEvent(finalEvent())
+        mocks.streamCardAssistantMessage.mockImplementation(async (_id, _body, onEvent: (event: CardAssistantStreamEvent) => void, settings: { requestId: string }) => {
+            onEvent(finalEvent(settings.requestId))
         })
         fireEvent.click(screen.getByRole('button', { name: /retry/i }))
 

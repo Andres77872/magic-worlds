@@ -199,10 +199,12 @@ export interface StoryGenerateRequest {
     selection?: StorySelection
     instruction?: string
     contextSettings?: StoryContextSettings
+    llm?: import('./llm.types').LlmRequest
 }
 
 export interface StoryGenerateResponse {
     generation: StoryGeneration
     chapter: StoryChapter
     stagedCardUpdates: unknown[]
+    llm_execution: import('./llm.types').LlmExecutionProvenance
 }

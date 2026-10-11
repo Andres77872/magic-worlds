@@ -31,6 +31,8 @@ export type PageType =
     | 'community'
     | 'shared-card'
     | 'profile'
+    | 'llm-profiles'
+    | 'admin-llm-profiles'
     | 'billing'
     | 'voice-studio'
     | 'admin-voices'

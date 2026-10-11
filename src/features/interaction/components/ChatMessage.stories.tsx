@@ -70,3 +70,20 @@ export const StructuredSegments: Story = {
 export const Streaming: Story = {
   args: { content: 'The figure leans forward, and the candle gutters as if it, too, is listening', isStreaming: true },
 }
+
+/**
+ * A 1:1 character reply. The turn header already names the character, so its
+ * speech skips the per-segment name (`soloSpeakerId`). Single-tilde `~actions~`
+ * render as muted action, not strikethrough; a playful `hola~` stays as written.
+ */
+export const OneOnOneCharacter: Story = {
+  args: {
+    content: '',
+    soloSpeakerId: 'kai',
+    segments: [
+      { kind: 'speech', speaker_id: 'kai', speaker_name: 'Kai', content: '~risita~ ¡Hola, hola~! ~se acomoda el pelo rosa detrás de la oreja~ Pasa, no te quedes en la puerta.' },
+      { kind: 'narrator', content: 'Dos gatos negros se asoman curiosos entre los peluches.' },
+      { kind: 'speech', speaker_id: 'kai', speaker_name: 'Kai', content: '¿Quieres un pocky? Son de fresa~ ~sonríe~' },
+    ],
+  },
+}

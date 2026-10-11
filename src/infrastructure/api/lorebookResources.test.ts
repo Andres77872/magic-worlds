@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiService } from './index'
 import type { LorebookResource } from '@/shared'
+import { EXTRACTION_HASH as HASH, extractionResult } from './__tests__/fixtures/lorebookExtraction'
 
 const fetchMock = vi.fn()
 
@@ -55,21 +56,23 @@ describe('lorebook resource API wire format', () => {
             fileName: 'archive.md',
             fileType: 'md',
             content: 'The mirror court keeps a glass seal.',
-            contentLength: 37,
         })
         expect(body).not.toHaveProperty('extraction')
         expect(body).not.toHaveProperty('extractionStatus')
+        expect(body).not.toHaveProperty('contentLength')
     })
 
     it('requests extraction only when resource metadata sync is explicit', async () => {
-        await apiService.createLorebookResource(resource(), { extractMetadata: true, requestId: 'resource-sync-1' })
+        fetchMock.mockResolvedValueOnce(jsonResponse(extractionResult()))
+        await apiService.extractLorebookResource('resource-1', { expected_evaluation_hash: HASH, llm: { selection: { mode: 'inherit' } } }, { requestId: 'resource-sync-1' })
 
         const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-        expect(url).toContain('/lorebook-resources?extractMetadata=true')
+        expect(url).toContain('/lorebook-resources/resource-1/metadata-sync')
         expect(init.headers).toMatchObject({
             'X-Request-Id': 'resource-sync-1',
-            'Idempotency-Key': 'resource-sync-1',
         })
+        expect(init.headers).not.toHaveProperty('Idempotency-Key')
+        expect(JSON.parse(String(init.body))).toEqual({ expected_evaluation_hash: HASH, llm: { selection: { mode: 'inherit' } } })
     })
 
     it('does not request extraction for unchanged completed standalone resources', async () => {
@@ -102,14 +105,10 @@ describe('lorebook resource API wire format', () => {
     })
 
     it('requests extraction for lorebook payloads when metadata sync is explicit', async () => {
-        await apiService.createLorebook({
-            name: 'Archive lore',
-            tags: [],
-            enabled: true,
-            metadata: { resources: [resource()] },
-        }, { extractMetadata: true })
+        fetchMock.mockResolvedValueOnce(jsonResponse(extractionResult({ lorebook_id: 'book-1' })))
+        await apiService.extractLorebookResource('resource-1', { expected_evaluation_hash: HASH, llm: { selection: { mode: 'inherit' } } }, { requestId: 'book-sync-1' }, 'book-1')
 
         const [url] = fetchMock.mock.calls[0] as [string, RequestInit]
-        expect(url).toContain('/lorebooks?extractMetadata=true')
+        expect(url).toContain('/lorebooks/book-1/resource-extractions/resource-1')
     })
 })

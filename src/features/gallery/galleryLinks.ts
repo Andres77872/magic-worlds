@@ -42,6 +42,8 @@ const PAGE_TO_HASH: Record<PageType, string> = {
     community: '#/community',
     'shared-card': '#/shared',
     profile: '#/profile',
+    'llm-profiles': '#/models',
+    'admin-llm-profiles': '#/admin/llm-profiles',
     billing: '#/billing',
     'voice-studio': '#/voices',
     'admin-voices': '#/admin/voices',

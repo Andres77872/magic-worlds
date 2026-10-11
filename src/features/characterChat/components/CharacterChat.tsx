@@ -181,6 +181,7 @@ function CharacterChatView({
                         turns={turns}
                         setTurns={setTurns}
                         config={chatConfig}
+                        llmFeature={chat.kind === 'character_group' ? 'chat_group' : 'chat_character'}
                         speakerRoster={speakerRoster}
                     />
                 </div>

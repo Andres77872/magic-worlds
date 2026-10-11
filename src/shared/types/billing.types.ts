@@ -65,7 +65,6 @@ export interface QuotaResetRequest {
 export interface QuotaResetDailyCounts {
     membership_usage_days: number
     membership_operation_usage_days: number
-    ai_card_quota_days: number
 }
 
 export interface QuotaResetMonthlyResult {
@@ -445,6 +444,13 @@ export interface MembershipOverviewOperation {
     credits_used: number
 }
 
+export interface MembershipOverviewCapacity {
+    operation: string
+    payer_mode: 'platform' | 'user_byok' | 'unattributed'
+    active_users: number
+    request_count: number
+}
+
 export interface MembershipOverviewResponse {
     usage_date: string
     month: string
@@ -453,4 +459,5 @@ export interface MembershipOverviewResponse {
     totals: MembershipOverviewTotals
     plans: MembershipOverviewPlan[]
     operations_month: MembershipOverviewOperation[]
+    capacity_month: MembershipOverviewCapacity[]
 }

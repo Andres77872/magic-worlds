@@ -25,6 +25,7 @@ import { AudioWavePlayer } from '@/ui/components/audio'
 import { ImageGenerationStatus, type ImageGenerationStage } from '@/ui/components'
 import { CreatorField, CreatorTextarea } from './CreatorField'
 import { MediaHistoryDrawer } from './MediaHistoryDrawer'
+import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
 
 type AttributeGroups = CardPortraitRequest['category']
 
@@ -540,6 +541,7 @@ export function MediaStudioSection({
                         <Icon icon={ImagePlus} size={15} className="text-arcane-300" />
                         <Eyebrow tone="muted">{imageLabel}</Eyebrow>
                     </div>
+                    <LlmFeatureControl feature="image_prompt" disabled={imgBusy} />
                     {resolvedImage && (
                         <div className="group relative">
                             <Portrait name={template.name} src={resolvedImage} height={150} className="rounded-xl" />
@@ -606,6 +608,7 @@ export function MediaStudioSection({
                         <Icon icon={Music2} size={15} className="text-arcane-300" />
                         <Eyebrow tone="muted">{t('creation.common.media.musicTheme')}</Eyebrow>
                     </div>
+                    <LlmFeatureControl feature="theme_song_writer" disabled={themeBusy} />
                     {resolvedTheme && (
                         <AudioWavePlayer
                             src={resolvedTheme}
@@ -677,6 +680,7 @@ export function MediaStudioSection({
             <div className="flex flex-col gap-4">
                 {imageControls}
                 <SectionHeader as="h3" icon={ImagePlus} tone="arcane" title={imageLabel} />
+                <LlmFeatureControl feature="image_prompt" disabled={imgBusy} />
                 <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
                     <div className="group relative">
                         <Portrait name={template.name} src={resolvedImage} height={180} className="rounded-xl" />
@@ -732,6 +736,7 @@ export function MediaStudioSection({
             {/* Theme song */}
             <div className="flex flex-col gap-4">
                 <SectionHeader as="h3" icon={Music2} tone="arcane" title={t('creation.common.media.musicTheme')} />
+                <LlmFeatureControl feature="theme_song_writer" disabled={themeBusy} />
                 {resolvedTheme && (
                     <AudioWavePlayer
                         src={resolvedTheme}
