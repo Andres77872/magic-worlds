@@ -13,6 +13,7 @@ import { focusLink, type KnowledgeLibrary } from '../appKnowledge'
 import { loadRemotePreview, peekRemotePreview, useHoverMedia } from './hoverCardCache'
 import { HOVER_CARD_ATTR, HOVER_MAX_DEPTH, type HoverCardController, type HoverCardEntry } from './hoverCardController'
 import {
+    hoverCardEditorHref,
     hoverCardFromLibrary,
     hoverCardFromPreview,
     type HoverCardModel,
@@ -38,7 +39,7 @@ interface HoverCardProps {
     nameIndex: HoverNameIndex
     focus: HoverCardFocusApi
     onToggleFocus: (ref: HoverCardRef) => void
-    onOpen: (ref: HoverCardRef) => void
+    onView: (ref: HoverCardRef) => void
 }
 
 const CARD_SIZE = { width: 300, height: 260 }
@@ -100,7 +101,7 @@ function focusStateFor(model: HoverCardModel | null, focus: HoverCardFocusApi, t
     return { inFocus, tokens: focus.tokens(model.ref), blockedReason }
 }
 
-export function HoverCard({ entry, controller, library, nameIndex, focus, onToggleFocus, onOpen }: HoverCardProps) {
+export function HoverCard({ entry, controller, library, nameIndex, focus, onToggleFocus, onView }: HoverCardProps) {
     const { t } = useTranslation()
     const { ref: dragRef, position, style, dragHandleProps } = useDraggable({ viewportPadding: 8, defaultSize: CARD_SIZE })
     const pressRef = useRef<{ x: number; y: number } | null>(null)
@@ -184,17 +185,20 @@ export function HoverCard({ entry, controller, library, nameIndex, focus, onTogg
             focus={focusState}
             nameIndex={canNest ? nameIndex : null}
             renderLink={(ref, text, key) => (
-                <HoverCardLink key={key} href={focusLink(ref)} showIcon={false} onActivate={onOpen} className={NESTED_LINK_CLASS}>
+                <HoverCardLink key={key} href={focusLink(ref)} showIcon={false} onActivate={onView} className={NESTED_LINK_CLASS}>
                     {text}
                 </HoverCardLink>
             )}
             handleProps={handleProps}
             onClose={() => controller.closeTorn(uid)}
             onToggleFocus={model ? () => onToggleFocus(model.ref) : undefined}
-            onOpen={model ? () => {
+            onView={model ? () => {
                 controller.dismissTransient()
-                onOpen(model.ref)
+                onView(model.ref)
             } : undefined}
+            // Only the reader's own records have an editor to open.
+            editorHref={model?.inLibrary ? hoverCardEditorHref(model.ref) : null}
+            onOpenEditor={() => controller.dismissTransient()}
             onRetry={retry}
             style={style}
             className={cx('fixed left-[-9999px] top-0', entry.torn ? 'z-[47]' : 'z-[48]')}

@@ -22,7 +22,9 @@ vi.mock('./ActivationPreviewPanel', () => ({ ActivationPreviewPanel: () => null 
 vi.mock('./LorebookResourcePickerDrawer', () => ({ LorebookResourcePickerDrawer: () => null }))
 vi.mock('./LoreEntryEditor', () => ({ LoreEntryEditor: () => null }))
 vi.mock('./LoreEntryTable', () => ({ LoreEntryTable: () => null }))
-vi.mock('./LorebookResourcePanel', () => ({ LorebookResourcePanel: ({ resources, onExtractMetadataOnSaveChange }: { resources: LorebookResource[]; onExtractMetadataOnSaveChange: (value: boolean) => void }) => <div>
+vi.mock('./LorebookResourcePanel', () => ({ LorebookResourcePanel: ({ resources, onExtractMetadataOnSaveChange, onImportingChange }: { resources: LorebookResource[]; onExtractMetadataOnSaveChange: (value: boolean) => void; onImportingChange: (value: boolean) => void }) => <div>
+    <button onClick={() => onImportingChange(true)}>Start importing</button>
+    <button onClick={() => onImportingChange(false)}>Finish importing</button>
     <button onClick={() => onExtractMetadataOnSaveChange(true)}>Extract metadata</button>
     {resources.map((resource) => <span key={resource.id}>{resource.id}:{resource.extractionStatus}</span>)}
 </div> }))
@@ -53,6 +55,17 @@ describe('LorebookStudio source save and explicit extraction', () => {
         await waitFor(() => expect(mocks.setEditing).toHaveBeenCalledWith(expect.objectContaining({ id: 'book-1' })))
         expect(mocks.create.mock.calls[0]).toHaveLength(1)
         expect(mocks.extract).not.toHaveBeenCalled()
+    })
+
+    it('waits for resource file conversion before allowing a source save', () => {
+        render(<LorebookStudio />)
+        fireEvent.click(screen.getByRole('button', { name: 'Start importing' }))
+        const save = screen.getByRole('button', { name: 'common.save' })
+        expect(save).toBeDisabled()
+        fireEvent.click(save)
+        expect(mocks.create).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole('button', { name: 'Finish importing' }))
+        expect(save).toBeEnabled()
     })
 
     it('retains the new book and completed resources when a later extraction fails', async () => {

@@ -5,7 +5,7 @@ import { i18n } from '@/app/i18n'
 import { AssistantMarkdown } from '@/features/creation/common/components/assistant/AssistantMarkdown'
 import { AssistantLinkContext } from '@/features/creation/common/components/assistant/assistantLinkContext'
 import type { FocusRef } from '../appKnowledge'
-import { buildHoverNameIndex, focusMatchKey, hoverCardFromLibrary, type HoverCardModel, type HoverCardRef } from './hoverCardModel'
+import { buildHoverNameIndex, focusMatchKey, hoverCardEditorHref, hoverCardFromLibrary, type HoverCardModel, type HoverCardRef } from './hoverCardModel'
 import { HOVER_CARD_REPLY, hoverCardLibrary } from './hoverCardFixtures'
 import { HoverCardLink } from './HoverCardLink'
 import { HoverCardsProvider } from './HoverCardsProvider'
@@ -29,7 +29,7 @@ const meta = {
     parameters: {
         docs: {
             description: {
-                component: 'The preview a library link in an assistant reply opens on hover. The ember bar fills for a second while the card is transient, then it turns arcane and the card locks open. Names of other library records inside it open nested cards; dragging the grip tears the card off so it stays until closed; Focus pins the record into what the assistant reads in full.',
+                component: 'The preview a library link in an assistant reply opens on hover. The ember bar fills for a second while the card is transient, then it turns arcane and the card locks open. Names of other library records inside it open nested cards; dragging the grip tears the card off so it stays until closed; Focus pins the record into what the assistant reads in full; View previews it over the thread; Open shows its editor in a new browser tab (only for records in the library).',
             },
         },
     },
@@ -43,7 +43,9 @@ const meta = {
         handleProps: { control: false },
         onClose: { action: 'closed' },
         onToggleFocus: { action: 'focus toggled' },
-        onOpen: { action: 'opened' },
+        onView: { action: 'viewed' },
+        editorHref: { control: 'text', description: "The record's editor; Open shows it in a new tab. Null hides Open." },
+        onOpenEditor: { action: 'editor opened' },
         onRetry: { action: 'retried' },
     },
     args: {
@@ -60,7 +62,9 @@ const meta = {
         ),
         onClose: fn(),
         onToggleFocus: fn(),
-        onOpen: fn(),
+        onView: fn(),
+        editorHref: hoverCardEditorHref(LYRA.ref),
+        onOpenEditor: fn(),
     },
 } satisfies Meta<typeof HoverCardView>
 
@@ -92,6 +96,7 @@ export const Adventure: Story = {
         locked: true,
         data: { status: 'ready', model: model({ kind: 'adventure', id: 'a-conclave' }) },
         focus: { inFocus: false, tokens: 610, blockedReason: null },
+        editorHref: hoverCardEditorHref({ kind: 'adventure', id: 'a-conclave' }),
     },
 }
 
@@ -102,8 +107,12 @@ export const Lorebook: Story = {
         label: 'Aetheric Resonance — Hard Magic System',
         data: { status: 'ready', model: model({ kind: 'lorebook', id: 'l-resonance' }) },
         focus: { inFocus: false, tokens: 1850, blockedReason: null },
+        editorHref: hoverCardEditorHref({ kind: 'lorebook', id: 'l-resonance' }),
     },
 }
+
+/** Someone else's card: it can be viewed, but it has no editor to open and cannot join focus. */
+export const OutsideLibrary: Story = { args: { locked: true, focus: null, editorHref: null } }
 
 /** A card outside the library is fetched once, only when hovered. */
 export const Loading: Story = { args: { label: 'Kai (old draft)', data: { status: 'loading' }, focus: null } }
@@ -129,7 +138,7 @@ function InteractiveReply() {
             focusBusy={false}
             focusTokens={() => 420}
             onToggleFocus={toggle}
-            onOpen={fn()}
+            onView={fn()}
         >
             <AssistantLinkContext.Provider value={HoverCardLink}>
                 <div className="max-w-2xl">

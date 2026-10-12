@@ -27,12 +27,12 @@ export interface HoverCardsProviderProps {
     /** Rough token cost of reading a record in full. */
     focusTokens: (ref: HoverCardRef) => number
     onToggleFocus: (ref: HoverCardRef) => void
-    /** Open a record the way clicking its link does. */
-    onOpen: (ref: HoverCardRef) => void
+    /** Preview a record over the thread (a card's View action, and its nested links). */
+    onView: (ref: HoverCardRef) => void
     children: ReactNode
 }
 
-export function HoverCardsProvider({ library, focus, focusLimit, focusBusy, focusTokens, onToggleFocus, onOpen, children }: HoverCardsProviderProps) {
+export function HoverCardsProvider({ library, focus, focusLimit, focusBusy, focusTokens, onToggleFocus, onView, children }: HoverCardsProviderProps) {
     const [controller] = useState(() => new HoverCardController())
     const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
     const hasChain = snapshot.stack.length > 0
@@ -88,7 +88,7 @@ export function HoverCardsProvider({ library, focus, focusLimit, focusBusy, focu
                         nameIndex={nameIndex}
                         focus={focusApi}
                         onToggleFocus={onToggleFocus}
-                        onOpen={onOpen}
+                        onView={onView}
                     />
                 )),
                 document.body,

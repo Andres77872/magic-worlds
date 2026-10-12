@@ -419,7 +419,7 @@ export const es = {
                     },
                     empty: {
                         title: 'Agrega un recurso',
-                        description: 'Sube un archivo Markdown o texto plano. Activa la sincronización de metadatos cuando quieras metadatos de lore y fragmentos con disparadores.',
+                        description: 'Sube un archivo Markdown, texto plano o PDF. Activa la sincronización de metadatos cuando quieras metadatos de lore y fragmentos con disparadores.',
                     },
                     fields: {
                         title: {
@@ -1074,8 +1074,10 @@ export const es = {
                     focusRemove: 'En foco. Selecciónala para quitarla.',
                     focusFull: 'El foco está lleno ({{limit}}/{{limit}}). Quita uno primero.',
                     focusBusy: 'El foco se puede cambiar cuando termine la respuesta.',
+                    view: 'Ver',
+                    viewHint: 'Vista previa sin salir del chat',
                     open: 'Abrir',
-                    openHint: 'Abrir la vista previa completa',
+                    openHint: 'Abrir el editor en una pestaña nueva',
                     noDescription: 'Todavía no tiene descripción.',
                     missing: 'Ya no está en tu biblioteca. Puede que se haya eliminado.',
                     checked: 'Comprobado una vez, se recuerda durante esta sesión',
@@ -1201,7 +1203,7 @@ export const es = {
                     resources: {
                         label: 'Recursos',
                         eyebrow: 'Fuentes de texto',
-                        title: 'Convierte archivos .md y .txt en lore compartido',
+                        title: 'Convierte archivos de texto y PDF en lore compartido',
                         intro: 'Los recursos son fuentes reutilizables de texto o Markdown que puedes crear una vez, buscar, previsualizar y adjuntar a varios lorebooks.',
                     },
                     media: {
@@ -1265,7 +1267,7 @@ export const es = {
                         },
                         resources: {
                             title: 'Recursos',
-                            body: 'Fuentes .md y .txt reutilizables para lorebooks. Crea texto o Markdown, sube archivos, importa una URL como Markdown y adjunta el recurso donde deba informar el contexto.',
+                            body: 'Fuentes .md y .txt reutilizables para lorebooks, con importación de PDF a Markdown. Crea texto o Markdown, sube archivos, importa una URL como Markdown y adjunta el recurso donde deba informar el contexto.',
                         },
                         novels: {
                             title: 'Novelas',
@@ -1481,13 +1483,13 @@ export const es = {
                     },
                     resources: {
                         formats: {
-                            title: 'Usa Markdown o texto plano',
-                            body: 'Los recursos aceptan .md y .txt. Markdown tiene vista previa renderizada; el texto plano se mantiene simple para notas, transcripciones, hojas de ambientación y referencias.',
-                            badge: '.md / .txt',
+                            title: 'Usa Markdown, texto plano o PDF',
+                            body: 'Los recursos aceptan .md, .txt y .pdf. Los PDF se convierten a Markdown editable. Markdown tiene vista previa renderizada; el texto plano se mantiene simple para notas, transcripciones, hojas de ambientación y referencias.',
+                            badge: '.md / .txt / .pdf',
                         },
                         createUpload: {
                             title: 'Crea o sube desde la galería Recursos',
-                            body: 'Usa Nuevo texto para un borrador .txt, Nuevo Markdown para un borrador .md o Subir para agregar uno o más archivos .md/.txt. El nombre de archivo controla el tipo de recurso.',
+                            body: 'Usa Nuevo texto para un borrador .txt, Nuevo Markdown para un borrador .md o Subir para agregar uno o más archivos .md/.txt/.pdf. Los PDF se convierten en recursos Markdown. El nombre de archivo controla el tipo de recurso.',
                         },
                         urlImport: {
                             title: 'Importa páginas web como Markdown',
@@ -2137,10 +2139,12 @@ export const es = {
                 },
             },
             lorebookResourcesGallery: {
+                pdfImportHint: 'Los PDF se convierten a Markdown editable. La sincronización de metadatos se hace por separado.',
+                importingFiles: 'Importando archivos…',
                 header: {
                     eyebrow: 'Tu biblioteca',
                     title: 'Recursos',
-                    subtitle: 'Crea fuentes reutilizables de texto y Markdown, y compartelas entre lorebooks.',
+                    subtitle: 'Crea fuentes reutilizables de texto y Markdown o importa PDF, y compártelas entre lorebooks.',
                 },
                 actions: {
                     newText: 'Nuevo texto',
@@ -2175,6 +2179,18 @@ export const es = {
                     metadataSynced: 'Metadatos del recurso sincronizados.',
                 },
                 errors: {
+                    uploadFileType: '{{name}} debe ser un archivo .md, .txt o .pdf.',
+                    pdfTooLarge: 'Este PDF supera el límite de tamaño de subida del servidor.',
+                    pdfInvalid: 'No se pudo leer este PDF. Sube un PDF válido y sin contraseña.',
+                    pdfNoText: 'Este PDF no contiene texto extraíble.',
+                    pdfTextTooLarge: 'El texto extraído del PDF supera 80 000 caracteres. Divide el documento en archivos más pequeños.',
+                    pdfTooManyPages: 'Este PDF supera el límite de páginas del servidor.',
+                    pdfOcrRequired: 'Este PDF contiene páginas sin texto seleccionable. Usa un PDF con texto o activa el OCR local en el servidor.',
+                    pdfOcrUnavailable: 'El OCR local de PDF no está disponible en este servidor.',
+                    pdfEncrypted: 'No se admiten PDF con contraseña. Sube un PDF desbloqueado.',
+                    pdfUnavailable: 'La importación de PDF no está disponible en este servidor.',
+                    pdfTimeout: 'Se agotó el tiempo de procesamiento. Prueba con un PDF más pequeño.',
+                    pdfBusy: 'El procesamiento de PDF está ocupado. Inténtalo de nuevo en un momento.',
                     loadFailed: 'No se pudieron cargar los recursos',
                     saveFailed: 'No se pudo guardar el recurso.',
                     deleteFailed: 'No se pudo eliminar el recurso.',

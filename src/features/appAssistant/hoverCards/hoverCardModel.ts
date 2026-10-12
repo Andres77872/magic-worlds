@@ -8,7 +8,7 @@
  */
 import type { TFunction } from 'i18next'
 import type { CardPreview, CardPreviewTarget } from '@/features/cards/cardPreview'
-import { parseGalleryHash } from '@/features/gallery/galleryLinks'
+import { buildCardEditHash, buildLinkedEditorHash, parseGalleryHash } from '@/features/gallery/galleryLinks'
 import { readWorldPlaceType, worldPlaceTypeLabel, type Character, type World } from '@/shared'
 import { isPersonaCard } from '@/utils/characterRoles'
 import { adventureName, clip, parseFocusLink, type FocusKind, type FocusRef, type KnowledgeLibrary } from '../appKnowledge'
@@ -70,6 +70,21 @@ export function parseHoverCardHref(href: string | null | undefined): HoverCardRe
     }
     const focus = parseFocusLink(href)
     return focus?.kind === 'lorebook' ? { kind: 'lorebook', id: focus.id } : null
+}
+
+/** The record's editor, which the card's Open action shows in a new tab (a persona edits as a character). */
+export function hoverCardEditorHref(ref: HoverCardRef): string {
+    switch (ref.kind) {
+        case 'character':
+        case 'persona':
+            return buildCardEditHash('character', ref.id)
+        case 'world':
+        case 'item':
+            return buildCardEditHash(ref.kind, ref.id)
+        case 'adventure':
+        case 'lorebook':
+            return buildLinkedEditorHash(ref.kind, ref.id)
+    }
 }
 
 export function hoverCardKey(ref: FocusRef): string {

@@ -10,28 +10,31 @@
  *
  * Library links in replies preview their record on hover (`HoverCardsProvider`):
  * cards nest, lock open, tear off when dragged, and can join the focus shelf.
+ * Clicking a record link (or a card's View) previews it over the thread; a
+ * card's Open, and every other link in a reply, opens in a new browser tab.
  */
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAuth, useData, useLanguage, useNavigation } from '@/app/hooks'
+import { useAuth, useData, useFloatingWindows, useLanguage, useNavigation } from '@/app/hooks'
 import type { PageType } from '@/shared'
 import type { AssistantConversation } from '@/shared/types/assistant.types'
-import { buildCardEditHash, pageFromHash, pageHash, parseGalleryHash } from '@/features/gallery/galleryLinks'
+import { buildCardEditHash, pageHash } from '@/features/gallery/galleryLinks'
 import { CardPreviewModal, useCardPreviewModal } from '@/features/cards'
-import type { CardPreviewTargetType } from '@/features/cards/cardPreview'
+import { lorebookWindow } from '@/features/floatingWindows'
 import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
 import { useAssistant } from '@/features/creation/common/components/assistant/useAssistant'
 import { withAssistantConversation } from '@/features/creation/common/components/assistant/assistantHandoff'
 import { AssistantLinkContext } from '@/features/creation/common/components/assistant/assistantLinkContext'
 import { conversationTargetId } from '@/features/creation/common/components/assistant/assistantModel'
 import { Toast } from '@/ui/primitives'
-import { adventureName, estimateFocusTokens, focusLink, parseFocusLink } from '../appKnowledge'
+import { adventureName, estimateFocusTokens } from '../appKnowledge'
 import { assistantTag } from '../assistantTags'
 import { appAssistantAdapter } from '../appAssistantAdapter'
 import { APP_ASSISTANT_SUGGESTIONS } from '../assistantSuggestions'
 import { FOCUS_LIMIT, useAssistantKnowledge } from '../hooks/useAssistantKnowledge'
-import { HoverCardLink, HoverCardsProvider, focusMatchKey, type HoverCardRef } from '../hoverCards'
+import { HoverCardsProvider, focusMatchKey, parseHoverCardHref, previewTargetFor, type HoverCardRef } from '../hoverCards'
 import { AssistantFocusPicker } from './AssistantFocusPicker'
+import { AssistantReplyLink } from './AssistantReplyLink'
 import { AppAssistantView } from './AppAssistantView'
 
 function conversationIdFromHash(hash: string): number | null {
@@ -44,25 +47,18 @@ function conversationHash(id: number | null): string {
     return id ? `${pageHash('assistant')}?${new URLSearchParams({ conversation: String(id) }).toString()}` : pageHash('assistant')
 }
 
-const GALLERY_PREVIEW_TYPE: Record<string, CardPreviewTargetType> = {
-    character: 'character',
-    persona: 'persona',
-    world: 'world',
-    item: 'item',
-    adventure: 'adventure_template',
-}
-
 export function AppAssistantPage() {
     const { t } = useTranslation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const {
-        lorebooks, stories, characters, worlds, items, templateAdventures, openStory,
+        lorebooks, characters, worlds, items, templateAdventures,
         editLorebook, setEditingLorebook, editCharacter, setEditingCharacter, editWorld, setEditingWorld,
         editItem, setEditingItem, editTemplate, setEditingTemplate,
     } = useData()
     const { language } = useLanguage()
     const { setPage, previousPage, currentHash, replaceHash } = useNavigation()
     const cardPreview = useCardPreviewModal()
+    const { openWindow } = useFloatingWindows()
     const [pickerOpen, setPickerOpen] = useState(false)
     const [linkNotice, setLinkNotice] = useState<string | null>(null)
 
@@ -116,43 +112,6 @@ export function AppAssistantPage() {
         return parts.join(' · ')
     }, [knowledge, t])
 
-    const navigateLink = useCallback((href: string) => {
-        const focus = parseFocusLink(href)
-        if (focus?.kind === 'lorebook') {
-            const lorebook = lorebooks.find((entry) => entry.id === focus.id)
-            if (!lorebook) {
-                setLinkNotice(t('appAssistant.notices.linkMissing'))
-                return
-            }
-            editLorebook(lorebook)
-            setPage('lorebook')
-            return
-        }
-        if (focus?.kind === 'novel') {
-            const story = stories.find((entry) => entry.id === focus.id)
-            if (!story) {
-                setLinkNotice(t('appAssistant.notices.linkMissing'))
-                return
-            }
-            openStory(story)
-                .then(() => setPage('story'))
-                .catch(() => setLinkNotice(t('appAssistant.notices.linkMissing')))
-            return
-        }
-        // Card links open a preview over the thread instead of leaving it.
-        const gallery = parseGalleryHash(href)
-        if (gallery?.cardId && GALLERY_PREVIEW_TYPE[gallery.type]) {
-            cardPreview.openCardPreview({ type: GALLERY_PREVIEW_TYPE[gallery.type], id: gallery.cardId })
-            return
-        }
-        const page = pageFromHash(href)
-        if (!page) {
-            setLinkNotice(t('appAssistant.notices.linkMissing'))
-            return
-        }
-        setPage(page, { hash: href })
-    }, [lorebooks, stories, editLorebook, openStory, setPage, cardPreview, t])
-
     // Hover cards pin records to the same focus shelf the panel edits (a persona
     // may be stored under either kind, so match it the way the cards do).
     const { library, focus: focusRefs, setFocus, removeFocus } = knowledge
@@ -163,7 +122,23 @@ export function AppAssistantPage() {
         else if (focusRefs.length < FOCUS_LIMIT) setFocus([...focusRefs, ref])
     }, [focusRefs, setFocus, removeFocus])
     const focusTokens = useCallback((ref: HoverCardRef) => estimateFocusTokens(library, ref, t), [library, t])
-    const openRecord = useCallback((ref: HoverCardRef) => navigateLink(focusLink(ref)), [navigateLink])
+    // A record previews over the thread: a card in its preview modal, and a
+    // lorebook (which has none) in its preview window.
+    const viewRecord = useCallback((ref: HoverCardRef) => {
+        const target = previewTargetFor(ref)
+        if (target) return cardPreview.openCardPreview(target)
+        const lorebook = lorebooks.find((book) => book.id === ref.id)
+        if (lorebook) openWindow(lorebookWindow(lorebook))
+        else setLinkNotice(t('appAssistant.notices.linkMissing'))
+    }, [cardPreview, lorebooks, openWindow, t])
+
+    // Every other working link opens in a new tab (`AssistantReplyLink`), so
+    // only record links and links to nowhere reach the page.
+    const navigateLink = useCallback((href: string) => {
+        const ref = parseHoverCardHref(href)
+        if (ref) viewRecord(ref)
+        else setLinkNotice(t('appAssistant.notices.linkMissing'))
+    }, [viewRecord, t])
 
     // A card or lorebook conversation keeps going in its editor: open the saved
     // document (or a fresh draft for an unbound one) with the conversation handed over.
@@ -223,9 +198,9 @@ export function AppAssistantPage() {
             focusBusy={assistant.status === 'streaming'}
             focusTokens={focusTokens}
             onToggleFocus={toggleFocus}
-            onOpen={openRecord}
+            onView={viewRecord}
         >
-            <AssistantLinkContext.Provider value={HoverCardLink}>
+            <AssistantLinkContext.Provider value={AssistantReplyLink}>
                 <AppAssistantView
                     signedIn={isAuthenticated}
                     onLogin={openLoginModal}

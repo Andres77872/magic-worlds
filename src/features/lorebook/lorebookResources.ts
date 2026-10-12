@@ -5,7 +5,7 @@ import { makeRequestId } from '@/utils/uuid'
 export const LOREBOOK_RESOURCE_MAX_CHARS = 80_000
 export const LOREBOOK_RESOURCE_MAX_RESOURCES = 24
 export const LOREBOOK_RESOURCE_MAX_TRIGGERS = 24
-export const LOREBOOK_RESOURCE_ACCEPT = '.md,.txt,text/markdown,text/plain'
+export const LOREBOOK_RESOURCE_ACCEPT = '.md,.txt,.pdf,text/markdown,text/plain,application/pdf'
 
 type Raw = Record<string, unknown>
 export type LorebookResourceValidationError =
@@ -48,7 +48,7 @@ export function lorebookResourceFileTypeFromName(fileName: string): 'md' | 'txt'
 
 export function isAllowedResourceFile(file: File): boolean {
     const name = file.name.toLowerCase()
-    return name.endsWith('.md') || name.endsWith('.txt')
+    return name.endsWith('.md') || name.endsWith('.txt') || name.endsWith('.pdf')
 }
 
 export function resourceTitleFromFileName(fileName: string): string {

@@ -22,6 +22,7 @@ import { GlowBackdrop, cx } from '../../ui/primitives'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { isPageFeatureEnabled } from '../../shared/featureFlags'
 import { StoryReauthenticationGate } from './StoryReauthenticationGate'
+import { LinkedEditorGate } from './LinkedEditorGate'
 
 // Routes are code-split: each is its own chunk, loaded on demand. Import the LEAF
 // module (not the feature barrel) so a heavy sibling (e.g. NovelStudio's TipTap)
@@ -141,8 +142,8 @@ export function AppRouter() {
                                     {currentPage === 'character' && <CharacterCreator />}
                                     {currentPage === 'world' && <WorldCreator />}
                                     {currentPage === 'item' && <ItemCreator />}
-                                    {currentPage === 'adventure' && <AdventureCreator />}
-                                    {currentPage === 'lorebook' && <LorebookStudio />}
+                                    {currentPage === 'adventure' && <LinkedEditorGate page="adventure"><AdventureCreator /></LinkedEditorGate>}
+                                    {currentPage === 'lorebook' && <LinkedEditorGate page="lorebook"><LorebookStudio /></LinkedEditorGate>}
                                     {currentPage === 'story' && (
                                         // Every wrapper must propagate the stretched height: the
                                         // studio fills the viewport via flex, and an auto-height
@@ -157,7 +158,7 @@ export function AppRouter() {
                                                     sessionPhase === 'expired' && 'invisible pointer-events-none select-none',
                                                 )}
                                             >
-                                                <NovelStudio />
+                                                <LinkedEditorGate page="story"><NovelStudio /></LinkedEditorGate>
                                             </div>
                                             {sessionPhase === 'expired' && (
                                                 <StoryReauthenticationGate

@@ -84,6 +84,7 @@ export function LorebookStudio() {
     const [draft, setDraft] = useState<Lorebook>(() => editingLorebook ?? newLorebook())
     const [selectedId, setSelectedId] = useState<string | undefined>(() => (editingLorebook?.entries ?? [])[0]?.id)
     const [saving, setSaving] = useState(false)
+    const [importingResources, setImportingResources] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
     const [notice, setNotice] = useState<string | null>(null)
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
@@ -185,6 +186,7 @@ export function LorebookStudio() {
     }
 
     const saveLorebook = async () => {
+        if (saving || importingResources) return
         if (!isAuthenticated) {
             openLoginModal()
             return
@@ -296,7 +298,7 @@ export function LorebookStudio() {
                         <Button variant="ghost" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={() => setPage('gallery-lorebooks')}>
                             {t('common.back')}
                         </Button>
-                        <Button variant="primary" iconLeft={<Icon icon={Save} size={16} />} onClick={saveLorebook} disabled={saving}>
+                        <Button variant="primary" iconLeft={<Icon icon={Save} size={16} />} onClick={saveLorebook} disabled={saving || importingResources}>
                             {saving
                                 ? extractResourceMetadata && pendingExtractionCount > 0
                                     ? t('lorebookStudio.resources.savingButton', { count: pendingExtractionCount })
@@ -414,6 +416,7 @@ export function LorebookStudio() {
                             onAddFromLibrary={saved ? () => setResourcePickerOpen(true) : undefined}
                             onDetachResource={(resource) => void detachSharedResource(resource.id)}
                             saving={saving}
+                            onImportingChange={setImportingResources}
                             pendingExtractionCount={pendingExtractionCount}
                             extractMetadataOnSave={extractResourceMetadata}
                             onExtractMetadataOnSaveChange={setExtractResourceMetadata}

@@ -2599,6 +2599,16 @@ class ApiService {
         })
     }
 
+    /** Convert a PDF upload to a draft Markdown source, without persistence or LLM usage. */
+    async importLorebookResourcePdf(file: File): Promise<unknown> {
+        this.assertLorebookResourcesEnabled()
+        const body = new FormData()
+        body.append('file', file)
+        return this.authenticatedRequest('/lorebook-resources/import-pdf', this.getStoredToken(), {
+            method: 'POST', body,
+        })
+    }
+
     async updateLorebookResource(resourceId: string, resource: Partial<LorebookResource> | Record<string, unknown>): Promise<unknown> {
         this.assertLorebookResourcesEnabled()
         const token = this.getStoredToken()

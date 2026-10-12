@@ -409,7 +409,7 @@ export const en = {
                     },
                     empty: {
                         title: 'Add a resource',
-                        description: 'Upload a plain-text Markdown or text file. Enable metadata sync when you want searchable lore metadata and snippet triggers.',
+                        description: 'Upload a Markdown, text, or PDF file. Enable metadata sync when you want searchable lore metadata and snippet triggers.',
                     },
                     fields: {
                         title: {
@@ -1064,8 +1064,10 @@ export const en = {
                     focusRemove: 'In focus. Select to remove it.',
                     focusFull: 'Focus is full ({{limit}}/{{limit}}). Remove one first.',
                     focusBusy: 'Focus can change once the reply finishes.',
+                    view: 'View',
+                    viewHint: 'Preview it without leaving the chat',
                     open: 'Open',
-                    openHint: 'Open the full preview',
+                    openHint: 'Open the editor in a new tab',
                     noDescription: 'No description yet.',
                     missing: "This isn't in your library anymore. It may have been deleted.",
                     checked: 'Checked once, remembered for this session',
@@ -1191,7 +1193,7 @@ export const en = {
                     resources: {
                         label: 'Resources',
                         eyebrow: 'Text sources',
-                        title: 'Turn .md and .txt files into shared lore',
+                        title: 'Turn text files and PDFs into shared lore',
                         intro: 'Resources are reusable text or Markdown sources you can create once, search, preview, and attach across lorebooks.',
                     },
                     media: {
@@ -1255,7 +1257,7 @@ export const en = {
                         },
                         resources: {
                             title: 'Resources',
-                            body: 'Reusable .md and .txt sources for lorebooks. Create text or Markdown, upload files, import a URL as Markdown, then attach the resource anywhere it should inform context.',
+                            body: 'Reusable .md and .txt sources for lorebooks, with PDF import to Markdown. Create text or Markdown, upload files, import a URL as Markdown, then attach the resource anywhere it should inform context.',
                         },
                         novels: {
                             title: 'Novels',
@@ -1471,13 +1473,13 @@ export const en = {
                     },
                     resources: {
                         formats: {
-                            title: 'Use Markdown or plain text',
-                            body: 'Resources accept .md and .txt. Markdown gets a rendered preview; plain text stays simple for raw notes, transcripts, setting sheets, and reference dumps.',
-                            badge: '.md / .txt',
+                            title: 'Use Markdown, plain text, or PDF',
+                            body: 'Resources accept .md, .txt, and .pdf. PDFs are converted to editable Markdown. Markdown gets a rendered preview; plain text stays simple for raw notes, transcripts, setting sheets, and reference dumps.',
+                            badge: '.md / .txt / .pdf',
                         },
                         createUpload: {
                             title: 'Create or upload from the Resources gallery',
-                            body: 'Use New text for a .txt draft, New Markdown for a .md draft, or Upload to add one or more .md/.txt files. The file name controls the resource type.',
+                            body: 'Use New text for a .txt draft, New Markdown for a .md draft, or Upload to add one or more .md/.txt/.pdf files. PDFs become Markdown resources. The file name controls the resource type.',
                         },
                         urlImport: {
                             title: 'Import web pages as Markdown',
@@ -2127,10 +2129,12 @@ export const en = {
                 },
             },
             lorebookResourcesGallery: {
+                pdfImportHint: 'PDFs are converted to editable Markdown. Metadata sync is a separate step.',
+                importingFiles: 'Importing files…',
                 header: {
                     eyebrow: 'Your library',
                     title: 'Resources',
-                    subtitle: 'Create reusable text and Markdown sources, then share them across lorebooks.',
+                    subtitle: 'Create reusable text and Markdown sources or import PDFs, then share them across lorebooks.',
                 },
                 actions: {
                     newText: 'New text',
@@ -2165,6 +2169,18 @@ export const en = {
                     metadataSynced: 'Resource metadata synced.',
                 },
                 errors: {
+                    uploadFileType: '{{name}} must be a .md, .txt, or .pdf file.',
+                    pdfTooLarge: 'This PDF exceeds the server upload size limit.',
+                    pdfInvalid: 'This PDF could not be read. Upload a valid, unlocked PDF.',
+                    pdfNoText: 'This PDF does not contain extractable text.',
+                    pdfTextTooLarge: 'The extracted PDF text exceeds 80,000 characters. Split the document into smaller files.',
+                    pdfTooManyPages: 'This PDF exceeds the server page limit.',
+                    pdfOcrRequired: 'This PDF contains pages without selectable text. Use a text-based PDF or enable offline OCR on the server.',
+                    pdfOcrUnavailable: 'Offline PDF OCR is unavailable on this server.',
+                    pdfEncrypted: 'Encrypted PDFs are not supported. Upload an unlocked PDF.',
+                    pdfUnavailable: 'PDF import is unavailable on this server.',
+                    pdfTimeout: 'PDF processing timed out. Try a smaller PDF.',
+                    pdfBusy: 'PDF processing is busy. Try again shortly.',
                     loadFailed: 'Failed to load resources',
                     saveFailed: 'Could not save resource.',
                     deleteFailed: 'Could not delete resource.',

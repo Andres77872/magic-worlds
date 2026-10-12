@@ -225,12 +225,13 @@ export function AppAssistantView(props: AppAssistantViewProps) {
     )
 
     // Replies link into the app with `#/…` hashes; route them in-app instead of
-    // letting the browser jump (keeps the back stack and opens previews in place).
+    // letting the browser jump (opens record previews in place). Links marked
+    // for a new tab are the browser's to follow.
     const handleThreadClick = (event: MouseEvent<HTMLDivElement>) => {
         if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
         const anchor = (event.target as HTMLElement).closest('a')
         const href = anchor?.getAttribute('href')
-        if (!href?.startsWith('#/')) return
+        if (!href?.startsWith('#/') || anchor?.target === '_blank') return
         event.preventDefault()
         props.onNavigateLink(href)
     }

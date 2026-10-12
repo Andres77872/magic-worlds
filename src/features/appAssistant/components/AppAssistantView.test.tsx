@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { AssistantTurn } from '@/features/creation/common/components/assistant/assistantModel'
+import { AssistantLinkContext } from '@/features/creation/common/components/assistant/assistantLinkContext'
 import { APP_ASSISTANT_SUGGESTIONS } from '../assistantSuggestions'
 import { AppAssistantView, type AppAssistantViewProps } from './AppAssistantView'
+import { AssistantReplyLink } from './AssistantReplyLink'
 
 function turn(id: number, role: 'user' | 'assistant', content: string): AssistantTurn {
     return {
@@ -86,6 +88,25 @@ describe('AppAssistantView', () => {
 
         fireEvent.click(screen.getByRole('link', { name: 'the web' }))
         expect(view.onNavigateLink).toHaveBeenCalledTimes(1)
+    })
+
+    it('leaves links meant for a new tab to the browser', () => {
+        const view = props({
+            activeConversation: { conversation_id: 3, kind: 'app', title: 'Lore check' },
+            turns: [turn(1, 'user', 'What next?'), turn(2, 'assistant', 'Start from [Create world](#/world) or browse [Items](#/gallery/items).')],
+        })
+        render(
+            <AssistantLinkContext.Provider value={AssistantReplyLink}>
+                <AppAssistantView {...view} />
+            </AssistantLinkContext.Provider>,
+        )
+        const create = screen.getByRole('link', { name: 'Create world' })
+        expect(create).toHaveAttribute('target', '_blank')
+        expect(create).toHaveAttribute('rel', 'noopener noreferrer')
+        // jsdom cannot open tabs: stop the browser's own follow after the thread has had its say.
+        create.addEventListener('click', (event) => event.preventDefault())
+        fireEvent.click(create)
+        expect(view.onNavigateLink).not.toHaveBeenCalled()
     })
 
     it('lists conversations and switches between them', () => {

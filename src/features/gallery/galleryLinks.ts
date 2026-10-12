@@ -206,6 +206,30 @@ export function parseCardEditHash(
     }
 }
 
+// --- Adventure / lorebook / story editor deep-links ---------------------------------
+// `#/adventure?card=<id>`, `#/lorebook?lorebook=<id>` and `#/story?story=<id>` open those
+// editors on a library record (e.g. in a new browser tab). Unlike the versionable cards
+// above, these editors take the record from the library DataProvider already holds
+// (`LinkedEditorGate`).
+
+export type LinkedEditorPage = 'adventure' | 'lorebook' | 'story'
+
+const LINKED_EDITOR_PARAM: Record<LinkedEditorPage, string> = { adventure: 'card', lorebook: 'lorebook', story: 'story' }
+
+export function buildLinkedEditorHash(page: LinkedEditorPage, id: string): string {
+    return `${pageHash(page)}?${new URLSearchParams({ [LINKED_EDITOR_PARAM[page]]: id }).toString()}`
+}
+
+export function parseLinkedEditorId(
+    page: LinkedEditorPage,
+    hash: string = typeof window === 'undefined' ? '' : window.location.hash,
+): string | null {
+    const withoutHash = hash.startsWith('#') ? hash.slice(1) : hash
+    const [path, query = ''] = withoutHash.split('?')
+    if (path !== `/${page}`) return null
+    return new URLSearchParams(query).get(LINKED_EDITOR_PARAM[page]) || null
+}
+
 // --- Lorebook resource deep-links --------------------------------------------------
 // A single resource opens at `#/gallery/resources?resource=<id>` — a dedicated in-page
 // view (not a slide-in drawer). `?resource=new&type=md|txt` opens the create form. The

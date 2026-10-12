@@ -5,6 +5,7 @@ import { i18n } from '@/app/i18n'
 import type { LorebookResource } from '@/shared'
 import { LOREBOOK_RESOURCE_MAX_CHARS, LOREBOOK_RESOURCE_MAX_RESOURCES, LOREBOOK_RESOURCE_MAX_TRIGGERS, newLorebookResource } from '../lorebookResources'
 import { LorebookResourcePanel } from './LorebookResourcePanel'
+import { ApiError, apiService } from '@/infrastructure/api'
 
 function completedResource(overrides: Partial<LorebookResource> = {}): LorebookResource {
     return {
@@ -72,6 +73,7 @@ function LinkedHarness({ initial = [], linked = [completedResource({ id: 'shared
 
 describe('LorebookResourcePanel', () => {
     beforeEach(async () => {
+        vi.restoreAllMocks()
         await i18n.changeLanguage('en')
     })
 
@@ -99,16 +101,44 @@ describe('LorebookResourcePanel', () => {
         render(<Harness />)
 
         fireEvent.change(screen.getByTestId('lorebook-resource-upload'), {
-            target: { files: [new File(['bad'], 'archive.pdf', { type: 'application/pdf' })] },
+            target: { files: [new File(['bad'], 'archive.docx')] },
         })
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('archive.pdf must be a .md or .txt file.')
+        expect(await screen.findByRole('alert')).toHaveTextContent('archive.docx must be a .md, .txt, or .pdf file.')
 
         fireEvent.change(screen.getByTestId('lorebook-resource-upload'), {
             target: { files: [new File(['x'.repeat(LOREBOOK_RESOURCE_MAX_CHARS + 1)], 'large.txt', { type: 'text/plain' })] },
         })
 
         await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(`large.txt is over ${LOREBOOK_RESOURCE_MAX_CHARS} characters.`))
+    })
+
+    it('imports PDFs as unsaved editable Markdown and blocks actions while converting', async () => {
+        let finish!: (value: LorebookResource) => void
+        const importPdf = vi.spyOn(apiService, 'importLorebookResourcePdf').mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+        render(<Harness />)
+        const file = new File(['%PDF-binary'], 'court.pdf', { type: 'application/pdf' })
+        fireEvent.change(screen.getByTestId('lorebook-resource-upload'), { target: { files: [file] } })
+        expect(screen.getByTestId('lorebook-resource-upload')).toBeDisabled()
+        expect(screen.getByTestId('lorebook-resource-new-txt')).toBeDisabled()
+        expect(screen.getByRole('status')).toHaveTextContent('Importing files')
+        const imported = newLorebookResource('court.md', '# Court facts')
+        imported.title = 'court.pdf'
+        finish(imported)
+        expect(await screen.findByDisplayValue('# Court facts')).toBeInTheDocument()
+        expect(screen.getByTestId('lorebook-resource-upload')).toBeEnabled()
+        expect(importPdf).toHaveBeenCalledWith(file)
+    })
+
+    it('shows a localized PDF error and retains other successful imports', async () => {
+        vi.spyOn(apiService, 'importLorebookResourcePdf').mockRejectedValueOnce(new ApiError(422, 'OCR required', { code: 'RESOURCE_PDF_OCR_REQUIRED' }))
+        render(<Harness />)
+        fireEvent.change(screen.getByTestId('lorebook-resource-upload'), {
+            target: { files: [new File(['Court notes'], 'court.txt'), new File(['%PDF-binary'], 'scan.pdf')] },
+        })
+        expect(await screen.findByRole('alert')).toHaveTextContent('pages without selectable text')
+        expect(await screen.findByDisplayValue('Court notes')).toBeInTheDocument()
+        expect(screen.getByTestId('lorebook-resource-upload')).toBeEnabled()
     })
 
     it('enforces the resource cap locally', () => {

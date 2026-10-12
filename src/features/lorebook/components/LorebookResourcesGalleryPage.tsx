@@ -13,10 +13,10 @@ import {
     LOREBOOK_RESOURCE_MAX_CHARS,
     isAllowedResourceFile,
     lorebookResourceToApiPayload,
-    newLorebookResource,
     normalizeLorebookResource,
     validateLorebookResources,
 } from '../lorebookResources'
+import { readLorebookResourceFile, resourceFileErrorKey } from '../lorebookResourceFiles'
 import { useLorebookResourceGallery } from '../hooks/useLorebookResourceGallery'
 import { useLorebookExtraction } from '../hooks/useLorebookExtraction'
 import { applyLorebookExtraction } from '../lorebookExtractionSession'
@@ -69,23 +69,34 @@ export function LorebookResourcesGalleryPage() {
         }
         setSaving(true)
         setError(null)
+        setNotice(null)
+        const owner = authSession.getSnapshot()
+        let uploadedCount = 0
         try {
             for (const file of Array.from(files)) {
                 if (!isAllowedResourceFile(file)) {
-                    setError(t('lorebookResourcesGallery.errors.fileType', { name: file.name }))
+                    setError(t('lorebookResourcesGallery.errors.uploadFileType', { name: file.name }))
                     continue
                 }
-                const content = await file.text()
-                if (content.length > LOREBOOK_RESOURCE_MAX_CHARS) {
-                    setError(t('lorebookResourcesGallery.errors.size', { name: file.name, count: LOREBOOK_RESOURCE_MAX_CHARS }))
-                    continue
+                try {
+                    const resource = await readLorebookResourceFile(file)
+                    if (!authSession.isCurrent(owner)) return
+                    if (resource.content.length > LOREBOOK_RESOURCE_MAX_CHARS) {
+                        setError(t('lorebookResourcesGallery.errors.size', { name: file.name, count: LOREBOOK_RESOURCE_MAX_CHARS }))
+                        continue
+                    }
+                    const created = normalizeLorebookResource(await apiService.createLorebookResource(lorebookResourceToApiPayload(resource)))
+                    if (!authSession.isCurrent(owner)) return
+                    if (!created) throw new Error(t('lorebookResourcesGallery.errors.saveFailed'))
+                    gallery.upsertItem(created)
+                    uploadedCount += 1
+                } catch (err) {
+                    if (!authSession.isCurrent(owner)) return
+                    const key = resourceFileErrorKey(err)
+                    setError(key ? t(key, { name: file.name }) : err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
                 }
-                const created = normalizeLorebookResource(await apiService.createLorebookResource(lorebookResourceToApiPayload(newLorebookResource(file.name, content))))
-                if (created) gallery.upsertItem(created)
             }
-            setNotice(t('lorebookResourcesGallery.notices.uploaded'))
-        } catch (err) {
-            setError(err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
+            if (uploadedCount > 0) setNotice(t('lorebookResourcesGallery.notices.uploaded'))
         } finally {
             setSaving(false)
             if (fileInputRef.current) fileInputRef.current.value = ''
@@ -149,7 +160,7 @@ export function LorebookResourcesGalleryPage() {
             gallery.upsertItem(applyLorebookExtraction(resource, result))
             setNotice(t('lorebookResourcesGallery.notices.metadataSynced'))
             return true
-        } catch (err) {
+        } catch {
             if (!authSession.isCurrent(owner)) return false
             setError(t('lorebookResourcesGallery.errors.extractionAfterSave'))
             return false
@@ -254,6 +265,7 @@ export function LorebookResourcesGalleryPage() {
                                     accept={LOREBOOK_RESOURCE_ACCEPT}
                                     multiple
                                     className="sr-only"
+                                    disabled={saving}
                                     aria-label={t('lorebookResourcesGallery.actions.upload')}
                                     onChange={(event) => void uploadFiles(event.target.files)}
                                 />
@@ -273,6 +285,7 @@ export function LorebookResourcesGalleryPage() {
                         }
                     />
 
+                    <Callout tone="info">{t('lorebookResourcesGallery.pdfImportHint')}</Callout>
                     {banner}
 
                     {(!gallery.error || gallery.items.length > 0) && <ResourceGrid

@@ -26,7 +26,7 @@ function renderThread(overrides: Partial<HoverCardsProviderProps> = {}) {
         focusBusy: false,
         focusTokens: () => 420,
         onToggleFocus: vi.fn(),
-        onOpen: vi.fn(),
+        onView: vi.fn(),
         ...overrides,
     }
     const view = render(
@@ -157,14 +157,44 @@ describe('assistant hover cards', () => {
         expect(button.parentElement).toHaveAttribute('title', 'Focus can change once the reply finishes.')
     })
 
-    it('opens the record and closes the chain', async () => {
-        const onOpen = vi.fn()
-        renderThread({ onOpen })
+    it('views the record and closes the chain', async () => {
+        const onView = vi.fn()
+        renderThread({ onView })
         const card = await openCard('Aetheric Resonance')
         expect(card).toHaveTextContent('8 entries')
-        fireEvent.click(within(card).getByRole('button', { name: 'Open' }))
-        expect(onOpen).toHaveBeenCalledWith({ kind: 'lorebook', id: 'l-resonance' })
+        fireEvent.click(within(card).getByRole('button', { name: 'View' }))
+        expect(onView).toHaveBeenCalledWith({ kind: 'lorebook', id: 'l-resonance' })
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('opens the editor of a library record in a new tab', async () => {
+        const onView = vi.fn()
+        renderThread({ onView })
+        const card = await openCard('Theron Mistwood')
+        const open = within(card).getByRole('link', { name: 'Open' })
+        expect(open).toHaveAttribute('href', '#/character?card=c-theron')
+        expect(open).toHaveAttribute('target', '_blank')
+        expect(open).toHaveAttribute('rel', 'noopener noreferrer')
+        // jsdom cannot open tabs; the browser follows the link itself.
+        open.addEventListener('click', (event) => event.preventDefault())
+        fireEvent.click(open)
+        expect(onView).not.toHaveBeenCalled()
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('links each kind to its own editor (a persona edits as a character)', async () => {
+        renderThread()
+        const editor = async (name: string) => {
+            const card = await openCard(name)
+            const href = within(card).getByRole('link', { name: 'Open' }).getAttribute('href')
+            fireEvent.keyDown(document, { key: 'Escape' })
+            return href
+        }
+        expect(await editor('Dan')).toBe('#/character?card=p-dan')
+        expect(await editor('Aerindor')).toBe('#/world?card=w-aerindor')
+        expect(await editor('Tide lantern')).toBe('#/item?card=i-lantern')
+        expect(await editor('A grand gathering')).toBe('#/adventure?card=a-conclave')
+        expect(await editor('Aetheric Resonance')).toBe('#/lorebook?lorebook=l-resonance')
     })
 
     it('fetches a card missing from the library once and remembers that it is gone', async () => {
@@ -175,6 +205,7 @@ describe('assistant hover cards', () => {
         expect(card).toHaveTextContent("This isn't in your library anymore")
         expect(card).toHaveTextContent('Checked once, remembered for this session')
         expect(within(card).queryByRole('button', { name: 'Focus' })).not.toBeInTheDocument()
+        expect(within(card).queryByRole('link', { name: 'Open' })).not.toBeInTheDocument()
         fireEvent.keyDown(document, { key: 'Escape' })
         await openCard('Kai \\(old draft\\)')
         expect(fetchPreview).toHaveBeenCalledTimes(1)

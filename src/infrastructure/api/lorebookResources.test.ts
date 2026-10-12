@@ -62,6 +62,20 @@ describe('lorebook resource API wire format', () => {
         expect(body).not.toHaveProperty('contentLength')
     })
 
+    it('imports PDF bytes as authenticated multipart without a JSON content type or inference request', async () => {
+        const file = new File(['%PDF-document'], 'court.pdf', { type: 'application/pdf' })
+        fetchMock.mockResolvedValueOnce(jsonResponse(resource()))
+        await apiService.importLorebookResourcePdf(file)
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+        expect(url).toContain('/lorebook-resources/import-pdf')
+        expect(init.method).toBe('POST')
+        expect(init.body).toBeInstanceOf(FormData)
+        expect((init.body as FormData).get('file')).toBe(file)
+        expect(new Headers(init.headers).has('Content-Type')).toBe(false)
+        expect(new Headers(init.headers).get('Authorization')).toBe('Bearer test-token')
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
     it('requests extraction only when resource metadata sync is explicit', async () => {
         fetchMock.mockResolvedValueOnce(jsonResponse(extractionResult()))
         await apiService.extractLorebookResource('resource-1', { expected_evaluation_hash: HASH, llm: { selection: { mode: 'inherit' } } }, { requestId: 'resource-sync-1' })

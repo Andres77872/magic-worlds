@@ -5,9 +5,9 @@ import type { LorebookResource } from '@/shared'
 import { authSession } from '@/infrastructure/api/authSession'
 import { EXTRACTION_HASH as HASH, extractionResult } from '@/infrastructure/api/__tests__/fixtures/lorebookExtraction'
 
-const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), extract: vi.fn(), reconcile: vi.fn(), upsert: vi.fn(), replaceHash: vi.fn() }))
+const mocks = vi.hoisted(() => ({ create: vi.fn(), importPdf: vi.fn(), update: vi.fn(), extract: vi.fn(), reconcile: vi.fn(), upsert: vi.fn(), replaceHash: vi.fn() }))
 let target: LorebookResource
-let resourceEdit = { resourceId: 'new' }
+let resourceEdit: { resourceId: string } | null = { resourceId: 'new' }
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: true, openLoginModal: vi.fn() }),
     useNavigation: () => ({ resourceEdit, replaceHash: mocks.replaceHash, setPage: vi.fn(), goBack: vi.fn() }),
@@ -15,10 +15,10 @@ vi.mock('@/app/hooks', () => ({
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@/infrastructure/api', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/infrastructure/api')>(),
-    apiService: { createLorebookResource: mocks.create, updateLorebookResource: mocks.update, extractLorebookResource: mocks.extract, getLorebookResourceExtraction: mocks.reconcile },
+    apiService: { createLorebookResource: mocks.create, importLorebookResourcePdf: mocks.importPdf, updateLorebookResource: mocks.update, extractLorebookResource: mocks.extract, getLorebookResourceExtraction: mocks.reconcile },
 }))
 vi.mock('../hooks/useLorebookResourceGallery', () => ({ useLorebookResourceGallery: () => ({ items: [], upsertItem: mocks.upsert, query: '', error: null }) }))
-vi.mock('./resources/useLorebookResourceRoute', () => ({ useLorebookResourceRoute: () => ({ resource: target, isCreate: resourceEdit.resourceId === 'new', loading: false }) }))
+vi.mock('./resources/useLorebookResourceRoute', () => ({ useLorebookResourceRoute: () => ({ resource: target, isCreate: resourceEdit?.resourceId === 'new', loading: false }) }))
 vi.mock('./resources/ResourceDetailView', () => ({ ResourceDetailView: ({ resource, saving, onSave, onSyncMetadata, banner }: { resource: LorebookResource; saving: boolean; onSave: (resource: LorebookResource, options: { extractMetadata: boolean }) => Promise<boolean>; onSyncMetadata: (resource: LorebookResource) => Promise<boolean>; banner: ReactNode }) => <div>
     {banner}
     <span>{resource.id}:{resource.extractionStatus}</span>
@@ -68,5 +68,52 @@ describe('resource gallery save then extract', () => {
         expect(target.extraction).toBeNull()
         expect(target.id).toBe('resource-1')
         expect(target.content).toBe('Court facts.')
+    })
+
+    it('converts a PDF before saving its Markdown source without automatic metadata extraction', async () => {
+        resourceEdit = null
+        const file = new File(['%PDF-binary'], 'court.pdf', { type: 'application/pdf' })
+        const readAsText = vi.fn(() => { throw new Error('PDF bytes must not be read as text') })
+        Object.defineProperty(file, 'text', { value: readAsText })
+        mocks.importPdf.mockResolvedValueOnce({ ...target, title: 'court.pdf', fileName: 'court.md', content: '# Court facts' })
+        render(<LorebookResourcesGalleryPage />)
+        const input = screen.getByLabelText('lorebookResourcesGallery.actions.upload')
+        expect(input).toHaveAttribute('accept', expect.stringContaining('.pdf'))
+        fireEvent.change(input, { target: { files: [file] } })
+        await waitFor(() => expect(mocks.upsert).toHaveBeenCalled())
+        expect(mocks.importPdf).toHaveBeenCalledWith(file)
+        expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ fileName: 'court.md', fileType: 'md', content: '# Court facts' }))
+        expect(readAsText).not.toHaveBeenCalled()
+        expect(mocks.extract).not.toHaveBeenCalled()
+    })
+
+    it('keeps uploading valid files after a PDF fails', async () => {
+        resourceEdit = null
+        mocks.importPdf.mockRejectedValueOnce(new ApiError(422, 'OCR required', { code: 'RESOURCE_PDF_OCR_REQUIRED' }))
+        const text = new File(['Court notes'], 'court.txt')
+        Object.defineProperty(text, 'text', { value: async () => 'Court notes' })
+        render(<LorebookResourcesGalleryPage />)
+        fireEvent.change(screen.getByLabelText('lorebookResourcesGallery.actions.upload'), {
+            target: { files: [new File(['%PDF-binary'], 'scan.pdf'), text] },
+        })
+        await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1))
+        expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ fileName: 'court.txt', content: 'Court notes' }))
+        expect(screen.getByRole('alert')).toHaveTextContent('lorebookResourcesGallery.errors.pdfOcrRequired')
+    })
+
+    it('does not save an imported PDF after the account changes', async () => {
+        resourceEdit = null
+        let finish!: (value: LorebookResource) => void
+        mocks.importPdf.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+        render(<LorebookResourcesGalleryPage />)
+        fireEvent.change(screen.getByLabelText('lorebookResourcesGallery.actions.upload'), {
+            target: { files: [new File(['%PDF-binary'], 'court.pdf')] },
+        })
+        await waitFor(() => expect(mocks.importPdf).toHaveBeenCalled())
+        authSession.authenticate('bob', 'bob-token')
+        finish(target)
+        await waitFor(() => expect(screen.getByRole('button', { name: 'lorebookResourcesGallery.actions.upload' })).toBeEnabled())
+        expect(mocks.create).not.toHaveBeenCalled()
+        expect(mocks.upsert).not.toHaveBeenCalled()
     })
 })

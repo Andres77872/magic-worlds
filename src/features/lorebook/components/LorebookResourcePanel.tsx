@@ -5,6 +5,7 @@ import type { LorebookResource } from '@/shared'
 import { Badge, Button, Callout, Field, Icon, IconButton, Input, SwitchRow, Tag, Textarea, cx } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
 import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
+import { authSession } from '@/infrastructure/api/authSession'
 import {
     LOREBOOK_RESOURCE_ACCEPT,
     LOREBOOK_RESOURCE_MAX_CHARS,
@@ -17,6 +18,7 @@ import {
     newLorebookResource,
     nextLorebookResourceFileName,
 } from '../lorebookResources'
+import { readLorebookResourceFile, resourceFileErrorKey } from '../lorebookResourceFiles'
 
 interface LorebookResourcePanelProps {
     resources: LorebookResource[]
@@ -28,6 +30,7 @@ interface LorebookResourcePanelProps {
     pendingExtractionCount?: number
     extractMetadataOnSave?: boolean
     onExtractMetadataOnSaveChange?: (enabled: boolean) => void
+    onImportingChange?: (importing: boolean) => void
 }
 
 function statusTone(resource: LorebookResource) {
@@ -46,14 +49,25 @@ export function LorebookResourcePanel({
     pendingExtractionCount = 0,
     extractMetadataOnSave = false,
     onExtractMetadataOnSaveChange,
+    onImportingChange,
 }: LorebookResourcePanelProps) {
     const { t } = useTranslation()
     const inputRef = useRef<HTMLInputElement>(null)
     const [error, setError] = useState<string | null>(null)
+    const [importing, setImporting] = useState(false)
+    const busy = saving || importing
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
     const allResources = useMemo(() => [...linkedResources, ...resources], [linkedResources, resources])
     const stats = useMemo(() => lorebookResourceStats(allResources), [allResources])
     const canAdd = allResources.length < LOREBOOK_RESOURCE_MAX_RESOURCES
+    const currentResources = useRef({ resources, linkedResources })
+    const mounted = useRef(false)
+
+    useEffect(() => { currentResources.current = { resources, linkedResources } }, [resources, linkedResources])
+    useEffect(() => {
+        mounted.current = true
+        return () => { mounted.current = false }
+    }, [])
 
     useEffect(() => {
         setExpandedIds((current) => {
@@ -114,33 +128,55 @@ export function LorebookResourcePanel({
 
     const addFiles = async (files: FileList | null) => {
         setError(null)
-        if (!files?.length) return
+        if (!files?.length || busy) return
+        setImporting(true)
+        onImportingChange?.(true)
+        const owner = authSession.getSnapshot()
         const next: LorebookResource[] = []
-        for (const file of Array.from(files)) {
-            if (allResources.length + next.length >= LOREBOOK_RESOURCE_MAX_RESOURCES) {
-                setError(t('lorebookStudio.resources.errors.count', { count: LOREBOOK_RESOURCE_MAX_RESOURCES }))
-                break
+        try {
+            for (const file of Array.from(files)) {
+                const current = currentResources.current
+                if (current.resources.length + current.linkedResources.length + next.length >= LOREBOOK_RESOURCE_MAX_RESOURCES) {
+                    setError(t('lorebookStudio.resources.errors.count', { count: LOREBOOK_RESOURCE_MAX_RESOURCES }))
+                    break
+                }
+                if (!isAllowedResourceFile(file)) {
+                    setError(t('lorebookResourcesGallery.errors.uploadFileType', { name: file.name }))
+                    continue
+                }
+                try {
+                    const resource = await readLorebookResourceFile(file)
+                    if (!mounted.current || !authSession.isCurrent(owner)) return
+                    if (resource.content.length > LOREBOOK_RESOURCE_MAX_CHARS) {
+                        setError(t('lorebookStudio.resources.errors.size', { name: file.name, count: LOREBOOK_RESOURCE_MAX_CHARS }))
+                        continue
+                    }
+                    next.push(resource)
+                } catch (err) {
+                    if (!mounted.current || !authSession.isCurrent(owner)) return
+                    const key = resourceFileErrorKey(err)
+                    setError(key ? t(key, { name: file.name }) : err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
+                }
             }
-            if (!isAllowedResourceFile(file)) {
-                setError(t('lorebookStudio.resources.errors.fileType', { name: file.name }))
-                continue
+            if (next.length > 0) {
+                const current = currentResources.current
+                const available = Math.max(0, LOREBOOK_RESOURCE_MAX_RESOURCES - current.resources.length - current.linkedResources.length)
+                const added = next.slice(0, available)
+                if (added.length < next.length) setError(t('lorebookStudio.resources.errors.count', { count: LOREBOOK_RESOURCE_MAX_RESOURCES }))
+                onChange([...current.resources, ...added])
+                setExpandedIds((current) => {
+                    const expanded = new Set(current)
+                    added.forEach((resource) => expanded.add(resource.id))
+                    return expanded
+                })
             }
-            const content = await file.text()
-            if (content.length > LOREBOOK_RESOURCE_MAX_CHARS) {
-                setError(t('lorebookStudio.resources.errors.size', { name: file.name, count: LOREBOOK_RESOURCE_MAX_CHARS }))
-                continue
+        } finally {
+            if (mounted.current) {
+                setImporting(false)
+                onImportingChange?.(false)
+                if (inputRef.current) inputRef.current.value = ''
             }
-            next.push(newLorebookResource(file.name, content))
         }
-        if (next.length > 0) {
-            onChange([...resources, ...next])
-            setExpandedIds((current) => {
-                const expanded = new Set(current)
-                next.forEach((resource) => expanded.add(resource.id))
-                return expanded
-            })
-        }
-        if (inputRef.current) inputRef.current.value = ''
     }
 
     return (
@@ -165,25 +201,27 @@ export function LorebookResourcePanel({
                         aria-label={t('lorebookStudio.resources.uploadAria')}
                         data-testid="lorebook-resource-upload"
                         onChange={(event) => void addFiles(event.target.files)}
-                        disabled={saving || !canAdd}
+                        disabled={busy || !canAdd}
                     />
                     {onAddFromLibrary && (
-                        <Button variant="secondary" size="sm" iconLeft={<Icon icon={Library} size={15} />} onClick={onAddFromLibrary} disabled={saving || !canAdd}>
+                        <Button variant="secondary" size="sm" iconLeft={<Icon icon={Library} size={15} />} onClick={onAddFromLibrary} disabled={busy || !canAdd}>
                             {t('lorebookStudio.resources.addFromLibrary')}
                         </Button>
                     )}
-                    <Button variant="secondary" size="sm" iconLeft={<Icon icon={FilePlus2} size={15} />} onClick={() => addManualResource('txt')} disabled={saving || !canAdd} data-testid="lorebook-resource-new-txt">
+                    <Button variant="secondary" size="sm" iconLeft={<Icon icon={FilePlus2} size={15} />} onClick={() => addManualResource('txt')} disabled={busy || !canAdd} data-testid="lorebook-resource-new-txt">
                         {t('lorebookStudio.resources.newText')}
                     </Button>
-                    <Button variant="secondary" size="sm" iconLeft={<Icon icon={FilePlus2} size={15} />} onClick={() => addManualResource('md')} disabled={saving || !canAdd}>
+                    <Button variant="secondary" size="sm" iconLeft={<Icon icon={FilePlus2} size={15} />} onClick={() => addManualResource('md')} disabled={busy || !canAdd}>
                         {t('lorebookStudio.resources.newMarkdown')}
                     </Button>
-                    <Button variant="primary" size="sm" iconLeft={<Icon icon={Upload} size={15} />} onClick={() => inputRef.current?.click()} disabled={saving || !canAdd}>
+                    <Button variant="primary" size="sm" iconLeft={<Icon icon={Upload} size={15} />} onClick={() => inputRef.current?.click()} disabled={busy || !canAdd}>
                         {t('lorebookStudio.resources.upload')}
                     </Button>
                 </div>
             </div>
 
+            <Callout tone="info">{t('lorebookResourcesGallery.pdfImportHint')}</Callout>
+            {importing && <Callout tone="info" role="status">{t('lorebookResourcesGallery.importingFiles')}</Callout>}
             {saving && extractMetadataOnSave && pendingExtractionCount > 0 && (
                 <div className="border-b border-arcane-500/20 bg-arcane-500/[.08] px-4 py-3 font-ui text-sm text-parchment-200">
                     {t('lorebookStudio.resources.savingExtracting', { count: pendingExtractionCount })}
@@ -198,10 +236,10 @@ export function LorebookResourcePanel({
                         description={t('lorebookStudio.resources.extractOnSave.description')}
                         checked={extractMetadataOnSave}
                         onChange={onExtractMetadataOnSaveChange}
-                        disabled={saving}
+                        disabled={busy}
                     />
                     {extractMetadataOnSave && (
-                        <LlmFeatureControl feature="lorebook_extraction" disabled={saving} />
+                        <LlmFeatureControl feature="lorebook_extraction" disabled={busy} />
                     )}
                     {extractMetadataOnSave && (
                         <Callout tone="warning" role="note">
@@ -249,7 +287,7 @@ export function LorebookResourcePanel({
                                             size="sm"
                                             tone="danger"
                                             onClick={() => onDetachResource(resource)}
-                                            disabled={saving}
+                                            disabled={busy}
                                         >
                                             <Icon icon={Trash2} size={14} />
                                         </IconButton>
@@ -330,7 +368,7 @@ export function LorebookResourcePanel({
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                         {!expanded && (
-                                            <Button variant="ghost" size="sm" onClick={() => expandResource(resource.id)} disabled={saving}>
+                                            <Button variant="ghost" size="sm" onClick={() => expandResource(resource.id)} disabled={busy}>
                                                 {t('lorebookStudio.resources.edit')}
                                             </Button>
                                         )}
@@ -339,7 +377,7 @@ export function LorebookResourcePanel({
                                             size="sm"
                                             tone="danger"
                                             onClick={() => removeResource(resource.id)}
-                                            disabled={saving}
+                                            disabled={busy}
                                         >
                                             <Icon icon={Trash2} size={14} />
                                         </IconButton>
@@ -356,7 +394,7 @@ export function LorebookResourcePanel({
                                                     value={resource.title}
                                                     onChange={(event) => updateResource(resource.id, { title: event.target.value })}
                                                     placeholder={t('lorebookStudio.resources.fields.title.placeholder')}
-                                                    disabled={saving}
+                                                    disabled={busy}
                                                 />
                                             </Field>
                                             <TriggersField
@@ -376,7 +414,7 @@ export function LorebookResourcePanel({
                                                 onChange={(event) => updateResource(resource.id, { description: event.target.value })}
                                                 placeholder={t('lorebookStudio.resources.fields.description.placeholder')}
                                                 className="min-h-[86px]"
-                                                disabled={saving}
+                                                disabled={busy}
                                             />
                                         </Field>
 
@@ -389,7 +427,7 @@ export function LorebookResourcePanel({
                                                 value={resource.content}
                                                 onChange={(event) => updateResource(resource.id, { content: event.target.value, contentLength: event.target.value.length })}
                                                 className={cx('min-h-[220px] font-mono text-xs', overLimit && 'border-blood-500/60')}
-                                                disabled={saving}
+                                                disabled={busy}
                                                 data-testid="lorebook-resource-content"
                                             />
                                         </Field>

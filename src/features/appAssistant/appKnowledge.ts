@@ -14,7 +14,7 @@
 import type { TFunction } from 'i18next'
 import type { Adventure, Character, Item, Lorebook, LorebookResource, PageType, Story, World } from '@/shared'
 import { getDocsContent } from '@/features/docs/components/docsContent'
-import { buildGalleryCardHash, buildResourceHash, pageHash } from '@/features/gallery/galleryLinks'
+import { buildGalleryCardHash, buildLinkedEditorHash, buildResourceHash, pageHash } from '@/features/gallery/galleryLinks'
 import { estimateTokens } from '@/features/lorebook/lorebookTransforms'
 import { isPersonaCard } from '@/utils/characterRoles'
 
@@ -150,9 +150,9 @@ function section(key: KnowledgeSection['key'], count: number, markdown: string, 
 // ---------------------------------------------------------------------------
 
 /**
- * Lorebooks and novels open through DataProvider state rather than a URL, so
- * the assistant links them with these assistant-only hashes; the page
- * intercepts the click and opens the record (see `parseFocusLink`).
+ * The in-app link for a record. Cards link to their gallery entry; lorebooks
+ * and novels link to their editor, which opens on them straight from the URL
+ * (`LinkedEditorGate`), so these links also work in a new tab.
  */
 export function focusLink(ref: FocusRef): string {
     switch (ref.kind) {
@@ -169,9 +169,9 @@ export function focusLink(ref: FocusRef): string {
         case 'resource':
             return buildResourceHash(ref.id)
         case 'lorebook':
-            return `#/lorebook?${new URLSearchParams({ lorebook: ref.id }).toString()}`
+            return buildLinkedEditorHash('lorebook', ref.id)
         case 'novel':
-            return `#/story?${new URLSearchParams({ story: ref.id }).toString()}`
+            return buildLinkedEditorHash('story', ref.id)
     }
 }
 

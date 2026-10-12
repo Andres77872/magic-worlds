@@ -3,19 +3,28 @@
  * arcane (AI), danger, danger-ghost (quiet destructive). Sizes xs/sm/md/lg (xs only for
  * dense surfaces such as hover-card footers). `variant` is the design-system term for
  * action emphasis (accent-coloured decor uses `tone` instead).
+ *
+ * `ButtonLink` is the same control as an `<a>`, for actions that navigate (open in a
+ * new tab): the browser's own link affordances (middle-click, copy link) keep working.
  */
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react'
 import { cx } from './cx'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'arcane' | 'danger' | 'danger-ghost'
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg'
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonLookProps {
     variant?: ButtonVariant
     size?: ButtonSize
     full?: boolean
     iconLeft?: ReactNode
     iconRight?: ReactNode
+}
+
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, ButtonLookProps {}
+
+interface ButtonLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement>, ButtonLookProps {
+    href: string
 }
 
 const VARIANT: Record<ButtonVariant, string> = {
@@ -46,6 +55,16 @@ const SIZE: Record<ButtonSize, string> = {
     lg: 'text-base px-6 py-3.5 gap-2.5',
 }
 
+function buttonClassName(variant: ButtonVariant, size: ButtonSize, full: boolean, className?: string): string {
+    return cx(
+        'inline-flex items-center justify-center font-ui font-semibold whitespace-nowrap rounded-md cursor-pointer select-none transition-all disabled:opacity-50 disabled:saturate-[.65] disabled:pointer-events-none',
+        VARIANT[variant],
+        SIZE[size],
+        full && 'w-full',
+        className,
+    )
+}
+
 export function Button({
     variant = 'primary',
     size = 'md',
@@ -58,20 +77,29 @@ export function Button({
     ...rest
 }: ButtonProps) {
     return (
-        <button
-            type={type}
-            className={cx(
-                'inline-flex items-center justify-center font-ui font-semibold whitespace-nowrap rounded-md cursor-pointer select-none transition-all disabled:opacity-50 disabled:saturate-[.65] disabled:pointer-events-none',
-                VARIANT[variant],
-                SIZE[size],
-                full && 'w-full',
-                className,
-            )}
-            {...rest}
-        >
+        <button type={type} className={buttonClassName(variant, size, full, className)} {...rest}>
             {iconLeft}
             {children}
             {iconRight}
         </button>
+    )
+}
+
+export function ButtonLink({
+    variant = 'primary',
+    size = 'md',
+    full = false,
+    iconLeft,
+    iconRight,
+    className,
+    children,
+    ...rest
+}: ButtonLinkProps) {
+    return (
+        <a className={buttonClassName(variant, size, full, className)} {...rest}>
+            {iconLeft}
+            {children}
+            {iconRight}
+        </a>
     )
 }

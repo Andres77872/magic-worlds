@@ -1,17 +1,19 @@
 /**
  * HoverCardView — the presentational hover card: a lock bar that fills while
  * the card is transient, a drag handle (grip + kind), portrait, title, badge,
- * description with nested links, tags, and a one-line footer with compact
- * Focus / Open actions. Every state arrives through props so Storybook can
- * render it without the controller or the API.
+ * last update, description with nested links, tags, and a one-line footer with
+ * compact Focus / View / Open actions. View previews the record over the
+ * thread; Open is a real link to its editor, in a new browser tab. Every state
+ * arrives through props so Storybook can render it without the controller or
+ * the API.
  *
- * Ember marks the reader's own actions (links, Open); arcane marks what the
- * assistant reads (the lock once it holds, the Focus pin).
+ * Ember marks the reader's own actions (links, View, Open); arcane marks what
+ * the assistant reads (the lock once it holds, the Focus pin).
  */
 import { useMemo, type HTMLAttributes, type ReactNode, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowUpRight, BookOpen, Check, Clock, Crosshair, GripVertical, History, Lock, RotateCw, X } from 'lucide-react'
-import { Button, Eyebrow, Icon, IconButton, Tag, cx, gradientFor, type DragHandleProps } from '@/ui/primitives'
+import { ArrowUpRight, BookOpen, Check, Clock, Crosshair, Eye, GripVertical, History, Lock, RotateCw, X } from 'lucide-react'
+import { Button, ButtonLink, Eyebrow, Icon, IconButton, Tag, cx, gradientFor, type DragHandleProps } from '@/ui/primitives'
 import { formatApiDateTime, formatRelativeTime } from '@/utils/time'
 import { FOCUS_ICONS } from '../components/knowledgeIcons'
 import { hoverCardDomId } from './hoverCardController'
@@ -57,7 +59,12 @@ export interface HoverCardViewProps extends Omit<HTMLAttributes<HTMLDivElement>,
     handleProps?: Partial<DragHandleProps>
     onClose?: () => void
     onToggleFocus?: () => void
-    onOpen?: () => void
+    /** Previews the record over the thread (the card preview modal, a lorebook window). */
+    onView?: () => void
+    /** The record's editor; Open shows it in a new tab. Null hides Open (records outside the library). */
+    editorHref?: string | null
+    /** Fires as the Open link is followed (the card chain closes). */
+    onOpenEditor?: () => void
     /** Shown on the error state: asks the server again. */
     onRetry?: () => void
 }
@@ -104,7 +111,9 @@ export function HoverCardView({
     handleProps,
     onClose,
     onToggleFocus,
-    onOpen,
+    onView,
+    editorHref = null,
+    onOpenEditor,
     onRetry,
     className,
     ...rest
@@ -210,6 +219,12 @@ export function HoverCardView({
                         <div className="min-w-0">
                             <h3 className="line-clamp-2 font-display text-[20px] font-semibold leading-tight text-parchment-50">{model.title}</h3>
                             {model.badge && <Tag className="mt-1 max-w-full truncate">{model.badge}</Tag>}
+                            {relative && (
+                                <p className="mt-1 flex min-w-0 items-center gap-1 text-meta text-parchment-400" title={formatApiDateTime(model.updatedAt)}>
+                                    <Icon icon={Clock} size={12} />
+                                    <span className="truncate">{relative}</span>
+                                </p>
+                            )}
                         </div>
                     </div>
 
@@ -250,11 +265,7 @@ export function HoverCardView({
                         </div>
                     )}
 
-                    <div className="mt-2.5 flex items-center gap-1.5 border-t border-parchment-50/[.07] py-2 pl-3.5 pr-2.5">
-                        <span className="flex min-w-0 flex-1 items-center gap-1 text-meta text-parchment-400" title={model.updatedAt ? formatApiDateTime(model.updatedAt) : undefined}>
-                            {relative && <Icon icon={Clock} size={12} />}
-                            <span className="truncate">{relative}</span>
-                        </span>
+                    <div className="mt-2.5 flex items-center justify-end gap-1.5 border-t border-parchment-50/[.07] py-2 pl-3.5 pr-2.5">
                         {focus && (
                             <span
                                 className="inline-flex"
@@ -275,16 +286,30 @@ export function HoverCardView({
                                 </Button>
                             </span>
                         )}
-                        {onOpen && (
+                        {onView && (
                             <Button
                                 size="xs"
                                 variant="secondary"
+                                title={t('appAssistant.hoverCard.viewHint')}
+                                iconLeft={<Icon icon={Eye} size={14} />}
+                                onClick={onView}
+                            >
+                                {t('appAssistant.hoverCard.view')}
+                            </Button>
+                        )}
+                        {editorHref && (
+                            <ButtonLink
+                                size="xs"
+                                variant="secondary"
+                                href={editorHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 title={t('appAssistant.hoverCard.openHint')}
                                 iconRight={<Icon icon={ArrowUpRight} size={14} />}
-                                onClick={onOpen}
+                                onClick={onOpenEditor}
                             >
                                 {t('appAssistant.hoverCard.open')}
-                            </Button>
+                            </ButtonLink>
                         )}
                     </div>
                 </>
