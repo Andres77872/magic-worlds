@@ -13,11 +13,13 @@ const mocks = vi.hoisted(() => ({
     cancelTask: vi.fn(),
     clearTerminalTasks: vi.fn(),
     closeDrawer: vi.fn(),
+    setPage: vi.fn(),
 }))
 
 vi.mock('@/app/hooks', () => ({
     useBackgroundTasks: mocks.useBackgroundTasks,
     useData: mocks.useData,
+    useNavigation: () => ({ setPage: mocks.setPage }),
 }))
 
 vi.mock('@/infrastructure/api', () => ({
@@ -111,9 +113,43 @@ function renderDrawerSpanish(buckets: BackgroundTaskBuckets) {
 }
 
 describe('TasksDrawer', () => {
+    it('shows narration as a task with playback and no invented attached card', async () => {
+        const narration: BackgroundTaskPublic = { ...task('completed','tts-task'),operation:'text_to_speech',
+            title:'Narration',target:{type:'media',id:'tts-task'},cancel_url:null,
+            result:{assets:[],tts_assets:[{asset_id:'voice-1',url:'/tts/assets/voice-1.mp3',content_type:'audio/mpeg',duration_ms:2000,output_format:'mp3'}]} }
+        renderDrawer({active:[],completed:[narration],failed:[]})
+        fireEvent.click(await screen.findByRole('button',{name:/completed\s*1/i}))
+        fireEvent.click(await screen.findByRole('button',{name:'Show Narration details'}))
+        expect(screen.getByTestId('audio-player')).toHaveTextContent('Narration')
+        expect(screen.queryByRole('button',{name:/Attached card:/})).toBeNull()
+    })
+
+    it('labels image generation without song progress text', async () => {
+        const image: BackgroundTaskPublic = { ...task('in_progress','image-task'),operation:'image_generation',
+            title:'Image generation',target:{type:'media',id:'image-task'},cancel_url:null,result:null }
+        renderDrawer({active:[image],completed:[],failed:[]})
+        expect(await screen.findByText('Generating image')).toBeInTheDocument()
+        expect(screen.queryByText('Writing lyrics')).toBeNull()
+    })
     beforeEach(async () => {
         await i18n.changeLanguage('en')
         vi.resetAllMocks()
+    })
+
+    it('shows resource tasks with their own progress and opens the completed PDF resource', async () => {
+        const pdf: BackgroundTaskPublic = { ...task('completed','pdf-task'),operation:'pdf_import',
+            title:'court.pdf',target:{ type:'resource',id:'resource-pdf',display_name:'court.pdf' },result:{ assets:[],resource_id:'resource-pdf' } }
+        const metadata: BackgroundTaskPublic = { ...task('in_progress','metadata-task'),operation:'lorebook_extraction',
+            title:'court.pdf',target:{ type:'resource',id:'resource-pdf',display_name:'court.pdf' },result:null }
+        renderDrawer({ active:[metadata],completed:[pdf],failed:[] })
+        expect(await screen.findByText('Generate metadata · court.pdf')).toBeInTheDocument()
+        expect(screen.getByText('Generating metadata')).toBeInTheDocument()
+        expect(screen.queryByText('Writing lyrics')).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button',{ name:/completed/i }))
+        fireEvent.click(await screen.findByRole('button',{ name:'Show Import PDF · court.pdf details' }))
+        fireEvent.click(screen.getByRole('button',{ name:'Attached card: Resource - court.pdf' }))
+        expect(mocks.setPage).toHaveBeenCalledWith('gallery-resources',{hash:'#/gallery/resources?resource=resource-pdf'})
+        expect(screen.queryByTestId('audio-player')).not.toBeInTheDocument()
     })
 
     afterEach(() => {
@@ -148,7 +184,7 @@ describe('TasksDrawer', () => {
         })
 
         fireEvent.click(await screen.findByRole('button', { name: /completed\s*0/i }))
-        expect(screen.getByRole('heading', { name: 'No completed songs yet' })).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: 'No completed tasks yet' })).toBeInTheDocument()
     })
 
     it('opens the attached card modal from task metadata', async () => {

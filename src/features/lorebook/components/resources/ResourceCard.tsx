@@ -5,7 +5,8 @@ import { Badge, Card, CardDeletingOverlay, Icon, IconButton, Tag, cx } from '@/u
 import { CARD_ACTION_REVEAL_CLASS } from '@/ui/components/lists/Card'
 import { lorebookResourceCompletedExtraction } from '../../lorebookResources'
 import { Stat } from './Stat'
-import { statusTone } from './resourceStatus'
+import { resourceStatusKey, statusTone } from './resourceStatus'
+import { useResourceMetadataTask } from './useResourceMetadataTask'
 
 interface ResourceCardProps {
     resource: LorebookResource
@@ -21,6 +22,7 @@ interface ResourceCardProps {
  */
 export function ResourceCard({ resource, deleting, onOpen, onDelete }: ResourceCardProps) {
     const { t } = useTranslation()
+    const generating = useResourceMetadataTask(resource.id)
     const extraction = lorebookResourceCompletedExtraction(resource)
     const snippets = extraction?.snippets ?? []
     const name = resource.title || resource.fileName
@@ -44,8 +46,9 @@ export function ResourceCard({ resource, deleting, onOpen, onDelete }: ResourceC
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <Badge tone={statusTone(resource)}>{resource.extractionStatus ?? 'pending'}</Badge>
-                    {resource.metadataOutdated && <Badge tone="ember">{t('lorebookResourcesGallery.card.outdated')}</Badge>}
+                    <Badge tone={generating ? 'arcane' : resource.metadataOutdated ? 'ember' : statusTone(resource)}>
+                        {t(generating ? 'lorebookResourcesGallery.status.generating' : resourceStatusKey(resource))}
+                    </Badge>
                     <Tag>{resource.fileType.toUpperCase()}</Tag>
                 </div>
             </div>

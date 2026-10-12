@@ -17,6 +17,7 @@ const pdfErrorKeys: Record<string, string> = {
     RESOURCE_MIME_NOT_ALLOWED: 'pdfInvalid',
     RESOURCE_FILE_TOO_LARGE: 'pdfTooLarge',
     RESOURCE_PDF_INVALID: 'pdfInvalid',
+    RESOURCE_PDF_PROCESSING_FAILED: 'pdfProcessingFailed',
     RESOURCE_PDF_NO_TEXT: 'pdfNoText',
     RESOURCE_PDF_TEXT_TOO_LARGE: 'pdfTextTooLarge',
     RESOURCE_PDF_TOO_MANY_PAGES: 'pdfTooManyPages',

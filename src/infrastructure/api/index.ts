@@ -1,4 +1,5 @@
 import { verifyAssistantTurn } from './assistantContract'
+import { trackResourceTaskRequest } from './resourceTaskEvents'
 import { assertPublicLlmData, assertEffectiveLlmProfile, assertLlmCapacityUsage, assertLlmProfileCompatibility, assertLlmProviderUsage } from './llmProfileContract'
 import { prepareLlmRequest, prepareRetainedLlmRequest } from './llmPreparation'
 import { isLlmRequestSpent, llmIntents } from './llmIntent'
@@ -119,6 +120,7 @@ import { makeRequestId } from '../../utils/uuid'
 import { configureChatSocketAuthRefresh } from './chatSocket'
 import { configureVoiceSocketAuthRefresh } from './voiceSocket'
 import { authSession, type AuthSessionSnapshot } from './authSession'
+import { isLorebookExtractionDisabled } from './lorebookExtractionErrors'
 import {
     serializeActivationPreview,
     serializeLorebookAttachment,
@@ -2599,14 +2601,14 @@ class ApiService {
         })
     }
 
-    /** Convert a PDF upload to a draft Markdown source, without persistence or LLM usage. */
+    /** Import a PDF as a saved Markdown resource, tracked in Tasks without LLM usage. */
     async importLorebookResourcePdf(file: File): Promise<unknown> {
         this.assertLorebookResourcesEnabled()
         const body = new FormData()
         body.append('file', file)
-        return this.authenticatedRequest('/lorebook-resources/import-pdf', this.getStoredToken(), {
-            method: 'POST', body,
-        })
+        return trackResourceTaskRequest(() => this.authenticatedRequest('/lorebook-resources/import-pdf', this.getStoredToken(), {
+            method: 'POST', body, headers: { 'X-Request-Id': makeRequestId('pdf-import') },
+        }))
     }
 
     async updateLorebookResource(resourceId: string, resource: Partial<LorebookResource> | Record<string, unknown>): Promise<unknown> {
@@ -2624,7 +2626,7 @@ class ApiService {
         if (!/^[A-Za-z0-9._:-]{1,64}$/.test(options.requestId) || !/^[a-f0-9]{64}$/.test(command.expected_evaluation_hash)) {
             throw new ApiError(422, 'Invalid extraction identity.', { code: 'lorebook_extraction_identity' })
         }
-        return this.withLlmIntent('lorebook_extraction', options.requestId, command.llm, options.signal, async (llm) => {
+        return this.withLlmIntent('lorebook_extraction', options.requestId, command.llm, options.signal, async (llm) => trackResourceTaskRequest(async () => {
             const prepared = { ...command, llm }
             const owner = authSession.getSnapshot()
             this.assertCurrentOwner(owner)
@@ -2652,7 +2654,7 @@ class ApiService {
             } catch (error) {
                 this.assertCurrentOwner(owner)
                 options.signal?.throwIfAborted()
-                if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+                if (isLorebookExtractionDisabled(error) || isLlmRequestSpent(error) || error instanceof ApiError && error.status > 0 && error.status < 500) throw error
                 // A lost response can follow a committed result. Read this request only.
                 let status: LorebookExtractionStatus
                 try {
@@ -2673,7 +2675,7 @@ class ApiService {
                     code: `lorebook_extraction_${status.status}`, requestId: options.requestId, retryable: false,
                 })
             }
-        })
+        }))
     }
 
     async getLorebookResourceExtraction(resourceId: string, expectedHash: string, options: LorebookExtractionOptions, lorebookId: string | null = null): Promise<LorebookExtractionStatus> {
@@ -3803,14 +3805,14 @@ class ApiService {
     async generateCardPortrait(body: CardPortraitRequest, options: AiCardRequestOptions = {}): Promise<ImageJobPublicResponse> {
         if (body.credentials && !API_BASE_URL.startsWith('https://')) throw new Error('IMAGE_CREDENTIAL_HTTPS_REQUIRED')
         const token = this.getStoredToken()
-        return this.authenticatedRequest<ImageJobPublicResponse>('/images/card-portrait', token, {
+        return trackResourceTaskRequest(() => this.authenticatedRequest<ImageJobPublicResponse>('/images/card-portrait', token, {
             method: 'POST',
             cache: 'no-store',
             headers: this.aiHeaders(options),
             body: body as unknown as BodyInit,
             signal: options.signal,
             timeoutMs: options.timeoutMs,
-        })
+        }))
     }
 
     // --- Image profiles ----------------------------------------------------
@@ -4017,7 +4019,7 @@ class ApiService {
     async listTasks(
         opts: {
             state?: BackgroundTaskState
-            operation?: BackgroundTaskOperation
+            operation?: BackgroundTaskOperation | 'all'
             statuses?: ThemeSongJobStatus[]
             limit?: number
             offset?: number

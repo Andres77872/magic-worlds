@@ -2129,7 +2129,13 @@ export const en = {
                 },
             },
             lorebookResourcesGallery: {
-                pdfImportHint: 'PDFs are converted to editable Markdown. Metadata sync is a separate step.',
+                status: {
+                    pending: 'Metadata not generated',
+                    generating: 'Generating metadata',
+                    completed: 'Metadata ready',
+                    failed: 'Metadata generation failed',
+                    outdated: 'Metadata needs updating',
+                },
                 importingFiles: 'Importing files…',
                 header: {
                     eyebrow: 'Your library',
@@ -2149,7 +2155,8 @@ export const en = {
                     back: 'Back to resources',
                     edit: 'Edit',
                     create: 'Create',
-                    syncMetadata: 'Sync metadata',
+                    syncMetadata: 'Generate metadata',
+                    generatingMetadata: 'Generating metadata…',
                 },
                 search: {
                     placeholder: 'Search resources by title, trigger, or content...',
@@ -2172,6 +2179,7 @@ export const en = {
                     uploadFileType: '{{name}} must be a .md, .txt, or .pdf file.',
                     pdfTooLarge: 'This PDF exceeds the server upload size limit.',
                     pdfInvalid: 'This PDF could not be read. Upload a valid, unlocked PDF.',
+                    pdfProcessingFailed: 'PDF processing failed on the server. Try a smaller PDF or try again.',
                     pdfNoText: 'This PDF does not contain extractable text.',
                     pdfTextTooLarge: 'The extracted PDF text exceeds 80,000 characters. Split the document into smaller files.',
                     pdfTooManyPages: 'This PDF exceeds the server page limit.',
@@ -2188,6 +2196,8 @@ export const en = {
                     size: '{{name}} is over {{count}} characters.',
                     notFound: 'That resource could not be found.',
                     extractionAfterSave: 'Resource saved. Metadata extraction did not finish. Sync metadata to check the existing request.',
+                    extractionDisabled: 'The resource is saved, but metadata generation is disabled on the server.',
+                    extractionFailed: 'The resource is saved, but metadata generation failed. Try again.',
                 },
                 deleteDialog: {
                     title: 'Delete resource',
@@ -2254,7 +2264,8 @@ export const en = {
                 },
                 metadata: {
                     heading: 'Extracted metadata',
-                    pending: 'Use Sync metadata to extract searchable metadata, keywords, and snippets.',
+                    generating: 'Metadata generation is running. Follow its progress in Tasks.',
+                    pending: 'The resource is saved. Choose Generate metadata to create summaries, keywords, and snippets with AI. No metadata task is running yet.',
                     failed: 'Metadata extraction failed. Sync metadata to try again.',
                     outdated: 'This metadata was extracted from older content. Sync metadata to refresh it.',
                     syncOnSaveLabel: 'Sync AI metadata on save',
@@ -2382,7 +2393,12 @@ export const en = {
                 },
             },
             tasksDrawer: {
-                eyebrow: 'Theme songs',
+                operations: { pdf_import: 'Reading PDF', lorebook_extraction: 'Generating metadata', image_generation: 'Generating image', text_to_speech: 'Generating narration' },
+                pdfTitle: 'Import PDF · {{name}}',
+                metadataTitle: 'Generate metadata · {{name}}',
+                imageTitle: 'Generate image · {{name}}',
+                savingResult: 'Saving result',
+                eyebrow: 'Background tasks',
                 title: 'Tasks',
                 filterAria: 'Filter tasks by status',
                 actions: {
@@ -2395,8 +2411,8 @@ export const en = {
                     clearFailed: 'Some tasks could not be cleared. Try again.',
                 },
                 toast: {
-                    completedTitle: 'Theme song ready',
-                    failedTitle: 'Theme song failed',
+                    completedTitle: 'Task completed',
+                    failedTitle: 'Task failed',
                     multiple_one: '{{count}} task finished',
                     multiple_other: '{{count}} tasks finished',
                     open: 'Open tasks',
@@ -2415,9 +2431,9 @@ export const en = {
                 collapse: 'Hide {{title}} details',
                 empty: {
                     activeTitle: 'No active tasks',
-                    activeBody: 'Theme songs you generate will appear here while they compose.',
-                    completedTitle: 'No completed songs yet',
-                    completedBody: 'Finished theme songs land here, ready to play.',
+                    activeBody: 'PDF imports, metadata generation, and other tasks appear here while they run.',
+                    completedTitle: 'No completed tasks yet',
+                    completedBody: 'Finished tasks appear here with links to their results.',
                     failedTitle: 'No failed tasks',
                     failedBody: 'Tasks that fail or are canceled will appear here.',
                 },
@@ -2431,6 +2447,9 @@ export const en = {
                     canceled: 'Canceled',
                 },
                 types: {
+                    resource: 'Resource',
+                    lorebook: 'Lorebook',
+                    media: 'Media',
                     character: 'Character',
                     world: 'World',
                     item: 'Item',
@@ -2450,6 +2469,8 @@ export const en = {
                     item: 'Unnamed item',
                     adventure: 'Adventure',
                     themeSong: 'Theme song',
+                    image: 'Image generation',
+                    narration: 'Narration',
                 },
                 metadata: {
                     created: 'Created {{time}}',

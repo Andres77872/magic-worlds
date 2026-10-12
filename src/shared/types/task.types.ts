@@ -6,8 +6,9 @@ import type {
     ThemeSongJobStatus,
     ThemeSongLyricsPublic,
 } from './media.types'
+import type { ChatImageAsset, ChatTtsAsset } from './interaction.types'
 
-export type BackgroundTaskOperation = 'theme_song'
+export type BackgroundTaskOperation = 'theme_song' | 'pdf_import' | 'lorebook_extraction' | 'image_generation' | 'text_to_speech'
 export type BackgroundTaskState = 'active' | 'terminal' | 'all'
 
 export const BACKGROUND_TASK_ACTIVE_STATUSES: ThemeSongJobStatus[] = ['pending', 'in_progress', 'synthesizing', 'mirroring']
@@ -17,6 +18,10 @@ export const BACKGROUND_TASK_FAILED_STATUSES: ThemeSongJobStatus[] = ['failed', 
 export interface BackgroundTaskResult {
     assets: ThemeSongAssetPublic[]
     lyrics?: ThemeSongLyricsPublic | null
+    resource_id?: string | null
+    lorebook_id?: string | null
+    image_assets?: ChatImageAsset[]
+    tts_assets?: ChatTtsAsset[]
 }
 
 export interface BackgroundTaskPublic {
@@ -24,7 +29,7 @@ export interface BackgroundTaskPublic {
     operation: BackgroundTaskOperation
     status: ThemeSongJobStatus
     target: {
-        type: CardMediaTargetType
+        type: CardMediaTargetType | 'resource' | 'lorebook' | 'media'
         id: string
         display_name?: string | null
     }

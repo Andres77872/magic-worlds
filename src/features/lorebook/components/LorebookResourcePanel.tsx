@@ -152,6 +152,7 @@ export function LorebookResourcePanel({
                         continue
                     }
                     next.push(resource)
+                    if (file.name.toLowerCase().endsWith('.pdf')) onExtractMetadataOnSaveChange?.(true)
                 } catch (err) {
                     if (!mounted.current || !authSession.isCurrent(owner)) return
                     const key = resourceFileErrorKey(err)
@@ -220,7 +221,6 @@ export function LorebookResourcePanel({
                 </div>
             </div>
 
-            <Callout tone="info">{t('lorebookResourcesGallery.pdfImportHint')}</Callout>
             {importing && <Callout tone="info" role="status">{t('lorebookResourcesGallery.importingFiles')}</Callout>}
             {saving && extractMetadataOnSave && pendingExtractionCount > 0 && (
                 <div className="border-b border-arcane-500/20 bg-arcane-500/[.08] px-4 py-3 font-ui text-sm text-parchment-200">

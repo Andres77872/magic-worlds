@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChatSocketServerMessage, ForwardOption } from '../../../shared'
 import { apiService, ChatSocket, type ChatSocketStatus } from '../../../infrastructure/api'
 import { authSession } from '@/infrastructure/api/authSession'
+import { notifyTaskHistoryChanged } from '@/infrastructure/api/resourceTaskEvents'
 import { prepareLlmDispatch } from '@/infrastructure/api/llmPreparation'
 import { isLlmRequestSpent, llmIntents } from '@/infrastructure/api/llmIntent'
 import type { LlmFeature, LlmRequest } from '@/shared/types/llm.types'
@@ -240,21 +241,27 @@ export function useAdventureChatSocket(
                         })
                         break
                     case 'image_job':
+                        notifyTaskHistoryChanged()
                         current.onImageJob?.(message)
                         break
                     case 'image_complete':
+                        notifyTaskHistoryChanged()
                         current.onImageComplete?.(message)
                         break
                     case 'image_failed':
+                        notifyTaskHistoryChanged()
                         current.onImageFailed?.(message)
                         break
                     case 'tts_job':
+                        notifyTaskHistoryChanged()
                         current.onTtsJob?.(message)
                         break
                     case 'tts_complete':
+                        notifyTaskHistoryChanged()
                         current.onTtsComplete?.(message)
                         break
                     case 'tts_failed':
+                        notifyTaskHistoryChanged()
                         current.onTtsFailed?.(message)
                         break
                     case 'error':

@@ -12,6 +12,20 @@ const command = { expected_evaluation_hash: HASH, llm: { selection: { mode: 'inh
 const replay = () => { const value = extractionResult(); value.llm_execution.replayed = true; return value }
 
 describe('profile extraction transport', () => {
+    it('displays completed metadata without rejecting or truncating long notes and summaries', async () => {
+        const result = extractionResult()
+        result.extraction.notes = ['Full archive fact. '.repeat(200).trim()]
+        result.extraction.longSummary = 'Full archive summary. '.repeat(300).trim()
+        fetchMock.mockResolvedValueOnce(json(result))
+        await expect(apiService.extractLorebookResource('resource-1', command, {requestId:'long-notes'})).resolves.toEqual(result)
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+    it('preserves a disabled-server rejection without checking a nonexistent request', async () => {
+        fetchMock.mockResolvedValueOnce(json({ detail: { code: 'LOREBOOK_EXTRACTION_DISABLED' } },503))
+        await expect(apiService.extractLorebookResource('resource-1',command,{requestId:'disabled-request'}))
+            .rejects.toMatchObject({status:503,code:'LOREBOOK_EXTRACTION_DISABLED'})
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
     beforeEach(() => {
         vi.clearAllMocks()
         vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')

@@ -7,9 +7,10 @@ import { lorebookResourceCompletedExtraction } from '../../lorebookResources'
 
 interface ResourceExtractionMetadataProps {
     resource: LorebookResource
+    generating?: boolean
 }
 
-export function ResourceExtractionMetadata({ resource }: ResourceExtractionMetadataProps) {
+export function ResourceExtractionMetadata({ resource, generating = false }: ResourceExtractionMetadataProps) {
     const { t } = useTranslation()
     const extraction = lorebookResourceCompletedExtraction(resource)
     const status = resource.extractionStatus ?? 'pending'
@@ -22,7 +23,7 @@ export function ResourceExtractionMetadata({ resource }: ResourceExtractionMetad
             <section className="grid gap-3 border-t border-line pt-5">
                 <SectionHeader icon={FileText} tone="arcane" title={heading} />
                 <p className="m-0 font-ui text-sm text-parchment-300">
-                    {status === 'failed'
+                    {generating ? t('lorebookResourcesGallery.metadata.generating') : status === 'failed'
                         ? t('lorebookResourcesGallery.metadata.failed')
                         : t('lorebookResourcesGallery.metadata.pending')}
                 </p>

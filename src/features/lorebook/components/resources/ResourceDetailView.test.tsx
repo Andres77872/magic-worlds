@@ -5,6 +5,7 @@ import { apiService } from '@/infrastructure/api'
 import type { LorebookResource } from '@/shared'
 import { LOREBOOK_RESOURCE_MAX_CHARS, newLorebookResource } from '../../lorebookResources'
 import { ResourceDetailView } from './ResourceDetailView'
+import { BackgroundTasksContext, type BackgroundTasksContextValue } from '@/app/providers/backgroundTasksContext'
 
 function completedResource(overrides: Partial<LorebookResource> = {}): LorebookResource {
     return {
@@ -45,6 +46,25 @@ describe('ResourceDetailView', () => {
     beforeEach(async () => {
         await i18n.changeLanguage('en')
         vi.restoreAllMocks()
+    })
+
+    it('shows unsynced metadata as saved content rather than a queued upload', () => {
+        render(<ResourceDetailView resource={newLorebookResource('court.md','# Saved PDF text')} isCreate={false} loading={false} saving={false} onSave={vi.fn()} onSyncMetadata={vi.fn()} onDelete={vi.fn()} onBack={vi.fn()} />)
+        expect(screen.getByText('Metadata not generated')).toBeInTheDocument()
+        expect(screen.getByRole('button',{name:'Generate metadata'})).toBeEnabled()
+        expect(screen.getByText(/The resource is saved/)).toBeInTheDocument()
+        expect(screen.queryByText('pending')).not.toBeInTheDocument()
+    })
+
+    it('follows an active metadata task and prevents a duplicate generation request', () => {
+        const source=newLorebookResource('court.md','# Saved PDF text')
+        const context={ activeTasks:[{operation:'lorebook_extraction',target:{type:'resource',id:source.id}}] } as BackgroundTasksContextValue
+        render(<BackgroundTasksContext.Provider value={context}>
+            <ResourceDetailView resource={source} isCreate={false} loading={false} saving={false} onSave={vi.fn()} onSyncMetadata={vi.fn()} onDelete={vi.fn()} onBack={vi.fn()} />
+        </BackgroundTasksContext.Provider>)
+        expect(screen.getByText('Generating metadata')).toBeInTheDocument()
+        expect(screen.getByRole('button',{name:'Generating metadata…'})).toBeDisabled()
+        expect(screen.getByText(/Follow its progress in Tasks/)).toBeInTheDocument()
     })
 
     it('opens Markdown content directly for writing when Edit is selected', () => {

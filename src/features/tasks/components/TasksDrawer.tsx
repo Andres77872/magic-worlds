@@ -4,7 +4,7 @@
  * the anchored `SidebarTasksMenu` popover instead; both render the same panel.
  * Opened from the provider's `drawerOpen` state (sidebar nav + mobile entries).
  */
-import { Music2 } from 'lucide-react'
+import { ListTodo } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useBackgroundTasks } from '@/app/hooks'
 import { Drawer, Eyebrow, Icon } from '@/ui/primitives'
@@ -19,7 +19,7 @@ export function TasksDrawer() {
             open={drawerOpen}
             onClose={closeDrawer}
             size="md"
-            icon={<Icon icon={Music2} size={18} className="text-ember-400" />}
+            icon={<Icon icon={ListTodo} size={18} className="text-ember-400" />}
             eyebrow={<Eyebrow tone="ember">{t('tasksDrawer.eyebrow')}</Eyebrow>}
             title={t('tasksDrawer.title')}
         >

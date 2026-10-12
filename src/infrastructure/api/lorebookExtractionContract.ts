@@ -3,8 +3,8 @@ import type { LlmRequest } from '@/shared/types/llm.types'
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 const exact = (value: Record<string, unknown>, fields: string[]) => Object.keys(value).length === fields.length && fields.every((key) => key in value)
-const text = (value: unknown, max: number): value is string => typeof value === 'string' && !!value && value === value.trim() && value.length <= max
-const list = (value: unknown, max: number): value is string[] => Array.isArray(value) && value.length <= max && value.every((item) => text(item, 120))
+const text = (value: unknown, max = Infinity): value is string => typeof value === 'string' && !!value && value === value.trim() && value.length <= max
+const list = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => text(item))
 const uuid = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 
 export function verifyLorebookExtraction(value: unknown, resourceId: string, expectedHash: string, lorebookId: string | null): value is LorebookExtractionResult {
@@ -13,15 +13,15 @@ export function verifyLorebookExtraction(value: unknown, resourceId: string, exp
         || !/^[a-f0-9]{64}$/.test(expectedHash) || !object(value.extraction) || !object(value.llm_execution)) return false
     const extraction = value.extraction
     if (!exact(extraction, ['keywords', 'shortSummary', 'longSummary', 'notes', 'snippets', 'model', 'schemaVersion', 'sourceHash', 'updatedAt'])
-        || !list(extraction.keywords, 40) || !list(extraction.notes, 24)
-        || !text(extraction.shortSummary, 600) || !text(extraction.longSummary, 4000) || !text(extraction.model, 255)
+        || !list(extraction.keywords) || !list(extraction.notes)
+        || !text(extraction.shortSummary) || !text(extraction.longSummary) || !text(extraction.model, 255)
         || extraction.schemaVersion !== 'mw-lorebook-resource-v1' || extraction.sourceHash !== expectedHash
-        || !text(extraction.updatedAt, 64) || !Array.isArray(extraction.snippets) || extraction.snippets.length > 16) return false
+        || !text(extraction.updatedAt, 64) || !Array.isArray(extraction.snippets)) return false
     const ids = new Set<string>()
     for (const snippet of extraction.snippets) {
         if (!object(snippet) || !exact(snippet, ['id', 'title', 'content', 'triggers', 'source'])
-            || !text(snippet.id, 160) || ids.has(snippet.id) || !text(snippet.title, 160)
-            || !text(snippet.content, 2400) || !list(snippet.triggers, 16) || !text(snippet.source, 255)) return false
+            || !text(snippet.id) || ids.has(snippet.id) || !text(snippet.title)
+            || !text(snippet.content) || !list(snippet.triggers) || !text(snippet.source)) return false
         ids.add(snippet.id)
     }
     const plan = value.llm_execution

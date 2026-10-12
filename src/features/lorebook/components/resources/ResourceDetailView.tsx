@@ -21,7 +21,8 @@ import { ResourceContentView, type ContentView } from './ResourceContentView'
 import { ResourceExtractionMetadata } from './ResourceExtractionMetadata'
 import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
 import { Stat } from './Stat'
-import { statusTone } from './resourceStatus'
+import { resourceStatusKey, statusTone } from './resourceStatus'
+import { useResourceMetadataTask } from './useResourceMetadataTask'
 
 interface ResourceDetailViewProps {
     /** The stored resource (a fresh draft when creating). */
@@ -50,6 +51,7 @@ const defaultContentView = (resource: LorebookResource): ContentView =>
  */
 export function ResourceDetailView({ resource, isCreate, loading, saving, onSave, onSyncMetadata, onDelete, onBack, banner }: ResourceDetailViewProps) {
     const { t } = useTranslation()
+    const metadataTaskActive = useResourceMetadataTask(resource.id)
     const [mode, setMode] = useState<'read' | 'edit'>(isCreate ? 'edit' : 'read')
     const [draft, setDraft] = useState<LorebookResource>(resource)
     const [contentView, setContentView] = useState<ContentView>(() => isCreate ? 'plain' : defaultContentView(resource))
@@ -199,12 +201,12 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                                             type="button"
                                             iconLeft={<Icon icon={saving ? Loader2 : RefreshCw} className={saving ? 'animate-spin' : undefined} size={16} />}
                                             onClick={() => void syncMetadata()}
-                                            disabled={saving}
+                                            disabled={saving || metadataTaskActive}
                                         >
-                                            {t('lorebookResourcesGallery.actions.syncMetadata')}
+                                            {t(saving || metadataTaskActive ? 'lorebookResourcesGallery.actions.generatingMetadata' : 'lorebookResourcesGallery.actions.syncMetadata')}
                                         </Button>
                                     )}
-                                    <Button variant="primary" type="button" iconLeft={<Icon icon={Pencil} size={16} />} onClick={startEdit}>
+                                    <Button variant="primary" type="button" iconLeft={<Icon icon={Pencil} size={16} />} onClick={startEdit} disabled={saving || metadataTaskActive}>
                                         {t('lorebookResourcesGallery.actions.edit')}
                                     </Button>
                                     <IconButton label={t('lorebookResourcesGallery.card.deleteAria', { name: headTitle })} tone="danger" onClick={() => onDelete(resource)}>
@@ -217,7 +219,9 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                 />
                 <div className="flex flex-wrap items-center gap-2">
                     <Tag>{headType}</Tag>
-                    {!isCreate && <Badge tone={statusTone(resource)}>{resource.extractionStatus ?? 'pending'}</Badge>}
+                    {!isCreate && <Badge tone={metadataTaskActive ? 'arcane' : resource.metadataOutdated ? 'ember' : statusTone(resource)}>
+                        {t(metadataTaskActive ? 'lorebookResourcesGallery.status.generating' : resourceStatusKey(resource))}
+                    </Badge>}
                 </div>
             </div>
 
@@ -346,7 +350,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                             </div>
                         )}
                     </div>
-                    <ResourceExtractionMetadata resource={resource} />
+                    <ResourceExtractionMetadata resource={resource} generating={metadataTaskActive || saving} />
                     {onSyncMetadata && (
                         <Callout tone="warning" role="note">
                             {t('lorebookResourcesGallery.metadata.syncUsageWarning')}

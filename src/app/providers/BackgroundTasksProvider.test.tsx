@@ -24,6 +24,7 @@ vi.mock('@/infrastructure/api', () => ({
 import { apiService } from '@/infrastructure/api'
 import { BackgroundTasksProvider } from './BackgroundTasksProvider'
 import { BackgroundTasksContext } from './backgroundTasksContext'
+import { TASK_REQUEST_STARTED, TASK_REQUEST_FINISHED } from '@/infrastructure/api/resourceTaskEvents'
 
 const baseTask = {
     task_id: 'task-1',
@@ -98,6 +99,23 @@ describe('BackgroundTasksProvider', () => {
     afterEach(() => {
         vi.useRealTimers()
         vi.restoreAllMocks()
+    })
+
+    it('fetches all task operations and keeps polling while a resource request is running', async () => {
+        vi.spyOn(document,'hasFocus').mockReturnValue(true)
+        vi.mocked(apiService.listTasks).mockResolvedValue({items:[],limit:20,offset:0,next_offset:null})
+        renderProvider()
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+        expect(apiService.listTasks).toHaveBeenCalledWith(expect.objectContaining({operation:'all'}))
+        const detail={id:'pdf-request',authEpoch:authMock.authEpoch,accountKey:authMock.accountKey}
+        await act(async () => { window.dispatchEvent(new CustomEvent(TASK_REQUEST_STARTED,{detail})); await vi.advanceTimersByTimeAsync(0) })
+        const before=vi.mocked(apiService.listTasks).mock.calls.length
+        await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+        expect(vi.mocked(apiService.listTasks).mock.calls.length).toBeGreaterThan(before)
+        await act(async () => { window.dispatchEvent(new CustomEvent(TASK_REQUEST_FINISHED,{detail})); await vi.advanceTimersByTimeAsync(0) })
+        const finished=vi.mocked(apiService.listTasks).mock.calls.length
+        await act(async () => { await vi.advanceTimersByTimeAsync(8_000) })
+        expect(vi.mocked(apiService.listTasks).mock.calls.length).toBe(finished)
     })
 
     // Regression: the logged-out reset effect once fed its own dependencies
@@ -209,7 +227,7 @@ describe('BackgroundTasksProvider', () => {
             await vi.advanceTimersByTimeAsync(0)
         })
         expect(screen.getByTestId('visible-count')).toHaveTextContent('1')
-        expect(screen.queryByText('Theme song ready')).toBeNull()
+        expect(screen.queryByText('Task completed')).toBeNull()
 
         // Second poll: the task finished.
         phase = 2
@@ -217,13 +235,13 @@ describe('BackgroundTasksProvider', () => {
             await vi.advanceTimersByTimeAsync(4_000)
         })
 
-        expect(screen.getByText('Theme song ready')).toBeInTheDocument()
+        expect(screen.getByText('Task completed')).toBeInTheDocument()
         expect(screen.getByText('Ballad of Embers')).toBeInTheDocument()
         expect(loadData).toHaveBeenCalledWith({ silent: true })
 
         fireEvent.click(screen.getByRole('button', { name: 'Open tasks' }))
         expect(screen.getByTestId('drawer-open')).toHaveTextContent('true')
-        expect(screen.queryByText('Theme song ready')).toBeNull()
+        expect(screen.queryByText('Task completed')).toBeNull()
     })
 
     it('does not toast for tasks that were already terminal on the first poll', async () => {
@@ -235,7 +253,7 @@ describe('BackgroundTasksProvider', () => {
         })
 
         expect(screen.getByTestId('completed-count')).toHaveTextContent('1')
-        expect(screen.queryByText('Theme song ready')).toBeNull()
+        expect(screen.queryByText('Task completed')).toBeNull()
     })
 
     it('clear completed archives the bucket on the server and survives the next poll', async () => {

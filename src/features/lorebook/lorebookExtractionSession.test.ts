@@ -15,6 +15,24 @@ let post: MockInstance<typeof apiService.extractLorebookResource>
 let get: MockInstance<typeof apiService.getLorebookResourceExtraction>
 
 describe('extraction request receipts', () => {
+    it('starts a fresh request after extraction was disabled, without a phantom receipt', async () => {
+        post.mockRejectedValueOnce(new ApiError(503,'Disabled',{code:'LOREBOOK_EXTRACTION_DISABLED'}))
+        await expect(session.execute(resource)).rejects.toMatchObject({code:'LOREBOOK_EXTRACTION_DISABLED'})
+        post.mockResolvedValueOnce(extractionResult())
+        await expect(session.execute(resource)).resolves.toEqual(extractionResult())
+        expect(post.mock.calls[0][2].requestId).not.toBe(post.mock.calls[1][2].requestId)
+        expect(get).not.toHaveBeenCalled()
+    })
+
+    it('recovers an earlier phantom receipt only after the server confirms no admission exists', async () => {
+        post.mockRejectedValueOnce(new ApiError(0,'Unknown'))
+        await expect(session.execute(resource)).rejects.toThrow()
+        get.mockRejectedValueOnce(new ApiError(404,'Not found',{code:'LOREBOOK_EXTRACTION_NOT_FOUND'}))
+        post.mockResolvedValueOnce(extractionResult())
+        await expect(session.execute(resource)).resolves.toEqual(extractionResult())
+        expect(post.mock.calls[0][2].requestId).not.toBe(post.mock.calls[1][2].requestId)
+        expect(get).toHaveBeenCalledTimes(1)
+    })
     beforeEach(() => {
         localStorage.clear(); authSession.authenticate('alice', 'token')
         session = createLorebookExtractionSession()

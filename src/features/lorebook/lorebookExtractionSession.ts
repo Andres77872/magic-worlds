@@ -1,6 +1,7 @@
 import { ApiError, apiService } from '@/infrastructure/api'
 import { authSession } from '@/infrastructure/api/authSession'
-import { isLlmRequestSpent } from '@/infrastructure/api/llmIntent'
+import { isLlmRequestSpent, llmIntents } from '@/infrastructure/api/llmIntent'
+import { isLorebookExtractionDisabled } from '@/infrastructure/api/lorebookExtractionErrors'
 import { prepareLlmRequest } from '@/infrastructure/api/llmPreparation'
 import { matchesLorebookExtractionProfile } from '@/infrastructure/api/lorebookExtractionContract'
 import type { LorebookResource } from '@/shared'
@@ -32,13 +33,14 @@ export function createLorebookExtractionSession() {
         const hash = resource.evaluationHash
         if (typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash)) return Promise.reject(new ApiError(422, 'Save the resource before extracting metadata.'))
         const key = JSON.stringify([lorebookId, resource.id])
-        const existing = receipts.get(key)
+        let existing = receipts.get(key)
         const running = active.get(key)
         if (running) return running
-        const receipt = existing ?? {
+        const freshReceipt = (): Receipt => ({
             resourceId: resource.id, lorebookId, expectedHash: hash, requestId: makeRequestId('mw-lore-extract'),
             selection: llm.selection ? { ...llm.selection } : { mode: 'inherit' as const }, expected_revision_id: llm.expected_revision_id,
-        }
+        })
+        let receipt = existing ?? freshReceipt()
         const initiating = authSession.getSnapshot()
         const requireOwner = () => {
             if (closed || !authSession.isCurrent(initiating) || authSession.getSnapshot().sessionPhase !== 'authenticated') {
@@ -48,8 +50,21 @@ export function createLorebookExtractionSession() {
         const operation = Promise.resolve().then(async () => {
             try {
                 let result: LorebookExtractionResult
+                let retainedStatus
                 if (existing) {
-                    const status = await apiService.getLorebookResourceExtraction(receipt.resourceId, receipt.expectedHash, { requestId: receipt.requestId }, receipt.lorebookId)
+                    try {
+                        retainedStatus = await apiService.getLorebookResourceExtraction(receipt.resourceId, receipt.expectedHash, { requestId: receipt.requestId }, receipt.lorebookId)
+                    } catch (error) {
+                        requireOwner()
+                        if (!(error instanceof ApiError && error.status === 404 && error.code === 'LOREBOOK_EXTRACTION_NOT_FOUND')) throw error
+                        receipts.delete(key)
+                        llmIntents.settle('lorebook_extraction', receipt.requestId)
+                        existing = undefined
+                        receipt = freshReceipt()
+                    }
+                }
+                if (existing && retainedStatus) {
+                    const status = retainedStatus
                     requireOwner()
                     if (status.status === 'completed') result = status.result
                     else if (status.status === 'recovery_required') {
@@ -83,6 +98,10 @@ export function createLorebookExtractionSession() {
                 // Definitive pre-admission failures may be corrected with a new request,
                 // and a spent request ID can never finish: the next try starts fresh.
                 if (!existing && error instanceof ApiError && [401, 403, 404, 422].includes(error.status)) receipts.delete(key)
+                if (isLorebookExtractionDisabled(error)) {
+                    receipts.delete(key)
+                    llmIntents.settle('lorebook_extraction', receipt.requestId)
+                }
                 if (isLlmRequestSpent(error)) receipts.delete(key)
                 throw error
             }

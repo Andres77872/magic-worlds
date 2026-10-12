@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { apiService } from '@/infrastructure/api'
+import { TASK_REQUEST_STARTED, TASK_REQUEST_FINISHED, type TaskRequestEvent } from '@/infrastructure/api/resourceTaskEvents'
 import type { BackgroundTaskOperation, BackgroundTaskPublic, ThemeSongJobPublic } from '@/shared'
 import {
     BACKGROUND_TASK_ACTIVE_STATUSES,
@@ -72,6 +73,9 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     const refreshInFlightRef = useRef(false)
     const catchUpAfterFlightRef = useRef(false)
     const [catchUpTick, setCatchUpTick] = useState(0)
+    const [resourceRequests, setResourceRequests] = useState<{ owner: string; ids: Set<string> }>({ owner: '', ids: new Set() })
+    const resourceRequestOwner = `${authEpoch}/${accountKey}`
+    const resourceRequestCount = resourceRequests.owner === resourceRequestOwner ? resourceRequests.ids.size : 0
     // Read inside refreshTasks (long-lived poll) without churning its identity.
     // `loadData` is a fresh closure on every DataProvider render; depending on it
     // directly made refreshTasks unstable, which restarted both poll effects (and
@@ -110,7 +114,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                     }
                     const response = await apiService.listTasks({
                         state,
-                        operation: 'theme_song',
+                        operation: 'all',
                         statuses,
                         limit: TASK_PAGE_SIZE,
                         offset,
@@ -230,7 +234,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         while (true) {
             const response = await apiService.listTasks({
                 state: 'terminal',
-                operation: 'theme_song',
+                operation: 'all',
                 statuses: [...statuses] as BackgroundTaskPublic['status'][],
                 limit: TASK_PAGE_SIZE,
                 offset: 0,
@@ -255,6 +259,29 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         setTerminalHasMore((current) => ({ ...current, [bucket]: false }))
         if (failed) throw new Error('One or more background tasks could not be archived.')
     }, [])
+
+    useEffect(() => {
+        const receive = (event: Event) => {
+            const detail = (event as CustomEvent<TaskRequestEvent>).detail
+            const owner = authOwnerRef.current
+            if (!detail || detail.authEpoch !== owner.authEpoch || detail.accountKey !== owner.accountKey) return
+            setResourceRequests((current) => {
+                const key = `${owner.authEpoch}/${owner.accountKey}`
+                const next = new Set(current.owner === key ? current.ids : [])
+                if (event.type === TASK_REQUEST_STARTED) next.add(detail.id)
+                else next.delete(detail.id)
+                return { owner: key, ids: next }
+            })
+            if (refreshInFlightRef.current) catchUpAfterFlightRef.current = true
+            else void refreshTasks()
+        }
+        window.addEventListener(TASK_REQUEST_STARTED, receive)
+        window.addEventListener(TASK_REQUEST_FINISHED, receive)
+        return () => {
+            window.removeEventListener(TASK_REQUEST_STARTED, receive)
+            window.removeEventListener(TASK_REQUEST_FINISHED, receive)
+        }
+    }, [refreshTasks])
 
     // Reset on logout. Keyed on auth alone so these writes cannot feed back into
     // refreshTasks' identity and re-arm this effect (terminalPages is a dep of
@@ -289,12 +316,12 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     )
 
     useEffect(() => {
-        if (!isAuthenticated || !pageFocused || (activeTasks.length === 0 && !drawerOpen)) return
+        if (!isAuthenticated || !pageFocused || (activeTasks.length === 0 && resourceRequestCount === 0 && !drawerOpen)) return
         const id = window.setInterval(() => {
             if (isPageFocused()) void refreshTasks(true)
         }, 4_000)
         return () => window.clearInterval(id)
-    }, [activeTasks.length, drawerOpen, isAuthenticated, pageFocused, refreshTasks])
+    }, [activeTasks.length, resourceRequestCount, drawerOpen, isAuthenticated, pageFocused, refreshTasks])
 
     const value: BackgroundTasksContextValue = {
         tasks: visibleTasks,

@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FilePlus2, FileText, Link2, Loader2, Search, Upload, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useNavigation } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
 import { authSession } from '@/infrastructure/api/authSession'
+import { TASK_REQUEST_FINISHED, type TaskRequestEvent } from '@/infrastructure/api/resourceTaskEvents'
 import type { LorebookResource } from '@/shared'
 import { buildResourceHash } from '@/features/gallery/galleryLinks'
 import { ConfirmDialog } from '@/ui/components'
@@ -20,6 +21,7 @@ import { readLorebookResourceFile, resourceFileErrorKey } from '../lorebookResou
 import { useLorebookResourceGallery } from '../hooks/useLorebookResourceGallery'
 import { useLorebookExtraction } from '../hooks/useLorebookExtraction'
 import { applyLorebookExtraction } from '../lorebookExtractionSession'
+import { resourceExtractionErrorKey } from '@/infrastructure/api/lorebookExtractionErrors'
 import { ResourceGrid } from './resources/ResourceGrid'
 import { ResourceDetailView } from './resources/ResourceDetailView'
 import { useLorebookResourceRoute } from './resources/useLorebookResourceRoute'
@@ -36,6 +38,16 @@ export function LorebookResourcesGalleryPage() {
     const [error, setError] = useState<string | null>(null)
     const [pendingDelete, setPendingDelete] = useState<LorebookResource | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
+
+    useEffect(() => {
+        const completed = (event: Event) => {
+            const detail = (event as CustomEvent<TaskRequestEvent>).detail
+            const owner = authSession.getSnapshot()
+            if (detail?.authEpoch === owner.authEpoch && detail.accountKey === owner.accountKey) gallery.refresh()
+        }
+        window.addEventListener(TASK_REQUEST_FINISHED, completed)
+        return () => window.removeEventListener(TASK_REQUEST_FINISHED, completed)
+    }, [gallery.refresh])
 
     const route = useLorebookResourceRoute({
         items: gallery.items,
@@ -78,6 +90,7 @@ export function LorebookResourcesGalleryPage() {
                     setError(t('lorebookResourcesGallery.errors.uploadFileType', { name: file.name }))
                     continue
                 }
+                let sourceSaved = false
                 try {
                     const resource = await readLorebookResourceFile(file)
                     if (!authSession.isCurrent(owner)) return
@@ -85,15 +98,23 @@ export function LorebookResourcesGalleryPage() {
                         setError(t('lorebookResourcesGallery.errors.size', { name: file.name, count: LOREBOOK_RESOURCE_MAX_CHARS }))
                         continue
                     }
-                    const created = normalizeLorebookResource(await apiService.createLorebookResource(lorebookResourceToApiPayload(resource)))
+                    const created = file.name.toLowerCase().endsWith('.pdf')
+                        ? resource
+                        : normalizeLorebookResource(await apiService.createLorebookResource(lorebookResourceToApiPayload(resource)))
                     if (!authSession.isCurrent(owner)) return
                     if (!created) throw new Error(t('lorebookResourcesGallery.errors.saveFailed'))
                     gallery.upsertItem(created)
+                    sourceSaved = true
+                    if (file.name.toLowerCase().endsWith('.pdf')) {
+                        const result = await extractResource(created)
+                        if (!authSession.isCurrent(owner)) return
+                        gallery.upsertItem(applyLorebookExtraction(created, result))
+                    }
                     uploadedCount += 1
                 } catch (err) {
                     if (!authSession.isCurrent(owner)) return
                     const key = resourceFileErrorKey(err)
-                    setError(key ? t(key, { name: file.name }) : err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
+                    setError(sourceSaved ? t(resourceExtractionErrorKey(err)) : key ? t(key, { name: file.name }) : err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
                 }
             }
             if (uploadedCount > 0) setNotice(t('lorebookResourcesGallery.notices.uploaded'))
@@ -138,7 +159,7 @@ export function LorebookResourcesGalleryPage() {
             return true
         } catch (err) {
             if (!authSession.isCurrent(owner)) return false
-            setError(sourceSaved ? t('lorebookResourcesGallery.errors.extractionAfterSave') : err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
+            setError(sourceSaved ? t(resourceExtractionErrorKey(err)) : err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
             // A successful source save must leave creation mode even if extraction failed.
             return sourceSaved
         } finally {
@@ -160,9 +181,9 @@ export function LorebookResourcesGalleryPage() {
             gallery.upsertItem(applyLorebookExtraction(resource, result))
             setNotice(t('lorebookResourcesGallery.notices.metadataSynced'))
             return true
-        } catch {
+        } catch (err) {
             if (!authSession.isCurrent(owner)) return false
-            setError(t('lorebookResourcesGallery.errors.extractionAfterSave'))
+            setError(t(resourceExtractionErrorKey(err)))
             return false
         } finally {
             setSaving(false)
@@ -285,7 +306,6 @@ export function LorebookResourcesGalleryPage() {
                         }
                     />
 
-                    <Callout tone="info">{t('lorebookResourcesGallery.pdfImportHint')}</Callout>
                     {banner}
 
                     {(!gallery.error || gallery.items.length > 0) && <ResourceGrid

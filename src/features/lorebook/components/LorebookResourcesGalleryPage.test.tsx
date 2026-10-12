@@ -64,27 +64,31 @@ describe('resource gallery save then extract', () => {
         mocks.extract.mockResolvedValueOnce(extractionResult({ extraction: { ...extractionResult().extraction, sourceHash: 'b'.repeat(64) } }))
         render(<LorebookResourcesGalleryPage />)
         fireEvent.click(screen.getByRole('button', { name: 'Save with extraction' }))
-        expect(await screen.findByRole('alert')).toHaveTextContent('lorebookResourcesGallery.errors.extractionAfterSave')
+        expect(await screen.findByRole('alert')).toHaveTextContent('lorebookResourcesGallery.errors.extractionFailed')
         expect(target.extraction).toBeNull()
         expect(target.id).toBe('resource-1')
         expect(target.content).toBe('Court facts.')
     })
 
-    it('converts a PDF before saving its Markdown source without automatic metadata extraction', async () => {
+    it('finishes the PDF upload with metadata, without creating the saved source twice', async () => {
         resourceEdit = null
         const file = new File(['%PDF-binary'], 'court.pdf', { type: 'application/pdf' })
         const readAsText = vi.fn(() => { throw new Error('PDF bytes must not be read as text') })
         Object.defineProperty(file, 'text', { value: readAsText })
-        mocks.importPdf.mockResolvedValueOnce({ ...target, title: 'court.pdf', fileName: 'court.md', content: '# Court facts' })
+        mocks.importPdf.mockResolvedValueOnce({ ...target, id:'resource-1',evaluationHash:HASH,title: 'court.pdf', fileName: 'court.md', content: '# Court facts' })
+        mocks.extract.mockResolvedValueOnce(extractionResult())
         render(<LorebookResourcesGalleryPage />)
         const input = screen.getByLabelText('lorebookResourcesGallery.actions.upload')
         expect(input).toHaveAttribute('accept', expect.stringContaining('.pdf'))
         fireEvent.change(input, { target: { files: [file] } })
         await waitFor(() => expect(mocks.upsert).toHaveBeenCalled())
         expect(mocks.importPdf).toHaveBeenCalledWith(file)
-        expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ fileName: 'court.md', fileType: 'md', content: '# Court facts' }))
+        expect(mocks.create).not.toHaveBeenCalled()
+        expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ fileName: 'court.md', fileType: 'md', content: '# Court facts' }))
         expect(readAsText).not.toHaveBeenCalled()
-        expect(mocks.extract).not.toHaveBeenCalled()
+        await waitFor(() => expect(mocks.upsert).toHaveBeenLastCalledWith(expect.objectContaining({extractionStatus:'completed'})))
+        expect(mocks.extract).toHaveBeenCalledTimes(1)
+        expect(screen.queryByText('lorebookResourcesGallery.pdfImportHint')).toBeNull()
     })
 
     it('keeps uploading valid files after a PDF fails', async () => {

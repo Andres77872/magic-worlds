@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/app/hooks', () => ({
     useBackgroundTasks: mocks.useBackgroundTasks,
     useData: mocks.useData,
+    useNavigation: () => ({ setPage: vi.fn() }),
 }))
 
 vi.mock('@/infrastructure/api', () => ({

@@ -6,10 +6,11 @@
  * visually and behaviourally identical.
  */
 import { useMemo, useState } from 'react'
-import { AlertCircle, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Clock3, FileAudio, Loader2, Music2, RefreshCw, Trash2, XCircle } from 'lucide-react'
+import { AlertCircle, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Clock3, FileAudio, Loader2, ListTodo, Music2, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { useBackgroundTasks, useData } from '@/app/hooks'
+import { useBackgroundTasks, useData, useNavigation } from '@/app/hooks'
+import { buildResourceHash, buildLinkedEditorHash } from '@/features/gallery/galleryLinks'
 import { apiService, resolveMediaUrl } from '@/infrastructure/api'
 import type { Adventure, BackgroundTaskBuckets, BackgroundTaskPublic, CardMediaTargetType, Character, Item, World } from '@/shared'
 import { readWorldPlaceType, worldPlaceTypeLabel } from '@/shared'
@@ -19,7 +20,7 @@ import { AudioWavePlayer } from '@/ui/components/audio'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
 import { Card as DomainCard } from '@/ui/components/lists/Card'
-import { Badge, Button, Callout, Icon, IconButton, Modal, Tag, cx } from '@/ui/primitives'
+import { AuthenticatedImage, Badge, Button, Callout, Icon, IconButton, Modal, Tag, cx } from '@/ui/primitives'
 
 const ACTIVE = new Set(['pending', 'in_progress', 'synthesizing', 'mirroring'])
 const TAB_ORDER = ['active', 'completed', 'failed'] as const
@@ -41,7 +42,7 @@ interface AttachedCardPreview {
 }
 
 const EMPTY_ICON: Record<TaskTab, typeof Music2> = {
-    active: Music2,
+    active: ListTodo,
     completed: CheckCircle2,
     failed: XCircle,
 }
@@ -54,8 +55,11 @@ const TILE_TONE: Record<StatusTone, string> = {
     arcane: 'bg-arcane-500/12 text-arcane-300',
 }
 
-function statusCopy(status: BackgroundTaskPublic['status'], t: TFunction): string {
-    return t(`tasksDrawer.status.${status}`)
+function statusCopy(task: BackgroundTaskPublic, t: TFunction): string {
+    if (task.status === 'in_progress' && task.operation !== 'theme_song') return t(`tasksDrawer.operations.${task.operation}`)
+    if (task.status === 'synthesizing' && task.operation === 'text_to_speech') return t('tasksDrawer.operations.text_to_speech')
+    if (task.status === 'mirroring' && task.operation !== 'theme_song') return t('tasksDrawer.savingResult')
+    return t(`tasksDrawer.status.${task.status}`)
 }
 
 function statusIcon(status: BackgroundTaskPublic['status']) {
@@ -81,7 +85,7 @@ function formatDuration(ms?: number | null): string {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
-function targetTypeLabel(type: CardMediaTargetType, t: TFunction): string {
+function targetTypeLabel(type: BackgroundTaskPublic['target']['type'], t: TFunction): string {
     return t(`tasksDrawer.types.${type}`)
 }
 
@@ -91,6 +95,11 @@ function attachedCardLabel(task: BackgroundTaskPublic, t: TFunction): string {
 }
 
 function taskTitle(task: BackgroundTaskPublic, t: TFunction): string {
+    if (task.operation === 'pdf_import') return t('tasksDrawer.pdfTitle', { name: task.title || task.target.display_name })
+    if (task.operation === 'lorebook_extraction') return t('tasksDrawer.metadataTitle', { name: task.title || task.target.display_name })
+    if (task.operation === 'image_generation') return task.target.type === 'media'
+        ? t('tasksDrawer.fallback.image') : t('tasksDrawer.imageTitle', { name: task.title || task.target.display_name })
+    if (task.operation === 'text_to_speech') return t('tasksDrawer.fallback.narration')
     return task.title || task.target.display_name || t('tasksDrawer.fallback.themeSong')
 }
 
@@ -172,6 +181,7 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
         terminalHasMore,
         loadMoreTerminalTasks,
     } = useBackgroundTasks()
+    const { setPage } = useNavigation()
     const { characters, worlds, items, templateAdventures } = useData()
     const [activeTab, setActiveTab] = useState<TaskTab>('active')
     const [isRefreshing, setIsRefreshing] = useState(false)
@@ -194,6 +204,7 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
     )
 
     const findLocalCard = (task: BackgroundTaskPublic): AttachedCardPreview | null => {
+        if (task.target.type === 'resource' || task.target.type === 'lorebook' || task.target.type === 'media') return null
         if (task.target.type === 'character') {
             const card = characters.find((item) => item.id === task.target.id)
             return card ? toCharacterPreview(card, task.target.id, t) : null
@@ -230,6 +241,15 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
     }
 
     const openAttachedCard = async (task: BackgroundTaskPublic) => {
+        if (task.target.type === 'media') return
+        if (task.target.type === 'resource') {
+            setPage('gallery-resources', { hash: buildResourceHash(task.target.id) })
+            return
+        }
+        if (task.target.type === 'lorebook') {
+            setPage('lorebook', { hash: buildLinkedEditorHash('lorebook', task.target.id) })
+            return
+        }
         setSelectedTask(task)
         setSelectedCard(null)
         setCardError(null)
@@ -407,7 +427,8 @@ function TaskRow({
 }) {
     const { t } = useTranslation()
     const IconCmp = statusIcon(task.status)
-    const assetUrl = task.result?.assets?.[0]?.url
+    const audioAsset = task.operation === 'text_to_speech' ? task.result?.tts_assets?.[0] : task.result?.assets?.[0]
+    const assetUrl = audioAsset?.url
     const resolvedAudio = resolveMediaUrl(assetUrl)
     const tone = statusTone(task.status)
     const isWorking = ACTIVE.has(task.status) && task.status !== 'pending'
@@ -416,8 +437,8 @@ function TaskRow({
     const updatedTime = formatDateTime(task.updated_at)
     const createdRelative = formatRelativeTime(task.created_at)
     const updatedRelative = formatRelativeTime(task.updated_at)
-    const duration = formatDuration(task.result?.assets?.[0]?.duration_ms)
-    const format = task.result?.assets?.[0]?.output_format?.toUpperCase()
+    const duration = formatDuration(audioAsset?.duration_ms)
+    const format = audioAsset?.output_format?.toUpperCase()
     const cardLabel = attachedCardLabel(task, t)
     const regionId = `task-detail-${task.operation}-${task.task_id}`
 
@@ -439,7 +460,7 @@ function TaskRow({
                     {task.status === 'completed' && duration && (
                         <span className="font-mono text-[10px] text-parchment-400">{duration}</span>
                     )}
-                    <Badge tone={tone}>{statusCopy(task.status, t)}</Badge>
+                    <Badge tone={tone}>{statusCopy(task, t)}</Badge>
                     <Icon
                         icon={ChevronDown}
                         size={15}
@@ -479,22 +500,27 @@ function TaskRow({
                             )}
                         </div>
 
-                        <button
+                        {task.target.type !== 'media' && <button
                             type="button"
                             title={t('tasksDrawer.attached.aria', { label: cardLabel })}
                             aria-label={t('tasksDrawer.attached.aria', { label: cardLabel })}
                             className="inline-flex max-w-full items-center gap-1 self-start rounded-sm font-ui text-[11px] text-parchment-400 underline-offset-2 hover:text-parchment-50 hover:underline"
                             onClick={onOpenCard}
+                            disabled={task.operation === 'pdf_import' && task.status !== 'completed'}
                         >
                             <Icon icon={BookOpen} size={12} />
                             <span className="truncate">{cardLabel}</span>
-                        </button>
+                        </button>}
 
-                        {resolvedAudio && task.status === 'completed' && (
+                        {task.status === 'completed' && task.result?.image_assets?.[0] && (
+                            <AuthenticatedImage src={task.result.image_assets[0].url} alt={title} className="w-full rounded-md" />
+                        )}
+
+                        {resolvedAudio && task.status === 'completed' && task.target.type !== 'resource' && task.target.type !== 'lorebook' && (
                             <AudioWavePlayer
                                 src={resolvedAudio}
-                                title={t('tasksDrawer.metadata.theme', { title })}
-                                trackMeta={{
+                                title={task.operation === 'theme_song' ? t('tasksDrawer.metadata.theme', { title }) : title}
+                                trackMeta={task.target.type === 'media' ? undefined : {
                                     cardName: attachedCard?.title || task.target.display_name || undefined,
                                     cardType: task.target.type,
                                     cardId: task.target.id,

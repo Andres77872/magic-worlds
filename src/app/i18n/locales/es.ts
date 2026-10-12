@@ -2139,7 +2139,13 @@ export const es = {
                 },
             },
             lorebookResourcesGallery: {
-                pdfImportHint: 'Los PDF se convierten a Markdown editable. La sincronización de metadatos se hace por separado.',
+                status: {
+                    pending: 'Metadatos sin generar',
+                    generating: 'Generando metadatos',
+                    completed: 'Metadatos listos',
+                    failed: 'Falló la generación de metadatos',
+                    outdated: 'Metadatos por actualizar',
+                },
                 importingFiles: 'Importando archivos…',
                 header: {
                     eyebrow: 'Tu biblioteca',
@@ -2159,7 +2165,8 @@ export const es = {
                     back: 'Volver a recursos',
                     edit: 'Editar',
                     create: 'Crear',
-                    syncMetadata: 'Sincronizar metadatos',
+                    syncMetadata: 'Generar metadatos',
+                    generatingMetadata: 'Generando metadatos…',
                 },
                 search: {
                     placeholder: 'Buscar recursos por titulo, disparador o contenido...',
@@ -2182,6 +2189,7 @@ export const es = {
                     uploadFileType: '{{name}} debe ser un archivo .md, .txt o .pdf.',
                     pdfTooLarge: 'Este PDF supera el límite de tamaño de subida del servidor.',
                     pdfInvalid: 'No se pudo leer este PDF. Sube un PDF válido y sin contraseña.',
+                    pdfProcessingFailed: 'El procesamiento del PDF falló en el servidor. Prueba con un PDF más pequeño o vuelve a intentarlo.',
                     pdfNoText: 'Este PDF no contiene texto extraíble.',
                     pdfTextTooLarge: 'El texto extraído del PDF supera 80 000 caracteres. Divide el documento en archivos más pequeños.',
                     pdfTooManyPages: 'Este PDF supera el límite de páginas del servidor.',
@@ -2198,6 +2206,8 @@ export const es = {
                     size: '{{name}} supera {{count}} caracteres.',
                     notFound: 'No se encontro ese recurso.',
                     extractionAfterSave: 'Recurso guardado. La extracción de metadatos no terminó. Sincroniza los metadatos para consultar la solicitud existente.',
+                    extractionDisabled: 'El recurso está guardado, pero la generación de metadatos está desactivada en el servidor.',
+                    extractionFailed: 'El recurso está guardado, pero la generación de metadatos falló. Vuelve a intentarlo.',
                 },
                 deleteDialog: {
                     title: 'Eliminar recurso',
@@ -2264,7 +2274,8 @@ export const es = {
                 },
                 metadata: {
                     heading: 'Metadatos extraídos',
-                    pending: 'Usa Sincronizar metadatos para extraer metadatos buscables, palabras clave y fragmentos.',
+                    generating: 'La generación de metadatos está en curso. Sigue el progreso en Tareas.',
+                    pending: 'El recurso está guardado. Elige Generar metadatos para crear resúmenes, palabras clave y fragmentos con IA. Aún no hay una tarea de metadatos en ejecución.',
                     failed: 'La extracción de metadatos falló. Sincroniza metadatos para intentarlo de nuevo.',
                     outdated: 'Estos metadatos se extrajeron de contenido anterior. Sincroniza metadatos para actualizarlos.',
                     syncOnSaveLabel: 'Sincronizar metadatos con IA al guardar',
@@ -2392,7 +2403,12 @@ export const es = {
                 },
             },
             tasksDrawer: {
-                eyebrow: 'Temas musicales',
+                operations: { pdf_import: 'Leyendo PDF', lorebook_extraction: 'Generando metadatos', image_generation: 'Generando imagen', text_to_speech: 'Generando narración' },
+                pdfTitle: 'Importar PDF · {{name}}',
+                metadataTitle: 'Generar metadatos · {{name}}',
+                imageTitle: 'Generar imagen · {{name}}',
+                savingResult: 'Guardando resultado',
+                eyebrow: 'Tareas en segundo plano',
                 title: 'Tareas',
                 filterAria: 'Filtrar tareas por estado',
                 actions: {
@@ -2405,8 +2421,8 @@ export const es = {
                     clearFailed: 'No se pudieron limpiar algunas tareas. Intenta de nuevo.',
                 },
                 toast: {
-                    completedTitle: 'Tema musical listo',
-                    failedTitle: 'El tema musical falló',
+                    completedTitle: 'Tarea completada',
+                    failedTitle: 'La tarea falló',
                     multiple_one: '{{count}} tarea terminada',
                     multiple_other: '{{count}} tareas terminadas',
                     open: 'Abrir tareas',
@@ -2425,9 +2441,9 @@ export const es = {
                 collapse: 'Ocultar detalles de {{title}}',
                 empty: {
                     activeTitle: 'No hay tareas activas',
-                    activeBody: 'Los temas musicales que generes aparecerán aquí mientras se componen.',
-                    completedTitle: 'Aún no hay canciones completadas',
-                    completedBody: 'Los temas musicales terminados aparecen aquí, listos para reproducir.',
+                    activeBody: 'Las importaciones PDF, los metadatos y otras tareas aparecen aquí mientras se procesan.',
+                    completedTitle: 'Aún no hay tareas completadas',
+                    completedBody: 'Las tareas terminadas aparecen aquí con enlaces a sus resultados.',
                     failedTitle: 'No hay tareas fallidas',
                     failedBody: 'Las tareas que fallen o se cancelen aparecerán aquí.',
                 },
@@ -2441,6 +2457,9 @@ export const es = {
                     canceled: 'Cancelada',
                 },
                 types: {
+                    resource: 'Recurso',
+                    lorebook: 'Lorebook',
+                    media: 'Multimedia',
                     character: 'Personaje',
                     world: 'Mundo',
                     item: 'Objeto',
@@ -2460,6 +2479,8 @@ export const es = {
                     item: 'Objeto sin nombre',
                     adventure: 'Aventura',
                     themeSong: 'Tema musical',
+                    image: 'Generación de imagen',
+                    narration: 'Narración',
                 },
                 metadata: {
                     created: 'Creada {{time}}',
