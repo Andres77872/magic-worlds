@@ -19,9 +19,11 @@ export interface CreatorIntroProps {
     children: ReactNode
     /** Floating extras (AssistantChatbot). */
     overlay?: ReactNode
+    /** Workspace R1: where a new card will be saved (a `CreationDestination`). */
+    destination?: ReactNode
 }
 
-export function CreatorIntro({ eyebrow, title, icon, onBack, children, overlay }: CreatorIntroProps) {
+export function CreatorIntro({ eyebrow, title, icon, onBack, children, overlay, destination }: CreatorIntroProps) {
     const { t } = useTranslation()
     return (
         <div className="mx-auto my-6 w-full max-w-[1180px] px-4 text-parchment-50 sm:px-6">
@@ -29,6 +31,7 @@ export function CreatorIntro({ eyebrow, title, icon, onBack, children, overlay }
                 className="mb-8"
                 eyebrow={eyebrow ?? t('creation.common.creationEyebrow')}
                 title={title}
+                subtitle={destination}
                 icon={icon ? <span className="text-[28px] leading-none max-sm:text-2xl">{icon}</span> : undefined}
                 divider
                 actions={

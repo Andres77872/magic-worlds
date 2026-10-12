@@ -38,6 +38,12 @@ export interface CardGallery<T extends { id: string } = GalleryItem> {
 
 export interface CardGalleryOptions {
     enabled?: boolean
+    /**
+     * Ownership of the list (e.g. the workspace ID/epoch). When it changes the
+     * next reset load drops every item of the previous owner, including
+     * directly upserted ones, instead of carrying them into the new list.
+     */
+    resetKey?: unknown
 }
 
 function appendDedupedById<T extends { id: string }>(prev: T[], page: T[]): T[] {
@@ -51,6 +57,7 @@ export function useCardGallery<T extends { id: string } = GalleryItem>(
     options: CardGalleryOptions = {},
 ): CardGallery<T> {
     const enabled = options.enabled ?? true
+    const resetKey = options.resetKey
     const [items, setItems] = useState<T[]>([])
     const [query, setQuery] = useState('')
     const [debouncedQuery, setDebouncedQuery] = useState('')
@@ -66,6 +73,7 @@ export function useCardGallery<T extends { id: string } = GalleryItem>(
     // (removeItem) keep later pages aligned with the shrunken server list.
     const skipRef = useRef(0)
     const localUpsertIdsRef = useRef<Set<string>>(new Set())
+    const appliedResetKeyRef = useRef(resetKey)
 
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS)
@@ -89,6 +97,13 @@ export function useCardGallery<T extends { id: string } = GalleryItem>(
             if (!enabled) return
             const seq = ++seqRef.current
             const skip = reset ? 0 : skipRef.current
+            if (reset && appliedResetKeyRef.current !== resetKey) {
+                // A new owner: nothing of the previous list may survive this load.
+                appliedResetKeyRef.current = resetKey
+                localUpsertIdsRef.current.clear()
+                setItems([])
+                setHasMore(false)
+            }
             if (reset) setLoading(true)
             else setLoadingMore(true)
             setError(null)
@@ -119,7 +134,7 @@ export function useCardGallery<T extends { id: string } = GalleryItem>(
                 }
             }
         },
-        [config, pageSize, debouncedQuery, enabled],
+        [config, pageSize, debouncedQuery, enabled, resetKey],
     )
 
     // Mount + every committed search → reset & refetch (fetchPage's identity

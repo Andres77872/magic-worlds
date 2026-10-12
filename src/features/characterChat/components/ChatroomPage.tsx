@@ -16,6 +16,7 @@ import { toResumeSessions, type ResumeSession } from '@/features/landing/compone
 import { buildGalleryModeHash } from '@/features/gallery/galleryLinks'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { isGroupChatsFeatureEnabled } from '@/shared/featureFlags'
+import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { chatDisplayTitle } from '@/utils/chatTitle'
 import { searchableText } from '@/features/landing/components/resumeModel'
 import { NewCharacterChatDialog } from './NewCharacterChatDialog'
@@ -54,6 +55,8 @@ export function ChatroomPage() {
     const mountedRef = useRef(false)
     const voiceModeEnabled = isFrontendVoiceModeEnabled()
     const groupChatsEnabled = isGroupChatsFeatureEnabled()
+    // Workspace R1: an archived workspace's chats stay readable; starting, calling and deleting are new work.
+    const readOnly = useWorkspaceReadOnly()
 
     useEffect(() => {
         mountedRef.current = true
@@ -163,7 +166,7 @@ export function ChatroomPage() {
             {t('characterChat.room.clearSearch')}
         </Button>
     ) : isAuthenticated ? (
-        <Button variant="primary" size="sm" iconLeft={<Icon icon={MessageCirclePlus} size={15} />} onClick={openNewChat}>
+        readOnly ? null : <Button variant="primary" size="sm" iconLeft={<Icon icon={MessageCirclePlus} size={15} />} onClick={openNewChat}>
             {t('characterChat.room.newChat')}
         </Button>
     ) : (
@@ -192,6 +195,7 @@ export function ChatroomPage() {
                             variant="primary"
                             iconLeft={<Icon icon={MessageCirclePlus} size={16} />}
                             onClick={openNewChat}
+                            disabled={readOnly}
                             aria-haspopup="dialog"
                         >
                             {t('characterChat.room.newChat')}
@@ -201,6 +205,7 @@ export function ChatroomPage() {
                                 variant="secondary"
                                 iconLeft={<Icon icon={Users} size={16} />}
                                 onClick={startGroupChat}
+                                disabled={readOnly}
                                 className="shrink-0"
                             >
                                 {t('characterChat.room.newGroupChat')}
@@ -253,8 +258,8 @@ export function ChatroomPage() {
                             key={session.id}
                             session={session}
                             onContinue={() => openChat(session)}
-                            onCall={voiceModeEnabled && !session.isGroupChat ? () => openVoiceChat(session) : undefined}
-                            onDelete={() => requireAuth(() => setPendingDelete(session.source as CharacterChatSession))}
+                            onCall={voiceModeEnabled && !session.isGroupChat && !readOnly ? () => openVoiceChat(session) : undefined}
+                            onDelete={readOnly ? undefined : () => requireAuth(() => setPendingDelete(session.source as CharacterChatSession))}
                             deleting={deletingId === session.id}
                         />
                     ))}
@@ -279,7 +284,7 @@ export function ChatroomPage() {
                 </EmptyState>
             )}
 
-            {newChatOpen && isAuthenticated && (
+            {newChatOpen && isAuthenticated && !readOnly && (
                 <NewCharacterChatDialog
                     characters={characters}
                     loading={refreshing || loadingState.isLoading}

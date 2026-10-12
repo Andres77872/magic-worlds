@@ -27,6 +27,7 @@ import {
     type PlaylistQueueState,
 } from './playlistReducer'
 import { AuthContext } from './AuthProvider'
+import { WorkspaceContext } from './workspaceContext'
 
 interface AudioPlaylistProviderProps {
     children: ReactNode
@@ -73,6 +74,14 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
     // Storybook mounts this provider in isolation, so the auth context is
     // intentionally optional here.
     const auth = useContext(AuthContext)
+    // Optional for the same reason; tracks are stamped with their origin workspace.
+    const selectedWorkspaceId = useContext(WorkspaceContext)?.selectedWorkspaceId ?? null
+    const selectedWorkspaceRef = useRef(selectedWorkspaceId)
+    useEffect(() => {
+        selectedWorkspaceRef.current = selectedWorkspaceId
+    }, [selectedWorkspaceId])
+    const withOrigin = useCallback((track: PlaylistTrack): PlaylistTrack =>
+        track.workspaceId || !selectedWorkspaceRef.current ? track : { ...track, workspaceId: selectedWorkspaceRef.current }, [])
     // Key on `userHash`, NOT `accountKey`: accountKey carries an in-memory sequence
     // that restarts at 0 each page load and increments on every sign-in, so a queue
     // saved after logging in landed on `...:1` and the next reload looked for
@@ -370,12 +379,12 @@ export function AudioPlaylistProvider({ children }: AudioPlaylistProviderProps) 
                 return
             }
             if (opts?.seekRatio != null) pendingSeekRef.current = clamp01(opts.seekRatio)
-            dispatch({ type: 'PLAY_NOW', track })
+            dispatch({ type: 'PLAY_NOW', track: withOrigin(track) })
         },
-        [seekRatio, toggle],
+        [seekRatio, toggle, withOrigin],
     )
 
-    const enqueue = useCallback((track: PlaylistTrack) => dispatch({ type: 'ENQUEUE', track }), [])
+    const enqueue = useCallback((track: PlaylistTrack) => dispatch({ type: 'ENQUEUE', track: withOrigin(track) }), [withOrigin])
     const playQueueFrom = useCallback((index: number) => dispatch({ type: 'PLAY_AT', index }), [])
     const next = useCallback(() => dispatch({ type: 'NEXT' }), [])
 

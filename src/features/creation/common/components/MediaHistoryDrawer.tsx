@@ -19,6 +19,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Check, Download, Eye, ImageOff, Loader2, Music2, Trash2, Unlink } from 'lucide-react'
 import type { CardMediaTargetType, ImageJobPublic, ThemeSongJobPublic } from '@/shared'
 import { ApiError, apiService, resolveMediaUrl } from '@/infrastructure/api'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import { AuthenticatedImage, Button, cx, Drawer, Eyebrow, Icon, IconButton, ImageLightbox, TabPanel, Tabs } from '@/ui/primitives'
 import { AudioWavePlayer, getAudioBlob } from '@/ui/components/audio'
 import { downloadBlob, safeFilename } from '../../../../utils/download'
@@ -45,6 +46,11 @@ export interface MediaHistoryDrawerProps {
     /** Active tab — controlled by the parent so opening can target a tab. */
     tab: HistoryTab
     onTabChange: (tab: HistoryTab) => void
+    /**
+     * Workspace R1: the card's workspace. Image and theme history list the jobs
+     * that originated there; default = the committed workspace.
+     */
+    workspaceId?: string | null
 }
 
 const PAGE_SIZE = 24
@@ -84,8 +90,10 @@ export function MediaHistoryDrawer({
     onSelectTheme,
     tab,
     onTabChange,
+    workspaceId,
 }: MediaHistoryDrawerProps) {
     const { t } = useTranslation()
+    const api = useScopedApi(workspaceId)
     const [lightboxUrl, setLightboxUrl] = useState<string | undefined>(undefined)
 
     /* ---- image gallery state ---- */
@@ -104,10 +112,11 @@ export function MediaHistoryDrawer({
 
     const loadImages = useCallback(
         async (offset: number) => {
+            if (!api) return
             setImgLoading(true)
             setImgError(null)
             try {
-                const res = await apiService.listImageJobs({ status: 'completed', limit: PAGE_SIZE, offset })
+                const res = await api.listImageJobs({ status: 'completed', limit: PAGE_SIZE, offset })
                 const batch = flattenImages(res.items)
                 setImages((prev) => (offset === 0 ? batch : [...prev, ...batch]))
                 setImgNext(res.next_offset ?? null)
@@ -118,16 +127,16 @@ export function MediaHistoryDrawer({
                 setImgLoading(false)
             }
         },
-        [t],
+        [api, t],
     )
 
     const loadThemes = useCallback(
         async (offset: number) => {
-            if (!themeTargetId) return
+            if (!themeTargetId || !api) return
             setThemeLoading(true)
             setThemeError(null)
             try {
-                const res = await apiService.listThemeSongs(cardType, themeTargetId, PAGE_SIZE, offset)
+                const res = await api.listThemeSongs(cardType, themeTargetId, PAGE_SIZE, offset)
                 const batch = res.items.filter((j) => j.status === 'completed' && firstThemeAsset(j))
                 setThemes((prev) => (offset === 0 ? batch : [...prev, ...batch]))
                 setThemeNext(res.next_offset ?? null)
@@ -138,7 +147,7 @@ export function MediaHistoryDrawer({
                 setThemeLoading(false)
             }
         },
-        [cardType, themeTargetId, t],
+        [api, cardType, themeTargetId, t],
     )
 
     // On close, forget which tabs were loaded so a fresh open refetches (picking up
@@ -158,6 +167,7 @@ export function MediaHistoryDrawer({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tab, open])
 
+    // Asset deletion is account-wide (immutable media is owned by the account), so it stays unscoped.
     const handleDeleteImage = async (img: GalleryImage) => {
         try {
             await apiService.deleteImageAsset(img.assetId)

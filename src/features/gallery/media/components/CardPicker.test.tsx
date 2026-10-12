@@ -1,22 +1,48 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/app/i18n'
 import { I18nextProvider } from 'react-i18next'
-import type { ReactElement } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 
-vi.mock('@/infrastructure/api', () => ({
-    apiService: {
+vi.mock('@/infrastructure/api', () => {
+    const apiService: Record<string, unknown> = {
         getCharacters: vi.fn().mockResolvedValue([]),
         getWorlds: vi.fn().mockResolvedValue([]),
         getItems: vi.fn().mockResolvedValue([]),
         getAdventureTemplates: vi.fn().mockResolvedValue([]),
-    },
-    isProtectedMediaUrl: () => false,
-    resolveMediaUrl: (url?: string | null) => url ?? undefined,
-}))
+        listLibraryCards: vi.fn(),
+    }
+    apiService.withWorkspace = vi.fn(() => apiService)
+    return {
+        apiService,
+        isProtectedMediaUrl: () => false,
+        resolveMediaUrl: (url?: string | null) => url ?? undefined,
+    }
+})
 
 import { apiService } from '@/infrastructure/api'
+import {
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+    createWorkspaceTestState,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { CardPicker } from './CardPicker'
+
+let workspace: WorkspaceTestState
+
+function Wrapper({ children }: { children: ReactNode }) {
+    return <WorkspaceTestProvider state={workspace}>{children}</WorkspaceTestProvider>
+}
+
+function render(ui: ReactElement) {
+    return rtlRender(ui, { wrapper: Wrapper })
+}
+
+function libraryItem(cardType: 'character' | 'world' | 'item', id: string, name: string) {
+    return { card_type: cardType, card: { id, name, organization: { workspace_id: TEST_WORKSPACE_ID, collection_ids: [] } } }
+}
 
 const CHARACTERS = [
     { id: 'c1', name: 'Lyra', image_url: '/generated-images/lyra.jpeg' },
@@ -32,13 +58,20 @@ describe('CardPicker', () => {
     beforeEach(async () => {
         await i18n.changeLanguage('en')
         vi.clearAllMocks()
+        workspace = createWorkspaceTestState({ api: apiService })
+        vi.mocked(apiService.listLibraryCards).mockResolvedValue({
+            items: [libraryItem('character', 'c1', 'Lyra'), libraryItem('world', 'w1', 'Rivendell'), libraryItem('item', 'i1', 'Moonlit Compass')],
+            total: 3,
+            limit: 32,
+            offset: 0,
+        })
         vi.mocked(apiService.getCharacters).mockResolvedValue(CHARACTERS)
         vi.mocked(apiService.getWorlds).mockResolvedValue([{ id: 'w1', name: 'Rivendell' }])
         vi.mocked(apiService.getItems).mockResolvedValue([{ id: 'i1', name: 'Moonlit Compass' }])
         vi.mocked(apiService.getAdventureTemplates).mockResolvedValue([])
     })
 
-    it('opens on click and merges all card endpoints when scope is "all"', async () => {
+    it('opens on click and reads every card type of the workspace in one library request when scope is "all"', async () => {
         render(<CardPicker cardType="all" onChange={vi.fn()} />)
 
         fireEvent.click(screen.getByTestId('card-picker-trigger'))
@@ -46,10 +79,24 @@ describe('CardPicker', () => {
         expect(await screen.findByText('Lyra')).toBeInTheDocument()
         expect(screen.getByText('Rivendell')).toBeInTheDocument()
         expect(screen.getByText('Moonlit Compass')).toBeInTheDocument()
-        expect(apiService.getCharacters).toHaveBeenCalledWith(0, 8, undefined)
-        expect(apiService.getWorlds).toHaveBeenCalledWith(0, 8, undefined)
-        expect(apiService.getItems).toHaveBeenCalledWith(0, 8, undefined)
-        expect(apiService.getAdventureTemplates).toHaveBeenCalledWith(0, 8, undefined)
+        expect(apiService.listLibraryCards).toHaveBeenCalledTimes(1)
+        expect(apiService.listLibraryCards).toHaveBeenCalledWith(TEST_WORKSPACE_ID, { q: undefined, limit: 32 })
+        expect(apiService.getCharacters).not.toHaveBeenCalled()
+        expect(apiService.getWorlds).not.toHaveBeenCalled()
+    })
+
+    it('drops the previous workspace options after a switch and lists the new workspace', async () => {
+        const { rerender } = render(<CardPicker cardType="all" onChange={vi.fn()} />)
+        fireEvent.click(screen.getByTestId('card-picker-trigger'))
+        await screen.findByText('Lyra')
+
+        vi.mocked(apiService.listLibraryCards).mockResolvedValue({ items: [libraryItem('world', 'w2', 'Eldoria')], total: 1, limit: 32, offset: 0 })
+        workspace.switchTo(OTHER_WORKSPACE_ID)
+        rerender(<CardPicker cardType="all" onChange={vi.fn()} />)
+
+        expect(screen.queryByText('Lyra')).not.toBeInTheDocument()
+        expect(await screen.findByText('Eldoria')).toBeInTheDocument()
+        expect(apiService.listLibraryCards).toHaveBeenLastCalledWith(OTHER_WORKSPACE_ID, { q: undefined, limit: 32 })
     })
 
     it('scopes the option fetch to the active card type', async () => {

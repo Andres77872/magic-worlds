@@ -18,7 +18,7 @@ export interface LorebookRailProps {
     /** Full collection size (lorebooks is already capped) for the "View all (N)" count. */
     total?: number
     onOpen: (lorebook: Lorebook) => void
-    onDelete: (lorebook: Lorebook) => Promise<void> | void
+    onDelete?: (lorebook: Lorebook) => Promise<void> | void
     onViewAll?: () => void
 }
 
@@ -33,7 +33,7 @@ export function LorebookRail({ lorebooks, total, onOpen, onDelete, onViewAll }: 
     const confirmDelete = async () => {
         const target = pending
         setPending(null)
-        if (!target) return
+        if (!target || !onDelete) return
         setDeletingId(target.id)
         try {
             await onDelete(target)
@@ -71,13 +71,14 @@ export function LorebookRail({ lorebooks, total, onOpen, onDelete, onViewAll }: 
                 renderCard={(lorebook) => {
                     const options: CardOption[] = [
                         { type: 'custom', icon: <Icon icon={Pencil} size={15} />, label: t('gallery.edit'), onClick: () => onOpen(lorebook) },
-                        {
-                            type: 'custom',
+                        // Omitted (no onDelete) while the workspace is archived and read-only.
+                        ...(onDelete ? [{
+                            type: 'custom' as const,
                             icon: <Icon icon={Trash2} size={15} />,
                             label: t('gallery.delete'),
                             onClick: () => setPending(lorebook),
                             danger: true,
-                        },
+                        }] : []),
                     ]
                     return (
                         <LorebookCard

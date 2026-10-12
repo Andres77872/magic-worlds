@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Bell, CheckCheck, CircleAlert, CircleCheck, Info, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
-import { useBackgroundTasks, useNavigation } from '@/app/hooks'
+import { useAuth, useBackgroundTasks, useNavigation } from '@/app/hooks'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
+import { pageNeedsWorkspace } from '@/app/router/pageAccess'
 import { pageFromHash } from '@/features/gallery/galleryLinks'
+import { useOriginNavigation, type OriginTarget } from '@/features/workspaces/originNavigation'
 import { ApiError, apiService } from '@/infrastructure/api'
-import type { NotificationSeverity, UserNotification } from '@/shared'
+import { isWorkspaceUuid } from '@/infrastructure/api/workspaceContract'
+import type { BackgroundTaskPublic, NotificationSeverity, UserNotification } from '@/shared'
 import { formatRelativeTime } from '@/utils/time'
 import { EmptyState, LoadingSpinner } from '@/ui/components'
-import { Badge, Button, Icon, IconButton, PageHeader } from '@/ui/primitives'
+import { WorkspaceOriginLabel } from '@/ui/components/WorkspaceOriginLabel'
+import { Badge, Button, Callout, Icon, IconButton, PageHeader } from '@/ui/primitives'
 
 const severityIcon = {
     info: Info,
@@ -25,10 +30,47 @@ const severityTone = {
 
 const NOTIFICATION_PAGE_SIZE = 20
 
+function metadataString(item: UserNotification, key: string): string | null {
+    const value = item.metadata?.[key]
+    return typeof value === 'string' && value ? value : null
+}
+
+/** The `#/…` route of a notice's action, if it has one. */
+function actionHash(item: UserNotification): string | null {
+    return item.action_url?.includes('#/') ? item.action_url.slice(item.action_url.indexOf('#/')) : null
+}
+
+/**
+ * Workspace R1: the inbox is account-wide. A content notice (a generation job,
+ * or an action into workspace content) opens in the workspace it came from:
+ * `metadata.workspace_id`, else the workspace of a job this client tracks. A
+ * legacy notice without either never falls back to the selected workspace.
+ */
+function noticeOrigin(item: UserNotification, tasks: BackgroundTaskPublic[]): string | null {
+    const stated = metadataString(item, 'workspace_id')
+    if (stated) return isWorkspaceUuid(stated) ? stated : null
+    const jobId = metadataString(item, 'job_id')
+    if (!jobId) return null
+    const owned = tasks.find((task) => task.task_id === jobId && task.organization?.workspace_id)
+    return owned?.organization?.workspace_id ?? null
+}
+
+function isContentNotice(item: UserNotification, isAuthenticated: boolean): boolean {
+    if (metadataString(item, 'workspace_id') || metadataString(item, 'job_kind') || metadataString(item, 'job_id')) return true
+    const hash = actionHash(item)
+    const page = hash ? pageFromHash(hash) : null
+    return Boolean(page && pageNeedsWorkspace(page, isAuthenticated))
+}
+
 export function NotificationsPage() {
     const { t } = useTranslation()
     const { setPage } = useNavigation()
-    const { openDrawer: openTasks } = useBackgroundTasks()
+    const { isAuthenticated } = useAuth()
+    const { openDrawer: openTasks, tasks, trackTask } = useBackgroundTasks()
+    const { selectedWorkspaceId } = useWorkspace()
+    const { navigateToOrigin } = useOriginNavigation()
+    /** Notices whose target is no longer available (missing, hidden or unknown workspace). */
+    const [unavailableIds, setUnavailableIds] = useState<Set<number>>(() => new Set())
     const [items, setItems] = useState<UserNotification[]>([])
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
@@ -160,19 +202,44 @@ export function NotificationsPage() {
         }
     }
 
+    const markUnavailable = (notificationId: number) =>
+        setUnavailableIds((current) => new Set(current).add(notificationId))
+
     const followAction = async (item: UserNotification) => {
         if (!(await markRead(item))) return
-        const hash = item.action_url?.includes('#/') ? item.action_url.slice(item.action_url.indexOf('#/')) : null
+        const hash = actionHash(item)
         const page = hash ? pageFromHash(hash) : null
-        if (page && hash) {
-            setPage(page, { hash })
+        if (!isContentNotice(item, isAuthenticated)) {
+            // Account notices (membership, credits, …) are not workspace content.
+            if (page && hash) setPage(page, { hash })
             return
         }
-        if (item.metadata?.job_kind === 'theme_song') {
+        const origin = noticeOrigin(item, tasks)
+        if (!origin) {
+            markUnavailable(item.notification_id)
+            return
+        }
+        const jobKind = metadataString(item, 'job_kind')
+        const jobId = metadataString(item, 'job_id')
+        if (!(page && hash) && jobKind === 'theme_song') {
+            // The tasks drawer is account-wide; another workspace's task is read there and labeled.
+            if (origin !== selectedWorkspaceId && jobId && trackTask) {
+                try {
+                    await trackTask('theme_song', jobId, origin)
+                } catch {
+                    markUnavailable(item.notification_id)
+                    return
+                }
+            }
             openTasks()
             return
         }
-        if (item.metadata?.job_kind === 'image') setPage('gallery-media')
+        const target: Omit<OriginTarget, 'workspaceId'> | null = page && hash
+            ? { page, hash }
+            : jobKind === 'image' ? { page: 'gallery-media' } : null
+        if (!target) return
+        const outcome = await navigateToOrigin({ workspaceId: origin, ...target })
+        if (outcome === 'unavailable') markUnavailable(item.notification_id)
     }
 
     return (
@@ -233,9 +300,15 @@ export function NotificationsPage() {
                                         <h2 className="font-ui text-body font-semibold text-parchment-50">{item.title}</h2>
                                         <Badge tone={severityTone[item.severity]}>{t(`sidebar.notifications.severity.${item.severity}`)}</Badge>
                                         {!item.read_at && <Badge tone="ember">{t('sidebar.notifications.new')}</Badge>}
+                                        <WorkspaceOriginLabel workspaceId={noticeOrigin(item, tasks)} />
                                     </div>
                                     <p className="mt-1 break-words font-ui text-body text-parchment-200">{item.body}</p>
                                     <p className="mt-2 font-mono text-caption text-parchment-400">{formatRelativeTime(item.created_at)}</p>
+                                    {unavailableIds.has(item.notification_id) && (
+                                        <Callout tone="warning" role="status" className="mt-3">
+                                            {t('workspaceActivity.notifications.unavailable')}
+                                        </Callout>
+                                    )}
                                     <div className="mt-3 flex flex-wrap gap-2">
                                         {actionable && (
                                             <Button variant="secondary" size="sm" disabled={pending} onClick={() => void followAction(item)}>

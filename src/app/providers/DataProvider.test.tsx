@@ -15,6 +15,19 @@ vi.mock('../hooks/useAuth', () => ({
 }))
 
 // API: stub the reads loadData performs, and spy on the writes we care about.
+// Workspace R1: the handshake already selected a workspace; its scoped client is the stub below.
+const workspaceMock = vi.hoisted(() => ({
+    status: 'ready' as 'idle' | 'loading' | 'ready' | 'unavailable' | 'stale',
+    selectedWorkspaceId: '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b' as string | null,
+    workspaceEpoch: 1,
+    api: null as unknown,
+}))
+vi.mock('../hooks/useWorkspace', async () => {
+    const { apiService } = await import('@/infrastructure')
+    workspaceMock.api = apiService
+    return { useWorkspace: () => ({ ...workspaceMock }) }
+})
+
 vi.mock('@/infrastructure', () => {
     class ApiError extends Error {
         isTransient = false

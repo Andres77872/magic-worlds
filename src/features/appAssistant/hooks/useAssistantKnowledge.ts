@@ -4,13 +4,14 @@
  * the galleries); lorebook resources are the one list it fetches itself.
  *
  * Source switches and the focus shelf are per-viewer conveniences, so they live
- * in localStorage (focus is scoped per account) and fall back to defaults when
- * storage is unavailable.
+ * in localStorage (focus is scoped per API origin + user + workspace — never by
+ * the transient accountKey) and fall back to defaults when storage is unavailable.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData } from '@/app/hooks'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace, useWorkspaceStorageScope } from '@/app/hooks/useWorkspace'
+import { ASSISTANT_FOCUS_STORAGE_BASE, workspaceStorageKey } from '@/shared/workspaceStorage'
 import type { LorebookResource, PageType } from '@/shared'
 import {
     isAdventuresFeatureEnabled,
@@ -36,7 +37,6 @@ import type { FocusChip } from '../components/knowledgeIcons'
 export const FOCUS_LIMIT = 6
 const RESOURCE_FETCH_LIMIT = 100
 const SOURCES_STORAGE_KEY = 'magic-worlds-assistant-sources-off'
-const FOCUS_STORAGE_PREFIX = 'magic-worlds-assistant-focus:'
 
 function readJson<T>(key: string, fallback: T): T {
     try {
@@ -59,7 +59,8 @@ function isFocusRef(value: unknown): value is FocusRef {
     return !!value && typeof value === 'object' && typeof (value as FocusRef).id === 'string' && typeof (value as FocusRef).kind === 'string'
 }
 
-function readFocus(key: string): FocusRef[] {
+function readFocus(key: string | null): FocusRef[] {
+    if (!key) return []
     const stored = readJson<unknown>(key, [])
     return Array.isArray(stored) ? stored.filter(isFocusRef).slice(0, FOCUS_LIMIT) : []
 }
@@ -115,14 +116,17 @@ export function useAssistantKnowledge(originPage: PageType | null): UseAssistant
         })
     }, [])
 
-    const focusKey = `${FOCUS_STORAGE_PREFIX}${accountKey || 'anonymous'}`
-    const [focusState, setFocusState] = useState<{ key: string; refs: FocusRef[] }>(() => ({ key: focusKey, refs: readFocus(focusKey) }))
-    // A different account reads its own shelf (the page normally remounts on auth changes).
+    // Workspace R1: the shelf belongs to the committed workspace (pre-R1 shelves
+    // were moved into the protected default's key by the startup migration).
+    const storageScope = useWorkspaceStorageScope()
+    const focusKey = storageScope ? workspaceStorageKey(ASSISTANT_FOCUS_STORAGE_BASE, storageScope) : null
+    const [focusState, setFocusState] = useState<{ key: string | null; refs: FocusRef[] }>(() => ({ key: focusKey, refs: readFocus(focusKey) }))
+    // A different account or workspace reads its own shelf.
     const focus = useMemo(() => (focusState.key === focusKey ? focusState.refs : readFocus(focusKey)), [focusState, focusKey])
 
     const setFocus = useCallback((refs: FocusRef[]) => {
         const next = refs.slice(0, FOCUS_LIMIT)
-        writeJson(focusKey, next)
+        if (focusKey) writeJson(focusKey, next)
         setFocusState({ key: focusKey, refs: next })
     }, [focusKey])
 
@@ -130,25 +134,30 @@ export function useAssistantKnowledge(originPage: PageType | null): UseAssistant
         setFocus(focus.filter((entry) => entry.kind !== ref.kind || entry.id !== ref.id))
     }, [focus, setFocus])
 
-    // Resources are not part of DataProvider; fetch one page while the source is usable.
-    const wantsResources = isAuthenticated && sources.includes('resources')
-    // `account` records whose list arrived; until it matches, the list is loading.
-    const [resources, setResources] = useState<{ account: string | null; items: LorebookResource[] }>({ account: null, items: [] })
+    // Resources are not part of DataProvider; fetch one page of the committed
+    // workspace's resources while the source is usable (Workspace R1: knowledge
+    // and context never mix workspaces).
+    const { status: workspaceStatus, selectedWorkspaceId, api: workspaceApi, capture, isCurrent } = useWorkspace()
+    const wantsResources = isAuthenticated && sources.includes('resources') && workspaceStatus === 'ready' && selectedWorkspaceId !== null
+    // `owner` records whose list arrived (account + workspace); until it matches, the list is loading.
+    const owner = `${accountKey}:${selectedWorkspaceId}`
+    const [resources, setResources] = useState<{ owner: string | null; items: LorebookResource[] }>({ owner: null, items: [] })
     useEffect(() => {
-        if (!wantsResources) return
+        if (!wantsResources || !workspaceApi) return
         let cancelled = false
-        apiService.getLorebookResources(0, RESOURCE_FETCH_LIMIT)
+        const scope = capture()
+        workspaceApi.getLorebookResources(0, RESOURCE_FETCH_LIMIT)
             .then((raw) => {
-                if (!cancelled) setResources({ account: accountKey, items: normalizeResourceList(raw) })
+                if (!cancelled && isCurrent(scope)) setResources({ owner, items: normalizeResourceList(raw) })
             })
             .catch((error) => {
                 console.warn('Assistant could not load resources:', error)
-                if (!cancelled) setResources({ account: accountKey, items: [] })
+                if (!cancelled && isCurrent(scope)) setResources({ owner, items: [] })
             })
         return () => {
             cancelled = true
         }
-    }, [wantsResources, accountKey])
+    }, [wantsResources, owner, workspaceApi, capture, isCurrent])
 
     const library = useMemo<KnowledgeLibrary>(() => ({
         characters: isAuthenticated ? characters : [],
@@ -156,9 +165,9 @@ export function useAssistantKnowledge(originPage: PageType | null): UseAssistant
         items: isAuthenticated ? items : [],
         adventures: isAuthenticated && isAdventuresFeatureEnabled() ? templateAdventures : [],
         lorebooks: isAuthenticated && isLorebooksFeatureEnabled() ? lorebooks : [],
-        resources: wantsResources && resources.account === accountKey ? resources.items : [],
+        resources: wantsResources && resources.owner === owner ? resources.items : [],
         stories: isAuthenticated && isNovelsFeatureEnabled() ? stories : [],
-    }), [isAuthenticated, characters, worlds, items, templateAdventures, lorebooks, stories, wantsResources, resources, accountKey])
+    }), [isAuthenticated, characters, worlds, items, templateAdventures, lorebooks, stories, wantsResources, resources, owner])
 
     const liveFocus = useMemo(() => focus.filter((ref) => findFocusRecord(library, ref)), [focus, library])
 
@@ -203,6 +212,6 @@ export function useAssistantKnowledge(originPage: PageType | null): UseAssistant
         setFocus,
         removeFocus,
         candidates,
-        resourcesLoading: wantsResources && resources.account !== accountKey,
+        resourcesLoading: wantsResources && resources.owner !== owner,
     }
 }

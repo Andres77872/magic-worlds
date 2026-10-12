@@ -32,13 +32,15 @@ export function LlmSessionProvider({ children }: { children: ReactNode }) {
     }, [])
 
     useEffect(() => {
-        const unsubscribe = configureLlmPreparation(async (feature, signal, selection, retryOfExecutionId, recoveryRequestId) => {
+        const unsubscribe = configureLlmPreparation(async (feature, signal, selection, retryOfExecutionId, recoveryRequestId, workspaceId) => {
             const owner = authSession.getSnapshot()
             const choices = selectionsRef.current
             // Capture intent before resolving. A queued dispatch never reads a later UI selection.
             const intent = { ...(selection ?? (choices.accountKey === owner.accountKey ? choices.selections[feature] : undefined) ?? { mode: 'inherit' as const }) }
-            const profile = recoveryRequestId ? await apiService.getLlmRecoveryProfile(feature, recoveryRequestId, signal)
-                : retryOfExecutionId ? await apiService.getLlmRetryProfile(feature, retryOfExecutionId)
+            // Workspace R1: a content execution's retained profile is read in its origin workspace.
+            const retained = workspaceId ? apiService.withWorkspace(workspaceId) : apiService
+            const profile = recoveryRequestId ? await retained.getLlmRecoveryProfile(feature, recoveryRequestId, signal)
+                : retryOfExecutionId ? await retained.getLlmRetryProfile(feature, retryOfExecutionId)
                 : await apiService.resolveLlmProfile(feature, intent)
             signal?.throwIfAborted()
             const current = authSession.getSnapshot()

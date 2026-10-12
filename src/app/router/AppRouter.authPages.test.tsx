@@ -13,6 +13,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../hooks', () => ({
     useNavigation: () => ({ currentPage: 'verify-email', setPage: vi.fn() }),
     useData: () => ({ loadingState: { isLoading: false } }),
+    useWorkspace: () => ({
+        status: 'ready',
+        selectedWorkspaceId: '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b',
+        hasHiddenWorkspaces: false,
+        refreshWorkspaces: vi.fn(),
+    }),
     useAuth: () => ({
         ...mocks,
         authEpoch: mocks.epoch,

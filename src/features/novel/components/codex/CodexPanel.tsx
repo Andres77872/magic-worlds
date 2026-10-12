@@ -8,6 +8,10 @@
  * the empty state, a filter so a long codex stays navigable, and a context meter
  * that reports what the last generation actually sent. It is an editor sidebar,
  * not a dashboard.
+ *
+ * Workspace R1: while the story's workspace is archived (`codex.readOnly`) the
+ * shelf is read-only — entries stay filterable and open for reading, while Add,
+ * remove, the enable switches and snapshot edits are disabled.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -26,6 +30,8 @@ import { CodexLorebookPickerDrawer } from './CodexLorebookPickerDrawer'
 
 export interface CodexPanelProps {
     codex: CodexApi
+    /** The story's workspace — the lorebook picker browses it (default: the committed workspace). */
+    workspaceId?: string | null
     /** Gate mutations behind login; returns false (and opens the modal) when logged out. */
     requireAuth: () => boolean
     /** Opens the card picker (owned by the studio so "Add to codex" works panel-closed). */
@@ -34,14 +40,17 @@ export interface CodexPanelProps {
     contextTrace?: StoryContextTrace | null
 }
 
-export function CodexPanel({ codex, requireAuth, onOpenCardPicker, contextTrace }: CodexPanelProps) {
+export function CodexPanel({ codex, workspaceId, requireAuth, onOpenCardPicker, contextTrace }: CodexPanelProps) {
     const { t } = useTranslation()
     const [lorebookPickerOpen, setLorebookPickerOpen] = useState(false)
     const [editingEntry, setEditingEntry] = useState<CodexEntry | null>(null)
     const [pendingRemove, setPendingRemove] = useState<CodexEntry | null>(null)
     const [filter, setFilter] = useState('')
 
-    const openLorebookPicker = () => requireAuth() && setLorebookPickerOpen(true)
+    const readOnly = codex.readOnly
+    // A remove confirmation left open when the shelf turns read-only goes with it.
+    if (readOnly && pendingRemove) setPendingRemove(null)
+    const openLorebookPicker = () => !readOnly && requireAuth() && setLorebookPickerOpen(true)
 
     const query = filter.trim().toLowerCase()
     const groups = query
@@ -51,7 +60,7 @@ export function CodexPanel({ codex, requireAuth, onOpenCardPicker, contextTrace 
         : codex.groups
     const noMatches = query.length > 0 && groups.length === 0
 
-    const addMenu = <AddMenu onAddCards={onOpenCardPicker} onAddLorebook={openLorebookPicker} />
+    const addMenu = <AddMenu disabled={readOnly} onAddCards={onOpenCardPicker} onAddLorebook={openLorebookPicker} />
 
     return (
         <aside
@@ -115,9 +124,9 @@ export function CodexPanel({ codex, requireAuth, onOpenCardPicker, contextTrace 
                                     <CodexEntryRow
                                         key={entry.id}
                                         entry={entry}
-                                        disabled={codex.busy}
+                                        disabled={codex.busy || readOnly}
                                         onToggle={(target) => {
-                                            if (requireAuth()) void codex.toggleEntry(target)
+                                            if (!readOnly && requireAuth()) void codex.toggleEntry(target)
                                         }}
                                         onEdit={setEditingEntry}
                                         onRemove={setPendingRemove}
@@ -131,7 +140,9 @@ export function CodexPanel({ codex, requireAuth, onOpenCardPicker, contextTrace 
 
             <CodexLorebookPickerDrawer
                 open={lorebookPickerOpen}
+                workspaceId={workspaceId}
                 busy={codex.busy}
+                readOnly={readOnly}
                 existingEntryIds={codex.existingEntryIds}
                 onClose={() => setLorebookPickerOpen(false)}
                 onClone={codex.cloneLorebookEntries}
@@ -139,9 +150,10 @@ export function CodexPanel({ codex, requireAuth, onOpenCardPicker, contextTrace 
             <CodexEntryDrawer
                 entry={editingEntry}
                 busy={codex.busy}
+                readOnly={readOnly}
                 onClose={() => setEditingEntry(null)}
                 onSave={async (entry, patch) => {
-                    if (!requireAuth()) return
+                    if (readOnly || !requireAuth()) return
                     await codex.saveSnapshot(entry, patch)
                 }}
             />
@@ -156,7 +168,7 @@ export function CodexPanel({ codex, requireAuth, onOpenCardPicker, contextTrace 
                 confirmLabel={t('novelEditor.codex.remove')}
                 variant="danger"
                 onConfirm={() => {
-                    if (pendingRemove && requireAuth()) void codex.removeEntry(pendingRemove)
+                    if (pendingRemove && !readOnly && requireAuth()) void codex.removeEntry(pendingRemove)
                     setPendingRemove(null)
                 }}
                 onCancel={() => setPendingRemove(null)}
@@ -172,10 +184,12 @@ export function CodexPanel({ codex, requireAuth, onOpenCardPicker, contextTrace 
  * trigger). The Button primitive is not a forwardRef, so the trigger is
  * refocused through the menu root rather than a ref on the component.
  */
-function AddMenu({ onAddCards, onAddLorebook }: { onAddCards: () => void; onAddLorebook: () => void }) {
+function AddMenu({ disabled, onAddCards, onAddLorebook }: { disabled: boolean; onAddCards: () => void; onAddLorebook: () => void }) {
     const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const rootRef = useRef<HTMLDivElement>(null)
+    // A menu left open when the shelf turns read-only closes with it.
+    if (disabled && open) setOpen(false)
 
     useEffect(() => {
         if (!open) return
@@ -217,6 +231,7 @@ function AddMenu({ onAddCards, onAddLorebook }: { onAddCards: () => void; onAddL
                 iconLeft={<Icon icon={Plus} size={14} />}
                 aria-haspopup="menu"
                 aria-expanded={open}
+                disabled={disabled}
                 onClick={() => setOpen((value) => !value)}
                 data-testid="codex-add"
             >

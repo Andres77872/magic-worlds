@@ -5,6 +5,7 @@
  * considered, entries define activation, and attachments decide where a book
  * participates.
  */
+import type { RootOrganization } from './workspace.types'
 
 export type LorebookEntryType =
     | 'character'
@@ -103,6 +104,8 @@ export interface LorebookResource {
     extraction?: LorebookResourceExtraction | null
     metadataOutdated?: boolean
     linkCount?: number
+    /** Workspace R1: the owning workspace (server-owned; never written back). */
+    organization?: RootOrganization
     createdAt?: string
     updatedAt?: string
 }
@@ -135,6 +138,8 @@ export interface Lorebook {
     entries: LorebookEntry[]
     attachments: LorebookAttachment[]
     metadata?: Record<string, unknown>
+    /** Workspace R1: the owning workspace (server-owned; never written back). */
+    organization?: RootOrganization
     createdAt?: string
     updatedAt?: string
 }

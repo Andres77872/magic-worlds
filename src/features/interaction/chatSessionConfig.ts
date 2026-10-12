@@ -16,7 +16,7 @@ import type {
     TurnEntry,
 } from '../../shared'
 import { finalizeResponseSegments, streamingXmlToPlainText, streamingXmlToSegments } from '@/utils/chatSegments'
-import { apiService } from '../../infrastructure/api'
+import type { ApiService } from '../../infrastructure/api'
 
 export type SessionKind = 'adventure' | 'character'
 
@@ -36,7 +36,17 @@ export interface ChatSessionCopy {
     resetConfirm: string
 }
 
-export interface ChatSessionConfig {
+/**
+ * Workspace R1: the session's own workspace and a client scoped to it (see
+ * `useSessionWorkspace`). History, edits, media polls and recovery reads of a
+ * running session always use it, never a workspace selected later.
+ */
+export interface ChatSessionScope {
+    workspaceId: string
+    api: ApiService
+}
+
+export interface ChatSessionConfig extends ChatSessionScope {
     kind: SessionKind
     /** WS path segment — must match the backend route ('adventure-sessions' | 'character-chats'). */
     basePath: string
@@ -122,32 +132,34 @@ export function storedMessagesToTurns(messages: StoredConversationMessage[]): Tu
         })
 }
 
-export function adventureChatConfig(): ChatSessionConfig {
+export function adventureChatConfig({ workspaceId, api }: ChatSessionScope): ChatSessionConfig {
     return {
+        workspaceId,
+        api,
         kind: 'adventure',
         basePath: 'adventure-sessions',
         loadTurns: async (sessionId) => {
-            const history = await apiService.getAdventureSessionMessages(sessionId)
+            const history = await api.getAdventureSessionMessages(sessionId)
             return storedMessagesToTurns(history.messages)
         },
         updateMessage: async (sessionId, messageId, content) => {
-            await apiService.updateAdventureSessionMessage(sessionId, messageId, content)
-            const history = await apiService.getAdventureSessionMessages(sessionId)
+            await api.updateAdventureSessionMessage(sessionId, messageId, content)
+            const history = await api.getAdventureSessionMessages(sessionId)
             return storedMessagesToTurns(history.messages)
         },
         deleteMessage: async (sessionId, messageId) => {
-            await apiService.deleteAdventureSessionMessage(sessionId, messageId)
-            const history = await apiService.getAdventureSessionMessages(sessionId)
+            await api.deleteAdventureSessionMessage(sessionId, messageId)
+            const history = await api.getAdventureSessionMessages(sessionId)
             return storedMessagesToTurns(history.messages)
         },
         selectReply: async (sessionId, messageId) => {
-            await apiService.activateAdventureSessionMessage(sessionId, messageId)
-            const history = await apiService.getAdventureSessionMessages(sessionId)
+            await api.activateAdventureSessionMessage(sessionId, messageId)
+            const history = await api.getAdventureSessionMessages(sessionId)
             return storedMessagesToTurns(history.messages)
         },
         clearMessages: async (sessionId) => {
-            await apiService.clearAdventureSessionMessages(sessionId)
-            const history = await apiService.getAdventureSessionMessages(sessionId)
+            await api.clearAdventureSessionMessages(sessionId)
+            const history = await api.getAdventureSessionMessages(sessionId)
             return storedMessagesToTurns(history.messages)
         },
         aiLabel: 'Game Master',
@@ -167,34 +179,36 @@ export function adventureChatConfig(): ChatSessionConfig {
     }
 }
 
-export function characterChatConfig(characterName: string, opts?: { group?: boolean }): ChatSessionConfig {
+export function characterChatConfig({ workspaceId, api }: ChatSessionScope, characterName: string, opts?: { group?: boolean }): ChatSessionConfig {
     const name = characterName?.trim() || (opts?.group ? 'the group' : 'this character')
     const subject = opts?.group ? 'the group' : name
     return {
+        workspaceId,
+        api,
         kind: 'character',
         basePath: 'character-chats',
         loadTurns: async (sessionId) => {
-            const history = await apiService.getCharacterChatMessages(sessionId)
+            const history = await api.getCharacterChatMessages(sessionId)
             return storedMessagesToTurns(history.messages)
         },
         updateMessage: async (sessionId, messageId, content) => {
-            await apiService.updateCharacterChatMessage(sessionId, messageId, content)
-            const history = await apiService.getCharacterChatMessages(sessionId)
+            await api.updateCharacterChatMessage(sessionId, messageId, content)
+            const history = await api.getCharacterChatMessages(sessionId)
             return storedMessagesToTurns(history.messages)
         },
         deleteMessage: async (sessionId, messageId) => {
-            await apiService.deleteCharacterChatMessage(sessionId, messageId)
-            const history = await apiService.getCharacterChatMessages(sessionId)
+            await api.deleteCharacterChatMessage(sessionId, messageId)
+            const history = await api.getCharacterChatMessages(sessionId)
             return storedMessagesToTurns(history.messages)
         },
         selectReply: async (sessionId, messageId) => {
-            await apiService.activateCharacterChatMessage(sessionId, messageId)
-            const history = await apiService.getCharacterChatMessages(sessionId)
+            await api.activateCharacterChatMessage(sessionId, messageId)
+            const history = await api.getCharacterChatMessages(sessionId)
             return storedMessagesToTurns(history.messages)
         },
         clearMessages: async (sessionId) => {
-            await apiService.clearCharacterChatMessages(sessionId)
-            const history = await apiService.getCharacterChatMessages(sessionId)
+            await api.clearCharacterChatMessages(sessionId)
+            const history = await api.getCharacterChatMessages(sessionId)
             return storedMessagesToTurns(history.messages)
         },
         aiLabel: name,

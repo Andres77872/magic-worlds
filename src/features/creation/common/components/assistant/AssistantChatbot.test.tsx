@@ -2,6 +2,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AssistantConversation, AssistantStreamEvent, AssistantTurnResponse } from '@/shared/types/assistant.types'
 import type { Lorebook } from '@/shared/types/lorebook.types'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_COLLECTION_ID,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 
 const mocks = vi.hoisted(() => ({
     createAssistantConversation: vi.fn(),
@@ -10,7 +16,12 @@ const mocks = vi.hoisted(() => ({
     getAssistantTurn: vi.fn(),
     deleteAssistantConversation: vi.fn(),
     streamAssistantMessage: vi.fn(),
+    withWorkspace: vi.fn(),
+    workspace: null as WorkspaceTestState | null,
 }))
+
+// Workspace R1: the assistant's conversations live in the committed workspace here.
+vi.mock('@/app/hooks/useWorkspace', () => ({ useWorkspace: () => mocks.workspace!.value() }))
 
 const navigation = vi.hoisted(() => ({ currentHash: '', replaceHash: vi.fn() }))
 
@@ -78,6 +89,9 @@ function finalEvent(requestId: string, overrides: Partial<AssistantTurnResponse<
 type StreamHandler = (id: number, body: unknown, onEvent: (event: AssistantStreamEvent) => void, settings: { requestId: string; signal?: AbortSignal }) => Promise<void>
 
 beforeEach(() => {
+    mocks.withWorkspace.mockImplementation((workspaceId: string, options: { initialCollectionIds?: readonly string[] } = {}) =>
+        Object.assign(Object.create(mocks), { workspaceScope: { workspaceId, initialCollectionIds: [...(options.initialCollectionIds ?? [])] } }))
+    mocks.workspace = createWorkspaceTestState({ api: mocks })
     vi.clearAllMocks()
     navigation.currentHash = ''
     localStorage.removeItem(CARD_ASSISTANT_POSITION_KEY)
@@ -92,6 +106,20 @@ beforeEach(() => {
 })
 
 describe('AssistantChatbot (card)', () => {
+    it("runs in the creator's captured workspace and adds the origin's collection to the first card", async () => {
+        render(<AssistantChatbot {...cardProps({ workspaceId: OTHER_WORKSPACE_ID, initialCollectionIds: [TEST_COLLECTION_ID] })} />)
+        openPanel()
+        await waitFor(() => expect(mocks.listAssistantConversations).toHaveBeenCalled())
+        sendMessage('Invent a glass world')
+
+        await waitFor(() => expect(mocks.streamAssistantMessage).toHaveBeenCalledTimes(1))
+        const scope = (index: number, fn: { mock: { contexts: unknown[] } }) =>
+            (fn.mock.contexts[index] as { workspaceScope?: unknown }).workspaceScope
+        expect(scope(0, mocks.listAssistantConversations)).toEqual({ workspaceId: OTHER_WORKSPACE_ID, initialCollectionIds: [] })
+        expect(scope(0, mocks.createAssistantConversation)).toEqual({ workspaceId: OTHER_WORKSPACE_ID, initialCollectionIds: [] })
+        expect(scope(0, mocks.streamAssistantMessage)).toEqual({ workspaceId: OTHER_WORKSPACE_ID, initialCollectionIds: [TEST_COLLECTION_ID] })
+    })
+
     it('opens on a conversation handed over from the assistant page and drops the hand-off from the URL', async () => {
         navigation.currentHash = '#/world?card=x-1&assistant=3'
         mocks.listAssistantConversations.mockResolvedValue({ conversations: [CONVO, OTHER] })
@@ -296,6 +324,19 @@ describe('AssistantChatbot (card)', () => {
         await waitFor(() => expect(mocks.deleteAssistantConversation).toHaveBeenCalledWith('card', 3, expect.any(Object)))
     })
 
+    it('lists past conversations without a delete control while read-only', async () => {
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [CONVO, OTHER] })
+        render(<AssistantChatbot {...cardProps()} readOnly />)
+
+        openPanel()
+        await waitFor(() => expect(mocks.getAssistantConversation).toHaveBeenCalled())
+
+        fireEvent.click(screen.getByRole('button', { name: /conversations/i }))
+        expect(screen.getByRole('menuitem', { name: /beta/i })).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /delete beta/i })).not.toBeInTheDocument()
+        expect(mocks.deleteAssistantConversation).not.toHaveBeenCalled()
+    })
+
     it('stages a switched conversation card behind an explicit Apply', async () => {
         const onTarget = vi.fn()
         const snapshot = { id: 'world-9', name: 'Older Glass' }
@@ -318,7 +359,7 @@ describe('AssistantChatbot (card)', () => {
         expect(onTarget).not.toHaveBeenCalled()
 
         fireEvent.click(screen.getByRole('button', { name: /apply to form/i }))
-        await waitFor(() => expect(onTarget).toHaveBeenCalledWith(snapshot))
+        await waitFor(() => expect(onTarget).toHaveBeenCalledWith(snapshot, { organizationWarnings: [] }))
     })
 
     it('surfaces stream failures with a Retry that re-sends the message', async () => {
@@ -390,7 +431,7 @@ describe('AssistantChatbot (lorebook)', () => {
 
         sendMessage('Add a guild', /ask for a lorebook change/i)
 
-        await waitFor(() => expect(onTarget).toHaveBeenCalledWith(saved))
+        await waitFor(() => expect(onTarget).toHaveBeenCalledWith(saved, { organizationWarnings: [] }))
         expect(mocks.createAssistantConversation).toHaveBeenCalledWith({ kind: 'lorebook', title: 'Saltmarsh lore' }, expect.any(Object))
         expect(mocks.streamAssistantMessage.mock.calls[0][1]).toMatchObject({ kind: 'lorebook', message: 'Add a guild', current: { name: 'Saltmarsh lore' } })
         expect(screen.getByText('Lorebook saved')).toBeInTheDocument()

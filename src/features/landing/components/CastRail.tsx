@@ -23,7 +23,7 @@ export interface CastRailProps {
     /** Start a voice call. Only provided when voice mode is enabled. */
     onCall?: (character: Character) => void
     onEdit: (character: Character) => void
-    onDelete: (character: Character) => Promise<void> | void
+    onDelete?: (character: Character) => Promise<void> | void
     onViewAll: () => void
 }
 
@@ -35,7 +35,7 @@ export function CastRail({ cast, onChat, onCall, onEdit, onDelete, onViewAll }: 
     const confirmDelete = async () => {
         const target = pending
         setPending(null)
-        if (!target) return
+        if (!target || !onDelete) return
         setDeletingId(target.id)
         try {
             await onDelete(target)
@@ -75,13 +75,14 @@ export function CastRail({ cast, onChat, onCall, onEdit, onDelete, onViewAll }: 
                             label: t('gallery.edit'),
                             onClick: () => onEdit(character),
                         },
-                        {
-                            type: 'custom',
+                        // Omitted (no onDelete) while the workspace is archived and read-only.
+                        ...(onDelete ? [{
+                            type: 'custom' as const,
                             icon: <Icon icon={Trash2} size={15} />,
                             label: t('gallery.delete'),
                             onClick: () => setPending(character),
                             danger: true,
-                        },
+                        }] : []),
                     ]
                     return (
                         <GalleryCard

@@ -1,11 +1,11 @@
 /**
  * useUnsavedChangesGuard — blocks accidental loss of in-progress edits.
  *
- * While `when` is true it (a) intercepts in-app navigation (sidebar links,
- * back affordances) through NavigationProvider and (b) arms a `beforeunload`
- * warning for tab close/reload. Browser back/forward over the hash history is
- * NOT intercepted — guarding popstate would need history re-push gymnastics in
- * the hand-rolled router; the two hooks above cover the dominant paths.
+ * While `when` is true it (a) intercepts navigation through NavigationProvider
+ * (sidebar links, back affordances, browser back/forward and workspace
+ * switches — the provider restores the URL while the dialog is open) and
+ * (b) arms a `beforeunload` warning for tab close/reload. Cancelling the
+ * dialog tells the provider, so a waiting workspace switch settles.
  *
  * The caller renders one ConfirmDialog from `dialogProps` and routes its own
  * leave-affordances (back button, Escape) through `confirm(action)` so every
@@ -36,6 +36,8 @@ export function useUnsavedChangesGuard({ when }: { when: boolean }): UnsavedChan
     const { registerNavigationInterceptor } = useNavigation()
     // The navigation (or caller action) waiting on the user's decision.
     const pendingActionRef = useRef<(() => void) | null>(null)
+    // The intercepted navigation's cancel callback (null for a caller action).
+    const pendingCancelRef = useRef<(() => void) | null>(null)
     const [dialogVisible, setDialogVisible] = useState(false)
     // True while a confirmed action runs: its own navigation must pass through
     // the interceptor untouched instead of reopening the dialog.
@@ -47,9 +49,11 @@ export function useUnsavedChangesGuard({ when }: { when: boolean }): UnsavedChan
 
     useEffect(() => {
         if (!when) return
-        return registerNavigationInterceptor((proceed) => {
+        return registerNavigationInterceptor((proceed, cancel) => {
             if (bypassRef.current) return false
+            pendingCancelRef.current?.()
             pendingActionRef.current = proceed
+            pendingCancelRef.current = cancel ?? null
             setDialogVisible(true)
             return true
         })
@@ -70,6 +74,8 @@ export function useUnsavedChangesGuard({ when }: { when: boolean }): UnsavedChan
             action()
             return
         }
+        pendingCancelRef.current?.()
+        pendingCancelRef.current = null
         pendingActionRef.current = action
         setDialogVisible(true)
     }, [])
@@ -77,6 +83,7 @@ export function useUnsavedChangesGuard({ when }: { when: boolean }): UnsavedChan
     const onConfirm = useCallback(() => {
         const action = pendingActionRef.current
         pendingActionRef.current = null
+        pendingCancelRef.current = null
         // Hide the dialog before running: the action usually navigates and
         // unmounts the caller.
         setDialogVisible(false)
@@ -89,8 +96,11 @@ export function useUnsavedChangesGuard({ when }: { when: boolean }): UnsavedChan
     }, [])
 
     const onCancel = useCallback(() => {
+        const cancel = pendingCancelRef.current
         pendingActionRef.current = null
+        pendingCancelRef.current = null
         setDialogVisible(false)
+        cancel?.()
     }, [])
 
     const skip = useCallback((action: () => void) => {

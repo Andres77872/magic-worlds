@@ -7,6 +7,7 @@ import type {
     ThemeSongLyricsPublic,
 } from './media.types'
 import type { ChatImageAsset, ChatTtsAsset } from './interaction.types'
+import type { RootOrganization } from './workspace.types'
 
 export type BackgroundTaskOperation = 'theme_song' | 'pdf_import' | 'lorebook_extraction' | 'image_generation' | 'text_to_speech'
 export type BackgroundTaskState = 'active' | 'terminal' | 'all'
@@ -39,6 +40,8 @@ export interface BackgroundTaskPublic {
     cancel_url?: string | null
     result?: BackgroundTaskResult | null
     error?: ThemeSongErrorPublic | null
+    /** Workspace R1: the job's durable origin (server-owned). */
+    organization?: RootOrganization
     created_at: string
     updated_at: string
 }

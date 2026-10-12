@@ -134,6 +134,9 @@ describe('Sidebar API status', () => {
         vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
         vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
         vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
+        // These cases cover the pre-Workspace navigation; a local .env may turn the flag on
+        // (the workspace navigation is covered by Sidebar.workspace.test.tsx).
+        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
         window.localStorage.removeItem('magic-worlds-sidebar-collapsed')
         window.localStorage.removeItem('magic-worlds-sidebar-groups')
     })

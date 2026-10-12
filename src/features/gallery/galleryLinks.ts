@@ -1,5 +1,7 @@
 import type { PageType } from '@/shared'
+import type { ContentResolveQuery, WorkspaceCardType } from '@/shared/types'
 import { readAuthDeepLinkToken, type AuthDeepLinkKind } from '@/app/bootstrap/authDeepLink'
+import { isWorkspaceUuid } from '@/infrastructure/api/workspaceContract'
 import type { GalleryType } from './galleryConfig'
 
 const TYPE_TO_SEGMENT: Record<GalleryType, string> = {
@@ -28,6 +30,7 @@ const TYPE_TO_PAGE: Record<GalleryType, PageType> = {
 
 const PAGE_TO_HASH: Record<PageType, string> = {
     landing: '#/',
+    library: '#/library',
     character: '#/character',
     world: '#/world',
     item: '#/item',
@@ -289,4 +292,112 @@ export function parseAuthToken(
     const withoutHash = hash.startsWith('#') ? hash.slice(1) : hash
     const [, query = ''] = withoutHash.split('?')
     return new URLSearchParams(query).get('token') || null
+}
+
+// --- Workspace R1 hashes (document 08 "Selected URL and browser-history algorithm") ---
+// Private content routes carry `workspace=<uuid>` (first query param) when the
+// workspace UI is enabled, e.g. `#/character?workspace=<uuid>&card=<id>`. Global
+// auth/profile/billing/admin/community/share routes keep their hashes.
+
+function splitAppHash(hash: string): { path: string; params: URLSearchParams } {
+    const withoutHash = hash.startsWith('#') ? hash.slice(1) : hash
+    const queryIndex = withoutHash.indexOf('?')
+    return {
+        path: queryIndex === -1 ? withoutHash : withoutHash.slice(0, queryIndex),
+        params: new URLSearchParams(queryIndex === -1 ? '' : withoutHash.slice(queryIndex + 1)),
+    }
+}
+
+function joinAppHash(path: string, params: URLSearchParams): string {
+    const query = params.toString()
+    return `#${path || '/'}${query ? `?${query}` : ''}`
+}
+
+/** The `workspace` param of an app hash when it is a workspace UUID, else null. */
+export function readHashWorkspace(hash: string = typeof window === 'undefined' ? '' : window.location.hash): string | null {
+    const value = splitAppHash(hash).params.get('workspace')
+    return isWorkspaceUuid(value) ? value : null
+}
+
+/** The hash with `workspace=<id>` as its first param (replacing any previous one). */
+export function withHashWorkspace(hash: string, workspaceId: string): string {
+    const { path, params } = splitAppHash(hash || '#/')
+    const next = new URLSearchParams({ workspace: workspaceId })
+    params.forEach((value, key) => {
+        if (key !== 'workspace') next.append(key, value)
+    })
+    return joinAppHash(path, next)
+}
+
+/** An owned type-gallery hash the Library replaces (flag on); public/group-chat views stay galleries. */
+export interface LegacyGalleryTarget {
+    typeFilter: GalleryType
+    cardId: string | null
+}
+
+export function legacyGalleryTarget(hash: string): LegacyGalleryTarget | null {
+    const target = parseGalleryHash(hash)
+    if (!target || target.view === 'public' || target.mode === 'group-chat') return null
+    return { typeFilter: target.type, cardId: target.cardId ?? null }
+}
+
+/**
+ * The owned record a legacy content link names, for `resolve-content` before
+ * loading (never resolved under the active workspace just because the URL
+ * lacks the parameter). `null` when the hash names no stored record.
+ */
+export function legacyContentRef(page: PageType, hash: string): ContentResolveQuery | null {
+    const { params } = splitAppHash(hash)
+    const card = params.get('card')
+    switch (page) {
+        case 'character':
+        case 'world':
+        case 'item':
+            return card ? { kind: 'card', id: card, card_type: page } : null
+        case 'adventure':
+            return card ? { kind: 'card', id: card, card_type: 'adventure_template' } : null
+        case 'lorebook': {
+            const id = params.get('lorebook')
+            return id ? { kind: 'lorebook', id } : null
+        }
+        case 'story': {
+            const id = params.get('story')
+            return id ? { kind: 'story', id } : null
+        }
+        case 'gallery-resources': {
+            const id = params.get('resource')
+            return id && id !== 'new' ? { kind: 'resource', id } : null
+        }
+        case 'gallery-characters':
+        case 'gallery-personas':
+        case 'gallery-worlds':
+        case 'gallery-items':
+        case 'gallery-adventures': {
+            const target = parseGalleryHash(hash)
+            if (!target?.cardId || target.view === 'public') return null
+            return { kind: 'card', id: target.cardId, card_type: backendCardType(target.type) }
+        }
+        default:
+            return null
+    }
+}
+
+function backendCardType(type: GalleryType): WorkspaceCardType {
+    if (type === 'adventure') return 'adventure_template'
+    if (type === 'persona') return 'character'
+    return type
+}
+
+// --- Creator role hint -----------------------------------------------------------------
+// The Library's New › Persona opens the existing character creator preset to the
+// persona role: `#/character?role=persona`. It only seeds a new card's role.
+
+export function buildPersonaCreatorHash(): string {
+    return `${pageHash('character')}?${new URLSearchParams({ role: 'persona' }).toString()}`
+}
+
+/** True when a new-character hash asks for the persona role. */
+export function isPersonaCreatorHash(hash: string = typeof window === 'undefined' ? '' : window.location.hash): boolean {
+    const { path, params } = splitAppHash(hash)
+    return path === '/character' && !params.get('card') && params.get('role') === 'persona'
 }

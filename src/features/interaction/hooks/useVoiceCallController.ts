@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { apiService } from '@/infrastructure/api'
 import { makeRequestId } from '@/utils/uuid'
+import { registerActiveVoiceCall } from '@/features/call/activeVoiceCall'
 import { voiceErrorCode } from '@/infrastructure/api/voiceSocket'
 import type {
     VoiceCallLimits,
@@ -17,6 +17,7 @@ import type { CapturedVoiceSegment } from '../audio/voiceVadWorklet'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { type MicrophoneCaptureApi, type MicrophoneCaptureStatus, type VoiceVadTuning, useMicrophoneCapture } from './useMicrophoneCapture'
 import { type VoiceCallSocketApi, useVoiceCallSocket } from './useVoiceCallSocket'
+import { useSessionWorkspace } from './useSessionWorkspace'
 import type { VoiceSocketStatus } from '@/infrastructure/api'
 
 type VoiceStartFrame = Extract<VoiceSocketClientFrame, { type: 'voice_start' }>
@@ -44,6 +45,12 @@ export interface VoiceCallControllerError {
 
 export interface UseVoiceCallControllerOptions {
     sessionId: number | null
+    /**
+     * Workspace R1: the chat's own workspace (`chat.organization.workspace_id`);
+     * omitted, the workspace committed when the call screen opened. Consent,
+     * segments, the socket and the end request all stay in it.
+     */
+    workspaceId?: string | null
     /** Create a draft chat after consent and successful microphone access. */
     ensureSession?: () => Promise<number>
     authKey?: string | null
@@ -133,6 +140,9 @@ const TERMINAL_ERROR_CATEGORIES = new Set<VoiceErrorCategory>([
 /** Rejection reasons that just mean "nothing intelligible was said" — never shown. */
 const SILENT_REJECTIONS = new Set(['no_speech', 'too_short'])
 
+/** Lifecycles in which the call holds (or may soon hold) a server call and its quota. */
+const REGISTERED_LIFECYCLES = new Set<string>(['requesting_permission', 'connecting', 'live', 'ending'])
+
 type CallLifecycle =
     | 'disabled'
     | 'idle'
@@ -199,6 +209,18 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     useEffect(() => { optionsRef.current = options })
     const featureEnabled = options.enabled ?? isFrontendVoiceModeEnabled()
     const mountedRef = useRef(true)
+    // Workspace R1: every request of this call rides the chat's own workspace.
+    const callWorkspace = useSessionWorkspace(options.workspaceId)
+    const apiRef = useRef(callWorkspace.api)
+    const workspaceIdRef = useRef(callWorkspace.workspaceId)
+    useEffect(() => {
+        apiRef.current = callWorkspace.api
+        workspaceIdRef.current = callWorkspace.workspaceId
+    }, [callWorkspace.api, callWorkspace.workspaceId])
+    /** An end the server has not acknowledged yet (keeps the call registered for a retry). */
+    const pendingEndRef = useRef<{ sessionId: number; voiceSessionId: string } | null>(null)
+    const registrationRef = useRef<(() => void) | null>(null)
+    const endForSwitchRef = useRef<() => Promise<void>>(async () => undefined)
 
     const lifecycleRef = useRef<CallLifecycle>(featureEnabled ? 'idle' : 'disabled')
     const turnPhaseRef = useRef<TurnPhase>('none')
@@ -272,11 +294,26 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         if (mountedRef.current) setState(next)
     }, [])
 
+    /** Keep the tab's active-call registration in step with the lifecycle (see `activeVoiceCall`). */
+    const syncCallRegistration = useCallback(() => {
+        const holdsCall = REGISTERED_LIFECYCLES.has(lifecycleRef.current) || pendingEndRef.current !== null
+        if (holdsCall && !registrationRef.current && mountedRef.current) {
+            registrationRef.current = registerActiveVoiceCall({
+                workspaceId: workspaceIdRef.current,
+                end: () => endForSwitchRef.current(),
+            })
+        } else if (!holdsCall && registrationRef.current) {
+            registrationRef.current()
+            registrationRef.current = null
+        }
+    }, [])
+
     const setLifecycle = useCallback((next: CallLifecycle) => {
         lifecycleRef.current = next
         if (mountedRef.current) setLifecycleState(next)
         recompute()
-    }, [recompute])
+        syncCallRegistration()
+    }, [recompute, syncCallRegistration])
 
     const setTurnPhase = useCallback((next: TurnPhase) => {
         turnPhaseRef.current = next
@@ -478,9 +515,11 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         }
 
         try {
+            const api = apiRef.current
+            if (!api) throw new Error('Voice call workspace is unavailable.')
             let response: VoiceSegmentUploadResponse
             try {
-                response = await apiService.uploadVoiceSegment(currentSessionId, body, { signal: controller.signal })
+                response = await api.uploadVoiceSegment(currentSessionId, body, { signal: controller.signal })
             } catch (networkError) {
                 // fetch rejects with a TypeError when no response arrived (a dropped or
                 // stale connection). One resend is safe: the Idempotency-Key makes a
@@ -488,7 +527,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
                 if (!(networkError instanceof TypeError) || controller.signal.aborted) throw networkError
                 await delay(UPLOAD_RETRY_DELAY_MS)
                 if (controller.signal.aborted || lifecycleRef.current !== 'live') throw networkError
-                response = await apiService.uploadVoiceSegment(currentSessionId, body, { signal: controller.signal })
+                response = await api.uploadVoiceSegment(currentSessionId, body, { signal: controller.signal })
             }
             // `cancelled` means a newer utterance superseded this one (its words
             // were merged into that turn); `accepted`/`duplicate` turns are driven
@@ -756,7 +795,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         onCancelled: handleCancelled,
         onError: handleSocketError,
         onEnded: handleEnded,
-    }, options.authKey)
+    }, options.authKey, undefined, callWorkspace.workspaceId)
 
     const handleLevel = useCallback((level: number) => {
         const last = lastLevelRef.current
@@ -821,8 +860,15 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         // Request browser microphone access immediately after the explicit consent
         // click. Do not put a network round-trip between the user gesture and
         // getUserMedia; backend consent is still saved before voice_start/segments.
+        // A new call supersedes any earlier one server-side.
+        pendingEndRef.current = null
         setLifecycle('requesting_permission')
         const captureStarted = await captureRef.current?.start()
+        // Ended (or switched away) while the permission prompt was open.
+        if (lifecycleRef.current !== 'requesting_permission') {
+            captureRef.current?.stop()
+            return false
+        }
         if (!captureStarted) {
             const category = captureRef.current?.status === 'permission_denied'
                 ? 'permission_denied'
@@ -835,14 +881,16 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
 
         let currentSessionId = sessionId
         try {
+            const api = apiRef.current
+            if (!api) throw new Error('Voice call workspace is unavailable.')
             if (currentSessionId === null) {
                 currentSessionId = await options.ensureSession!()
                 if (!mountedRef.current) { stopLocalResources({ closeSocket: true }); return false }
                 sessionIdRef.current = currentSessionId
                 setCreatedSessionId(currentSessionId)
             }
-            const consent = await apiService.saveVoiceConsent(currentSessionId)
-            if (!mountedRef.current) { stopLocalResources({ closeSocket: true }); return false }
+            const consent = await api.saveVoiceConsent(currentSessionId)
+            if (!mountedRef.current || lifecycleRef.current !== 'requesting_permission') { stopLocalResources({ closeSocket: true }); return false }
             setLimits(consent.limits)
             applySegmentLimit(consent.limits)
         } catch (consentError) {
@@ -874,27 +922,68 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         return true
     }, [applySegmentLimit, clearReadyTimeout, featureEnabled, mapError, options.authKey, options.clientCallId, options.consentGranted, options.ensureSession, sessionId, setControllerError, setLifecycle, stopLocalResources])
 
-    const endCall = useCallback(async () => {
-        if (lifecycleRef.current === 'ended' || lifecycleRef.current === 'ending') return
+    /** Local teardown of a call the user (or a workspace switch) ends; false when it already ended. */
+    const teardownForEnd = useCallback((): boolean => {
+        if (lifecycleRef.current === 'ended' || lifecycleRef.current === 'ending') return false
         setLifecycle('ending')
         const currentSessionId = sessionIdRef.current
         const currentVoiceSessionId = voiceSessionIdRef.current
+        if (currentSessionId !== null && currentVoiceSessionId) {
+            pendingEndRef.current = { sessionId: currentSessionId, voiceSessionId: currentVoiceSessionId }
+        }
         socketRef.current?.end()
         stopLocalResources({ closeSocket: true })
         voiceSessionIdRef.current = null
         activeTurnIdRef.current = null
-        setVoiceSessionId(null)
-        setActiveTurnId(null)
-        if (currentSessionId !== null && currentVoiceSessionId) {
-            try {
-                await apiService.endVoiceCall(currentSessionId, { voiceSessionId: currentVoiceSessionId, reason: 'user' }, { keepalive: true })
-            } catch {
-                // Local teardown is mandatory even if the backend escape hatch fails.
-            }
+        if (mountedRef.current) {
+            setVoiceSessionId(null)
+            setActiveTurnId(null)
+        }
+        return true
+    }, [setLifecycle, stopLocalResources])
+
+    /** Confirm a pending end with the server (`ended` / `not_found` both mean the quota is released). */
+    const acknowledgeEnd = useCallback(async () => {
+        const pending = pendingEndRef.current
+        if (pending) {
+            const api = apiRef.current
+            if (!api) throw new Error('Voice call workspace is unavailable.')
+            await api.endVoiceCall(pending.sessionId, { voiceSessionId: pending.voiceSessionId, reason: 'user' }, { keepalive: true })
+            if (pendingEndRef.current === pending) pendingEndRef.current = null
+        }
+        syncCallRegistration()
+    }, [syncCallRegistration])
+
+    const endCall = useCallback(async () => {
+        if (!teardownForEnd()) return
+        try {
+            await acknowledgeEnd()
+        } catch {
+            // Local teardown is mandatory even if the backend escape hatch fails; the
+            // unconfirmed end stays registered so a workspace switch retries it.
         }
         if (mountedRef.current) setEndReason('user')
         setLifecycle('ended')
-    }, [setLifecycle, stopLocalResources])
+    }, [acknowledgeEnd, setLifecycle, teardownForEnd])
+
+    // The switch coordinator's end (`endActiveVoiceCall`): it must hear about a failed
+    // acknowledgement, so unlike the End button it rethrows; calling it again retries.
+    useEffect(() => {
+        endForSwitchRef.current = async () => {
+            if (teardownForEnd()) {
+                if (mountedRef.current) setEndReason('user')
+                setLifecycle('ended')
+            }
+            await acknowledgeEnd()
+        }
+    }, [acknowledgeEnd, setLifecycle, teardownForEnd])
+
+    // A committed switch away from the call's workspace closes its socket; end the call
+    // too (normally the coordinator already did, before committing).
+    useEffect(() => {
+        if (callWorkspace.active || !REGISTERED_LIFECYCLES.has(lifecycleRef.current)) return
+        void endForSwitchRef.current().catch(() => undefined)
+    }, [callWorkspace.active])
 
     const bargeIn = useCallback((): boolean => {
         if (lifecycleRef.current !== 'live') return false
@@ -932,7 +1021,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             const currentVoiceSessionId = voiceSessionIdRef.current
             if (currentSessionId === null || !currentVoiceSessionId) return
             socketRef.current?.end()
-            void apiService.endVoiceCall(currentSessionId, { voiceSessionId: currentVoiceSessionId, reason: 'user' }, { keepalive: true }).catch(() => undefined)
+            void apiRef.current?.endVoiceCall(currentSessionId, { voiceSessionId: currentVoiceSessionId, reason: 'user' }, { keepalive: true }).catch(() => undefined)
             voiceSessionIdRef.current = null
         }
         document.addEventListener('visibilitychange', onVisibilityChange)
@@ -952,8 +1041,10 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             stopLocalResources({ closeSocket: true })
             if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
             if (currentSessionId !== null && currentVoiceSessionId) {
-                void apiService.endVoiceCall(currentSessionId, { voiceSessionId: currentVoiceSessionId, reason: 'user' }, { keepalive: true }).catch(() => undefined)
+                void apiRef.current?.endVoiceCall(currentSessionId, { voiceSessionId: currentVoiceSessionId, reason: 'user' }, { keepalive: true }).catch(() => undefined)
             }
+            registrationRef.current?.()
+            registrationRef.current = null
         }
     }, [stopLocalResources])
 

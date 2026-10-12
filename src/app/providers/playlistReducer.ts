@@ -53,6 +53,8 @@ function mergeTrackMetadata(existing: PlaylistTrack, incoming: PlaylistTrack): P
         cardId: incoming.cardId ?? existing.cardId,
         artworkUrl: incoming.artworkUrl ?? existing.artworkUrl,
         durationMs: incoming.durationMs ?? existing.durationMs,
+        // A queued song keeps the workspace it was first added from.
+        workspaceId: existing.workspaceId ?? incoming.workspaceId,
     }
     return Object.keys(merged).every(
         (key) => merged[key as keyof PlaylistTrack] === existing[key as keyof PlaylistTrack],

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Play, Sparkles } from 'lucide-react'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { LoreActivationPreviewResponse, Lorebook } from '@/shared'
 import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import { Badge, Button, Callout, Field, Icon, Textarea } from '@/ui/primitives'
 import { lorebookResourceStats, lorebookResourcesFromMetadata, withoutLorebookResourceMetadata } from '../lorebookResources'
 import { previewLocally } from '../lorebookTransforms'
@@ -11,10 +12,14 @@ import { previewLocally } from '../lorebookTransforms'
 interface ActivationPreviewPanelProps {
     lorebook: Lorebook
     saved: boolean
+    /** The book's workspace (the preview runs there); defaults to the committed one. */
+    workspaceId?: string | null
 }
 
-export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPreviewPanelProps) {
+export function ActivationPreviewPanel({ lorebook, saved: _saved, workspaceId }: ActivationPreviewPanelProps) {
     const { t } = useTranslation()
+    const api = useScopedApi(workspaceId)
+    const { capture, isCurrent } = useWorkspace()
     const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
     const previewLorebook = useMemo(() => (
         resourceFeaturesEnabled ? lorebook : withoutLorebookResourceMetadata(lorebook)
@@ -36,18 +41,22 @@ export function ActivationPreviewPanel({ lorebook, saved: _saved }: ActivationPr
     }, [previewLorebook, sample, source])
 
     const runPreview = async () => {
+        if (!api) return
+        const scope = capture()
         setLoading(true)
         setError(null)
         try {
-            const result = await apiService.previewLoreActivation({
+            const result = await api.previewLoreActivation({
                 targetKind: 'global',
                 messages: [{ role: 'user', content: sample }],
                 includePromptPreview: true,
                 overrides: { lorebooks: [previewLorebook] },
             })
+            if (!isCurrent(scope)) return
             setPreview(result)
             setSource('backend')
         } catch (e) {
+            if (!isCurrent(scope)) return
             setPreview(previewLocally(previewLorebook, sample))
             setSource('local')
             setError(e instanceof Error ? e.message : t('lorebookStudio.activationPreview.backendUnavailable'))

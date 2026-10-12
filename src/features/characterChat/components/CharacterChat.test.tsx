@@ -1,8 +1,17 @@
-import type { ReactNode } from 'react'
-import { render, screen } from '@testing-library/react'
+import type { ReactElement, ReactNode } from 'react'
+import { render as baseRender, screen, type RenderOptions } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CharacterChatSession } from '@/shared'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { CharacterChat } from './CharacterChat'
+
+const render = (ui: ReactElement, options?: RenderOptions) =>
+    baseRender(<WorkspaceTestProvider state={createWorkspaceTestState()}>{ui}</WorkspaceTestProvider>, options)
 
 const setPage = vi.fn()
 const goBack = vi.fn()
@@ -33,11 +42,12 @@ vi.mock('../../../app/hooks', () => ({
 
 vi.mock('../../interaction/components', () => ({
     InteractionCenterPanel: ({ config, speakerRoster }: {
-        config: { kind: string; showForwardOptions: boolean; showImages: boolean }
+        config: { kind: string; showForwardOptions: boolean; showImages: boolean; workspaceId: string }
         speakerRoster?: { speaker_id: string }[]
     }) => (
         <div>
             <div data-testid="center-kind">{config.kind}</div>
+            <div data-testid="center-workspace">{config.workspaceId}</div>
             <div data-testid="center-forward-options">{String(config.showForwardOptions)}</div>
             <div data-testid="center-images">{String(config.showImages)}</div>
             <div data-testid="center-roster">{(speakerRoster ?? []).map((entry) => entry.speaker_id).join(',')}</div>
@@ -49,9 +59,10 @@ vi.mock('../../interaction/components', () => ({
 
 // Voice mode renders the immersive CallScreen (its own surface), not the text engine.
 vi.mock('../../call', () => ({
-    CallScreen: ({ sessionId, onSwitchToText }: { sessionId: number; onSwitchToText: () => void }) => (
+    CallScreen: ({ sessionId, workspaceId, onSwitchToText }: { sessionId: number; workspaceId?: string | null; onSwitchToText: () => void }) => (
         <div data-testid="call-screen">
             <div data-testid="call-session">{String(sessionId)}</div>
+            <div data-testid="call-workspace">{String(workspaceId)}</div>
             <button type="button" onClick={onSwitchToText}>Switch to text</button>
         </div>
     ),
@@ -132,5 +143,21 @@ describe('CharacterChat voice mode wiring', () => {
 
         expect(screen.getByTestId('center-kind')).toHaveTextContent('character')
         expect(screen.queryByTestId('call-screen')).not.toBeInTheDocument()
+    })
+
+    it('runs the chat in the committed workspace when the server sent no origin', () => {
+        render(<CharacterChat />)
+        expect(screen.getByTestId('center-workspace')).toHaveTextContent(TEST_WORKSPACE_ID)
+    })
+
+    it('runs the chat and its call in the chat workspace (organization.workspace_id)', () => {
+        activeCharacterChat = { ...CHAT, organization: { workspace_id: OTHER_WORKSPACE_ID } }
+        render(<CharacterChat />)
+        expect(screen.getByTestId('center-workspace')).toHaveTextContent(OTHER_WORKSPACE_ID)
+
+        activeCharacterChatMode = 'voice'
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        render(<CharacterChat />)
+        expect(screen.getByTestId('call-workspace')).toHaveTextContent(OTHER_WORKSPACE_ID)
     })
 })

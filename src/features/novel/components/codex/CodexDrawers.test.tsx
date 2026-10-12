@@ -1,6 +1,12 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiService } from '@/infrastructure/api'
+import {
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+    createWorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import type { CodexEntry } from '../../hooks/useCodex'
 import { CodexEntryDrawer } from './CodexEntryDrawer'
 import { CodexLorebookPickerDrawer } from './CodexLorebookPickerDrawer'
@@ -21,8 +27,35 @@ describe('Codex drawer recovery', () => {
 
     it('distinguishes a lorebook loading failure from an empty search', async () => {
         vi.spyOn(apiService, 'getLorebooks').mockRejectedValue(new Error('Could not load your lorebooks.'))
-        render(<CodexLorebookPickerDrawer open busy={false} existingEntryIds={new Set()} onClose={vi.fn()} onClone={async () => {}} />)
+        const workspace = createWorkspaceTestState({ api: apiService })
+        render(
+            <WorkspaceTestProvider state={workspace}>
+                <CodexLorebookPickerDrawer open busy={false} existingEntryIds={new Set()} onClose={vi.fn()} onClone={async () => {}} />
+            </WorkspaceTestProvider>,
+        )
         expect(await screen.findByRole('alert')).toHaveTextContent('Could not load your lorebooks.')
         expect(screen.queryByText('No matching lorebooks')).not.toBeInTheDocument()
+    })
+
+    it("lists the story's workspace and closes on a committed workspace switch", async () => {
+        const getLorebooks = vi.spyOn(apiService, 'getLorebooks').mockResolvedValue([
+            { id: 'lb-1', name: 'Twin Courts', description: null, entries: [] },
+        ])
+        const workspace = createWorkspaceTestState({ api: apiService })
+        const onClose = vi.fn()
+        const drawer = (
+            <CodexLorebookPickerDrawer open workspaceId={TEST_WORKSPACE_ID} busy={false} existingEntryIds={new Set()} onClose={onClose} onClone={async () => {}} />
+        )
+        const { rerender } = render(<WorkspaceTestProvider state={workspace}>{drawer}</WorkspaceTestProvider>)
+
+        expect(await screen.findByTestId('codex-lorebook-option')).toHaveTextContent('Twin Courts')
+        const client = getLorebooks.mock.contexts[0] as { workspaceScope: { workspaceId: string } | null }
+        expect(client.workspaceScope?.workspaceId).toBe(TEST_WORKSPACE_ID)
+
+        workspace.switchTo(OTHER_WORKSPACE_ID)
+        rerender(<WorkspaceTestProvider state={workspace}>{drawer}</WorkspaceTestProvider>)
+
+        await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+        expect(screen.queryByTestId('codex-lorebook-option')).not.toBeInTheDocument()
     })
 })

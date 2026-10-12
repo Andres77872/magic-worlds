@@ -1,8 +1,17 @@
 import { llmProfilesEn } from './llmProfiles'
 import { imageProfilesEn } from './imageProfiles'
+import { workspacesEn } from './workspaces'
+import { libraryEn, workspaceUiEn } from './library'
+import { workspaceActivityEn } from './workspaceActivity'
+import { workspaceContentEn } from './workspaceContent'
 export const en = {
+    workspaceContent: workspaceContentEn,
     llmProfiles: llmProfilesEn,
     imageProfiles: imageProfilesEn,
+    workspaces: workspacesEn,
+    library: libraryEn,
+    workspaceUi: workspaceUiEn,
+    workspaceActivity: workspaceActivityEn,
     imageGeneration: {
         stages: {
             starting: 'Starting image generation…',

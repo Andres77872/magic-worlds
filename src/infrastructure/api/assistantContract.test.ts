@@ -38,6 +38,21 @@ beforeEach(() => {
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
+describe('assistant turn organization (Workspace R1)', () => {
+    const collectionId = '00000000-0000-4000-8000-0000000000c1'
+
+    it('accepts card organization_warnings and rejects malformed or non-card warnings', () => {
+        const card = { ...turn('card'), organization_warnings: [] as unknown[] }
+        expect(verifyAssistantTurn(card, 'card', 2, requestId)).toBe(true)
+        card.organization_warnings = [{ code: 'COLLECTION_REMOVED', collection_id: collectionId }]
+        expect(verifyAssistantTurn(card, 'card', 2, requestId)).toBe(true)
+        card.organization_warnings = [{ code: 'COLLECTION_REMOVED', collection_id: collectionId, name: 'x' }]
+        expect(verifyAssistantTurn(card, 'card', 2, requestId)).toBe(false)
+        expect(verifyAssistantTurn({ ...turn('lorebook'), organization_warnings: [] }, 'lorebook', 2, requestId)).toBe(false)
+        expect(verifyAssistantTurn({ ...turn('app'), organization_warnings: [] }, 'app', 2, requestId)).toBe(false)
+    })
+})
+
 describe.each(KINDS)('%s assistant turn contract', (kind) => {
     const document = kind !== 'app'
     const terminalCount = document ? 3 : 2

@@ -5,14 +5,17 @@
  * inline-expandable task rows and the attached-card modal, so both hosts stay
  * visually and behaviourally identical.
  */
-import { useMemo, useState } from 'react'
-import { AlertCircle, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Clock3, FileAudio, Loader2, ListTodo, Music2, RefreshCw, Trash2, XCircle } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { AlertCircle, ArrowUpRight, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Clock3, FileAudio, ListTodo, Loader2, Music2, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { useBackgroundTasks, useData, useNavigation } from '@/app/hooks'
-import { buildResourceHash, buildLinkedEditorHash } from '@/features/gallery/galleryLinks'
+import { useBackgroundTasks, useData } from '@/app/hooks'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { apiService, resolveMediaUrl } from '@/infrastructure/api'
-import type { Adventure, BackgroundTaskBuckets, BackgroundTaskPublic, CardMediaTargetType, Character, Item, World } from '@/shared'
+import type { Adventure, BackgroundTaskBuckets, BackgroundTaskPublic, CardMediaTargetType, Character, Item, PageType, World } from '@/shared'
+import { buildCardEditHash, buildLinkedEditorHash, buildResourceHash } from '@/features/gallery/galleryLinks'
+import { useOriginNavigation } from '@/features/workspaces/originNavigation'
+import { WorkspaceOriginLabel } from '@/ui/components/WorkspaceOriginLabel'
 import { readWorldPlaceType, worldPlaceTypeLabel } from '@/shared'
 import { transformCharacters, transformItems, transformTemplates, transformWorlds } from '@/utils/cardTransforms'
 import { formatApiDateTime, formatRelativeTime } from '@/utils/time'
@@ -171,6 +174,31 @@ function toAdventurePreview(card: Adventure, targetId: string, t: TFunction): At
     }
 }
 
+/** The workspace a task was submitted in (null for a legacy task without one). */
+function taskOrigin(task: BackgroundTaskPublic): string | null {
+    return task.organization?.workspace_id ?? null
+}
+
+type CardTaskTarget = BackgroundTaskPublic['target'] & { type: CardMediaTargetType }
+
+/** Card targets (character/world/item/adventure) open the attached-card preview; the rest navigate or show nothing. */
+function isCardTarget(target: BackgroundTaskPublic['target']): target is CardTaskTarget {
+    return target.type !== 'resource' && target.type !== 'lorebook' && target.type !== 'media'
+}
+
+/** The editor that opens a task's card. */
+function cardEditorTarget(target: CardTaskTarget): { page: PageType; hash: string } {
+    if (target.type === 'adventure_template') return { page: 'adventure', hash: buildLinkedEditorHash('adventure', target.id) }
+    return { page: target.type, hash: buildCardEditHash(target.type, target.id) }
+}
+
+/** The page that shows a resource/lorebook task's saved result. */
+function nonCardTarget(target: BackgroundTaskPublic['target']): { page: PageType; hash: string } | null {
+    if (target.type === 'resource') return { page: 'gallery-resources', hash: buildResourceHash(target.id) }
+    if (target.type === 'lorebook') return { page: 'lorebook', hash: buildLinkedEditorHash('lorebook', target.id) }
+    return null
+}
+
 export function TasksPanel({ dense = false }: { dense?: boolean }) {
     const { t } = useTranslation()
     const {
@@ -180,9 +208,11 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
         clearTerminalTasks,
         terminalHasMore,
         loadMoreTerminalTasks,
+        closeDrawer,
     } = useBackgroundTasks()
-    const { setPage } = useNavigation()
     const { characters, worlds, items, templateAdventures } = useData()
+    const { selectedWorkspaceId, workspaceEpoch, capture, isCurrent } = useWorkspace()
+    const { navigateToOrigin } = useOriginNavigation()
     const [activeTab, setActiveTab] = useState<TaskTab>('active')
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [isClearing, setIsClearing] = useState(false)
@@ -193,6 +223,23 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
     const [selectedCard, setSelectedCard] = useState<AttachedCardPreview | null>(null)
     const [cardLoading, setCardLoading] = useState(false)
     const [cardError, setCardError] = useState<string | null>(null)
+    const [openCardError, setOpenCardError] = useState<string | null>(null)
+    const [isOpeningCard, setIsOpeningCard] = useState(false)
+    const [targetError, setTargetError] = useState<string | null>(null)
+    const cardRequestRef = useRef(0)
+    // A committed switch closes this panel's per-workspace views (the attached
+    // card was read for the previous selection).
+    const [panelEpoch, setPanelEpoch] = useState(workspaceEpoch)
+    if (panelEpoch !== workspaceEpoch) {
+        setPanelEpoch(workspaceEpoch)
+        setExpandedKey(null)
+        setSelectedTask(null)
+        setSelectedCard(null)
+        setCardError(null)
+        setCardLoading(false)
+        setOpenCardError(null)
+        setTargetError(null)
+    }
     const visibleTasks = tabTasks(taskBuckets, activeTab)
     const counts = useMemo(
         () => ({
@@ -203,8 +250,14 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
         [taskBuckets],
     )
 
+    /** The library lists hold the selected workspace only; another workspace's card is read there. */
+    const isLocalTask = (task: BackgroundTaskPublic): boolean => {
+        const origin = taskOrigin(task)
+        return origin === null || origin === selectedWorkspaceId
+    }
+
     const findLocalCard = (task: BackgroundTaskPublic): AttachedCardPreview | null => {
-        if (task.target.type === 'resource' || task.target.type === 'lorebook' || task.target.type === 'media') return null
+        if (!isCardTarget(task.target) || !isLocalTask(task)) return null
         if (task.target.type === 'character') {
             const card = characters.find((item) => item.id === task.target.id)
             return card ? toCharacterPreview(card, task.target.id, t) : null
@@ -224,50 +277,87 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
     const fetchAttachedCard = async (task: BackgroundTaskPublic): Promise<AttachedCardPreview | null> => {
         const local = findLocalCard(task)
         if (local) return local
+        // The card is read in the workspace the task belongs to.
+        const workspaceId = taskOrigin(task) ?? selectedWorkspaceId
+        if (!workspaceId) return null
+        const api = apiService.withWorkspace(workspaceId)
         if (task.target.type === 'character') {
-            const card = transformCharacters([await apiService.getCharacter(task.target.id)])[0]
+            const card = transformCharacters([await api.getCharacter(task.target.id)])[0]
             return card ? toCharacterPreview(card, task.target.id, t) : null
         }
         if (task.target.type === 'world') {
-            const card = transformWorlds([await apiService.getWorld(task.target.id)])[0]
+            const card = transformWorlds([await api.getWorld(task.target.id)])[0]
             return card ? toWorldPreview(card, task.target.id, t) : null
         }
         if (task.target.type === 'item') {
-            const card = transformItems([await apiService.getItem(task.target.id)])[0]
+            const card = transformItems([await api.getItem(task.target.id)])[0]
             return card ? toItemPreview(card, task.target.id, t) : null
         }
-        const card = transformTemplates([await apiService.getAdventureTemplate(task.target.id)])[0]
+        const card = transformTemplates([await api.getAdventureTemplate(task.target.id)])[0]
         return card ? toAdventurePreview(card, task.target.id, t) : null
     }
 
     const openAttachedCard = async (task: BackgroundTaskPublic) => {
         if (task.target.type === 'media') return
-        if (task.target.type === 'resource') {
-            setPage('gallery-resources', { hash: buildResourceHash(task.target.id) })
+        const pageTarget = nonCardTarget(task.target)
+        if (pageTarget) {
+            void openTaskPage(task, pageTarget)
             return
         }
-        if (task.target.type === 'lorebook') {
-            setPage('lorebook', { hash: buildLinkedEditorHash('lorebook', task.target.id) })
-            return
-        }
+        const request = cardRequestRef.current + 1
+        cardRequestRef.current = request
         setSelectedTask(task)
         setSelectedCard(null)
         setCardError(null)
+        setOpenCardError(null)
         setCardLoading(true)
         try {
-            setSelectedCard(await fetchAttachedCard(task))
+            const card = await fetchAttachedCard(task)
+            if (cardRequestRef.current === request) setSelectedCard(card)
         } catch {
-            setCardError(t('tasksDrawer.attached.loadFailed'))
+            if (cardRequestRef.current === request) setCardError(t('tasksDrawer.attached.loadFailed'))
         } finally {
-            setCardLoading(false)
+            if (cardRequestRef.current === request) setCardLoading(false)
         }
     }
 
     const closeCardModal = () => {
+        cardRequestRef.current += 1
         setSelectedTask(null)
         setSelectedCard(null)
         setCardError(null)
         setCardLoading(false)
+        setOpenCardError(null)
+    }
+
+    /**
+     * Opens a resource/lorebook task's result in the task's own workspace (the
+     * coordinator guards a switch); an unavailable workspace is reported here.
+     */
+    const openTaskPage = async (task: BackgroundTaskPublic, target: { page: PageType; hash: string }) => {
+        setTargetError(null)
+        const scope = capture()
+        const outcome = await navigateToOrigin({ workspaceId: taskOrigin(task) ?? selectedWorkspaceId, ...target })
+        if (outcome === 'navigated') closeDrawer()
+        else if (outcome === 'unavailable' && isCurrent(scope)) setTargetError(t('workspaceActivity.tasks.targetUnavailable'))
+    }
+
+    /** Opens the card's editor in its own workspace (the coordinator guards a switch). */
+    const openCardInEditor = async (task: BackgroundTaskPublic) => {
+        if (!isCardTarget(task.target)) return
+        setOpenCardError(null)
+        setIsOpeningCard(true)
+        try {
+            const outcome = await navigateToOrigin({ workspaceId: taskOrigin(task) ?? selectedWorkspaceId, ...cardEditorTarget(task.target) })
+            if (outcome === 'navigated') {
+                closeCardModal()
+                closeDrawer()
+            } else if (outcome === 'unavailable') {
+                setOpenCardError(t('workspaceActivity.tasks.unavailable'))
+            }
+        } finally {
+            setIsOpeningCard(false)
+        }
     }
 
     const handleRefresh = async () => {
@@ -362,6 +452,7 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
                 )}
 
                 {clearError && <Callout tone="danger" role="alert">{clearError}</Callout>}
+                {targetError && <Callout tone="warning" role="alert">{targetError}</Callout>}
 
                 {visibleTasks.length === 0 ? (
                     <EmptyState
@@ -405,6 +496,9 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
                 loading={cardLoading}
                 error={cardError}
                 onClose={closeCardModal}
+                onOpenInEditor={selectedTask ? () => void openCardInEditor(selectedTask) : undefined}
+                opening={isOpeningCard}
+                openError={openCardError}
             />
         </>
     )
@@ -455,7 +549,10 @@ function TaskRow({
                 <span className={cx('inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md', TILE_TONE[tone])}>
                     <Icon icon={IconCmp} size={17} className={isWorking ? 'animate-spin' : undefined} />
                 </span>
-                <span className="min-w-0 flex-1 truncate font-ui text-sm font-semibold text-parchment-50">{title}</span>
+                <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
+                    <span className="max-w-full truncate font-ui text-sm font-semibold text-parchment-50">{title}</span>
+                    <WorkspaceOriginLabel workspaceId={task.organization?.workspace_id} />
+                </span>
                 <span className="flex shrink-0 items-center gap-1.5">
                     {task.status === 'completed' && duration && (
                         <span className="font-mono text-[10px] text-parchment-400">{duration}</span>
@@ -525,6 +622,7 @@ function TaskRow({
                                     cardType: task.target.type,
                                     cardId: task.target.id,
                                     artworkUrl: resolveMediaUrl(attachedCard?.imageUrl),
+                                    workspaceId: task.organization?.workspace_id,
                                 }}
                                 className="py-2"
                             />
@@ -550,12 +648,19 @@ function AttachedCardModal({
     loading,
     error,
     onClose,
+    onOpenInEditor,
+    opening = false,
+    openError = null,
 }: {
     task: BackgroundTaskPublic | null
     card: AttachedCardPreview | null
     loading: boolean
     error: string | null
     onClose: () => void
+    /** Opens the card's editor in the task's workspace. */
+    onOpenInEditor?: () => void
+    opening?: boolean
+    openError?: string | null
 }) {
     const { t } = useTranslation()
     const isOpen = Boolean(task)
@@ -568,7 +673,20 @@ function AttachedCardModal({
             title={t('tasksDrawer.attached.title')}
             icon={<Icon icon={BookOpen} size={18} className="text-arcane-300" />}
             closeLabel={t('common.close')}
+            footer={onOpenInEditor ? (
+                <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={opening}
+                    iconLeft={<Icon icon={opening ? Loader2 : ArrowUpRight} size={14} className={opening ? 'animate-spin' : undefined} />}
+                    onClick={onOpenInEditor}
+                >
+                    {t('workspaceActivity.tasks.openCard')}
+                </Button>
+            ) : undefined}
         >
+            {openError && <Callout tone="warning" role="alert" className="mb-4">{openError}</Callout>}
+            {task && <WorkspaceOriginLabel workspaceId={task.organization?.workspace_id} className="mb-3" />}
             {loading ? (
                 <LoadingSpinner size="small" message={t('tasksDrawer.attached.loading')} />
             ) : card ? (

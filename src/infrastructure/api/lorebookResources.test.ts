@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiService } from './index'
 import type { LorebookResource } from '@/shared'
 import { EXTRACTION_HASH as HASH, extractionResult } from './__tests__/fixtures/lorebookExtraction'
+import { TASK_REQUEST_FINISHED, TASK_REQUEST_STARTED, type TaskRequestEvent } from './resourceTaskEvents'
+
+const WORKSPACE_ID = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
 
 const fetchMock = vi.fn()
 
@@ -74,6 +77,39 @@ describe('lorebook resource API wire format', () => {
         expect(new Headers(init.headers).has('Content-Type')).toBe(false)
         expect(new Headers(init.headers).get('Authorization')).toBe('Bearer test-token')
         expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('imports a PDF in the scoped workspace and tags its task events with that workspace', async () => {
+        const events: Array<{ type: string; detail: TaskRequestEvent }> = []
+        const record = (event: Event) => events.push({ type: event.type, detail: (event as CustomEvent<TaskRequestEvent>).detail })
+        window.addEventListener(TASK_REQUEST_STARTED, record)
+        window.addEventListener(TASK_REQUEST_FINISHED, record)
+        try {
+            fetchMock.mockResolvedValueOnce(jsonResponse(resource()))
+            await apiService.withWorkspace(WORKSPACE_ID).importLorebookResourcePdf(new File(['%PDF-document'], 'court.pdf', { type: 'application/pdf' }))
+            const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+            expect(url).toContain('/lorebook-resources/import-pdf')
+            expect(new Headers(init.headers).get('X-Workspace-Id')).toBe(WORKSPACE_ID)
+            expect(events.map((event) => event.type)).toEqual([TASK_REQUEST_STARTED, TASK_REQUEST_FINISHED])
+            expect(events.every((event) => event.detail.workspaceId === WORKSPACE_ID)).toBe(true)
+        } finally {
+            window.removeEventListener(TASK_REQUEST_STARTED, record)
+            window.removeEventListener(TASK_REQUEST_FINISHED, record)
+        }
+    })
+
+    it('sends every task route of a scoped client with its workspace', async () => {
+        fetchMock.mockImplementation(async () => jsonResponse({ items: [], limit: 20, offset: 0, next_offset: null }))
+        const scoped = apiService.withWorkspace(WORKSPACE_ID)
+        await scoped.listTasks({ state: 'active', operation: 'all' })
+        await scoped.getTask('pdf_import', 'task-1')
+        await scoped.cancelTask('lorebook_extraction', 'task-2')
+        await scoped.archiveTask('pdf_import', 'task-1')
+        expect(fetchMock).toHaveBeenCalledTimes(4)
+        for (const [url, init] of fetchMock.mock.calls as Array<[string, RequestInit]>) {
+            expect(String(url)).toContain('/tasks')
+            expect(new Headers(init.headers).get('X-Workspace-Id')).toBe(WORKSPACE_ID)
+        }
     })
 
     it('requests extraction only when resource metadata sync is explicit', async () => {

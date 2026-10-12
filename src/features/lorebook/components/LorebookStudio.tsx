@@ -1,17 +1,20 @@
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, BookOpen, Library, Save, Search, Settings2, Tags } from 'lucide-react'
+import { Archive, ArrowLeft, BookOpen, Library, Save, Search, Settings2, Tags } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace, type WorkspaceScopeCapture } from '@/app/hooks/useWorkspace'
 import { authSession } from '@/infrastructure/api/authSession'
+import { organizationWorkspaceId, useScopedApi } from '@/shared/hooks/useScopedApi'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY, useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { useLorebookExtraction } from '../hooks/useLorebookExtraction'
 import { applyLorebookExtraction } from '../lorebookExtractionSession'
 import { makeRequestId } from '@/utils/uuid'
 import type { Lorebook, LorebookEntry } from '@/shared'
 import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
 import { ConfirmDialog } from '@/ui/components'
-import { Badge, Button, Field, Icon, IconTile, Input, PageHeader, SwitchRow, Textarea, Toast } from '@/ui/primitives'
+import { Badge, Button, Callout, Field, Icon, IconTile, Input, PageHeader, SwitchRow, Textarea, Toast } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
+import { ReadOnlyFieldset } from '@/features/creation/common/components/ReadOnlyFieldset'
 import { AssistantChatbot } from '@/features/creation/common/components/assistant/AssistantChatbot'
 import { lorebookAssistantAdapter } from '../lorebookAssistantAdapter'
 import {
@@ -81,6 +84,20 @@ export function LorebookStudio() {
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const { editingLorebook, setEditingLorebook, lorebooks, setLorebooks } = useData()
+    const { selectedWorkspaceId, workspaceEpoch, capture, isCurrent } = useWorkspace()
+    // Workspace R1: the book's own workspace, captured when the studio opens (a new
+    // book belongs to the workspace committed then). Every read/write of this
+    // studio — save, entries, resources, attachments, extraction, preview and the
+    // assistant — targets it, even if the user switches away meanwhile.
+    const [workspaceId, setWorkspaceId] = useState(() => organizationWorkspaceId(editingLorebook) ?? selectedWorkspaceId)
+    if (workspaceId === null && selectedWorkspaceId !== null) setWorkspaceId(selectedWorkspaceId)
+    const api = useScopedApi(workspaceId)
+    // An archived workspace is read-only until restored: the book, its entries and the
+    // activation preview stay readable; every write below is disabled (document 08).
+    const readOnly = useWorkspaceReadOnly(workspaceId)
+    // The app shell's archived banner covers the selected workspace; a book from
+    // another (archived) workspace says so here instead.
+    const showArchivedNotice = readOnly && workspaceId !== selectedWorkspaceId
     const [draft, setDraft] = useState<Lorebook>(() => editingLorebook ?? newLorebook())
     const [selectedId, setSelectedId] = useState<string | undefined>(() => (editingLorebook?.entries ?? [])[0]?.id)
     const [saving, setSaving] = useState(false)
@@ -92,6 +109,26 @@ export function LorebookStudio() {
     const [extractResourceMetadata, setExtractResourceMetadata] = useState(false)
     const extractResource = useLorebookExtraction()
     const editorRef = useRef<HTMLElement>(null)
+
+    // A committed switch closes the studio's pickers and dialogs.
+    const [studioEpoch, setStudioEpoch] = useState(workspaceEpoch)
+    if (studioEpoch !== workspaceEpoch) {
+        setStudioEpoch(workspaceEpoch)
+        setResourcePickerOpen(false)
+        setPendingDeleteId(null)
+        setNotice(null)
+    }
+
+    /**
+     * Hands a saved book to DataProvider. Callers first check `isCurrent(scope)`
+     * (no switch since the work started); the committed workspace's list only
+     * takes books of that workspace.
+     */
+    const publishLorebook = (next: Lorebook, scope: WorkspaceScopeCapture | null) => {
+        setEditingLorebook(next)
+        if (scope?.workspaceId === workspaceId) setLorebooks(upsertLorebook(lorebooks, next))
+    }
+
     const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
     const visibleDraft = useMemo(() => (
         resourceFeaturesEnabled ? draft : withoutLorebookResourceMetadata(draft)
@@ -158,16 +195,23 @@ export function LorebookStudio() {
         }))
     }
 
+    /** Archived workspace: say so instead of writing. */
+    const blockedByArchive = () => {
+        if (readOnly) setSaveError(t(ARCHIVED_WORKSPACE_MESSAGE_KEY))
+        return readOnly
+    }
+
     const deleteEntry = async (entryId: string) => {
+        if (blockedByArchive()) return
         const currentId = draft.id
         setDraft((current) => {
             const nextEntries = current.entries.filter((entry) => entry.id !== entryId)
             if (selectedId === entryId) setSelectedId(nextEntries[0]?.id)
             return { ...current, entries: nextEntries }
         })
-        if (currentId && !entryId.startsWith('draft-entry-')) {
+        if (currentId && !entryId.startsWith('draft-entry-') && api) {
             try {
-                await apiService.deleteLorebookEntry(currentId, entryId)
+                await api.deleteLorebookEntry(currentId, entryId)
             } catch (error) {
                 console.warn('Failed to delete lorebook entry immediately; next save will reconcile:', error)
             }
@@ -175,6 +219,7 @@ export function LorebookStudio() {
     }
 
     const requestEntryDelete = (entryId: string) => {
+        if (blockedByArchive()) return
         const entry = draft.entries.find((candidate) => candidate.id === entryId)
         if (!entry) return
         const blank = !entry.title.trim() && !entry.content.trim() && entry.keys.length === 0
@@ -187,6 +232,7 @@ export function LorebookStudio() {
 
     const saveLorebook = async () => {
         if (saving || importingResources) return
+        if (blockedByArchive()) return
         if (!isAuthenticated) {
             openLoginModal()
             return
@@ -209,8 +255,10 @@ export function LorebookStudio() {
             }))
             return
         }
+        if (!api) return
         setSaving(true)
         const owner = authSession.getSnapshot()
+        const scope = capture()
         let sourceSaved = false
         try {
             const payload = {
@@ -218,13 +266,12 @@ export function LorebookStudio() {
                 entries: draft.entries.map(entryToApiPayload),
             }
             const raw = draft.id
-                ? await apiService.updateLorebook(draft.id, payload)
-                : await apiService.createLorebook(payload)
+                ? await api.updateLorebook(draft.id, payload)
+                : await api.createLorebook(payload)
             let savedLorebook = normalizeLorebook(raw)
-            if (!authSession.isCurrent(owner)) return
+            if (!authSession.isCurrent(owner) || !isCurrent(scope)) return
             setDraft(savedLorebook)
-            setEditingLorebook(savedLorebook)
-            setLorebooks(upsertLorebook(lorebooks, savedLorebook))
+            publishLorebook(savedLorebook, scope)
             setSelectedId((current) => current && savedLorebook.entries.some((entry) => entry.id === current) ? current : savedLorebook.entries[0]?.id)
             sourceSaved = true
             // Persist the ID before inference; partial extraction never turns a saved book into a draft.
@@ -232,20 +279,19 @@ export function LorebookStudio() {
                 const savedResources = embeddedLorebookResourcesFromMetadata(savedLorebook.metadata)
                 for (const resource of savedResources) {
                     if (resource.extractionStatus === 'completed' && !resource.metadataOutdated) continue
-                    const result = await extractResource(resource, undefined, savedLorebook.id)
-                    if (!authSession.isCurrent(owner)) return
+                    const result = await extractResource(resource, undefined, savedLorebook.id, workspaceId)
+                    if (!authSession.isCurrent(owner) || !isCurrent(scope)) return
                     const completed = applyLorebookExtraction(resource, result)
                     const nextResources = embeddedLorebookResourcesFromMetadata(savedLorebook.metadata).map((item) => item.id === resource.id ? completed : item)
                     savedLorebook = { ...savedLorebook, metadata: withLorebookResources(savedLorebook.metadata, nextResources) }
                     setDraft(savedLorebook)
-                    setEditingLorebook(savedLorebook)
-                    setLorebooks(upsertLorebook(lorebooks, savedLorebook))
+                    publishLorebook(savedLorebook, scope)
                 }
             }
             setExtractResourceMetadata(false)
             setNotice(draft.id ? t('lorebookStudio.shell.notices.updated') : t('lorebookStudio.shell.notices.created'))
         } catch (error) {
-            if (!authSession.isCurrent(owner)) return
+            if (!authSession.isCurrent(owner) || !isCurrent(scope)) return
             setSaveError(sourceSaved ? t('lorebookStudio.resources.errors.extractionAfterSave') : error instanceof Error ? error.message : t('lorebookStudio.shell.errors.saveFailed'))
         } finally {
             setSaving(false)
@@ -255,30 +301,33 @@ export function LorebookStudio() {
     const applyAssistantLorebook = (lorebook: Lorebook) => {
         const next = normalizeLorebook(lorebook)
         setDraft(next)
-        setEditingLorebook(next)
-        setLorebooks(upsertLorebook(lorebooks, next))
+        publishLorebook(next, capture())
         setSelectedId((current) => current && next.entries.some((entry) => entry.id === current) ? current : next.entries[0]?.id)
         setSaveError(null)
         setNotice(next.id === draft.id ? t('lorebookStudio.shell.notices.updatedByAssistant') : t('lorebookStudio.shell.notices.createdByAssistant'))
     }
 
-    const applyResourceLorebook = (lorebook: Lorebook) => {
+    const applyResourceLorebook = (lorebook: Lorebook, scope: WorkspaceScopeCapture | null) => {
         const next = normalizeLorebook(lorebook)
         setDraft(next)
-        setEditingLorebook(next)
-        setLorebooks(upsertLorebook(lorebooks, next))
+        publishLorebook(next, scope)
         setSaveError(null)
     }
 
     const detachSharedResource = async (resourceId: string) => {
-        if (!draft.id) return
+        if (blockedByArchive()) return
+        if (!draft.id || !api) return
+        const owner = authSession.getSnapshot()
+        const scope = capture()
         setSaving(true)
         setSaveError(null)
         try {
-            const updated = normalizeLorebook(await apiService.detachLorebookResource(draft.id, resourceId))
-            applyResourceLorebook(updated)
+            const updated = normalizeLorebook(await api.detachLorebookResource(draft.id, resourceId))
+            if (!authSession.isCurrent(owner) || !isCurrent(scope)) return
+            applyResourceLorebook(updated, scope)
             setNotice(t('lorebookStudio.resources.detachedNotice'))
         } catch (error) {
+            if (!authSession.isCurrent(owner) || !isCurrent(scope)) return
             setSaveError(error instanceof Error ? error.message : t('lorebookStudio.resources.errors.detachFailed'))
         } finally {
             setSaving(false)
@@ -298,7 +347,7 @@ export function LorebookStudio() {
                         <Button variant="ghost" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={() => setPage('gallery-lorebooks')}>
                             {t('common.back')}
                         </Button>
-                        <Button variant="primary" iconLeft={<Icon icon={Save} size={16} />} onClick={saveLorebook} disabled={saving || importingResources}>
+                        <Button variant="primary" iconLeft={<Icon icon={Save} size={16} />} onClick={saveLorebook} disabled={saving || importingResources || readOnly}>
                             {saving
                                 ? extractResourceMetadata && pendingExtractionCount > 0
                                     ? t('lorebookStudio.resources.savingButton', { count: pendingExtractionCount })
@@ -308,6 +357,12 @@ export function LorebookStudio() {
                     </>
                 }
             />
+
+            {showArchivedNotice && saveError !== t(ARCHIVED_WORKSPACE_MESSAGE_KEY) && (
+                <Callout tone="warning" role="status" icon={<Icon icon={Archive} size={16} />} data-testid="lorebook-archived-notice">
+                    {t(ARCHIVED_WORKSPACE_MESSAGE_KEY)}
+                </Callout>
+            )}
 
             {saveError && (
                 <div className="rounded-lg border border-blood-500/30 bg-blood-500/10 px-4 py-3 font-ui text-sm text-parchment-200" role="alert">
@@ -322,7 +377,7 @@ export function LorebookStudio() {
                             <Icon icon={Library} size={16} className="text-arcane-300" />
                             {t('lorebookStudio.shell.sections.profile')}
                         </div>
-                        <div className="flex flex-col gap-4">
+                        <ReadOnlyFieldset disabled={readOnly} className="flex flex-col gap-4">
                             <Field
                                 label={t('lorebookStudio.shell.fields.name.label')}
                                 error={saveError && !draft.name.trim() ? t('lorebookStudio.issues.message.name_required') : undefined}
@@ -351,7 +406,7 @@ export function LorebookStudio() {
                                 checked={draft.enabled}
                                 onChange={(enabled) => patchDraft({ enabled })}
                             />
-                        </div>
+                        </ReadOnlyFieldset>
                     </section>
 
                     <section aria-label={t('lorebookStudio.shell.sections.defaults')} className="border-t border-parchment-50/10 pt-6 first:border-t-0 first:pt-0">
@@ -359,7 +414,7 @@ export function LorebookStudio() {
                             <Icon icon={Settings2} size={16} className="text-arcane-300" />
                             {t('lorebookStudio.shell.sections.defaults')}
                         </div>
-                        <div className="grid gap-4">
+                        <ReadOnlyFieldset disabled={readOnly} className="grid gap-4">
                             <Field label={t('lorebookStudio.shell.fields.scanDepth.label')}>
                                 <Input type="number" min={1} value={draft.settings.scanDepth} onChange={(event) => patchSettings({ scanDepth: Number(event.target.value) })} />
                             </Field>
@@ -387,7 +442,7 @@ export function LorebookStudio() {
                                 checked={draft.settings.recursiveScanning}
                                 onChange={(recursiveScanning) => patchSettings({ recursiveScanning })}
                             />
-                        </div>
+                        </ReadOnlyFieldset>
                     </section>
 
                     <section aria-label={t('lorebookStudio.shell.sections.summary')} className="border-t border-parchment-50/10 pt-6 first:border-t-0 first:pt-0">
@@ -410,6 +465,7 @@ export function LorebookStudio() {
                 <main className="flex min-w-0 flex-col gap-6">
                     {resourceFeaturesEnabled && (
                         <LorebookResourcePanel
+                            workspaceId={workspaceId}
                             resources={embeddedResources}
                             onChange={updateResources}
                             linkedResources={linkedResources}
@@ -420,6 +476,7 @@ export function LorebookStudio() {
                             pendingExtractionCount={pendingExtractionCount}
                             extractMetadataOnSave={extractResourceMetadata}
                             onExtractMetadataOnSaveChange={setExtractResourceMetadata}
+                            readOnly={readOnly}
                         />
                     )}
                     <LoreEntryTable
@@ -428,6 +485,7 @@ export function LorebookStudio() {
                         onSelect={(entry) => selectEntry(entry.id)}
                         onAdd={addEntry}
                         onDelete={requestEntryDelete}
+                        readOnly={readOnly}
                     />
                     <div className="grid gap-6">
                         <section aria-label={t('lorebookStudio.shell.sections.validation')} className="flex flex-col gap-4 border-t border-parchment-50/10 pt-6">
@@ -437,17 +495,19 @@ export function LorebookStudio() {
                             </div>
                             <LorebookIssueList issues={issues} />
                         </section>
-                        <LorebookAttachPanel lorebook={draft} onChange={(attachments) => patchDraft({ attachments })} />
+                        <LorebookAttachPanel lorebook={draft} workspaceId={workspaceId} onChange={(attachments) => patchDraft({ attachments })} readOnly={readOnly} />
                     </div>
-                    <ActivationPreviewPanel lorebook={visibleDraft} saved={saved} />
+                    <ActivationPreviewPanel lorebook={visibleDraft} saved={saved} workspaceId={workspaceId} />
                 </main>
 
                 <aside ref={editorRef} className="min-w-0 scroll-mt-4 border-t border-parchment-50/10 pt-6 lg:col-start-2 2xl:col-start-auto 2xl:self-start 2xl:border-l 2xl:border-t-0 2xl:pl-6 2xl:pt-0">
-                    <LoreEntryEditor
-                        entry={selectedEntry}
-                        onChange={updateEntry}
-                        onDelete={requestEntryDelete}
-                    />
+                    <ReadOnlyFieldset disabled={readOnly}>
+                        <LoreEntryEditor
+                            entry={selectedEntry}
+                            onChange={updateEntry}
+                            onDelete={requestEntryDelete}
+                        />
+                    </ReadOnlyFieldset>
                 </aside>
             </div>
             <ConfirmDialog
@@ -484,13 +544,16 @@ export function LorebookStudio() {
                 onTarget={applyAssistantLorebook}
                 isAuthenticated={isAuthenticated}
                 onAuthRequired={openLoginModal}
+                workspaceId={workspaceId}
+                readOnly={readOnly}
             />
             {resourceFeaturesEnabled && (
                 <LorebookResourcePickerDrawer
-                    open={resourcePickerOpen}
+                    open={resourcePickerOpen && !readOnly}
                     lorebook={saved ? draft : null}
+                    workspaceId={workspaceId}
                     onClose={() => setResourcePickerOpen(false)}
-                    onAttached={applyResourceLorebook}
+                    onAttached={(lorebook) => applyResourceLorebook(lorebook, capture())}
                 />
             )}
         </div>

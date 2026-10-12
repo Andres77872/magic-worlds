@@ -2,10 +2,16 @@
  * CodexEntryDrawer — view/edit one cloned snapshot (name + content). Edits
  * merge into the ref's snapshot only: the source card or lorebook entry is
  * never touched.
+ *
+ * `readOnly` (the story's workspace is archived) keeps it a viewer: the fields
+ * stay selectable for reading and copying, Save is disabled, and the archived
+ * notice says why.
  */
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Archive } from 'lucide-react'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY } from '@/shared/hooks/useWorkspaceReadOnly'
 import { Icon, Button, Callout, Drawer, Field, Input, Tag, Textarea } from '@/ui/primitives'
 import type { CodexEntry } from '../../hooks/useCodex'
 import { KIND_ICONS, KIND_META } from '../../utils/codexUtils'
@@ -13,11 +19,13 @@ import { KIND_ICONS, KIND_META } from '../../utils/codexUtils'
 interface CodexEntryDrawerProps {
     entry: CodexEntry | null
     busy: boolean
+    /** The story's workspace is archived: view only. */
+    readOnly?: boolean
     onClose: () => void
     onSave: (entry: CodexEntry, patch: { label: string; description: string }) => Promise<void>
 }
 
-export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDrawerProps) {
+export function CodexEntryDrawer({ entry, busy, readOnly = false, onClose, onSave }: CodexEntryDrawerProps) {
     const { t } = useTranslation()
     const [label, setLabel] = useState('')
     const [description, setDescription] = useState('')
@@ -39,6 +47,10 @@ export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDra
 
     const submit = async () => {
         if (!entry) return
+        if (readOnly) {
+            setError(t(ARCHIVED_WORKSPACE_MESSAGE_KEY))
+            return
+        }
         setError(null)
         try {
             await onSave(entry, { label: label.trim() || entry.label, description })
@@ -59,9 +71,9 @@ export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDra
             footer={
                 <div className="flex w-full items-center justify-end gap-2">
                     <Button variant="ghost" onClick={onClose} disabled={busy}>
-                        {t('common.cancel')}
+                        {readOnly ? t('common.close') : t('common.cancel')}
                     </Button>
-                    <Button variant="primary" onClick={() => void submit()} disabled={busy} data-testid="codex-entry-save">
+                    <Button variant="primary" onClick={() => void submit()} disabled={busy || readOnly} data-testid="codex-entry-save">
                         {busy ? t('common.saving') : t('common.save')}
                     </Button>
                 </div>
@@ -69,17 +81,23 @@ export function CodexEntryDrawer({ entry, busy, onClose, onSave }: CodexEntryDra
         >
             {entry && (
                 <div className="flex flex-col gap-4">
+                    {readOnly && (
+                        <Callout tone="warning" role="status" icon={<Icon icon={Archive} size={16} />} data-testid="codex-entry-archived">
+                            {t(ARCHIVED_WORKSPACE_MESSAGE_KEY)}
+                        </Callout>
+                    )}
                     {error && <Callout tone="danger" role="alert">{error}</Callout>}
                     <p className="m-0 font-ui text-xs text-parchment-400">
                         {t('novelEditor.entryDrawer.privateCopy', { label: entry.label, kind: metaLabel ? metaLabel.toLowerCase() : t('novelEditor.entryDrawer.defaultKind') })}
                     </p>
                     <Field label={t('novelEditor.entryDrawer.name')}>
-                        <Input value={label} onChange={(e) => setLabel(e.target.value)} data-testid="codex-entry-name" />
+                        <Input value={label} onChange={(e) => setLabel(e.target.value)} readOnly={readOnly} data-testid="codex-entry-name" />
                     </Field>
                     <Field label={entry.kind === 'lorebook_entry' ? t('novelEditor.entryDrawer.content') : t('novelEditor.entryDrawer.description')}>
                         <Textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
+                            readOnly={readOnly}
                             rows={12}
                             data-testid="codex-entry-content"
                         />

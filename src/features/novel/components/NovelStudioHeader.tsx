@@ -17,7 +17,9 @@
  * where the strip grows a Retry.
  *
  * The title edits in place but is not a permanently-live input: a live input in
- * the chrome invites accidental edits every time the pointer lands on it.
+ * the chrome invites accidental edits every time the pointer lands on it. While
+ * the story's workspace is archived (`readOnly`) it does not edit at all; the
+ * view toggles, Find and History keep working.
  */
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
@@ -49,6 +51,8 @@ export interface NovelStudioHeaderProps {
     onOpenFind: () => void
     onBack: () => void
     onSaveMeta: (patch: { title?: string; description?: string }) => void
+    /** The story's workspace is archived: the title is not editable. */
+    readOnly?: boolean
 }
 
 // The Find binding is Ctrl **or** Cmd, so the hint must not claim ⌘ on Windows.
@@ -69,6 +73,7 @@ export function NovelStudioHeader({
     onOpenFind,
     onBack,
     onSaveMeta,
+    readOnly = false,
 }: NovelStudioHeaderProps) {
     const { t } = useTranslation()
     const [editing, setEditing] = useState(false)
@@ -78,6 +83,9 @@ export function NovelStudioHeader({
     const menuTriggerRef = useRef<HTMLButtonElement | null>(null)
     // Escape reverts by blurring, so the blur handler must know not to commit.
     const revertRef = useRef(false)
+    // An edit in progress when the story turns read-only is dropped, not saved
+    // (commitTitle refuses while read-only).
+    if (readOnly && editing) setEditing(false)
 
     useEffect(() => {
         if (!menuOpen) return
@@ -99,6 +107,7 @@ export function NovelStudioHeader({
     }, [menuOpen])
 
     const startEditing = () => {
+        if (readOnly) return
         setDraft(story.title)
         revertRef.current = false
         setEditing(true)
@@ -106,7 +115,7 @@ export function NovelStudioHeader({
 
     const commitTitle = () => {
         setEditing(false)
-        if (revertRef.current) {
+        if (revertRef.current || readOnly) {
             revertRef.current = false
             return
         }
@@ -157,8 +166,9 @@ export function NovelStudioHeader({
                     <button
                         type="button"
                         onClick={startEditing}
+                        disabled={readOnly}
                         aria-label={t('novelEditor.header.titleLabel')}
-                        className="min-w-0 max-w-[38ch] cursor-pointer truncate rounded-xs px-1.5 py-0.5 text-left font-display text-xl font-semibold text-parchment-50 transition-colors hover:bg-parchment-50/[.06]"
+                        className="min-w-0 max-w-[38ch] cursor-pointer truncate rounded-xs px-1.5 py-0.5 text-left font-display text-xl font-semibold text-parchment-50 transition-colors hover:bg-parchment-50/[.06] disabled:cursor-default disabled:hover:bg-transparent"
                         data-testid="novel-title"
                     >
                         {story.title || t('novelEditor.header.untitled')}

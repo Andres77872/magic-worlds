@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatSocketServerMessage, ForwardOption } from '../../../shared'
 import { apiService, ChatSocket, type ChatSocketStatus } from '../../../infrastructure/api'
 import { authSession } from '@/infrastructure/api/authSession'
@@ -8,6 +8,7 @@ import { isLlmRequestSpent, llmIntents } from '@/infrastructure/api/llmIntent'
 import type { LlmFeature, LlmRequest } from '@/shared/types/llm.types'
 import { generateUUID } from '@/utils/uuid'
 import { i18n } from '@/app/i18n'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 
 function bindPreparedTarget(materialize: () => LlmRequest, target: NonNullable<AdventureChatSocketErrorDetail['llmRetry']>): LlmRequest {
     const value = materialize()
@@ -71,6 +72,12 @@ export interface AdventureChatSocketApi {
  * interaction screen. Pass `null` to keep it disconnected (e.g. while
  * unauthenticated or before a session id is known). Handlers are read through a
  * ref so the socket isn't torn down when callbacks change between renders.
+ *
+ * Workspace R1: `sessionWorkspaceId` is the session's own workspace (see
+ * `useSessionWorkspace`); omitted, the committed workspace is used. The socket
+ * and its recovery reads always carry that workspace, and the socket only runs
+ * while it is the committed one: a switch closes it (late frames are dropped
+ * with the detached socket) and never reconnects it into the new workspace.
  */
 export function useAdventureChatSocket(
     sessionId: number | null,
@@ -78,11 +85,17 @@ export function useAdventureChatSocket(
     authKey?: string | null,
     basePath: string = 'adventure-sessions',
     feature: LlmFeature = basePath === 'adventure-sessions' ? 'chat_adventure' : 'chat_character',
+    sessionWorkspaceId?: string | null,
 ): AdventureChatSocketApi {
     const handlersRef = useRef(handlers)
     useEffect(() => {
         handlersRef.current = handlers
     })
+
+    const { selectedWorkspaceId } = useWorkspace()
+    const workspaceId = sessionWorkspaceId === undefined ? selectedWorkspaceId : sessionWorkspaceId
+    // Recovery reads and retained-profile reads stay in the session's workspace.
+    const scopedApi = useMemo(() => (workspaceId ? apiService.withWorkspace(workspaceId) : null), [workspaceId])
 
     const socketRef = useRef<ChatSocket | null>(null)
     const requestRef = useRef<string | undefined>(undefined)
@@ -137,7 +150,7 @@ export function useAdventureChatSocket(
             throw new Error('LLM_EXECUTION_INTENT_CHANGED')
         }
         prepare(socket, turn.requestId, async signal => {
-            const prepared = await prepareLlmDispatch(feature, signal, target.selection, target.retry_of_execution_id, turn.requestId)
+            const prepared = await prepareLlmDispatch(feature, signal, target.selection, target.retry_of_execution_id, turn.requestId, workspaceId)
             const materialize = () => bindPreparedTarget(prepared, target)
             const probe = materialize()
             try { matches(probe) } finally { delete probe.credentials }
@@ -150,11 +163,11 @@ export function useAdventureChatSocket(
         const turn = turnRef.current
         const target = turn?.target
         if (!turn || !target || detail.requestId !== turn.requestId
-            || (basePath !== 'adventure-sessions' && basePath !== 'character-chats') || sessionId === null) return false
+            || (basePath !== 'adventure-sessions' && basePath !== 'character-chats') || sessionId === null || !scopedApi) return false
         const owner = authSession.getSnapshot()
         const signal = preparation.current?.signal
         handlersRef.current.onError?.(message, { ...detail, retryPending: true })
-        void apiService.reconcileChatTurn(basePath, sessionId, turn.requestId, signal).then(state => {
+        void scopedApi.reconcileChatTurn(basePath, sessionId, turn.requestId, signal).then(state => {
             if (signal?.aborted || turnRef.current !== turn || socketRef.current !== socket || !authSession.isCurrent(owner)) return
             const original = state.dispatch
             const terminal = ['failed', 'cancelled'].includes(state.status) && state.recovery_required && original
@@ -183,18 +196,24 @@ export function useAdventureChatSocket(
     // (re)connect and owns its own refresh recovery, so recreating it on each
     // `auth:refreshed` would drop a chat frame queued behind that very refresh.
     const authDisabled = authKey === null
+    // Workspace R1: the socket carries the session's workspace (`workspace_id`
+    // query) and only runs while that workspace is the committed one.
+    const socketWorkspaceId = workspaceId && workspaceId === selectedWorkspaceId ? workspaceId : null
 
     useEffect(() => {
-        // Disabled (no session / unauthenticated): stay disconnected. The prior
-        // effect's cleanup already emitted 'closed' via the socket's onStatusChange.
-        if (sessionId === null || Number.isNaN(sessionId) || authDisabled) {
+        // Disabled (no session / unauthenticated / no workspace yet / switched away): stay
+        // disconnected. The prior effect's cleanup already emitted 'closed' via onStatusChange.
+        if (sessionId === null || Number.isNaN(sessionId) || authDisabled || !socketWorkspaceId) {
             return
         }
 
-        const socket = new ChatSocket(sessionId, {
+        const socket = new ChatSocket(sessionId, socketWorkspaceId, {
             onStatusChange: setStatus,
             onStreamInterrupted: () => handlersRef.current.onConnectionLost?.(),
             onMessage: (message: ChatSocketServerMessage) => {
+                // A frame that arrives after this socket was torn down (session or
+                // workspace switch) belongs to work this view no longer shows.
+                if (socketRef.current !== socket) return
                 if (message.request_id && message.request_id !== requestRef.current && !message.type.startsWith('tts_') && !message.type.startsWith('image_')) return
                 const current = handlersRef.current
                 switch (message.type) {
@@ -241,27 +260,27 @@ export function useAdventureChatSocket(
                         })
                         break
                     case 'image_job':
-                        notifyTaskHistoryChanged()
+                        notifyTaskHistoryChanged(socketWorkspaceId)
                         current.onImageJob?.(message)
                         break
                     case 'image_complete':
-                        notifyTaskHistoryChanged()
+                        notifyTaskHistoryChanged(socketWorkspaceId)
                         current.onImageComplete?.(message)
                         break
                     case 'image_failed':
-                        notifyTaskHistoryChanged()
+                        notifyTaskHistoryChanged(socketWorkspaceId)
                         current.onImageFailed?.(message)
                         break
                     case 'tts_job':
-                        notifyTaskHistoryChanged()
+                        notifyTaskHistoryChanged(socketWorkspaceId)
                         current.onTtsJob?.(message)
                         break
                     case 'tts_complete':
-                        notifyTaskHistoryChanged()
+                        notifyTaskHistoryChanged(socketWorkspaceId)
                         current.onTtsComplete?.(message)
                         break
                     case 'tts_failed':
-                        notifyTaskHistoryChanged()
+                        notifyTaskHistoryChanged(socketWorkspaceId)
                         current.onTtsFailed?.(message)
                         break
                     case 'error':
@@ -295,8 +314,9 @@ export function useAdventureChatSocket(
             turnRef.current = null
             requestRef.current = undefined
         }
-        // basePath in deps so switching session kinds tears down + reconnects cleanly.
-    }, [sessionId, authDisabled, basePath])
+        // basePath/workspace in deps so switching session kinds tears down + reconnects cleanly,
+        // and a workspace switch tears the session's socket down.
+    }, [sessionId, authDisabled, basePath, socketWorkspaceId])
 
     const sendChat = (content: string, requestId?: string, existingUserMessageId?: number, llmRetry?: AdventureChatSocketErrorDetail['llmRetry'], resumeExisting = false) => {
         const socket = socketRef.current
@@ -315,7 +335,7 @@ export function useAdventureChatSocket(
         prepare(socket, id, async signal => {
             const retained = frozen ?? (resumeExisting || !llmRetry?.retry_of_execution_id ? llmRetry : undefined)
             const prepared = retained ? () => ({ ...retained, selection: retained.selection ? { ...retained.selection } : { mode: 'inherit' as const } })
-                : await prepareLlmDispatch(feature, signal, llmRetry?.selection, llmRetry?.retry_of_execution_id)
+                : await prepareLlmDispatch(feature, signal, llmRetry?.selection, llmRetry?.retry_of_execution_id, undefined, workspaceId)
             const materialize = llmRetry?.retry_of_execution_id && !retained ? () => bindPreparedTarget(prepared, llmRetry) : prepared
             return () => { if (socket) dispatch(socket, turn, materialize) }
         })

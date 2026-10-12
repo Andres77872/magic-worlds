@@ -1,6 +1,8 @@
 import { FileText, Sparkles, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { LorebookResource } from '@/shared'
+import { organizationWorkspaceId } from '@/shared/hooks/useScopedApi'
+import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { Badge, Card, CardDeletingOverlay, Icon, IconButton, Tag, cx } from '@/ui/primitives'
 import { CARD_ACTION_REVEAL_CLASS } from '@/ui/components/lists/Card'
 import { lorebookResourceCompletedExtraction } from '../../lorebookResources'
@@ -26,6 +28,8 @@ export function ResourceCard({ resource, deleting, onOpen, onDelete }: ResourceC
     const extraction = lorebookResourceCompletedExtraction(resource)
     const snippets = extraction?.snippets ?? []
     const name = resource.title || resource.fileName
+    // The resource's own workspace (else the selected one) archived: it opens read-only and cannot be deleted.
+    const readOnly = useWorkspaceReadOnly(organizationWorkspaceId(resource))
     return (
         <Card className={cx('group relative flex min-h-[260px] flex-col overflow-hidden', deleting && 'pointer-events-none opacity-60')}>
             <button
@@ -40,7 +44,7 @@ export function ResourceCard({ resource, deleting, onOpen, onDelete }: ResourceC
                         <Icon icon={FileText} size={20} />
                     </span>
                     <div className={cx('pointer-events-auto relative z-[2] flex items-center gap-1.5', CARD_ACTION_REVEAL_CLASS)}>
-                        <IconButton label={t('lorebookResourcesGallery.card.deleteAria', { name })} size="sm" tone="danger" onClick={onDelete}>
+                        <IconButton label={t('lorebookResourcesGallery.card.deleteAria', { name })} size="sm" tone="danger" onClick={onDelete} disabled={readOnly}>
                             <Icon icon={Trash2} size={14} />
                         </IconButton>
                     </div>

@@ -17,6 +17,7 @@ export type ThemeOption = 'light' | 'dark' | 'system'
 
 export type PageType =
     | 'landing'
+    | 'library'
     | 'character'
     | 'world'
     | 'item'

@@ -1,5 +1,14 @@
+import { useContext } from 'react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { FloatingWindowDescriptor } from '@/features/floatingWindows/floatingWindow.types'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    WorkspaceTestProvider,
+} from '@/shared/hooks/testing/workspaceTestUtils'
+import { FloatingWindowsProvider } from './FloatingWindowsProvider'
+import { FloatingWindowsContext } from './floatingWindowsContext'
 import { MAX_FLOATING_WINDOWS, floatingWindowsReducer } from './floatingWindowsReducer'
 
 function win(id: string, dedupKey = id): FloatingWindowDescriptor {
@@ -49,5 +58,45 @@ describe('floatingWindowsReducer', () => {
     it('closes all windows', () => {
         const state = [win('1', 'card:a'), win('2', 'card:b')]
         expect(floatingWindowsReducer(state, { type: 'CLOSE_ALL' })).toEqual([])
+    })
+})
+
+describe('FloatingWindowsProvider', () => {
+    function Probe() {
+        const context = useContext(FloatingWindowsContext)
+        return (
+            <div>
+                <span data-testid="window-count">{context?.windows.length ?? 0}</span>
+                <button onClick={() => context?.openWindow({ dedupKey: 'card:a', title: 'A', content: { kind: 'card', preview: { id: 'a' } as never } })}>
+                    open
+                </button>
+            </div>
+        )
+    }
+
+    it('closes every window when the workspace switch commits', () => {
+        const workspace = createWorkspaceTestState()
+        const tree = () => (
+            <WorkspaceTestProvider state={workspace}>
+                <FloatingWindowsProvider><Probe /></FloatingWindowsProvider>
+            </WorkspaceTestProvider>
+        )
+        const view = render(tree())
+        fireEvent.click(screen.getByRole('button', { name: 'open' }))
+        expect(screen.getByTestId('window-count')).toHaveTextContent('1')
+
+        // A re-render without a switch keeps them.
+        view.rerender(tree())
+        expect(screen.getByTestId('window-count')).toHaveTextContent('1')
+
+        act(() => workspace.switchTo(OTHER_WORKSPACE_ID))
+        view.rerender(tree())
+        expect(screen.getByTestId('window-count')).toHaveTextContent('0')
+    })
+
+    it('mounts without a workspace provider (stories, isolated surfaces)', () => {
+        render(<FloatingWindowsProvider><Probe /></FloatingWindowsProvider>)
+        fireEvent.click(screen.getByRole('button', { name: 'open' }))
+        expect(screen.getByTestId('window-count')).toHaveTextContent('1')
     })
 })

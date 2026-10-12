@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { VoiceSocket, configureVoiceSocketAuthRefresh } from './voiceSocket'
 import type { VoiceSocketClientFrame } from '@/shared/types/voice.types'
 
+const WORKSPACE_ID = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
+
 type Protocols = string | string[] | undefined
 
 class MockWebSocket {
@@ -100,10 +102,11 @@ describe('VoiceSocket', () => {
     it('opens the sibling ws-voice endpoint with the bearer subprotocol and sends voice_start', () => {
         const onMessage = vi.fn()
         const onStatusChange = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage, onStatusChange })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage, onStatusChange })
 
         socket.connect(startFrame())
         expect(MockWebSocket.instances[0].url).toContain('/character-chats/7/ws-voice')
+        expect(new URL(MockWebSocket.instances[0].url).searchParams.get('workspace_id')).toBe(WORKSPACE_ID)
         expect(protocolsOf(MockWebSocket.instances[0])).toEqual(['mw.bearer.v1', 'old-token'])
 
         MockWebSocket.instances[0].emitOpen()
@@ -114,7 +117,7 @@ describe('VoiceSocket', () => {
 
     it('sends heartbeat voice_ping every 25 seconds after voice_ready', async () => {
         vi.useFakeTimers()
-        const socket = new VoiceSocket(7, { onMessage: vi.fn() })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitMessage({
@@ -135,7 +138,7 @@ describe('VoiceSocket', () => {
         vi.useFakeTimers()
         const onMessage = vi.fn()
         const onStatusChange = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage, onStatusChange })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage, onStatusChange })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitMessage(READY_FRAME)
@@ -154,7 +157,7 @@ describe('VoiceSocket', () => {
 
     it('resets the liveness deadline on every valid inbound frame', async () => {
         vi.useFakeTimers()
-        const socket = new VoiceSocket(7, { onMessage: vi.fn() })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitMessage({
@@ -185,7 +188,7 @@ describe('VoiceSocket', () => {
         })
         configureVoiceSocketAuthRefresh(refresh)
         const onMessage = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitMessage({
@@ -209,7 +212,7 @@ describe('VoiceSocket', () => {
 
     it('accepts resume state snapshots without replaying raw audio', () => {
         const onMessage = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
 
@@ -232,7 +235,7 @@ describe('VoiceSocket', () => {
     it('does not reconnect after terminal origin rejection', async () => {
         vi.useFakeTimers()
         const onMessage = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
         socket.connect(startFrame())
 
         MockWebSocket.instances[0].emitClose(4403)
@@ -244,7 +247,7 @@ describe('VoiceSocket', () => {
 
     it('reconnects transient closes with backoff', async () => {
         vi.useFakeTimers()
-        const socket = new VoiceSocket(7, { onMessage: vi.fn() })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect(startFrame())
 
         MockWebSocket.instances[0].emitClose(1006)
@@ -258,7 +261,7 @@ describe('VoiceSocket', () => {
     it('resumes the call with voice_resume after a transient close', async () => {
         vi.useFakeTimers()
         const onMessage = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitMessage(READY_FRAME)
@@ -287,7 +290,7 @@ describe('VoiceSocket', () => {
     it('gives up once the resume window passes', async () => {
         vi.useFakeTimers()
         const onMessage = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitMessage(READY_FRAME)
@@ -317,7 +320,7 @@ describe('VoiceSocket', () => {
             return 'new-token'
         })
         configureVoiceSocketAuthRefresh(refresh)
-        const socket = new VoiceSocket(7, { onMessage: vi.fn() })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect(startFrame())
 
         MockWebSocket.instances[0].emitClose(1006)
@@ -337,7 +340,7 @@ describe('VoiceSocket', () => {
         })
         configureVoiceSocketAuthRefresh(refresh)
         const onMessage = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
         socket.connect(startFrame())
 
         // Server contract C3: accept, typed voice_error, then close 4401.
@@ -359,7 +362,7 @@ describe('VoiceSocket', () => {
             return 'new-token'
         }))
         const onMessage = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitMessage(READY_FRAME)
@@ -380,7 +383,7 @@ describe('VoiceSocket', () => {
 
     it('still reports a rejected origin as a terminal auth error', () => {
         const onMessage = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitMessage({ type: 'voice_error', category: 'auth', code: 'origin_forbidden', message: 'Origin not allowed.', fatal: true })
@@ -389,7 +392,7 @@ describe('VoiceSocket', () => {
     })
 
     it('starts a fresh call with voice_start after a previous call ended', () => {
-        const socket = new VoiceSocket(7, { onMessage: vi.fn() })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitMessage(READY_FRAME)
@@ -402,7 +405,7 @@ describe('VoiceSocket', () => {
 
     it('refuses raw-audio JSON control payloads', () => {
         const onMessage = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].send.mockClear()
@@ -416,7 +419,7 @@ describe('VoiceSocket', () => {
 
     it('drops assistant text from canceled turns and other voice sessions', () => {
         const onMessage = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitMessage({ type: 'voice_state_snapshot', voice_session_id: 'voice-1' })
@@ -432,7 +435,7 @@ describe('VoiceSocket', () => {
 
     it('drops stale audio chunks after cancellation', () => {
         const onMessage = vi.fn()
-        const socket = new VoiceSocket(7, { onMessage })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
 
@@ -449,7 +452,7 @@ describe('VoiceSocket', () => {
             localStorage.setItem('magic_worlds:token', 'new-token')
             return 'new-token'
         }))
-        const socket = new VoiceSocket(7, { onMessage: vi.fn() })
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect(startFrame())
 
         MockWebSocket.instances[0].emitClose(4401)

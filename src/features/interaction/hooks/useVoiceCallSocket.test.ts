@@ -6,6 +6,7 @@ import { useVoiceCallSocket } from './useVoiceCallSocket'
 let socketHandlers: { onMessage: (message: VoiceSocketServerFrame) => void; onStatusChange?: (status: string) => void } | null = null
 const socketInstances: Array<{
     sessionId: number
+    workspaceId: string
     basePath: string
     connect: ReturnType<typeof vi.fn>
     close: ReturnType<typeof vi.fn>
@@ -13,6 +14,10 @@ const socketInstances: Array<{
     noteSegmentSeq: ReturnType<typeof vi.fn>
     end: ReturnType<typeof vi.fn>
 }> = []
+
+const WORKSPACE_ID = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
+const workspaceState = vi.hoisted(() => ({ selectedWorkspaceId: '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b' as string | null }))
+vi.mock('@/app/hooks/useWorkspace', () => ({ useWorkspace: () => workspaceState }))
 
 vi.mock('@/infrastructure/api', () => ({
     VoiceSocket: class {
@@ -24,8 +29,11 @@ vi.mock('@/infrastructure/api', () => ({
         noteSegmentSeq = vi.fn()
         end = vi.fn(() => true)
 
-        constructor(_sessionId: number, handlers: { onMessage: (message: VoiceSocketServerFrame) => void; onStatusChange?: (status: string) => void }, _basePath: string) {
+        readonly workspaceId: string
+
+        constructor(_sessionId: number, workspaceId: string, handlers: { onMessage: (message: VoiceSocketServerFrame) => void; onStatusChange?: (status: string) => void }, _basePath: string) {
             this.sessionId = _sessionId
+            this.workspaceId = workspaceId
             this.basePath = _basePath
             socketHandlers = handlers
             socketInstances.push(this)
@@ -52,6 +60,33 @@ describe('useVoiceCallSocket', () => {
         socketHandlers = null
         socketInstances.length = 0
         vi.clearAllMocks()
+    })
+
+    it('waits for a committed workspace before creating the call socket', () => {
+        workspaceState.selectedWorkspaceId = null
+        const { rerender, unmount } = renderHook(() => useVoiceCallSocket(7))
+        expect(socketInstances).toHaveLength(0)
+        workspaceState.selectedWorkspaceId = WORKSPACE_ID
+        rerender()
+        expect(socketInstances).toHaveLength(1)
+        expect(socketInstances[0].workspaceId).toBe(WORKSPACE_ID)
+        unmount()
+    })
+
+    it('keeps the call socket in the chat workspace and closes it when that workspace is switched away', () => {
+        const OTHER = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
+        workspaceState.selectedWorkspaceId = WORKSPACE_ID
+        const { rerender, unmount } = renderHook(() => useVoiceCallSocket(7, {}, 'token-1', 'character-chats', WORKSPACE_ID))
+        expect(socketInstances).toHaveLength(1)
+        expect(socketInstances[0].workspaceId).toBe(WORKSPACE_ID)
+
+        workspaceState.selectedWorkspaceId = OTHER
+        rerender()
+        expect(socketInstances[0].close).toHaveBeenCalled()
+        // Never reopened in the newly selected workspace.
+        expect(socketInstances).toHaveLength(1)
+        workspaceState.selectedWorkspaceId = WORKSPACE_ID
+        unmount()
     })
 
     it('queues the accepted call until the draft receives its session id', () => {
@@ -82,6 +117,7 @@ describe('useVoiceCallSocket', () => {
         expect(socketInstances).toHaveLength(1)
         expect(socketInstances[0].sessionId).toBe(7)
         expect(socketInstances[0].basePath).toBe('character-chats')
+        expect(socketInstances[0].workspaceId).toBe(WORKSPACE_ID)
         expect(socketInstances[0].connect).not.toHaveBeenCalled()
 
         act(() => result.current.start(startFrame()))

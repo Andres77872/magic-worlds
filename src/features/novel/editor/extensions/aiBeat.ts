@@ -151,6 +151,8 @@ export const AiBeat = Node.create<AiBeatOptions>({
             remove.addEventListener('mousedown', (event) => event.preventDefault())
             remove.addEventListener('click', (event) => {
                 event.preventDefault()
+                // Commands run even on a read-only editor; removing a note is an edit.
+                if (!editor.isEditable) return
                 const pos = typeof getPos === 'function' ? getPos() : null
                 if (pos == null) return
                 editor.commands.deleteRange({ from: pos, to: pos + node.nodeSize })

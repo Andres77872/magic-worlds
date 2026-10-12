@@ -1,10 +1,12 @@
+import type { ReactElement } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FocusRef } from '../appKnowledge'
 import { AssistantMarkdown } from '@/features/creation/common/components/assistant/AssistantMarkdown'
 import { AssistantLinkContext } from '@/features/creation/common/components/assistant/assistantLinkContext'
 import { fetchCardPreview } from '@/features/cards/cardPreview'
-import { ApiError } from '@/infrastructure/api'
+import { ApiError, apiService } from '@/infrastructure/api'
+import { createWorkspaceTestState, TEST_WORKSPACE_ID, WorkspaceTestProvider } from '@/shared/hooks/testing/workspaceTestUtils'
 import { resetHoverCardCaches } from './hoverCardCache'
 import { HOVER_TIMING } from './hoverCardController'
 import { HOVER_CARD_REPLY, hoverCardLibrary } from './hoverCardFixtures'
@@ -29,14 +31,19 @@ function renderThread(overrides: Partial<HoverCardsProviderProps> = {}) {
         onView: vi.fn(),
         ...overrides,
     }
+    // Records outside the library are read in the committed workspace.
+    const workspace = createWorkspaceTestState()
     const view = render(
-        <HoverCardsProvider {...props}>
-            <AssistantLinkContext.Provider value={HoverCardLink}>
-                <AssistantMarkdown content={HOVER_CARD_REPLY} />
-            </AssistantLinkContext.Provider>
-        </HoverCardsProvider>,
+        <WorkspaceTestProvider state={workspace}>
+            <HoverCardsProvider {...props}>
+                <AssistantLinkContext.Provider value={HoverCardLink}>
+                    <AssistantMarkdown content={HOVER_CARD_REPLY} />
+                </AssistantLinkContext.Provider>
+            </HoverCardsProvider>
+        </WorkspaceTestProvider>,
     )
-    return { ...view, props }
+    const rerender = (ui: ReactElement) => view.rerender(<WorkspaceTestProvider state={workspace}>{ui}</WorkspaceTestProvider>)
+    return { ...view, rerender, props }
 }
 
 const wait = (ms: number) => act(() => {
@@ -199,6 +206,7 @@ describe('assistant hover cards', () => {
 
     it('fetches a card missing from the library once and remembers that it is gone', async () => {
         fetchPreview.mockRejectedValue(new ApiError(404, 'Not found'))
+        const scope = vi.spyOn(apiService, 'withWorkspace')
         renderThread()
         const card = await openCard('Kai \\(old draft\\)')
         await act(async () => {})
@@ -209,6 +217,8 @@ describe('assistant hover cards', () => {
         fireEvent.keyDown(document, { key: 'Escape' })
         await openCard('Kai \\(old draft\\)')
         expect(fetchPreview).toHaveBeenCalledTimes(1)
+        expect(scope).toHaveBeenCalledWith(TEST_WORKSPACE_ID)
+        scope.mockRestore()
     })
 
     it('retries a failed request from the card', async () => {

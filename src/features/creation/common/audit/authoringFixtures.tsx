@@ -12,6 +12,7 @@ import { characters, worlds, templates } from '@/ui/components/lists/fixtures'
 import { blankEntryDraft, normalizeLorebook } from '@/features/lorebook/lorebookTransforms'
 import { normalizeLorebookResource } from '@/features/lorebook/lorebookResources'
 import characterArtwork from '@/assets/marketing/features/characters.webp'
+import { createWorkspaceTestState, TEST_WORKSPACE_ID, WorkspaceTestProvider } from '@/shared/hooks/testing/workspaceTestUtils'
 
 export type AuditState = 'populated' | 'empty' | 'error' | 'loading' | 'draft' | 'historical' | 'persona'
 export const noop = () => {}
@@ -83,6 +84,9 @@ export function AuthoringProviders({ children, route = 'character', state = 'pop
         return new Proxy(data, { get: (target, key) => key in target ? Reflect.get(target, key) : done }) as unknown as DataValue
     }, [editing, route, state])
     const auth = useMemo(() => ({ isAuthenticated: true, isLoading: false, error: null, user: { user_hash: 'visual-audit', username: 'Traveler' }, userHash: 'visual-audit', accountKey: 'visual-audit', authEpoch: 1, sessionPhase: 'authenticated', openLoginModal: noop, closeLoginModal: noop, isLoginModalOpen: false }) as unknown as AuthValue, [])
+    // Workspace R1: private content renders inside a committed workspace; its scoped
+    // client inherits the in-memory replacements installed on the singleton.
+    const workspace = useMemo(() => createWorkspaceTestState({ api: apiService.withWorkspace(TEST_WORKSPACE_ID) }), [])
     const navigation = useMemo(() => ({ currentPage: route, currentHash: '', cardEdit: state === 'historical' ? { cardType: route, cardId: characters[0].id, version: 2 } : null, resourceEdit: null, setPage: noop, goBack: noop, replaceHash: noop, registerNavigationInterceptor: () => noop }) as unknown as NavigationValue, [route, state])
-    return <AuthContext.Provider value={auth}><ApiStatusContext.Provider value={{ status: 'online' }}><NavigationContext.Provider value={navigation}><DataContext.Provider value={values}><BackgroundTasksContext.Provider value={{ tasks: [], taskBuckets: { active: [], completed: [], failed: [] }, activeTasks: [], activeCount: 0, drawerOpen: false, openDrawer: noop, closeDrawer: noop, refreshTasks: done, registerTask: noop, registerThemeSongJob: noop, cancelTask: done, clearTerminalTasks: done, terminalHasMore: { completed: false, failed: false }, loadMoreTerminalTasks: done }}><FloatingWindowsProvider>{children}</FloatingWindowsProvider></BackgroundTasksContext.Provider></DataContext.Provider></NavigationContext.Provider></ApiStatusContext.Provider></AuthContext.Provider>
+    return <AuthContext.Provider value={auth}><WorkspaceTestProvider state={workspace}><ApiStatusContext.Provider value={{ status: 'online' }}><NavigationContext.Provider value={navigation}><DataContext.Provider value={values}><BackgroundTasksContext.Provider value={{ tasks: [], taskBuckets: { active: [], completed: [], failed: [] }, activeTasks: [], activeCount: 0, drawerOpen: false, openDrawer: noop, closeDrawer: noop, refreshTasks: done, registerTask: noop, registerThemeSongJob: noop, cancelTask: done, clearTerminalTasks: done, terminalHasMore: { completed: false, failed: false }, loadMoreTerminalTasks: done }}><FloatingWindowsProvider>{children}</FloatingWindowsProvider></BackgroundTasksContext.Provider></DataContext.Provider></NavigationContext.Provider></ApiStatusContext.Provider></WorkspaceTestProvider></AuthContext.Provider>
 }

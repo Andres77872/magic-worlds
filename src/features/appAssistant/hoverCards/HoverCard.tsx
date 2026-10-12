@@ -4,10 +4,11 @@
  * transient, and tears off into a free-floating card once dragged (pointer
  * past a small threshold, or arrow keys on the handle).
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { CardPreview } from '@/features/cards/cardPreview'
+import { WorkspaceContext } from '@/app/providers/workspaceContext'
 import { cx, useDraggable } from '@/ui/primitives'
 import { focusLink, type KnowledgeLibrary } from '../appKnowledge'
 import { loadRemotePreview, peekRemotePreview, useHoverMedia } from './hoverCardCache'
@@ -50,8 +51,8 @@ const NESTED_LINK_CLASS = 'text-ember-300 underline decoration-ember-400/45 unde
 
 type RemoteState = { status: 'loading' } | { status: 'ready'; preview: CardPreview } | { status: 'missing' } | { status: 'error' }
 
-function initialRemote(ref: HoverCardRef): RemoteState {
-    const settled = peekRemotePreview(ref)
+function initialRemote(ref: HoverCardRef, workspaceId: string | null): RemoteState {
+    const settled = peekRemotePreview(ref, workspaceId)
     if (settled === undefined) return { status: 'loading' }
     return settled ? { status: 'ready', preview: settled } : { status: 'missing' }
 }
@@ -64,12 +65,20 @@ function useHoverCardData(ref: HoverCardRef, library: KnowledgeLibrary, t: TFunc
     const local = useMemo(() => hoverCardFromLibrary(library, ref, t), [library, ref, t])
     // Lorebooks have no preview endpoint: outside the library they are simply gone.
     const remote = !local && ref.kind !== 'lorebook'
-    const [state, setState] = useState<RemoteState>(() => initialRemote(ref))
+    // Workspace R1: a record outside the library is read in the committed workspace
+    // (optional context: stories render hover cards without one).
+    const workspaceId = useContext(WorkspaceContext)?.selectedWorkspaceId ?? null
+    const [state, setState] = useState<RemoteState>(() => initialRemote(ref, workspaceId))
+    const [stateWorkspaceId, setStateWorkspaceId] = useState(workspaceId)
+    if (stateWorkspaceId !== workspaceId) {
+        setStateWorkspaceId(workspaceId)
+        setState(initialRemote(ref, workspaceId))
+    }
 
     useEffect(() => {
         if (!remote || state.status !== 'loading') return
         let cancelled = false
-        loadRemotePreview(ref).then(
+        loadRemotePreview(ref, workspaceId).then(
             (preview) => {
                 if (!cancelled) setState(preview ? { status: 'ready', preview } : { status: 'missing' })
             },
@@ -80,7 +89,7 @@ function useHoverCardData(ref: HoverCardRef, library: KnowledgeLibrary, t: TFunc
         return () => {
             cancelled = true
         }
-    }, [remote, ref, state.status])
+    }, [remote, ref, state.status, workspaceId])
 
     const data = useMemo<HoverCardData>(() => {
         if (local) return { status: 'ready', model: local }

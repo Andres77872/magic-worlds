@@ -5,6 +5,10 @@ import type { CapturedVoiceSegment } from '../audio/voiceVadWorklet'
 import type { MicrophoneCaptureApi, UseMicrophoneCaptureOptions } from './useMicrophoneCapture'
 import type { VoiceCallSocketApi, VoiceCallSocketHandlers } from './useVoiceCallSocket'
 import { deriveVoiceCallState, useVoiceCallController } from './useVoiceCallController'
+import { activeVoiceCallWorkspaceId, endActiveVoiceCall, hasActiveVoiceCall } from '@/features/call/activeVoiceCall'
+
+const MAIN_WORKSPACE = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
+const OTHER_WORKSPACE = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
 
 type PlaybackMock = Pick<VoicePlaybackBuffer, 'startTurn' | 'appendChunk' | 'finalize' | 'cancel' | 'dispose' | 'unlock' | 'resume' | 'addStateListener'>
 
@@ -13,7 +17,10 @@ const mocks = vi.hoisted(() => ({
         saveVoiceConsent: vi.fn(),
         uploadVoiceSegment: vi.fn(),
         endVoiceCall: vi.fn(),
+        // The call's scoped client shares these methods; the scope is asserted on this spy.
+        withWorkspace: vi.fn(),
     },
+    workspace: { selectedWorkspaceId: '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b' as string | null },
     socketHandlers: null as VoiceCallSocketHandlers | null,
     microphoneOptions: null as UseMicrophoneCaptureOptions | null,
     socketApi: null as VoiceCallSocketApi | null,
@@ -24,6 +31,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/infrastructure/api', () => ({
     apiService: mocks.apiService,
+}))
+
+vi.mock('@/app/hooks/useWorkspace', () => ({
+    useWorkspace: () => mocks.workspace,
 }))
 
 vi.mock('./useVoiceCallSocket', () => ({
@@ -117,6 +128,8 @@ describe('useVoiceCallController', () => {
         mocks.socketHandlers = null
         mocks.microphoneOptions = null
         mocks.playbackListener = null
+        mocks.workspace.selectedWorkspaceId = MAIN_WORKSPACE
+        mocks.apiService.withWorkspace.mockImplementation(() => mocks.apiService)
         mocks.apiService.saveVoiceConsent.mockResolvedValue({
             status: 'accepted',
             consent_version: 'voice-v1',
@@ -576,5 +589,64 @@ describe('useVoiceCallController', () => {
         unmount()
         await waitFor(() => expect(mocks.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-1', reason: 'user' }, { keepalive: true }))
         expect(mocks.playback!.dispose).toHaveBeenCalled()
+    })
+
+    describe('Workspace R1', () => {
+        it('sends consent, segments and the end request in the call workspace', async () => {
+            const { result } = await renderLiveCall({ workspaceId: OTHER_WORKSPACE })
+            mocks.workspace.selectedWorkspaceId = OTHER_WORKSPACE
+
+            await act(async () => { await result.current.endCall() })
+
+            expect(mocks.apiService.withWorkspace).toHaveBeenCalledWith(OTHER_WORKSPACE)
+            expect(mocks.apiService.withWorkspace).not.toHaveBeenCalledWith(MAIN_WORKSPACE)
+            expect(mocks.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-1', reason: 'user' }, { keepalive: true })
+        })
+
+        it('registers a live call for the switch coordinator and ends it with a confirmed quota release', async () => {
+            const { result, unmount } = await renderLiveCall()
+            expect(hasActiveVoiceCall()).toBe(true)
+            expect(activeVoiceCallWorkspaceId()).toBe(MAIN_WORKSPACE)
+
+            await act(async () => { await endActiveVoiceCall() })
+
+            expect(mocks.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-1', reason: 'user' }, { keepalive: true })
+            expect(mocks.microphoneApi!.stop).toHaveBeenCalled()
+            expect(result.current.state).toBe('ended')
+            expect(hasActiveVoiceCall()).toBe(false)
+            unmount()
+        })
+
+        it('keeps the call registered when the end is not confirmed, so the coordinator can retry', async () => {
+            const { unmount } = await renderLiveCall()
+            mocks.apiService.endVoiceCall.mockRejectedValueOnce(new Error('network'))
+
+            let failure: unknown = null
+            await act(async () => { await endActiveVoiceCall().catch((error: unknown) => { failure = error }) })
+            expect(failure).toBeInstanceOf(Error)
+            expect(hasActiveVoiceCall()).toBe(true)
+
+            await act(async () => { await endActiveVoiceCall() })
+            expect(mocks.apiService.endVoiceCall).toHaveBeenCalledTimes(2)
+            expect(hasActiveVoiceCall()).toBe(false)
+            unmount()
+        })
+
+        it('resolves immediately when no call is active', async () => {
+            await expect(endActiveVoiceCall()).resolves.toBeUndefined()
+            expect(hasActiveVoiceCall()).toBe(false)
+        })
+
+        it('ends the call when its workspace stops being the selected one', async () => {
+            const { result, rerender, unmount } = await renderLiveCall()
+            mocks.workspace.selectedWorkspaceId = OTHER_WORKSPACE
+            rerender()
+
+            await waitFor(() => expect(result.current.state).toBe('ended'))
+            await waitFor(() => expect(mocks.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-1', reason: 'user' }, { keepalive: true }))
+            expect(mocks.apiService.withWorkspace).not.toHaveBeenCalledWith(OTHER_WORKSPACE)
+            expect(hasActiveVoiceCall()).toBe(false)
+            unmount()
+        })
     })
 })

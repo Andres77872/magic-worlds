@@ -34,6 +34,10 @@ export interface CardDraftControlsProps {
     onPublished?: (result: CardPublishResult) => void
     /** Disable actions while the form runs its own submit. */
     disabled?: boolean
+    /** Workspace R1: the card's own workspace (history and usage reads); default = committed. */
+    workspaceId?: string | null
+    /** Archived workspace: Publish, discard and restore are off; version history stays viewable. */
+    readOnly?: boolean
 }
 
 export function CardDraftControls({
@@ -44,6 +48,8 @@ export function CardDraftControls({
     onHydrate,
     onPublished,
     disabled = false,
+    workspaceId,
+    readOnly = false,
 }: CardDraftControlsProps) {
     const { t } = useTranslation()
     const { replaceHash } = useNavigation()
@@ -63,6 +69,7 @@ export function CardDraftControls({
     const fail = (key: string | null) => setToast({ tone: 'error', message: t(key ?? 'cardVersions.errors.publish') })
 
     const confirmPublish = async () => {
+        if (readOnly) return
         const result = await draft.publish(label.trim() || undefined)
         if (result) {
             setPublishOpen(false)
@@ -77,6 +84,7 @@ export function CardDraftControls({
     }
 
     const confirmDiscard = async () => {
+        if (readOnly) return
         const published = await draft.discard()
         setDiscardOpen(false)
         if (published) {
@@ -88,6 +96,7 @@ export function CardDraftControls({
     }
 
     const handleRestore = async (versionNumber: number) => {
+        if (readOnly) return
         const body = await draft.restoreIntoDraft(versionNumber)
         if (body) {
             onHydrate(body)
@@ -118,7 +127,7 @@ export function CardDraftControls({
             <Button
                 variant="primary"
                 onClick={() => setPublishOpen(true)}
-                disabled={disabled || busy || !hasDraft}
+                disabled={disabled || readOnly || busy || !hasDraft}
             >
                 {draft.publishing ? t('cardVersions.publish.publishing') : t('cardVersions.publish.button')}
             </Button>
@@ -137,6 +146,8 @@ export function CardDraftControls({
                 cardType={cardType}
                 cardId={cardId}
                 cardName={cardName}
+                workspaceId={workspaceId}
+                readOnly={readOnly}
                 hasDraft={hasDraft}
                 basedOnVersionNumber={based}
                 latestVersionNumber={latest}

@@ -13,6 +13,47 @@ import type {
 } from '@/shared/types/llmProfile.types'
 import { verifyThemeSongJob, verifyThemeSongList, verifyUserThemeSongList } from './themeSongContract'
 import { verifyCardGeneration } from './cardContract'
+import {
+    canonicalInitialCollectionIds,
+    isCopyRequestId,
+    isWorkspaceErrorCode,
+    isWorkspaceUuid,
+    MAX_COPY_CARDS,
+    stripCardBodyOrganization,
+    stripOrganization,
+    verifyCollection,
+    verifyCollectionList,
+    verifyContentResolution,
+    verifyCopyResult,
+    verifyLibraryPage,
+    verifyMembershipResult,
+    verifyWorkspace,
+    verifyWorkspaceList,
+    verifyWorkspaceMediaPage,
+} from './workspaceContract'
+import type {
+    Collection,
+    CollectionCreate,
+    CollectionList,
+    CollectionUpdate,
+    ContentResolution,
+    ContentResolveQuery,
+    CopyCommand,
+    CopyOutcome,
+    LibraryPage,
+    LibraryQuery,
+    MembershipCommand,
+    MembershipResult,
+    RootOrganization,
+    Workspace,
+    WorkspaceCreate,
+    WorkspaceErrorCode,
+    WorkspaceList,
+    WorkspaceMediaPage,
+    WorkspaceMediaQuery,
+    WorkspaceScopeOptions,
+    WorkspaceUpdate,
+} from '@/shared/types/workspace.types'
 import { verifyLorebookExtraction, verifyLorebookExtractionStatus, matchesLorebookExtractionProfile, extractionContainsCredential } from './lorebookExtractionContract'
 import type { LorebookExtractionCommand, LorebookExtractionOptions, LorebookExtractionResult, LorebookExtractionStatus } from '@/shared/types/lorebookExtraction.types'
 import { verifyAgentList, verifyAgentDetail, verifyCustomAgentDetail, verifyAgentVersions, verifyAgentTest } from './workflowContract'
@@ -233,6 +274,8 @@ export interface ImageJobPublicResponse {
     result_url: string
     assets?: ChatImageAsset[]
     error?: ChatImageError | null
+    /** Workspace R1: the job's durable origin (server-owned). */
+    organization?: RootOrganization
 }
 
 export interface TtsJobPublicResponse {
@@ -242,6 +285,8 @@ export interface TtsJobPublicResponse {
     result_url: string
     assets?: ChatTtsAsset[]
     error?: ChatTtsError | null
+    /** Workspace R1: the job's durable origin (server-owned). */
+    organization?: RootOrganization
 }
 
 export interface ApiHealthResponse {
@@ -323,6 +368,62 @@ export class ApiError extends Error {
     get isTransient(): boolean {
         return this.status >= 500 || this.retryable === true
     }
+}
+
+/**
+ * A named workspace contract error (`{detail: {code}}`, document 15 Error
+ * contract). Thrown by every route, so UI can branch on `code` — e.g.
+ * `WORKSPACE_ARCHIVED` → read-only notice, `*_VERSION_CONFLICT` → reload and
+ * retry, `COPY_LIMIT_EXCEEDED` → explain the limit. Still an `ApiError`.
+ */
+export class WorkspaceApiError extends ApiError {
+    declare readonly code: WorkspaceErrorCode
+
+    constructor(status: number, message: string, metadata: Partial<Pick<ApiError, 'category' | 'requestId' | 'retryable' | 'retryAfterSeconds' | 'action' | 'details'>> & { code: WorkspaceErrorCode }) {
+        super(status, message, metadata)
+        this.name = 'WorkspaceApiError'
+    }
+}
+
+export function isWorkspaceApiError(error: unknown, code?: WorkspaceErrorCode): error is WorkspaceApiError {
+    return error instanceof WorkspaceApiError && (code === undefined || error.code === code)
+}
+
+/** Window event dispatched when any response says `WORKSPACE_REQUIRED` (a stale client build). */
+export const WORKSPACE_REQUIRED_EVENT = 'workspace:required'
+
+/**
+ * The immutable workspace selector a scoped client captured. It is sent on
+ * every private REST/SSE/blob request of that client, including the replay
+ * after an auth refresh; the singleton itself never holds one.
+ */
+export interface WorkspaceRequestScope {
+    readonly workspaceId: string
+    readonly initialCollectionIds: readonly string[]
+}
+
+let workspaceWritesBlocked = false
+
+/**
+ * Once this tab is known to run a stale build (a newer workspace contract or a
+ * `WORKSPACE_REQUIRED` response), every private write — scoped-client and
+ * `/workspaces` mutations — is refused locally until reload (document 08:
+ * "block private writes"). Reads, auth and account routes keep working.
+ */
+export function setWorkspaceWritesBlocked(blocked: boolean): void {
+    workspaceWritesBlocked = blocked
+}
+
+export function areWorkspaceWritesBlocked(): boolean {
+    return workspaceWritesBlocked
+}
+
+const SAFE_HTTP_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+
+function blockedWorkspaceWriteError(): ApiError {
+    return new ApiError(409, 'This page is out of date. Reload to continue.', {
+        category: 'client_stale', code: 'workspace_client_stale', retryable: false,
+    })
 }
 
 interface ParsedApiError {
@@ -408,6 +509,10 @@ export function normalizeApiErrorBody(
 type ApiRequestOptions = RequestInit & {
     timeoutMs?: number
     rejectAccepted?: boolean
+    /** Workspace routes select by path; they never carry the scoped client's header. */
+    omitWorkspaceScope?: boolean
+    /** Observe the final response (after any auth replay) for its status and headers. */
+    onResponse?: (response: Response) => void
 }
 
 type HeaderRecord = Record<string, string>
@@ -418,6 +523,61 @@ type AuthRequestOwner = Pick<AuthSessionSnapshot, 'authEpoch' | 'accountKey' | '
 
 class ApiService {
     private baseUrl: string
+    /**
+     * The captured workspace of a scoped client from {@link withWorkspace};
+     * always `null` on the exported singleton (document 15: the singleton never
+     * stores a mutable active workspace).
+     */
+    readonly workspaceScope: WorkspaceRequestScope | null = null
+
+    /**
+     * A client whose private REST, SSE and blob requests carry `X-Workspace-Id`
+     * (and `X-Initial-Collection-Ids` when given). It shares the singleton's
+     * auth, refresh and LLM-intent state — only the frozen scope differs — and
+     * an auth refresh replays the request with the same captured headers.
+     *
+     *     const api = apiService.withWorkspace(workspaceId)
+     *     const characters = await api.getCharacters()
+     *     const created = await apiService
+     *         .withWorkspace(workspaceId, { initialCollectionIds: [collectionId] })
+     *         .createCharacter(payload)
+     *
+     * Workspace management routes (`/workspaces/...`) select by path and never
+     * send the header, so call them on either client.
+     */
+    withWorkspace(workspaceId: string, options: WorkspaceScopeOptions = {}): ApiService {
+        if (!isWorkspaceUuid(workspaceId)) throw new Error('A workspace scope needs a lowercase workspace UUID.')
+        const scope: WorkspaceRequestScope = Object.freeze({
+            workspaceId,
+            initialCollectionIds: canonicalInitialCollectionIds(options.initialCollectionIds),
+        })
+        // Scopes never stack: a facade's prototype is always the unscoped singleton.
+        const root: ApiService = this.workspaceScope ? Object.getPrototypeOf(this) as ApiService : this
+        const scoped = Object.create(root) as ApiService
+        Object.defineProperty(scoped, 'workspaceScope', { value: scope, enumerable: true, writable: false, configurable: false })
+        Object.freeze(scoped)
+        return scoped
+    }
+
+    /** The captured selector headers; empty on the unscoped singleton. */
+    private workspaceHeaders(): HeaderRecord {
+        const scope = this.workspaceScope
+        if (!scope) return {}
+        return {
+            'X-Workspace-Id': scope.workspaceId,
+            ...(scope.initialCollectionIds.length ? { 'X-Initial-Collection-Ids': scope.initialCollectionIds.join(',') } : {}),
+        }
+    }
+
+    /** One error shape for every transport; a stale build is announced once per response. */
+    private responseError(status: number, parsed: ParsedApiError): ApiError {
+        if (parsed.code === 'WORKSPACE_REQUIRED' && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent(WORKSPACE_REQUIRED_EVENT))
+        }
+        return isWorkspaceErrorCode(parsed.code)
+            ? new WorkspaceApiError(status, parsed.message, { ...parsed, code: parsed.code })
+            : new ApiError(status, parsed.message, parsed)
+    }
 
     private async profileRequest<T>(path: string, method = 'GET', payload?: unknown, version?: number): Promise<T> {
         if (payload !== undefined) assertPublicLlmData(payload)
@@ -649,8 +809,12 @@ class ApiService {
         isAuthEndpoint: boolean = false
     ): Promise<T> {
         const url = `${this.baseUrl}${endpoint}`
-        const { timeoutMs, rejectAccepted, ...fetchOptions } = options
-        
+        const { timeoutMs, rejectAccepted, omitWorkspaceScope, onResponse, ...fetchOptions } = options
+        if (workspaceWritesBlocked && !SAFE_HTTP_METHODS.has((fetchOptions.method ?? 'GET').toUpperCase())
+            && (this.workspaceScope !== null || endpoint.startsWith('/workspaces'))) {
+            throw blockedWorkspaceWriteError()
+        }
+
         // Handle JSON serialization if body is an object
         let body = fetchOptions.body
         if (body && typeof body === 'object' && (typeof FormData === 'undefined' || !(body instanceof FormData))) {
@@ -680,10 +844,13 @@ class ApiService {
         // `multipart/form-data; boundary=…` itself, and forcing application/json
         // (or any explicit value) strips the boundary and breaks server parsing.
         const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
+        // The captured workspace selector rides in `config.headers`, so every
+        // auth replay below (withAuthorization keeps the headers) re-sends it.
         const headers: HeaderRecord = {
             ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
             'Accept': 'application/json',
-            ...this.toHeaderRecord(fetchOptions.headers)
+            ...this.toHeaderRecord(fetchOptions.headers),
+            ...(omitWorkspaceScope ? {} : this.workspaceHeaders()),
         }
         if (isFormData) delete headers['Content-Type']
         const config: RequestInit = {
@@ -735,6 +902,8 @@ class ApiService {
                 // denied.
             }
 
+            onResponse?.(response)
+
             if (rejectAccepted && response.status === 202) {
                 throw new ApiError(502, 'AI card generation returned an unsupported async response.', {
                     category: 'configuration_unavailable',
@@ -759,7 +928,7 @@ class ApiService {
                     code: parsed.code,
                     requestId: parsed.requestId,
                 })
-                throw new ApiError(response.status, parsed.message, parsed)
+                throw this.responseError(response.status, parsed)
             }
 
             if (parseAsJson) {
@@ -1023,10 +1192,12 @@ class ApiService {
 
     private async authenticatedBlob(endpoint: string, errorMessage: string, accept: string): Promise<Blob> {
         const url = `${this.baseUrl}${endpoint}`
+        const scopeHeaders = this.workspaceHeaders()
         const fetchOnce = (token: string) => fetch(url, {
             method: 'GET',
             headers: {
                 Accept: accept,
+                ...scopeHeaders,
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
         })
@@ -1050,7 +1221,7 @@ class ApiService {
         }
         if (!response.ok) {
             const parsed = await this.extractError(response)
-            throw new ApiError(response.status, parsed.message || errorMessage, parsed)
+            throw this.responseError(response.status, { ...parsed, message: parsed.message || errorMessage })
         }
         const blob = await response.blob()
         this.assertCurrentOwner(owner)
@@ -1279,7 +1450,7 @@ class ApiService {
     }
 
     private assertAiCardSynchronousContract(value: unknown, requestId?: string): void {
-        if (!verifyCardGeneration(value, requestId)) {
+        if (!verifyCardGeneration(value, requestId, this.workspaceScope?.workspaceId)) {
             throw new ApiError(502, 'Card generation returned an invalid execution result.', {
                 category: 'upstream_contract', code: 'card_execution_contract', retryable: false,
             })
@@ -1337,8 +1508,10 @@ class ApiService {
         send: (llm: LlmRequest) => Promise<T>, finished: (value: T) => boolean = () => true,
         settleError: (error: unknown) => boolean = isLlmRequestSpent): Promise<T> {
         const owner = authSession.getSnapshot()
+        // Workspace R1: retained retry/recovery profile reads ride this client's captured origin.
+        const origin = this.workspaceScope?.workspaceId
         let llm = llmIntents.retained(feature, requestId) ?? await (supplied?.retry_of_execution_id
-            ? prepareRetainedLlmRequest(feature, supplied, signal) : prepareLlmRequest(feature, supplied, signal))
+            ? prepareRetainedLlmRequest(feature, supplied, signal, undefined, origin) : prepareLlmRequest(feature, supplied, signal, undefined, origin))
         this.assertCurrentOwner(owner)
         llmIntents.retain(feature, requestId, llm)
         try {
@@ -1348,7 +1521,7 @@ class ApiService {
             } catch (error) {
                 if (!(error instanceof ApiError) || error.code !== 'BYOK_CREDENTIAL_REQUIRED' || llm.credentials || !llm.expected_revision_id) throw error
                 const target = llm
-                llm = await prepareRetainedLlmRequest(feature, target, signal, requestId)
+                llm = await prepareRetainedLlmRequest(feature, target, signal, requestId, origin)
                 if (!llm.credentials || !llmIntents.matches(target, llm)) {
                     delete llm.credentials
                     throw new ApiError(409, 'The profile changed since this request started.', { code: 'LLM_EXECUTION_INTENT_CHANGED', requestId, retryable: false })
@@ -1392,6 +1565,7 @@ class ApiService {
         onEvent: (event: T) => void,
         options: { signal?: AbortSignal; requestId?: string; timeoutMs?: number; idempotencyKey?: string } = {},
     ): Promise<void> {
+        if (workspaceWritesBlocked && this.workspaceScope !== null) throw blockedWorkspaceWriteError()
         const token = this.getStoredToken()
         const owner = { ...authSession.getSnapshot(), token }
         const requestId = options.requestId || this.createClientId('mw-stream')
@@ -1413,6 +1587,7 @@ class ApiService {
                 'Content-Type': 'application/json', Accept: 'text/event-stream',
                 'X-Request-Id': requestId,
                 ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
+                ...this.workspaceHeaders(),
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: JSON.stringify(body),
@@ -1440,7 +1615,7 @@ class ApiService {
             }
             if (!response.ok) {
                 const parsed = await this.extractError(response)
-                throw new ApiError(response.status, parsed.message, parsed)
+                throw this.responseError(response.status, parsed)
             }
             await readEventStream(response, (event: T) => {
                 const identity = event as T & { request_id?: string }
@@ -1495,6 +1670,209 @@ class ApiService {
             throw new ApiError(response.status, `Dependency health check failed (${response.status})`)
         }
         return await response.json() as ApiDependencyHealthResponse
+    }
+
+    // --- Workspaces (R1, document 15) ---------------------------------------------------
+    // Every `/workspaces/...` route selects by path (or carries no selector), so
+    // these never send a scoped client's `X-Workspace-Id`. Responses are checked
+    // against the strict DTOs; named failures surface as WorkspaceApiError.
+
+    private workspaceRequest<T>(endpoint: string, init: {
+        method?: string
+        body?: unknown
+        version?: number
+        signal?: AbortSignal
+        onResponse?: (response: Response) => void
+    } = {}): Promise<T> {
+        if (init.version !== undefined && (!Number.isSafeInteger(init.version) || init.version < 1)) {
+            throw new Error('Workspace and collection versions are positive integers.')
+        }
+        return this.authenticatedRequest<T>(endpoint, this.getStoredToken(), {
+            method: init.method ?? 'GET',
+            cache: 'no-store',
+            omitWorkspaceScope: true,
+            headers: init.version === undefined ? {} : { 'If-Match': `"${init.version}"` },
+            ...(init.body === undefined ? {} : { body: init.body as BodyInit }),
+            ...(init.signal ? { signal: init.signal } : {}),
+            ...(init.onResponse ? { onResponse: init.onResponse } : {}),
+        })
+    }
+
+    private workspacePath(workspaceId: string, suffix = ''): string {
+        if (!isWorkspaceUuid(workspaceId)) throw new Error('Workspace IDs are lowercase UUIDs.')
+        return `/workspaces/${workspaceId}${suffix}`
+    }
+
+    private collectionPath(workspaceId: string, collectionId: string, suffix = ''): string {
+        if (!isWorkspaceUuid(collectionId)) throw new Error('Collection IDs are lowercase UUIDs.')
+        return this.workspacePath(workspaceId, `/collections/${collectionId}${suffix}`)
+    }
+
+    private assertWorkspaceContract(valid: boolean, what: string): void {
+        if (!valid) {
+            throw new ApiError(502, `The ${what} response did not match the workspace contract.`, {
+                category: 'upstream_contract', code: 'workspace_contract', retryable: false,
+            })
+        }
+    }
+
+    /**
+     * Startup handshake step 1 (no selector). Returns the raw body; classify it
+     * with `classifyWorkspaceCapabilities` — a newer contract must not be
+     * rejected here because it means this build is stale, not that the API is.
+     */
+    async getWorkspaceCapabilities(options: { signal?: AbortSignal } = {}): Promise<Record<string, unknown>> {
+        const value = await this.workspaceRequest<unknown>('/workspaces/capabilities', { signal: options.signal })
+        return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+    }
+
+    /** Startup handshake step 2 (no selector): the protected default first, then created_at/id. */
+    async listWorkspaces(options: { includeArchived?: boolean; signal?: AbortSignal } = {}): Promise<WorkspaceList> {
+        const value = await this.workspaceRequest<unknown>(`/workspaces${options.includeArchived ? '?include_archived=true' : ''}`,
+            { signal: options.signal })
+        this.assertWorkspaceContract(verifyWorkspaceList(value)
+            && (options.includeArchived === true || value.items.every((workspace) => workspace.archived_at === null)), 'workspace list')
+        return value as WorkspaceList
+    }
+
+    async getWorkspace(workspaceId: string): Promise<Workspace> {
+        const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId))
+        this.assertWorkspaceContract(verifyWorkspace(value) && value.id === workspaceId, 'workspace')
+        return value as Workspace
+    }
+
+    async createWorkspace(body: WorkspaceCreate): Promise<Workspace> {
+        const value = await this.workspaceRequest<unknown>('/workspaces', { method: 'POST', body })
+        this.assertWorkspaceContract(verifyWorkspace(value), 'workspace')
+        return value as Workspace
+    }
+
+    /** `version` is the workspace's current `row_version` (sent as `If-Match`); a stale one is `WORKSPACE_VERSION_CONFLICT`. */
+    async updateWorkspace(workspaceId: string, version: number, patch: WorkspaceUpdate): Promise<Workspace> {
+        const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId), { method: 'PATCH', body: patch, version })
+        this.assertWorkspaceContract(verifyWorkspace(value) && value.id === workspaceId, 'workspace')
+        return value as Workspace
+    }
+
+    /** The default is `WORKSPACE_DEFAULT_PROTECTED`; a live call is `WORKSPACE_ACTIVE_CALL`. Replaying with the current version is a no-op. */
+    async archiveWorkspace(workspaceId: string, version: number): Promise<Workspace> {
+        const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/archive'), { method: 'POST', body: {}, version })
+        this.assertWorkspaceContract(verifyWorkspace(value) && value.id === workspaceId, 'workspace')
+        return value as Workspace
+    }
+
+    async restoreWorkspace(workspaceId: string, version: number): Promise<Workspace> {
+        const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/restore'), { method: 'POST', body: {}, version })
+        this.assertWorkspaceContract(verifyWorkspace(value) && value.id === workspaceId, 'workspace')
+        return value as Workspace
+    }
+
+    async listCollections(workspaceId: string): Promise<CollectionList> {
+        const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/collections'))
+        this.assertWorkspaceContract(verifyCollectionList(value, workspaceId), 'collection list')
+        return value as CollectionList
+    }
+
+    async getCollection(workspaceId: string, collectionId: string): Promise<Collection> {
+        const value = await this.workspaceRequest<unknown>(this.collectionPath(workspaceId, collectionId))
+        this.assertWorkspaceContract(verifyCollection(value, workspaceId) && value.id === collectionId, 'collection')
+        return value as Collection
+    }
+
+    async createCollection(workspaceId: string, body: CollectionCreate): Promise<Collection> {
+        const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/collections'), { method: 'POST', body })
+        this.assertWorkspaceContract(verifyCollection(value, workspaceId), 'collection')
+        return value as Collection
+    }
+
+    async updateCollection(workspaceId: string, collectionId: string, version: number, patch: CollectionUpdate): Promise<Collection> {
+        const value = await this.workspaceRequest<unknown>(this.collectionPath(workspaceId, collectionId), { method: 'PATCH', body: patch, version })
+        this.assertWorkspaceContract(verifyCollection(value, workspaceId) && value.id === collectionId, 'collection')
+        return value as Collection
+    }
+
+    /** Deleting a collection keeps its cards (204). */
+    async deleteCollection(workspaceId: string, collectionId: string, version: number): Promise<void> {
+        await this.workspaceRequest<void>(this.collectionPath(workspaceId, collectionId), { method: 'DELETE', version })
+    }
+
+    /** A set operation: already present/absent memberships count as `unchanged`. */
+    async setCollectionMembers(workspaceId: string, collectionId: string, command: MembershipCommand): Promise<MembershipResult> {
+        const value = await this.workspaceRequest<unknown>(this.collectionPath(workspaceId, collectionId, '/members'), {
+            method: 'PUT', body: { add: command.add ?? [], remove: command.remove ?? [] },
+        })
+        this.assertWorkspaceContract(verifyMembershipResult(value, collectionId), 'membership')
+        return value as MembershipResult
+    }
+
+    /** Mixed-type library page (`creation_at DESC, card_id DESC`); refresh from offset 0 after list-changing commands. */
+    async listLibraryCards(workspaceId: string, query: LibraryQuery = {}, options: { signal?: AbortSignal } = {}): Promise<LibraryPage> {
+        if (query.collection_id !== undefined && query.uncollected) throw new Error('Collection and uncollected filters are exclusive.')
+        if (query.character_role !== undefined && query.card_type !== 'character') throw new Error('A character role needs the character card type.')
+        const params = new URLSearchParams()
+        if (query.card_type) params.set('card_type', query.card_type)
+        if (query.character_role) params.set('character_role', query.character_role)
+        if (query.q?.trim()) params.set('q', query.q.trim())
+        if (query.collection_id) params.set('collection_id', query.collection_id)
+        if (query.uncollected) params.set('uncollected', 'true')
+        if (query.limit !== undefined) params.set('limit', String(query.limit))
+        if (query.offset !== undefined) params.set('offset', String(query.offset))
+        const search = params.toString()
+        const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, `/cards${search ? `?${search}` : ''}`),
+            { signal: options.signal })
+        this.assertWorkspaceContract(verifyLibraryPage(value, workspaceId), 'library')
+        return value as LibraryPage
+    }
+
+    async listWorkspaceMedia(workspaceId: string, query: WorkspaceMediaQuery = {}, options: { signal?: AbortSignal } = {}): Promise<WorkspaceMediaPage> {
+        const mediaKind = query.media_kind ?? 'image'
+        const params = new URLSearchParams({ media_kind: mediaKind })
+        if (query.limit !== undefined) params.set('limit', String(query.limit))
+        if (query.offset !== undefined) params.set('offset', String(query.offset))
+        const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, `/media?${params.toString()}`),
+            { signal: options.signal })
+        this.assertWorkspaceContract(verifyWorkspaceMediaPage(value, workspaceId, mediaKind), 'workspace media')
+        return value as WorkspaceMediaPage
+    }
+
+    /**
+     * All-or-nothing synchronous copy into `destinationId`. Reuse the same
+     * `request_id` for Try again after an error or uncertain response (a copy
+     * that did succeed comes back with `replayed: true`); mint a new one for
+     * Copy again or any change of cards, destination or collections.
+     */
+    async copyCardsToWorkspace(destinationId: string, command: CopyCommand): Promise<CopyOutcome> {
+        const cardKeys = command.cards.map((card) => `${card.card_type}:${card.card_id}`)
+        if (!isCopyRequestId(command.request_id)) throw new Error('Copy request IDs match [A-Za-z0-9._:-]{1,64}.')
+        if (!isWorkspaceUuid(command.source_workspace_id)) throw new Error('The copy source must be a workspace UUID.')
+        if (cardKeys.length < 1 || cardKeys.length > MAX_COPY_CARDS || new Set(cardKeys).size !== cardKeys.length) {
+            throw new Error(`Copy accepts 1-${MAX_COPY_CARDS} distinct cards.`)
+        }
+        const collections = canonicalInitialCollectionIds(command.destination_collection_ids)
+        let status = 0
+        const value = await this.workspaceRequest<unknown>(this.workspacePath(destinationId, '/copy-cards'), {
+            method: 'POST',
+            body: {
+                request_id: command.request_id,
+                source_workspace_id: command.source_workspace_id,
+                cards: command.cards.map(({ card_type, card_id }) => ({ card_type, card_id })),
+                destination_collection_ids: [...collections],
+            },
+            onResponse: (response) => { status = response.status },
+        })
+        this.assertWorkspaceContract(verifyCopyResult(value, command.request_id, destinationId)
+            && value.source_workspace_id === command.source_workspace_id && (status === 200 || status === 201), 'copy')
+        return { result: value as CopyOutcome['result'], replayed: status === 200 }
+    }
+
+    /** Owned lookup of a legacy link or origin target: which workspace holds it and whether it is archived. */
+    async resolveContent(query: ContentResolveQuery): Promise<ContentResolution> {
+        if (query.card_type !== undefined && query.kind !== 'card') throw new Error('Only cards take a card type.')
+        const params = new URLSearchParams({ kind: query.kind, id: query.id })
+        if (query.card_type) params.set('card_type', query.card_type)
+        const value = await this.workspaceRequest<unknown>(`/workspaces/resolve-content?${params.toString()}`)
+        this.assertWorkspaceContract(verifyContentResolution(value, query.kind, query.id), 'content resolution')
+        return value as ContentResolution
     }
 
     /**
@@ -2091,7 +2469,7 @@ class ApiService {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: characterData
+            body: stripCardBodyOrganization(characterData)
         })
     }
 
@@ -2271,7 +2649,7 @@ class ApiService {
             {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: body as unknown as BodyInit,
+                body: stripCardBodyOrganization(body) as unknown as BodyInit,
             },
         )
     }
@@ -2373,7 +2751,7 @@ class ApiService {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: worldData
+            body: stripCardBodyOrganization(worldData)
         })
     }
 
@@ -2395,7 +2773,7 @@ class ApiService {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: itemData
+            body: stripCardBodyOrganization(itemData)
         })
     }
 
@@ -2608,7 +2986,7 @@ class ApiService {
         body.append('file', file)
         return trackResourceTaskRequest(() => this.authenticatedRequest('/lorebook-resources/import-pdf', this.getStoredToken(), {
             method: 'POST', body, headers: { 'X-Request-Id': makeRequestId('pdf-import') },
-        }))
+        }), this.workspaceScope?.workspaceId ?? null)
     }
 
     async updateLorebookResource(resourceId: string, resource: Partial<LorebookResource> | Record<string, unknown>): Promise<unknown> {
@@ -2675,7 +3053,7 @@ class ApiService {
                     code: `lorebook_extraction_${status.status}`, requestId: options.requestId, retryable: false,
                 })
             }
-        }))
+        }, this.workspaceScope?.workspaceId ?? null))
     }
 
     async getLorebookResourceExtraction(resourceId: string, expectedHash: string, options: LorebookExtractionOptions, lorebookId: string | null = null): Promise<LorebookExtractionStatus> {
@@ -2828,7 +3206,7 @@ class ApiService {
         return this.authenticatedRequest<Story>('/stories', token, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: story as unknown as BodyInit,
+            body: stripOrganization(story) as unknown as BodyInit,
         })
     }
 
@@ -2838,7 +3216,7 @@ class ApiService {
         return this.authenticatedRequest<Story>(`/stories/${encodeURIComponent(storyId)}`, token, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: story as unknown as BodyInit,
+            body: stripOrganization(story) as unknown as BodyInit,
         })
     }
 
@@ -3091,7 +3469,7 @@ class ApiService {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: templateData
+            body: stripCardBodyOrganization(templateData)
         })
     }
 
@@ -3292,7 +3670,7 @@ class ApiService {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: templateData
+            body: stripCardBodyOrganization(templateData)
         })
     }
 
@@ -3812,7 +4190,7 @@ class ApiService {
             body: body as unknown as BodyInit,
             signal: options.signal,
             timeoutMs: options.timeoutMs,
-        }))
+        }), this.workspaceScope?.workspaceId ?? null)
     }
 
     // --- Image profiles ----------------------------------------------------
@@ -4294,3 +4672,11 @@ export { ChatSocket, configureChatSocketAuthRefresh } from './chatSocket'
 export type { ChatSocketStatus, ChatSocketHandlers } from './chatSocket'
 export { VoiceSocket, configureVoiceSocketAuthRefresh } from './voiceSocket'
 export type { VoiceSocketStatus, VoiceSocketHandlers } from './voiceSocket'
+export {
+    classifyWorkspaceCapabilities,
+    isWorkspaceUuid,
+    stripCardBodyOrganization,
+    stripOrganization,
+    WORKSPACE_CONTRACT_VERSION,
+    type WorkspaceCapabilityVerdict,
+} from './workspaceContract'

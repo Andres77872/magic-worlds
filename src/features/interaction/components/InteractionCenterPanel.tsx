@@ -2,11 +2,12 @@ import { frameBatch } from '@/utils/frameBatch'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useTranslation} from 'react-i18next'
 import type {ChatNarratorIdentity, ChatResponseSegment, ChatSpeakerRosterEntry, ForwardOption, TurnEntry} from '../../../shared'
-import {apiService, type ImageJobPublicResponse, type TtsJobPublicResponse} from '../../../infrastructure/api'
+import type {ImageJobPublicResponse, TtsJobPublicResponse} from '../../../infrastructure/api'
 import {useAuth} from '../../../app/hooks'
+import {useWorkspace} from '@/app/hooks/useWorkspace'
 import {isPageFocused, usePageFocus} from '@/app/hooks/usePageFocus'
-import {ArrowDown, Eraser, Loader2, RotateCcw, Sparkles, X} from 'lucide-react'
-import {Button, Icon, IconButton} from '../../../ui/primitives'
+import {Archive, ArrowDown, Eraser, Loader2, RotateCcw, Sparkles, X} from 'lucide-react'
+import {Button, Callout, Icon, IconButton} from '../../../ui/primitives'
 import {ConfirmDialog} from '@/ui/components'
 import {ChatComposer} from './ChatComposer'
 import {ChatTurn} from './ChatTurn'
@@ -26,6 +27,7 @@ import type { LlmFeature } from '@/shared/types/llm.types'
 import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
 import { llmRecoveryMessage } from '@/features/llmProfiles/llmRecovery'
 import { isLlmRequestSpent } from '@/infrastructure/api/llmIntent'
+import { chatWorkspaceErrorMessage } from '../utils/chatWorkspaceErrors'
 
 // Extend TurnEntry to include forward options and the (out-of-scope) image prompt
 interface ExtendedTurnEntry extends TurnEntry {
@@ -153,11 +155,31 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     const { matcher: loreMatcher } = useSessionLorebookEntries(
         loreTargetKind,
         Number.isNaN(sessionId) ? '' : String(sessionId),
+        config.workspaceId,
     )
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const { isAuthenticated, openLoginModal, token } = useAuth()
     const pageFocused = usePageFocus()
+    // Workspace R1: every request of this session rides `config.api` (the session's
+    // own workspace). Live refreshes (hydration, media polls) only run while that
+    // workspace is the committed one; after a switch their results are dropped.
+    const { selectedWorkspaceId, workspaces } = useWorkspace()
+    const sessionActive = config.workspaceId === selectedWorkspaceId
+    // Workspace R1: an archived workspace (or a session the server no longer
+    // finds there) leaves the conversation readable but not writable. The notice
+    // belongs to this session in this workspace, so another one never inherits it.
+    const workspaceNoticeKey = `${config.workspaceId}:${sessionId}`
+    const [reportedNotice, setReportedNotice] = useState<{ key: string; message: string } | null>(null)
+    const sessionWorkspaceArchived = Boolean(workspaces.find((workspace) => workspace.id === config.workspaceId)?.archived_at)
+    const workspaceNotice = reportedNotice?.key === workspaceNoticeKey
+        ? reportedNotice.message
+        : sessionWorkspaceArchived ? t('workspaceActivity.chat.workspaceArchived') : null
+    const readOnly = workspaceNotice !== null
+    const sessionActiveRef = useRef(sessionActive)
+    useEffect(() => {
+        sessionActiveRef.current = sessionActive
+    }, [sessionActive])
     // `generation` errors belong to the reply at the tail and render inline in its
     // notice; `retryable` ones offer a one-tap retry there. Everything else
     // (edit, delete, clear, narration) uses the banner.
@@ -290,7 +312,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     // Finalize the in-flight AI turn after a failure (server `error` frame, lost
     // connection, or the generation watchdog). The server keeps nothing of a
     // failed reply, so neither does the transcript: the turn becomes a notice.
-    const failStreamingTurn = useCallback((message: string) => {
+    const failStreamingTurn = useCallback((message: string, retryable = true) => {
         clearGenerationWatchdog()
         const id = streamingIdRef.current
         if (id) {
@@ -299,7 +321,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         streamingIdRef.current = null
         rawResponseRef.current = ''
         setIsLoading(false)
-        setError(message, true)
+        setError(retryable ? message : null, retryable)
     }, [clearGenerationWatchdog, setError, setTurnState])
 
     const armGenerationWatchdog = useCallback(() => {
@@ -339,7 +361,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     }, [resolveTurnIdentities, setTurnState])
 
     const hydrateTurnsFromApi = useCallback(async () => {
-        if (!isAuthenticated || Number.isNaN(sessionId) || !isPageFocused()) return
+        if (!isAuthenticated || Number.isNaN(sessionId) || !isPageFocused() || !sessionActiveRef.current) return
         // Never hydrate over an in-flight stream: the server projection can't
         // contain the streaming turn yet, so applying it would orphan
         // streamingIdRef and silently drop the rest of the generation. A
@@ -348,8 +370,9 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         try {
             const hydrated = await config.loadTurns(sessionId)
             // A generation may have started while the projection was loading
-            // (rapid follow-up send) — that projection is stale; drop it.
-            if (!mountedRef.current || streamingIdRef.current || regeneratingRef.current) return
+            // (rapid follow-up send) — that projection is stale; drop it. So is
+            // one that lands after a workspace switch.
+            if (!mountedRef.current || !sessionActiveRef.current || streamingIdRef.current || regeneratingRef.current) return
             const recovery = recoveryRef.current
             if (recovery && hydrated.some((turn) => turn.type === 'ai' && !turn.isStreaming &&
                 ((recovery.assistantMessageId && turn.assistantMessageId === recovery.assistantMessageId) || (recovery.turnId && turn.turnId === recovery.turnId) || (recovery.requestId && turn.metadata?.request_id === recovery.requestId)))) {
@@ -364,7 +387,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
 
     const imagePollInFlightRef = useRef(false)
     const pollNonTerminalImageJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
-        if (!isPageFocused() || imagePollInFlightRef.current) return
+        if (!isPageFocused() || imagePollInFlightRef.current || !sessionActiveRef.current) return
         imagePollInFlightRef.current = true
         try {
             const jobs = snapshot.filter(hasNonTerminalImageJob)
@@ -372,7 +395,8 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                 if (!isPageFocused()) return
                 if (!turn.imageJobId) continue
                 try {
-                    const result: ImageJobPublicResponse = await apiService.getImageJob(turn.imageJobId)
+                    const result: ImageJobPublicResponse = await config.api.getImageJob(turn.imageJobId)
+                    if (!mountedRef.current || !sessionActiveRef.current) return
                     const next = upsertImageJobResult(turnsRef.current, result)
                     if (next !== turnsRef.current) setTurnState(next)
                 } catch (err) {
@@ -382,7 +406,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         } finally {
             imagePollInFlightRef.current = false
         }
-    }, [setTurnState])
+    }, [config.api, setTurnState])
 
     const applyImageFrame = useCallback((frame: Parameters<typeof upsertChatImageFrame>[1]) => {
         const next = upsertChatImageFrame(turnsRef.current, frame)
@@ -394,7 +418,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
 
     const ttsPollInFlightRef = useRef(false)
     const pollNonTerminalTtsJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
-        if (!isPageFocused() || ttsPollInFlightRef.current) return
+        if (!isPageFocused() || ttsPollInFlightRef.current || !sessionActiveRef.current) return
         ttsPollInFlightRef.current = true
         try {
             const jobs = snapshot.filter(hasNonTerminalTtsJob)
@@ -403,7 +427,8 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                 for (const jobId of nonTerminalTtsJobIds(turn)) {
                     if (!isPageFocused()) return
                     try {
-                        const result: TtsJobPublicResponse = await apiService.getTtsJob(jobId)
+                        const result: TtsJobPublicResponse = await config.api.getTtsJob(jobId)
+                        if (!mountedRef.current || !sessionActiveRef.current) return
                         const next = upsertTtsJobResult(turnsRef.current, result)
                         if (next !== turnsRef.current) setTurnState(next)
                     } catch (err) {
@@ -414,7 +439,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         } finally {
             ttsPollInFlightRef.current = false
         }
-    }, [setTurnState])
+    }, [config.api, setTurnState])
 
     const applyTtsFrame = useCallback((frame: Parameters<typeof upsertChatTtsFrame>[1]) => {
         if (frame.assistant_message_id) {
@@ -581,6 +606,16 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                     turnId: detail.turnId,
                 })
                 deltaBatchRef.current?.flush()
+                // Workspace R1: a missing/foreign session or an archived/removed workspace
+                // cannot be retried from here; explain it without offering Try again.
+                // The socket closes for good on those (no reconnect); the panel turns read-only.
+                const workspaceMessage = chatWorkspaceErrorMessage(detail.code, t)
+                if (workspaceMessage) {
+                    attemptRef.current = null
+                    failStreamingTurn(workspaceMessage, false)
+                    setReportedNotice({ key: workspaceNoticeKey, message: workspaceMessage })
+                    return
+                }
                 if (isLlmRequestSpent(detail) && !['LLM_EXECUTION_UPSTREAM_FAILED', 'LLM_EXECUTION_FINISHED'].includes(detail.code || '')) attemptRef.current = null
                 if (attemptRef.current && (!detail.requestId || detail.requestId === attemptRef.current.requestId)) attemptRef.current.llmRetry = detail.llmRetry
                 failStreamingTurn(llmRecoveryMessage(detail, t) ?? (message || t('interaction.center.generateFailed')))
@@ -591,7 +626,8 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         },
         token,
         config.basePath,
-        llmFeature
+        llmFeature,
+        config.workspaceId,
     )
 
     // Surface the connection state once a real connection has existed — the
@@ -601,7 +637,8 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     useEffect(() => {
         if (socketStatus === 'open') setHasEverConnected(true)
     }, [socketStatus])
-    const isReconnecting = hasEverConnected && socketStatus !== 'open'
+    // A workspace close is terminal (no reconnect), so it never reads as reconnecting.
+    const isReconnecting = hasEverConnected && socketStatus !== 'open' && !readOnly
 
     // `turns` gets a new identity on every streamed chunk, so the follow-the-stream
     // effect below must scroll instantly: a 'smooth' scroll restarted many times a
@@ -1081,8 +1118,8 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         retryLookupRef.current = controller
         setIsLoading(true)
         try {
-            const state = await apiService.reconcileChatTurn(basePath, sessionId, requestId, controller.signal)
-            if (controller.signal.aborted || !mountedRef.current || !authSession.isCurrent(owner)) return true
+            const state = await config.api.reconcileChatTurn(basePath, sessionId, requestId, controller.signal)
+            if (controller.signal.aborted || !mountedRef.current || !authSession.isCurrent(owner) || !sessionActiveRef.current) return true
             setIsLoading(false)
             if (state.status === 'completed') {
                 attemptRef.current = null
@@ -1105,7 +1142,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                 aiTurnId: last.id, accountKey: owner.accountKey, sessionKey, target: command.llm }, command.llm)
             return true
         } catch (error) {
-            if (controller.signal.aborted || !mountedRef.current || !authSession.isCurrent(owner)) return true
+            if (controller.signal.aborted || !mountedRef.current || !authSession.isCurrent(owner) || !sessionActiveRef.current) return true
             setIsLoading(false)
             if ((error as { code?: unknown })?.code === 'LLM_EXECUTION_NOT_FOUND' && attempt) {
                 // No admitted command exists. Resend only the exact unsatisfied frame.
@@ -1301,8 +1338,8 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                                             key={turn.id}
                                             reason={unsavedReplyReason(turn)}
                                             aiLabel={config.aiLabel}
-                                            detail={inlineError?.message}
-                                            onRetry={handleRetryGeneration}
+                                            detail={readOnly ? workspaceNotice : inlineError?.message}
+                                            onRetry={readOnly ? undefined : handleRetryGeneration}
                                             retrying={isLoading || isMutatingTurns || Boolean(inlineError && !inlineError.retryable)}
                                         />
                                     )
@@ -1316,13 +1353,13 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                                         turn={turn}
                                         versions={item.versions}
                                         onSelectVersion={item.versions ? handleSelectVersion : undefined}
-                                        versionsDisabled={isLoading || isClearingTurns || isDeletingTurn}
+                                        versionsDisabled={readOnly || isLoading || isClearingTurns || isDeletingTurn}
                                         aiLabel={config.aiLabel}
                                         aiSpeaker={aiSpeaker}
                                         showForwardOptions={config.showForwardOptions}
                                         showImage={config.showImages}
                                         onForwardOptionClick={handleForwardOptionClick}
-                                        onRegenerateClick={turn.id === latestReplyId ? handleRegenerateResponse : undefined}
+                                        onRegenerateClick={turn.id === latestReplyId && !readOnly ? handleRegenerateResponse : undefined}
                                         onDeleteClick={handleDeleteTurn}
                                         onConfirmDeleteClick={handleConfirmDeleteTurn}
                                         onCancelDeleteClick={handleCancelDeleteTurn}
@@ -1330,12 +1367,12 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                                         onRequestNarration={handleRequestNarration}
                                         confirmingDelete={isDeleteTarget}
                                         deleting={isDeleteTarget && isDeletingTurn}
-                                        actionsDisabled={isLoading || isClearingTurns || isSwitchingVersion || (isDeletingTurn && !isDeleteTarget)}
+                                        actionsDisabled={readOnly || isLoading || isClearingTurns || isSwitchingVersion || (isDeletingTurn && !isDeleteTarget)}
                                         loreMatcher={loreMatcher}
                                     />
                                 )
                             })}
-                            {canGenerateResponse && (
+                            {canGenerateResponse && !readOnly && (
                                 <div className="my-4 flex flex-wrap items-center gap-3 border-t border-parchment-50/10 py-4">
                                     <Sparkles size={18} strokeWidth={1.75} className="shrink-0 text-arcane-300" aria-hidden />
                                     <div className="flex min-w-0 flex-1 basis-40 flex-col gap-1">
@@ -1381,6 +1418,13 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
             </div>
 
             <div className="bg-ink-800">
+                {readOnly ? (
+                    <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2 md:px-6">
+                        <Callout tone="warning" role="status" icon={<Icon icon={Archive} size={16} />} data-testid="chat-read-only">
+                            {workspaceNotice}
+                        </Callout>
+                    </div>
+                ) : (
                 <ChatComposer
                     inputRef={composerRef}
                     value={input}
@@ -1398,6 +1442,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                     placeholder={config.copy.placeholder}
                     loreMatcher={loreMatcher}
                 />
+                )}
                 {isLoading && (
                     <div className="mx-auto flex w-full max-w-[760px] items-center gap-2 px-4 pb-3 text-[13px] text-arcane-300 md:px-6">
                         <Loader2 size={14} className="animate-spin" />

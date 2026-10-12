@@ -14,16 +14,25 @@ import { ConversationMenu } from './ConversationMenu'
 import { takeAssistantConversation } from './assistantHandoff'
 import { conversationKey, type AssistantAdapter, type AssistantBindings } from './assistantModel'
 import { ASSISTANT_SUGGESTIONS, LOREBOOK_ASSISTANT_SUGGESTIONS, type AssistantSuggestion } from './suggestions'
-import { useAssistant } from './useAssistant'
+import { useAssistant, type AssistantTargetMeta } from './useAssistant'
 
 export interface AssistantChatbotProps<K extends AssistantDocumentKind, T extends AssistantTargetOf<K> = AssistantTargetOf<K>> {
     adapter: AssistantAdapter<K>
     binding: AssistantBindings[K]
     /** Applies a target the assistant saved, or a staged snapshot the reader chose to apply. */
-    onTarget: (target: T) => void
+    onTarget: (target: T, meta: AssistantTargetMeta) => void
     isAuthenticated: boolean
     onAuthRequired: () => void
     timeoutMs?: number
+    /**
+     * Workspace R1: the workspace the conversations belong to (a creator's captured
+     * origin, the edited card's or lorebook's own workspace); default = committed.
+     */
+    workspaceId?: string | null
+    /** Card kind only: the origin's initial collections for an unbound conversation's first card. */
+    initialCollectionIds?: readonly string[]
+    /** Archived workspace: past conversations stay readable; nothing new can be sent. */
+    readOnly?: boolean
 }
 
 interface ChatbotConfig<K extends AssistantDocumentKind> {
@@ -117,6 +126,10 @@ export function AssistantChatbot<K extends AssistantDocumentKind, T extends Assi
     const { copy } = config
     const streaming = assistant.status === 'streaming'
     const busy = assistant.status !== 'idle'
+    const readOnly = props.readOnly ?? false
+    const send = (text: string) => {
+        if (!readOnly) void assistant.send(text)
+    }
 
     return (
         <AssistantShell
@@ -140,7 +153,7 @@ export function AssistantChatbot<K extends AssistantDocumentKind, T extends Assi
                         disabled={busy}
                         onSelect={(id) => void assistant.selectConversation(id)}
                         onNew={assistant.newConversation}
-                        onDelete={(id) => void assistant.deleteConversation(id)}
+                        onDelete={readOnly ? undefined : (id) => void assistant.deleteConversation(id)}
                     />
                 )}
             />
@@ -157,8 +170,8 @@ export function AssistantChatbot<K extends AssistantDocumentKind, T extends Assi
             <AssistantMessageList
                 turns={assistant.turns}
                 status={assistant.status}
-                suggestions={assistant.unavailable ? [] : config.suggestions(props.binding)}
-                onSuggestion={(prompt) => void assistant.send(prompt)}
+                suggestions={assistant.unavailable || readOnly ? [] : config.suggestions(props.binding)}
+                onSuggestion={send}
                 conversationKey={conversationKey(assistant.activeConversation)}
                 emptyTitle={t(copy.emptyTitle)}
                 emptyDescription={t(copy.emptyDescription)}
@@ -170,7 +183,7 @@ export function AssistantChatbot<K extends AssistantDocumentKind, T extends Assi
             {assistant.notice && (
                 <AssistantBanner
                     notice={assistant.notice}
-                    onRetry={assistant.retry}
+                    onRetry={readOnly ? undefined : assistant.retry}
                     onReload={() => void assistant.reloadConversation()}
                     onDismiss={assistant.clearNotice}
                 />
@@ -178,9 +191,9 @@ export function AssistantChatbot<K extends AssistantDocumentKind, T extends Assi
 
             <AssistantComposer
                 streaming={streaming}
-                disabled={assistant.status === 'switching' || assistant.unavailable}
+                disabled={assistant.status === 'switching' || assistant.unavailable || readOnly}
                 placeholder={t(copy.composerPlaceholder)}
-                onSend={(text) => void assistant.send(text)}
+                onSend={send}
                 onStop={assistant.stop}
             />
         </AssistantShell>

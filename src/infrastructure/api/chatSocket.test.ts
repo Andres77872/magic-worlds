@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChatSocket, configureChatSocketAuthRefresh } from './chatSocket'
 
+const WORKSPACE_ID = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
+
 type Protocols = string | string[] | undefined
 
 class MockWebSocket {
@@ -82,8 +84,24 @@ describe('ChatSocket auth recovery', () => {
         vi.restoreAllMocks()
     })
 
+    it('sends the captured workspace as the workspace_id query and keeps the bearer subprotocol', () => {
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage: vi.fn() })
+        socket.connect()
+        const url = new URL(MockWebSocket.instances[0].url)
+        expect(url.pathname).toMatch(/\/adventure-sessions\/3\/ws$/)
+        expect(url.searchParams.get('workspace_id')).toBe(WORKSPACE_ID)
+        expect([...url.searchParams.keys()]).toEqual(['workspace_id'])
+        expect(protocolsOf(MockWebSocket.instances[0])).toEqual(['mw.bearer.v1', 'old-token'])
+        socket.close()
+    })
+
+    it('refuses to open without a workspace UUID', () => {
+        expect(() => new ChatSocket(3, '', { onMessage: vi.fn() })).toThrow()
+        expect(() => new ChatSocket(3, WORKSPACE_ID.toUpperCase(), { onMessage: vi.fn() })).toThrow()
+    })
+
     it('Stop clears a queued chat before the socket opens', () => {
-        const socket = new ChatSocket(3, { onMessage: vi.fn() })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.sendChat('Do not send', 'stopped-request')
         socket.cancel()
         MockWebSocket.instances[0].emitOpen()
@@ -96,7 +114,7 @@ describe('ChatSocket auth recovery', () => {
         localStorage.setItem('magic_worlds:token', expired)
         let resolve!: (token: string) => void
         configureChatSocketAuthRefresh(() => new Promise((done) => { resolve = done }))
-        const socket = new ChatSocket(3, { onMessage: vi.fn() })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.sendChat('Do not send', 'stopped-request')
         socket.cancel()
         resolve('fresh-token')
@@ -108,7 +126,7 @@ describe('ChatSocket auth recovery', () => {
     it('reports a dropped active stream once and never resends it on reconnect', async () => {
         vi.useFakeTimers()
         const interrupted = vi.fn()
-        const socket = new ChatSocket(3, { onMessage: vi.fn(), onStreamInterrupted: interrupted })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage: vi.fn(), onStreamInterrupted: interrupted })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
         socket.sendChat('Only once', 'req-one')
@@ -130,7 +148,7 @@ describe('ChatSocket auth recovery', () => {
             return 'new-token'
         }))
 
-        const socket = new ChatSocket(3, { onMessage })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage })
         socket.connect()
         expect(protocolsOf(MockWebSocket.instances[0])).toEqual(['mw.bearer.v1', 'old-token'])
 
@@ -153,7 +171,7 @@ describe('ChatSocket auth recovery', () => {
         })
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new ChatSocket(3, { onMessage: vi.fn() })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitClose(4401)
         await flushPromises()
@@ -177,7 +195,7 @@ describe('ChatSocket auth recovery', () => {
         window.addEventListener('auth:expired', expired)
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new ChatSocket(3, { onMessage })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage })
         socket.connect()
         MockWebSocket.instances[0].emitClose(4401)
         await flushPromises()
@@ -203,7 +221,7 @@ describe('ChatSocket auth recovery', () => {
         window.addEventListener('auth:expired', expired)
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new ChatSocket(3, { onMessage })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage })
         socket.connect()
         MockWebSocket.instances[0].emitClose(4401)
         await flushPromises()
@@ -226,7 +244,7 @@ describe('ChatSocket auth recovery', () => {
         window.addEventListener('auth:expired', expired)
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new ChatSocket(3, { onMessage })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage })
         socket.connect()
         MockWebSocket.instances[0].emitClose(4401)
         await flushPromises()
@@ -262,7 +280,7 @@ describe('ChatSocket auth recovery', () => {
         window.addEventListener('auth:expired', expired)
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new ChatSocket(3, { onMessage })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage })
         socket.connect()
         MockWebSocket.instances[0].emitClose(4401)
         await flushPromises()
@@ -278,7 +296,7 @@ describe('ChatSocket auth recovery', () => {
             return 'new-token'
         }))
 
-        const socket = new ChatSocket(3, { onMessage: vi.fn() })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitClose(4401)
         await flushPromises()
@@ -300,7 +318,7 @@ describe('ChatSocket auth recovery', () => {
         })
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new ChatSocket(7, { onMessage: vi.fn() })
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
 
@@ -330,7 +348,7 @@ describe('ChatSocket auth recovery', () => {
         localStorage.setItem('magic_worlds:token', token)
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new ChatSocket(7, { onMessage: vi.fn() })
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
 
@@ -357,7 +375,7 @@ describe('ChatSocket auth recovery', () => {
         window.addEventListener('auth:expired', expired)
         configureChatSocketAuthRefresh(refresh)
 
-        const socket = new ChatSocket(7, { onMessage })
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
 
@@ -373,10 +391,10 @@ describe('ChatSocket auth recovery', () => {
 
     it('keeps character text chat on /ws with text-only control frame types', async () => {
         vi.useFakeTimers()
-        const socket = new ChatSocket(7, { onMessage: vi.fn() }, 'character-chats')
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage: vi.fn() }, 'character-chats')
         socket.connect()
 
-        expect(MockWebSocket.instances[0].url).toContain('/character-chats/7/ws')
+        expect(MockWebSocket.instances[0].url).toMatch(new RegExp(`/character-chats/7/ws\\?workspace_id=${WORKSPACE_ID}$`))
         expect(MockWebSocket.instances[0].url).not.toContain('/ws-voice')
 
         MockWebSocket.instances[0].emitOpen()
@@ -401,7 +419,7 @@ describe('ChatSocket auth recovery', () => {
     it('treats a 4403 origin rejection as terminal instead of reconnecting', async () => {
         vi.useFakeTimers()
         const onMessage = vi.fn()
-        const socket = new ChatSocket(3, { onMessage })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
         MockWebSocket.instances[0].emitClose(4403)
@@ -414,9 +432,37 @@ describe('ChatSocket auth recovery', () => {
         }))
     })
 
+    it('treats a 4404 (unknown session or workspace) as terminal instead of reconnecting', async () => {
+        vi.useFakeTimers()
+        const onMessage = vi.fn()
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage })
+        socket.connect()
+        MockWebSocket.instances[0].emitClose(4404)
+        await vi.advanceTimersByTimeAsync(60_000)
+
+        expect(MockWebSocket.instances).toHaveLength(1)
+        expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', category: 'not_found', code: 'CHAT_SESSION_NOT_FOUND' }))
+    })
+
+    it('treats a 4422 (no workspace sent: stale client) as terminal and asks for a reload', async () => {
+        vi.useFakeTimers()
+        const onMessage = vi.fn()
+        const required = vi.fn()
+        window.addEventListener('workspace:required', required)
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage })
+        socket.connect()
+        MockWebSocket.instances[0].emitClose(4422)
+        await vi.advanceTimersByTimeAsync(60_000)
+        window.removeEventListener('workspace:required', required)
+
+        expect(MockWebSocket.instances).toHaveLength(1)
+        expect(required).toHaveBeenCalledTimes(1)
+        expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', code: 'WORKSPACE_REQUIRED' }))
+    })
+
     it('tears down and reconnects a half-open socket that stops answering pings', async () => {
         vi.useFakeTimers()
-        const socket = new ChatSocket(3, { onMessage: vi.fn() })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
 
@@ -433,7 +479,7 @@ describe('ChatSocket auth recovery', () => {
 
     it('keeps a quiet socket alive while pong frames arrive', async () => {
         vi.useFakeTimers()
-        const socket = new ChatSocket(3, { onMessage: vi.fn() })
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
 
@@ -447,7 +493,7 @@ describe('ChatSocket auth recovery', () => {
     })
 
     it('serializes an optional request id', () => {
-        const socket = new ChatSocket(7, { onMessage: vi.fn() })
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect()
         MockWebSocket.instances[0].emitOpen()
 
@@ -462,7 +508,7 @@ describe('ChatSocket auth recovery', () => {
     })
 
     it('preserves the stored user message id while a retry waits for connection', () => {
-        const socket = new ChatSocket(7, { onMessage: vi.fn() })
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
         socket.connect()
         socket.sendChat('hello', 'retry-7', 100)
         MockWebSocket.instances[0].emitOpen()

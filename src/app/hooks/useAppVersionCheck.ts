@@ -3,6 +3,17 @@ import { isPageFocused, usePageFocus } from './usePageFocus'
 
 const DEFAULT_CHECK_INTERVAL_MS = 2 * 60 * 1000
 
+/** Window event that asks every mounted version check to run immediately. */
+export const APP_VERSION_CHECK_EVENT = 'app:version-check'
+
+/**
+ * Runs the `/version.json` check now instead of on the next poll (document 08:
+ * a stale workspace contract or a `WORKSPACE_REQUIRED` response).
+ */
+export function requestAppVersionCheck(): void {
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(APP_VERSION_CHECK_EVENT))
+}
+
 const FALLBACK_BUILD_INFO: MagicWorldsBuildInfo = {
     buildId: 'local-dev',
     commit: null,
@@ -100,6 +111,13 @@ export function useAppVersionCheck(options: UseAppVersionCheckOptions = {}): Use
         window.addEventListener('online', checkOnOnline)
         return () => window.removeEventListener('online', checkOnOnline)
     }, [checkNow, enabled, pageFocused, updateAvailable])
+
+    useEffect(() => {
+        if (!enabled || updateAvailable) return
+        const checkOnRequest = () => void checkNow()
+        window.addEventListener(APP_VERSION_CHECK_EVENT, checkOnRequest)
+        return () => window.removeEventListener(APP_VERSION_CHECK_EVENT, checkOnRequest)
+    }, [checkNow, enabled, updateAvailable])
 
     useEffect(() => {
         if (!enabled) return

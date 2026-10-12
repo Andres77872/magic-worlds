@@ -15,6 +15,7 @@ import type {
 } from './aiCard.types'
 import type { LlmExecutionProvenance, LlmRequest } from './llm.types'
 import type { Lorebook } from './lorebook.types'
+import type { OrganizationWarning, RootOrganization } from './workspace.types'
 
 export type AssistantKind = 'card' | 'lorebook' | 'app'
 /** Kinds that edit a saved document and answer with a tool message. */
@@ -44,6 +45,8 @@ export interface AssistantConversation {
     conversation_version?: number
     active_request_id?: string | null
     active_request_started_at?: string | null
+    /** Workspace R1: the owning workspace (server-owned; never written back). */
+    organization?: RootOrganization
     created_at?: string
     updated_at?: string
 }
@@ -121,7 +124,8 @@ interface AssistantDocumentTurn<K extends AssistantDocumentKind> extends Assista
 }
 
 interface AssistantTurns {
-    card: AssistantDocumentTurn<'card'>
+    /** Workspace R1: initial collections that were removed before the first card was created. */
+    card: AssistantDocumentTurn<'card'> & { organization_warnings?: OrganizationWarning[] }
     lorebook: AssistantDocumentTurn<'lorebook'>
     app: AssistantTurnCore
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { VoiceSocket, type VoiceSocketStatus } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { VoiceSocketClientFrame, VoiceSocketServerFrame } from '@/shared/types/voice.types'
 
 type VoiceStartFrame = Extract<VoiceSocketClientFrame, { type: 'voice_start' }>
@@ -58,6 +59,8 @@ export function useVoiceCallSocket(
     handlers: VoiceCallSocketHandlers = {},
     authKey?: string | null,
     basePath: string = 'character-chats',
+    /** Workspace R1: the call's chat workspace (see `useSessionWorkspace`); omitted, the committed one. */
+    sessionWorkspaceId?: string | null,
 ): VoiceCallSocketApi {
     const handlersRef = useRef(handlers)
     useEffect(() => {
@@ -73,11 +76,16 @@ export function useVoiceCallSocket(
     // connect and the server authenticates only the handshake, so recreating the
     // socket on each `auth:refreshed` would close a live call.
     const authDisabled = authKey === null
+    // Workspace R1: the call socket carries its chat's workspace (`workspace_id` query) and
+    // only runs while that workspace is the committed one; a switch closes it for good.
+    const { selectedWorkspaceId } = useWorkspace()
+    const ownWorkspaceId = sessionWorkspaceId === undefined ? selectedWorkspaceId : sessionWorkspaceId
+    const workspaceId = ownWorkspaceId && ownWorkspaceId === selectedWorkspaceId ? ownWorkspaceId : null
 
     useEffect(() => {
-        if (sessionId === null || Number.isNaN(sessionId) || authDisabled) return
+        if (sessionId === null || Number.isNaN(sessionId) || authDisabled || !workspaceId) return
 
-        const socket = new VoiceSocket(sessionId, {
+        const socket = new VoiceSocket(sessionId, workspaceId, {
             onStatusChange: (nextStatus) => {
                 setSocketStatus(nextStatus)
                 handlersRef.current.onSocketStatus?.(nextStatus)
@@ -141,7 +149,7 @@ export function useVoiceCallSocket(
             socketRef.current = null
             setSocketStatus('closed')
         }
-    }, [sessionId, authDisabled, basePath])
+    }, [sessionId, authDisabled, basePath, workspaceId])
 
     const start = useCallback((frame: VoiceStartFrame) => {
         if (socketRef.current) socketRef.current.connect(frame)

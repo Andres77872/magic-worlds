@@ -44,7 +44,7 @@ afterEach(() => {
 describe('useCardImport', () => {
     it('clones a public card and refreshes the library on success', async () => {
         const clone = vi.spyOn(apiService, 'cloneCard').mockResolvedValue({ card_type: 'character', card: {} } as never)
-        const { result } = renderHook(() => useCardImport())
+        const { result } = renderHook(() => useCardImport({ client: apiService }))
 
         await act(async () => {
             await result.current.requestImport({ kind: 'clone', item: item() })
@@ -58,7 +58,7 @@ describe('useCardImport', () => {
     it('prompts login when not authenticated and never calls the API', async () => {
         authed = false
         const clone = vi.spyOn(apiService, 'cloneCard')
-        const { result } = renderHook(() => useCardImport())
+        const { result } = renderHook(() => useCardImport({ client: apiService }))
 
         await act(async () => {
             await result.current.requestImport({ kind: 'clone', item: item() })
@@ -70,7 +70,7 @@ describe('useCardImport', () => {
 
     it('warns before re-importing an already-imported card, then force-imports on confirm', async () => {
         const clone = vi.spyOn(apiService, 'cloneCard').mockResolvedValue({ card_type: 'character', card: {} } as never)
-        const { result } = renderHook(() => useCardImport())
+        const { result } = renderHook(() => useCardImport({ client: apiService }))
 
         await act(async () => {
             await result.current.requestImport({
@@ -92,7 +92,7 @@ describe('useCardImport', () => {
         vi.spyOn(apiService, 'cloneCard').mockRejectedValue(
             new ApiError(409, 'already imported', { details: { existing_card_id: 'mine-9' } }),
         )
-        const { result } = renderHook(() => useCardImport())
+        const { result } = renderHook(() => useCardImport({ client: apiService }))
 
         await act(async () => {
             await result.current.requestImport({ kind: 'clone', item: item() })
@@ -103,7 +103,7 @@ describe('useCardImport', () => {
 
     it('imports a shared card via the share token', async () => {
         const importShared = vi.spyOn(apiService, 'importSharedCard').mockResolvedValue({ card_type: 'character', card: {} } as never)
-        const { result } = renderHook(() => useCardImport())
+        const { result } = renderHook(() => useCardImport({ client: apiService }))
 
         await act(async () => {
             await result.current.requestImport({ kind: 'shared', token: 'tok-1', item: item() })
@@ -113,7 +113,7 @@ describe('useCardImport', () => {
     })
 
     it('navigates to the existing copy via openExisting', () => {
-        const { result } = renderHook(() => useCardImport())
+        const { result } = renderHook(() => useCardImport({ client: apiService }))
         act(() => {
             result.current.openExisting('mine-1', 'character')
         })

@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useAppVersionCheck } from './useAppVersionCheck'
+import { requestAppVersionCheck, useAppVersionCheck } from './useAppVersionCheck'
 
 const currentBuild: MagicWorldsBuildInfo = {
     buildId: 'current-build',
@@ -40,6 +40,19 @@ describe('useAppVersionCheck', () => {
         await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
 
         expect(result.current.updateAvailable).toBe(false)
+    })
+
+    it('checks immediately when a stale workspace contract requests it', async () => {
+        const fetcher = vi.fn(async () => jsonResponse(currentBuild))
+        const { result } = renderHook(() =>
+            useAppVersionCheck({ currentBuildInfo: currentBuild, enabled: true, fetcher, intervalMs: 60 * 60 * 1000 }),
+        )
+        await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+
+        fetcher.mockResolvedValueOnce(jsonResponse(nextBuild))
+        act(() => requestAppVersionCheck())
+        await waitFor(() => expect(result.current.updateAvailable).toBe(true))
+        expect(fetcher).toHaveBeenCalledTimes(2)
     })
 
     it('reports an available update when the remote build differs', async () => {

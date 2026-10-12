@@ -1,3 +1,4 @@
+import type { RootOrganization } from './workspace.types'
 export type StorySourceKind =
     | 'blank'
     | 'character'
@@ -162,6 +163,8 @@ export interface Story {
     chapters: StoryChapter[]
     activeCardRefs: StoryCardRef[]
     activeContext: StoryContextSettings
+    /** Workspace R1: the owning workspace (server-owned; never written back). */
+    organization?: RootOrganization
     createdAt?: string
     updatedAt?: string
 }

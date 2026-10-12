@@ -4,6 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/app/i18n'
 import type { BackgroundTaskBuckets, BackgroundTaskPublic, Character } from '@/shared'
 import { formatApiDateTime } from '@/utils/time'
+import { apiService } from '@/infrastructure/api'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { TasksDrawer } from './TasksDrawer'
 
 const mocks = vi.hoisted(() => ({
@@ -13,13 +20,12 @@ const mocks = vi.hoisted(() => ({
     cancelTask: vi.fn(),
     clearTerminalTasks: vi.fn(),
     closeDrawer: vi.fn(),
-    setPage: vi.fn(),
+    navigateToOrigin: vi.fn(),
 }))
 
 vi.mock('@/app/hooks', () => ({
     useBackgroundTasks: mocks.useBackgroundTasks,
     useData: mocks.useData,
-    useNavigation: () => ({ setPage: mocks.setPage }),
 }))
 
 vi.mock('@/infrastructure/api', () => ({
@@ -28,8 +34,13 @@ vi.mock('@/infrastructure/api', () => ({
         getWorld: vi.fn(),
         getItem: vi.fn(),
         getAdventureTemplate: vi.fn(),
+        withWorkspace: vi.fn(),
     },
     resolveMediaUrl: (u?: string | null) => (u == null || u === '' ? undefined : u),
+}))
+
+vi.mock('@/features/workspaces/originNavigation', () => ({
+    useOriginNavigation: () => ({ navigateToOrigin: mocks.navigateToOrigin, registerOriginNavigator: () => () => {} }),
 }))
 
 vi.mock('@/ui/components/audio', () => ({
@@ -103,13 +114,21 @@ function mockDrawerState(buckets: BackgroundTaskBuckets) {
 
 function renderDrawer(buckets: BackgroundTaskBuckets) {
     mockDrawerState(buckets)
-    return render(<TasksDrawer />)
+    return render(<WorkspaceTestProvider state={createWorkspaceTestState({ api: apiService })}><TasksDrawer /></WorkspaceTestProvider>)
 }
 
 function renderDrawerSpanish(buckets: BackgroundTaskBuckets) {
     mockDrawerState(buckets)
     const localI18n = i18n.cloneInstance({ lng: 'es' })
-    return render(<I18nextProvider i18n={localI18n}><TasksDrawer /></I18nextProvider>)
+    return render(
+        <WorkspaceTestProvider state={createWorkspaceTestState({ api: apiService })}>
+            <I18nextProvider i18n={localI18n}><TasksDrawer /></I18nextProvider>
+        </WorkspaceTestProvider>,
+    )
+}
+
+function fromWorkspace(item: BackgroundTaskPublic, workspaceId: string): BackgroundTaskPublic {
+    return { ...item, organization: { workspace_id: workspaceId } }
 }
 
 describe('TasksDrawer', () => {
@@ -137,6 +156,7 @@ describe('TasksDrawer', () => {
     })
 
     it('shows resource tasks with their own progress and opens the completed PDF resource', async () => {
+        mocks.navigateToOrigin.mockResolvedValue('navigated')
         const pdf: BackgroundTaskPublic = { ...task('completed','pdf-task'),operation:'pdf_import',
             title:'court.pdf',target:{ type:'resource',id:'resource-pdf',display_name:'court.pdf' },result:{ assets:[],resource_id:'resource-pdf' } }
         const metadata: BackgroundTaskPublic = { ...task('in_progress','metadata-task'),operation:'lorebook_extraction',
@@ -148,7 +168,13 @@ describe('TasksDrawer', () => {
         fireEvent.click(screen.getByRole('button',{ name:/completed/i }))
         fireEvent.click(await screen.findByRole('button',{ name:'Show Import PDF · court.pdf details' }))
         fireEvent.click(screen.getByRole('button',{ name:'Attached card: Resource - court.pdf' }))
-        expect(mocks.setPage).toHaveBeenCalledWith('gallery-resources',{hash:'#/gallery/resources?resource=resource-pdf'})
+        // Workspace R1: the resource opens in the task's workspace (here the selected one, as the task has no origin).
+        await waitFor(() => expect(mocks.navigateToOrigin).toHaveBeenCalledWith({
+            workspaceId: TEST_WORKSPACE_ID,
+            page: 'gallery-resources',
+            hash: '#/gallery/resources?resource=resource-pdf',
+        }))
+        await waitFor(() => expect(mocks.closeDrawer).toHaveBeenCalled())
         expect(screen.queryByTestId('audio-player')).not.toBeInTheDocument()
     })
 
@@ -273,5 +299,92 @@ describe('TasksDrawer', () => {
         fireEvent.click(screen.getByRole('button', { name: /Completadas\s*1/i }))
         expect(screen.getByText('Listo')).toBeInTheDocument()
         expect(screen.getByText('Tema de Card One')).toBeInTheDocument()
+    })
+
+    describe('Workspace R1', () => {
+        beforeEach(() => {
+            vi.mocked(apiService.withWorkspace).mockImplementation(() => apiService)
+        })
+
+        it('labels a task of another workspace and reads its card there, not from the selected library', async () => {
+            vi.mocked(apiService.getCharacter).mockResolvedValue({ id: 'card-1', name: 'Remote One', description: 'From the other shelf.' } as never)
+            renderDrawer({ active: [fromWorkspace(task('pending', 'active-1'), OTHER_WORKSPACE_ID)], completed: [], failed: [] })
+
+            expect(await screen.findByText('From Novel A')).toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: /attached card: character - card one/i }))
+
+            await waitFor(() => expect(apiService.getCharacter).toHaveBeenCalledWith('card-1'))
+            expect(apiService.withWorkspace).toHaveBeenCalledWith(OTHER_WORKSPACE_ID)
+            expect(await screen.findByText('From the other shelf.')).toBeInTheDocument()
+        })
+
+        it('shows no origin label for tasks of the selected workspace', async () => {
+            renderDrawer({ active: [fromWorkspace(task('pending', 'active-1'), TEST_WORKSPACE_ID)], completed: [], failed: [] })
+            await screen.findByText('Queued')
+            expect(screen.queryByText(/^From /)).toBeNull()
+        })
+
+        it('opens the card editor in the task workspace through origin navigation', async () => {
+            mocks.navigateToOrigin.mockResolvedValue('navigated')
+            renderDrawer({ active: [fromWorkspace(task('pending', 'active-1'), OTHER_WORKSPACE_ID)], completed: [], failed: [] })
+            vi.mocked(apiService.getCharacter).mockResolvedValue({ id: 'card-1', name: 'Remote One' } as never)
+
+            fireEvent.click(await screen.findByRole('button', { name: /attached card: character - card one/i }))
+            fireEvent.click(await screen.findByRole('button', { name: 'Open card' }))
+
+            await waitFor(() => expect(mocks.navigateToOrigin).toHaveBeenCalledWith({
+                workspaceId: OTHER_WORKSPACE_ID,
+                page: 'character',
+                hash: '#/character?card=card-1',
+            }))
+            await waitFor(() => expect(mocks.closeDrawer).toHaveBeenCalled())
+        })
+
+        it('explains when the card workspace is unavailable', async () => {
+            mocks.navigateToOrigin.mockResolvedValue('unavailable')
+            vi.mocked(apiService.getCharacter).mockRejectedValue(new Error('not found'))
+            renderDrawer({ active: [fromWorkspace(task('pending', 'active-1'), OTHER_WORKSPACE_ID)], completed: [], failed: [] })
+
+            fireEvent.click(await screen.findByRole('button', { name: /attached card: character - card one/i }))
+            fireEvent.click(await screen.findByRole('button', { name: 'Open card' }))
+
+            expect(await screen.findByText('This card’s workspace is unavailable.')).toBeInTheDocument()
+            expect(mocks.closeDrawer).not.toHaveBeenCalled()
+        })
+
+        function metadataTask(workspaceId: string): BackgroundTaskPublic {
+            return fromWorkspace({ ...task('completed', 'metadata-task'), operation: 'lorebook_extraction', title: 'court.pdf',
+                target: { type: 'lorebook', id: 'book-1', display_name: 'Court' }, result: { assets: [], lorebook_id: 'book-1' } }, workspaceId)
+        }
+
+        it('opens a lorebook task of another workspace there, through origin navigation', async () => {
+            mocks.navigateToOrigin.mockResolvedValue('navigated')
+            renderDrawer({ active: [], completed: [metadataTask(OTHER_WORKSPACE_ID)], failed: [] })
+
+            fireEvent.click(await screen.findByRole('button', { name: /completed\s*1/i }))
+            expect(screen.getByText('From Novel A')).toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: /attached card: lorebook - court/i }))
+
+            await waitFor(() => expect(mocks.navigateToOrigin).toHaveBeenCalledWith({
+                workspaceId: OTHER_WORKSPACE_ID,
+                page: 'lorebook',
+                hash: '#/lorebook?lorebook=book-1',
+            }))
+            await waitFor(() => expect(mocks.closeDrawer).toHaveBeenCalled())
+            expect(apiService.withWorkspace).not.toHaveBeenCalled()
+        })
+
+        it('explains when a resource task’s workspace is unavailable', async () => {
+            mocks.navigateToOrigin.mockResolvedValue('unavailable')
+            const pdf = fromWorkspace({ ...task('completed', 'pdf-task'), operation: 'pdf_import', title: 'court.pdf',
+                target: { type: 'resource', id: 'resource-pdf', display_name: 'court.pdf' }, result: { assets: [], resource_id: 'resource-pdf' } }, OTHER_WORKSPACE_ID)
+            renderDrawer({ active: [], completed: [pdf], failed: [] })
+
+            fireEvent.click(await screen.findByRole('button', { name: /completed\s*1/i }))
+            fireEvent.click(screen.getByRole('button', { name: 'Attached card: Resource - court.pdf' }))
+
+            expect(await screen.findByText('This task’s workspace is unavailable.')).toBeInTheDocument()
+            expect(mocks.closeDrawer).not.toHaveBeenCalled()
+        })
     })
 })

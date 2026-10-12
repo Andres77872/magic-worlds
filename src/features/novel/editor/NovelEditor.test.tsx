@@ -100,3 +100,57 @@ describe('NovelEditor keyboard ownership', () => {
         expect(screen.getByTestId('beat-composer')).toBeInTheDocument()
     })
 })
+
+describe('NovelEditor read-only (archived workspace)', () => {
+    beforeAll(() => {
+        document.elementFromPoint = vi.fn(() => document.body)
+        vi.spyOn(EditorView.prototype, 'coordsAtPos').mockReturnValue({ left: 40, right: 42, top: 80, bottom: 98 })
+    })
+
+    afterAll(() => {
+        document.elementFromPoint = originalElementFromPoint
+        vi.restoreAllMocks()
+    })
+
+    it('reads and finds, but never edits, generates or removes a beat note', async () => {
+        const onBodyChange = vi.fn()
+        const onGenerate = vi.fn()
+        render(<NovelEditor {...props({ initialBody: '<!-- beat: More rain -->\n\nThe gate held.', readOnly: true, onBodyChange, onGenerate })} />)
+
+        expect(await screen.findByLabelText('Chapter body')).toHaveAttribute('contenteditable', 'false')
+        const shell = screen.getByTestId('novel-editor')
+        expect(shell).toHaveAttribute('data-readonly', 'true')
+
+        // A beat note is a record, not a control: removing it would be an edit.
+        fireEvent.click(screen.getByTestId('ai-beat-remove'))
+        expect(screen.getByTestId('ai-beat')).toHaveTextContent('More rain')
+
+        // Mod-Enter opens no composer.
+        fireEvent.keyDown(shell, { key: 'Enter', ctrlKey: true })
+        expect(screen.queryByTestId('beat-composer')).not.toBeInTheDocument()
+
+        // Mod-F opens Find; Replace is disabled and says why.
+        fireEvent.keyDown(shell, { key: 'f', ctrlKey: true })
+        fireEvent.change(await screen.findByTestId('find-input'), { target: { value: 'gate' } })
+        await waitFor(() => expect(screen.getByTestId('find-count')).toHaveTextContent('1'))
+        expect(screen.getByTestId('replace-input')).toBeDisabled()
+        expect(screen.getByTestId('replace-one')).toBeDisabled()
+        expect(screen.getByTestId('replace-all')).toBeDisabled()
+        expect(screen.getByTestId('find-archived')).toHaveTextContent('This workspace is archived. Restore it to create or edit content.')
+
+        expect(onBodyChange).not.toHaveBeenCalled()
+        expect(onGenerate).not.toHaveBeenCalled()
+    })
+
+    it('follows the workspace when it is archived or restored while open', async () => {
+        const { rerender } = render(<NovelEditor {...props({ initialBody: 'The gate held.' })} />)
+        const prose = await screen.findByLabelText('Chapter body')
+        expect(prose).toHaveAttribute('contenteditable', 'true')
+
+        rerender(<NovelEditor {...props({ initialBody: 'The gate held.', readOnly: true })} />)
+        await waitFor(() => expect(screen.getByLabelText('Chapter body')).toHaveAttribute('contenteditable', 'false'))
+
+        rerender(<NovelEditor {...props({ initialBody: 'The gate held.', readOnly: false })} />)
+        await waitFor(() => expect(screen.getByLabelText('Chapter body')).toHaveAttribute('contenteditable', 'true'))
+    })
+})

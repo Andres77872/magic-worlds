@@ -5,7 +5,7 @@
  */
 
 import type { Story } from '@/shared'
-import { apiService } from '@/infrastructure/api'
+import type { ApiService } from '@/infrastructure/api'
 import type { TFunction } from 'i18next'
 import { chaptersFor, wordCount } from './utils/novelUtils'
 
@@ -50,7 +50,12 @@ export function novelItems(raw: unknown, t: TFunction): NovelGalleryItem[] {
     })
 }
 
-export function getNovelGalleryConfig(t: TFunction) {
+/**
+ * `api` is the committed workspace's scoped client (Workspace R1): stories are
+ * private content, and a new client identity on every workspace commit makes
+ * the gallery restart from offset 0.
+ */
+export function getNovelGalleryConfig(t: TFunction, api: ApiService | null) {
     return {
         eyebrow: t('novelGallery.header.eyebrow'),
         title: t('novelGallery.header.title'),
@@ -60,7 +65,8 @@ export function getNovelGalleryConfig(t: TFunction) {
         noMatchTitle: t('novelGallery.empty.noMatchTitle'),
         noMatchDescription: t('novelGallery.empty.noMatchDescription'),
         createLabel: t('novelGallery.actions.new'),
-        fetchPage: (skip: number, limit: number, q?: string) => apiService.getStories(skip, limit, q),
+        fetchPage: (skip: number, limit: number, q?: string): Promise<Story[]> =>
+            api ? api.getStories(skip, limit, q) : Promise.resolve([]),
         toItems: (raw: unknown) => novelItems(raw, t),
     }
 }

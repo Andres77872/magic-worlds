@@ -1,11 +1,16 @@
-import { ApiError, apiService } from '@/infrastructure/api'
+import { ApiError, isWorkspaceApiError, type ApiService } from '@/infrastructure/api'
 import type { LorebookResource } from '@/shared'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY } from '@/shared/hooks/useWorkspaceReadOnly'
 import { newLorebookResource, normalizeLorebookResource } from './lorebookResources'
 
-/** PDFs become editable Markdown sources; their binary bytes stay out of JSON. */
-export async function readLorebookResourceFile(file: File): Promise<LorebookResource> {
+/**
+ * PDFs become editable Markdown sources; their binary bytes stay out of JSON.
+ * `api` is the workspace-scoped client of the resource's destination (the PDF
+ * import is a private-content route).
+ */
+export async function readLorebookResourceFile(file: File, api: Pick<ApiService, 'importLorebookResourcePdf'>): Promise<LorebookResource> {
     if (file.name.toLowerCase().endsWith('.pdf')) {
-        const imported = normalizeLorebookResource(await apiService.importLorebookResourcePdf(file))
+        const imported = normalizeLorebookResource(await api.importLorebookResourcePdf(file))
         if (!imported || imported.fileType !== 'md') throw new Error('Invalid PDF import response.')
         return imported
     }
@@ -30,6 +35,8 @@ const pdfErrorKeys: Record<string, string> = {
 }
 
 export function resourceFileErrorKey(error: unknown): string | null {
+    // Workspace R1: the destination was archived (e.g. in another tab) before the import was admitted.
+    if (isWorkspaceApiError(error, 'WORKSPACE_ARCHIVED')) return ARCHIVED_WORKSPACE_MESSAGE_KEY
     const key = error instanceof ApiError && error.code ? pdfErrorKeys[error.code] : undefined
     return key ? `lorebookResourcesGallery.errors.${key}` : null
 }

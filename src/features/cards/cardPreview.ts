@@ -1,6 +1,6 @@
 import type { Adventure, CardMediaTargetType, Character, Item, World } from '@/shared'
 import { readWorldPlaceType, worldPlaceTypeLabel } from '@/shared'
-import { apiService, resolveMediaUrl } from '@/infrastructure/api'
+import { apiService, resolveMediaUrl, type ApiService } from '@/infrastructure/api'
 import { transformCharacters, transformItems, transformTemplates, transformWorlds } from '@/utils/cardTransforms'
 
 export type CardPreviewTargetType = CardMediaTargetType | 'persona'
@@ -136,19 +136,25 @@ export function findLocalCardPreview(library: CardPreviewLibrary, target: CardPr
     return card ? toAdventurePreview(card, target) : null
 }
 
-export async function fetchCardPreview(target: CardPreviewTarget): Promise<CardPreview | null> {
+/**
+ * Fetch a card the local library does not hold. Cards are private content
+ * (Workspace R1): pass the scoped client of the workspace the card is looked up
+ * in — `useWorkspace().api` for the current one. The unscoped default is
+ * rejected by the server with WORKSPACE_REQUIRED.
+ */
+export async function fetchCardPreview(target: CardPreviewTarget, api: ApiService = apiService): Promise<CardPreview | null> {
     if (target.type === 'character' || target.type === 'persona') {
-        const card = transformCharacters([await apiService.getCharacter(target.id)])[0]
+        const card = transformCharacters([await api.getCharacter(target.id)])[0]
         return card ? toCharacterPreview(card, target) : null
     }
     if (target.type === 'world') {
-        const card = transformWorlds([await apiService.getWorld(target.id)])[0]
+        const card = transformWorlds([await api.getWorld(target.id)])[0]
         return card ? toWorldPreview(card, target) : null
     }
     if (target.type === 'item') {
-        const card = transformItems([await apiService.getItem(target.id)])[0]
+        const card = transformItems([await api.getItem(target.id)])[0]
         return card ? toItemPreview(card, target) : null
     }
-    const card = transformTemplates([await apiService.getAdventureTemplate(target.id)])[0]
+    const card = transformTemplates([await api.getAdventureTemplate(target.id)])[0]
     return card ? toAdventurePreview(card, target) : null
 }

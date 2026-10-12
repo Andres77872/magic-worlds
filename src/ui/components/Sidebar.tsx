@@ -25,6 +25,7 @@ import {
     Gem,
     Globe,
     Images,
+    Library,
     ListChecks,
     MessageCircle,
     MessagesSquare,
@@ -35,8 +36,9 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
-import { isPageFeatureEnabled } from '../../shared/featureFlags'
+import { isPageFeatureEnabled, isWorkspacesFeatureEnabled } from '../../shared/featureFlags'
 import { useNavigation, useAuth, useBackgroundTasks, useApiStatus } from '../../app/hooks'
+import { WorkspaceSwitcher } from '../../features/workspaces/components/WorkspaceSwitcher'
 import { Eyebrow, Icon, Tooltip, cx } from '../primitives'
 import { ApiStatusMonitor } from './ApiStatusMonitor'
 import { SidebarAccountMenu } from './SidebarAccountMenu'
@@ -55,8 +57,10 @@ interface NavGroup {
 }
 
 // Always-visible top anchors: discovery entry points with no group header.
+// `library` (Workspace R1) is page-flagged: it only shows with workspaces on.
 const NAV_PRIMARY: RailItem[] = [
     { page: 'landing', labelKey: 'sidebar.nav.landing', icon: Compass },
+    { page: 'library', labelKey: 'library.nav', icon: Library },
     { page: 'community', labelKey: 'sidebar.nav.community', icon: Sparkles },
     { page: 'assistant', labelKey: 'sidebar.nav.assistant', icon: MessagesSquare },
 ]
@@ -100,6 +104,15 @@ const NAV_GROUPS: NavGroup[] = [
 /** Items hidden behind a feature flag are filtered out before render. */
 function isItemVisible(item: RailItem): boolean {
     return isPageFeatureEnabled(item.page)
+}
+
+/**
+ * With Workspace R1 on, the single Library entry replaces the four per-type
+ * galleries (document 08 "Information architecture"); with it off, today's
+ * groups are unchanged.
+ */
+function visibleGroups(): NavGroup[] {
+    return isWorkspacesFeatureEnabled() ? NAV_GROUPS.filter((group) => group.id !== 'library') : NAV_GROUPS
 }
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'magic-worlds-sidebar-collapsed'
@@ -336,6 +349,9 @@ export function SidebarShell({
                         </button>
                     </Tooltip>
                 )}
+
+                {/* Workspace switcher — renders nothing unless Workspace R1 is on and ready. */}
+                <WorkspaceSwitcher collapsed={collapsed} panel={panel} onNavigate={onNavigate} />
             </div>
 
             {/* NAV zone — the only scroller; header + footer stay pinned. */}
@@ -359,7 +375,7 @@ export function SidebarShell({
                     />
                 ))}
 
-                {NAV_GROUPS.map((group) => {
+                {visibleGroups().map((group) => {
                     const items = group.items.filter(isItemVisible)
                     if (items.length === 0) return null
                     const groupCollapsed = Boolean(collapsedGroups[group.id])

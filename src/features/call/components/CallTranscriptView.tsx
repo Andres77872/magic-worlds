@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, ArrowLeft, Mic, PhoneCall, Volume2 } from 'lucide-react'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { useAuthenticatedMediaUrl } from '@/infrastructure/api/useAuthenticatedMediaUrl'
 import type { CallSummary, CallTranscriptSegment, Character } from '@/shared'
 import { EmptyState } from '@/ui/components'
@@ -96,15 +96,19 @@ export function CallTranscriptView({ call, characters, onBack }: CallTranscriptV
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const display = useMemo(() => callDisplay(call, characters, t), [call, characters, t])
+    // Workspace R1: the history (and so this call) belongs to the committed workspace.
+    const { api, capture, isCurrent } = useWorkspace()
 
     useEffect(() => {
+        if (!api) return
         let cancelled = false
+        const scope = capture()
         setLoading(true)
         setError(null)
-        apiService
+        api
             .getVoiceCallTranscript(call.voice_session_id)
             .then((response) => {
-                if (cancelled) return
+                if (cancelled || !isCurrent(scope)) return
                 setSegments(response.segments ?? [])
             })
             .catch((err) => {
@@ -118,7 +122,7 @@ export function CallTranscriptView({ call, characters, onBack }: CallTranscriptV
         return () => {
             cancelled = true
         }
-    }, [call.voice_session_id, t])
+    }, [api, call.voice_session_id, capture, isCurrent, t])
 
     const duration = formatCallDuration(call.duration_seconds)
     const subtitleParts = [formatCallTime(call), duration].filter(Boolean)

@@ -3,16 +3,24 @@
  * theme song in one newest-first feed, filterable by media type, card type, and
  * a specific card. Images open in the lightbox; themes play inline; deletes
  * soft-delete the asset after a confirm.
+ *
+ * Workspace R1: the feed is the committed workspace's (see useMediaGallery). A
+ * committed switch also closes the lightbox and the delete dialog. Asset
+ * deletion stays account-wide (unscoped), as the backend defines it; while the
+ * selected workspace is archived the feed is read-only (view, play and
+ * download keep working, Delete is off).
  */
 
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData } from '@/app/hooks'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { ApiError, apiService, resolveMediaUrl } from '@/infrastructure/api'
 import { Button, Callout, PageHeader } from '@/ui/primitives'
 import { ImageLightbox } from '@/ui/primitives'
 import { CardGrid } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY, useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { emptyCopy, type CardRef, type MediaGalleryItem, type MediaImageItem } from '../mediaGalleryTypes'
 import { useMediaGallery } from '../hooks/useMediaGallery'
 import { MediaFilterBar } from './MediaFilterBar'
@@ -24,13 +32,29 @@ export function MediaGalleryPage() {
     const { isAuthenticated, openLoginModal } = useAuth()
     const { characters, worlds, items, templateAdventures } = useData()
     const gallery = useMediaGallery(undefined, { enabled: isAuthenticated })
+    const { workspaceEpoch, capture, isCurrent } = useWorkspace()
+    const readOnly = useWorkspaceReadOnly()
 
     const [selectedImage, setSelectedImage] = useState<MediaImageItem | undefined>(undefined)
     const [pendingDelete, setPendingDelete] = useState<MediaGalleryItem | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [actionError, setActionError] = useState<string | null>(null)
 
+    // The lightbox and dialogs show the previous workspace's media: close them.
+    const [viewEpoch, setViewEpoch] = useState(workspaceEpoch)
+    if (viewEpoch !== workspaceEpoch) {
+        setViewEpoch(workspaceEpoch)
+        setSelectedImage(undefined)
+        setPendingDelete(null)
+        setDeletingId(null)
+        setActionError(null)
+    }
+
     const requestDelete = (item: MediaGalleryItem) => {
+        if (readOnly) {
+            setActionError(t(ARCHIVED_WORKSPACE_MESSAGE_KEY))
+            return
+        }
         if (!isAuthenticated) {
             openLoginModal()
             return
@@ -41,21 +65,23 @@ export function MediaGalleryPage() {
     const confirmDelete = async () => {
         const target = pendingDelete
         setPendingDelete(null)
-        if (!target) return
+        if (!target || readOnly) return
+        const scope = capture()
         setDeletingId(target.id)
         setActionError(null)
         try {
             if (target.kind === 'image') await apiService.deleteImageAsset(target.id)
             else await apiService.deleteThemeSongAsset(target.id)
-            gallery.removeItem(target.id)
+            if (isCurrent(scope)) gallery.removeItem(target.id)
         } catch (error) {
+            if (!isCurrent(scope)) return
             setActionError(
                 error instanceof ApiError && error.code === 'asset_in_use'
                     ? error.message
                     : t(target.kind === 'image' ? 'mediaGallery.deleteDialog.imageFailed' : 'mediaGallery.deleteDialog.themeFailed'),
             )
         } finally {
-            setDeletingId(null)
+            if (isCurrent(scope)) setDeletingId(null)
         }
     }
 
@@ -150,6 +176,7 @@ export function MediaGalleryPage() {
                             deleting={deletingId === item.id}
                             onView={() => setSelectedImage(item)}
                             onDelete={() => requestDelete(item)}
+                            readOnly={readOnly}
                             onFilterCard={gallery.setCard}
                         />
                     ) : (
@@ -158,6 +185,7 @@ export function MediaGalleryPage() {
                             artworkUrl={cardArtwork(item.card)}
                             deleting={deletingId === item.id}
                             onDelete={() => requestDelete(item)}
+                            readOnly={readOnly}
                             onFilterCard={gallery.setCard}
                         />
                     )

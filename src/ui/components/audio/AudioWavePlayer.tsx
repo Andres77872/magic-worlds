@@ -30,7 +30,7 @@ export interface AudioWavePlayerProps {
     /** Seed for the dormant pseudo-waveform; defaults to `src`. */
     peakSeed?: string
     /** Card identity/artwork carried into the playlist dock. */
-    trackMeta?: Pick<PlaylistTrack, 'cardName' | 'cardType' | 'cardId' | 'artworkUrl'>
+    trackMeta?: Pick<PlaylistTrack, 'cardName' | 'cardType' | 'cardId' | 'artworkUrl' | 'workspaceId'>
     /** Show the add-to-playlist button. */
     showEnqueue?: boolean
     /** Show the download button. */

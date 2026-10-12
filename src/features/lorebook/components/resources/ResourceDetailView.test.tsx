@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/app/i18n'
 import { apiService } from '@/infrastructure/api'
 import type { LorebookResource } from '@/shared'
+import {
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+    createWorkspaceTestState,
+    testWorkspace,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { LOREBOOK_RESOURCE_MAX_CHARS, newLorebookResource } from '../../lorebookResources'
 import { ResourceDetailView } from './ResourceDetailView'
 import { BackgroundTasksContext, type BackgroundTasksContextValue } from '@/app/providers/backgroundTasksContext'
@@ -335,5 +342,84 @@ describe('ResourceDetailView', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
         expect(onSave).toHaveBeenCalledWith(expect.any(Object), { extractMetadata: true })
+    })
+
+    it('stays readable but blocks edit, metadata sync and delete when its own workspace is archived', () => {
+        // The selected workspace is active; the resource belongs to the archived one.
+        const workspace = createWorkspaceTestState({
+            workspaces: [
+                testWorkspace(TEST_WORKSPACE_ID, 'Main library'),
+                testWorkspace(OTHER_WORKSPACE_ID, 'Novel A', { archived_at: '2026-10-10T00:00:00Z' }),
+            ],
+        })
+        const onSave = vi.fn(async () => true)
+        const onSyncMetadata = vi.fn(async () => true)
+        const onDelete = vi.fn()
+        const onBack = vi.fn()
+        render(
+            <WorkspaceTestProvider state={workspace}>
+                <ResourceDetailView
+                    resource={completedResource({ organization: { workspace_id: OTHER_WORKSPACE_ID } })}
+                    isCreate={false}
+                    loading={false}
+                    saving={false}
+                    onSave={onSave}
+                    onSyncMetadata={onSyncMetadata}
+                    onDelete={onDelete}
+                    onBack={onBack}
+                />
+            </WorkspaceTestProvider>,
+        )
+
+        const edit = screen.getByRole('button', { name: 'Edit' })
+        const sync = screen.getByRole('button', { name: 'Generate metadata' })
+        const remove = screen.getByRole('button', { name: 'Delete Glass archive' })
+        for (const control of [edit, sync, remove]) {
+            expect(control).toBeDisabled()
+            fireEvent.click(control)
+        }
+        expect(screen.queryByLabelText('File name')).not.toBeInTheDocument()
+        expect(onSyncMetadata).not.toHaveBeenCalled()
+        expect(onDelete).not.toHaveBeenCalled()
+        expect(onSave).not.toHaveBeenCalled()
+        expect(screen.getByTestId('resource-archived-notice')).toBeInTheDocument()
+
+        // Reading and navigation keep working.
+        expect(screen.getByText('Extracted metadata')).toBeInTheDocument()
+        const plain = screen.getByRole('button', { name: 'Plain' })
+        expect(plain).toBeEnabled()
+        fireEvent.click(plain)
+        expect(screen.getByText('Names spoken under glass are binding.')).toBeInTheDocument()
+        const back = screen.getByRole('button', { name: 'Back to resources' })
+        expect(back).toBeEnabled()
+        fireEvent.click(back)
+        expect(onBack).toHaveBeenCalledOnce()
+    })
+
+    it('keeps a resource of an active workspace editable while the selected workspace is archived', () => {
+        const workspace = createWorkspaceTestState({
+            workspaces: [
+                testWorkspace(TEST_WORKSPACE_ID, 'Main library', { archived_at: '2026-10-10T00:00:00Z' }),
+                testWorkspace(OTHER_WORKSPACE_ID, 'Novel A'),
+            ],
+        })
+        render(
+            <WorkspaceTestProvider state={workspace}>
+                <ResourceDetailView
+                    resource={completedResource({ organization: { workspace_id: OTHER_WORKSPACE_ID } })}
+                    isCreate={false}
+                    loading={false}
+                    saving={false}
+                    onSave={vi.fn()}
+                    onDelete={vi.fn()}
+                    onBack={vi.fn()}
+                />
+            </WorkspaceTestProvider>,
+        )
+
+        expect(screen.queryByTestId('resource-archived-notice')).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+        expect(screen.getByLabelText('File name')).toBeEnabled()
+        expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
     })
 })

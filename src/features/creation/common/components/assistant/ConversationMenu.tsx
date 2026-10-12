@@ -18,7 +18,8 @@ interface ConversationMenuProps {
     disabled?: boolean
     onSelect: (id: number) => void
     onNew: () => void
-    onDelete: (id: number) => void
+    /** Omitted while the workspace is archived: the history stays browsable, nothing is deleted. */
+    onDelete?: (id: number) => void
 }
 
 /** Header popover: "New chat" plus the conversation history with inline delete. */
@@ -120,7 +121,7 @@ export function ConversationMenu({ conversations, activeId, disabled, onSelect, 
                                             {formatRelativeTime(conversation.updated_at)}
                                         </span>
                                     </button>
-                                    {confirmId === id ? (
+                                    {!onDelete ? null : confirmId === id ? (
                                         <button
                                             type="button"
                                             onClick={() => {

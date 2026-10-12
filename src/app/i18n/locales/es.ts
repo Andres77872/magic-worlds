@@ -10,9 +10,18 @@ type TranslationResource = TranslationValueShape<EnShape>
 
 import { llmProfilesEs } from './llmProfiles'
 import { imageProfilesEs } from './imageProfiles'
+import { workspacesEs } from './workspaces'
+import { libraryEs, workspaceUiEs } from './library'
+import { workspaceActivityEs } from './workspaceActivity'
+import { workspaceContentEs } from './workspaceContent'
 export const es = {
+    workspaceContent: workspaceContentEs,
     llmProfiles: llmProfilesEs,
     imageProfiles: imageProfilesEs,
+    workspaces: workspacesEs,
+    library: libraryEs,
+    workspaceUi: workspaceUiEs,
+    workspaceActivity: workspaceActivityEs,
     imageGeneration: {
         stages: {
             starting: 'Iniciando la generación de imagen…',

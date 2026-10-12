@@ -21,6 +21,19 @@ vi.mock('../hooks/usePageFocus', () => ({
     isPageFocused: () => pageFocused,
 }))
 
+// Workspace R1: the handshake already selected a workspace; its scoped client is the stub below.
+const workspaceMock = vi.hoisted(() => ({
+    status: 'ready' as 'idle' | 'loading' | 'ready' | 'unavailable' | 'stale',
+    selectedWorkspaceId: '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b' as string | null,
+    workspaceEpoch: 1,
+    api: null as unknown,
+}))
+vi.mock('../hooks/useWorkspace', async () => {
+    const { apiService } = await import('@/infrastructure')
+    workspaceMock.api = apiService
+    return { useWorkspace: () => ({ ...workspaceMock }) }
+})
+
 vi.mock('@/infrastructure', () => {
     class ApiError extends Error {
         isTransient = false
@@ -300,5 +313,110 @@ describe('DataProvider auth transitions', () => {
         await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
         await act(async () => resolveOld([]))
         expect(screen.getByTestId('is-loading')).toHaveTextContent('false')
+    })
+})
+
+describe('DataProvider workspace gating (Workspace R1)', () => {
+    const WS_A = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
+    const WS_B = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
+
+    beforeEach(() => {
+        vi.clearAllMocks()
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        authenticated = true
+        authEpoch = undefined
+        pageFocused = true
+        window.history.replaceState(null, '', '#/')
+        loadingLog.length = 0
+        workspaceMock.status = 'ready'
+        workspaceMock.selectedWorkspaceId = WS_A
+        workspaceMock.workspaceEpoch = 1
+        vi.mocked(apiService.getCharacters).mockResolvedValue([])
+        vi.mocked(apiService.getStories).mockResolvedValue([STORY])
+    })
+
+    afterEach(() => {
+        workspaceMock.status = 'ready'
+        workspaceMock.selectedWorkspaceId = WS_A
+        workspaceMock.workspaceEpoch = 1
+        vi.unstubAllEnvs()
+    })
+
+    it('sends no private request before the handshake and keeps the existing loading state', async () => {
+        workspaceMock.status = 'loading'
+        workspaceMock.selectedWorkspaceId = null
+        workspaceMock.workspaceEpoch = 0
+        const view = renderProvider()
+        await act(async () => { await Promise.resolve() })
+        expect(apiService.getCharacters).not.toHaveBeenCalled()
+        expect(apiService.getStories).not.toHaveBeenCalled()
+        expect(screen.getByTestId('is-loading')).toHaveTextContent('true')
+
+        workspaceMock.status = 'ready'
+        workspaceMock.selectedWorkspaceId = WS_A
+        workspaceMock.workspaceEpoch = 1
+        view.rerender(<DataProvider><Probe /></DataProvider>)
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
+        expect(apiService.getCharacters).toHaveBeenCalledTimes(1)
+        expect(screen.getByTestId('stories-count')).toHaveTextContent('1')
+    })
+
+    it('releases the spinner without loading anything while the library is unavailable', async () => {
+        workspaceMock.status = 'unavailable'
+        workspaceMock.selectedWorkspaceId = null
+        workspaceMock.workspaceEpoch = 0
+        renderProvider()
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
+        expect(apiService.getCharacters).not.toHaveBeenCalled()
+        expect(screen.getByTestId('stories-count')).toHaveTextContent('0')
+    })
+
+    it('drops a load that finishes after a workspace switch and shows the new workspace only', async () => {
+        let releaseA!: () => void
+        const gate = new Promise<void>((resolve) => { releaseA = resolve })
+        vi.mocked(apiService.getStories).mockImplementationOnce(async () => {
+            await gate
+            return [STORY] as never
+        })
+        const view = renderProvider()
+        expect(apiService.getStories).toHaveBeenCalledTimes(1)
+
+        vi.mocked(apiService.getStories).mockResolvedValue([])
+        workspaceMock.selectedWorkspaceId = WS_B
+        workspaceMock.workspaceEpoch = 2
+        view.rerender(<DataProvider><Probe /></DataProvider>)
+        await waitFor(() => expect(apiService.getStories).toHaveBeenCalledTimes(2))
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
+
+        await act(async () => {
+            releaseA()
+            await gate
+            await Promise.resolve()
+        })
+        expect(screen.getByTestId('stories-count')).toHaveTextContent('0')
+    })
+
+    it('clears the previous workspace lists at commit and reloads with the loading state', async () => {
+        const view = renderProvider()
+        await waitFor(() => expect(screen.getByTestId('stories-count')).toHaveTextContent('1'))
+
+        let releaseB!: () => void
+        const gate = new Promise<void>((resolve) => { releaseB = resolve })
+        vi.mocked(apiService.getStories).mockImplementationOnce(async () => {
+            await gate
+            return []
+        })
+        workspaceMock.selectedWorkspaceId = WS_B
+        workspaceMock.workspaceEpoch = 2
+        view.rerender(<DataProvider><Probe /></DataProvider>)
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('true'))
+        expect(screen.getByTestId('stories-count')).toHaveTextContent('0')
+
+        await act(async () => {
+            releaseB()
+            await gate
+        })
+        await waitFor(() => expect(screen.getByTestId('is-loading')).toHaveTextContent('false'))
+        expect(screen.getByTestId('stories-count')).toHaveTextContent('0')
     })
 })

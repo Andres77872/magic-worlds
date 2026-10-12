@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { FilePlus2, FileText, Link2, Loader2, Search, Upload, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useNavigation } from '@/app/hooks'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { authSession } from '@/infrastructure/api/authSession'
 import { TASK_REQUEST_FINISHED, type TaskRequestEvent } from '@/infrastructure/api/resourceTaskEvents'
 import type { LorebookResource } from '@/shared'
+import { organizationWorkspaceId, scopedApi } from '@/shared/hooks/useScopedApi'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY, isWorkspaceArchived, useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { buildResourceHash } from '@/features/gallery/galleryLinks'
 import { ConfirmDialog } from '@/ui/components'
 import { Button, Callout, Icon, IconButton, IconTile, PageHeader, controlClass } from '@/ui/primitives'
@@ -30,6 +32,9 @@ export function LorebookResourcesGalleryPage() {
     const { t } = useTranslation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const { resourceEdit, setPage, goBack, replaceHash } = useNavigation()
+    const { workspaces, workspaceEpoch, capture, isCurrent } = useWorkspace()
+    // New resources land in the selected workspace: archived, it creates and imports nothing.
+    const readOnly = useWorkspaceReadOnly()
     const gallery = useLorebookResourceGallery(undefined, { enabled: isAuthenticated })
     const extractResource = useLorebookExtraction()
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -39,15 +44,46 @@ export function LorebookResourcesGalleryPage() {
     const [pendingDelete, setPendingDelete] = useState<LorebookResource | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
 
+    // A finished resource task (PDF import, metadata) of this account reloads the list,
+    // unless it ran in another workspace (that one's list is not on screen).
     useEffect(() => {
         const completed = (event: Event) => {
             const detail = (event as CustomEvent<TaskRequestEvent>).detail
             const owner = authSession.getSnapshot()
-            if (detail?.authEpoch === owner.authEpoch && detail.accountKey === owner.accountKey) gallery.refresh()
+            if (detail?.authEpoch !== owner.authEpoch || detail.accountKey !== owner.accountKey) return
+            if (detail.workspaceId && detail.workspaceId !== capture()?.workspaceId) return
+            gallery.refresh()
         }
         window.addEventListener(TASK_REQUEST_FINISHED, completed)
         return () => window.removeEventListener(TASK_REQUEST_FINISHED, completed)
-    }, [gallery.refresh])
+    }, [capture, gallery.refresh])
+
+    // Workspace switch: the previous workspace's dialogs and messages close with it.
+    const [pageEpoch, setPageEpoch] = useState(workspaceEpoch)
+    if (pageEpoch !== workspaceEpoch) {
+        setPageEpoch(workspaceEpoch)
+        setPendingDelete(null)
+        setNotice(null)
+        setError(null)
+    }
+
+    /**
+     * A resource's own workspace (`organization`), else the one committed when
+     * the action started; reads, writes and extraction of it stay there.
+     */
+    const resourceWorkspaceId = (resource: LorebookResource | null, scope: ReturnType<typeof capture>) => (
+        organizationWorkspaceId(resource) ?? scope?.workspaceId ?? null
+    )
+
+    /**
+     * Archived target workspace (document 08: read-only until restored): show why and
+     * write nothing. Items are keyed on their own workspace, new work on the selected one.
+     */
+    const blockedByArchive = (workspaceId: string | null | undefined) => {
+        const archived = isWorkspaceArchived(workspaces, workspaceId)
+        if (archived) setError(t(ARCHIVED_WORKSPACE_MESSAGE_KEY))
+        return archived
+    }
 
     const route = useLorebookResourceRoute({
         items: gallery.items,
@@ -65,6 +101,7 @@ export function LorebookResourcesGalleryPage() {
 
     const createManual = (fileType: 'md' | 'txt') => {
         setError(null)
+        if (blockedByArchive(capture()?.workspaceId)) return
         requireAuth(() => setPage('gallery-resources', { hash: buildResourceHash('new', fileType) }))
     }
 
@@ -79,10 +116,17 @@ export function LorebookResourcesGalleryPage() {
             openLoginModal()
             return
         }
+        const scope = capture()
+        const workspaceId = scope?.workspaceId ?? null
+        if (blockedByArchive(workspaceId)) return
+        const api = scopedApi(workspaceId)
+        if (!api) return
         setSaving(true)
         setError(null)
         setNotice(null)
         const owner = authSession.getSnapshot()
+        // Uploads land in the workspace committed when they started, even after a switch.
+        const current = () => authSession.isCurrent(owner) && isCurrent(scope)
         let uploadedCount = 0
         try {
             for (const file of Array.from(files)) {
@@ -91,28 +135,31 @@ export function LorebookResourcesGalleryPage() {
                     continue
                 }
                 let sourceSaved = false
+                const isPdf = file.name.toLowerCase().endsWith('.pdf')
                 try {
-                    const resource = await readLorebookResourceFile(file)
-                    if (!authSession.isCurrent(owner)) return
+                    const resource = await readLorebookResourceFile(file, api)
+                    if (!current()) return
                     if (resource.content.length > LOREBOOK_RESOURCE_MAX_CHARS) {
                         setError(t('lorebookResourcesGallery.errors.size', { name: file.name, count: LOREBOOK_RESOURCE_MAX_CHARS }))
                         continue
                     }
-                    const created = file.name.toLowerCase().endsWith('.pdf')
+                    // A PDF import is saved by the server (in the captured workspace) already.
+                    const created = isPdf
                         ? resource
-                        : normalizeLorebookResource(await apiService.createLorebookResource(lorebookResourceToApiPayload(resource)))
-                    if (!authSession.isCurrent(owner)) return
+                        : normalizeLorebookResource(await api.createLorebookResource(lorebookResourceToApiPayload(resource)))
+                    if (!current()) return
                     if (!created) throw new Error(t('lorebookResourcesGallery.errors.saveFailed'))
                     gallery.upsertItem(created)
                     sourceSaved = true
-                    if (file.name.toLowerCase().endsWith('.pdf')) {
-                        const result = await extractResource(created)
-                        if (!authSession.isCurrent(owner)) return
+                    if (isPdf) {
+                        // Metadata is generated in the resource's own workspace, never the committed one.
+                        const result = await extractResource(created, undefined, null, organizationWorkspaceId(created) ?? workspaceId)
+                        if (!current()) return
                         gallery.upsertItem(applyLorebookExtraction(created, result))
                     }
                     uploadedCount += 1
                 } catch (err) {
-                    if (!authSession.isCurrent(owner)) return
+                    if (!current()) return
                     const key = resourceFileErrorKey(err)
                     setError(sourceSaved ? t(resourceExtractionErrorKey(err)) : key ? t(key, { name: file.name }) : err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
                 }
@@ -135,30 +182,36 @@ export function LorebookResourcesGalleryPage() {
             return false
         }
         const creating = resourceEdit?.resourceId === 'new'
+        const scope = capture()
+        const workspaceId = resourceWorkspaceId(creating ? null : resource, scope)
+        if (blockedByArchive(workspaceId)) return false
+        const api = scopedApi(workspaceId)
+        if (!api) return false
         const owner = authSession.getSnapshot()
+        const current = () => authSession.isCurrent(owner) && isCurrent(scope)
         let sourceSaved = false
         setSaving(true)
         setError(null)
         try {
             const payload = lorebookResourceToApiPayload(resource)
             const raw = creating
-                ? await apiService.createLorebookResource(payload)
-                : await apiService.updateLorebookResource(resource.id, payload)
+                ? await api.createLorebookResource(payload)
+                : await api.updateLorebookResource(resource.id, payload)
             const saved = normalizeLorebookResource(raw)
             if (!saved) throw new Error(t('lorebookResourcesGallery.errors.saveFailed'))
-            if (!authSession.isCurrent(owner)) return false
+            if (!current()) return false
             gallery.upsertItem(saved)
             if (creating) replaceHash(buildResourceHash(saved.id))
             sourceSaved = true
             if (options.extractMetadata && (saved.extractionStatus !== 'completed' || saved.metadataOutdated)) {
-                const result = await extractResource(saved)
-                if (!authSession.isCurrent(owner)) return false
+                const result = await extractResource(saved, undefined, null, organizationWorkspaceId(saved) ?? workspaceId)
+                if (!current()) return false
                 gallery.upsertItem(applyLorebookExtraction(saved, result))
             }
             setNotice(creating ? t('lorebookResourcesGallery.notices.created') : t('lorebookResourcesGallery.notices.updated'))
             return true
         } catch (err) {
-            if (!authSession.isCurrent(owner)) return false
+            if (!current()) return false
             setError(sourceSaved ? t(resourceExtractionErrorKey(err)) : err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
             // A successful source save must leave creation mode even if extraction failed.
             return sourceSaved
@@ -172,17 +225,22 @@ export function LorebookResourcesGalleryPage() {
             openLoginModal()
             return false
         }
+        const scope = capture()
+        const workspaceId = resourceWorkspaceId(resource, scope)
+        if (!workspaceId || blockedByArchive(workspaceId)) return false
         setSaving(true)
         setError(null)
         const owner = authSession.getSnapshot()
+        const current = () => authSession.isCurrent(owner) && isCurrent(scope)
         try {
-            const result = await extractResource(resource)
-            if (!authSession.isCurrent(owner)) return false
+            // A retained request is read back in its own workspace, never the committed one.
+            const result = await extractResource(resource, undefined, null, workspaceId)
+            if (!current()) return false
             gallery.upsertItem(applyLorebookExtraction(resource, result))
             setNotice(t('lorebookResourcesGallery.notices.metadataSynced'))
             return true
         } catch (err) {
-            if (!authSession.isCurrent(owner)) return false
+            if (!current()) return false
             setError(t(resourceExtractionErrorKey(err)))
             return false
         } finally {
@@ -195,18 +253,29 @@ export function LorebookResourcesGalleryPage() {
         setPendingDelete(null)
         if (!target) return
         const viewingTarget = resourceEdit?.resourceId === target.id
+        const scope = capture()
+        const workspaceId = resourceWorkspaceId(target, scope)
+        if (blockedByArchive(workspaceId)) return
+        const api = scopedApi(workspaceId)
+        if (!api) return
         setDeletingId(target.id)
         setError(null)
         try {
-            await apiService.deleteLorebookResource(target.id)
+            await api.deleteLorebookResource(target.id)
+            if (!isCurrent(scope)) return
             if (viewingTarget) goBack('gallery-resources')
             gallery.removeItem(target.id)
             setNotice(t('lorebookResourcesGallery.notices.deleted'))
         } catch (err) {
+            if (!isCurrent(scope)) return
             setError(err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.deleteFailed'))
         } finally {
             setDeletingId(null)
         }
+    }
+
+    const requestDelete = (resource: LorebookResource) => {
+        if (!blockedByArchive(resourceWorkspaceId(resource, capture()))) setPendingDelete(resource)
     }
 
     const hasQuery = gallery.query.trim().length > 0
@@ -238,7 +307,7 @@ export function LorebookResourcesGalleryPage() {
                         banner={banner}
                         onSave={saveResource}
                         onSyncMetadata={syncResourceMetadata}
-                        onDelete={(resource) => setPendingDelete(resource)}
+                        onDelete={requestDelete}
                         onBack={() => goBack('gallery-resources')}
                     />
                 ) : (
@@ -286,20 +355,20 @@ export function LorebookResourcesGalleryPage() {
                                     accept={LOREBOOK_RESOURCE_ACCEPT}
                                     multiple
                                     className="sr-only"
-                                    disabled={saving}
+                                    disabled={saving || readOnly}
                                     aria-label={t('lorebookResourcesGallery.actions.upload')}
                                     onChange={(event) => void uploadFiles(event.target.files)}
                                 />
-                                <Button variant="secondary" iconLeft={<Icon icon={FilePlus2} size={16} />} onClick={() => createManual('txt')} disabled={saving}>
+                                <Button variant="secondary" iconLeft={<Icon icon={FilePlus2} size={16} />} onClick={() => createManual('txt')} disabled={saving || readOnly}>
                                     {t('lorebookResourcesGallery.actions.newText')}
                                 </Button>
-                                <Button variant="secondary" iconLeft={<Icon icon={FilePlus2} size={16} />} onClick={() => createManual('md')} disabled={saving}>
+                                <Button variant="secondary" iconLeft={<Icon icon={FilePlus2} size={16} />} onClick={() => createManual('md')} disabled={saving || readOnly}>
                                     {t('lorebookResourcesGallery.actions.newMarkdown')}
                                 </Button>
-                                <Button variant="secondary" iconLeft={<Icon icon={Link2} size={16} />} onClick={() => createManual('md')} disabled={saving}>
+                                <Button variant="secondary" iconLeft={<Icon icon={Link2} size={16} />} onClick={() => createManual('md')} disabled={saving || readOnly}>
                                     {t('lorebookResourcesGallery.actions.fromUrl')}
                                 </Button>
-                                <Button variant="primary" iconLeft={<Icon icon={Upload} size={16} />} onClick={() => requireAuth(() => fileInputRef.current?.click())} disabled={saving}>
+                                <Button variant="primary" iconLeft={<Icon icon={Upload} size={16} />} onClick={() => requireAuth(() => fileInputRef.current?.click())} disabled={saving || readOnly}>
                                     {saving ? t('common.saving') : t('lorebookResourcesGallery.actions.upload')}
                                 </Button>
                             </div>
@@ -318,8 +387,9 @@ export function LorebookResourcesGalleryPage() {
                         onLoadMore={gallery.loadMore}
                         onClearSearch={() => gallery.setQuery('')}
                         onCreate={() => createManual('txt')}
+                        createDisabled={readOnly}
                         onOpen={openResource}
-                        onDelete={(resource) => setPendingDelete(resource)}
+                        onDelete={requestDelete}
                     />}
                 </div>
             )}

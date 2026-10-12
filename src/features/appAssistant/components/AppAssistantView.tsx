@@ -44,6 +44,8 @@ export interface AppAssistantViewProps {
     notice: AssistantNotice | null
     /** The server does not offer the assistant: explain instead of inviting a question. */
     unavailable?: boolean
+    /** Workspace R1: the selected workspace is archived; history stays readable, nothing new is sent. */
+    readOnly?: boolean
     /** Asks the server again (shown with the unavailable state). */
     onRecheck?: () => void
     suggestions: readonly AppAssistantSuggestion[]
@@ -54,7 +56,8 @@ export interface AppAssistantViewProps {
     modelControl?: ReactNode
     onSend: (text: string) => void
     onStop: () => void
-    onRetry: () => void
+    /** Omitted while read-only: a retry would send the turn again. */
+    onRetry?: () => void
     onReload: () => void
     onDismissNotice: () => void
     onNewConversation: () => void
@@ -213,7 +216,7 @@ export function AppAssistantView(props: AppAssistantViewProps) {
                 setHistoryOpen(false)
                 props.onSelectConversation(id)
             }}
-            onDelete={props.onDeleteConversation}
+            onDelete={props.readOnly ? undefined : props.onDeleteConversation}
         />
     )
 
@@ -281,7 +284,7 @@ export function AppAssistantView(props: AppAssistantViewProps) {
                         <Welcome
                             suggestions={props.suggestions}
                             knowledgeSummary={props.knowledgeSummary}
-                            disabled={busy}
+                            disabled={busy || Boolean(props.readOnly)}
                             onSend={props.onSend}
                         />
                     ) : (
@@ -318,7 +321,7 @@ export function AppAssistantView(props: AppAssistantViewProps) {
                         <>
                             <AssistantComposer
                                 streaming={streaming}
-                                disabled={props.status === 'switching' || offline}
+                                disabled={props.status === 'switching' || offline || Boolean(props.readOnly)}
                                 placeholder={offline ? t('appAssistant.notices.unavailable') : t('appAssistant.composerPlaceholder')}
                                 onSend={props.onSend}
                                 onStop={props.onStop}

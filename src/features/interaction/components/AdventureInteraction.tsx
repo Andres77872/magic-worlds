@@ -9,6 +9,8 @@ import { useNavigation, useData, useAuth } from '../../../app/hooks'
 import { LoadingSpinner } from '../../../ui/components'
 import { Button } from '@/ui/primitives'
 import { adventureChatConfig } from '../chatSessionConfig'
+import { useSessionWorkspace } from '../hooks/useSessionWorkspace'
+import { organizationWorkspaceId } from '@/shared/hooks/useScopedApi'
 import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel, InteractionTopBar, SidePanelDrawer} from './index'
 
 export function AdventureInteraction() {
@@ -32,8 +34,14 @@ function AdventureInteractionView() {
     const [openPanelId, setOpenPanelId] = useState<'left' | 'right' | null>(null)
     const openPanel = (id: 'left' | 'right') => setOpenPanelId((cur) => (cur === id ? null : id))
     const closePanels = useCallback(() => setOpenPanelId(null), [])
-    // Stable per-mount config so the chat engine's callbacks/effects don't churn.
-    const chatConfig = useMemo(() => adventureChatConfig(), [])
+    // Workspace R1: the session keeps its own workspace (this view remounts per session).
+    const session = useSessionWorkspace(organizationWorkspaceId(editingInProgress))
+    const { workspaceId: sessionWorkspaceId, api: sessionApi } = session
+    // Stable per-session config so the chat engine's callbacks/effects don't churn.
+    const chatConfig = useMemo(
+        () => (sessionWorkspaceId && sessionApi ? adventureChatConfig({ workspaceId: sessionWorkspaceId, api: sessionApi }) : null),
+        [sessionApi, sessionWorkspaceId],
+    )
 
     // Detail route fallback: page navigation is allowed, but an active adventure
     // is required before mounting the socket-backed interaction surface.
@@ -55,9 +63,9 @@ function AdventureInteractionView() {
         }
     }, [editingInProgress, setPage, isAuthenticated])
 
-    // Load turns from API when adventure is available
+    // Load turns from API when adventure is available (in the session's own workspace).
     useEffect(() => {
-        if (!currentAdventure || !isAuthenticated) return
+        if (!currentAdventure || !isAuthenticated || !chatConfig) return
 
         let isMounted = true
         setIsLoading(true)
@@ -121,7 +129,7 @@ function AdventureInteractionView() {
         return null
     }
 
-    if (!currentAdventure) {
+    if (!currentAdventure || !chatConfig) {
         return <LoadingSpinner message={t('interaction.loadingAdventure')} />
     }
 

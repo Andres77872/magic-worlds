@@ -2,10 +2,13 @@ import { useState } from 'react'
 import { BookOpen, Library, Pencil, Plus, Search, Trash2, X, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { CardGrid, ConfirmDialog, type CardOption } from '@/ui/components'
-import { Button, controlClass, Icon, IconButton, IconTile, PageHeader } from '@/ui/primitives'
+import { Button, Callout, controlClass, Icon, IconButton, IconTile, PageHeader } from '@/ui/primitives'
 import type { Lorebook } from '@/shared'
 import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
+import { organizationWorkspaceId } from '@/shared/hooks/useScopedApi'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY, useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { useLorebookGallery } from '../hooks/useLorebookGallery'
 import { useGalleryView } from '@/features/gallery/hooks/useGalleryView'
 import { cardGridDensity, cardGridLayout, galleryCardView } from '@/features/gallery/galleryView'
@@ -30,6 +33,26 @@ export function LorebookGalleryPage() {
     const [resourceTarget, setResourceTarget] = useState<Lorebook | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
+    const { workspaceEpoch } = useWorkspace()
+    // The gallery lists the selected workspace; archived, it is read-only until restored
+    // (open, search and view stay; create, delete and resource attachment are disabled).
+    const readOnly = useWorkspaceReadOnly()
+    const [actionError, setActionError] = useState<string | null>(null)
+
+    // A committed switch closes the previous workspace's picker and dialog.
+    const [pageEpoch, setPageEpoch] = useState(workspaceEpoch)
+    if (pageEpoch !== workspaceEpoch) {
+        setPageEpoch(workspaceEpoch)
+        setResourceTarget(null)
+        setPendingDelete(null)
+        setActionError(null)
+    }
+
+    /** Archived workspace: say so instead of writing. */
+    const blockedByArchive = () => {
+        if (readOnly) setActionError(t(ARCHIVED_WORKSPACE_MESSAGE_KEY))
+        return readOnly
+    }
 
     const requireAuth = (action: () => void) => {
         if (!isAuthenticated) {
@@ -47,6 +70,7 @@ export function LorebookGalleryPage() {
     }
 
     const createLorebook = () => {
+        if (blockedByArchive()) return
         requireAuth(() => {
             setEditingLorebook(null)
             setPage('lorebook')
@@ -67,14 +91,20 @@ export function LorebookGalleryPage() {
                 type: 'custom',
                 label: t('lorebookGallery.actions.addResources'),
                 icon: <Icon icon={Library} size={15} />,
-                onClick: () => requireAuth(() => setResourceTarget(lorebook)),
+                onClick: () => {
+                    if (!blockedByArchive()) requireAuth(() => setResourceTarget(lorebook))
+                },
+                disabled: readOnly,
             })
         }
         options.push({
             type: 'custom',
             label: t('lorebookGallery.actions.delete'),
             icon: <Icon icon={Trash2} size={15} />,
-            onClick: () => requireAuth(() => setPendingDelete(lorebook)),
+            onClick: () => {
+                if (!blockedByArchive()) requireAuth(() => setPendingDelete(lorebook))
+            },
+            disabled: readOnly,
             danger: true,
         })
         return options
@@ -83,7 +113,7 @@ export function LorebookGalleryPage() {
     const confirmDelete = async () => {
         const target = pendingDelete
         setPendingDelete(null)
-        if (!target) return
+        if (!target || blockedByArchive()) return
         setDeletingId(target.id)
         try {
             await deleteLorebook(target.id)
@@ -141,7 +171,7 @@ export function LorebookGalleryPage() {
                             )}
                         </div>
                         <GalleryViewToggle value={layoutView} onChange={setLayoutView} className="shrink-0" />
-                        <Button variant="primary" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook}>
+                        <Button variant="primary" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook} disabled={readOnly}>
                             {t('lorebookGallery.actions.new')}
                         </Button>
                     </div>
@@ -154,6 +184,7 @@ export function LorebookGalleryPage() {
                     <Button variant="secondary" size="sm" onClick={gallery.refresh}>{t('lorebookGallery.actions.retry')}</Button>
                 </div>
             )}
+            {actionError && <Callout tone="danger" role="alert">{actionError}</Callout>}
 
             {(!gallery.error || gallery.items.length > 0) && <CardGrid
                 items={gallery.items}
@@ -170,7 +201,7 @@ export function LorebookGalleryPage() {
                     hasQuery ? (
                         <Button variant="secondary" size="sm" onClick={() => gallery.setQuery('')}>{t('lorebookGallery.actions.clearSearch')}</Button>
                     ) : (
-                        <Button variant="primary" size="sm" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook}>{t('lorebookGallery.actions.new')}</Button>
+                        <Button variant="primary" size="sm" iconLeft={<Icon icon={Plus} size={16} />} onClick={createLorebook} disabled={readOnly}>{t('lorebookGallery.actions.new')}</Button>
                     )
                 }
                 data-testid="gallery-grid-lorebook"
@@ -198,8 +229,9 @@ export function LorebookGalleryPage() {
             />
             {resourceFeaturesEnabled && (
                 <LorebookResourcePickerDrawer
-                    open={resourceTarget !== null}
+                    open={resourceTarget !== null && !readOnly}
                     lorebook={resourceTarget}
+                    workspaceId={organizationWorkspaceId(resourceTarget)}
                     onClose={() => setResourceTarget(null)}
                     onAttached={(updated) => {
                         gallery.upsertItem(updated)

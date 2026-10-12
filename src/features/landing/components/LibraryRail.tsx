@@ -26,7 +26,7 @@ export interface LibraryRailProps<T extends { id: string; name: string }> {
     /** ConfirmDialog title, e.g. "Delete world". */
     deleteTitle: string
     onEdit: (item: T) => void
-    onDelete: (item: T) => Promise<void> | void
+    onDelete?: (item: T) => Promise<void> | void
     onViewAll?: () => void
     'data-testid'?: string
 }
@@ -55,7 +55,7 @@ export function LibraryRail<T extends { id: string; name: string }>({
     const confirmDelete = async () => {
         const target = pending
         setPending(null)
-        if (!target) return
+        if (!target || !onDelete) return
         setDeletingId(target.id)
         try {
             await onDelete(target)
@@ -93,13 +93,14 @@ export function LibraryRail<T extends { id: string; name: string }>({
                 renderCard={(item) => {
                     const options: CardOption[] = [
                         { type: 'custom', icon: <Icon icon={Pencil} size={15} />, label: t('gallery.edit'), onClick: () => onEdit(item) },
-                        {
-                            type: 'custom',
+                        // Omitted (no onDelete) while the workspace is archived and read-only.
+                        ...(onDelete ? [{
+                            type: 'custom' as const,
                             icon: <Icon icon={Trash2} size={15} />,
                             label: t('gallery.delete'),
                             onClick: () => setPending(item),
                             danger: true,
-                        },
+                        }] : []),
                     ]
                     return (
                         <GalleryCard

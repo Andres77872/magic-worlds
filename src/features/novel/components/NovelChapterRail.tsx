@@ -8,6 +8,9 @@
  * the header — it is the one write action here, so it should read as the next
  * chapter rather than as a toolbar button. Selection stays delegated upward so
  * the studio can flush the draft before switching.
+ *
+ * `readOnly` (the story's workspace is archived) keeps the index navigable but
+ * disables adding and deleting chapters.
  */
 
 import { useState } from 'react'
@@ -24,11 +27,15 @@ interface NovelChapterRailProps {
     onSelect: (chapterId: string) => void
     onAdd: () => void
     onDelete: (chapterId: string) => void
+    /** The story's workspace is archived: navigation only. */
+    readOnly?: boolean
 }
 
-export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, onDelete }: NovelChapterRailProps) {
+export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, onDelete, readOnly = false }: NovelChapterRailProps) {
     const { t } = useTranslation()
     const [pendingDelete, setPendingDelete] = useState<StoryChapter | null>(null)
+    // A delete confirmation left open when the story turns read-only goes with it.
+    if (readOnly && pendingDelete) setPendingDelete(null)
 
     const deletable = chapters.length > 1
     const totalWords = chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0)
@@ -87,6 +94,7 @@ export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, o
                                     label={t('novelEditor.chapters.deleteLabel', { title: label })}
                                     size="sm"
                                     tone="danger"
+                                    disabled={readOnly}
                                     onClick={() => setPendingDelete(chapter)}
                                     className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
                                 >
@@ -101,7 +109,8 @@ export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, o
             <button
                 type="button"
                 onClick={onAdd}
-                className="flex min-h-8 w-full shrink-0 cursor-pointer items-center gap-2 border-l-2 border-transparent pl-2.5 pr-2.5 text-left font-ui text-label text-parchment-400 transition-colors hover:bg-parchment-50/[.04] hover:text-parchment-100 pointer-coarse:min-h-11"
+                disabled={readOnly}
+                className="flex min-h-8 w-full shrink-0 cursor-pointer items-center gap-2 border-l-2 border-transparent pl-2.5 pr-2.5 text-left font-ui text-label text-parchment-400 transition-colors hover:bg-parchment-50/[.04] hover:text-parchment-100 disabled:pointer-events-none disabled:opacity-50 pointer-coarse:min-h-11"
                 data-testid="novel-chapter-add"
             >
                 <span className="flex w-[13px] shrink-0 items-center justify-center">
@@ -117,7 +126,7 @@ export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, o
                 confirmLabel={t('novelEditor.chapters.deleteConfirm')}
                 variant="danger"
                 onConfirm={() => {
-                    if (pendingDelete) onDelete(pendingDelete.id)
+                    if (pendingDelete && !readOnly) onDelete(pendingDelete.id)
                     setPendingDelete(null)
                 }}
                 onCancel={() => setPendingDelete(null)}

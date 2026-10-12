@@ -16,6 +16,8 @@ import { CharacterChatCodexPanel } from './CharacterChatCodexPanel'
 
 interface CharacterChatSidebarProps {
     sessionId?: string
+    /** Workspace R1: the chat's own workspace (its lorebook attachments live there). */
+    sessionWorkspaceId?: string | null
     character?: Character
     characters?: Character[]
     title?: string
@@ -35,6 +37,7 @@ interface CharacterChatSidebarProps {
 
 export function CharacterChatSidebar({
     sessionId,
+    sessionWorkspaceId,
     character,
     characters,
     title,
@@ -107,11 +110,12 @@ export function CharacterChatSidebar({
                                     onAddCards={onAddCodexCards}
                                     onToggleCard={onToggleCodexCard}
                                     onRemoveCard={onRemoveCodexCard}
+                                    workspaceId={sessionWorkspaceId}
                                 />
                             )}
 
                             {sessionId && lorebooksEnabled && (
-                                <SessionLorebookPanel targetKind="character_chat" targetId={sessionId} framed={false} />
+                                <SessionLorebookPanel targetKind="character_chat" targetId={sessionId} framed={false} workspaceId={sessionWorkspaceId} />
                             )}
                         </div>
                     )}

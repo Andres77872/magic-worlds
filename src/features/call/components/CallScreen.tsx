@@ -34,12 +34,14 @@ import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
 interface CallScreenProps {
     character?: Character
     sessionId: number
+    /** Workspace R1: the chat's own workspace (`chat.organization.workspace_id`), when known. */
+    workspaceId?: string | null
     ensureSession?: () => Promise<number>
     /** Leave the call and return to the text chat. */
     onSwitchToText: () => void
 }
 
-export function CallScreen({ character, sessionId, ensureSession, onSwitchToText }: CallScreenProps) {
+export function CallScreen({ character, sessionId, workspaceId, ensureSession, onSwitchToText }: CallScreenProps) {
     const { t } = useTranslation()
     const { isAuthenticated, token } = useAuth()
     const voiceEnabled = isFrontendVoiceModeEnabled()
@@ -48,6 +50,7 @@ export function CallScreen({ character, sessionId, ensureSession, onSwitchToText
 
     const controller = useVoiceCallController({
         sessionId: voiceEnabled && isAuthenticated && token && !Number.isNaN(sessionId) ? sessionId : null,
+        workspaceId,
         ensureSession,
         authKey: token ?? null,
         consentGranted: true,
@@ -187,6 +190,8 @@ export function CallScreenView({
     const isOver = !consentOpen && (state === 'ended' || state === 'error')
     const visibleError = callErrorCopy(t, error, state)
     const endCopy = state === 'ended' ? endReasonCopy(t, endReason) : visibleError
+    // Workspace R1: an archived, removed or stale workspace cannot take a redial.
+    const canRedial = !(state === 'error' && error?.code?.startsWith('WORKSPACE_'))
     const showTimeLeft = isActive && remainingSeconds !== null && remainingSeconds <= 60
 
     const avatarRing = isAssistant ? 'arcane' : 'ember'
@@ -300,7 +305,7 @@ export function CallScreenView({
                         {endCopy && <p className="text-sm text-parchment-200">{endCopy}</p>}
                         {state === 'error' && error?.code && <p className="break-all font-mono text-caption text-parchment-400">{error.code}</p>}
                         <div className="flex flex-wrap items-center justify-center gap-2">
-                            {onCallAgain && (
+                            {onCallAgain && canRedial && (
                                 <Button variant="primary" size="sm" iconLeft={<Icon icon={Phone} size={15} />} onClick={onCallAgain} disabled={isAccepting}>
                                     {t('call.screen.callAgain')}
                                 </Button>

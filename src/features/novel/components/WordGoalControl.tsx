@@ -8,7 +8,8 @@
  * Clicking opens a small popover — Enter commits, Escape or an outside click
  * closes, Clear removes the target. It opens UPWARD and left-aligned because
  * the strip is the bottom edge of the layout; anchoring it below would put it
- * off-screen.
+ * off-screen. `readOnly` (the story's workspace is archived) leaves the readout
+ * and nothing else: the goal is stored on the chapter, so setting it is a write.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -19,11 +20,14 @@ interface WordGoalControlProps {
     words: number
     goal: number | null
     onSetGoal: (goal: number | null) => void
+    readOnly?: boolean
 }
 
-export function WordGoalControl({ words, goal, onSetGoal }: WordGoalControlProps) {
+export function WordGoalControl({ words, goal, onSetGoal, readOnly = false }: WordGoalControlProps) {
     const { t } = useTranslation()
     const [open, setOpen] = useState(false)
+    // A popover left open when the story turns read-only closes with it.
+    if (readOnly && open) setOpen(false)
     const [draft, setDraft] = useState('')
     const wrapRef = useRef<HTMLDivElement | null>(null)
     const triggerRef = useRef<HTMLButtonElement | null>(null)
@@ -50,6 +54,7 @@ export function WordGoalControl({ words, goal, onSetGoal }: WordGoalControlProps
     }, [open])
 
     const openEditor = () => {
+        if (readOnly) return
         setDraft(goal ? String(goal) : '')
         setOpen(true)
     }
@@ -69,10 +74,11 @@ export function WordGoalControl({ words, goal, onSetGoal }: WordGoalControlProps
                 ref={triggerRef}
                 type="button"
                 onClick={openEditor}
+                disabled={readOnly}
                 aria-label={t('novelEditor.header.goalAria')}
                 aria-haspopup="dialog"
                 aria-expanded={open}
-                className="flex h-7 cursor-pointer items-center whitespace-nowrap rounded-xs px-1.5 font-mono text-[11px] text-parchment-400 transition-colors hover:bg-parchment-50/[.06] hover:text-parchment-200"
+                className="flex h-7 cursor-pointer items-center whitespace-nowrap rounded-xs px-1.5 font-mono text-[11px] text-parchment-400 transition-colors hover:bg-parchment-50/[.06] hover:text-parchment-200 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-parchment-400"
                 data-testid="novel-word-goal"
             >
                 {goal

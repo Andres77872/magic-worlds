@@ -10,6 +10,7 @@ export type FrontendFeatureFlag =
     | 'groupChats'
     | 'adventures'
     | 'appAssistant'
+    | 'workspaces'
 
 function envFlag(name: string): boolean {
     return import.meta.env[name] === 'true'
@@ -52,6 +53,17 @@ export function isAppAssistantFeatureEnabled(): boolean {
     return envFlag('VITE_FEATURE_APP_ASSISTANT_ENABLED')
 }
 
+/**
+ * Workspace R1 product surfaces (Library, switcher, collections, create/archive
+ * workspace). The workspace transport itself is always on: with this flag off
+ * every private request still carries the protected default workspace, the
+ * startup handshake still runs, and a user who already has other workspaces
+ * sees a notice that their content is safe.
+ */
+export function isWorkspacesFeatureEnabled(): boolean {
+    return envFlag('VITE_FEATURE_WORKSPACES_ENABLED')
+}
+
 export function isFeatureEnabled(feature: FrontendFeatureFlag): boolean {
     switch (feature) {
         case 'communityCards':
@@ -72,6 +84,8 @@ export function isFeatureEnabled(feature: FrontendFeatureFlag): boolean {
             return isAdventuresFeatureEnabled()
         case 'appAssistant':
             return isAppAssistantFeatureEnabled()
+        case 'workspaces':
+            return isWorkspacesFeatureEnabled()
     }
 }
 
@@ -100,6 +114,8 @@ export function isPageFeatureEnabled(page: PageType): boolean {
             return isAdventuresFeatureEnabled()
         case 'assistant':
             return isAppAssistantFeatureEnabled()
+        case 'library':
+            return isWorkspacesFeatureEnabled()
         default:
             return true
     }

@@ -24,6 +24,8 @@ import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { isAdventuresFeatureEnabled, isLorebooksFeatureEnabled, isNovelsFeatureEnabled } from '@/shared/featureFlags'
 import { chatDisplayTitle } from '@/utils/chatTitle'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
+import { Toast } from '@/ui/primitives'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY, useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { LandingLoading } from './LandingLoading'
 import { GreetingHeader } from './GreetingHeader'
 import { HeroScene, type HeroSceneProps } from './HeroScene'
@@ -159,6 +161,11 @@ export function LandingPage() {
     const novelsEnabled = isNovelsFeatureEnabled()
     const adventuresEnabled = isAdventuresFeatureEnabled()
     const callControls = useStartCall()
+    // Workspace R1: an archived workspace's dashboard stays browsable; starting,
+    // creating and deleting are new work there, so those entries are hidden and
+    // any that stay reachable explain why instead of failing on the server.
+    const readOnly = useWorkspaceReadOnly()
+    const [archivedNotice, setArchivedNotice] = useState(false)
 
     // Every action that mutates or starts requires auth — open the modal if not.
     const requireAuth = (action: () => void) => {
@@ -168,8 +175,15 @@ export function LandingPage() {
         }
         action()
     }
+    const requireWritable = (action: () => void) => requireAuth(() => {
+        if (readOnly) {
+            setArchivedNotice(true)
+            return
+        }
+        action()
+    })
 
-    const handleTemplateStart = (t: Adventure) => requireAuth(() => {
+    const handleTemplateStart = (t: Adventure) => requireWritable(() => {
         if (!adventuresEnabled) return
         setPersonaPickError(null)
         setPersonaPick({ kind: 'adventure', template: t })
@@ -180,7 +194,7 @@ export function LandingPage() {
         setPage('adventure')
     })
     const handleCharacterEdit = (c: Character) => requireAuth(() => { editCharacter(c); setPage('character') })
-    const handleCharacterChat = (c: Character) => requireAuth(() => {
+    const handleCharacterChat = (c: Character) => requireWritable(() => {
         const persona = defaultPersonaForCharacter(c, characters)
         if (persona) {
             if (isPersonaPickConfirming) return
@@ -228,20 +242,20 @@ export function LandingPage() {
         }
     })
 
-    const createAdventure = () => requireAuth(() => {
+    const createAdventure = () => requireWritable(() => {
         if (!adventuresEnabled) return
         setEditingTemplate(null)
         setPage('adventure')
     })
-    const createCharacter = () => requireAuth(() => { setEditingCharacter(null); setPage('character') })
-    const createWorld = () => requireAuth(() => { setEditingWorld(null); setPage('world') })
-    const createItem = () => requireAuth(() => { setEditingItem(null); setPage('item') })
-    const createLorebook = () => requireAuth(() => {
+    const createCharacter = () => requireWritable(() => { setEditingCharacter(null); setPage('character') })
+    const createWorld = () => requireWritable(() => { setEditingWorld(null); setPage('world') })
+    const createItem = () => requireWritable(() => { setEditingItem(null); setPage('item') })
+    const createLorebook = () => requireWritable(() => {
         if (!lorebooksEnabled) return
         setEditingLorebook(null)
         setPage('lorebook')
     })
-    const openNovelCreate = () => requireAuth(() => {
+    const openNovelCreate = () => requireWritable(() => {
         if (novelsEnabled) setNovelModalOpen(true)
     })
     const handleCreate = (key: CreateAction['key']) => {
@@ -385,6 +399,16 @@ export function LandingPage() {
         return <LandingLoading />
     }
 
+    // Both the front door and the dashboard can be reached in an archived workspace.
+    const archivedToast = (
+        <Toast
+            open={archivedNotice}
+            tone="error"
+            title={t(ARCHIVED_WORKSPACE_MESSAGE_KEY)}
+            onClose={() => setArchivedNotice(false)}
+        />
+    )
+
     // ---------- GUEST: marketing front-door ----------
     if (mode === 'guest') {
         // With adventures off, the character creator is the front door: it takes
@@ -426,6 +450,7 @@ export function LandingPage() {
                     onAction={primaryCta}
                     actionLabel={adventuresEnabled ? undefined : t('landing.hero.authedSecondary')}
                 />
+                {archivedToast}
                 <LandingFooter onNavigate={setPage} />
             </div>
         )
@@ -480,7 +505,7 @@ export function LandingPage() {
                         <HeroSessionGallery
                             sessions={resumeSessions}
                             onOpen={openSession}
-                            onBeginNew={adventuresEnabled ? scrollToBegin : undefined}
+                            onBeginNew={adventuresEnabled && !readOnly ? scrollToBegin : undefined}
                         />
                     )}
                     {!search.active && hero && <HeroScene {...hero} />}
@@ -495,12 +520,12 @@ export function LandingPage() {
                         onOpenSession={openSession}
                         onBeginTemplate={handleTemplateStart}
                         onChatCharacter={handleCharacterChat}
-                        onCallCharacter={voiceEnabled ? callControls.startCall : undefined}
+                        onCallCharacter={voiceEnabled && !readOnly ? callControls.startCall : undefined}
                         onEditCharacter={handleCharacterEdit}
                         onEditWorld={handleWorldEdit}
                         onEditItem={handleItemEdit}
                         onOpenStory={handleStoryOpen}
-                        onCreateAdventure={adventuresEnabled ? createAdventure : undefined}
+                        onCreateAdventure={adventuresEnabled && !readOnly ? createAdventure : undefined}
                         onViewGallery={(key) => {
                             const page = GALLERY_PAGE_BY_GROUP[key]
                             if (page) setPage(page)
@@ -510,7 +535,7 @@ export function LandingPage() {
             ) : (
                 <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-12 px-5 pb-16 pt-12 sm:gap-14 sm:px-8">
                     {/* 2 — fast creation access */}
-                    <CreateBand onAction={handleCreate} />
+                    {!readOnly && <CreateBand onAction={handleCreate} />}
 
                     {/* 3 — continue active adventures */}
                     {adventuresEnabled && (
@@ -527,7 +552,7 @@ export function LandingPage() {
                                 <ContinueCard
                                     session={session}
                                     onContinue={() => openSession(session)}
-                                    onDelete={() => setPendingSessionDelete(session.source as Adventure)}
+                                    onDelete={readOnly ? undefined : () => setPendingSessionDelete(session.source as Adventure)}
                                     deleting={deletingId === session.id}
                                 />
                             )}
@@ -548,7 +573,7 @@ export function LandingPage() {
                             <ContinueCard
                                 session={session}
                                 onContinue={() => openSession(session)}
-                                onDelete={() => setPendingChatDelete(session.source as CharacterChatSession)}
+                                onDelete={readOnly ? undefined : () => setPendingChatDelete(session.source as CharacterChatSession)}
                                 deleting={deletingId === session.id}
                             />
                         )}
@@ -581,7 +606,7 @@ export function LandingPage() {
                                 onFilterChange={setFilter}
                                 onBegin={handleTemplateStart}
                                 onEdit={handleTemplateEdit}
-                                onDelete={setPendingDelete}
+                                onDelete={readOnly ? undefined : setPendingDelete}
                                 onViewAll={() => setPage('gallery-adventures')}
                                 onCreate={createAdventure}
                             />
@@ -593,9 +618,9 @@ export function LandingPage() {
                         <CastRail
                             cast={aiCharacters}
                             onChat={handleCharacterChat}
-                            onCall={voiceEnabled ? callControls.startCall : undefined}
+                            onCall={voiceEnabled && !readOnly ? callControls.startCall : undefined}
                             onEdit={handleCharacterEdit}
-                            onDelete={(character) => deleteCharacter(character.id)}
+                            onDelete={readOnly ? undefined : (character) => deleteCharacter(character.id)}
                             onViewAll={() => setPage('gallery-characters')}
                         />
                     )}
@@ -608,7 +633,7 @@ export function LandingPage() {
                                     lorebooks={railLorebooks}
                                     total={counts.lorebooks}
                                     onOpen={handleLorebookOpen}
-                                    onDelete={(lorebook) => deleteLorebook(lorebook.id)}
+                                    onDelete={readOnly ? undefined : (lorebook) => deleteLorebook(lorebook.id)}
                                     onViewAll={() => setPage('gallery-lorebooks')}
                                 />
                             )}
@@ -622,7 +647,7 @@ export function LandingPage() {
                                 deleteTitle={t('landing.rail.deleteWorldTitle')}
                                 toCard={worldCardProps}
                                 onEdit={handleWorldEdit}
-                                onDelete={(world) => deleteWorld(world.id)}
+                                onDelete={readOnly ? undefined : (world) => deleteWorld(world.id)}
                                 onViewAll={() => setPage('gallery-worlds')}
                                 data-testid="worlds-rail"
                             />
@@ -636,7 +661,7 @@ export function LandingPage() {
                                 deleteTitle={t('landing.rail.deleteItemTitle')}
                                 toCard={itemCardProps}
                                 onEdit={handleItemEdit}
-                                onDelete={(item) => deleteItem(item.id)}
+                                onDelete={readOnly ? undefined : (item) => deleteItem(item.id)}
                                 onViewAll={() => setPage('gallery-items')}
                                 data-testid="items-rail"
                             />
@@ -644,6 +669,8 @@ export function LandingPage() {
                     )}
                 </div>
             )}
+
+            {archivedToast}
 
             <LandingFooter onNavigate={setPage} />
 

@@ -3,13 +3,22 @@
  * A structural twin of the card GalleryPage: masthead search (debounced
  * server query over title/description/chapter text), skip/limit infinite
  * scroll, image-forward GalleryCard grid, and DataProvider-backed actions.
+ *
+ * Workspace R1: lists the committed workspace's stories. A committed switch
+ * remounts the view — list from offset 0, closed dialogs, cleared search — and
+ * an open/create that completes after the switch does not navigate. While that
+ * workspace is archived the library is read-only: novels open, read and search
+ * as usual, while New and Delete are disabled (the app shell's archived banner
+ * says why; a blocked attempt repeats it).
  */
 
 import { useMemo, useState, type ReactNode } from 'react'
 import { BookOpenText, Loader2, Plus, Search, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { StoryCreateRequest } from '@/shared'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY, useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { CardGrid, GalleryCard, GalleryCardSkeleton, type CardOption } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { Button, controlClass, Icon, IconButton, PageHeader, Toast } from '@/ui/primitives'
@@ -27,13 +36,20 @@ interface ActionNotice {
 }
 
 export function NovelGalleryPage() {
+    const { workspaceEpoch } = useWorkspace()
+    return <NovelGalleryView key={workspaceEpoch} />
+}
+
+function NovelGalleryView() {
     const { t } = useTranslation()
-    const galleryConfig = useMemo(() => getNovelGalleryConfig(t), [t])
+    const { api, capture, isCurrent } = useWorkspace()
+    const galleryConfig = useMemo(() => getNovelGalleryConfig(t, api), [api, t])
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
-    const gallery = useCardGallery<NovelGalleryItem>(galleryConfig, undefined, { enabled: isAuthenticated })
+    const gallery = useCardGallery<NovelGalleryItem>(galleryConfig, undefined, { enabled: isAuthenticated && api !== null })
     const [layoutView, setLayoutView] = useGalleryView()
     const { createStory, openStory, deleteStory } = useData()
+    const readOnly = useWorkspaceReadOnly()
 
     const [createOpen, setCreateOpen] = useState(false)
     const [creating, setCreating] = useState(false)
@@ -50,47 +66,67 @@ export function NovelGalleryPage() {
         action()
     }
 
+    /** A write: refused with the archived message while the workspace is archived. */
+    const requireWritable = (action: () => void) => {
+        if (readOnly) {
+            setActionNotice({ tone: 'error', title: t(ARCHIVED_WORKSPACE_MESSAGE_KEY) })
+            return
+        }
+        requireAuth(action)
+    }
+
     const openNovel = (item: NovelGalleryItem) => {
         requireAuth(() => {
             if (openingId) return
+            const scope = capture()
             setOpeningId(item.id)
             openStory(item.source)
-                .then(() => setPage('story'))
+                .then(() => {
+                    if (isCurrent(scope)) setPage('story')
+                })
                 .catch((error) => {
                     console.error('Failed to open novel:', error)
+                    if (!isCurrent(scope)) return
                     setActionNotice({ tone: 'error', title: t('novelGallery.notice.openFailed'), message: t('novelGallery.notice.tryAgain') })
                 })
-                .finally(() => setOpeningId(null))
+                .finally(() => {
+                    if (isCurrent(scope)) setOpeningId(null)
+                })
         })
     }
 
     const handleCreate = async (request: StoryCreateRequest) => {
+        if (readOnly) return
+        const scope = capture()
         setCreating(true)
         try {
             await createStory(request)
+            if (!isCurrent(scope)) return
             setCreateOpen(false)
             setPage('story')
         } catch (error) {
             console.error('Failed to create novel:', error)
+            if (!isCurrent(scope)) return
             setActionNotice({ tone: 'error', title: t('novelGallery.notice.createFailed'), message: t('novelGallery.notice.tryAgain') })
         } finally {
-            setCreating(false)
+            if (isCurrent(scope)) setCreating(false)
         }
     }
 
     const confirmDelete = async () => {
         const target = pendingDelete
         setPendingDelete(null)
-        if (!target) return
+        if (!target || readOnly) return
+        const scope = capture()
         setDeletingId(target.id)
         try {
             await deleteStory(target.id)
-            gallery.removeItem(target.id)
+            if (isCurrent(scope)) gallery.removeItem(target.id)
         } catch (error) {
             console.error('Failed to delete novel:', error)
-            setActionNotice({ tone: 'error', title: t('novelGallery.notice.deleteFailed'), message: t('novelGallery.notice.tryAgain') })
+            if (isCurrent(scope)) setActionNotice({ tone: 'error', title: t('novelGallery.notice.deleteFailed'), message: t('novelGallery.notice.tryAgain') })
         } finally {
-            setDeletingId(null)
+            if (isCurrent(scope)) setDeletingId(null)
         }
     }
 
@@ -105,7 +141,8 @@ export function NovelGalleryPage() {
             type: 'custom',
             icon: <Icon icon={Trash2} size={15} />,
             label: t('novelGallery.actions.delete'),
-            onClick: () => requireAuth(() => setPendingDelete(item)),
+            onClick: () => requireWritable(() => setPendingDelete(item)),
+            disabled: readOnly,
             danger: true,
         },
     ]
@@ -121,7 +158,8 @@ export function NovelGalleryPage() {
             variant="primary"
             size="sm"
             iconLeft={<Icon icon={Plus} size={16} />}
-            onClick={() => requireAuth(() => setCreateOpen(true))}
+            onClick={() => requireWritable(() => setCreateOpen(true))}
+            disabled={readOnly}
         >
             {galleryConfig.createLabel}
         </Button>
@@ -175,7 +213,8 @@ export function NovelGalleryPage() {
                         <Button
                             variant="primary"
                             iconLeft={<Icon icon={Plus} size={16} />}
-                            onClick={() => requireAuth(() => setCreateOpen(true))}
+                            onClick={() => requireWritable(() => setCreateOpen(true))}
+                            disabled={readOnly}
                             className="shrink-0"
                         >
                             {galleryConfig.createLabel}
@@ -241,7 +280,7 @@ export function NovelGalleryPage() {
             />}
 
             <ConfirmDialog
-                visible={pendingDelete !== null}
+                visible={pendingDelete !== null && !readOnly}
                 title={t('novelGallery.deleteDialog.title')}
                 message={pendingDelete ? t('novelGallery.deleteDialog.message', { title: pendingDelete.title.slice(0, 80) }) : ''}
                 confirmLabel={t('novelGallery.actions.delete')}
@@ -251,7 +290,7 @@ export function NovelGalleryPage() {
             />
 
             <NovelCreateModal
-                open={createOpen}
+                open={createOpen && !readOnly}
                 creating={creating}
                 onClose={() => setCreateOpen(false)}
                 onCreate={(request) => void handleCreate(request)}

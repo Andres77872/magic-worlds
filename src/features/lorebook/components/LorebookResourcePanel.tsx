@@ -4,8 +4,12 @@ import { ChevronDown, ChevronRight, FilePlus2, FileText, Library, Link2, Plus, S
 import type { LorebookResource } from '@/shared'
 import { Badge, Button, Callout, Field, Icon, IconButton, Input, SwitchRow, Tag, Textarea, cx } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
+import { ReadOnlyFieldset } from '@/features/creation/common/components/ReadOnlyFieldset'
 import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { authSession } from '@/infrastructure/api/authSession'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY } from '@/shared/hooks/useWorkspaceReadOnly'
 import {
     LOREBOOK_RESOURCE_ACCEPT,
     LOREBOOK_RESOURCE_MAX_CHARS,
@@ -21,6 +25,8 @@ import {
 import { readLorebookResourceFile, resourceFileErrorKey } from '../lorebookResourceFiles'
 
 interface LorebookResourcePanelProps {
+    /** The open book's workspace (PDF imports convert there); defaults to the committed one. */
+    workspaceId?: string | null
     resources: LorebookResource[]
     onChange: (resources: LorebookResource[]) => void
     linkedResources?: LorebookResource[]
@@ -31,6 +37,8 @@ interface LorebookResourcePanelProps {
     extractMetadataOnSave?: boolean
     onExtractMetadataOnSaveChange?: (enabled: boolean) => void
     onImportingChange?: (importing: boolean) => void
+    /** The book's workspace is archived: resources stay readable; nothing can be added, edited, imported or removed. */
+    readOnly?: boolean
 }
 
 function statusTone(resource: LorebookResource) {
@@ -40,6 +48,7 @@ function statusTone(resource: LorebookResource) {
 }
 
 export function LorebookResourcePanel({
+    workspaceId,
     resources,
     onChange,
     linkedResources = [],
@@ -50,8 +59,11 @@ export function LorebookResourcePanel({
     extractMetadataOnSave = false,
     onExtractMetadataOnSaveChange,
     onImportingChange,
+    readOnly = false,
 }: LorebookResourcePanelProps) {
     const { t } = useTranslation()
+    const api = useScopedApi(workspaceId)
+    const { capture, isCurrent } = useWorkspace()
     const inputRef = useRef<HTMLInputElement>(null)
     const [error, setError] = useState<string | null>(null)
     const [importing, setImporting] = useState(false)
@@ -94,7 +106,14 @@ export function LorebookResourcePanel({
         })
     }
 
+    /** Archived workspace: say so instead of changing anything. */
+    const blocked = () => {
+        if (readOnly) setError(t(ARCHIVED_WORKSPACE_MESSAGE_KEY))
+        return readOnly
+    }
+
     const updateResource = (id: string, changes: Partial<LorebookResource>) => {
+        if (blocked()) return
         setError(null)
         expandResource(id)
         onChange(resources.map((resource) => (
@@ -105,6 +124,7 @@ export function LorebookResourcePanel({
     }
 
     const removeResource = (id: string) => {
+        if (blocked()) return
         setError(null)
         setExpandedIds((current) => {
             const next = new Set(current)
@@ -115,6 +135,7 @@ export function LorebookResourcePanel({
     }
 
     const addManualResource = (fileType: 'md' | 'txt') => {
+        if (blocked()) return
         setError(null)
         if (!canAdd) {
             setError(t('lorebookStudio.resources.errors.count', { count: LOREBOOK_RESOURCE_MAX_RESOURCES }))
@@ -127,11 +148,15 @@ export function LorebookResourcePanel({
     }
 
     const addFiles = async (files: FileList | null) => {
+        if (blocked()) return
         setError(null)
-        if (!files?.length || busy) return
+        if (!files?.length || busy || !api) return
         setImporting(true)
         onImportingChange?.(true)
         const owner = authSession.getSnapshot()
+        const scope = capture()
+        // A conversion finishing after an account or workspace switch never reaches the new editor.
+        const stillCurrent = () => mounted.current && authSession.isCurrent(owner) && isCurrent(scope)
         const next: LorebookResource[] = []
         try {
             for (const file of Array.from(files)) {
@@ -145,8 +170,8 @@ export function LorebookResourcePanel({
                     continue
                 }
                 try {
-                    const resource = await readLorebookResourceFile(file)
-                    if (!mounted.current || !authSession.isCurrent(owner)) return
+                    const resource = await readLorebookResourceFile(file, api)
+                    if (!stillCurrent()) return
                     if (resource.content.length > LOREBOOK_RESOURCE_MAX_CHARS) {
                         setError(t('lorebookStudio.resources.errors.size', { name: file.name, count: LOREBOOK_RESOURCE_MAX_CHARS }))
                         continue
@@ -154,7 +179,7 @@ export function LorebookResourcePanel({
                     next.push(resource)
                     if (file.name.toLowerCase().endsWith('.pdf')) onExtractMetadataOnSaveChange?.(true)
                 } catch (err) {
-                    if (!mounted.current || !authSession.isCurrent(owner)) return
+                    if (!stillCurrent()) return
                     const key = resourceFileErrorKey(err)
                     setError(key ? t(key, { name: file.name }) : err instanceof Error ? err.message : t('lorebookResourcesGallery.errors.saveFailed'))
                 }
@@ -192,7 +217,7 @@ export function LorebookResourcePanel({
                         {t('lorebookStudio.resources.subtitle', { count: allResources.length, max: LOREBOOK_RESOURCE_MAX_RESOURCES })}
                     </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <ReadOnlyFieldset disabled={readOnly} className="flex flex-wrap gap-2">
                     <input
                         ref={inputRef}
                         type="file"
@@ -218,7 +243,7 @@ export function LorebookResourcePanel({
                     <Button variant="primary" size="sm" iconLeft={<Icon icon={Upload} size={15} />} onClick={() => inputRef.current?.click()} disabled={busy || !canAdd}>
                         {t('lorebookStudio.resources.upload')}
                     </Button>
-                </div>
+                </ReadOnlyFieldset>
             </div>
 
             {importing && <Callout tone="info" role="status">{t('lorebookResourcesGallery.importingFiles')}</Callout>}
@@ -229,7 +254,7 @@ export function LorebookResourcePanel({
             )}
 
             {onExtractMetadataOnSaveChange && (
-                <div className="grid gap-3 border-b border-line py-4">
+                <ReadOnlyFieldset disabled={readOnly} className="grid gap-3 border-b border-line py-4">
                     <SwitchRow
                         variant="plain"
                         label={t('lorebookStudio.resources.extractOnSave.label')}
@@ -248,7 +273,7 @@ export function LorebookResourcePanel({
                                 : t('lorebookStudio.resources.extractOnSave.noPending')}
                         </Callout>
                     )}
-                </div>
+                </ReadOnlyFieldset>
             )}
 
             {error && (
@@ -287,7 +312,7 @@ export function LorebookResourcePanel({
                                             size="sm"
                                             tone="danger"
                                             onClick={() => onDetachResource(resource)}
-                                            disabled={busy}
+                                            disabled={busy || readOnly}
                                         >
                                             <Icon icon={Trash2} size={14} />
                                         </IconButton>
@@ -307,10 +332,10 @@ export function LorebookResourcePanel({
                         <span className="font-display text-xl text-parchment-50">{t('lorebookStudio.resources.empty.title')}</span>
                         <span className="max-w-[42ch] font-narrative text-sm">{t('lorebookStudio.resources.empty.description')}</span>
                     </div>
-                    <div className="flex flex-wrap justify-center gap-2">
+                    <ReadOnlyFieldset disabled={readOnly} className="flex flex-wrap justify-center gap-2">
                         <Button variant="secondary" size="sm" onClick={() => addManualResource('txt')}>{t('lorebookStudio.resources.newText')}</Button>
                         <Button variant="primary" size="sm" onClick={() => inputRef.current?.click()}>{t('lorebookStudio.resources.upload')}</Button>
-                    </div>
+                    </ReadOnlyFieldset>
                 </div>
             ) : (
                 <div className="divide-y divide-parchment-50/[.06]">
@@ -366,7 +391,7 @@ export function LorebookResourcePanel({
                                             <p className="mt-1 line-clamp-2 font-narrative text-sm text-parchment-300">{extraction.shortSummary}</p>
                                         )}
                                     </div>
-                                    <div className="flex items-center gap-1.5">
+                                    <ReadOnlyFieldset disabled={readOnly} className="flex items-center gap-1.5">
                                         {!expanded && (
                                             <Button variant="ghost" size="sm" onClick={() => expandResource(resource.id)} disabled={busy}>
                                                 {t('lorebookStudio.resources.edit')}
@@ -381,13 +406,13 @@ export function LorebookResourcePanel({
                                         >
                                             <Icon icon={Trash2} size={14} />
                                         </IconButton>
-                                    </div>
+                                    </ReadOnlyFieldset>
                                 </div>
 
                                 {!expanded ? (
                                     <ResourceExtractionPreview resource={resource} />
                                 ) : (
-                                    <>
+                                    <ReadOnlyFieldset disabled={readOnly} className="grid gap-4">
                                         <div className="grid gap-4 lg:grid-cols-2">
                                             <Field label={t('lorebookStudio.resources.fields.title.label')}>
                                                 <Input
@@ -441,7 +466,7 @@ export function LorebookResourcePanel({
                                         {resource.extractionStatus === 'completed' && resource.extraction && (
                                             <ResourceExtractionPreview resource={resource} expanded />
                                         )}
-                                    </>
+                                    </ReadOnlyFieldset>
                                 )}
                             </section>
                         )

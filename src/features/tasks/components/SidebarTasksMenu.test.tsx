@@ -1,8 +1,12 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render as baseRender, screen } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/app/i18n'
 import type { BackgroundTaskBuckets, BackgroundTaskPublic } from '@/shared'
+import { createWorkspaceTestState, WorkspaceTestProvider } from '@/shared/hooks/testing/workspaceTestUtils'
 import { SidebarTasksMenu } from './SidebarTasksMenu'
+
+const render = (ui: ReactElement) => baseRender(<WorkspaceTestProvider state={createWorkspaceTestState()}>{ui}</WorkspaceTestProvider>)
 
 const mocks = vi.hoisted(() => ({
     useBackgroundTasks: vi.fn(),
@@ -23,6 +27,10 @@ vi.mock('@/infrastructure/api', () => ({
         getAdventureTemplate: vi.fn(),
     },
     resolveMediaUrl: (u?: string | null) => (u == null || u === '' ? undefined : u),
+}))
+
+vi.mock('@/features/workspaces/originNavigation', () => ({
+    useOriginNavigation: () => ({ navigateToOrigin: vi.fn(), registerOriginNavigator: () => () => {} }),
 }))
 
 vi.mock('@/ui/components/audio', () => ({

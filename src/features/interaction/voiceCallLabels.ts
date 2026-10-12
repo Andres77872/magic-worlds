@@ -60,6 +60,11 @@ const CALL_ERROR_CODE_KEY: Record<string, string> = {
     VOICE_UPLOAD_FAILED: 'interaction.callError.uploadFailed',
     VOICE_NO_INPUT: 'interaction.callError.noInput',
     VOICE_DEVICE_LOST: 'interaction.callError.deviceLost',
+    // Workspace R1: the socket's `voice_error` (or an HTTP error) names the workspace code.
+    WORKSPACE_ARCHIVED: 'workspaceActivity.call.workspaceArchived',
+    WORKSPACE_NOT_FOUND: 'workspaceActivity.call.workspaceUnavailable',
+    WORKSPACE_SELECTOR_MISMATCH: 'workspaceActivity.call.workspaceUnavailable',
+    WORKSPACE_REQUIRED: 'workspaceActivity.call.stale',
 }
 
 /**

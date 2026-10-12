@@ -10,6 +10,7 @@ import { authSession } from '@/infrastructure/api/authSession'
 let socketHandlers: { onMessage: (message: unknown) => void; onStatusChange?: (status: string) => void } | null = null
 const socketInstances: Array<{
   sessionId: number
+  workspaceId: string
   connect: ReturnType<typeof vi.fn>
   close: ReturnType<typeof vi.fn>
   sendChat: ReturnType<typeof vi.fn>
@@ -17,9 +18,25 @@ const socketInstances: Array<{
   cancel: ReturnType<typeof vi.fn>
 }> = []
 
-vi.mock('../../../infrastructure/api', () => ({
-  // A spent turn is confirmed with the server before offering a linked retry.
-  apiService: { reconcileChatTurn: vi.fn(async (_basePath: string, _sessionId: number, requestId: string) => ({ status: 'failed', request_id: requestId, execution_id: '44444444-4444-4444-8444-444444444444', recovery_required: false })) },
+const workspaceState = vi.hoisted(() => ({ selectedWorkspaceId: '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b' as string | null }))
+vi.mock('@/app/hooks/useWorkspace', () => ({ useWorkspace: () => workspaceState }))
+
+const scopedApi = vi.hoisted(() => {
+  const api = {
+    // A spent turn is confirmed with the server before offering a linked retry.
+    reconcileChatTurn: (() => {}) as unknown,
+    // The session's scoped client shares these methods; the scope is asserted on this spy.
+    withWorkspace: (() => {}) as unknown,
+  }
+  return api
+})
+
+vi.mock('../../../infrastructure/api', async () => {
+  const { vi: hoistedVi } = await import('vitest')
+  scopedApi.reconcileChatTurn = hoistedVi.fn(async (_basePath: string, _sessionId: number, requestId: string) => ({ status: 'failed', request_id: requestId, execution_id: '44444444-4444-4444-8444-444444444444', recovery_required: false }))
+  scopedApi.withWorkspace = hoistedVi.fn(() => scopedApi)
+  return {
+  apiService: scopedApi,
   ChatSocket: class {
     readonly sessionId: number
     connect = vi.fn()
@@ -28,13 +45,71 @@ vi.mock('../../../infrastructure/api', () => ({
     sendTts = vi.fn()
     cancel = vi.fn()
 
-    constructor(_sessionId: number, handlers: { onMessage: (message: unknown) => void; onStatusChange?: (status: string) => void }) {
+    readonly workspaceId: string
+
+    constructor(_sessionId: number, workspaceId: string, handlers: { onMessage: (message: unknown) => void; onStatusChange?: (status: string) => void }) {
       this.sessionId = _sessionId
+      this.workspaceId = workspaceId
       socketHandlers = handlers
       socketInstances.push(this)
     }
   },
-}))
+  }
+})
+
+describe('useAdventureChatSocket workspace scope', () => {
+  afterEach(() => {
+    workspaceState.selectedWorkspaceId = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
+    socketInstances.length = 0
+  })
+
+  it('stays disconnected until a workspace is committed, then reconnects on a switch', () => {
+    workspaceState.selectedWorkspaceId = null
+    const { rerender, unmount } = renderHook(() => useAdventureChatSocket(7, {}))
+    expect(socketInstances).toHaveLength(0)
+
+    workspaceState.selectedWorkspaceId = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
+    rerender()
+    expect(socketInstances).toHaveLength(1)
+    expect(socketInstances[0].workspaceId).toBe('0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b')
+
+    workspaceState.selectedWorkspaceId = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
+    rerender()
+    expect(socketInstances[0].close).toHaveBeenCalled()
+    expect(socketInstances).toHaveLength(2)
+    expect(socketInstances[1].workspaceId).toBe('1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d')
+    unmount()
+  })
+
+  it('keeps a session in its own workspace: the socket closes on a switch and never reopens elsewhere', () => {
+    const SESSION_WORKSPACE = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
+    const { rerender, unmount } = renderHook(() => useAdventureChatSocket(7, {}, undefined, 'adventure-sessions', undefined, SESSION_WORKSPACE))
+    expect(socketInstances).toHaveLength(1)
+    expect(socketInstances[0].workspaceId).toBe(SESSION_WORKSPACE)
+
+    workspaceState.selectedWorkspaceId = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
+    rerender()
+    expect(socketInstances[0].close).toHaveBeenCalled()
+    expect(socketInstances).toHaveLength(1)
+
+    workspaceState.selectedWorkspaceId = SESSION_WORKSPACE
+    rerender()
+    expect(socketInstances).toHaveLength(2)
+    expect(socketInstances[1].workspaceId).toBe(SESSION_WORKSPACE)
+    unmount()
+  })
+
+  it('ignores frames of a socket torn down by a switch', () => {
+    const onDelta = vi.fn()
+    const { rerender, unmount } = renderHook(() => useAdventureChatSocket(7, { onDelta }, undefined, 'adventure-sessions', undefined, '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'))
+    const staleHandlers = socketHandlers
+    workspaceState.selectedWorkspaceId = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
+    rerender()
+    act(() => staleHandlers?.onMessage({ type: 'delta', content: 'late' }))
+    expect(onDelta).not.toHaveBeenCalled()
+    unmount()
+  })
+})
 
 describe('useAdventureChatSocket image lifecycle dispatch', () => {
   it('discards narrative and completion frames from superseded requests while preserving media delivery', () => {
@@ -426,7 +501,8 @@ describe('retained chat attempts', () => {
     expect(wires[0].llm).toEqual(command)
     socketHandlers?.onMessage({ type: 'error', request_id: 'child-request', code: 'BYOK_CREDENTIAL_REQUIRED', message: 'Key required' })
     await flush()
-    expect(preparation).toHaveBeenCalledWith('chat_adventure', expect.any(AbortSignal), target.selection, PARENT, 'child-request')
+    // A retained retry is prepared against the session's workspace.
+    expect(preparation).toHaveBeenCalledWith('chat_adventure', expect.any(AbortSignal), target.selection, PARENT, 'child-request', '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b')
     expect(wires[1].llm).toEqual({ ...command, credentials: { api_key: 'FAKE_REENTERED_KEY' } })
     expect(onError).not.toHaveBeenCalled()
   })

@@ -13,6 +13,7 @@ import type {
     LorebookSettings,
     LorebookTargetKind,
 } from '@/shared'
+import { readRootOrganization } from '@/infrastructure/api/workspaceContract'
 import {
     LOREBOOK_RESOURCE_MAX_CHARS,
     LOREBOOK_RESOURCE_MAX_RESOURCES,
@@ -176,6 +177,7 @@ export function normalizeLorebook(raw: unknown): Lorebook {
     const item = isRecord(raw) ? raw : {}
     const settings = isRecord(item.settings) ? item.settings : item
     const id = stringValue(item.id ?? item.lorebook_id, crypto.randomUUID?.() ?? `lorebook-${Date.now()}`)
+    const organization = readRootOrganization(item.organization)
     return {
         id,
         name: stringValue(item.name, 'Untitled lorebook'),
@@ -194,6 +196,8 @@ export function normalizeLorebook(raw: unknown): Lorebook {
         metadata: metadataValue(item.metadata),
         createdAt: stringValue(item.createdAt ?? item.created_at, undefined as never),
         updatedAt: stringValue(item.updatedAt ?? item.updated_at, undefined as never),
+        // Workspace R1 server-owned metadata: kept when valid; serializers never send it.
+        ...(organization ? { organization } : {}),
     }
 }
 

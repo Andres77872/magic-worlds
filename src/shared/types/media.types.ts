@@ -5,6 +5,7 @@
  */
 
 import type { ChatImageAsset, ChatImageError, ImageLifecycleStatus } from './interaction.types'
+import type { RootOrganization } from './workspace.types'
 
 export type CardMediaTargetType = 'character' | 'world' | 'adventure_template' | 'item'
 
@@ -111,6 +112,8 @@ export interface ThemeSongJobPublic {
     lyrics?: ThemeSongLyricsPublic | null
     assets: ThemeSongAssetPublic[]
     error?: ThemeSongErrorPublic | null
+    /** Workspace R1: the owning workspace (server-owned; never written back). */
+    organization?: RootOrganization
     created_at: string
     updated_at: string
 }
@@ -176,6 +179,8 @@ export interface ImageJobPublic {
     card_type?: CardMediaTargetType | null
     card_id?: string | null
     card_name?: string | null
+    /** Workspace R1: the owning workspace (server-owned; never written back). */
+    organization?: RootOrganization
     created_at: string
     updated_at: string
 }

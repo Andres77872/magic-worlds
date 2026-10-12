@@ -1,4 +1,5 @@
 import type { AssistantKind, AssistantTurnResponse } from '@/shared/types/assistant.types'
+import { hasValidOptionalOrganization, isOrganizationWarnings } from './workspaceContract'
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 const positiveId = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) > 0
@@ -6,7 +7,9 @@ const uuid = (value: unknown): value is string => typeof value === 'string' && /
 const messageFields = new Set(['message_id', 'conversation_id', 'user_id', 'project_hash', 'user_group_hash', 'sequence_no',
     'role', 'status', 'content', 'tool_calls', 'tool_call_id', 'tool_name', 'metadata', 'created_at', 'updated_at', 'completed_at'])
 const conversationFields = new Set(['conversation_id', 'user_id', 'project_hash', 'user_group_hash', 'kind', 'card_type', 'card_id', 'lorebook_id',
-    'title', 'conversation_version', 'active_request_id', 'active_request_started_at', 'created_at', 'updated_at'])
+    'title', 'conversation_version', 'active_request_id', 'active_request_started_at', 'created_at', 'updated_at',
+    // Workspace R1: the conversation's owning workspace (server-owned).
+    'organization'])
 const coreFields = ['request_id', 'llm_execution', 'conversation', 'user_message', 'assistant_message', 'messages']
 const documentFields = ['tool_message', 'target', 'target_cas', 'applied_actions']
 
@@ -18,12 +21,16 @@ const documentFields = ['tool_message', 'target', 'target_cas', 'applied_actions
  */
 export function verifyAssistantTurn<K extends AssistantKind>(value: unknown, kind: K, conversationId: number, requestId: string): value is AssistantTurnResponse<K> {
     const document = kind !== 'app'
-    const fields = document ? [...coreFields, ...documentFields] : coreFields
+    // Workspace R1: a card turn also reports `organization_warnings` (initial collections removed before it finished).
+    const warned = kind === 'card' && object(value) && 'organization_warnings' in value
+    const fields = [...(document ? [...coreFields, ...documentFields] : coreFields), ...(warned ? ['organization_warnings'] : [])]
     if (!object(value) || Object.keys(value).length !== fields.length || !fields.every((key) => key in value)
+        || (warned && !isOrganizationWarnings(value.organization_warnings))
         || value.request_id !== requestId || !positiveId(conversationId) || !/^[A-Za-z0-9._:-]{1,64}$/.test(requestId)
         || !object(value.conversation) || Object.keys(value.conversation).some((key) => !conversationFields.has(key))
         || value.conversation.kind !== kind || value.conversation.conversation_id !== conversationId
         || value.conversation.active_request_id != null || value.conversation.active_request_started_at != null
+        || !hasValidOptionalOrganization(value.conversation, 'root')
         || !object(value.llm_execution)) return false
     const plan = value.llm_execution
     const keys = ['execution_id', 'profile_id', 'revision_id', 'resolution_source', 'credential_mode', 'replayed']

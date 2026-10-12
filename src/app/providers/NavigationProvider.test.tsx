@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NavigationProvider } from './NavigationProvider'
 import { useNavigation } from '../hooks/useNavigation'
 
@@ -61,6 +61,13 @@ function renderNavigation() {
 describe('NavigationProvider origin stack', () => {
     beforeEach(() => {
         window.history.replaceState(null, '', '#/')
+        // The galleries below are the pre-Workspace routes; a local .env may turn the flag on
+        // (the workspace routing is covered by NavigationProvider.workspace.test.tsx).
+        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
+    })
+
+    afterEach(() => {
+        vi.unstubAllEnvs()
     })
 
     it('returns to the origin gallery with its hash state intact', () => {
@@ -179,6 +186,13 @@ function GuardedProbe() {
 describe('NavigationProvider interceptors', () => {
     beforeEach(() => {
         window.history.replaceState(null, '', '#/')
+        // The galleries below are the pre-Workspace routes; a local .env may turn the flag on
+        // (the workspace routing is covered by NavigationProvider.workspace.test.tsx).
+        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
+    })
+
+    afterEach(() => {
+        vi.unstubAllEnvs()
     })
 
     function renderGuarded() {

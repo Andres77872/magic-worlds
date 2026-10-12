@@ -1,12 +1,16 @@
 /**
- * Media gallery domain — a unified, filterable view over the user's generated
- * media: images (user-wide `GET /images/jobs`, optionally card-tagged) and theme
- * songs (`GET /theme-songs/user`, always card-scoped). Jobs flatten into
- * asset-level items so the grid, lightbox, and deletes all operate on assets.
+ * Media gallery domain — a unified, filterable view over the workspace's media.
+ * Unfiltered discovery reads the workspace media associations
+ * (`GET /workspaces/{id}/media`: asset projections, no card tag, prompt or
+ * timestamp); card-filtered views read the job histories (`GET /images/jobs`,
+ * `GET /theme-songs/user`, filtered by the job's origin workspace). Both
+ * flatten into asset-level items so the grid, lightbox, and deletes all operate
+ * on assets.
  */
 
-import type { CardMediaTargetType, ImageJobPublic, ThemeSongJobPublic } from '@/shared'
+import type { CardMediaTargetType, ImageJobPublic, ThemeSongJobPublic, WorkspaceMediaItem } from '@/shared'
 import type { TFunction } from 'i18next'
+import { i18n } from '@/app/i18n'
 import { resolveMediaUrl } from '@/infrastructure/api'
 import { formatWhen } from '@/utils/time'
 
@@ -31,9 +35,12 @@ interface MediaItemBase {
     /** asset_id — stable grid key and the delete handle. */
     id: string
     jobId: string
-    /** Job `created_at` — the newest-first merge key across both sources. */
-    createdAt: string
-    /** Card tag; absent for legacy/untagged images. */
+    /**
+     * Job `created_at` — the newest-first merge key across both job sources.
+     * Absent for workspace media discovery items (the projection has no date).
+     */
+    createdAt?: string
+    /** Card tag; absent for legacy/untagged images and discovery items. */
     card?: CardRef
 }
 
@@ -107,6 +114,39 @@ export function themeJobToItem(job: ThemeSongJobPublic): MediaThemeItem | null {
         url,
         title: job.target.display_name?.trim() || `Theme · ${formatWhen(job.created_at)}`,
         durationMs: asset.duration_ms,
+        outputFormat: 'mp3',
+    }
+}
+
+interface WorkspaceImageAsset {
+    url?: string
+}
+
+interface WorkspaceThemeAsset {
+    url?: string
+    duration_ms?: number | null
+}
+
+/** A workspace media association of kind `image` as a grid item. */
+export function workspaceImageToItem(media: WorkspaceMediaItem): MediaImageItem | null {
+    const asset = media.asset as WorkspaceImageAsset
+    const url = resolveMediaUrl(asset.url)
+    if (!url) return null
+    return { kind: 'image', id: media.asset_id, jobId: media.job_id ?? media.asset_id, url }
+}
+
+/** A workspace media association of kind `theme_song` as a grid item (untitled: no card tag). */
+export function workspaceThemeToItem(media: WorkspaceMediaItem): MediaThemeItem | null {
+    const asset = media.asset as WorkspaceThemeAsset
+    const url = resolveMediaUrl(asset.url)
+    if (!url) return null
+    return {
+        kind: 'theme',
+        id: media.asset_id,
+        jobId: media.job_id ?? media.asset_id,
+        url,
+        title: i18n.t('workspaceContent.media.themeTitleFallback'),
+        durationMs: asset.duration_ms ?? null,
         outputFormat: 'mp3',
     }
 }

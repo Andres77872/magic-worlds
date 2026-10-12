@@ -14,6 +14,7 @@ import { parseApiTimestamp } from '@/utils/time'
 import { useAuth } from '../hooks/useAuth'
 import { useData } from '../hooks/useData'
 import { isPageFocused, usePageFocus } from '../hooks/usePageFocus'
+import { useWorkspace } from '../hooks/useWorkspace'
 import { BackgroundTasksContext, type BackgroundTasksContextValue } from './backgroundTasksContext'
 
 const ACTIVE_STATUS_SET = new Set<string>(BACKGROUND_TASK_ACTIVE_STATUSES)
@@ -53,16 +54,37 @@ function taskKey(task: BackgroundTaskPublic): string {
     return `${task.operation}:${task.task_id}`
 }
 
+/** The workspace a job was submitted in (Workspace R1: its durable origin). */
+function taskWorkspaceId(task: BackgroundTaskPublic): string | null {
+    return task.organization?.workspace_id ?? null
+}
+
+/** Stamps the workspace a task was read or submitted in when the server omitted its origin. */
+function withOrigin(task: BackgroundTaskPublic, workspaceId: string | null | undefined): BackgroundTaskPublic {
+    if (task.organization?.workspace_id || !workspaceId) return task
+    return { ...task, organization: { workspace_id: workspaceId } }
+}
+
 interface TaskNotice {
     tone: ToastTone
     title: string
     message?: string
 }
 
+/**
+ * Background media jobs (theme songs today). Workspace R1: the task lists are
+ * workspace-scoped, so the drawer shows the selected workspace's tasks plus
+ * still-running tasks of other workspaces (each polled in the workspace it was
+ * submitted in, with an origin label). Those keep finishing after a switch;
+ * their completion updates only this account-wide list, never the selected
+ * workspace's library data.
+ */
 export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     const { t } = useTranslation()
     const pageFocused = usePageFocus()
     const { isAuthenticated, authEpoch = Number(isAuthenticated), accountKey = 'legacy' } = useAuth()
+    const { status: workspaceStatus, selectedWorkspaceId, workspaceEpoch } = useWorkspace()
+    const workspaceReady = workspaceStatus === 'ready' && selectedWorkspaceId !== null
     const { loadData } = useData()
     const [tasks, setTasks] = useState<BackgroundTaskPublic[]>([])
     const [drawerOpen, setDrawerOpen] = useState(false)
@@ -82,20 +104,26 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     // fired an extra immediate listTasks) on every unrelated data change.
     const loadDataRef = useRef(loadData)
     const drawerOpenRef = useRef(drawerOpen)
-    const authOwnerRef = useRef({ authEpoch, accountKey })
-    authOwnerRef.current = { authEpoch, accountKey }
+    const tasksRef = useRef(tasks)
+    const authOwnerRef = useRef({ authEpoch, accountKey, workspaceId: selectedWorkspaceId, workspaceEpoch })
+    authOwnerRef.current = { authEpoch, accountKey, workspaceId: selectedWorkspaceId, workspaceEpoch }
     useEffect(() => {
         loadDataRef.current = loadData
     }, [loadData])
+    useEffect(() => {
+        tasksRef.current = tasks
+    }, [tasks])
     useEffect(() => {
         drawerOpenRef.current = drawerOpen
     }, [drawerOpen])
 
     const refreshTasks = useCallback(async (automatic = false) => {
-        if (!isAuthenticated || (automatic && !isPageFocused()) || refreshInFlightRef.current) return
+        if (!isAuthenticated || !workspaceReady || !selectedWorkspaceId || (automatic && !isPageFocused()) || refreshInFlightRef.current) return
         refreshInFlightRef.current = true
         try {
-            const owner = { authEpoch, accountKey }
+            const owner = { authEpoch, accountKey, workspaceId: selectedWorkspaceId, workspaceEpoch }
+            // The selected workspace's lists; other workspaces' running tasks are read below.
+            const api = apiService.withWorkspace(owner.workspaceId)
             let focusLost = false
             const fetchPages = async (
                 state: 'active' | 'terminal',
@@ -112,14 +140,14 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                         focusLost = true
                         throw new Error('Background poll paused')
                     }
-                    const response = await apiService.listTasks({
+                    const response = await api.listTasks({
                         state,
                         operation: 'all',
                         statuses,
                         limit: TASK_PAGE_SIZE,
                         offset,
                     })
-                    const fresh = response.items.filter((task) => {
+                    const fresh = response.items.map((task) => withOrigin(task, owner.workspaceId)).filter((task) => {
                         const key = taskKey(task)
                         if (seen.has(key)) return false
                         seen.add(key)
@@ -138,13 +166,30 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 { bucket: 'completed' as const, statuses: BACKGROUND_TASK_COMPLETED_STATUSES, request: fetchPages('terminal', BACKGROUND_TASK_COMPLETED_STATUSES, terminalPages.completed) },
                 { bucket: 'failed' as const, statuses: BACKGROUND_TASK_FAILED_STATUSES, request: fetchPages('terminal', BACKGROUND_TASK_FAILED_STATUSES, terminalPages.failed) },
             ]
-            const results = await Promise.allSettled(groups.map((group) => group.request))
+            // Running tasks of other workspaces keep finishing: poll each where it was submitted.
+            const foreignActive = tasksRef.current.filter((task) => {
+                const origin = taskWorkspaceId(task)
+                return isActiveTask(task) && origin !== null && origin !== owner.workspaceId
+            })
+            const foreignRequest = Promise.allSettled(foreignActive.map(async (task) => {
+                const origin = taskWorkspaceId(task)!
+                return withOrigin(await apiService.withWorkspace(origin).getTask(task.operation, task.task_id), origin)
+            }))
+            const [results, foreignResults] = await Promise.all([
+                Promise.allSettled(groups.map((group) => group.request)),
+                foreignRequest,
+            ])
             if (automatic && (focusLost || !isPageFocused())) return
-            if (authOwnerRef.current.authEpoch !== owner.authEpoch || authOwnerRef.current.accountKey !== owner.accountKey) return
+            const live = authOwnerRef.current
+            if (live.authEpoch !== owner.authEpoch || live.accountKey !== owner.accountKey) return
+            // A switch while reading: these lists describe the previous selection; the
+            // next poll reads the new workspace (and keeps tracking running tasks).
+            if (live.workspaceEpoch !== owner.workspaceEpoch || live.workspaceId !== owner.workspaceId) return
             const fulfilled = results.flatMap((result, index) => result.status === 'fulfilled'
                 ? [{ response: result.value, statuses: groups[index].statuses, bucket: groups[index].bucket }]
                 : [])
-            if (fulfilled.length === 0) return
+            const foreignTasks = foreignResults.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))
+            if (fulfilled.length === 0 && foreignTasks.length === 0) return
             setTerminalHasMore((current) => {
                 const next = { ...current }
                 for (const result of fulfilled) {
@@ -153,7 +198,8 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 return next.completed === current.completed && next.failed === current.failed ? current : next
             })
             const refreshedStatuses = new Set(fulfilled.flatMap((item) => item.statuses))
-            const nextTasks = mergeTaskLists(fulfilled.map((item) => item.response.items))
+            const nextTasks = mergeTaskLists([...fulfilled.map((item) => item.response.items), foreignTasks])
+            const replaced = new Set(nextTasks.map(taskKey))
             const previous = previousStatusesRef.current
             let completedActiveTask = false
             // Tasks that finished (success or failure) since the previous poll.
@@ -164,13 +210,15 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 const key = taskKey(task)
                 const before = previous.get(key)
                 if (before && ACTIVE_STATUS_SET.has(before) && !isActiveTask(task)) {
-                    completedActiveTask = true
+                    // Only the selected workspace's library reloads for a finished job.
+                    if (taskWorkspaceId(task) === owner.workspaceId) completedActiveTask = true
                     // A cancel is user-initiated — announcing it back is noise.
                     if (task.status !== 'canceled') transitioned.push(task)
                 }
                 previous.set(key, task.status)
             }
-            setTasks((prev) => mergeTaskLists([nextTasks, prev.filter((task) => !taskHasAnyStatus(task, refreshedStatuses))]))
+            setTasks((prev) => mergeTaskLists([nextTasks, prev.filter((task) => !replaced.has(taskKey(task))
+                && !(taskWorkspaceId(task) === owner.workspaceId && taskHasAnyStatus(task, refreshedStatuses)))]))
             if (completedActiveTask) {
                 void loadDataRef.current({ silent: true })
             }
@@ -201,38 +249,69 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 if (isPageFocused()) setCatchUpTick((tick) => tick + 1)
             }
         }
-    }, [accountKey, authEpoch, isAuthenticated, t, terminalPages])
+    }, [accountKey, authEpoch, isAuthenticated, selectedWorkspaceId, t, terminalPages, workspaceEpoch, workspaceReady])
 
     const loadMoreTerminalTasks = useCallback(async (bucket: 'completed' | 'failed') => {
         if (!terminalHasMore[bucket]) return
         setTerminalPages((current) => ({ ...current, [bucket]: current[bucket] + 1 }))
     }, [terminalHasMore])
 
-    const registerTask = useCallback((task: BackgroundTaskPublic) => {
-        previousStatusesRef.current.set(`${task.operation}:${task.task_id}`, task.status)
-        setTasks((prev) => upsertTask(prev, task))
+    /**
+     * Track a task. Its origin is the server's `organization`, else `workspaceId`
+     * (the workspace the job was submitted in), else the selected workspace.
+     */
+    const registerTask = useCallback((task: BackgroundTaskPublic, workspaceId?: string | null) => {
+        const tracked = withOrigin(task, workspaceId ?? authOwnerRef.current.workspaceId)
+        previousStatusesRef.current.set(taskKey(tracked), tracked.status)
+        setTasks((prev) => upsertTask(prev, tracked))
     }, [])
 
     const registerThemeSongJob = useCallback(
-        (job: ThemeSongJobPublic) => {
-            registerTask(taskFromThemeSongJob(job))
+        (job: ThemeSongJobPublic, workspaceId?: string | null) => {
+            const task = taskFromThemeSongJob(job)
+            registerTask(job.organization ? { ...task, organization: job.organization } : task, workspaceId)
         },
         [registerTask],
     )
 
-    const cancelTask = useCallback(async (operation: BackgroundTaskOperation, taskId: string) => {
-        const updated = await apiService.cancelTask(operation, taskId)
-        registerTask(updated)
+    /** Read one task in its own workspace (e.g. from a notification) and show it in the list. */
+    const trackTask = useCallback(async (operation: BackgroundTaskOperation, taskId: string, workspaceId: string) => {
+        const owner = authOwnerRef.current
+        const task = await apiService.withWorkspace(workspaceId).getTask(operation, taskId)
+        if (authOwnerRef.current.authEpoch !== owner.authEpoch || authOwnerRef.current.accountKey !== owner.accountKey) return
+        registerTask(task, workspaceId)
     }, [registerTask])
 
-    /** Persistently archive the entire server bucket, including pages not loaded in the drawer. */
+    const cancelTask = useCallback(async (operation: BackgroundTaskOperation, taskId: string) => {
+        const task = tasksRef.current.find((item) => item.operation === operation && item.task_id === taskId)
+        const origin = (task && taskWorkspaceId(task)) ?? authOwnerRef.current.workspaceId
+        if (!origin) throw new Error('The task’s workspace is unavailable.')
+        // Cancelling controls an admitted job, so it goes to the job's own workspace.
+        const updated = await apiService.withWorkspace(origin).cancelTask(operation, taskId)
+        registerTask(updated, origin)
+    }, [registerTask])
+
+    /**
+     * Persistently archive the entire server bucket of the selected workspace
+     * (including pages not loaded in the drawer) plus the listed tasks of other
+     * workspaces in that bucket, each in its own workspace.
+     */
     const clearTerminalTasks = useCallback(async (bucket: 'completed' | 'failed') => {
         const statuses = bucket === 'completed' ? COMPLETED_STATUS_SET : FAILED_STATUS_SET
         const archived = new Set<string>()
         const attempted = new Set<string>()
         let failed = false
+        const current = authOwnerRef.current.workspaceId
+        if (!current) throw new Error('No workspace is selected.')
+        const api = apiService.withWorkspace(current)
+        const foreign = tasksRef.current.filter((task) => statuses.has(task.status) && taskWorkspaceId(task) !== null && taskWorkspaceId(task) !== current)
+        const foreignResults = await Promise.allSettled(foreign.map((task) => apiService.withWorkspace(taskWorkspaceId(task)!).archiveTask(task.operation, task.task_id)))
+        foreign.forEach((task, index) => {
+            if (foreignResults[index].status === 'fulfilled') archived.add(taskKey(task))
+            else failed = true
+        })
         while (true) {
-            const response = await apiService.listTasks({
+            const response = await api.listTasks({
                 state: 'terminal',
                 operation: 'all',
                 statuses: [...statuses] as BackgroundTaskPublic['status'][],
@@ -246,7 +325,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 break
             }
             freshItems.forEach((task) => attempted.add(taskKey(task)))
-            const results = await Promise.allSettled(freshItems.map((task) => apiService.archiveTask(task.operation, task.task_id)))
+            const results = await Promise.allSettled(freshItems.map((task) => api.archiveTask(task.operation, task.task_id)))
             freshItems.forEach((task, index) => {
                 if (results[index].status === 'fulfilled') archived.add(taskKey(task))
                 else failed = true
@@ -294,6 +373,16 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         setTerminalHasMore({ completed: false, failed: false })
     }, [isAuthenticated])
 
+    // A committed switch: keep other workspaces' running tasks (they keep finishing
+    // and stay labeled with their origin); the new workspace's lists load next.
+    const [tasksEpoch, setTasksEpoch] = useState(workspaceEpoch)
+    if (tasksEpoch !== workspaceEpoch) {
+        setTasksEpoch(workspaceEpoch)
+        setTasks((prev) => prev.filter(isActiveTask))
+        setTerminalPages({ completed: 1, failed: 1 })
+        setTerminalHasMore({ completed: false, failed: false })
+    }
+
     useEffect(() => {
         if (!isAuthenticated || !pageFocused) return
         const timer = window.setTimeout(() => {
@@ -337,6 +426,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         refreshTasks,
         registerTask,
         registerThemeSongJob,
+        trackTask,
         cancelTask,
         clearTerminalTasks,
         terminalHasMore,

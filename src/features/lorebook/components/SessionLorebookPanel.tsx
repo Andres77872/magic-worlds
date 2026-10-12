@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { BookOpenText, Link2, Loader2, Search, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useData, useFloatingWindows } from '@/app/hooks'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { lorebookWindow } from '@/features/floatingWindows'
 import type { Lorebook, LorebookAttachment, LorebookTargetKind } from '@/shared'
 import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY, useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { ReferenceEmpty, ReferenceGroup, ReferenceRow } from '@/ui/components'
 import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card'
 import { Badge, Button, Drawer, Icon, IconButton, IconTile, Input, SelectionCheck, cx } from '@/ui/primitives'
@@ -25,6 +27,12 @@ interface SessionLorebookPanelProps {
      * its consolidated shell already frames the codex + lorebook groups.
      */
     framed?: boolean
+    /**
+     * The session's workspace (its attachments live there), when the host knows
+     * it; defaults to the committed workspace. Only the committed workspace's
+     * lorebooks are offered for linking.
+     */
+    workspaceId?: string | null
 }
 
 function upsertAttachment(list: LorebookAttachment[], attachment: LorebookAttachment): LorebookAttachment[] {
@@ -47,10 +55,20 @@ function lorebookMatches(lorebook: Lorebook, query: string, includeResources: bo
     return haystack.includes(query)
 }
 
-export function SessionLorebookPanel({ targetKind, targetId, label, className, framed = true }: SessionLorebookPanelProps) {
+const NO_LOREBOOKS: Lorebook[] = []
+
+export function SessionLorebookPanel({ targetKind, targetId, label, className, framed = true, workspaceId }: SessionLorebookPanelProps) {
     const { t } = useTranslation()
-    const { lorebooks, setLorebooks } = useData()
+    const data = useData()
     const { openWindow } = useFloatingWindows()
+    const api = useScopedApi(workspaceId)
+    const { selectedWorkspaceId, workspaceEpoch, capture, isCurrent } = useWorkspace()
+    // Links live in the session's workspace: archived, they stay listed but cannot change.
+    const readOnly = useWorkspaceReadOnly(workspaceId)
+    // The library cache is the committed workspace's; a session elsewhere links nothing from it.
+    const inCommittedWorkspace = !workspaceId || workspaceId === selectedWorkspaceId
+    const lorebooks = inCommittedWorkspace ? data.lorebooks : NO_LOREBOOKS
+    const { setLorebooks } = data
     const [attachments, setAttachments] = useState<LorebookAttachment[]>([])
     const [loading, setLoading] = useState(false)
     const [busyId, setBusyId] = useState<string | null>(null)
@@ -61,15 +79,25 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
     const normalizedTargetId = targetId.trim()
     const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
 
+    // A committed switch closes the picker and drops its selection.
+    const [panelEpoch, setPanelEpoch] = useState(workspaceEpoch)
+    if (panelEpoch !== workspaceEpoch) {
+        setPanelEpoch(workspaceEpoch)
+        setPickerOpen(false)
+        setQuery('')
+        setSelectedIds(new Set<string>())
+        setError(null)
+    }
+
     useEffect(() => {
-        if (!normalizedTargetId) {
+        if (!normalizedTargetId || !api) {
             setAttachments([])
             return
         }
         let mounted = true
         setLoading(true)
         setError(null)
-        void apiService.listLorebookAttachments(targetKind, normalizedTargetId)
+        void api.listLorebookAttachments(targetKind, normalizedTargetId)
             .then((rows) => {
                 if (mounted) setAttachments(rows.map(normalizeLorebookAttachment))
             })
@@ -82,7 +110,7 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
         return () => {
             mounted = false
         }
-    }, [normalizedTargetId, targetKind, t])
+    }, [api, normalizedTargetId, targetKind, t])
 
     const lorebookById = useMemo(() => new Map(lorebooks.map((book) => [book.id, book])), [lorebooks])
     const attachedLorebookIds = useMemo(() => new Set(attachments.map((attachment) => attachment.lorebookId)), [attachments])
@@ -107,8 +135,9 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
         })
     }
 
+    // Mirror link changes into the library cache only when it is this session's workspace.
     const syncLorebooksWithAdded = (created: LorebookAttachment[]) => {
-        if (created.length === 0) return
+        if (created.length === 0 || !inCommittedWorkspace) return
         setLorebooks(lorebooks.map((book) => {
             const nextForBook = created.filter((attachment) => attachment.lorebookId === book.id)
             if (nextForBook.length === 0) return book
@@ -120,6 +149,7 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
     }
 
     const syncLorebooksWithRemoved = (attachment: LorebookAttachment) => {
+        if (!inCommittedWorkspace) return
         setLorebooks(lorebooks.map((book) => (
             book.id === attachment.lorebookId
                 ? { ...book, attachments: removeAttachment(book.attachments, attachment.id) }
@@ -127,14 +157,22 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
         )))
     }
 
+    /** Archived workspace: say so instead of writing. */
+    const blockedByArchive = () => {
+        if (readOnly) setError(t(ARCHIVED_WORKSPACE_MESSAGE_KEY))
+        return readOnly
+    }
+
     const attachSelected = async () => {
-        if (!normalizedTargetId || selectedIds.size === 0 || busyId) return
+        if (blockedByArchive()) return
+        if (!normalizedTargetId || selectedIds.size === 0 || busyId || !api) return
+        const scope = capture()
         setBusyId('add')
         setError(null)
         try {
             const created: LorebookAttachment[] = []
             for (const lorebookId of selectedIds) {
-                const raw = await apiService.putLorebookAttachment({
+                const raw = await api.putLorebookAttachment({
                     lorebookId,
                     targetKind,
                     targetId: normalizedTargetId,
@@ -143,10 +181,13 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
                 })
                 created.push(normalizeLorebookAttachment(raw))
             }
+            // After a switch the links stay saved in the session's workspace; the new UI is untouched.
+            if (!isCurrent(scope)) return
             setAttachments((current) => created.reduce(upsertAttachment, current))
             syncLorebooksWithAdded(created)
             closePicker()
         } catch (err) {
+            if (!isCurrent(scope)) return
             setError(err instanceof Error ? err.message : t('sessionLorebooks.errors.attachFailed'))
         } finally {
             setBusyId(null)
@@ -154,14 +195,18 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
     }
 
     const deleteAttachment = async (attachment: LorebookAttachment) => {
-        if (busyId) return
+        if (blockedByArchive()) return
+        if (busyId || !api) return
+        const scope = capture()
         setBusyId(attachment.id)
         setError(null)
         try {
-            await apiService.deleteLorebookAttachment(attachment.id)
+            await api.deleteLorebookAttachment(attachment.id)
+            if (!isCurrent(scope)) return
             setAttachments((current) => removeAttachment(current, attachment.id))
             syncLorebooksWithRemoved(attachment)
         } catch (err) {
+            if (!isCurrent(scope)) return
             setError(err instanceof Error ? err.message : t('sessionLorebooks.errors.removeFailed'))
         } finally {
             setBusyId(null)
@@ -177,7 +222,7 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
             count={attachments.length}
             onAdd={() => setPickerOpen(true)}
             addLabel={t('sessionLorebooks.add')}
-            addDisabled={busyId !== null || !normalizedTargetId}
+            addDisabled={busyId !== null || !normalizedTargetId || readOnly}
         >
             {error && (
                 <div className="rounded-md border border-blood-500/25 bg-blood-500/10 px-2.5 py-1.5 font-ui text-xs text-parchment-200" role="alert">
@@ -214,7 +259,7 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
                                             size="sm"
                                             tone="danger"
                                             onClick={() => void deleteAttachment(attachment)}
-                                            disabled={busyId !== null}
+                                            disabled={busyId !== null || readOnly}
                                         >
                                             {busyId === attachment.id ? <Loader2 size={14} className="animate-spin" /> : <Icon icon={Trash2} size={14} />}
                                         </IconButton>
@@ -239,7 +284,7 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
             )}
 
             <Drawer
-                open={pickerOpen}
+                open={pickerOpen && !readOnly}
                 onClose={closePicker}
                 eyebrow={t('sessionLorebooks.drawerEyebrow')}
                 title={t('sessionLorebooks.drawerTitle')}
@@ -252,7 +297,7 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
                         <Button
                             variant="primary"
                             onClick={() => void attachSelected()}
-                            disabled={busyId === 'add' || selectedIds.size === 0}
+                            disabled={busyId === 'add' || selectedIds.size === 0 || readOnly}
                             data-testid="session-lorebook-add-submit"
                         >
                             {busyId === 'add'

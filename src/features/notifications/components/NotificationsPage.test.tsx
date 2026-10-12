@@ -1,15 +1,32 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render as baseRender, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { UserNotification } from '@/shared'
+import type { BackgroundTaskPublic, UserNotification } from '@/shared'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { NotificationsPage } from './NotificationsPage'
 
 const setPage = vi.fn()
 const openTasks = vi.fn()
+const trackTask = vi.fn()
+const navigateToOrigin = vi.fn()
+let trackedTasks: BackgroundTaskPublic[] = []
 
 vi.mock('@/app/hooks', () => ({
+    useAuth: () => ({ isAuthenticated: true }),
     useNavigation: () => ({ setPage }),
-    useBackgroundTasks: () => ({ openDrawer: openTasks }),
+    useBackgroundTasks: () => ({ openDrawer: openTasks, tasks: trackedTasks, trackTask }),
 }))
+
+vi.mock('@/features/workspaces/originNavigation', () => ({
+    useOriginNavigation: () => ({ navigateToOrigin, registerOriginNavigator: () => () => {} }),
+}))
+
+const render = (ui: ReactElement) => baseRender(<WorkspaceTestProvider state={createWorkspaceTestState()}>{ui}</WorkspaceTestProvider>)
 
 vi.mock('@/infrastructure/api', () => ({
     ApiError: class ApiError extends Error {},
@@ -46,6 +63,9 @@ let serverUnreadCount: number
 describe('NotificationsPage', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        trackedTasks = []
+        navigateToOrigin.mockResolvedValue('navigated')
+        trackTask.mockResolvedValue(undefined)
         listedItems = [notification()]
         serverUnreadCount = 1
         vi.mocked(apiService.listNotifications).mockImplementation(async () => ({
@@ -141,45 +161,93 @@ describe('NotificationsPage', () => {
         expect(screen.getByText('0 unread')).toBeInTheDocument()
     })
 
-    it('marks actionable notifications read before routing their destinations', async () => {
+    it('marks content notices read and opens them in their origin workspace', async () => {
         listedItems = [
             notification({
                 notification_id: 1,
                 title: 'Character updated',
                 action_label: 'View character',
                 action_url: 'https://magic-worlds.test/#/gallery/characters?card=c1',
+                metadata: { workspace_id: TEST_WORKSPACE_ID },
             }),
             notification({
                 notification_id: 2,
                 title: 'Theme song ready',
                 action_label: 'View tasks',
-                metadata: { job_kind: 'theme_song' },
+                metadata: { job_kind: 'theme_song', job_id: 'job-2', workspace_id: OTHER_WORKSPACE_ID },
             }),
             notification({
                 notification_id: 3,
                 title: 'Image ready',
                 action_label: 'View image',
-                metadata: { job_kind: 'image' },
+                metadata: { job_kind: 'image', job_id: 'job-3', workspace_id: OTHER_WORKSPACE_ID },
             }),
         ]
         serverUnreadCount = 3
 
         render(<NotificationsPage />)
         expect(await screen.findByText('Image ready')).toBeInTheDocument()
+        // Only notices of another workspace are labeled.
+        expect(screen.getAllByText('From Novel A')).toHaveLength(2)
 
         fireEvent.click(screen.getByRole('button', { name: 'View character' }))
-        await waitFor(() => expect(setPage).toHaveBeenCalledWith(
-            'gallery-characters',
-            { hash: '#/gallery/characters?card=c1' },
-        ))
+        await waitFor(() => expect(navigateToOrigin).toHaveBeenCalledWith({
+            workspaceId: TEST_WORKSPACE_ID,
+            page: 'gallery-characters',
+            hash: '#/gallery/characters?card=c1',
+        }))
 
+        // A theme song of another workspace is read there and shown in the account-wide drawer.
         fireEvent.click(screen.getByRole('button', { name: 'View tasks' }))
         await waitFor(() => expect(openTasks).toHaveBeenCalledTimes(1))
+        expect(trackTask).toHaveBeenCalledWith('theme_song', 'job-2', OTHER_WORKSPACE_ID)
 
         fireEvent.click(screen.getByRole('button', { name: 'View image' }))
-        await waitFor(() => expect(setPage).toHaveBeenCalledWith('gallery-media'))
+        await waitFor(() => expect(navigateToOrigin).toHaveBeenCalledWith({ workspaceId: OTHER_WORKSPACE_ID, page: 'gallery-media' }))
+        expect(setPage).not.toHaveBeenCalled()
         expect(apiService.markNotificationRead).toHaveBeenCalledWith(1)
         expect(apiService.markNotificationRead).toHaveBeenCalledWith(2)
         expect(apiService.markNotificationRead).toHaveBeenCalledWith(3)
+    })
+
+    it('never opens a legacy content notice in the selected workspace', async () => {
+        listedItems = [notification({ notification_id: 4, title: 'Old image', action_label: 'View image', metadata: { job_kind: 'image', job_id: 'job-4' } })]
+
+        render(<NotificationsPage />)
+        fireEvent.click(await screen.findByRole('button', { name: 'View image' }))
+
+        expect(await screen.findByText('This item is no longer available. Its workspace may have been removed.')).toBeInTheDocument()
+        expect(navigateToOrigin).not.toHaveBeenCalled()
+        expect(setPage).not.toHaveBeenCalled()
+    })
+
+    it('resolves a legacy notice through a job this client tracks', async () => {
+        trackedTasks = [{ task_id: 'job-5', operation: 'theme_song', organization: { workspace_id: OTHER_WORKSPACE_ID } } as BackgroundTaskPublic]
+        listedItems = [notification({ notification_id: 5, title: 'Old image', action_label: 'View image', metadata: { job_kind: 'image', job_id: 'job-5' } })]
+
+        render(<NotificationsPage />)
+        fireEvent.click(await screen.findByRole('button', { name: 'View image' }))
+
+        await waitFor(() => expect(navigateToOrigin).toHaveBeenCalledWith({ workspaceId: OTHER_WORKSPACE_ID, page: 'gallery-media' }))
+    })
+
+    it('explains when the origin workspace is unavailable', async () => {
+        navigateToOrigin.mockResolvedValue('unavailable')
+        listedItems = [notification({ notification_id: 6, action_label: 'View image', metadata: { job_kind: 'image', workspace_id: OTHER_WORKSPACE_ID } })]
+
+        render(<NotificationsPage />)
+        fireEvent.click(await screen.findByRole('button', { name: 'View image' }))
+
+        expect(await screen.findByText('This item is no longer available. Its workspace may have been removed.')).toBeInTheDocument()
+    })
+
+    it('keeps account notices on plain navigation', async () => {
+        listedItems = [notification({ notification_id: 7, title: 'Plan renewed', category: 'membership', action_label: 'View plan', action_url: '/#/profile' })]
+
+        render(<NotificationsPage />)
+        fireEvent.click(await screen.findByRole('button', { name: 'View plan' }))
+
+        await waitFor(() => expect(setPage).toHaveBeenCalledWith('profile', { hash: '#/profile' }))
+        expect(navigateToOrigin).not.toHaveBeenCalled()
     })
 })

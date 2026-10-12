@@ -1,5 +1,6 @@
 import type { AssistantCardDocument, AssistantCardType } from '@/shared/types/assistant.types'
 import type { AssistantAdapter } from './assistantModel'
+import { stripCardBodyOrganization } from '@/infrastructure/api/workspaceContract'
 
 /** Current-card input is optional, but when present the backend requires a saved id. */
 function normalizedCurrentCard(
@@ -18,7 +19,8 @@ function normalizedCurrentCard(
                 .map(([key, child]) => [key, clean(child)]),
         )
     }
-    const result: Record<string, unknown> = { ...(clean(card) as Record<string, unknown>), id: cardId }
+    // Organization is server-owned read metadata; model input stays content-only.
+    const result: Record<string, unknown> = { ...stripCardBodyOrganization(clean(card) as Record<string, unknown>), id: cardId }
     if (cardType !== 'adventure_template') {
         // Form payloads contain authored fields only. Revision markers must come from
         // the server's editable snapshot, never invented defaults or old form data.

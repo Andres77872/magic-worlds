@@ -8,6 +8,7 @@ import { Avatar, Button, Icon, IconButton, SectionHeader, SwitchRow, Textarea, T
 import { ReferenceRow } from '@/ui/components'
 import { VoicePickerDialog } from '../../voices/components/VoicePickerDialog'
 import { SessionLorebookPanel } from '@/features/lorebook'
+import { organizationWorkspaceId } from '@/shared/hooks/useScopedApi'
 import { cardWindow } from '@/features/floatingWindows'
 import { snapshotToCardPreview } from '@/features/codex'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
@@ -126,7 +127,7 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
 
             <ScenarioSection scenario={scenario} editable={editable} onSave={handleSaveScenario} />
 
-            {lorebooksEnabled && !adventure.draft && <SessionLorebookPanel targetKind="adventure_session" targetId={adventure.id} framed={false} />}
+            {lorebooksEnabled && !adventure.draft && <SessionLorebookPanel targetKind="adventure_session" targetId={adventure.id} framed={false} workspaceId={organizationWorkspaceId(adventure)} />}
 
             <section className="flex flex-col gap-2.5">
                 <SectionHeader

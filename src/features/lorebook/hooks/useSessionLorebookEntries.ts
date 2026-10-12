@@ -8,12 +8,17 @@
  * the live book from the global `useData()` cache, fetching on demand for any linked
  * book the cache hasn't loaded yet. The matcher is memoized so `ChatMessage`'s `memo`
  * still skips re-renders.
+ *
+ * Workspace R1: reads use the session's workspace (`workspaceId`, when the host knows
+ * it) or the committed one. The `useData()` cache is consulted only when it is that
+ * workspace's; a committed switch drops the previous scope's attachments and books.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useData } from '@/app/hooks'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { Lorebook, LorebookAttachment, LorebookTargetKind } from '@/shared'
 import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import { normalizeLorebook, normalizeLorebookAttachment } from '../lorebookTransforms'
 import { lorebookResourceActivationEntries } from '../lorebookResources'
 import { buildTriggerMatcher, type SessionLoreEntry, type TriggerMatcher } from '../loreTriggers'
@@ -26,23 +31,40 @@ export interface UseSessionLorebookEntriesResult {
     matcher: TriggerMatcher | null
 }
 
+const NO_LOREBOOKS: Lorebook[] = []
+
 export function useSessionLorebookEntries(
     targetKind: SessionLorebookTargetKind,
     targetId: string,
+    workspaceId?: string | null,
 ): UseSessionLorebookEntriesResult {
-    const { lorebooks } = useData()
+    const data = useData()
+    const api = useScopedApi(workspaceId)
+    const { selectedWorkspaceId } = useWorkspace()
+    const lorebooks = !workspaceId || workspaceId === selectedWorkspaceId ? data.lorebooks : NO_LOREBOOKS
     const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
     const [attachments, setAttachments] = useState<LorebookAttachment[]>([])
     const [fetched, setFetched] = useState<Record<string, Lorebook>>({})
     const attemptedRef = useRef<Set<string>>(new Set())
     const normalizedTargetId = targetId.trim()
 
+    // Another client (a committed switch, or the host's session workspace) is another
+    // scope: nothing loaded for the previous one carries over.
+    const [loadedWith, setLoadedWith] = useState(api)
+    if (loadedWith !== api) {
+        setLoadedWith(api)
+        setAttachments([])
+        setFetched({})
+    }
+
     useEffect(() => {
-        // No session id yet → nothing to load; `attachments` stays at its empty initial
-        // value (a session's id is stable for the panel's lifetime, so it never needs reset).
-        if (!normalizedTargetId) return
+        // No session id or workspace yet → nothing to load; `attachments` stays empty
+        // (a session's id is stable for the panel's lifetime).
+        if (!normalizedTargetId || !api) return
+        // A new scope may resolve linked books the previous one could not.
+        attemptedRef.current = new Set()
         let mounted = true
-        void apiService
+        void api
             .listLorebookAttachments(targetKind, normalizedTargetId)
             .then((rows) => {
                 if (mounted) setAttachments(rows.map(normalizeLorebookAttachment))
@@ -53,12 +75,13 @@ export function useSessionLorebookEntries(
         return () => {
             mounted = false
         }
-    }, [normalizedTargetId, targetKind])
+    }, [api, normalizedTargetId, targetKind])
 
     const lorebookById = useMemo(() => new Map(lorebooks.map((book) => [book.id, book])), [lorebooks])
 
     // Fetch any linked book the global cache hasn't loaded. Snapshots are self-contained.
     useEffect(() => {
+        if (!api) return
         const missing = attachments
             .filter(
                 (a) =>
@@ -73,7 +96,7 @@ export function useSessionLorebookEntries(
         let mounted = true
         void Promise.all(
             unique.map((id) =>
-                apiService
+                api
                     .getLorebook(id)
                     .then((book) => [id, normalizeLorebook(book)] as const)
                     .catch(() => null),
@@ -87,7 +110,7 @@ export function useSessionLorebookEntries(
         return () => {
             mounted = false
         }
-    }, [attachments, lorebookById])
+    }, [api, attachments, lorebookById])
 
     const entries = useMemo<SessionLoreEntry[]>(() => {
         const flat: SessionLoreEntry[] = []

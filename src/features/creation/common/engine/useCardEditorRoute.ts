@@ -10,11 +10,14 @@
  *
  * Normal in-app navigation (gallery click) already sets the editing entity before the creator
  * mounts, so this hook no-ops there — it's purely the refresh/deep-link safety net.
+ *
+ * Workspace R1: the card is read in the committed workspace (the URL's workspace was validated
+ * and committed before the route rendered); a result that lands after a switch is ignored.
  */
 
 import { useEffect, useRef, useState } from 'react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { transformCharacters, transformItems, transformWorlds } from '@/utils/cardTransforms'
 import type { CardEditType, CardEditVersion } from '@/features/gallery/galleryLinks'
 import type { PageType } from '@/shared'
@@ -48,6 +51,7 @@ export function useCardEditorRoute(
 ): UseCardEditorRouteResult {
     const { cardEdit, setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
+    const { api, capture, isCurrent } = useWorkspace()
     const data = useData()
     const [bootstrapping, setBootstrapping] = useState(false)
     // One active attempt per (type, auth, card id); cancelled effects must be able to retry.
@@ -69,7 +73,7 @@ export function useCardEditorRoute(
             setBootstrapping(false)
             return
         }
-        const key = `${cardType}:${isAuthenticated}:${routeId}`
+        const key = `${cardType}:${isAuthenticated}:${routeId}:${api?.workspaceScope?.workspaceId ?? ''}`
         // Already editing the right card (gallery click, create→edit) — nothing to bootstrap.
         if (editing && editing.id === routeId) {
             attemptedFor.current = key
@@ -85,38 +89,46 @@ export function useCardEditorRoute(
             openLoginModal()
             return
         }
+        // Private read: wait for the workspace handshake (the effect re-runs once it lands).
+        if (!api) {
+            attemptedFor.current = null
+            setBootstrapping(true)
+            return
+        }
 
         let cancelled = false
+        const scope = capture()
+        const stale = () => cancelled || !isCurrent(scope)
         setBootstrapping(true)
         void (async () => {
             try {
                 if (cardType === 'character') {
-                    const raw = await apiService.getCharacter(routeId)
+                    const raw = await api.getCharacter(routeId)
                     const card = transformCharacters([raw])[0]
-                    if (cancelled) return
+                    if (stale()) return
                     if (!card?.id) throw new Error('not-found')
                     data.setEditingCharacter(card)
                     onCardLoadedRef.current?.(raw)
                 } else if (cardType === 'world') {
-                    const raw = await apiService.getWorld(routeId)
+                    const raw = await api.getWorld(routeId)
                     const card = transformWorlds([raw])[0]
-                    if (cancelled) return
+                    if (stale()) return
                     if (!card?.id) throw new Error('not-found')
                     data.setEditingWorld(card)
                     onCardLoadedRef.current?.(raw)
                 } else {
-                    const raw = await apiService.getItem(routeId)
+                    const raw = await api.getItem(routeId)
                     const card = transformItems([raw])[0]
-                    if (cancelled) return
+                    if (stale()) return
                     if (!card?.id) throw new Error('not-found')
                     data.setEditingItem(card)
                     onCardLoadedRef.current?.(raw)
                 }
             } catch {
                 // Card deleted / not owned / unreachable → bounce to the gallery (the useful fallback).
-                if (!cancelled) setPage(GALLERY_PAGE[cardType])
+                if (!stale()) setPage(GALLERY_PAGE[cardType])
             } finally {
-                if (!cancelled) setBootstrapping(false)
+                if (!stale()) setBootstrapping(false)
             }
         })()
         return () => {
@@ -127,7 +139,7 @@ export function useCardEditorRoute(
         }
         // `data` setters are stable; depend on the inputs that change the decision.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [routeId, editing, isAuthenticated, cardType, setPage, openLoginModal])
+    }, [routeId, editing, isAuthenticated, api, cardType, setPage, openLoginModal])
 
     return { bootstrapping, version, routeCardId: routeId ?? editing?.id ?? null }
 }

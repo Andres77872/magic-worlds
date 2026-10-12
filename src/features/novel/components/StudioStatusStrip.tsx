@@ -6,6 +6,10 @@
  *
  * No AI review affordance here. Those controls belong on the generated passage
  * itself, in the document — see aiActionRow.
+ *
+ * `readOnly` (the story's workspace is archived): the counter stays a readout
+ * but no longer sets a goal, Retry is disabled, and the writing shortcuts —
+ * which would only be refused — are not advertised.
  */
 
 import { useTranslation } from 'react-i18next'
@@ -35,6 +39,8 @@ export interface StudioStatusStripProps {
     saveState: NovelSaveState
     lastSavedAt: Date | null
     onRetrySave: () => void
+    /** The story's workspace is archived: nothing here writes. */
+    readOnly?: boolean
 }
 
 export function StudioStatusStrip({
@@ -44,6 +50,7 @@ export function StudioStatusStrip({
     saveState,
     lastSavedAt,
     onRetrySave,
+    readOnly = false,
 }: StudioStatusStripProps) {
     const { t } = useTranslation()
 
@@ -55,7 +62,7 @@ export function StudioStatusStrip({
             <div className="flex min-w-0 items-center gap-2.5">
                 {/* The counter IS the goal control — one readout, and clicking it
                     is how a goal gets set. */}
-                <WordGoalControl words={words} goal={goal} onSetGoal={onSetGoal} />
+                <WordGoalControl words={words} goal={goal} onSetGoal={onSetGoal} readOnly={readOnly} />
                 <Divider />
                 <span className="flex min-w-0 items-center gap-1.5" data-testid="novel-save-state">
                     <span className={cx('h-[5px] w-[5px] shrink-0 rounded-full', DOT[saveState])} aria-hidden="true" />
@@ -69,23 +76,26 @@ export function StudioStatusStrip({
                         size="sm"
                         iconLeft={<Icon icon={RotateCcw} size={14} />}
                         onClick={onRetrySave}
+                        disabled={readOnly}
                     >
                         {t('novelEditor.save.retry')}
                     </Button>
                 )}
             </div>
 
-            <div className="hidden shrink-0 items-center gap-2.5 font-ui text-[11px] text-parchment-500 sm:flex">
-                <span className="flex items-center gap-1.5">
-                    <kbd className="font-mono text-parchment-300">/</kbd>
-                    {t('novelEditor.slash.label')}
-                </span>
-                <Divider />
-                <span className="flex items-center gap-1.5">
-                    <kbd className="font-mono text-parchment-300">{BEAT_KEY}</kbd>
-                    {t('novelEditor.beat.title')}
-                </span>
-            </div>
+            {!readOnly && (
+                <div className="hidden shrink-0 items-center gap-2.5 font-ui text-[11px] text-parchment-500 sm:flex">
+                    <span className="flex items-center gap-1.5">
+                        <kbd className="font-mono text-parchment-300">/</kbd>
+                        {t('novelEditor.slash.label')}
+                    </span>
+                    <Divider />
+                    <span className="flex items-center gap-1.5">
+                        <kbd className="font-mono text-parchment-300">{BEAT_KEY}</kbd>
+                        {t('novelEditor.beat.title')}
+                    </span>
+                </div>
+            )}
         </div>
     )
 }

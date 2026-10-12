@@ -7,6 +7,7 @@ import type { CardActor, CardVisibility } from './cardSharing.types'
 import type { ChatImageAsset, ChatImageError, ChatResponseSegment, ChatTtsAsset, ChatTtsError, ChatTtsSegmentClip, ImageLifecycleStatus, TtsLifecycleStatus } from './interaction.types'
 import type { CharacterVoice } from './voicePreset.types'
 import type { World } from './world.types'
+import type { CardOrganization, RootOrganization } from './workspace.types'
 
 export interface Adventure {
     id: string
@@ -41,6 +42,11 @@ export interface Adventure {
      * truth for in-session card edits.
      */
     snapshot?: AdventureSnapshot
+    /**
+     * Workspace R1 (server-owned; never written back): a template card carries its
+     * card organization, a started session its owning workspace.
+     */
+    organization?: CardOrganization | RootOrganization
     createdAt?: string
     updatedAt?: string
     status?: AdventureStatus

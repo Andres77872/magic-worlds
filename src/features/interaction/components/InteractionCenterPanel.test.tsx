@@ -4,6 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatSpeakerRosterEntry, TurnEntry } from '../../../shared'
 import type { ChatSessionConfig } from '../chatSessionConfig'
 import { apiService } from '../../../infrastructure/api'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    testWorkspace,
+    WorkspaceTestProvider,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { InteractionCenterPanel } from './InteractionCenterPanel'
 
 vi.mock('../../../infrastructure/api/useAuthenticatedMediaUrl', () => ({
@@ -42,6 +50,8 @@ function makeConfig(overrides: Partial<ChatSessionConfig> = {}): ChatSessionConf
     return {
         kind: 'adventure',
         basePath: 'adventure-sessions',
+        workspaceId: TEST_WORKSPACE_ID,
+        api: apiService,
         loadTurns: vi.fn(async () => []),
         updateMessage: vi.fn(async () => initialTurns),
         deleteMessage: vi.fn(async (_sessionId, messageId) => initialTurns.filter((turn) => turn.id !== String(messageId))),
@@ -65,6 +75,8 @@ function makeConfig(overrides: Partial<ChatSessionConfig> = {}): ChatSessionConf
     }
 }
 
+let workspace: WorkspaceTestState
+
 function renderPanel(config: ChatSessionConfig, seed: TurnEntry[] = initialTurns, sessionId = 7, speakerRoster?: ChatSpeakerRosterEntry[], observe?: (turns: TurnEntry[]) => void, ensureSession?: () => Promise<number>) {
     function Harness() {
         const [turns, setTurns] = useState<TurnEntry[]>(seed)
@@ -72,13 +84,19 @@ function renderPanel(config: ChatSessionConfig, seed: TurnEntry[] = initialTurns
         return <InteractionCenterPanel sessionId={sessionId} ensureSession={ensureSession} turns={turns} setTurns={setTurns} config={config} speakerRoster={speakerRoster} />
     }
 
-    return render(<Harness />)
+    const view = render(<WorkspaceTestProvider state={workspace}><Harness /></WorkspaceTestProvider>)
+    return {
+        ...view,
+        /** Re-render after `workspace.switchTo(...)`. */
+        rerenderWorkspace: () => view.rerender(<WorkspaceTestProvider state={workspace}><Harness /></WorkspaceTestProvider>),
+    }
 }
 
 describe('InteractionCenterPanel message deletion', () => {
     beforeEach(() => {
         localStorage.clear()
         vi.restoreAllMocks()
+        workspace = createWorkspaceTestState({ api: apiService })
         hookMocks.pageFocused = true
         // The session-lore hook lists attachments on mount; keep it empty + offline-safe.
         vi.spyOn(apiService, 'listLorebookAttachments').mockResolvedValue([])
@@ -110,7 +128,7 @@ describe('InteractionCenterPanel message deletion', () => {
         const ensureSession = vi.fn(async () => 19)
         const config = makeConfig()
         renderPanel(config, [], Number.NaN, undefined, undefined, ensureSession)
-        expect(hookMocks.useAdventureChatSocket).toHaveBeenLastCalledWith(null, expect.any(Object), 'token', 'adventure-sessions', undefined)
+        expect(hookMocks.useAdventureChatSocket).toHaveBeenLastCalledWith(null, expect.any(Object), 'token', 'adventure-sessions', undefined, TEST_WORKSPACE_ID)
         fireEvent.change(screen.getByPlaceholderText('What next?'), { target: { value: '  ' } })
         fireEvent.click(screen.getByLabelText('Send message'))
         expect(ensureSession).not.toHaveBeenCalled()
@@ -129,7 +147,7 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(ensureSession).toHaveBeenCalledTimes(1)
         expect(sendChat).not.toHaveBeenCalled()
         await act(async () => { finish(19) })
-        expect(hookMocks.useAdventureChatSocket).toHaveBeenLastCalledWith(19, expect.any(Object), 'token', 'adventure-sessions', undefined)
+        expect(hookMocks.useAdventureChatSocket).toHaveBeenLastCalledWith(19, expect.any(Object), 'token', 'adventure-sessions', undefined, TEST_WORKSPACE_ID)
         expect(sendChat).toHaveBeenCalledExactlyOnceWith('Hello Lyra', expect.any(String))
         expect(screen.getByText('Hello Lyra')).toBeInTheDocument()
     })
@@ -1100,6 +1118,68 @@ describe('InteractionCenterPanel message deletion', () => {
             expect(notice).toHaveTextContent('You stopped this reply')
             expect(screen.queryByText('The door creaks')).toBeNull()
             expect(screen.queryByRole('alert')).toBeNull()
+        })
+    })
+
+    describe('Workspace R1', () => {
+        function captureHandlers(sendChat = vi.fn()) {
+            const ref: { current: import('../hooks/useAdventureChatSocket').AdventureChatHandlers } = { current: {} }
+            hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: typeof ref.current) => {
+                ref.current = h
+                return { status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() }
+            })
+            return ref
+        }
+
+        it('turns an archived workspace into a read-only notice instead of a failure with retry', async () => {
+            const sendChat = vi.fn()
+            const handlers = captureHandlers(sendChat)
+            renderPanel(makeConfig())
+            fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Open the gate' } })
+            fireEvent.click(screen.getByLabelText('Send message'))
+            await waitFor(() => expect(sendChat).toHaveBeenCalledOnce())
+
+            act(() => handlers.current.onError?.('Workspace archived.', { category: 'conflict', code: 'WORKSPACE_ARCHIVED', requestId: sendChat.mock.calls[0][1] }))
+
+            const notice = await screen.findByTestId('chat-read-only')
+            expect(notice).toHaveTextContent('This workspace is archived. Restore it to continue the conversation.')
+            expect(screen.queryByLabelText('Message')).toBeNull()
+            expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+            expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+            expect(screen.queryByRole('alert')).toBeNull()
+            expect(screen.queryByLabelText('Regenerate')).toBeNull()
+        })
+
+        it('explains a conversation the server no longer finds in this workspace', async () => {
+            const handlers = captureHandlers()
+            renderPanel(makeConfig())
+            act(() => handlers.current.onError?.('This conversation is not available in this workspace.', { category: 'not_found', code: 'CHAT_SESSION_NOT_FOUND' }))
+
+            expect(await screen.findByTestId('chat-read-only')).toHaveTextContent('This conversation is not available in this workspace.')
+            expect(screen.queryByText(/reconnecting/i)).toBeNull()
+        })
+
+        it('opens a session of an archived workspace read-only', () => {
+            workspace = createWorkspaceTestState({
+                api: apiService,
+                workspaces: [
+                    testWorkspace(TEST_WORKSPACE_ID, 'Main library'),
+                    testWorkspace(OTHER_WORKSPACE_ID, 'Novel A', { archived_at: '2026-10-02T00:00:00Z' }),
+                ],
+            })
+            renderPanel(makeConfig({ workspaceId: OTHER_WORKSPACE_ID }))
+
+            expect(screen.getByTestId('chat-read-only')).toHaveTextContent('This workspace is archived.')
+        })
+
+        it('passes the session workspace to the socket and keeps it after a switch', () => {
+            const view = renderPanel(makeConfig())
+            expect(hookMocks.useAdventureChatSocket).toHaveBeenLastCalledWith(7, expect.any(Object), 'token', 'adventure-sessions', undefined, TEST_WORKSPACE_ID)
+
+            workspace.switchTo(OTHER_WORKSPACE_ID)
+            view.rerenderWorkspace()
+            // The hook closes it because the session's workspace is no longer selected; it never moves.
+            expect(hookMocks.useAdventureChatSocket).toHaveBeenLastCalledWith(7, expect.any(Object), 'token', 'adventure-sessions', undefined, TEST_WORKSPACE_ID)
         })
     })
 })

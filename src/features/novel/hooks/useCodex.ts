@@ -3,12 +3,18 @@
  * from story-level card refs (chapterId null). Cards are cloned server-side
  * on add; lorebook entries are cloned client-side (the backend cannot resolve
  * entry ids). Edits touch only the novel's copy, never the source card.
+ *
+ * Workspace R1: ops start only while the story's workspace is the committed
+ * one; the story refetch they trigger is DataProvider's (owner-guarded) state.
+ * While that workspace is archived the codex is read-only (`readOnly`): the
+ * entries stay readable and mentionable, and no op is ever sent.
  */
 
 import { useCallback, useMemo, useState } from 'react'
 import { useData } from '@/app/hooks'
 import type { SessionLoreEntry } from '@/features/lorebook/loreTriggers'
 import type { Lorebook, Story, StoryCardKind, StoryCardRef, StoryCardSnapshot } from '@/shared'
+import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import {
     KIND_META,
     clonedEntryIds,
@@ -17,6 +23,7 @@ import {
     snapshotDescription,
     snapshotLabel,
 } from '../utils/codexUtils'
+import type { StoryWorkspace } from './useStoryWorkspace'
 
 /** Kinds whose names are highlighted inline in the manuscript (ember). */
 const DETECTABLE_NAME_KINDS = new Set<StoryCardKind>(['character', 'world', 'item', 'adventure_template'])
@@ -64,22 +71,35 @@ export interface CodexApi {
     /** Cloned lorebook entries as session lore, for inline trigger detection (arcane). */
     loreEntries: SessionLoreEntry[]
     busy: boolean
+    /** The story's workspace is archived: every op above is a no-op until it is restored. */
+    readOnly: boolean
 }
 
-export function useCodex({ story }: { story: Story | null }): CodexApi {
+interface CodexOptions {
+    story: Story | null
+    /** The open story's workspace (captured when the story was opened). */
+    workspace: StoryWorkspace
+}
+
+export function useCodex({ story, workspace }: CodexOptions): CodexApi {
     const { addStoryCardRefs, updateStoryCardRef, deleteStoryCardRef } = useData()
     const [pendingOps, setPendingOps] = useState(0)
+    const storyId = story?.id ?? null
+    const readOnly = useWorkspaceReadOnly(workspace.workspaceId)
 
-    const track = useCallback(async <T,>(operation: Promise<T>): Promise<T> => {
+    // An op starts only while the story's workspace is committed (DataProvider
+    // writes target the committed workspace) and not archived. The busy count is
+    // this component's own bookkeeping, so a late completion still balances it.
+    const track = useCallback(async <T,>(start: () => Promise<T>): Promise<T | undefined> => {
+        if (readOnly || !workspace.isCurrent()) return undefined
         setPendingOps((count) => count + 1)
         try {
-            return await operation
+            return await start()
         } finally {
             setPendingOps((count) => count - 1)
         }
-    }, [])
+    }, [readOnly, workspace])
 
-    const storyId = story?.id ?? null
     const refs = useMemo(
         () =>
             (story?.activeCardRefs ?? [])
@@ -132,7 +152,7 @@ export function useCodex({ story }: { story: Story | null }): CodexApi {
                 precedence: precedence++,
                 chapterId: null,
             }))
-            await track(addStoryCardRefs(storyId, payloads))
+            await track(() => addStoryCardRefs(storyId, payloads))
         },
         [addStoryCardRefs, nextPrecedence, storyId, track],
     )
@@ -151,7 +171,7 @@ export function useCodex({ story }: { story: Story | null }): CodexApi {
                 chapterId: null,
                 snapshot: lorebookEntrySnapshot(lorebook, entry),
             }))
-            await track(addStoryCardRefs(storyId, payloads))
+            await track(() => addStoryCardRefs(storyId, payloads))
         },
         [addStoryCardRefs, nextPrecedence, storyId, track],
     )
@@ -159,7 +179,7 @@ export function useCodex({ story }: { story: Story | null }): CodexApi {
     const toggleEntry = useCallback(
         async (entry: CodexEntry) => {
             if (!storyId) return
-            await track(updateStoryCardRef(storyId, entry.id, { enabled: !entry.enabled }))
+            await track(() => updateStoryCardRef(storyId, entry.id, { enabled: !entry.enabled }))
         },
         [storyId, track, updateStoryCardRef],
     )
@@ -173,7 +193,7 @@ export function useCodex({ story }: { story: Story | null }): CodexApi {
                 name: patch.label,
                 description: patch.description,
             }
-            await track(updateStoryCardRef(storyId, entry.id, { snapshot }))
+            await track(() => updateStoryCardRef(storyId, entry.id, { snapshot }))
         },
         [storyId, track, updateStoryCardRef],
     )
@@ -181,7 +201,7 @@ export function useCodex({ story }: { story: Story | null }): CodexApi {
     const removeEntry = useCallback(
         async (entry: CodexEntry) => {
             if (!storyId) return
-            await track(deleteStoryCardRef(storyId, entry.id))
+            await track(() => deleteStoryCardRef(storyId, entry.id))
         },
         [deleteStoryCardRef, storyId, track],
     )
@@ -234,5 +254,6 @@ export function useCodex({ story }: { story: Story | null }): CodexApi {
         detectionNames,
         loreEntries,
         busy: pendingOps > 0,
+        readOnly,
     }
 }

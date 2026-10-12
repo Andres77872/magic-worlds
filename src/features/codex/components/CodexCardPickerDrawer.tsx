@@ -1,18 +1,25 @@
 /**
  * Shared multi-select card browser for Codex shelves. Adding sends only
  * kind+cardId; each backend clones the snapshot into its own scope.
+ *
+ * Workspace R1: browses one workspace's library (`workspaceId` — the story's
+ * or chat's own; default the committed workspace) by kind, search and
+ * collection, with complete paging. Nothing is imported until "Add selected".
+ * A committed workspace switch clears the selection and filters and closes it.
+ * While that workspace is archived (or the host says `readOnly`) the library
+ * stays browsable, but nothing can be selected or added.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Search } from 'lucide-react'
+import { Archive, Loader2, Search } from 'lucide-react'
 import type { CardMediaTargetType } from '@/shared'
-import { useCardPickerOptions } from '@/features/gallery/media/hooks/useCardPickerOptions'
-import { AuthenticatedImage, Button, Chip, Drawer, Icon, SelectionCheck, Tag, cx } from '@/ui/primitives'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY, useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
+import { AuthenticatedImage, Button, Callout, Chip, Drawer, Icon, Select, SelectionCheck, Tag, cx, type SelectOption } from '@/ui/primitives'
 import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card'
+import { useCodexCardBrowser } from '../hooks/useCodexCardBrowser'
+import { useWorkspaceSwitch } from '../hooks/useWorkspaceSwitch'
 import { CODEX_LIBRARY_KINDS, KIND_ICONS, KIND_META, type CodexLibraryCardKind, type CodexLibraryCardSelection } from '../utils/codexUtils'
-
-const PICKER_LIMIT = 24
 
 interface PickerCopyKeys {
     eyebrow?: string
@@ -28,7 +35,14 @@ interface PickerCopyKeys {
 
 interface CodexCardPickerDrawerProps {
     open: boolean
+    /** The host's workspace (the story's / session's own); default the committed workspace. */
+    workspaceId?: string | null
     busy: boolean
+    /**
+     * Block adding (browsing still works). The picker is already read-only on
+     * its own while `workspaceId` (default: the committed one) is archived.
+     */
+    readOnly?: boolean
     existingCardKeys: Set<string>
     /** Seeds the search field each time the drawer opens (e.g. an "Add to codex" selection). */
     initialQuery?: string
@@ -49,13 +63,25 @@ const DEFAULT_COPY_KEYS: Required<PickerCopyKeys> = {
     adding: 'novelEditor.cardPicker.adding',
 }
 
-export function CodexCardPickerDrawer({ open, busy, existingCardKeys, initialQuery, onClose, onAdd, copyKeys }: CodexCardPickerDrawerProps) {
+export function CodexCardPickerDrawer({ open, workspaceId, busy, readOnly: hostReadOnly = false, existingCardKeys, initialQuery, onClose, onAdd, copyKeys }: CodexCardPickerDrawerProps) {
     const { t } = useTranslation()
     const keys = { ...DEFAULT_COPY_KEYS, ...copyKeys }
+    const archived = useWorkspaceReadOnly(workspaceId)
+    const readOnly = hostReadOnly || archived
     const [kind, setKind] = useState<CodexLibraryCardKind>('character')
     const [query, setQuery] = useState('')
+    const [collectionId, setCollectionId] = useState('')
     const [selected, setSelected] = useState<Map<string, CodexLibraryCardSelection>>(new Map())
-    const { options, loading } = useCardPickerOptions(kind, query, open, PICKER_LIMIT)
+    const browser = useCodexCardBrowser({ workspaceId, kind, query, collectionId, enabled: open })
+    const { options, loading } = browser
+
+    const collectionOptions = useMemo<SelectOption[]>(
+        () => [
+            { value: '', label: t('workspaceContent.codex.allCards') },
+            ...browser.collections.map((collection) => ({ value: collection.id, label: collection.name })),
+        ],
+        [browser.collections, t],
+    )
 
     // Seed the search whenever the drawer (re)opens — e.g. from an "Add to codex"
     // selection in the editor.
@@ -63,11 +89,23 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, initialQue
         if (open) setQuery(initialQuery ?? '')
     }, [open, initialQuery])
 
-    const close = () => {
+    const reset = () => {
         setSelected(new Map())
         setQuery('')
+        setCollectionId('')
+    }
+
+    const close = () => {
+        reset()
         onClose()
     }
+
+    // Selections and filters name the previous workspace's cards and collections.
+    useWorkspaceSwitch(() => {
+        reset()
+        setKind('character')
+        if (open) onClose()
+    })
 
     const toggle = (optionKind: CardMediaTargetType, cardId: string) => {
         const key = `${optionKind}:${cardId}`
@@ -80,6 +118,8 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, initialQue
     }
 
     const submit = async () => {
+        // Disabled while read-only; an archived workspace would reject the add.
+        if (readOnly) return
         await onAdd(Array.from(selected.values()))
         close()
     }
@@ -99,7 +139,7 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, initialQue
                     <Button
                         variant="primary"
                         onClick={() => void submit()}
-                        disabled={busy || selected.size === 0}
+                        disabled={busy || readOnly || selected.size === 0}
                         data-testid="codex-add-cards-submit"
                     >
                         {busy
@@ -112,6 +152,11 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, initialQue
             }
         >
             <div className="flex flex-col gap-3">
+                {readOnly && (
+                    <Callout tone="warning" role="status" icon={<Icon icon={Archive} size={16} />} data-testid="codex-card-picker-archived">
+                        {t(ARCHIVED_WORKSPACE_MESSAGE_KEY)}
+                    </Callout>
+                )}
                 <p className="m-0 font-ui text-xs text-parchment-400">
                     {t(keys.hint)}
                 </p>
@@ -132,21 +177,39 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, initialQue
                         )
                     })}
                 </div>
-                <div className="relative flex items-center">
-                    <span className="pointer-events-none absolute left-3 text-parchment-400">
-                        <Icon icon={Search} size={15} />
-                    </span>
-                    <input
-                        type="search"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder={t(keys.searchPlaceholder)}
-                        aria-label={t(keys.searchPlaceholder)}
-                        className="w-full rounded-md border border-parchment-50/10 bg-ink-800 py-2 pl-9 pr-9 font-ui text-sm text-parchment-50 placeholder:text-parchment-500 focus:border-ember-500 focus:outline-none"
-                        data-testid="codex-card-search"
-                    />
-                    {loading && <Loader2 size={15} className="absolute right-3 animate-spin text-ember-500" aria-hidden="true" />}
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="relative flex flex-1 items-center">
+                        <span className="pointer-events-none absolute left-3 text-parchment-400">
+                            <Icon icon={Search} size={15} />
+                        </span>
+                        <input
+                            type="search"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder={t(keys.searchPlaceholder)}
+                            aria-label={t(keys.searchPlaceholder)}
+                            className="w-full rounded-md border border-parchment-50/10 bg-ink-800 py-2 pl-9 pr-9 font-ui text-sm text-parchment-50 placeholder:text-parchment-500 focus:border-ember-500 focus:outline-none"
+                            data-testid="codex-card-search"
+                        />
+                        {loading && <Loader2 size={15} className="absolute right-3 animate-spin text-ember-500" aria-hidden="true" />}
+                    </div>
+                    {browser.collections.length > 0 && (
+                        <div className="sm:w-52">
+                            <Select
+                                size="sm"
+                                options={collectionOptions}
+                                value={collectionId}
+                                onChange={setCollectionId}
+                                aria-label={t('workspaceContent.codex.collectionLabel')}
+                            />
+                        </div>
+                    )}
                 </div>
+                {browser.error && (
+                    <Callout tone="danger" role="alert">
+                        {browser.error}
+                    </Callout>
+                )}
                 <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
                     {options.map((option) => {
                         const key = `${option.type}:${option.id}`
@@ -156,14 +219,16 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, initialQue
                             <li key={key}>
                                 <button
                                     type="button"
-                                    onClick={() => !inCodex && toggle(option.type, option.id)}
-                                    disabled={inCodex}
+                                    onClick={() => !inCodex && !readOnly && toggle(option.type, option.id)}
+                                    disabled={inCodex || readOnly}
                                     aria-pressed={isSelected}
                                     className={cx(
                                         'flex w-full items-center gap-2.5 rounded-md border px-2.5 py-2 text-left transition-colors',
                                         inCodex
                                             ? 'cursor-default border-parchment-50/[.06] opacity-55'
-                                            : isSelected
+                                            : readOnly
+                                              ? 'cursor-default border-parchment-50/10'
+                                              : isSelected
                                               ? `cursor-pointer ${SELECTED_CARD_CLASS}`
                                               : 'cursor-pointer border-parchment-50/10 hover:border-parchment-50/25 hover:bg-parchment-50/[.04]',
                                     )}
@@ -186,10 +251,27 @@ export function CodexCardPickerDrawer({ open, busy, existingCardKeys, initialQue
                             </li>
                         )
                     })}
-                    {options.length === 0 && !loading && (
+                    {options.length === 0 && !loading && !browser.error && (
                         <li className="px-2 py-4 text-center font-ui text-xs text-parchment-500">{t(keys.noMatches)}</li>
                     )}
                 </ul>
+                {browser.hasMore && !loading && (
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="font-ui text-xs text-parchment-400">
+                            {t('workspaceContent.codex.showing', { shown: options.length, total: browser.total })}
+                        </span>
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={browser.loadMore}
+                            disabled={browser.loadingMore}
+                            iconLeft={browser.loadingMore ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : undefined}
+                            data-testid="codex-card-load-more"
+                        >
+                            {t('workspaceContent.codex.loadMore')}
+                        </Button>
+                    </div>
+                )}
             </div>
         </Drawer>
     )

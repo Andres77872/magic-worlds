@@ -1,4 +1,5 @@
 import type { ThemeSongJobPublic, ThemeSongListResponse, UserThemeSongListResponse } from '@/shared'
+import { hasValidOptionalOrganization } from './workspaceContract'
 
 type RecordValue = Record<string, unknown>
 const record = (value: unknown): value is RecordValue => !!value && typeof value === 'object' && !Array.isArray(value)
@@ -49,7 +50,8 @@ function error(value: unknown): boolean {
 
 export function verifyThemeSongJob(value: unknown): value is ThemeSongJobPublic {
     return record(value) && fields(value, ['job_id', 'target', 'operation', 'status', 'model_alias',
-        'status_url', 'result_url', 'assets', 'created_at', 'updated_at'], ['instrumental', 'lyrics', 'error'])
+        'status_url', 'result_url', 'assets', 'created_at', 'updated_at'], ['instrumental', 'lyrics', 'error', 'organization'])
+        && hasValidOptionalOrganization(value, 'root')
         && id(value.job_id) && target(value.target) && value.operation === 'theme_song'
         && statuses.includes(value.status as string) && ['ace_step', 'minimax_music_3'].includes(value.model_alias as string)
         && (value.instrumental === undefined || typeof value.instrumental === 'boolean')

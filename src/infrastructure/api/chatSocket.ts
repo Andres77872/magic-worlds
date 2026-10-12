@@ -14,6 +14,7 @@ import type { ChatSocketServerMessage } from '../../shared/types/interaction.typ
 import { API_BASE_URL } from './baseUrl'
 import { authSession, type AuthSessionSnapshot } from './authSession'
 import { generateUUID } from '@/utils/uuid'
+import { isWorkspaceUuid } from './workspaceContract'
 
 const WS_BEARER_SUBPROTOCOL = 'mw.bearer.v1'
 const HEARTBEAT_MS = 25_000
@@ -85,6 +86,7 @@ export interface ChatSocketHandlers {
 export class ChatSocket {
     private ws: WebSocket | null = null
     private readonly sessionId: number
+    private readonly workspaceId: string
     private readonly handlers: ChatSocketHandlers
     // API path segment for the session kind: 'adventure-sessions' or 'character-chats'.
     // Both serve the identical frame protocol, so only the URL differs.
@@ -105,8 +107,16 @@ export class ChatSocket {
     private sentChat = false
     private sentRequestId: string | undefined
 
-    constructor(sessionId: number, handlers: ChatSocketHandlers, basePath: string = 'adventure-sessions') {
+    /**
+     * `workspaceId` is the caller's captured workspace (Workspace R1): browsers
+     * cannot set WebSocket headers, so it rides the `workspace_id` query while
+     * the bearer token keeps riding the subprotocol. It never changes for the
+     * life of the socket; a workspace switch opens a new socket.
+     */
+    constructor(sessionId: number, workspaceId: string, handlers: ChatSocketHandlers, basePath: string = 'adventure-sessions') {
+        if (!isWorkspaceUuid(workspaceId)) throw new Error('A chat socket needs a lowercase workspace UUID.')
         this.sessionId = sessionId
+        this.workspaceId = workspaceId
         this.handlers = handlers
         this.basePath = basePath
     }
@@ -122,7 +132,7 @@ export class ChatSocket {
         this.socketOwner = authSession.getSnapshot()
 
         this.setStatus('connecting')
-        const url = `${toWsUrl(API_BASE_URL)}/${this.basePath}/${this.sessionId}/ws`
+        const url = `${toWsUrl(API_BASE_URL)}/${this.basePath}/${this.sessionId}/ws?workspace_id=${encodeURIComponent(this.workspaceId)}`
         let ws: WebSocket
         try {
             ws = new WebSocket(url, [WS_BEARER_SUBPROTOCOL, token])
@@ -209,6 +219,21 @@ export class ChatSocket {
                     message: 'This chat connection was rejected by the server. Please reload; if the problem persists, contact support.',
                     category: 'forbidden',
                 })
+                return
+            }
+
+            // Workspace R1 handshake rejections: the session is missing or belongs to
+            // another workspace (4404), or no workspace was named (4422, a stale
+            // build). Reconnecting cannot succeed, so report once and stay closed.
+            if (event.code === 4404 || event.code === 4422) {
+                this.clearPendingChat()
+                if (event.code === 4422 && typeof window !== 'undefined') {
+                    // Same signal as an HTTP WORKSPACE_REQUIRED (WORKSPACE_REQUIRED_EVENT).
+                    window.dispatchEvent(new CustomEvent('workspace:required'))
+                }
+                this.handlers.onMessage(event.code === 4404
+                    ? { type: 'error', category: 'not_found', code: 'CHAT_SESSION_NOT_FOUND', message: 'This conversation is not available in this workspace.' }
+                    : { type: 'error', category: 'client_stale', code: 'WORKSPACE_REQUIRED', message: 'This page is out of date. Reload to continue.' })
                 return
             }
 

@@ -13,6 +13,9 @@ import type { CharacterChatCodexCard, CharacterChatSession, TurnEntry } from '..
 import type { CodexLibraryCardSelection } from '@/features/codex'
 import { useNavigation, useData, useAuth } from '../../../app/hooks'
 import { characterChatConfig } from '../../interaction/chatSessionConfig'
+import { useSessionWorkspace } from '../../interaction/hooks/useSessionWorkspace'
+import { organizationWorkspaceId } from '@/shared/hooks/useScopedApi'
+import { LoadingSpinner } from '../../../ui/components'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { InteractionCenterPanel, InteractionTopBar, SidePanelDrawer } from '../../interaction/components'
 import { CallScreen } from '../../call'
@@ -72,6 +75,7 @@ export function CharacterChat() {
                 key={`${activeCharacterChat.draftId ?? activeCharacterChat.id}:voice`}
                 character={activeCast[0]}
                 sessionId={Number(activeCharacterChat.id)}
+                workspaceId={organizationWorkspaceId(activeCharacterChat)}
                 ensureSession={activeCharacterChat.isDraft ? () => ensureCharacterChatSession(activeCharacterChat) : undefined}
                 onSwitchToText={() => handleSetMode('text')}
             />
@@ -130,11 +134,15 @@ function CharacterChatView({
     // re-hydrates from the server on socket open too.
     const [turns, setTurns] = useState<TurnEntry[]>(chat.turns ?? [])
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    // Workspace R1: the chat keeps its own workspace (this view remounts per chat).
+    const { workspaceId: sessionWorkspaceId, api: sessionApi } = useSessionWorkspace(organizationWorkspaceId(chat))
 
     // Text-only here — voice is its own CallScreen surface. Stable config per character.
     const chatConfig = useMemo(
-        () => characterChatConfig(chatTitle, { group: isGroup }),
-        [chatTitle, isGroup],
+        () => (sessionWorkspaceId && sessionApi
+            ? characterChatConfig({ workspaceId: sessionWorkspaceId, api: sessionApi }, chatTitle, { group: isGroup })
+            : null),
+        [chatTitle, isGroup, sessionApi, sessionWorkspaceId],
     )
     // Cast identities for segment attribution: persisted turns only keep
     // speaker_id/speaker_name, so portraits resolve from this roster (segment
@@ -162,6 +170,7 @@ function CharacterChatView({
                 <SidePanelDrawer side="left" open={sidebarOpen} onClose={() => setSidebarOpen(false)} label={t('characterChat.sidebarLabel')}>
                     <CharacterChatSidebar
                         sessionId={chat.isDraft ? undefined : chat.id}
+                        sessionWorkspaceId={sessionWorkspaceId}
                         character={cast[0]}
                         characters={cast}
                         title={chatTitle}
@@ -181,7 +190,7 @@ function CharacterChatView({
 
                 {/* Center: the shared chat engine, in character mode */}
                 <div className="min-w-0 flex-1">
-                    <InteractionCenterPanel
+                    {chatConfig ? <InteractionCenterPanel
                         sessionId={Number(chat.id)}
                         ensureSession={ensureSession}
                         turns={turns}
@@ -189,7 +198,7 @@ function CharacterChatView({
                         config={chatConfig}
                         llmFeature={chat.kind === 'character_group' ? 'chat_group' : 'chat_character'}
                         speakerRoster={speakerRoster}
-                    />
+                    /> : <LoadingSpinner />}
                 </div>
             </div>
         </div>

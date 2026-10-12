@@ -2,14 +2,21 @@ import { useMemo, useState } from 'react'
 import { Link2, Loader2, Pin, Plus, Save, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { Lorebook, LorebookAttachment, LorebookAttachmentMode, LorebookTargetKind } from '@/shared'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY } from '@/shared/hooks/useWorkspaceReadOnly'
+import { ReadOnlyFieldset } from '@/features/creation/common/components/ReadOnlyFieldset'
 import { Badge, Button, Field, Icon, Input, Select, type SelectOption } from '@/ui/primitives'
 import { normalizeLorebookAttachment } from '../lorebookTransforms'
 
 interface LorebookAttachPanelProps {
     lorebook: Lorebook
+    /** The book's workspace (attachments live there); defaults to the committed one. */
+    workspaceId?: string | null
     onChange?: (attachments: LorebookAttachment[]) => void
+    /** The book's workspace is archived: existing attachments stay listed; nothing can be attached or removed. */
+    readOnly?: boolean
 }
 
 function labelTarget(t: TFunction, targetKind: string, targetId?: string | null) {
@@ -17,13 +24,23 @@ function labelTarget(t: TFunction, targetKind: string, targetId?: string | null)
     return `${targetKind.replace('_', ' ')}${targetId ? ` ${targetId.slice(0, 8)}` : ''}`
 }
 
-export function LorebookAttachPanel({ lorebook, onChange }: LorebookAttachPanelProps) {
+export function LorebookAttachPanel({ lorebook, workspaceId, onChange, readOnly = false }: LorebookAttachPanelProps) {
     const { t } = useTranslation()
+    const api = useScopedApi(workspaceId)
+    const { workspaceEpoch, capture, isCurrent } = useWorkspace()
     const [targetKind, setTargetKind] = useState<LorebookTargetKind>('global')
     const [targetId, setTargetId] = useState('')
     const [mode, setMode] = useState<LorebookAttachmentMode>('linked')
     const [busyId, setBusyId] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
+
+    // A committed switch drops the half-filled target form of the previous workspace.
+    const [formEpoch, setFormEpoch] = useState(workspaceEpoch)
+    if (formEpoch !== workspaceEpoch) {
+        setFormEpoch(workspaceEpoch)
+        setTargetId('')
+        setError(null)
+    }
 
     const targetOptions = useMemo<SelectOption[]>(
         () => [
@@ -53,12 +70,20 @@ export function LorebookAttachPanel({ lorebook, onChange }: LorebookAttachPanelP
     }
 
     const removeAttachment = async (attachmentId: string) => {
+        if (readOnly) {
+            setError(t(ARCHIVED_WORKSPACE_MESSAGE_KEY))
+            return
+        }
+        if (!api) return
+        const scope = capture()
         setBusyId(attachmentId)
         setError(null)
         try {
-            await apiService.deleteLorebookAttachment(attachmentId)
+            await api.deleteLorebookAttachment(attachmentId)
+            if (!isCurrent(scope)) return
             onChange?.(lorebook.attachments.filter((attachment) => attachment.id !== attachmentId))
         } catch (err) {
+            if (!isCurrent(scope)) return
             setError(err instanceof Error ? err.message : t('lorebookStudio.attachPanel.errors.deleteFailed'))
         } finally {
             setBusyId(null)
@@ -66,20 +91,27 @@ export function LorebookAttachPanel({ lorebook, onChange }: LorebookAttachPanelP
     }
 
     const attach = async () => {
-        if (!lorebook.id) return
+        if (readOnly) {
+            setError(t(ARCHIVED_WORKSPACE_MESSAGE_KEY))
+            return
+        }
+        if (!lorebook.id || !api) return
+        const scope = capture()
         setBusyId('new')
         setError(null)
         try {
-            const attachment = await apiService.putLorebookAttachment({
+            const attachment = await api.putLorebookAttachment({
                 lorebookId: lorebook.id,
                 targetKind,
                 targetId: targetKind === 'global' ? null : targetId.trim() || null,
                 mode,
                 snapshot: mode === 'snapshot' ? lorebook : null,
             })
+            if (!isCurrent(scope)) return
             replaceAttachment(normalizeLorebookAttachment(attachment))
             setTargetId('')
         } catch (err) {
+            if (!isCurrent(scope)) return
             setError(err instanceof Error ? err.message : t('lorebookStudio.attachPanel.errors.attachFailed'))
         } finally {
             setBusyId(null)
@@ -95,7 +127,7 @@ export function LorebookAttachPanel({ lorebook, onChange }: LorebookAttachPanelP
                 </p>
             </div>
 
-            <div className="grid gap-3">
+            <ReadOnlyFieldset disabled={readOnly} className="grid gap-3">
                 <div className="grid gap-3 sm:grid-cols-2">
                     <Field label={t('lorebookStudio.attachPanel.targetKindLabel')}>
                         <Select
@@ -137,7 +169,7 @@ export function LorebookAttachPanel({ lorebook, onChange }: LorebookAttachPanelP
                         {error}
                     </div>
                 )}
-            </div>
+            </ReadOnlyFieldset>
 
             {lorebook.attachments.length === 0 ? (
                 <div className="px-4 py-6 text-center">
@@ -170,7 +202,7 @@ export function LorebookAttachPanel({ lorebook, onChange }: LorebookAttachPanelP
                                 variant="ghost"
                                 size="sm"
                                 iconLeft={busyId === attachment.id ? <Loader2 size={14} className="animate-spin" /> : <Icon icon={Trash2} size={14} />}
-                                disabled={busyId !== null}
+                                disabled={busyId !== null || readOnly}
                                 onClick={() => void removeAttachment(attachment.id)}
                             >
                                 {t('common.delete')}

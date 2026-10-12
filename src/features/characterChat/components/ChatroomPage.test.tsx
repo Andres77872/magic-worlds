@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Character, CharacterChatSession } from '@/shared'
 import { ChatroomPage } from './ChatroomPage'
+import { createWorkspaceTestState, TEST_WORKSPACE_ID, testWorkspace, WorkspaceTestProvider } from '@/shared/hooks/testing/workspaceTestUtils'
 
 const setPage = vi.fn()
 const openLoginModal = vi.fn()
@@ -296,5 +297,29 @@ describe('ChatroomPage', () => {
 
         expect(screen.queryByText('Loading conversations…')).not.toBeInTheDocument()
         expect(screen.getAllByRole('button', { name: 'New chat' })).toHaveLength(2)
+    })
+})
+
+describe('ChatroomPage in an archived workspace (Workspace R1)', () => {
+    it('keeps chats readable but blocks starting, calling and deleting', async () => {
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        const workspace = createWorkspaceTestState({
+            workspaces: [testWorkspace(TEST_WORKSPACE_ID, 'Main library', { archived_at: '2026-10-10T00:00:00Z' })],
+        })
+        await act(async () => {
+            render(<WorkspaceTestProvider state={workspace}><ChatroomPage /></WorkspaceTestProvider>)
+        })
+
+        expect(screen.getByRole('button', { name: 'New chat' })).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'New group chat' })).toBeDisabled()
+
+        // Resume is the only action left, so the card offers no separate actions menu.
+        expect(screen.queryByRole('button', { name: 'Actions for Lyra' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('menuitem', { name: 'Start voice call' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('menuitem', { name: 'Delete' })).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Resume chat: Lyra' }))
+        expect(resumeCharacterChat).toHaveBeenCalledWith(CHATS[0])
+        expect(setPage).toHaveBeenCalledWith('character-chat')
     })
 })

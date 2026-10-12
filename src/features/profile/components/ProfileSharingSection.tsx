@@ -70,13 +70,19 @@ export function ProfileSharingSection({ sharing }: { sharing: ProfileSharedCards
         }
     }
 
+    /** Shared cards belong to the workspace the lists were read in (Workspace R1). */
+    const sharingClient = () => {
+        if (!sharing.workspaceId) throw new Error(t('workspaceActivity.profile.unavailable'))
+        return apiService.withWorkspace(sharing.workspaceId)
+    }
+
     const revokeLink = async (resource: SharedCardResource) => {
         if (!resource.share_token || busyKey) return
         const key = `revoke:${resource.share_token}`
         setBusyKey(key)
         setNotice(null)
         try {
-            await apiService.revokeSharedCardLink(resource.share_token)
+            await sharingClient().revokeSharedCardLink(resource.share_token)
             sharing.refresh()
             setNotice({ tone: 'success', title: t('profile.sharing.notice.linkRevoked'), message: sharedCardTitle(resource, t('profile.sharing.untitledCard')).slice(0, 80) })
         } catch (error) {
@@ -98,7 +104,7 @@ export function ProfileSharingSection({ sharing }: { sharing: ProfileSharedCards
         setBusyKey(key)
         setNotice(null)
         try {
-            await apiService.unpublishCard(resource.card_type, cardId)
+            await sharingClient().unpublishCard(resource.card_type, cardId)
             sharing.refresh()
             setNotice({ tone: 'success', title: t('profile.sharing.notice.publicRemoved'), message: sharedCardTitle(resource, t('profile.sharing.untitledCard')).slice(0, 80) })
         } catch (error) {
@@ -138,6 +144,11 @@ export function ProfileSharingSection({ sharing }: { sharing: ProfileSharedCards
                     </div>
                 }
             />
+            {sharing.workspaceName && (
+                <p className="-mt-2 font-ui text-caption text-parchment-400">
+                    {t('workspaceActivity.profile.sharingScope', { name: sharing.workspaceName })}
+                </p>
+            )}
 
             <Toast
                 open={Boolean(notice)}

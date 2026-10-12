@@ -5,6 +5,7 @@
 import type {AttributeCategory} from '../../ui/components/common/AttributeList';
 import type { CardActor, CardVisibility } from './cardSharing.types'
 import type { CharacterVoice } from './voicePreset.types'
+import type { CardOrganization } from './workspace.types'
 
 export type CharacterRole = 'character' | 'persona'
 
@@ -47,6 +48,8 @@ export interface Character {
     /** Owner-only: true when there are unpublished draft edits (absent on foreign reads). */
     has_draft?: boolean
     draft_updated_at?: string | null
+    /** Workspace R1: server-owned placement (read-only; never written back). */
+    organization?: CardOrganization
 
     createdAt?: string
     updatedAt?: string

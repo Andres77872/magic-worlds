@@ -1,5 +1,6 @@
 import type { TextGenerationOptions } from './textGeneration.types'
 import type { LlmRequest, LlmExecutionProvenance } from './llm.types'
+import type { CardOrganization, OrganizationWarning } from './workspace.types'
 export const AI_CARD_DESCRIPTION_MIN_CHARS = 5
 export const AI_CARD_DESCRIPTION_MAX_CHARS = 4000
 export const AI_CARD_CLIENT_TIMEOUT_MS = Number(import.meta.env.VITE_AI_CARD_CLIENT_TIMEOUT_MS || 90_000)
@@ -29,6 +30,10 @@ export interface AiCardRequestOptions extends TextGenerationOptions {
 export type AiCardGeneratedResult<T> = T & {
     request_id: string
     llm_execution: LlmExecutionProvenance
+    /** Workspace R1: where the saved card landed (server-owned; never written back). */
+    organization?: CardOrganization
+    /** Requested initial collections deleted while generating; normally empty. */
+    organization_warnings?: OrganizationWarning[]
 }
 
 export interface AiCardPublicError {
@@ -70,6 +75,8 @@ export interface CharacterCardResponse {
     triggers?: string[]
     image_url?: string
     theme_song_url?: string
+    /** Workspace R1: server-owned placement (read-only; never written back). */
+    organization?: CardOrganization
     [key: string]: unknown
 }
 
@@ -83,6 +90,8 @@ export interface WorldCardResponse {
     triggers?: string[]
     image_url?: string
     theme_song_url?: string
+    /** Workspace R1: server-owned placement (read-only; never written back). */
+    organization?: CardOrganization
     [key: string]: unknown
 }
 
@@ -98,6 +107,8 @@ export interface AdventureTemplateCardResponse {
     triggers?: string[]
     image_url?: string
     theme_song_url?: string
+    /** Workspace R1: server-owned placement (read-only; never written back). */
+    organization?: CardOrganization
     [key: string]: unknown
 }
 
@@ -118,5 +129,7 @@ export interface ItemCardResponse {
     triggers?: string[]
     image_url?: string
     theme_song_url?: string
+    /** Workspace R1: server-owned placement (read-only; never written back). */
+    organization?: CardOrganization
     [key: string]: unknown
 }

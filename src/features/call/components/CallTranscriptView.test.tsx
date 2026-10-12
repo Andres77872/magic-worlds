@@ -1,7 +1,14 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render as baseRender, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CallSummary } from '@/shared'
+import { apiService } from '@/infrastructure/api'
+import { createWorkspaceTestState, WorkspaceTestProvider } from '@/shared/hooks/testing/workspaceTestUtils'
 import { CallTranscriptView } from './CallTranscriptView'
+
+// Transcripts are private reads of the committed workspace.
+const render = (ui: ReactElement) =>
+    baseRender(<WorkspaceTestProvider state={createWorkspaceTestState({ api: apiService })}>{ui}</WorkspaceTestProvider>)
 
 const getVoiceCallTranscript = vi.fn()
 

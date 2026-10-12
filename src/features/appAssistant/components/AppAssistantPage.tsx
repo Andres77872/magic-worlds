@@ -16,9 +16,12 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useFloatingWindows, useLanguage, useNavigation } from '@/app/hooks'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
+import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import type { PageType } from '@/shared'
 import type { AssistantConversation } from '@/shared/types/assistant.types'
-import { buildCardEditHash, pageHash } from '@/features/gallery/galleryLinks'
+import { buildCardEditHash, buildLinkedEditorHash, pageHash } from '@/features/gallery/galleryLinks'
+import { useOriginNavigation } from '@/features/workspaces/originNavigation'
 import { CardPreviewModal, useCardPreviewModal } from '@/features/cards'
 import { lorebookWindow } from '@/features/floatingWindows'
 import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
@@ -59,6 +62,10 @@ export function AppAssistantPage() {
     const { setPage, previousPage, currentHash, replaceHash } = useNavigation()
     const cardPreview = useCardPreviewModal()
     const { openWindow } = useFloatingWindows()
+    const { selectedWorkspaceId } = useWorkspace()
+    // Archived workspace: conversations stay readable; new turns would be refused (409).
+    const readOnly = useWorkspaceReadOnly()
+    const { navigateToOrigin } = useOriginNavigation()
     const [pickerOpen, setPickerOpen] = useState(false)
     const [linkNotice, setLinkNotice] = useState<string | null>(null)
 
@@ -142,12 +149,27 @@ export function AppAssistantPage() {
 
     // A card or lorebook conversation keeps going in its editor: open the saved
     // document (or a fresh draft for an unbound one) with the conversation handed over.
+    // Workspace R1: a conversation of another workspace continues there — the
+    // coordinator guards the switch and the editor loads the record from its route.
     const continueInEditor = useCallback((conversation: AssistantConversation) => {
         const id = conversation.conversation_id
         const targetId = conversationTargetId(conversation)
         const missing = () => setLinkNotice(t('appAssistant.handoff.missing'))
         const tag = assistantTag(conversation)
         if (tag === 'app') return
+        const origin = conversation.organization?.workspace_id ?? null
+        if (origin && origin !== selectedWorkspaceId) {
+            const page: PageType = tag === 'adventure_template' ? 'adventure' : tag
+            const route = !targetId
+                ? pageHash(page)
+                : tag === 'lorebook' ? buildLinkedEditorHash('lorebook', targetId)
+                    : tag === 'adventure_template' ? buildLinkedEditorHash('adventure', targetId)
+                        : buildCardEditHash(tag, targetId)
+            void navigateToOrigin({ workspaceId: origin, page, hash: withAssistantConversation(route, id) }).then((outcome) => {
+                if (outcome === 'unavailable') setLinkNotice(t('workspaceActivity.assistant.unavailable'))
+            })
+            return
+        }
         if (tag === 'lorebook') {
             const lorebook = targetId ? lorebooks.find((book) => book.id === targetId) : null
             if (targetId && !lorebook) return missing()
@@ -182,7 +204,8 @@ export function AppAssistantPage() {
         const route = targetId ? buildCardEditHash(tag, targetId) : pageHash(tag)
         setPage(tag, { hash: withAssistantConversation(route, id) })
     }, [t, lorebooks, templateAdventures, characters, worlds, items, setPage, editLorebook, setEditingLorebook,
-        editTemplate, setEditingTemplate, editCharacter, setEditingCharacter, editWorld, setEditingWorld, editItem, setEditingItem])
+        editTemplate, setEditingTemplate, editCharacter, setEditingCharacter, editWorld, setEditingWorld, editItem, setEditingItem,
+        selectedWorkspaceId, navigateToOrigin])
 
     // The picker resolves the `app_assistant` profile, which only exists on servers that
     // offer the assistant: wait for the history to confirm it instead of showing an error.
@@ -229,9 +252,12 @@ export function AppAssistantPage() {
                         loading: knowledge.resourcesLoading,
                     }}
                     modelControl={modelControl}
-                    onSend={(text) => void assistant.send(text)}
+                    readOnly={readOnly}
+                    onSend={(text) => {
+                        if (!readOnly) void assistant.send(text)
+                    }}
                     onStop={assistant.stop}
-                    onRetry={assistant.retry}
+                    onRetry={readOnly ? undefined : assistant.retry}
                     onReload={() => void assistant.reloadConversation()}
                     onDismissNotice={assistant.clearNotice}
                     onNewConversation={assistant.newConversation}

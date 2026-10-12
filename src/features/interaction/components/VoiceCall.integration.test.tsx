@@ -16,6 +16,8 @@ const integration = vi.hoisted(() => ({
         getImageJob: vi.fn(),
         getTtsJob: vi.fn(),
         fetchProtectedMediaBlob: vi.fn(),
+        // The call's scoped client shares these methods.
+        withWorkspace: vi.fn(),
     },
     socketHandlers: null as VoiceCallSocketHandlers | null,
     microphoneOptions: null as UseMicrophoneCaptureOptions | null,
@@ -60,6 +62,18 @@ function appHooksMock() {
 
 vi.mock('@/app/hooks', () => appHooksMock())
 vi.mock('../../../app/hooks', () => appHooksMock())
+
+vi.mock('@/app/hooks/useWorkspace', () => ({
+    useWorkspace: () => ({
+        status: 'ready',
+        selectedWorkspaceId: '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b',
+        workspaceEpoch: 1,
+        workspaces: [],
+        api: integration.apiService,
+        capture: () => ({ accountKey: 'test', authEpoch: 1, userHash: 'u', workspaceId: '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b', workspaceEpoch: 1 }),
+        isCurrent: () => true,
+    }),
+}))
 
 vi.mock('@/infrastructure/api', () => ({
     apiService: integration.apiService,
@@ -171,6 +185,7 @@ describe('Voice call integration proof', () => {
         integration.apiService.getImageJob.mockResolvedValue(null)
         integration.apiService.getTtsJob.mockResolvedValue(null)
         integration.apiService.fetchProtectedMediaBlob.mockResolvedValue(new Blob())
+        integration.apiService.withWorkspace.mockImplementation(() => integration.apiService)
         integration.socketApi = {
             socketStatus: 'closed',
             start: vi.fn(),

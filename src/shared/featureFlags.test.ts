@@ -10,6 +10,7 @@ import {
     isNovelsFeatureEnabled,
     isPageFeatureEnabled,
     isVoicesFeatureEnabled,
+    isWorkspacesFeatureEnabled,
 } from './featureFlags'
 import { isFrontendVoiceModeEnabled } from './voiceFeatureFlag'
 
@@ -27,6 +28,7 @@ describe('frontend feature flags', () => {
             ['VITE_FEATURE_NOVELS_ENABLED', isNovelsFeatureEnabled],
             ['VITE_FEATURE_GROUP_CHATS_ENABLED', isGroupChatsFeatureEnabled],
             ['VITE_FEATURE_ADVENTURES_ENABLED', isAdventuresFeatureEnabled],
+            ['VITE_FEATURE_WORKSPACES_ENABLED', isWorkspacesFeatureEnabled],
         ] as const
 
         for (const [envName, read] of cases) {

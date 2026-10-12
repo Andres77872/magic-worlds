@@ -10,6 +10,12 @@
  * never reach autosave; the studio additionally suspends its timer via
  * onSuggestionPhaseChange. The studio must remount this component per chapter
  * (key={chapterId}) — initialBody is read once.
+ *
+ * `readOnly` (the story's workspace is archived) makes the manuscript a reader:
+ * TipTap is not editable, so typing, "/" and "@" cannot start; the selection
+ * toolbar, the beat composer and Replace are gone or disabled, and a beat note
+ * cannot be removed. Selecting, copying, Find and Ctrl/Cmd-click on a detected
+ * reference keep working. Turning read-only declines whatever the AI has live.
  */
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -215,10 +221,13 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         [],
     )
 
+    const readOnly = Boolean(props.readOnly)
     const editor = useEditor({
         extensions,
         content: props.initialBody || '',
         contentType: 'markdown',
+        // Read once at creation; later changes go through setEditable below.
+        editable: !readOnly,
         editorProps: {
             attributes: {
                 'aria-label': tRef.current('novelEditor.editor.bodyLabel'),
@@ -244,6 +253,13 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         },
     })
     editorRef.current = editor
+
+    // useEditor keeps the live editability across option updates, so a change
+    // after creation (the workspace archived or restored) is applied here.
+    useEffect(() => {
+        if (!editor || editor.isDestroyed || editor.isEditable === !readOnly) return
+        editor.setEditable(!readOnly, false)
+    }, [editor, readOnly])
 
     const { armed } = useEditorChrome(editor, {
         containerRef,
@@ -279,7 +295,18 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
 
     const beat = useBeatComposer({ editorRef, containerRef, submit: inlineAI.submit })
 
+    // Turning read-only mid-flight: nothing the AI has live may land, and the
+    // composer must not stay open over a manuscript that can no longer change.
+    const { resolve: resolveSuggestion } = inlineAI
+    const { open: beatOpen, cancel: cancelBeat } = beat
+    useEffect(() => {
+        if (!readOnly) return
+        void resolveSuggestion('reject')
+        if (beatOpen) cancelBeat()
+    }, [beatOpen, cancelBeat, readOnly, resolveSuggestion])
+
     submitSlashRef.current = (item) => {
+        if (propsRef.current.readOnly) return
         if (item.type === 'block') {
             const target = editorRef.current
             if (target) item.run(target)
@@ -294,7 +321,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
 
     const handleSelectionCommand = (command: StoryGenerationCommand) => {
         const target = editorRef.current
-        if (!target) return
+        if (!target || readOnly) return
         const selection = editorSelection(target)
         const { from, to } = target.state.selection
         if (!selection || from === to) return
@@ -307,7 +334,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
 
     const handleAddToCodex = () => {
         const target = editorRef.current
-        if (!target) return
+        if (!target || readOnly) return
         const { from, to } = target.state.selection
         if (from === to) return
         const text = target.state.doc.textBetween(from, to, ' ').trim()
@@ -337,9 +364,15 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
             <div className="relative flex min-h-0 flex-1 flex-col">
                 <div
                     ref={containerRef}
-                    className={cx('story-editor-shell relative flex min-h-0 flex-1 flex-col overflow-auto', armed && 'is-armed')}
+                    className={cx(
+                        'story-editor-shell relative flex min-h-0 flex-1 flex-col overflow-auto',
+                        armed && 'is-armed',
+                        // A beat note's remove control is a write; read-only shows the note alone.
+                        readOnly && '[&_.ai-beat-remove]:hidden',
+                    )}
                     data-focus={props.focusMode ? 'true' : undefined}
                     data-typewriter={props.typewriter ? 'true' : undefined}
+                    data-readonly={readOnly ? 'true' : undefined}
                     data-testid="novel-editor"
                     onKeyDown={(event) => {
                         // The composer is rendered inside this scrollport, so its
@@ -356,14 +389,15 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                             return
                         }
                         // Mod-Enter belongs to Regenerate while a generation is under
-                        // review — that binding lives in the extension keymap.
-                        if (event.key === 'Enter' && phaseRef.current === 'idle') {
+                        // review — that binding lives in the extension keymap. Read-only,
+                        // there is nothing to write, so it does nothing.
+                        if (event.key === 'Enter' && phaseRef.current === 'idle' && !readOnly) {
                             event.preventDefault()
                             beat.openAt('')
                         }
                     }}
                 >
-                    {editor && (
+                    {editor && !readOnly && (
                         <EditorBubbleMenu
                             editor={editor}
                             phase={phase}
@@ -391,7 +425,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                             onSelect={(item) => mention.menu?.command(item)}
                         />
                     )}
-                    {beat.open && beat.target && (
+                    {beat.open && beat.target && !readOnly && (
                         <BeatComposer
                             anchor={beat.target.anchor}
                             containerRef={containerRef}
@@ -413,6 +447,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                     <FindReplacePanel
                         editor={editor}
                         disabled={phase !== 'idle'}
+                        readOnly={readOnly}
                         onClose={() => {
                             setFindOpen(false)
                             editorRef.current?.commands.focus()

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth, useData } from '@/app/hooks'
 import type { StoryChapter } from '@/shared'
+import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
+import type { StoryWorkspace } from './useStoryWorkspace'
 
 const KEY_PREFIX = 'magic_worlds:novel:wordGoal'
 const MAX_WORD_GOAL = 2_147_483_647
@@ -44,9 +46,19 @@ export interface WordGoalApi {
     setGoal: (goal: number | null) => Promise<boolean>
 }
 
-export function useWordGoal(storyId: string | null, chapter: StoryChapter | null): WordGoalApi {
+/**
+ * `workspace`: the open story's workspace; updates only start (and land in the
+ * UI) while it is current, and never while it is archived (read-only: the goal
+ * still shows, nothing is written — not even a legacy migration).
+ */
+export function useWordGoal(
+    storyId: string | null,
+    chapter: StoryChapter | null,
+    workspace: Pick<StoryWorkspace, 'isCurrent'> & { workspaceId?: string | null },
+): WordGoalApi {
     const { updateStoryChapter } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
+    const readOnly = useWorkspaceReadOnly(workspace.workspaceId)
     const chapterId = chapter?.id ?? null
     const key = storageKey(storyId, chapterId)
     const identity = storyId && chapterId ? `${storyId}:${chapterId}` : null
@@ -56,6 +68,10 @@ export function useWordGoal(storyId: string | null, chapter: StoryChapter | null
     const requestVersionRef = useRef(0)
     const migrationStartedRef = useRef(new Set<string>())
     const migrationPromiseRef = useRef<{ identity: string; promise: Promise<void> } | null>(null)
+    const workspaceRef = useRef(workspace)
+    useEffect(() => {
+        workspaceRef.current = workspace
+    })
 
     if (currentIdentityRef.current !== identity) {
         currentIdentityRef.current = identity
@@ -69,20 +85,21 @@ export function useWordGoal(storyId: string | null, chapter: StoryChapter | null
         const serverGoal = normalizeGoal(chapter?.wordGoal)
         setGoalState(serverGoal)
         goalRef.current = serverGoal
-        if (!identity || !storyId || !chapterId || serverGoal !== null || !isAuthenticated) return
+        if (!identity || !storyId || !chapterId || serverGoal !== null || !isAuthenticated || !workspaceRef.current.isCurrent()) return
 
         const legacyGoal = readLegacyGoal(key)
         if (legacyGoal === null) return
         setGoalState(legacyGoal)
         goalRef.current = legacyGoal
-        if (migrationStartedRef.current.has(identity)) return
+        // Read-only: show the browser's goal, but it stays there until a restore lets it migrate.
+        if (readOnly || migrationStartedRef.current.has(identity)) return
 
         migrationStartedRef.current.add(identity)
         const requestVersion = ++requestVersionRef.current
         const promise = updateStoryChapter(storyId, chapterId, { wordGoal: legacyGoal })
             .then((updated) => {
                 removeLegacyGoal(key)
-                if (currentIdentityRef.current !== identity || requestVersionRef.current !== requestVersion) return
+                if (currentIdentityRef.current !== identity || requestVersionRef.current !== requestVersion || !workspaceRef.current.isCurrent()) return
                 const persisted = normalizeGoal(updated?.wordGoal) ?? legacyGoal
                 goalRef.current = persisted
                 setGoalState(persisted)
@@ -95,15 +112,16 @@ export function useWordGoal(storyId: string | null, chapter: StoryChapter | null
                 if (migrationPromiseRef.current?.identity === identity) migrationPromiseRef.current = null
             })
         migrationPromiseRef.current = { identity, promise }
-    }, [chapter?.wordGoal, chapterId, identity, isAuthenticated, key, storyId, updateStoryChapter])
+    }, [chapter?.wordGoal, chapterId, identity, isAuthenticated, key, readOnly, storyId, updateStoryChapter])
 
     const setGoal = useCallback(
         async (next: number | null): Promise<boolean> => {
-            if (!identity || !storyId || !chapterId) return false
+            if (!identity || !storyId || !chapterId || readOnly) return false
             if (!isAuthenticated) {
                 openLoginModal()
                 return false
             }
+            if (!workspaceRef.current.isCurrent()) return false
             const normalized = normalizeGoal(next)
             if (next !== null && normalized === null) {
                 console.error('Failed to save chapter word goal: value is outside the supported range.')
@@ -119,7 +137,7 @@ export function useWordGoal(storyId: string | null, chapter: StoryChapter | null
                 if (migration?.identity === identity) await migration.promise
                 const updated = await updateStoryChapter(storyId, chapterId, { wordGoal: normalized })
                 removeLegacyGoal(key)
-                if (currentIdentityRef.current === identity && requestVersionRef.current === requestVersion) {
+                if (currentIdentityRef.current === identity && requestVersionRef.current === requestVersion && workspaceRef.current.isCurrent()) {
                     const persisted = normalizeGoal(updated?.wordGoal)
                     goalRef.current = persisted
                     setGoalState(persisted)
@@ -127,14 +145,14 @@ export function useWordGoal(storyId: string | null, chapter: StoryChapter | null
                 return true
             } catch (error) {
                 console.error('Failed to save chapter word goal:', error)
-                if (currentIdentityRef.current === identity && requestVersionRef.current === requestVersion) {
+                if (currentIdentityRef.current === identity && requestVersionRef.current === requestVersion && workspaceRef.current.isCurrent()) {
                     goalRef.current = previous
                     setGoalState(previous)
                 }
                 return false
             }
         },
-        [chapterId, identity, isAuthenticated, key, openLoginModal, storyId, updateStoryChapter],
+        [chapterId, identity, isAuthenticated, key, openLoginModal, readOnly, storyId, updateStoryChapter],
     )
 
     return { goal, setGoal }

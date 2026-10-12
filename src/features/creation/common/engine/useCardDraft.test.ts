@@ -1,11 +1,30 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { apiService } from '@/infrastructure/api'
+import { apiService, type ApiService } from '@/infrastructure/api'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { useCardDraft } from './useCardDraft'
+
+// Workspace R1: the committed workspace's scoped client inherits the singleton spies below.
+const workspaceMock = vi.hoisted(() => ({ state: null as WorkspaceTestState | null }))
+vi.mock('@/app/hooks/useWorkspace', () => ({ useWorkspace: () => workspaceMock.state!.value() }))
+
+beforeEach(() => {
+    workspaceMock.state = createWorkspaceTestState({ api: apiService.withWorkspace(TEST_WORKSPACE_ID) })
+})
 
 afterEach(() => {
     vi.restoreAllMocks()
 })
+
+/** The workspace a spied call was made through (its scoped client's frozen scope). */
+function calledInWorkspace(spy: { mock: { contexts: unknown[] } }, index = 0): string | null {
+    return (spy.mock.contexts[index] as ApiService | undefined)?.workspaceScope?.workspaceId ?? null
+}
 
 describe('useCardDraft', () => {
     it('stays idle (no fetch) until a card has been created', () => {
@@ -158,5 +177,35 @@ describe('useCardDraft', () => {
         expect(onDraftLoaded).toHaveBeenCalledExactlyOnceWith({ id: 'c1', name: 'Requested version' })
         expect(result.current.loading).toBe(false)
         expect(result.current.isHistorical).toBe(typeof version === 'number')
+    })
+
+    it('reads and writes drafts through the committed workspace by default', async () => {
+        const get = vi.spyOn(apiService, 'getCardDraft').mockResolvedValue({ id: 'c8', is_draft: false, latest_version_number: 1 })
+        const save = vi.spyOn(apiService, 'saveCardDraft').mockResolvedValue({ id: 'c8', is_draft: true, latest_version_number: 1 })
+        const { result } = renderHook(() => useCardDraft({ cardType: 'character', cardId: 'c8' }))
+        await waitFor(() => expect(result.current.draftState).not.toBeNull())
+        await act(async () => {
+            await result.current.saveDraft({ name: 'Edited' })
+        })
+
+        expect(calledInWorkspace(get)).toBe(TEST_WORKSPACE_ID)
+        expect(calledInWorkspace(save)).toBe(TEST_WORKSPACE_ID)
+        expect((save.mock.contexts[0] as ApiService).workspaceScope?.initialCollectionIds).toEqual([])
+    })
+
+    it("keeps an existing card's draft in the card's own workspace", async () => {
+        const get = vi.spyOn(apiService, 'getCardDraft').mockResolvedValue({ id: 'c9', is_draft: false, latest_version_number: 1 })
+        const publish = vi.spyOn(apiService, 'publishCardDraft')
+            .mockResolvedValue({ version_id: 'v2', version_number: 2, label: null, card: { id: 'c9' } })
+        const { result } = renderHook(() =>
+            useCardDraft({ cardType: 'world', cardId: 'c9', workspaceId: OTHER_WORKSPACE_ID }),
+        )
+        await waitFor(() => expect(result.current.draftState).not.toBeNull())
+        await act(async () => {
+            await result.current.publish()
+        })
+
+        expect(calledInWorkspace(get)).toBe(OTHER_WORKSPACE_ID)
+        expect(calledInWorkspace(publish)).toBe(OTHER_WORKSPACE_ID)
     })
 })

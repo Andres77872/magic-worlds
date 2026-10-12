@@ -22,11 +22,13 @@ export interface MediaThemeCardProps {
     artworkUrl?: string
     deleting?: boolean
     onDelete: () => void
+    /** Archived workspace: Delete is off; playback and download keep working. */
+    readOnly?: boolean
     /** Filter the gallery to this theme's card. */
     onFilterCard?: (card: CardRef) => void
 }
 
-export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, onFilterCard }: MediaThemeCardProps) {
+export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, readOnly = false, onFilterCard }: MediaThemeCardProps) {
     const { t } = useTranslation()
     const [playing, setPlaying] = useState(false)
     const [downloading, setDownloading] = useState(false)
@@ -86,7 +88,7 @@ export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, o
                 <h3 className="line-clamp-2 font-display text-base font-semibold leading-snug text-parchment-50">
                     {item.title}
                 </h3>
-                <span className="font-mono text-micro text-fg-subtle">{formatWhen(item.createdAt)}</span>
+                {item.createdAt && <span className="font-mono text-micro text-fg-subtle">{formatWhen(item.createdAt)}</span>}
             </div>
 
             <div className="relative mt-2 flex items-center justify-between gap-2">
@@ -142,7 +144,7 @@ export function MediaThemeCard({ item, artworkUrl, deleting = false, onDelete, o
                             <Download size={15} strokeWidth={1.75} />
                         )}
                     </IconButton>
-                    <IconButton label={t('mediaGallery.tile.deleteTheme')} size="sm" tone="danger" onClick={onDelete}>
+                    <IconButton label={t('mediaGallery.tile.deleteTheme')} size="sm" tone="danger" onClick={onDelete} disabled={readOnly}>
                         <Trash2 size={15} strokeWidth={1.75} />
                     </IconButton>
                 </div>

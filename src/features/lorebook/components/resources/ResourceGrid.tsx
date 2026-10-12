@@ -14,6 +14,8 @@ interface ResourceGridProps {
     onLoadMore: () => void
     onClearSearch: () => void
     onCreate: () => void
+    /** The selected workspace is archived: no new resource can be created in it. */
+    createDisabled?: boolean
     onOpen: (resource: LorebookResource) => void
     onDelete: (resource: LorebookResource) => void
 }
@@ -29,6 +31,7 @@ export function ResourceGrid({
     onLoadMore,
     onClearSearch,
     onCreate,
+    createDisabled = false,
     onOpen,
     onDelete,
 }: ResourceGridProps) {
@@ -57,7 +60,7 @@ export function ResourceGrid({
                 {hasQuery ? (
                     <Button variant="secondary" size="sm" onClick={onClearSearch}>{t('lorebookResourcesGallery.actions.clearSearch')}</Button>
                 ) : (
-                    <Button variant="primary" size="sm" iconLeft={<Icon icon={FilePlus2} size={16} />} onClick={onCreate}>
+                    <Button variant="primary" size="sm" iconLeft={<Icon icon={FilePlus2} size={16} />} onClick={onCreate} disabled={createDisabled}>
                         {t('lorebookResourcesGallery.actions.newText')}
                     </Button>
                 )}

@@ -10,21 +10,33 @@ vi.mock('@/app/hooks', () => ({
     useFloatingWindows: () => ({ openWindow: vi.fn(), closeWindow: vi.fn(), closeAll: vi.fn(), focusWindow: vi.fn(), windows: [] }),
 }))
 
-vi.mock('@/infrastructure/api', () => ({
-    apiService: {
+vi.mock('@/infrastructure/api', () => {
+    const apiService: Record<string, unknown> = {
         getLorebooks: vi.fn(),
         getCharacters: vi.fn().mockResolvedValue([]),
         getWorlds: vi.fn().mockResolvedValue([]),
         getItems: vi.fn().mockResolvedValue([]),
         getAdventureTemplates: vi.fn().mockResolvedValue([]),
-    },
-    resolveMediaUrl: (url?: string | null) => url ?? undefined,
-}))
+    }
+    apiService.withWorkspace = vi.fn(() => apiService)
+    return { apiService, resolveMediaUrl: (url?: string | null) => url ?? undefined }
+})
 
 import type { Story, StoryCardRef, StoryCardSnapshot, StoryContextTrace } from '@/shared'
 import { apiService } from '@/infrastructure/api'
+import {
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+    createWorkspaceTestState,
+    testWorkspace,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { useCodex } from '../../hooks/useCodex'
 import { CodexPanel } from './CodexPanel'
+
+const workspace = createWorkspaceTestState({ api: apiService })
+const STORY_WORKSPACE = { workspaceId: TEST_WORKSPACE_ID, isCurrent: () => true, detachedApi: () => null }
 
 function snapshot(overrides: Partial<StoryCardSnapshot> = {}): StoryCardSnapshot {
     return {
@@ -70,9 +82,25 @@ function story(refs: StoryCardRef[]): Story {
     }
 }
 
-function Harness({ refs, trace }: { refs: StoryCardRef[]; trace?: StoryContextTrace | null }) {
-    const codex = useCodex({ story: story(refs) })
-    return <CodexPanel codex={codex} requireAuth={() => true} onOpenCardPicker={() => {}} contextTrace={trace} />
+function Panel({ refs, trace, storyWorkspace = STORY_WORKSPACE }: { refs: StoryCardRef[]; trace?: StoryContextTrace | null; storyWorkspace?: typeof STORY_WORKSPACE }) {
+    const codex = useCodex({ story: story(refs), workspace: storyWorkspace })
+    return (
+        <CodexPanel
+            codex={codex}
+            workspaceId={storyWorkspace.workspaceId}
+            requireAuth={() => true}
+            onOpenCardPicker={() => {}}
+            contextTrace={trace}
+        />
+    )
+}
+
+function Harness(props: { refs: StoryCardRef[]; trace?: StoryContextTrace | null }) {
+    return (
+        <WorkspaceTestProvider state={workspace}>
+            <Panel {...props} />
+        </WorkspaceTestProvider>
+    )
 }
 
 /** Opens the single "Add" disclosure so its two destinations are reachable. */
@@ -239,6 +267,8 @@ describe('CodexPanel', () => {
         fireEvent.click(screen.getByTestId('codex-clone-entries-submit'))
 
         await waitFor(() => expect(addStoryCardRefs).toHaveBeenCalledTimes(1))
+        // The picker lists the story's own workspace.
+        expect(apiService.withWorkspace).toHaveBeenCalledWith(TEST_WORKSPACE_ID)
         const [, payloads] = addStoryCardRefs.mock.calls[0]
         expect(payloads).toHaveLength(1)
         expect(payloads[0]).toMatchObject({
@@ -252,5 +282,66 @@ describe('CodexPanel', () => {
                 story_card_kind: 'lorebook_entry',
             },
         })
+    })
+})
+
+describe('CodexPanel in an archived workspace', () => {
+    const ARCHIVED = 'This workspace is archived. Restore it to create or edit content.'
+    // The story lives in Novel A, which is archived; the open workspace is not.
+    const ARCHIVED_STORY = { workspaceId: OTHER_WORKSPACE_ID, isCurrent: () => true, detachedApi: () => null }
+    let archivedState: WorkspaceTestState
+
+    function ArchivedHarness({ refs }: { refs: StoryCardRef[] }) {
+        return (
+            <WorkspaceTestProvider state={archivedState}>
+                <Panel refs={refs} storyWorkspace={ARCHIVED_STORY} />
+            </WorkspaceTestProvider>
+        )
+    }
+
+    beforeEach(() => {
+        vi.clearAllMocks()
+        archivedState = createWorkspaceTestState({
+            api: apiService,
+            workspaces: [
+                testWorkspace(TEST_WORKSPACE_ID, 'Main library'),
+                testWorkspace(OTHER_WORKSPACE_ID, 'Novel A', { archived_at: '2026-10-10T00:00:00Z' }),
+            ],
+        })
+    })
+
+    it('disables Add in the header and the empty state', () => {
+        render(<ArchivedHarness refs={[]} />)
+
+        const adds = screen.getAllByTestId('codex-add')
+        expect(adds).toHaveLength(2)
+        for (const add of adds) expect(add).toBeDisabled()
+        fireEvent.click(adds[0])
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    })
+
+    it('keeps entries readable and filterable but never toggles, removes or edits them', async () => {
+        render(<ArchivedHarness refs={[ref({ id: 'a' }), WORLD_REF]} />)
+
+        expect(screen.getByRole('switch', { name: 'Disable Aria' })).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Remove Aria' })).toBeDisabled()
+        fireEvent.click(screen.getByRole('switch', { name: 'Disable Aria' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Remove Aria' }))
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+        fireEvent.change(screen.getByTestId('codex-filter'), { target: { value: 'drowned' } })
+        expect(screen.getByText('Eldoria')).toBeInTheDocument()
+        expect(screen.queryByText('Aria')).not.toBeInTheDocument()
+
+        // The entry opens for reading, not editing.
+        fireEvent.click(screen.getByRole('button', { name: 'Edit Eldoria' }))
+        expect(await screen.findByTestId('codex-entry-name')).toHaveValue('Eldoria')
+        expect(screen.getByTestId('codex-entry-name')).toHaveAttribute('readonly')
+        expect(screen.getByTestId('codex-entry-content')).toHaveAttribute('readonly')
+        expect(screen.getByTestId('codex-entry-archived')).toHaveTextContent(ARCHIVED)
+        expect(screen.getByTestId('codex-entry-save')).toBeDisabled()
+        expect(updateStoryCardRef).not.toHaveBeenCalled()
+        expect(deleteStoryCardRef).not.toHaveBeenCalled()
+        expect(addStoryCardRefs).not.toHaveBeenCalled()
     })
 })

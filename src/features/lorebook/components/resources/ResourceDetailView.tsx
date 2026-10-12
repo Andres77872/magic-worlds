@@ -1,9 +1,13 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { ArrowLeft, FileText, Link2, Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { useContext, useEffect, useState, type ReactNode } from 'react'
+import { Archive, ArrowLeft, FileText, Link2, Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { LorebookResource } from '@/shared'
+import { organizationWorkspaceId } from '@/shared/hooks/useScopedApi'
+import { WorkspaceContext } from '@/app/providers/workspaceContext'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY, useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { Badge, Button, Callout, Field, Icon, IconButton, IconTile, Input, PageHeader, SwitchRow, Tag, Textarea } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
+import { ReadOnlyFieldset } from '@/features/creation/common/components/ReadOnlyFieldset'
 import { formatApiDateTime } from '@/utils/time'
 import {
     LOREBOOK_RESOURCE_MAX_CHARS,
@@ -60,6 +64,14 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
     const [urlImporting, setUrlImporting] = useState(false)
     const [urlImportError, setUrlImportError] = useState<string | null>(null)
     const [urlImportNotice, setUrlImportNotice] = useState<string | null>(null)
+    // The resource's own workspace (a new one: the selected workspace) archived: it stays
+    // readable, but edit, save, metadata sync and delete are disabled until it is restored.
+    const resourceWorkspaceId = organizationWorkspaceId(resource)
+    const readOnly = useWorkspaceReadOnly(resourceWorkspaceId)
+    // The app shell's archived banner covers the selected workspace; a resource from
+    // another (archived) workspace says so here instead.
+    const selectedWorkspaceId = useContext(WorkspaceContext)?.selectedWorkspaceId ?? null
+    const showArchivedNotice = readOnly && resourceWorkspaceId !== null && resourceWorkspaceId !== selectedWorkspaceId
 
     // A different resource opened (id change / cold hydration / create→saved): re-seed the view.
     useEffect(() => {
@@ -83,6 +95,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
     const isEdit = mode === 'edit'
 
     const startEdit = () => {
+        if (readOnly) return
         setContentView('plain')
         setDraft(resource)
         setExtractMetadata(false)
@@ -99,6 +112,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
         setContentView(defaultContentView(resource))
     }
     const save = async () => {
+        if (readOnly) return
         const ok = await onSave(draft, { extractMetadata })
         // Drop to read on success. For a create, the parent stamps the saved id into the
         // URL; if that changes the resolved id the reset effect re-seeds, otherwise this
@@ -110,7 +124,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
         }
     }
     const syncMetadata = async () => {
-        if (!onSyncMetadata) return
+        if (!onSyncMetadata || readOnly) return
         await onSyncMetadata(resource)
     }
     const importUrl = async () => {
@@ -187,7 +201,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                                         variant="primary"
                                         type="button"
                                         onClick={() => void save()}
-                                        disabled={saving || overLimit || triggerOverLimit}
+                                        disabled={saving || overLimit || triggerOverLimit || readOnly}
                                         iconLeft={saving ? <Icon icon={Loader2} className="animate-spin" size={16} /> : undefined}
                                     >
                                         {saving ? t('common.saving') : isCreate ? t('lorebookResourcesGallery.actions.create') : t('common.save')}
@@ -201,15 +215,15 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                                             type="button"
                                             iconLeft={<Icon icon={saving ? Loader2 : RefreshCw} className={saving ? 'animate-spin' : undefined} size={16} />}
                                             onClick={() => void syncMetadata()}
-                                            disabled={saving || metadataTaskActive}
+                                            disabled={saving || metadataTaskActive || readOnly}
                                         >
                                             {t(saving || metadataTaskActive ? 'lorebookResourcesGallery.actions.generatingMetadata' : 'lorebookResourcesGallery.actions.syncMetadata')}
                                         </Button>
                                     )}
-                                    <Button variant="primary" type="button" iconLeft={<Icon icon={Pencil} size={16} />} onClick={startEdit} disabled={saving || metadataTaskActive}>
+                                    <Button variant="primary" type="button" iconLeft={<Icon icon={Pencil} size={16} />} onClick={startEdit} disabled={saving || metadataTaskActive || readOnly}>
                                         {t('lorebookResourcesGallery.actions.edit')}
                                     </Button>
-                                    <IconButton label={t('lorebookResourcesGallery.card.deleteAria', { name: headTitle })} tone="danger" onClick={() => onDelete(resource)}>
+                                    <IconButton label={t('lorebookResourcesGallery.card.deleteAria', { name: headTitle })} tone="danger" onClick={() => onDelete(resource)} disabled={readOnly}>
                                         <Icon icon={Trash2} size={16} />
                                     </IconButton>
                                 </>
@@ -225,6 +239,12 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                 </div>
             </div>
 
+            {showArchivedNotice && (
+                <Callout tone="warning" role="status" icon={<Icon icon={Archive} size={16} />} data-testid="resource-archived-notice">
+                    {t(ARCHIVED_WORKSPACE_MESSAGE_KEY)}
+                </Callout>
+            )}
+
             {banner}
 
             {loading ? (
@@ -232,7 +252,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                     <Loader2 className="animate-spin text-ember-500" size={26} aria-hidden="true" />
                 </div>
             ) : isEdit ? (
-                <div className="grid gap-4">
+                <ReadOnlyFieldset disabled={readOnly} className="grid gap-4">
                     <div className="grid gap-4 lg:grid-cols-2">
                         <Field label={t('lorebookResourcesGallery.editor.titleLabel')}>
                             <Input value={draft.title} onChange={(event) => patch({ title: event.target.value })} />
@@ -328,7 +348,7 @@ export function ResourceDetailView({ resource, isCreate, loading, saving, onSave
                             {t('lorebookResourcesGallery.metadata.saveUsageWarning')}
                         </Callout>
                     )}
-                </div>
+                </ReadOnlyFieldset>
             ) : (
                 <div className="grid gap-5">
                     {resource.description && (

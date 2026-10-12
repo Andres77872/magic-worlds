@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { Adventure, Character, CharacterChatSession, Lorebook, Story, World } from '@/shared'
 import { LandingPage } from './LandingPage'
+import { createWorkspaceTestState, TEST_WORKSPACE_ID, testWorkspace, WorkspaceTestProvider } from '@/shared/hooks/testing/workspaceTestUtils'
 
 const setPage = vi.fn()
 const editCharacter = vi.fn()
@@ -322,5 +323,36 @@ describe('LandingPage (guest)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Privacy Policy' }))
 
         expect(setPage).toHaveBeenCalledWith('privacy')
+    })
+})
+
+describe('LandingPage in an archived workspace (Workspace R1)', () => {
+    function renderArchived() {
+        const workspace = createWorkspaceTestState({
+            workspaces: [testWorkspace(TEST_WORKSPACE_ID, 'Main library', { archived_at: '2026-10-10T00:00:00Z' })],
+        })
+        render(<WorkspaceTestProvider state={workspace}><LandingPage /></WorkspaceTestProvider>)
+    }
+
+    it('keeps the dashboard browsable but hides creation and deletion', () => {
+        renderArchived()
+
+        expect(screen.queryByTestId('create-band')).toBeNull()
+        expect(screen.getByTestId('active-chats')).toBeTruthy()
+        const card = within(screen.getByTestId('active-chats')).getAllByTestId('continue-card')[0]
+        expect(within(card).queryByRole('button', { name: 'Delete' })).toBeNull()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Open chatroom' }))
+        expect(setPage).toHaveBeenCalledWith('chatroom')
+    })
+
+    it('explains instead of starting a chat from the cast rail', async () => {
+        renderArchived()
+
+        fireEvent.click(within(screen.getByTestId('cast-rail')).getByRole('button', { name: 'Start chat' }))
+
+        expect(await screen.findByText('This workspace is archived. Restore it to create or edit content.')).toBeInTheDocument()
+        expect(startCharacterChat).not.toHaveBeenCalled()
+        expect(setPage).not.toHaveBeenCalledWith('character-chat')
     })
 })

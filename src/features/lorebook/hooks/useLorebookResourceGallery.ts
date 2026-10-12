@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { i18n } from '@/app/i18n'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { LorebookResource } from '@/shared'
 import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import { normalizeLorebookResource } from '../lorebookResources'
 
 const PAGE_SIZE = 24
@@ -10,6 +11,8 @@ const SEARCH_DEBOUNCE_MS = 300
 
 interface LorebookResourceGalleryOptions {
     enabled?: boolean
+    /** The workspace a host captured (e.g. the open lorebook's); defaults to the committed one. */
+    workspaceId?: string | null
 }
 
 function normalizeList(raw: unknown): LorebookResource[] {
@@ -28,8 +31,15 @@ function appendDeduped(prev: LorebookResource[], page: LorebookResource[]): Lore
     return [...prev, ...page.filter((item) => !seen.has(item.id))]
 }
 
+/**
+ * Server-paged resources of one workspace (the host's captured one, else the
+ * committed one). A committed workspace switch drops the previous pages and
+ * paging, refetches from offset 0, and ignores late pages of the previous scope.
+ */
 export function useLorebookResourceGallery(pageSize = PAGE_SIZE, options: LorebookResourceGalleryOptions = {}) {
     const enabled = (options.enabled ?? true) && isLorebookResourcesFeatureEnabled()
+    const { workspaceEpoch, capture, isCurrent } = useWorkspace()
+    const api = useScopedApi(options.workspaceId)
     const [items, setItems] = useState<LorebookResource[]>([])
     const [query, setQuery] = useState('')
     const [debouncedQuery, setDebouncedQuery] = useState('')
@@ -56,37 +66,50 @@ export function useLorebookResourceGallery(pageSize = PAGE_SIZE, options: Lorebo
         setError(null)
     }, [enabled])
 
+    // Workspace switch: the previous workspace's pages never mix into the new one.
+    const [listEpoch, setListEpoch] = useState(workspaceEpoch)
+    if (listEpoch !== workspaceEpoch) {
+        setListEpoch(workspaceEpoch)
+        setItems([])
+        setHasMore(false)
+        setLoadingMore(false)
+        setError(null)
+        if (enabled) setLoading(true)
+    }
+
     const fetchPage = useCallback(async (reset: boolean) => {
-        if (!enabled) return
+        if (!enabled || !api) return
+        const scope = capture()
         const seq = ++seqRef.current
         const skip = reset ? 0 : skipRef.current
         if (reset) setLoading(true)
         else setLoadingMore(true)
         setError(null)
         try {
-            const raw = await apiService.getLorebookResources(skip, pageSize, debouncedQuery || undefined)
-            if (seq !== seqRef.current) return
+            const raw = await api.getLorebookResources(skip, pageSize, debouncedQuery || undefined)
+            if (seq !== seqRef.current || !isCurrent(scope)) return
             const page = normalizeList(raw)
             skipRef.current = skip + page.length
             setItems((prev) => (reset ? page : appendDeduped(prev, page)))
             setHasMore(page.length === pageSize)
         } catch (e) {
-            if (seq !== seqRef.current) return
+            if (seq !== seqRef.current || !isCurrent(scope)) return
             setError(e instanceof Error ? e.message : i18n.t('lorebookResourcesGallery.errors.loadFailed'))
             if (reset) setItems([])
             setHasMore(false)
         } finally {
-            if (seq === seqRef.current) {
+            if (seq === seqRef.current && isCurrent(scope)) {
                 setLoading(false)
                 setLoadingMore(false)
             }
         }
-    }, [debouncedQuery, enabled, pageSize])
+    }, [api, capture, debouncedQuery, enabled, isCurrent, pageSize])
 
+    // A committed switch (new epoch and client) restarts from offset 0.
     useEffect(() => {
         if (!enabled) return
         void fetchPage(true)
-    }, [enabled, fetchPage])
+    }, [enabled, fetchPage, workspaceEpoch])
 
     const loadMore = useCallback(() => {
         if (!enabled || loading || loadingMore || !hasMore) return

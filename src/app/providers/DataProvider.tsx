@@ -25,6 +25,7 @@ import type {
     StoryGeneration,
 } from '../../shared'
 import { apiService, ApiError } from '../../infrastructure'
+import type { ApiService } from '../../infrastructure/api'
 import {
     isAdventuresFeatureEnabled,
     isCallsFeatureEnabled,
@@ -43,6 +44,7 @@ import {
     libraryCardToSnapshotCard,
 } from '../../features/interaction/utils/adventureSnapshot'
 import { useAuth } from '../hooks/useAuth'
+import { useWorkspace } from '../hooks/useWorkspace'
 import { isPageFocused, usePageFocus } from '../hooks/usePageFocus'
 import { NavigationContext } from './NavigationProvider'
 import { pageFromHash } from '../../features/gallery/galleryLinks'
@@ -390,13 +392,29 @@ export function DataProvider({ children }: DataProviderProps) {
     const authEpoch = auth.authEpoch ?? Number(isAuthenticated)
     const accountKey = auth.accountKey ?? (isAuthenticated ? 'legacy-authenticated' : 'legacy-signed-out')
     const sessionPhase = auth.sessionPhase ?? (isAuthenticated ? 'authenticated' : 'signed_out')
-    const authOwnerRef = useRef({ authEpoch, accountKey, sessionPhase })
-    authOwnerRef.current = { authEpoch, accountKey, sessionPhase }
+    // Workspace R1: private lists belong to the committed workspace. Loads wait
+    // for the handshake (`ready`), use its scoped client, and are owned by
+    // (authEpoch, accountKey, workspaceId, workspaceEpoch).
+    const workspace = useWorkspace()
+    const workspaceStatus = workspace.status
+    const workspaceApi = workspace.api
+    const workspaceId = workspace.selectedWorkspaceId
+    const workspaceEpoch = workspace.workspaceEpoch
+    const authOwnerRef = useRef({ authEpoch, accountKey, sessionPhase, workspaceId, workspaceEpoch, api: workspaceApi })
+    authOwnerRef.current = { authEpoch, accountKey, sessionPhase, workspaceId, workspaceEpoch, api: workspaceApi }
+    /** The account + workspace the loaded lists belong to (`null` = nothing loaded). */
+    const dataOwnerRef = useRef<{ accountKey: string; workspaceId: string } | null>(null)
+    /** The scoped client of the committed workspace; private calls never fall back to the unscoped singleton. */
+    const requireApi = (): ApiService => {
+        const api = authOwnerRef.current.api
+        if (!api) throw new Error('Your library is not available yet.')
+        return api
+    }
     const activeStoryOwnerRef = useRef<string | null>(null)
     const authExpiredEventRef = useRef(false)
     const expiredAccountKeyRef = useRef<string | null>(null)
     const signedOutHandledRef = useRef(false)
-    const startedAuthLoadRef = useRef<{ authEpoch: number; accountKey: string } | null>(null)
+    const startedAuthLoadRef = useRef<{ authEpoch: number; accountKey: string; workspaceEpoch: number } | null>(null)
     const bootstrapLoadRef = useRef<{
         authEpoch: number
         accountKey: string
@@ -435,7 +453,7 @@ export function DataProvider({ children }: DataProviderProps) {
             throw new Error('Login required to delete characters')
         }
         try {
-            await apiService.deleteCharacter(id)
+            await requireApi().deleteCharacter(id)
             setCharacters(prev => prev.filter(character => character.id !== id))
         } catch (error) {
             console.error('Failed to delete character:', error)
@@ -449,7 +467,7 @@ export function DataProvider({ children }: DataProviderProps) {
             throw new Error('Login required to set a default persona')
         }
         try {
-            const updated = await apiService.setDefaultPersona(persona.id)
+            const updated = await requireApi().setDefaultPersona(persona.id)
             const [normalized] = transformCharacters([updated])
             setCharacters(prev =>
                 prev.map(character => {
@@ -477,7 +495,7 @@ export function DataProvider({ children }: DataProviderProps) {
             throw new Error('Login required to delete worlds')
         }
         try {
-            await apiService.deleteWorld(id)
+            await requireApi().deleteWorld(id)
             setWorlds(prev => prev.filter(world => world.id !== id))
         } catch (error) {
             console.error('Failed to delete world:', error)
@@ -496,7 +514,7 @@ export function DataProvider({ children }: DataProviderProps) {
             throw new Error('Login required to delete items')
         }
         try {
-            await apiService.deleteItem(id)
+            await requireApi().deleteItem(id)
             setItems(prev => prev.filter(item => item.id !== id))
         } catch (error) {
             console.error('Failed to delete item:', error)
@@ -551,24 +569,26 @@ export function DataProvider({ children }: DataProviderProps) {
         if (!isAdventuresFeatureEnabled()) throw disabledFeatureError('Adventures')
         if (!selected.draft) return Number(selected.id)
         const draft = editingInProgress?.id === selected.id ? editingInProgress : selected
-        const key = `${accountKey}:adventure:${draft.id}`
+        const key = `${accountKey}:${workspaceId ?? 'none'}:adventure:${draft.id}`
         const pending = draftRequestsRef.current.get(key)
         if (pending) return pending
         const owner = authOwnerRef.current
+        const api = requireApi()
         const request = (async () => {
             let adventure = createdDraftsRef.current.get(key)
             if (!adventure) {
-                const session = await apiService.createAdventureSession(draft.draft!.templateId, draft.draft!.personaId)
+                const session = await api.createAdventureSession(draft.draft!.templateId, draft.draft!.personaId)
                 adventure = { ...draft, ...buildInProgressAdventure(session, draft, resolveAdventureSnapshot(session.template_snapshot)), draft: undefined, draftId: draft.draftId }
                 createdDraftsRef.current.set(key, adventure)
             }
             if (draft.draft?.snapshotEdited && draft.snapshot) {
-                const response = await apiService.updateAdventureSnapshot(Number(adventure.id), writableAdventureSnapshot(draft.snapshot))
+                const response = await api.updateAdventureSnapshot(Number(adventure.id), writableAdventureSnapshot(draft.snapshot))
                 const snapshot = resolveAdventureSnapshot(response?.template_snapshot) ?? draft.snapshot
                 adventure = { ...adventure, ...adventureFieldsFromSnapshot(snapshot), snapshot }
                 createdDraftsRef.current.set(key, adventure)
             }
-            if (authOwnerRef.current.authEpoch !== owner.authEpoch || authOwnerRef.current.accountKey !== owner.accountKey) {
+            if (authOwnerRef.current.authEpoch !== owner.authEpoch || authOwnerRef.current.accountKey !== owner.accountKey
+                || authOwnerRef.current.workspaceEpoch !== owner.workspaceEpoch) {
                 throw new Error('Authentication changed while starting the adventure')
             }
             const saved = adventure
@@ -589,7 +609,7 @@ export function DataProvider({ children }: DataProviderProps) {
         try {
             const templateToDelete = templateAdventures[index]
             if (templateToDelete?.id) {
-                await apiService.deleteAdventureTemplate(templateToDelete.id)
+                await requireApi().deleteAdventureTemplate(templateToDelete.id)
             }
             setTemplateAdventures(prev => prev.filter((_, i) => i !== index))
         } catch (error) {
@@ -605,7 +625,7 @@ export function DataProvider({ children }: DataProviderProps) {
             throw new Error('Login required to delete adventure templates')
         }
         try {
-            await apiService.deleteAdventureTemplate(id)
+            await requireApi().deleteAdventureTemplate(id)
             setTemplateAdventures((prev) => prev.filter((template) => template.id !== id))
         } catch (error) {
             console.error('Failed to delete template:', error)
@@ -633,7 +653,7 @@ export function DataProvider({ children }: DataProviderProps) {
         }
         // Persist to this adventure's own snapshot — never the library/template card.
         const writableSnapshot = writableAdventureSnapshot(snapshot)
-        const response = await apiService.updateAdventureSnapshot(Number(adventureId), writableSnapshot)
+        const response = await requireApi().updateAdventureSnapshot(Number(adventureId), writableSnapshot)
         const persistedSnapshot = resolveAdventureSnapshot(response?.template_snapshot) ?? writableSnapshot
 
         const fields = adventureFieldsFromSnapshot(persistedSnapshot)
@@ -664,7 +684,7 @@ export function DataProvider({ children }: DataProviderProps) {
             throw new Error('Login required to delete lorebooks')
         }
         try {
-            await apiService.deleteLorebook(id)
+            await requireApi().deleteLorebook(id)
             setLorebooks((prev) => prev.filter((lorebook) => lorebook.id !== id))
             setEditingLorebook((prev) => (prev?.id === id ? null : prev))
         } catch (error) {
@@ -703,7 +723,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to create stories')
         }
-        const created = await apiService.createStory(story)
+        const created = await requireApi().createStory(story)
         setStories((prev) => [created, ...prev.filter((item) => item.id !== created.id)])
         setActiveStory(created)
         return created
@@ -715,7 +735,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to open stories')
         }
-        const loaded = await apiService.getStory(story.id)
+        const loaded = await requireApi().getStory(story.id)
         setActiveStory(loaded)
         setStories((prev) => prev.map((item) => (item.id === loaded.id ? loaded : item)))
     }
@@ -726,7 +746,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to update stories')
         }
-        const updated = await apiService.updateStory(storyId, patch)
+        const updated = await requireApi().updateStory(storyId, patch)
         upsertStory(updated)
         return updated
     }
@@ -737,7 +757,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to delete stories')
         }
-        await apiService.deleteStory(id)
+        await requireApi().deleteStory(id)
         setStories((prev) => prev.filter((story) => story.id !== id))
         setActiveStory((prev) => (prev?.id === id ? null : prev))
     }
@@ -748,8 +768,8 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to create story chapters')
         }
-        const created = await apiService.createStoryChapter(storyId, chapter)
-        const loaded = await apiService.getStory(storyId)
+        const created = await requireApi().createStoryChapter(storyId, chapter)
+        const loaded = await requireApi().getStory(storyId)
         upsertStory(loaded)
         return created
     }
@@ -760,7 +780,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to update story chapters')
         }
-        const updated = await apiService.updateStoryChapter(storyId, chapterId, patch)
+        const updated = await requireApi().updateStoryChapter(storyId, chapterId, patch)
         setActiveStory((prev) => {
             if (!prev || prev.id !== storyId) return prev
             const chapters = (prev.chapters ?? []).map((chapter) => (chapter.id === chapterId ? { ...chapter, ...updated } : chapter))
@@ -782,8 +802,8 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to delete story chapters')
         }
-        await apiService.deleteStoryChapter(storyId, chapterId)
-        const loaded = await apiService.getStory(storyId)
+        await requireApi().deleteStoryChapter(storyId, chapterId)
+        const loaded = await requireApi().getStory(storyId)
         upsertStory(loaded)
     }
 
@@ -793,8 +813,8 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to add story cards')
         }
-        const created = await apiService.addStoryCardRef(storyId, ref)
-        const loaded = await apiService.getStory(storyId)
+        const created = await requireApi().addStoryCardRef(storyId, ref)
+        const loaded = await requireApi().getStory(storyId)
         upsertStory(loaded)
         return created
     }
@@ -808,20 +828,22 @@ export function DataProvider({ children }: DataProviderProps) {
             throw new Error('Login required to add story cards')
         }
         if (refs.length === 0) return
+        // One client for the whole batch: a switch mid-loop must not send the rest elsewhere.
+        const api = requireApi()
         try {
             for (const ref of refs) {
-                await apiService.addStoryCardRef(storyId, ref)
+                await api.addStoryCardRef(storyId, ref)
             }
         } finally {
             // Refresh even on partial failure so the UI reflects what landed.
-            const loaded = await apiService.getStory(storyId)
+            const loaded = await requireApi().getStory(storyId)
             upsertStory(loaded)
         }
     }
 
     const refreshStory = async (storyId: string): Promise<Story> => {
         if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        const loaded = await apiService.getStory(storyId)
+        const loaded = await requireApi().getStory(storyId)
         upsertStory(loaded)
         return loaded
     }
@@ -832,8 +854,8 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to update story cards')
         }
-        const updated = await apiService.updateStoryCardRef(storyId, refId, ref)
-        const loaded = await apiService.getStory(storyId)
+        const updated = await requireApi().updateStoryCardRef(storyId, refId, ref)
+        const loaded = await requireApi().getStory(storyId)
         upsertStory(loaded)
         return updated
     }
@@ -844,8 +866,8 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to remove story cards')
         }
-        await apiService.deleteStoryCardRef(storyId, refId)
-        const loaded = await apiService.getStory(storyId)
+        await requireApi().deleteStoryCardRef(storyId, refId)
+        const loaded = await requireApi().getStory(storyId)
         upsertStory(loaded)
     }
 
@@ -855,7 +877,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to generate story text')
         }
-        const response = await apiService.generateStory(storyId, request, options)
+        const response = await requireApi().generateStory(storyId, request, options)
         return response.generation
     }
 
@@ -865,7 +887,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to preview story context')
         }
-        return apiService.previewStoryContext(storyId, request)
+        return requireApi().previewStoryContext(storyId, request)
     }
 
     const acceptStoryGeneration = async (storyId: string, generationId: string): Promise<Story> => {
@@ -874,7 +896,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to accept story generations')
         }
-        const updated = await apiService.acceptStoryGeneration(storyId, generationId)
+        const updated = await requireApi().acceptStoryGeneration(storyId, generationId)
         upsertStory(updated)
         return updated
     }
@@ -885,7 +907,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to stash story generations')
         }
-        await apiService.stashStoryGeneration(storyId, generationId)
+        await requireApi().stashStoryGeneration(storyId, generationId)
     }
 
     const discardStoryGeneration = async (storyId: string, generationId: string) => {
@@ -894,7 +916,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to discard story generations')
         }
-        await apiService.discardStoryGeneration(storyId, generationId)
+        await requireApi().discardStoryGeneration(storyId, generationId)
     }
     
     // Prepare a local chat. Selecting cards must never create a server session.
@@ -949,10 +971,11 @@ export function DataProvider({ children }: DataProviderProps) {
         if (chat.kind === 'character_group' && !isGroupChatsFeatureEnabled()) throw disabledFeatureError('Group chats')
         if (!chat.isDraft) return Number(chat.id)
         const draft = activeCharacterChat?.id === chat.id ? activeCharacterChat : chat
-        const key = `${accountKey}:chat:${chat.id}`
+        const key = `${accountKey}:${workspaceId ?? 'none'}:chat:${chat.id}`
         const pending = draftRequestsRef.current.get(key)
         if (pending) return pending
         const owner = authOwnerRef.current
+        const api = requireApi()
         const request = (async () => {
             let saved = createdChatDraftsRef.current.get(key)
             const remember = (session: unknown) => {
@@ -962,16 +985,17 @@ export function DataProvider({ children }: DataProviderProps) {
             }
             if (!saved) {
                 saved = remember(draft.kind === 'character_group'
-                    ? await apiService.createCharacterGroupChat(draft.character_ids!, draft.persona_id!)
-                    : await apiService.createCharacterChat(draft.character_id!, draft.persona_id!))
+                    ? await api.createCharacterGroupChat(draft.character_ids!, draft.persona_id!)
+                    : await api.createCharacterChat(draft.character_id!, draft.persona_id!))
             }
             const missing = (draft.codexCards ?? []).filter((card) => !saved!.codexCards?.some((stored) => stored.kind === card.kind && stored.cardId === card.cardId))
-            if (missing.length) saved = remember(await apiService.addCharacterChatCodexCards(Number(saved.id), missing.map(({ kind, cardId }) => ({ kind, cardId }))))
+            if (missing.length) saved = remember(await api.addCharacterChatCodexCards(Number(saved.id), missing.map(({ kind, cardId }) => ({ kind, cardId }))))
             for (const card of draft.codexCards ?? []) {
                 const stored = saved.codexCards?.find((entry) => entry.kind === card.kind && entry.cardId === card.cardId)
-                if (stored && stored.enabled !== card.enabled) saved = remember(await apiService.updateCharacterChatCodexCard(Number(saved.id), stored.id, card.enabled))
+                if (stored && stored.enabled !== card.enabled) saved = remember(await api.updateCharacterChatCodexCard(Number(saved.id), stored.id, card.enabled))
             }
-            if (authOwnerRef.current.authEpoch !== owner.authEpoch || authOwnerRef.current.accountKey !== owner.accountKey) {
+            if (authOwnerRef.current.authEpoch !== owner.authEpoch || authOwnerRef.current.accountKey !== owner.accountKey
+                || authOwnerRef.current.workspaceEpoch !== owner.workspaceEpoch) {
                 throw new Error('Authentication changed while starting the chat')
             }
             const persisted = saved
@@ -1030,7 +1054,7 @@ export function DataProvider({ children }: DataProviderProps) {
             }
             return upsertCharacterChat({ ...activeCharacterChat, codexCards: staged })
         }
-        const updated = await apiService.addCharacterChatCodexCards(Number(chatId), cards)
+        const updated = await requireApi().addCharacterChatCodexCards(Number(chatId), cards)
         return upsertCharacterChat(normalizeCharacterChat(updated, characters))
     }
 
@@ -1047,7 +1071,7 @@ export function DataProvider({ children }: DataProviderProps) {
             return upsertCharacterChat({ ...activeCharacterChat,
                 codexCards: activeCharacterChat.codexCards?.map((card) => card.id === codexCardId ? { ...card, enabled } : card) })
         }
-        const updated = await apiService.updateCharacterChatCodexCard(Number(chatId), codexCardId, enabled)
+        const updated = await requireApi().updateCharacterChatCodexCard(Number(chatId), codexCardId, enabled)
         return upsertCharacterChat(normalizeCharacterChat(updated, characters))
     }
 
@@ -1060,7 +1084,7 @@ export function DataProvider({ children }: DataProviderProps) {
             return upsertCharacterChat({ ...activeCharacterChat,
                 codexCards: activeCharacterChat.codexCards?.filter((card) => card.id !== codexCardId) })
         }
-        const updated = await apiService.deleteCharacterChatCodexCard(Number(chatId), codexCardId)
+        const updated = await requireApi().deleteCharacterChatCodexCard(Number(chatId), codexCardId)
         return upsertCharacterChat(normalizeCharacterChat(updated, characters))
     }
 
@@ -1070,7 +1094,7 @@ export function DataProvider({ children }: DataProviderProps) {
             throw new Error('Login required to delete chats')
         }
         try {
-            await apiService.deleteCharacterChat(Number(id))
+            await requireApi().deleteCharacterChat(Number(id))
             setCharacterChats((prev) => prev.filter((chat) => chat.id !== id))
             setActiveCharacterChat((prev) => (prev && prev.id === id ? null : prev))
             if (activeCharacterChat?.id === id) setActiveCharacterChatMode('text')
@@ -1089,7 +1113,7 @@ export function DataProvider({ children }: DataProviderProps) {
         try {
             const adventureToDelete = inProgressAdventures[index]
             if (adventureToDelete?.id) {
-                await apiService.deleteAdventureSession(Number(adventureToDelete.id))
+                await requireApi().deleteAdventureSession(Number(adventureToDelete.id))
             }
             setInProgressAdventures(prev => prev.filter((_, i) => i !== index))
         } catch (error) {
@@ -1098,21 +1122,44 @@ export function DataProvider({ children }: DataProviderProps) {
         }
     }
 
+    /** Drops every private list and editor of the previous account/workspace. */
+    const resetPrivateState = () => {
+        setCharacters([])
+        setWorlds([])
+        setItems([])
+        setTemplateAdventures([])
+        setInProgressAdventures([])
+        setLorebooks([])
+        setStories([])
+        setActiveStory(null)
+        activeStoryOwnerRef.current = null
+        setCharacterChats([])
+        setActiveCharacterChat(null)
+        setActiveCharacterChatMode('text')
+        setEditingCharacter(null)
+        setEditingWorld(null)
+        setEditingItem(null)
+        setEditingTemplate(null)
+        setEditingInProgress(null)
+        setEditingLorebook(null)
+    }
+
     // `silent` refreshes the lists in place WITHOUT toggling `loadingState.isLoading`.
     // AppRouter swaps the whole page for <LoadingSpinner/> whenever isLoading is true,
     // so a silent run is what lets the dashboard re-fetch on every visit (picking up
     // media persisted by the creators) without the unmount/flicker/loop.
     const loadData = async (opts?: DataLoadOptions) => {
         const silent = opts?.silent ?? false
-        const loadOwner = { authEpoch, accountKey }
+        const loadOwner = { authEpoch, accountKey, workspaceEpoch }
         if (opts?.entryPage) {
             if (!isAuthenticated || !isPageFocused() || !hasLoadedOnceRef.current) return
             // A child page effect can run before this provider's auth effect. Its
             // entry load then owns the new auth epoch so the parent does not
             // launch a second full sweep in the same commit.
             const started = startedAuthLoadRef.current
-            if (isAuthenticated && (started?.authEpoch !== authEpoch || started.accountKey !== accountKey)) {
-                startedAuthLoadRef.current = { authEpoch, accountKey }
+            if (isAuthenticated && workspaceStatus === 'ready' && (started?.authEpoch !== authEpoch
+                || started.accountKey !== accountKey || started.workspaceEpoch !== workspaceEpoch)) {
+                startedAuthLoadRef.current = { authEpoch, accountKey, workspaceEpoch }
             }
             const pending = bootstrapLoadRef.current
             const skip = skipNextEntryRef.current
@@ -1126,6 +1173,7 @@ export function DataProvider({ children }: DataProviderProps) {
         }
         const ownerIsCurrent = () => authOwnerRef.current.authEpoch === loadOwner.authEpoch
             && authOwnerRef.current.accountKey === loadOwner.accountKey
+            && authOwnerRef.current.workspaceEpoch === loadOwner.workspaceEpoch
         try {
             // If not authenticated, skip API calls entirely — render empty state gracefully
             if (!isAuthenticated) {
@@ -1160,7 +1208,28 @@ export function DataProvider({ children }: DataProviderProps) {
                 setEditingLorebook(null)
                 setLoadingState({ isLoading: false })
                 hasLoadedOnceRef.current = true
+                dataOwnerRef.current = null
                 return
+            }
+
+            // Workspace R1: no private request before the handshake selected a
+            // workspace; never fall back to account-wide reads (document 08).
+            const api = authOwnerRef.current.api
+            if (workspaceStatus !== 'ready' || !api || !workspaceId) {
+                const dataOwner = dataOwnerRef.current
+                if (dataOwner && dataOwner.accountKey !== accountKey) resetPrivateState()
+                // Unavailable/stale: private pages show their blocking state instead of a
+                // spinner, and public/account pages must not wait on it.
+                if (workspaceStatus === 'unavailable' || workspaceStatus === 'stale') {
+                    setLoadingState((prev) => (prev.isLoading || prev.error) ? { isLoading: false } : prev)
+                }
+                return
+            }
+            // Lists of another account/workspace are never shown as this one's.
+            const dataOwner = dataOwnerRef.current
+            if (dataOwner && (dataOwner.accountKey !== accountKey || dataOwner.workspaceId !== workspaceId)) {
+                resetPrivateState()
+                dataOwnerRef.current = null
             }
 
             if (!silent) setLoadingState({ isLoading: true })
@@ -1172,19 +1241,19 @@ export function DataProvider({ children }: DataProviderProps) {
             // below — so e.g. freshly generated media (theme/portrait) stayed
             // invisible until a later all-success refresh.
             const [charsRes, worldsRes, itemsRes, templatesRes, sessionsRes, chatsRes, lorebooksRes, storiesRes] = await Promise.allSettled([
-                loadAllLibraryPages((skip, limit) => apiService.getCharacters(skip, limit)),
-                loadAllLibraryPages((skip, limit) => apiService.getWorlds(skip, limit)),
-                loadAllLibraryPages((skip, limit) => apiService.getItems(skip, limit)),
+                loadAllLibraryPages((skip, limit) => api.getCharacters(skip, limit)),
+                loadAllLibraryPages((skip, limit) => api.getWorlds(skip, limit)),
+                loadAllLibraryPages((skip, limit) => api.getItems(skip, limit)),
                 isAdventuresFeatureEnabled()
-                    ? loadAllLibraryPages((skip, limit) => apiService.getAdventureTemplates(skip, limit))
+                    ? loadAllLibraryPages((skip, limit) => api.getAdventureTemplates(skip, limit))
                     : Promise.resolve([]),
-                isAdventuresFeatureEnabled() ? apiService.getAdventureSessions() : Promise.resolve([]),
-                apiService.getCharacterChats(),
+                isAdventuresFeatureEnabled() ? api.getAdventureSessions() : Promise.resolve([]),
+                api.getCharacterChats(),
                 isLorebooksFeatureEnabled()
-                    ? loadAllLibraryPages((skip, limit) => apiService.getLorebooks(skip, limit))
+                    ? loadAllLibraryPages((skip, limit) => api.getLorebooks(skip, limit))
                     : Promise.resolve([]),
                 isNovelsFeatureEnabled()
-                    ? loadAllLibraryPages((skip, limit) => apiService.getStories(skip, limit))
+                    ? loadAllLibraryPages((skip, limit) => api.getStories(skip, limit))
                     : Promise.resolve([]),
             ])
             if (!ownerIsCurrent()) return
@@ -1281,6 +1350,7 @@ export function DataProvider({ children }: DataProviderProps) {
                 }
             }
             hasLoadedOnceRef.current = true
+            dataOwnerRef.current = { accountKey, workspaceId }
             authExpiredEventRef.current = false
             expiredAccountKeyRef.current = null
         } catch (error) {
@@ -1366,11 +1436,21 @@ export function DataProvider({ children }: DataProviderProps) {
             return
         }
         signedOutHandledRef.current = false
+        // Workspace R1: wait for the handshake. A non-ready status only releases
+        // the spinner (unavailable/stale) or drops another account's lists.
+        if (workspaceStatus !== 'ready' || !workspaceId) {
+            void loadData({ silent: true })
+            return
+        }
         const started = startedAuthLoadRef.current
-        if (started?.authEpoch === authEpoch && started.accountKey === accountKey) return
+        if (started?.authEpoch === authEpoch && started.accountKey === accountKey && started.workspaceEpoch === workspaceEpoch) return
         // Keep the initial spinner in place while a background tab waits for focus.
         if (!pageFocused || !isPageFocused()) return
-        startedAuthLoadRef.current = { authEpoch, accountKey }
+        startedAuthLoadRef.current = { authEpoch, accountKey, workspaceEpoch }
+        // A committed workspace switch replaces the lists outright (blocking load);
+        // a same-workspace auth transition refreshes silently as before.
+        const dataOwner = dataOwnerRef.current
+        const switchedWorkspace = dataOwner !== null && (dataOwner.accountKey !== accountKey || dataOwner.workspaceId !== workspaceId)
 
         // An older session's blocking request can no longer finish after ownership
         // changes. Release its spinner before starting this session's silent load.
@@ -1385,13 +1465,13 @@ export function DataProvider({ children }: DataProviderProps) {
             consumed: false,
         }
         bootstrapLoadRef.current = bootstrap
-        const promise = loadData({ silent: hasLoadedOnceRef.current, automatic: true })
+        const promise = loadData({ silent: hasLoadedOnceRef.current && !switchedWorkspace, automatic: true })
         bootstrap.promise = promise
         void promise.finally(() => {
             if (bootstrapLoadRef.current === bootstrap) bootstrapLoadRef.current = null
         })
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [accountKey, authEpoch, isAuthenticated, pageFocused])
+    }, [accountKey, authEpoch, isAuthenticated, pageFocused, workspaceStatus, workspaceId, workspaceEpoch])
     
     // Extract isLoading and error from loadingState
     const { isLoading = false, error = null } = loadingState

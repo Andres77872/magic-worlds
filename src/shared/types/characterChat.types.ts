@@ -9,6 +9,7 @@
 
 import type { Character } from './character.types'
 import type { TurnEntry } from './adventure.types'
+import type { RootOrganization } from './workspace.types'
 
 export type CharacterChatCodexCardKind = 'character' | 'world' | 'item' | 'adventure_template'
 
@@ -51,6 +52,8 @@ export interface CharacterChatSession {
     codexCards?: CharacterChatCodexCard[]
     /** Conversation turns (greeting + stored message history). */
     turns?: TurnEntry[]
+    /** Workspace R1: the owning workspace (server-owned; never written back). */
+    organization?: RootOrganization
     createdAt?: string
     updatedAt?: string
 }

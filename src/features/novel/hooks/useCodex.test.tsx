@@ -1,4 +1,5 @@
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
+import { createElement, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const addStoryCardRefs = vi.fn().mockResolvedValue(undefined)
@@ -10,7 +11,17 @@ vi.mock('@/app/hooks', () => ({
 }))
 
 import type { Lorebook, Story, StoryCardRef, StoryCardSnapshot } from '@/shared'
+import {
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+    createWorkspaceTestState,
+    testWorkspace,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { useCodex } from './useCodex'
+
+let workspaceCurrent = true
+const WORKSPACE = { workspaceId: 'ws-1', isCurrent: () => workspaceCurrent, detachedApi: () => null }
 
 function snapshot(overrides: Partial<StoryCardSnapshot> = {}): StoryCardSnapshot {
     return {
@@ -109,6 +120,7 @@ const LOREBOOK = {
 describe('useCodex', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        workspaceCurrent = true
     })
 
     it('derives entries from story-level refs only, sorted by precedence', () => {
@@ -123,7 +135,7 @@ describe('useCodex', () => {
                 snapshot: snapshot({ id: 'world-1', name: 'Eldoria', description: 'A kingdom', story_card_kind: 'world' }),
             }),
         ]
-        const { result } = renderHook(() => useCodex({ story: story(refs) }))
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
 
         expect(result.current.entries.map((entry) => entry.id)).toEqual(['b', 'a'])
         expect(result.current.entries[0]).toMatchObject({ label: 'Eldoria', description: 'A kingdom', kind: 'world' })
@@ -136,7 +148,7 @@ describe('useCodex', () => {
 
     it('addCards posts one batch with continuing precedence and no snapshots', async () => {
         const refs = [ref({ id: 'a', precedence: 4 })]
-        const { result } = renderHook(() => useCodex({ story: story(refs) }))
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
 
         await result.current.addCards([
             { kind: 'world', cardId: 'w1' },
@@ -151,7 +163,7 @@ describe('useCodex', () => {
     })
 
     it('cloneLorebookEntries builds one self-contained snapshot per entry', async () => {
-        const { result } = renderHook(() => useCodex({ story: story([]) }))
+        const { result } = renderHook(() => useCodex({ story: story([]), workspace: WORKSPACE }))
 
         await result.current.cloneLorebookEntries(LOREBOOK, ['entry-1', 'entry-2'])
 
@@ -189,14 +201,14 @@ describe('useCodex', () => {
                 source_lorebook_id: 'lb-1',
             }),
         })]
-        const { result } = renderHook(() => useCodex({ story: story(refs) }))
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
 
         expect(result.current.existingEntryIds).toEqual(new Set(['entry-1']))
     })
 
     it('toggleEntry flips enabled via a card-ref PUT', async () => {
         const refs = [ref({ id: 'a', enabled: true })]
-        const { result } = renderHook(() => useCodex({ story: story(refs) }))
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
 
         await result.current.toggleEntry(result.current.entries[0])
 
@@ -205,7 +217,7 @@ describe('useCodex', () => {
 
     it('saveSnapshot merges into the existing snapshot, preserving card fields', async () => {
         const refs = [ref({ id: 'a', snapshot: snapshot({ race: 'elf' }) })]
-        const { result } = renderHook(() => useCodex({ story: story(refs) }))
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
 
         await result.current.saveSnapshot(result.current.entries[0], { label: 'Aria the Red', description: 'A ranger of the gate.' })
 
@@ -233,7 +245,7 @@ describe('useCodex', () => {
                 story_card_kind: 'lorebook_entry',
             }),
         })]
-        const { result } = renderHook(() => useCodex({ story: story(refs) }))
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
 
         await result.current.saveSnapshot(result.current.entries[0], { label: 'Pact', description: 'new text' })
 
@@ -249,7 +261,7 @@ describe('useCodex', () => {
 
     it('removeEntry deletes the card ref', async () => {
         const refs = [ref({ id: 'a' })]
-        const { result } = renderHook(() => useCodex({ story: story(refs) }))
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
 
         await result.current.removeEntry(result.current.entries[0])
 
@@ -280,7 +292,7 @@ describe('useCodex', () => {
                 }),
             }),
         ]
-        const { result } = renderHook(() => useCodex({ story: story(refs) }))
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
 
         expect(result.current.detectionNames).toEqual([{ id: 'a', label: 'Aria', kind: 'character' }])
     })
@@ -302,7 +314,7 @@ describe('useCodex', () => {
             }),
             ref({ id: 'c', kind: 'character', precedence: 1 }),
         ]
-        const { result } = renderHook(() => useCodex({ story: story(refs) }))
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
 
         expect(result.current.loreEntries).toHaveLength(1)
         const session = result.current.loreEntries[0]
@@ -310,5 +322,54 @@ describe('useCodex', () => {
         // Stored snapshots retain the entry name but not the full trigger list,
         // so the name is the local highlighting fallback.
         expect(session.entry).toMatchObject({ keys: ['The Glass Pact'], enabled: false, matchWholeWords: true, caseSensitive: false, regex: false })
+    })
+
+    it('starts no codex op once the story workspace is no longer the committed one', async () => {
+        const refs = [ref({ id: 'a', enabled: true })]
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
+        workspaceCurrent = false
+
+        await act(async () => {
+            await result.current.addCards([{ kind: 'world', cardId: 'w1' }])
+            await result.current.toggleEntry(result.current.entries[0])
+            await result.current.removeEntry(result.current.entries[0])
+        })
+
+        expect(addStoryCardRefs).not.toHaveBeenCalled()
+        expect(updateStoryCardRef).not.toHaveBeenCalled()
+        expect(deleteStoryCardRef).not.toHaveBeenCalled()
+        expect(result.current.busy).toBe(false)
+    })
+})
+
+describe('useCodex in an archived workspace', () => {
+    const state = createWorkspaceTestState({
+        workspaces: [
+            testWorkspace(TEST_WORKSPACE_ID, 'Main library'),
+            testWorkspace(OTHER_WORKSPACE_ID, 'Novel A', { archived_at: '2026-10-10T00:00:00Z' }),
+        ],
+    })
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(WorkspaceTestProvider, { state, children })
+    const ARCHIVED_STORY = { workspaceId: OTHER_WORKSPACE_ID, isCurrent: () => true, detachedApi: () => null }
+
+    beforeEach(() => vi.clearAllMocks())
+
+    it('keeps the entries readable and mentionable but sends no op', async () => {
+        const refs = [ref({ id: 'a', enabled: true })]
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: ARCHIVED_STORY }), { wrapper })
+
+        expect(result.current.readOnly).toBe(true)
+        expect(result.current.mentionEntries).toEqual([{ id: 'a', label: 'Aria', kind: 'character', enabled: true }])
+        await act(async () => {
+            await result.current.addCards([{ kind: 'world', cardId: 'w1' }])
+            await result.current.toggleEntry(result.current.entries[0])
+            await result.current.saveSnapshot(result.current.entries[0], { label: 'Aria the Red', description: '' })
+            await result.current.removeEntry(result.current.entries[0])
+        })
+
+        expect(addStoryCardRefs).not.toHaveBeenCalled()
+        expect(updateStoryCardRef).not.toHaveBeenCalled()
+        expect(deleteStoryCardRef).not.toHaveBeenCalled()
+        expect(result.current.busy).toBe(false)
     })
 })

@@ -1,7 +1,9 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useContext, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
-import { ApiError, apiService } from '@/infrastructure/api'
+import { WorkspaceContext } from '@/app/providers/workspaceContext'
+import { ApiError, type ApiService } from '@/infrastructure/api'
+import type { CardCloneResponse } from '@/shared'
 import { buildGalleryCardHash, galleryPageForType } from '../galleryLinks'
 import type { GalleryItem, GalleryType } from '../galleryConfig'
 import { errorMessage } from '@/utils/errors'
@@ -30,14 +32,30 @@ function sourceKey(source: ImportSource): string {
 }
 
 
+export interface CardImportOptions {
+    /**
+     * The destination's scoped client, e.g. the Library's
+     * `apiService.withWorkspace(id, { initialCollectionIds })`. Defaults to the
+     * selected workspace's client; an import never runs unscoped.
+     */
+    client?: ApiService | null
+    /** Called after a successful import (the destination may refresh/highlight it). */
+    onImported?: (response: CardCloneResponse) => void
+}
+
 /**
  * Single owner of the community/shared card IMPORT workflow, reused by the
  * community gallery, the public gallery view, and the shared-link page so all
  * three behave identically: auth-guard, warn+confirm on re-import (server 409 /
  * `already_imported`), force re-import, toasts, and a library refresh.
+ * Workspace R1: imports land in an explicit destination workspace (document 15).
  */
-export function useCardImport() {
+export function useCardImport(options: CardImportOptions = {}) {
     const { t } = useTranslation()
+    // Tolerant read: public pages (community, shared link) also render this hook.
+    const workspace = useContext(WorkspaceContext)
+    const client = options.client === undefined ? (workspace?.api ?? null) : options.client
+    const onImported = options.onImported
     const { isAuthenticated, openLoginModal } = useAuth()
     const { loadData } = useData()
     const { setPage } = useNavigation()
@@ -51,13 +69,16 @@ export function useCardImport() {
             const title = (source.item?.title ?? '').slice(0, 80)
             const galleryType = source.item?.galleryType
             setActionNotice(null)
+            if (!client) {
+                setActionNotice({ tone: 'error', title: t('gallery.action.importFailed'), message: t('workspaces.unavailable.title') })
+                return
+            }
             setImportingKey(key)
             try {
-                if (source.kind === 'shared') {
-                    await apiService.importSharedCard(source.token, { force })
-                } else {
-                    await apiService.cloneCard(source.item.backendType, source.item.id, { force })
-                }
+                const response = source.kind === 'shared'
+                    ? await client.importSharedCard(source.token, { force })
+                    : await client.cloneCard(source.item.backendType, source.item.id, { force })
+                onImported?.(response)
                 await loadData({ silent: true })
                 setPendingConfirm(null)
                 setActionNotice({
@@ -83,7 +104,7 @@ export function useCardImport() {
                 setImportingKey(null)
             }
         },
-        [loadData, t],
+        [client, loadData, onImported, t],
     )
 
     const requestImport = useCallback(

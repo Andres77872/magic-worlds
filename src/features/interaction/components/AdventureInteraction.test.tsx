@@ -1,10 +1,25 @@
-import type { ReactNode } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactElement, ReactNode } from 'react'
+import { fireEvent, render as baseRender, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Adventure, TurnEntry } from '@/shared'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { AdventureInteraction } from './AdventureInteraction'
 
-const mocks = vi.hoisted(() => ({ loadTurns: vi.fn(), ensureSession: vi.fn(), setPage: vi.fn() }))
+const mocks = vi.hoisted(() => ({ loadTurns: vi.fn(), ensureSession: vi.fn(), setPage: vi.fn(), configScope: null as { workspaceId: string } | null }))
+
+const workspace = createWorkspaceTestState()
+function wrap(ui: ReactElement) {
+    return <WorkspaceTestProvider state={workspace}>{ui}</WorkspaceTestProvider>
+}
+function render(ui: ReactElement) {
+    const view = baseRender(wrap(ui))
+    return { ...view, rerender: (next: ReactElement) => view.rerender(wrap(next)) }
+}
 let adventure: Adventure | null
 const draft: Adventure = {
     id: 'draft-1', draftId: 'draft-1', draft: { templateId: 't1', personaId: 'p1' },
@@ -17,7 +32,12 @@ vi.mock('../../../app/hooks', () => ({
     useNavigation: () => ({ setPage: mocks.setPage, goBack: vi.fn() }),
     useData: () => ({ editingInProgress: adventure, ensureAdventureSession: mocks.ensureSession, saveInProgressSnapshot: vi.fn() }),
 }))
-vi.mock('../chatSessionConfig', () => ({ adventureChatConfig: () => ({ loadTurns: mocks.loadTurns }) }))
+vi.mock('../chatSessionConfig', () => ({
+    adventureChatConfig: (scope: { workspaceId: string }) => {
+        mocks.configScope = scope
+        return { loadTurns: mocks.loadTurns, workspaceId: scope.workspaceId }
+    },
+}))
 vi.mock('./index', () => ({
     InteractionTopBar: () => null,
     SidePanelDrawer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -39,6 +59,7 @@ vi.mock('./index', () => ({
 describe('AdventureInteraction draft lifecycle', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        mocks.configScope = null
         adventure = draft
         mocks.loadTurns.mockResolvedValue([])
         mocks.ensureSession.mockResolvedValue(17)
@@ -81,5 +102,19 @@ describe('AdventureInteraction draft lifecycle', () => {
         rerender(<AdventureInteraction />)
         expect(await screen.findByRole('textbox', { name: 'Draft message' })).toHaveValue('')
         expect(screen.getByTestId('transcript')).toBeEmptyDOMElement()
+    })
+
+    it('runs a session in the committed workspace when the server sent no origin', async () => {
+        adventure = { ...draft, id: '17', draft: undefined, status: 'in-progress' }
+        render(<AdventureInteraction />)
+        await waitFor(() => expect(mocks.loadTurns).toHaveBeenCalledWith(17))
+        expect(mocks.configScope?.workspaceId).toBe(TEST_WORKSPACE_ID)
+    })
+
+    it('runs a session in its own workspace (organization.workspace_id)', async () => {
+        adventure = { ...draft, id: '17', draft: undefined, status: 'in-progress', organization: { workspace_id: OTHER_WORKSPACE_ID } }
+        render(<AdventureInteraction />)
+        await waitFor(() => expect(mocks.loadTurns).toHaveBeenCalledWith(17))
+        expect(mocks.configScope?.workspaceId).toBe(OTHER_WORKSPACE_ID)
     })
 })

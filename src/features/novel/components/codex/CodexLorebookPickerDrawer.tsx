@@ -3,13 +3,21 @@
  * (entries arrive inline with the list), then pick entries to clone. Each
  * picked entry becomes its own codex snapshot, individually mentionable and
  * editable; the source lorebook is never linked.
+ *
+ * Workspace R1: lists the story's workspace (`workspaceId`, default the
+ * committed one); a committed switch drops the list and selection and closes it.
+ * While that workspace is archived (`readOnly`) lorebooks stay browsable, but
+ * nothing can be picked or cloned.
  */
 
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, BookMarked, Loader2, Search } from 'lucide-react'
+import { Archive, ArrowLeft, BookMarked, Loader2, Search } from 'lucide-react'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { Lorebook } from '@/shared'
-import { apiService } from '@/infrastructure/api'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY } from '@/shared/hooks/useWorkspaceReadOnly'
+import { useWorkspaceSwitch } from '@/features/codex/hooks/useWorkspaceSwitch'
 import { normalizeLorebookList } from '@/features/lorebook/lorebookTransforms'
 import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card'
 import { Badge, Button, Callout, Drawer, Icon, IconButton, Input, SelectionCheck, Tag, cx } from '@/ui/primitives'
@@ -19,15 +27,21 @@ const LOREBOOK_LIMIT = 24
 
 interface CodexLorebookPickerDrawerProps {
     open: boolean
+    /** The story's workspace (default: the committed workspace). */
+    workspaceId?: string | null
     busy: boolean
+    /** The story's workspace is archived: browse only, nothing is cloned. */
+    readOnly?: boolean
     /** Entry ids already cloned into the codex. */
     existingEntryIds: Set<string>
     onClose: () => void
     onClone: (lorebook: Lorebook, entryIds: string[]) => Promise<void>
 }
 
-export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClose, onClone }: CodexLorebookPickerDrawerProps) {
+export function CodexLorebookPickerDrawer({ open, workspaceId, busy, readOnly = false, existingEntryIds, onClose, onClone }: CodexLorebookPickerDrawerProps) {
     const { t } = useTranslation()
+    const api = useScopedApi(workspaceId)
+    const { capture, isCurrent } = useWorkspace()
     const [query, setQuery] = useState('')
     const [lorebooks, setLorebooks] = useState<Lorebook[]>([])
     const [loading, setLoading] = useState(false)
@@ -37,41 +51,56 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
     const seqRef = useRef(0)
 
     useEffect(() => {
-        if (!open) return
+        if (!open || !api) return
         const seq = ++seqRef.current
+        const scope = capture()
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setLoading(true)
         setError(null)
         const timer = setTimeout(() => {
-            apiService
+            api
                 .getLorebooks(0, LOREBOOK_LIMIT, query.trim() || undefined)
                 .then((raw) => {
-                    if (seq !== seqRef.current) return
+                    if (seq !== seqRef.current || !isCurrent(scope)) return
                     setLorebooks(normalizeLorebookList(raw))
                 })
                 .catch((cause: unknown) => {
-                    if (seq !== seqRef.current) return
+                    if (seq !== seqRef.current || !isCurrent(scope)) return
                     setLorebooks([])
                     setError(cause instanceof Error ? cause.message : t('lorebookGallery.error.loadFailed'))
                 })
                 .finally(() => {
-                    if (seq === seqRef.current) setLoading(false)
+                    if (seq === seqRef.current && isCurrent(scope)) setLoading(false)
                 })
         }, SEARCH_DEBOUNCE_MS)
         return () => clearTimeout(timer)
-    }, [open, query, t])
+    }, [api, capture, isCurrent, open, query, t])
 
-    const close = () => {
+    const reset = () => {
         setPicked(null)
         setSelectedIds(new Set())
         setQuery('')
+    }
+
+    const close = () => {
+        reset()
         onClose()
     }
 
+    // The listed lorebooks belong to the previous workspace: drop them and close.
+    useWorkspaceSwitch(() => {
+        seqRef.current += 1
+        reset()
+        setLorebooks([])
+        setLoading(false)
+        setError(null)
+        if (open) onClose()
+    })
+
     const pickLorebook = (lorebook: Lorebook) => {
         setPicked(lorebook)
-        // Default selection: enabled entries that are not already cloned.
-        setSelectedIds(new Set(lorebook.entries.filter((entry) => entry.enabled && !existingEntryIds.has(entry.id)).map((entry) => entry.id)))
+        // Default selection: enabled entries that are not already cloned (none while read-only).
+        setSelectedIds(readOnly ? new Set() : new Set(lorebook.entries.filter((entry) => entry.enabled && !existingEntryIds.has(entry.id)).map((entry) => entry.id)))
     }
 
     const toggleEntry = (entryId: string) => {
@@ -88,12 +117,17 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
 
     const submit = async () => {
         if (!picked) return
+        if (readOnly) {
+            setError(t(ARCHIVED_WORKSPACE_MESSAGE_KEY))
+            return
+        }
+        const scope = capture()
         setError(null)
         try {
             await onClone(picked, Array.from(selectedIds))
-            close()
+            if (isCurrent(scope)) close()
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : t('novelEditor.save.failed'))
+            if (isCurrent(scope)) setError(cause instanceof Error ? cause.message : t('novelEditor.save.failed'))
         }
     }
 
@@ -112,7 +146,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                             variant="ghost"
                             size="sm"
                             onClick={() => setSelectedIds(allSelected ? new Set() : new Set(selectableIds))}
-                            disabled={busy || selectableIds.length === 0}
+                            disabled={busy || readOnly || selectableIds.length === 0}
                         >
                             {allSelected ? t('novelEditor.lorebookPicker.selectNone') : t('novelEditor.lorebookPicker.selectAll')}
                         </Button>
@@ -123,7 +157,7 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                             <Button
                                 variant="primary"
                                 onClick={() => void submit()}
-                                disabled={busy || selectedIds.size === 0}
+                                disabled={busy || readOnly || selectedIds.size === 0}
                                 data-testid="codex-clone-entries-submit"
                             >
                                 {busy ? t('novelEditor.lorebookPicker.cloning') : t('novelEditor.lorebookPicker.clone', { count: selectedIds.size })}
@@ -133,6 +167,11 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                 ) : undefined
             }
         >
+            {readOnly && (
+                <Callout tone="warning" role="status" icon={<Icon icon={Archive} size={16} />} className="mb-4" data-testid="codex-lorebook-archived">
+                    {t(ARCHIVED_WORKSPACE_MESSAGE_KEY)}
+                </Callout>
+            )}
             {error && <Callout tone="danger" role="alert" className="mb-4">{error}</Callout>}
             {!picked ? (
                 <div className="flex flex-col gap-3">
@@ -201,14 +240,16 @@ export function CodexLorebookPickerDrawer({ open, busy, existingEntryIds, onClos
                                 <li key={entry.id}>
                                     <button
                                         type="button"
-                                        onClick={() => !inCodex && toggleEntry(entry.id)}
-                                        disabled={inCodex}
+                                        onClick={() => !inCodex && !readOnly && toggleEntry(entry.id)}
+                                        disabled={inCodex || readOnly}
                                         aria-pressed={isSelected}
                                         className={cx(
                                             'flex w-full items-start gap-2.5 rounded-md border px-3 py-2.5 text-left transition-colors',
                                             inCodex
                                                 ? 'cursor-default border-parchment-50/[.06] opacity-55'
-                                                : isSelected
+                                                : readOnly
+                                                  ? 'cursor-default border-parchment-50/10'
+                                                  : isSelected
                                                   ? `cursor-pointer ${SELECTED_CARD_CLASS}`
                                                   : 'cursor-pointer border-parchment-50/10 hover:border-parchment-50/25 hover:bg-parchment-50/[.04]',
                                         )}

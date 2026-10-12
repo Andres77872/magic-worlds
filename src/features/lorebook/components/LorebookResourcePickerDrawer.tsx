@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FileText, Loader2, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { Lorebook } from '@/shared'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import { Badge, Button, Drawer, Icon, IconTile, Input, SelectionCheck, cx } from '@/ui/primitives'
 import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card'
 import { normalizeLorebook } from '../lorebookTransforms'
@@ -12,13 +13,20 @@ import { useLorebookResourceGallery } from '../hooks/useLorebookResourceGallery'
 interface LorebookResourcePickerDrawerProps {
     open: boolean
     lorebook: Lorebook | null
+    /**
+     * The book's workspace (only its resources are listed and attached); defaults
+     * to the committed one. Hosts close the drawer on a committed switch.
+     */
+    workspaceId?: string | null
     onClose: () => void
     onAttached: (lorebook: Lorebook) => void
 }
 
-export function LorebookResourcePickerDrawer({ open, lorebook, onClose, onAttached }: LorebookResourcePickerDrawerProps) {
+export function LorebookResourcePickerDrawer({ open, lorebook, workspaceId, onClose, onAttached }: LorebookResourcePickerDrawerProps) {
     const { t } = useTranslation()
-    const gallery = useLorebookResourceGallery(undefined, { enabled: open })
+    const api = useScopedApi(workspaceId)
+    const { workspaceEpoch, capture, isCurrent } = useWorkspace()
+    const gallery = useLorebookResourceGallery(undefined, { enabled: open, workspaceId })
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -33,6 +41,14 @@ export function LorebookResourcePickerDrawer({ open, lorebook, onClose, onAttach
         }
     }, [open, setQuery])
 
+    // A committed switch never carries a selection into another workspace.
+    const [pickerEpoch, setPickerEpoch] = useState(workspaceEpoch)
+    if (pickerEpoch !== workspaceEpoch) {
+        setPickerEpoch(workspaceEpoch)
+        setSelectedIds(new Set())
+        setError(null)
+    }
+
     const toggle = (id: string) => {
         if (attachedIds.has(id)) return
         setSelectedIds((current) => {
@@ -44,17 +60,20 @@ export function LorebookResourcePickerDrawer({ open, lorebook, onClose, onAttach
     }
 
     const attach = async () => {
-        if (!lorebook?.id || selectedIds.size === 0 || busy) return
+        if (!lorebook?.id || selectedIds.size === 0 || busy || !api) return
+        const scope = capture()
         setBusy(true)
         setError(null)
         try {
             let updated: Lorebook | null = null
             for (const resourceId of selectedIds) {
-                updated = normalizeLorebook(await apiService.attachLorebookResource(lorebook.id, resourceId))
+                updated = normalizeLorebook(await api.attachLorebookResource(lorebook.id, resourceId))
             }
+            if (!isCurrent(scope)) return
             if (updated) onAttached(updated)
             onClose()
         } catch (err) {
+            if (!isCurrent(scope)) return
             setError(err instanceof Error ? err.message : t('lorebookResourcePicker.errors.attachFailed'))
         } finally {
             setBusy(false)

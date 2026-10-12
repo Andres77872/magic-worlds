@@ -19,7 +19,8 @@ import type { TFunction } from 'i18next'
 import { Eye, History, ImagePlus, ImageUp, Music2, Sparkles, Trash2, Zap } from 'lucide-react'
 import type { CardMediaTargetType, CardPortraitRequest, ThemeSongJobPublic, ThemeSongModelAlias } from '@/shared'
 import { useBackgroundTasks } from '@/app/hooks'
-import { apiService, resolveMediaUrl, type ImageJobPublicResponse } from '@/infrastructure/api'
+import { resolveMediaUrl, type ImageJobPublicResponse } from '@/infrastructure/api'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import { Button, Eyebrow, Icon, IconButton, ImageLightbox, Portrait, SectionHeader, SegmentedControl, Switch, type SegmentedControlOption } from '@/ui/primitives'
 import { AudioWavePlayer } from '@/ui/components/audio'
 import { ImageGenerationStatus, type ImageGenerationStage } from '@/ui/components'
@@ -30,6 +31,7 @@ import { ImageKeyDialog } from '@/features/imageProfiles/ImageKeyDialog'
 import { ImageProfilePicker } from '@/features/imageProfiles/ImageProfilePicker'
 import { useImageGenerationProfile, type ImageGenerationSelection } from '@/features/imageProfiles/useImageGenerationProfile'
 import type { ImageProvider } from '@/shared/types/imageProfile.types'
+import { ReadOnlyFieldset } from './ReadOnlyFieldset'
 
 type AttributeGroups = CardPortraitRequest['category']
 
@@ -107,6 +109,13 @@ export interface MediaStudioSectionProps {
      * the live-preview card above already shows the portrait.
      */
     layout?: 'full' | 'compact'
+    /**
+     * Workspace R1: the workspace the card's media jobs belong to — the edited
+     * card's own workspace, or a new card's creation origin. Default = committed.
+     */
+    workspaceId?: string | null
+    /** Archived workspace: every generate, upload, replace and remove action is off. */
+    readOnly?: boolean
 }
 
 const EXTRA_DIRECTION_MAX = 600
@@ -164,9 +173,13 @@ export function MediaStudioSection({
     isAuthenticated,
     onAuthRequired,
     layout = 'full',
+    workspaceId,
+    readOnly = false,
 }: MediaStudioSectionProps) {
     const { t } = useTranslation()
     const { tasks, registerThemeSongJob } = useBackgroundTasks()
+    // Every image/theme job, upload and history read runs in the card's workspace.
+    const api = useScopedApi(workspaceId)
     const mountedRef = useRef(true)
     useEffect(() => {
         mountedRef.current = true
@@ -192,6 +205,7 @@ export function MediaStudioSection({
     const openFilePicker = () => fileInputRef.current?.click()
 
     const handleUploadImage = async (file: File) => {
+        if (readOnly) return
         if (!isAuthenticated) {
             onAuthRequired()
             return
@@ -204,6 +218,7 @@ export function MediaStudioSection({
             setImgError(t('creation.common.media.notices.tooLarge'))
             return
         }
+        if (!api) return
         const controller = new AbortController()
         imgAbortRef.current = controller
         setImgBusyKind('upload')
@@ -211,7 +226,7 @@ export function MediaStudioSection({
         setImgError(null)
         setImgNotice(null)
         try {
-            const res = await apiService.uploadCardImage(file, { signal: controller.signal })
+            const res = await api.uploadCardImage(file, { signal: controller.signal })
             if (!mountedRef.current) return
             onImageUrl(res.url)
         } catch (err) {
@@ -234,6 +249,7 @@ export function MediaStudioSection({
     }
 
     const handleRemoveImage = () => {
+        if (readOnly) return
         onImageUrl(undefined)
         setImgError(null)
         setImgNotice(null)
@@ -241,6 +257,7 @@ export function MediaStudioSection({
     }
 
     const handleGenerateImage = () => {
+        if (readOnly) return
         if (!isAuthenticated) {
             onAuthRequired()
             return
@@ -266,6 +283,7 @@ export function MediaStudioSection({
             imageProfile.recover(code, (next, provider) => { void generateImage(next, provider) })
             return mediaErrorCopy(error, 'portrait', t)
         }
+        if (!api) return
         const controller = new AbortController()
         imgAbortRef.current = controller
         setImgBusyKind('generate')
@@ -286,10 +304,10 @@ export function MediaStudioSection({
                 extra_direction: direction.trim() || undefined,
                 ...selection,
             }
-            let job: ImageJobPublicResponse = await apiService.generateCardPortrait(body, { signal: controller.signal })
+            let job: ImageJobPublicResponse = await api.generateCardPortrait(body, { signal: controller.signal })
             if (job.status !== 'completed') {
                 setImgStage(job.status)
-                job = await apiService.waitForImageJob(job.job_id, {
+                job = await api.waitForImageJob(job.job_id, {
                     signal: controller.signal,
                     onUpdate: (update) => {
                         if (mountedRef.current) setImgStage(update.status)
@@ -345,9 +363,9 @@ export function MediaStudioSection({
 
     // Surface the latest completed theme for an already-saved card.
     useEffect(() => {
-        if (!themeTargetId) return
+        if (!themeTargetId || !api) return
         let cancelled = false
-        apiService
+        api
             .listThemeSongs(cardType, themeTargetId)
             .then((res) => {
                 if (cancelled) return
@@ -366,7 +384,7 @@ export function MediaStudioSection({
         return () => {
             cancelled = true
         }
-    }, [cardType, themeTargetId])
+    }, [api, cardType, themeTargetId])
 
     useEffect(() => {
         if (!themeJobId) return
@@ -395,11 +413,12 @@ export function MediaStudioSection({
     }, [onGeneratedThemeSongUrl, tasks, themeJobId])
 
     const handleGenerateTheme = async () => {
+        if (readOnly) return
         if (!isAuthenticated) {
             onAuthRequired()
             return
         }
-        if (themeDisabledReason) return
+        if (themeDisabledReason || !api) return
         const controller = new AbortController()
         themeAbortRef.current = controller
         setThemeBusy(true)
@@ -413,7 +432,7 @@ export function MediaStudioSection({
             }
             const themeFor = template.name.trim() || t('creation.common.media.notices.defaultThemeTarget', { noun })
             const description = songDirection.trim() || t('creation.common.media.notices.defaultThemeDescription', { name: themeFor })
-            const job = await apiService.generateThemeSong(
+            const job = await api.generateThemeSong(
                 { target_type: cardType, target_id: targetId, description, model_alias: themeModel, instrumental: themeInstrumental },
                 { signal: controller.signal },
             )
@@ -502,6 +521,7 @@ export function MediaStudioSection({
             cardType={cardType}
             cardName={template.name}
             themeTargetId={themeTargetId}
+            workspaceId={workspaceId}
             currentImageUrl={imageUrl}
             currentThemeSongUrl={themeUrl}
             onSelectImage={(url) => onImageUrl(url)}
@@ -561,6 +581,7 @@ export function MediaStudioSection({
 
     if (layout === 'compact') {
         return (
+            <ReadOnlyFieldset disabled={readOnly}>
             <div className="flex flex-col gap-4 border-t border-parchment-50/10 pt-5">
                 <div className="flex flex-col gap-0.5">
                     <Eyebrow tone="arcane">{isAdventure ? t('creation.common.media.coverTheme') : t('creation.common.media.portraitTheme')}</Eyebrow>
@@ -709,10 +730,12 @@ export function MediaStudioSection({
 
                 {historyDrawer}
             </div>
+            </ReadOnlyFieldset>
         )
     }
 
     return (
+        <ReadOnlyFieldset disabled={readOnly}>
         <div className="flex flex-col gap-8">
             {/* Portrait */}
             <div className="flex flex-col gap-4">
@@ -833,5 +856,6 @@ export function MediaStudioSection({
 
             {historyDrawer}
         </div>
+        </ReadOnlyFieldset>
     )
 }

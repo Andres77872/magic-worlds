@@ -13,6 +13,7 @@ import { Button, Icon, IconButton, IconTile, PageHeader, Toast, controlClass } f
 import { ResumeCard } from '@/features/landing/components/ResumeCard'
 import { toResumeSessions, type ResumeSession } from '@/features/landing/components/resumeModel'
 import { searchableText } from '@/features/landing/components/resumeModel'
+import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 
 interface ActionNotice {
     tone: 'success' | 'error'
@@ -35,6 +36,8 @@ export function ActiveAdventuresPage() {
     } = useData()
     const [query, setQuery] = useState('')
     const [pendingDelete, setPendingDelete] = useState<ResumeSession | null>(null)
+    // An archived workspace's adventures stay readable; deleting one is new work there.
+    const readOnly = useWorkspaceReadOnly()
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null)
 
@@ -179,7 +182,7 @@ export function ActiveAdventuresPage() {
                             key={session.id}
                             session={session}
                             onContinue={() => openAdventure(session)}
-                            onDelete={() => requireAuth(() => setPendingDelete(session))}
+                            onDelete={readOnly ? undefined : () => requireAuth(() => setPendingDelete(session))}
                             deleting={deletingId === session.id}
                         />
                     ))}

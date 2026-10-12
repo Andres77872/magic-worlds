@@ -11,9 +11,11 @@ interface LoreEntryTableProps {
     onSelect: (entry: LorebookEntry) => void
     onAdd: () => void
     onDelete: (entryId: string) => void
+    /** Archived workspace: entries stay selectable for reading; add and delete are disabled. */
+    readOnly?: boolean
 }
 
-export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete }: LoreEntryTableProps) {
+export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete, readOnly = false }: LoreEntryTableProps) {
     const { t } = useTranslation()
     return (
         <section aria-label={t('lorebookStudio.entryTable.heading')} className="border-t border-line pt-6">
@@ -22,7 +24,7 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                     <h3 className="font-display text-xl font-semibold text-parchment-50">{t('lorebookStudio.entryTable.heading')}</h3>
                     <p className="font-ui text-xs text-parchment-300">{t('lorebookStudio.entryTable.subtitle', { count: entries.length })}</p>
                 </div>
-                <Button size="sm" variant="secondary" iconLeft={<Icon icon={Plus} size={15} />} onClick={onAdd}>
+                <Button size="sm" variant="secondary" iconLeft={<Icon icon={Plus} size={15} />} onClick={onAdd} disabled={readOnly}>
                     {t('lorebookStudio.entryTable.addEntry')}
                 </Button>
             </div>
@@ -31,7 +33,8 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                     <button
                         type="button"
                         onClick={onAdd}
-                        className="flex min-h-48 w-full flex-col items-center justify-center gap-3 px-6 py-6 text-center text-parchment-300 transition-colors hover:bg-parchment-50/[.03] hover:text-parchment-100"
+                        disabled={readOnly}
+                        className="flex min-h-48 w-full flex-col items-center justify-center gap-3 px-6 py-6 text-center text-parchment-300 transition-colors enabled:hover:bg-parchment-50/[.03] enabled:hover:text-parchment-100 disabled:cursor-not-allowed"
                     >
                         <Icon icon={ScrollText} size={34} className="text-arcane-300" />
                         <span className="font-display text-xl text-parchment-50">{t('lorebookStudio.entryTable.empty.title')}</span>
@@ -91,6 +94,7 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete 
                                         tone="danger"
                                         label={t('lorebookStudio.entryTable.deleteEntry', { title: entry.title || t('lorebookStudio.entryTable.entryFallback') })}
                                         onClick={() => onDelete(entry.id)}
+                                        disabled={readOnly}
                                         className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 pointer-coarse:opacity-100"
                                     >
                                         <Icon icon={Trash2} size={14} />

@@ -81,6 +81,23 @@ vi.mock('@/app/hooks', () => ({
     }),
 }))
 
+// Workspace R1: the selected workspace's scoped client is the API stub below.
+const workspaceState = vi.hoisted(() => ({
+    api: null as unknown,
+    status: 'ready' as const,
+    selectedWorkspaceId: '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b',
+    selectedWorkspace: null as unknown,
+    workspaceEpoch: 1,
+    featureEnabled: false,
+    capture: () => ({ workspaceId: '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b', workspaceEpoch: 1 }),
+    isCurrent: () => true,
+}))
+vi.mock('@/app/hooks/useWorkspace', async () => {
+    const { apiService } = await import('@/infrastructure/api')
+    workspaceState.api = apiService
+    return { useWorkspace: () => workspaceState }
+})
+
 vi.mock('@/infrastructure/api', () => ({
     apiService: {
         getCharacters: vi.fn(),

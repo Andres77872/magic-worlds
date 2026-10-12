@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { Eye, History, RotateCcw, Upload, Undo2 } from 'lucide-react'
 import type { CardVersion, VersionableCardType } from '@/shared'
 import { useCardUsage } from '@/shared/hooks/useCardUsage'
-import { apiService } from '@/infrastructure/api'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import { Badge, Button, Callout, cx, Drawer, Eyebrow } from '@/ui/primitives'
 import { CardUsageLine } from '@/ui/components/common/CardUsageLine'
 import { EmptyState } from '@/ui/components/common/EmptyState'
@@ -44,6 +44,10 @@ export interface CardHistoryDrawerProps {
     onView: (versionNumber: number) => void
     /** Bumped by the editor after publish so the list refetches the new version. */
     reloadToken?: number
+    /** Workspace R1: the card's own workspace; default = the committed workspace. */
+    workspaceId?: string | null
+    /** Archived workspace: versions stay viewable; publish, discard and restore are disabled. */
+    readOnly?: boolean
 }
 
 
@@ -62,25 +66,29 @@ export function CardHistoryDrawer({
     onRestore,
     onView,
     reloadToken,
+    workspaceId,
+    readOnly = false,
 }: CardHistoryDrawerProps) {
     const { t } = useTranslation()
+    const api = useScopedApi(workspaceId)
     const [versions, setVersions] = useState<CardVersion[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const usage = useCardUsage(cardType, cardId, { enabled: open && Boolean(cardId) })
+    const usage = useCardUsage(cardType, cardId, { enabled: open && Boolean(cardId), workspaceId })
 
     const load = useCallback(async () => {
+        if (!api) return
         setLoading(true)
         setError(null)
         try {
-            const res = await apiService.listCardVersions(cardType, cardId)
+            const res = await api.listCardVersions(cardType, cardId)
             setVersions(res.versions ?? [])
         } catch {
             setError(t('cardVersions.errors.load'))
         } finally {
             setLoading(false)
         }
-    }, [cardType, cardId, t])
+    }, [api, cardType, cardId, t])
 
     // Refetch on open and whenever the editor signals a publish happened.
     useEffect(() => {
@@ -126,7 +134,7 @@ export function CardHistoryDrawer({
                             size="sm"
                             iconLeft={<Upload size={14} strokeWidth={1.75} />}
                             onClick={onPublish}
-                            disabled={busy}
+                            disabled={busy || readOnly}
                         >
                             {t('cardVersions.publish.button')}
                         </Button>
@@ -135,7 +143,7 @@ export function CardHistoryDrawer({
                             size="sm"
                             iconLeft={<Undo2 size={14} strokeWidth={1.75} />}
                             onClick={onDiscard}
-                            disabled={busy}
+                            disabled={busy || readOnly}
                         >
                             {t('cardVersions.draft.discard')}
                         </Button>
@@ -191,7 +199,7 @@ export function CardHistoryDrawer({
                                         size="sm"
                                         iconLeft={<RotateCcw size={14} strokeWidth={1.75} />}
                                         onClick={() => onRestore(v.version_number)}
-                                        disabled={busy}
+                                        disabled={busy || readOnly}
                                         title={t('cardVersions.history.restoreHint')}
                                     >
                                         {t('cardVersions.history.restore')}

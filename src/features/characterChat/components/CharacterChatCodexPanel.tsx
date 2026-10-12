@@ -13,9 +13,11 @@ interface CharacterChatCodexPanelProps {
     onAddCards: (cards: CodexLibraryCardSelection[]) => Promise<unknown>
     onToggleCard: (card: CharacterChatCodexCard, enabled: boolean) => Promise<unknown>
     onRemoveCard: (card: CharacterChatCodexCard) => Promise<unknown>
+    /** Workspace R1: the chat's own workspace; the picker browses that library. */
+    workspaceId?: string | null
 }
 
-export function CharacterChatCodexPanel({ cards, onAddCards, onToggleCard, onRemoveCard }: CharacterChatCodexPanelProps) {
+export function CharacterChatCodexPanel({ cards, onAddCards, onToggleCard, onRemoveCard, workspaceId }: CharacterChatCodexPanelProps) {
     const { t } = useTranslation()
     const { openWindow } = useFloatingWindows()
     const [pickerOpen, setPickerOpen] = useState(false)
@@ -94,6 +96,7 @@ export function CharacterChatCodexPanel({ cards, onAddCards, onToggleCard, onRem
 
             <CodexCardPickerDrawer
                 open={pickerOpen}
+                workspaceId={workspaceId}
                 busy={busy}
                 existingCardKeys={existingCardKeys}
                 onClose={() => setPickerOpen(false)}

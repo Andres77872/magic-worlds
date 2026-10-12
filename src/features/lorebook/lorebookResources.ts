@@ -1,5 +1,6 @@
 import type { Lorebook, LorebookEntry, LorebookResource, LorebookResourceExtraction, LorebookResourceSnippet } from '@/shared'
 import { serializeLorebookResource } from '@/infrastructure/api/lorebookWire'
+import { isRootOrganization, readRootOrganization } from '@/infrastructure/api/workspaceContract'
 import { makeRequestId } from '@/utils/uuid'
 
 export const LOREBOOK_RESOURCE_MAX_CHARS = 80_000
@@ -111,7 +112,7 @@ function normalizeExtraction(raw: unknown): LorebookResourceExtraction | null {
 }
 
 export function normalizeLorebookResource(raw: unknown): LorebookResource | null {
-    if (!isRecord(raw) || Object.keys(raw).some((key) => !['id', 'title', 'description', 'triggers', 'fileName', 'fileType', 'content', 'contentLength', 'contentHash', 'evaluationHash', 'extractionStatus', 'extraction', 'metadataOutdated', 'linkCount', 'createdAt', 'updatedAt'].includes(key))
+    if (!isRecord(raw) || Object.keys(raw).some((key) => !['id', 'title', 'description', 'triggers', 'fileName', 'fileType', 'content', 'contentLength', 'contentHash', 'evaluationHash', 'extractionStatus', 'extraction', 'metadataOutdated', 'linkCount', 'organization', 'createdAt', 'updatedAt'].includes(key))
         || typeof raw.id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(raw.id)
         || typeof raw.fileName !== 'string' || !raw.fileName.trim() || typeof raw.content !== 'string') return null
     const fileName = raw.fileName.trim()
@@ -120,6 +121,8 @@ export function normalizeLorebookResource(raw: unknown): LorebookResource | null
     const rawLinkCount = raw.linkCount
     const evaluationHash = maybeString(raw.evaluationHash) ?? undefined
     const extraction = normalizeExtraction(raw.extraction)
+    if (raw.organization !== undefined && !isRootOrganization(raw.organization)) return null
+    const organization = readRootOrganization(raw.organization)
     const metadataOutdated = maybeBool(raw.metadataOutdated)
         ?? Boolean(extraction?.sourceHash && evaluationHash && extraction.sourceHash !== evaluationHash)
     return {
@@ -139,6 +142,8 @@ export function normalizeLorebookResource(raw: unknown): LorebookResource | null
         linkCount: typeof rawLinkCount === 'number' ? rawLinkCount : undefined,
         createdAt: maybeString(raw.createdAt) ?? undefined,
         updatedAt: maybeString(raw.updatedAt) ?? undefined,
+        // Workspace R1 server-owned metadata: kept when valid, never serialized back.
+        ...(organization ? { organization } : {}),
     }
 }
 

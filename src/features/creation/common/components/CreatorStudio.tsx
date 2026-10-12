@@ -32,6 +32,8 @@ export interface CreatorStudioProps {
     preview: ReactNode
     /** The editor column — the caller's <form> with its StudioSections. */
     children: ReactNode
+    /** Workspace R1: where a new card will be saved (a `CreationDestination`), shown before any submission. */
+    destination?: ReactNode
 }
 
 export function CreatorStudio({
@@ -44,6 +46,7 @@ export function CreatorStudio({
     nav,
     preview,
     children,
+    destination,
 }: CreatorStudioProps) {
     const { t } = useTranslation()
     const navStart = useRef<HTMLDivElement>(null)
@@ -97,6 +100,7 @@ export function CreatorStudio({
                 className="mb-6"
                 eyebrow={eyebrow ?? t('creation.common.creationEyebrow')}
                 title={title}
+                subtitle={destination}
                 icon={icon ? <span className="text-[28px] leading-none max-sm:text-2xl">{icon}</span> : undefined}
                 divider
                 actions={

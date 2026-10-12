@@ -7,6 +7,8 @@
 import type { Adventure, Character, Item, World } from '../shared'
 import type { CardActor, CardVisibility } from '../shared'
 import type { CharacterVoice } from '../shared/types/voicePreset.types'
+import type { CardOrganization } from '../shared/types/workspace.types'
+import { readCardOrganization } from '../infrastructure/api/workspaceContract'
 
 /**
  * Guard list transforms at the boundary so malformed responses never reach
@@ -48,10 +50,22 @@ interface RawCardRow {
     persona?: Character
     characters?: Character[]
     world?: World[]
+    /** Workspace R1 server-owned metadata; kept only when it validates. */
+    organization?: unknown
     createdAt?: string
     updatedAt?: string
     created_at?: string
     updated_at?: string
+}
+
+/**
+ * Preserve a validated read organization on the local entity. It is
+ * server-owned: writers build bodies field by field and the API client strips
+ * it at the write boundary, so it never reaches drafts, versions or exports.
+ */
+function organizationOf(row: RawCardRow): { organization?: CardOrganization } {
+    const organization = readCardOrganization(row.organization)
+    return organization ? { organization } : {}
 }
 
 function readCharacterVoice(value: unknown): CharacterVoice | undefined {
@@ -96,6 +110,7 @@ export function transformCharacters(raw: unknown): Character[] {
         latest_version_number: char.latest_version_number,
         has_draft: char.has_draft,
         draft_updated_at: char.draft_updated_at,
+        ...organizationOf(char),
         createdAt: char.createdAt ?? char.created_at,
         updatedAt: char.updatedAt ?? char.updated_at,
     }))
@@ -116,6 +131,7 @@ export function transformWorlds(raw: unknown): World[] {
         original_creator: world.original_creator,
         latest_version_id: world.latest_version_id,
         latest_version_number: world.latest_version_number,
+        ...organizationOf(world),
         createdAt: world.createdAt ?? world.created_at,
         updatedAt: world.updatedAt ?? world.updated_at,
     }))
@@ -136,6 +152,7 @@ export function transformTemplates(raw: unknown): Adventure[] {
         theme_song_url: template.theme_song_url,
         visibility: template.visibility,
         original_creator: template.original_creator,
+        ...organizationOf(template),
         createdAt: template.createdAt ?? template.created_at,
         updatedAt: template.updatedAt ?? template.updated_at,
     }))
@@ -162,6 +179,7 @@ export function transformItems(raw: unknown): Item[] {
         original_creator: item.original_creator,
         latest_version_id: item.latest_version_id,
         latest_version_number: item.latest_version_number,
+        ...organizationOf(item),
         createdAt: item.createdAt ?? item.created_at,
         updatedAt: item.updatedAt ?? item.updated_at,
     }))

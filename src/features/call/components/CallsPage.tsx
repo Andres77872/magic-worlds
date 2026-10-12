@@ -12,11 +12,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Phone, PhoneCall, Search, Users, X } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
-import { apiService, resolveMediaUrl } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
+import { resolveMediaUrl } from '@/infrastructure/api'
 import type { CallSummary, Character } from '@/shared'
 import { EmptyState, CardGrid, GalleryCard, PersonaPickerDialog } from '@/ui/components'
 import { Badge, Button, Icon, IconButton, IconTile, PageHeader, controlClass } from '@/ui/primitives'
 import { useStartCall } from '../useStartCall'
+import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { CallHistoryRow } from './CallHistoryRow'
 import { CallTranscriptView } from './CallTranscriptView'
 
@@ -31,7 +33,11 @@ export function CallsPage() {
     const { isAuthenticated } = useAuth()
     const { characters, characterChats, loadingState, loadData } = useData()
     const { setPage } = useNavigation()
+    // Workspace R1: call history is workspace-local; the account's one-live-call policy is not.
+    const { api, capture, isCurrent, workspaceEpoch } = useWorkspace()
     const call = useStartCall()
+    // An archived workspace keeps its call history readable; a new call is new work there.
+    const readOnly = useWorkspaceReadOnly()
 
     const [query, setQuery] = useState('')
     const [recentCalls, setRecentCalls] = useState<CallSummary[]>([])
@@ -43,6 +49,15 @@ export function CallsPage() {
     const [loadingMoreCalls, setLoadingMoreCalls] = useState(false)
     const [moreCallsError, setMoreCallsError] = useState(false)
 
+    // A committed switch shows the new workspace's history: drop the open transcript.
+    const [historyEpoch, setHistoryEpoch] = useState(workspaceEpoch)
+    if (historyEpoch !== workspaceEpoch) {
+        setHistoryEpoch(workspaceEpoch)
+        setSelectedCall(null)
+        setRecentCalls([])
+        setHasMoreCalls(false)
+    }
+
     useEffect(() => {
         if (!isAuthenticated) {
             setRecentCalls([])
@@ -52,14 +67,16 @@ export function CallsPage() {
             setHasMoreCalls(false)
             return
         }
+        if (!api) return
         let cancelled = false
+        const scope = capture()
         setLoadingCalls(true)
         setCallsError(false)
         setMoreCallsError(false)
-        apiService
+        api
             .getRecentVoiceCalls({ limit: CALLS_PAGE_SIZE })
             .then((response) => {
-                if (cancelled) return
+                if (cancelled || !isCurrent(scope)) return
                 const items = response.items ?? []
                 setRecentCalls(items)
                 setHasMoreCalls(items.length >= CALLS_PAGE_SIZE)
@@ -74,14 +91,17 @@ export function CallsPage() {
         return () => {
             cancelled = true
         }
-    }, [isAuthenticated, reloadCalls])
+        // A committed switch (new epoch, new scoped `api`) reloads the history.
+    }, [api, capture, isAuthenticated, isCurrent, reloadCalls, workspaceEpoch])
 
     const loadMoreCalls = async () => {
-        if (loadingMoreCalls) return
+        if (loadingMoreCalls || !api) return
+        const scope = capture()
         setLoadingMoreCalls(true)
         setMoreCallsError(false)
         try {
-            const response = await apiService.getRecentVoiceCalls({ skip: recentCalls.length, limit: CALLS_PAGE_SIZE })
+            const response = await api.getRecentVoiceCalls({ skip: recentCalls.length, limit: CALLS_PAGE_SIZE })
+            if (!isCurrent(scope)) return
             const items = response.items ?? []
             setRecentCalls((current) => {
                 const seen = new Set(current.map((entry) => entry.voice_session_id))
@@ -90,7 +110,7 @@ export function CallsPage() {
             setHasMoreCalls(items.length >= CALLS_PAGE_SIZE)
         } catch (error) {
             console.error('Failed to load more calls:', error)
-            setMoreCallsError(true)
+            if (isCurrent(scope)) setMoreCallsError(true)
         } finally {
             setLoadingMoreCalls(false)
         }
@@ -98,6 +118,7 @@ export function CallsPage() {
 
     /** Continue the call's own chat when we still have it; otherwise start a fresh one. */
     const callAgainHandler = (entry: CallSummary) => {
+        if (readOnly) return undefined
         const chat = entry.chat_id != null
             ? (characterChats ?? []).find((candidate) => candidate.id === String(entry.chat_id) && candidate.kind !== 'character_group')
             : undefined
@@ -197,7 +218,7 @@ export function CallsPage() {
                                         aria-label={t('call.page.callName', { name: character.name })}
                                         iconLeft={<Icon icon={Phone} size={15} />}
                                         onClick={() => call.startCall(character)}
-                                        disabled={call.startingId === character.id}
+                                        disabled={readOnly || call.startingId === character.id}
                                     >
                                         {call.startingId === character.id ? t('call.page.starting') : t('call.page.call')}
                                     </Button>

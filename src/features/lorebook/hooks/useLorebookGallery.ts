@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { i18n } from '@/app/i18n'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { Lorebook } from '@/shared'
 import { normalizeLorebookList } from '../lorebookTransforms'
 
@@ -16,8 +16,14 @@ function appendDeduped(prev: Lorebook[], page: Lorebook[]): Lorebook[] {
     return [...prev, ...page.filter((item) => !seen.has(item.id))]
 }
 
+/**
+ * Server-paged lorebooks of the committed workspace. A committed workspace switch
+ * drops the previous workspace's pages and paging, refetches from offset 0, and
+ * ignores any page of the previous workspace that arrives late.
+ */
 export function useLorebookGallery(pageSize = PAGE_SIZE, options: LorebookGalleryOptions = {}) {
     const enabled = options.enabled ?? true
+    const { api, workspaceEpoch, capture, isCurrent } = useWorkspace()
     const [items, setItems] = useState<Lorebook[]>([])
     const [query, setQuery] = useState('')
     const [debouncedQuery, setDebouncedQuery] = useState('')
@@ -44,37 +50,50 @@ export function useLorebookGallery(pageSize = PAGE_SIZE, options: LorebookGaller
         setError(null)
     }, [enabled])
 
+    // Workspace switch: the previous workspace's pages never mix into the new one.
+    const [listEpoch, setListEpoch] = useState(workspaceEpoch)
+    if (listEpoch !== workspaceEpoch) {
+        setListEpoch(workspaceEpoch)
+        setItems([])
+        setHasMore(false)
+        setLoadingMore(false)
+        setError(null)
+        if (enabled) setLoading(true)
+    }
+
     const fetchPage = useCallback(async (reset: boolean) => {
-        if (!enabled) return
+        if (!enabled || !api) return
+        const scope = capture()
         const seq = ++seqRef.current
         const skip = reset ? 0 : skipRef.current
         if (reset) setLoading(true)
         else setLoadingMore(true)
         setError(null)
         try {
-            const raw = await apiService.getLorebooks(skip, pageSize, debouncedQuery || undefined)
-            if (seq !== seqRef.current) return
+            const raw = await api.getLorebooks(skip, pageSize, debouncedQuery || undefined)
+            if (seq !== seqRef.current || !isCurrent(scope)) return
             const page = normalizeLorebookList(raw)
             skipRef.current = skip + page.length
             setItems((prev) => (reset ? page : appendDeduped(prev, page)))
             setHasMore(page.length === pageSize)
         } catch (e) {
-            if (seq !== seqRef.current) return
+            if (seq !== seqRef.current || !isCurrent(scope)) return
             setError(e instanceof Error ? e.message : i18n.t('lorebookGallery.error.loadFailed'))
             if (reset) setItems([])
             setHasMore(false)
         } finally {
-            if (seq === seqRef.current) {
+            if (seq === seqRef.current && isCurrent(scope)) {
                 setLoading(false)
                 setLoadingMore(false)
             }
         }
-    }, [debouncedQuery, enabled, pageSize])
+    }, [api, capture, debouncedQuery, enabled, isCurrent, pageSize])
 
+    // A committed switch (new epoch and client) restarts from offset 0.
     useEffect(() => {
         if (!enabled) return
         void fetchPage(true)
-    }, [enabled, fetchPage])
+    }, [enabled, fetchPage, workspaceEpoch])
 
     const loadMore = useCallback(() => {
         if (!enabled || loading || loadingMore || !hasMore) return

@@ -1,7 +1,24 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render as baseRender, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Character, CharacterChatSession } from '@/shared'
+import { apiService } from '@/infrastructure/api'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    testWorkspace,
+    WorkspaceTestProvider,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { CallsPage } from './CallsPage'
+
+let workspace: WorkspaceTestState
+/** Renders inside the committed workspace; `rerender` re-reads it after `workspace.switchTo`. */
+function render(ui: ReactElement) {
+    const view = baseRender(<WorkspaceTestProvider state={workspace}>{ui}</WorkspaceTestProvider>)
+    return { ...view, rerender: (next: ReactElement) => view.rerender(<WorkspaceTestProvider state={workspace}>{next}</WorkspaceTestProvider>) }
+}
 
 const setPage = vi.fn()
 const openLoginModal = vi.fn()
@@ -40,6 +57,8 @@ vi.mock('@/infrastructure/api', () => ({
 
 beforeEach(() => {
     vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+    // Call history and transcripts are private reads of the committed workspace.
+    workspace = createWorkspaceTestState({ api: apiService })
     authed = true
     characters = [MIRA, PERSONA]
     characterChats = []
@@ -178,5 +197,73 @@ describe('CallsPage', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Call Mira' }))
         expect(openLoginModal).toHaveBeenCalledTimes(1)
+    })
+
+    it('closes the open transcript and reloads the history on a workspace switch', async () => {
+        getRecentVoiceCalls.mockResolvedValueOnce({
+            items: [{ voice_session_id: 'vs-1', chat_id: 1, character_card_id: 'c1', character_name: 'Mira', duration_seconds: 42 }],
+        })
+        const view = render(<CallsPage />)
+        fireEvent.click(await screen.findByRole('button', { name: 'Transcript' }))
+        expect(await screen.findByTestId('call-transcript-view')).toBeInTheDocument()
+
+        getRecentVoiceCalls.mockResolvedValueOnce({ items: [] })
+        workspace.switchTo(OTHER_WORKSPACE_ID)
+        view.rerender(<CallsPage />)
+
+        expect(screen.queryByTestId('call-transcript-view')).not.toBeInTheDocument()
+        expect(await screen.findByText('No calls yet')).toBeInTheDocument()
+        expect(getRecentVoiceCalls).toHaveBeenCalledTimes(2)
+    })
+
+    it('drops a history page that arrives after a switch', async () => {
+        let finish!: (value: unknown) => void
+        getRecentVoiceCalls.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+        getRecentVoiceCalls.mockResolvedValueOnce({ items: [] })
+        const view = render(<CallsPage />)
+        await waitFor(() => expect(getRecentVoiceCalls).toHaveBeenCalledTimes(1))
+
+        workspace.switchTo(OTHER_WORKSPACE_ID)
+        view.rerender(<CallsPage />)
+        finish({ items: [{ voice_session_id: 'vs-old', chat_id: 1, character_card_id: 'c1', character_name: 'Mira', duration_seconds: 5 }] })
+
+        expect(await screen.findByText('No calls yet')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Transcript' })).not.toBeInTheDocument()
+    })
+
+    it('never opens a call whose chat finished creating after a workspace switch', async () => {
+        let finish!: (chat: CharacterChatSession) => void
+        startCharacterChat.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+        const view = render(<CallsPage />)
+        fireEvent.click(screen.getByRole('button', { name: 'Call Mira' }))
+        await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(MIRA, PERSONA))
+
+        workspace.switchTo(OTHER_WORKSPACE_ID)
+        view.rerender(<CallsPage />)
+        await act(async () => { finish({ id: 'chat-late', character: MIRA } as CharacterChatSession) })
+
+        expect(resumeCharacterChat).not.toHaveBeenCalled()
+        expect(setPage).not.toHaveBeenCalledWith('character-chat')
+    })
+})
+
+describe('CallsPage in an archived workspace (Workspace R1)', () => {
+    it('keeps the call history and transcripts readable but starts no new call', async () => {
+        workspace = createWorkspaceTestState({
+            api: apiService,
+            workspaces: [testWorkspace(TEST_WORKSPACE_ID, 'Main library', { archived_at: '2026-10-10T00:00:00Z' })],
+        })
+        characterChats = [{ id: '1', kind: 'character', character: MIRA } as CharacterChatSession]
+        getRecentVoiceCalls.mockResolvedValue({
+            items: [{ voice_session_id: 'vs-1', chat_id: 1, character_card_id: 'c1', character_name: 'Mira', duration_seconds: 42, segment_count: 4 }],
+        })
+        render(<CallsPage />)
+
+        expect(screen.getByRole('button', { name: 'Call Mira' })).toBeDisabled()
+        fireEvent.click(await screen.findByRole('button', { name: 'Transcript' }))
+        expect(await screen.findByTestId('call-transcript-view')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /call again/i })).not.toBeInTheDocument()
+        expect(startCharacterChat).not.toHaveBeenCalled()
+        expect(resumeCharacterChat).not.toHaveBeenCalled()
     })
 })

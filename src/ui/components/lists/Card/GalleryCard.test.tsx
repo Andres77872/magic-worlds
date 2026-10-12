@@ -4,6 +4,7 @@ import { AudioPlaylistProvider } from '@/app/providers/AudioPlaylistProvider'
 import { PLAYLIST_STORAGE_KEY } from '@/app/providers/playlistReducer'
 import { apiService } from '@/infrastructure/api'
 import { clearAudioDataCaches } from '@/ui/components/audio'
+import { createWorkspaceTestState, WorkspaceTestProvider } from '@/shared/hooks/testing/workspaceTestUtils'
 import { GalleryCard } from './GalleryCard'
 
 function renderWithPlaylist(ui: React.ReactNode) {
@@ -141,8 +142,11 @@ describe('GalleryCard', () => {
                 disconnect() {}
             },
         )
+        // Usage is a private read of the committed workspace (Workspace R1).
         renderWithPlaylist(
-            <GalleryCard title="Lyra" usageEnabled usageCardType="character" cardId="gc-usage-1" />,
+            <WorkspaceTestProvider state={createWorkspaceTestState({ api: apiService })}>
+                <GalleryCard title="Lyra" usageEnabled usageCardType="character" cardId="gc-usage-1" />
+            </WorkspaceTestProvider>,
         )
         expect(await screen.findByText('Used in 5 sessions · 2 stories')).toBeInTheDocument()
     })

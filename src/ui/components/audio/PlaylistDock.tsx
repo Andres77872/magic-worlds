@@ -50,6 +50,8 @@ import { pseudoPeaks } from './audioData'
 import { downloadThemeSong } from './downloadThemeSong'
 import { formatSeconds } from './formatSeconds'
 import { WaveformSeekBar } from './WaveformSeekBar'
+import { WorkspaceOriginLabel } from '../WorkspaceOriginLabel'
+import { useWorkspaceOrigin } from '../useWorkspaceOrigin'
 
 export interface PlaylistDockCardTarget {
     type: NonNullable<PlaylistTrack['cardType']>
@@ -122,6 +124,10 @@ function dockSizeFrom(element: HTMLElement | null): DockSize {
 export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
     const { t } = useTranslation()
     const playlist = usePlaylist()
+    // Workspace R1: playback continues across switches. A song of another workspace
+    // is labeled, and its card is not previewed here (that read belongs to its own
+    // workspace — open it from there).
+    const currentOrigin = useWorkspaceOrigin(playlist.currentTrack?.workspaceId)
     const [queueOpen, setQueueOpen] = useState(false)
     const [queuePlacement, setQueuePlacement] = useState<'above' | 'below'>('above')
     const [queueMaxHeight, setQueueMaxHeight] = useState(288)
@@ -344,7 +350,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
     const peaks = playlist.peaks ?? pseudoPeaks(currentTrack.id)
     const atQueueEnd = playlist.loopMode !== 'queue' && playlist.currentIndex >= playlist.queue.length - 1
     const LoopIcon = playlist.loopMode === 'track' ? Repeat1 : Repeat
-    const hasCardTarget = Boolean(onOpenCard && currentTrack.cardType && currentTrack.cardId)
+    const hasCardTarget = Boolean(onOpenCard && currentTrack.cardType && currentTrack.cardId && !currentOrigin.foreign)
     const currentCardLabel = currentTrack.cardName || currentTrack.title
     const activeDownloadState = downloadState?.trackId === currentTrack.id ? downloadState : null
     const downloading = Boolean(activeDownloadState?.downloading)
@@ -578,6 +584,7 @@ export function PlaylistDock({ onOpenCard }: PlaylistDockProps) {
                                     <p className="truncate text-meta text-parchment-400">{currentTrack.cardName}</p>
                                 )
                             )}
+                            <WorkspaceOriginLabel workspaceId={currentTrack.workspaceId} className="mt-1" />
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
                             <button

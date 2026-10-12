@@ -5,12 +5,15 @@
  * them. Replacement is disabled while a generation is pending or under review:
  * rewriting the document then would count as a user edit and implicitly accept
  * the generated text. Closing clears the search and returns focus.
+ * `readOnly` (the story's workspace is archived) keeps Find and disables
+ * Replace, saying why.
  */
 
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Editor } from '@tiptap/core'
 import { CaseSensitive, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { ARCHIVED_WORKSPACE_MESSAGE_KEY } from '@/shared/hooks/useWorkspaceReadOnly'
 import { Button, Icon, IconButton, Input, controlClass, cx } from '@/ui/primitives'
 import { SEARCH_PLUGIN_KEY } from '../extensions/searchReplace'
 
@@ -18,10 +21,12 @@ interface FindReplacePanelProps {
     editor: Editor
     /** True while a suggestion is alive — replacement is blocked. */
     disabled: boolean
+    /** The story's workspace is archived — replacement is blocked until it is restored. */
+    readOnly?: boolean
     onClose: () => void
 }
 
-export function FindReplacePanel({ editor, disabled, onClose }: FindReplacePanelProps) {
+export function FindReplacePanel({ editor, disabled, readOnly = false, onClose }: FindReplacePanelProps) {
     const { t } = useTranslation()
     const [find, setFind] = useState('')
     const [replace, setReplace] = useState('')
@@ -114,13 +119,16 @@ export function FindReplacePanel({ editor, disabled, onClose }: FindReplacePanel
                     placeholder={t('novelEditor.find.replacePlaceholder')}
                     aria-label={t('novelEditor.find.replacePlaceholder')}
                     className="min-w-0 w-full"
+                    disabled={readOnly}
                     data-testid="replace-input"
                 />
                 <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => editor.commands.replaceCurrent(replace)}
-                    disabled={disabled || total === 0}
+                    onClick={() => {
+                        if (!readOnly) editor.commands.replaceCurrent(replace)
+                    }}
+                    disabled={disabled || readOnly || total === 0}
                     data-testid="replace-one"
                 >
                     {t('novelEditor.find.replace')}
@@ -128,14 +136,20 @@ export function FindReplacePanel({ editor, disabled, onClose }: FindReplacePanel
                 <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => editor.commands.replaceAll(replace)}
-                    disabled={disabled || total === 0}
+                    onClick={() => {
+                        if (!readOnly) editor.commands.replaceAll(replace)
+                    }}
+                    disabled={disabled || readOnly || total === 0}
                     data-testid="replace-all"
                 >
                     {t('novelEditor.find.replaceAll')}
                 </Button>
             </div>
-            {disabled && <p className="m-0 mt-1.5 px-0.5 font-ui text-meta text-arcane-300">{t('novelEditor.find.suggestionActive')}</p>}
+            {readOnly ? (
+                <p className="m-0 mt-1.5 px-0.5 font-ui text-meta text-parchment-400" data-testid="find-archived">{t(ARCHIVED_WORKSPACE_MESSAGE_KEY)}</p>
+            ) : (
+                disabled && <p className="m-0 mt-1.5 px-0.5 font-ui text-meta text-arcane-300">{t('novelEditor.find.suggestionActive')}</p>
+            )}
         </div>
     )
 }

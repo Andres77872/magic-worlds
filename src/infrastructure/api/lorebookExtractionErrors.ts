@@ -7,6 +7,8 @@ export function isLorebookExtractionDisabled(error: unknown): boolean {
 export function resourceExtractionErrorKey(error: unknown): string {
     if (isLorebookExtractionDisabled(error)) return 'lorebookResourcesGallery.errors.extractionDisabled'
     const value = error && typeof error === 'object' ? error as { code?: unknown; status?: unknown } : {}
+    // Workspace R1: the resource's workspace is archived (read-only until restored).
+    if (value.code === 'WORKSPACE_ARCHIVED') return 'workspaceContent.saveErrors.archived'
     if (value.status === 0 || ['lorebook_extraction_unknown', 'lorebook_extraction_pending', 'lorebook_extraction_recovery_required'].includes(String(value.code))) {
         return 'lorebookResourcesGallery.errors.extractionAfterSave'
     }

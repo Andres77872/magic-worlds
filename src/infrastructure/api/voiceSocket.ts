@@ -14,6 +14,7 @@
 import type { VoiceErrorCategory, VoiceSocketClientFrame, VoiceSocketServerFrame } from '../../shared/types/voice.types'
 import { API_BASE_URL } from './baseUrl'
 import { authSession, type AuthSessionSnapshot } from './authSession'
+import { isWorkspaceUuid } from './workspaceContract'
 
 const WS_BEARER_SUBPROTOCOL = 'mw.bearer.v1'
 const HEARTBEAT_MS = 25_000
@@ -139,6 +140,7 @@ function containsForbiddenClientPayload(value: unknown, seen = new Set<unknown>(
 export class VoiceSocket {
     private ws: WebSocket | null = null
     private readonly sessionId: number
+    private readonly workspaceId: string
     private readonly handlers: VoiceSocketHandlers
     private readonly basePath: string
     private heartbeat: ReturnType<typeof setInterval> | null = null
@@ -157,8 +159,11 @@ export class VoiceSocket {
     private readonly cancelledTurns = new Set<string>()
     private readonly highestAudioSeqByTurn = new Map<string, number>()
 
-    constructor(sessionId: number, handlers: VoiceSocketHandlers, basePath: string = 'character-chats') {
+    /** `workspaceId` is the caller's captured workspace, sent as the `workspace_id` query (Workspace R1). */
+    constructor(sessionId: number, workspaceId: string, handlers: VoiceSocketHandlers, basePath: string = 'character-chats') {
+        if (!isWorkspaceUuid(workspaceId)) throw new Error('A voice socket needs a lowercase workspace UUID.')
         this.sessionId = sessionId
+        this.workspaceId = workspaceId
         this.handlers = handlers
         this.basePath = basePath
     }
@@ -252,7 +257,7 @@ export class VoiceSocket {
         this.socketOwner = authSession.getSnapshot()
 
         this.setStatus('connecting')
-        const url = `${toWsUrl(API_BASE_URL)}/${this.basePath}/${this.sessionId}/ws-voice`
+        const url = `${toWsUrl(API_BASE_URL)}/${this.basePath}/${this.sessionId}/ws-voice?workspace_id=${encodeURIComponent(this.workspaceId)}`
         let ws: WebSocket
         try {
             ws = new WebSocket(url, [WS_BEARER_SUBPROTOCOL, token])

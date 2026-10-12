@@ -82,4 +82,9 @@ export interface NovelEditorProps {
     onSuggestionPhaseChange?: (phase: InlineAIPhase) => void
     /** Codex entries currently enabled — shown as the beat composer's context readout. */
     enabledContextCount?: number
+    /**
+     * The story's workspace is archived: the manuscript can be read, selected,
+     * copied and searched, but nothing in it can be edited or generated.
+     */
+    readOnly?: boolean
 }

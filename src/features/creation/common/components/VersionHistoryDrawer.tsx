@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { History, PencilLine } from 'lucide-react'
 import type { CardVersion, VersionableCardType } from '@/shared'
 import { useCardUsage } from '@/shared/hooks/useCardUsage'
-import { apiService } from '@/infrastructure/api'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import { Badge, Button, Callout, cx, Drawer, Eyebrow } from '@/ui/primitives'
 import { CardUsageLine } from '@/ui/components/common/CardUsageLine'
 import { EmptyState } from '@/ui/components/common/EmptyState'
@@ -31,24 +31,27 @@ export interface VersionHistoryDrawerProps {
     hasDraft?: boolean
     /** Open the editor for this card (where draft/publish/restore are managed). */
     onEdit?: () => void
+    /** Workspace R1: the card's own workspace (its organization); default = the committed workspace. */
+    workspaceId?: string | null
 }
 
 
-export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName, hasDraft = false, onEdit }: VersionHistoryDrawerProps) {
+export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName, hasDraft = false, onEdit, workspaceId }: VersionHistoryDrawerProps) {
     const { t } = useTranslation()
+    const api = useScopedApi(workspaceId)
     const [versions, setVersions] = useState<CardVersion[]>([])
     const [latest, setLatest] = useState(0)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     // How widely this card is used — shown so the impact of publishing changes is clear.
-    const usage = useCardUsage(cardType, cardId, { enabled: open && Boolean(cardId) })
+    const usage = useCardUsage(cardType, cardId, { enabled: open && Boolean(cardId), workspaceId })
 
     const load = useCallback(async () => {
-        if (!cardId) return
+        if (!cardId || !api) return
         setLoading(true)
         setError(null)
         try {
-            const res = await apiService.listCardVersions(cardType, cardId)
+            const res = await api.listCardVersions(cardType, cardId)
             setVersions(res.versions ?? [])
             setLatest(res.latest_version_number ?? 0)
         } catch {
@@ -56,7 +59,7 @@ export function VersionHistoryDrawer({ open, onClose, cardType, cardId, cardName
         } finally {
             setLoading(false)
         }
-    }, [cardType, cardId, t])
+    }, [api, cardType, cardId, t])
 
     useEffect(() => {
         if (open && cardId) void load()

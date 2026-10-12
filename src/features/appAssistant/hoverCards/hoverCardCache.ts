@@ -3,8 +3,9 @@
  * nothing loads twice.
  *
  * - Previews: only records missing from the library are fetched, once per
- *   session. A 404/403 is remembered as "missing"; a network error is not, so
- *   the next hover tries again.
+ *   session and workspace (Workspace R1: a card is read in the committed
+ *   workspace, never another). A 404/403 is remembered as "missing"; a network
+ *   error is not, so the next hover tries again.
  * - Portraits: protected images arrive as authed blobs. The shared
  *   `useAuthenticatedMediaUrl` revokes its blob on unmount, which would
  *   re-download a portrait on every hover; here the object URL is kept (LRU,
@@ -18,15 +19,24 @@ import { hoverCardKey, previewTargetFor, type HoverCardRef } from './hoverCardMo
 const settledPreviews = new Map<string, CardPreview | null>()
 const pendingPreviews = new Map<string, Promise<CardPreview | null>>()
 
-/** The settled result for `ref` (`null` = known missing), or undefined when never fetched. */
-export function peekRemotePreview(ref: HoverCardRef): CardPreview | null | undefined {
-    const key = hoverCardKey(ref)
+function previewKey(ref: HoverCardRef, workspaceId: string): string {
+    return `${workspaceId}:${hoverCardKey(ref)}`
+}
+
+/** The settled result for `ref` in a workspace (`null` = known missing), or undefined when never fetched. */
+export function peekRemotePreview(ref: HoverCardRef, workspaceId: string | null): CardPreview | null | undefined {
+    if (!workspaceId) return null
+    const key = previewKey(ref, workspaceId)
     return settledPreviews.has(key) ? settledPreviews.get(key) ?? null : undefined
 }
 
-/** Fetch a preview once; concurrent hovers share the request. Resolves null when the record is gone. */
-export function loadRemotePreview(ref: HoverCardRef): Promise<CardPreview | null> {
-    const key = hoverCardKey(ref)
+/**
+ * Fetch a preview once per workspace; concurrent hovers share the request.
+ * Resolves null when the record is gone, or without a committed workspace.
+ */
+export function loadRemotePreview(ref: HoverCardRef, workspaceId: string | null): Promise<CardPreview | null> {
+    if (!workspaceId) return Promise.resolve(null)
+    const key = previewKey(ref, workspaceId)
     if (settledPreviews.has(key)) return Promise.resolve(settledPreviews.get(key) ?? null)
     const pending = pendingPreviews.get(key)
     if (pending) return pending
@@ -35,7 +45,7 @@ export function loadRemotePreview(ref: HoverCardRef): Promise<CardPreview | null
         settledPreviews.set(key, null)
         return Promise.resolve(null)
     }
-    const request = fetchCardPreview(target)
+    const request = fetchCardPreview(target, apiService.withWorkspace(workspaceId))
         .then(
             (preview) => {
                 settledPreviews.set(key, preview)

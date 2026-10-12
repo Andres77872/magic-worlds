@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 
 const mocks = vi.hoisted(() => ({
     cardEdit: null as Record<string, unknown> | null,
@@ -15,6 +21,7 @@ const mocks = vi.hoisted(() => ({
     getCharacter: vi.fn(),
     getWorld: vi.fn(),
     getItem: vi.fn(),
+    workspace: null as WorkspaceTestState | null,
 }))
 
 vi.mock('@/app/hooks', () => ({
@@ -31,8 +38,17 @@ vi.mock('@/app/hooks', () => ({
 }))
 
 vi.mock('@/infrastructure/api', () => ({
-    apiService: { getCharacter: mocks.getCharacter, getWorld: mocks.getWorld, getItem: mocks.getItem },
+    apiService: {},
 }))
+
+// Workspace R1: the routed card is read through the committed workspace's scoped client.
+const scopedClient = {
+    workspaceScope: { workspaceId: TEST_WORKSPACE_ID, initialCollectionIds: [] },
+    getCharacter: mocks.getCharacter,
+    getWorld: mocks.getWorld,
+    getItem: mocks.getItem,
+}
+vi.mock('@/app/hooks/useWorkspace', () => ({ useWorkspace: () => mocks.workspace!.value() }))
 
 import { useCardEditorRoute } from './useCardEditorRoute'
 
@@ -43,6 +59,7 @@ beforeEach(() => {
     mocks.editingCharacter = null
     mocks.editingWorld = null
     mocks.editingItem = null
+    mocks.workspace = createWorkspaceTestState({ api: scopedClient })
 })
 
 afterEach(() => {
@@ -148,5 +165,34 @@ describe('useCardEditorRoute', () => {
         const { result } = renderHook(() => useCardEditorRoute('item'))
         expect(result.current.version).toBe(4)
         expect(mocks.getItem).not.toHaveBeenCalled()
+    })
+
+    it('waits for the workspace handshake before reading the routed card', async () => {
+        mocks.cardEdit = { cardType: 'character', cardId: 'char-1' }
+        mocks.workspace = createWorkspaceTestState({ api: scopedClient, selectedWorkspaceId: null })
+        mocks.getCharacter.mockResolvedValue({ id: 'char-1', name: 'Nyra' })
+        const { result, rerender } = renderHook(() => useCardEditorRoute('character'))
+        expect(result.current.bootstrapping).toBe(true)
+        expect(mocks.getCharacter).not.toHaveBeenCalled()
+
+        mocks.workspace = createWorkspaceTestState({ api: scopedClient })
+        rerender()
+        await waitFor(() => expect(mocks.setEditingCharacter).toHaveBeenCalledWith(expect.objectContaining({ id: 'char-1' })))
+    })
+
+    it('ignores a routed card that lands after a workspace switch', async () => {
+        mocks.cardEdit = { cardType: 'world', cardId: 'w-1' }
+        let resolveWorld!: (card: Record<string, unknown>) => void
+        mocks.getWorld.mockReturnValueOnce(new Promise(resolve => { resolveWorld = resolve }))
+        const onCardLoaded = vi.fn()
+        renderHook(() => useCardEditorRoute('world', { onCardLoaded }))
+        expect(mocks.getWorld).toHaveBeenCalledWith('w-1')
+
+        mocks.workspace!.switchTo(OTHER_WORKSPACE_ID)
+        await act(async () => resolveWorld({ id: 'w-1', name: 'Old workspace world' }))
+
+        expect(mocks.setEditingWorld).not.toHaveBeenCalled()
+        expect(onCardLoaded).not.toHaveBeenCalled()
+        expect(mocks.setPage).not.toHaveBeenCalled()
     })
 })

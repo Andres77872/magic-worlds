@@ -2,8 +2,9 @@
  * Application routing logic
  */
 
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { useNavigation, useData, useAuth } from '../hooks'
+import { lazy, Suspense, useContext, useEffect, useRef, useState } from 'react'
+import { useNavigation, useData, useAuth, useWorkspace } from '../hooks'
+import { NavigationCoordinatorContext } from '../providers/NavigationProvider'
 import { Sidebar } from '../../ui/components/Sidebar'
 import { MobileTopBar } from '../../ui/components/MobileTopBar'
 import { SidebarNavDrawer } from '../../ui/components/SidebarNavDrawer'
@@ -21,8 +22,21 @@ import { PlaylistDock } from '../../ui/components/audio/PlaylistDock'
 import { GlowBackdrop, cx } from '../../ui/primitives'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { isPageFeatureEnabled } from '../../shared/featureFlags'
+import { WorkspaceNavigationBridge } from '../../features/workspaces/WorkspaceNavigationBridge'
+import {
+    ArchivedWorkspaceBanner,
+    WorkspaceSwitchFailureNotice,
+    WorkspaceUnavailableTarget,
+} from '../../features/workspaces/components/WorkspaceNotices'
 import { StoryReauthenticationGate } from './StoryReauthenticationGate'
 import { LinkedEditorGate } from './LinkedEditorGate'
+import { pageNeedsWorkspace } from './pageAccess'
+import {
+    HiddenWorkspacesNotice,
+    WorkspaceStaleDialog,
+    WorkspaceStaleNotice,
+    WorkspaceUnavailableGate,
+} from './WorkspaceGate'
 
 // Routes are code-split: each is its own chunk, loaded on demand. Import the LEAF
 // module (not the feature barrel) so a heavy sibling (e.g. NovelStudio's TipTap)
@@ -38,6 +52,7 @@ const NotificationsPage = lazy(() => import('../../features/notifications/compon
 const CharacterChat = lazy(() => import('../../features/characterChat/components/CharacterChat').then(m => ({ default: m.CharacterChat })))
 const ChatroomPage = lazy(() => import('../../features/characterChat/components/ChatroomPage').then(m => ({ default: m.ChatroomPage })))
 const CallsPage = lazy(() => import('../../features/call/components/CallsPage').then(m => ({ default: m.CallsPage })))
+const LibraryPage = lazy(() => import('../../features/library/components/LibraryPage').then(m => ({ default: m.LibraryPage })))
 const GalleryPage = lazy(() => import('../../features/gallery/components/GalleryPage').then(m => ({ default: m.GalleryPage })))
 const CommunityGalleryPage = lazy(() => import('../../features/gallery/components/CommunityGalleryPage').then(m => ({ default: m.CommunityGalleryPage })))
 const AppAssistantPage = lazy(() => import('../../features/appAssistant/components/AppAssistantPage').then(m => ({ default: m.AppAssistantPage })))
@@ -77,20 +92,48 @@ export function AppRouter() {
         sessionPhase,
         authEpoch,
         accountKey,
+        isAuthenticated,
     } = useAuth()
+    const workspace = useWorkspace()
+    // The switch coordinator (absent outside NavigationProvider, e.g. isolated tests).
+    const coordinator = useContext(NavigationCoordinatorContext)
     const cardPreview = useCardPreviewModal()
     const mainRef = useRef<HTMLElement>(null)
     const [mobileNavOpen, setMobileNavOpen] = useState(false)
     const pageEnabled = isPageFeatureEnabled(currentPage)
+
+    // Workspace R1 (document 08): private pages wait for the handshake and show
+    // explicit unavailable/stale states; public and account pages never wait.
+    const needsWorkspace = pageEnabled && pageNeedsWorkspace(currentPage, isAuthenticated)
     // Verification consumes a single-use token and then signs out. Keep its result
     // mounted through that auth transition instead of reopening a tokenless page.
+    // A committed workspace switch remounts private pages: no state crosses workspaces.
     const pageKey = currentPage === 'verify-email'
         ? currentPage
-        : `${currentPage}:${currentPage === 'story' ? accountKey : authEpoch}`
+        : `${currentPage}:${currentPage === 'story' ? accountKey : authEpoch}${needsWorkspace ? `:${workspace.workspaceEpoch ?? 0}` : ''}`
 
     useEffect(() => {
         mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
     }, [currentPage])
+
+    const workspaceStale = workspace.status === 'stale'
+    const workspaceBlocked = workspaceStale || workspace.status === 'unavailable'
+    const [staleDialogDismissed, setStaleDialogDismissed] = useState(false)
+    const reloadPage = () => window.location.reload()
+    const workspaceGate: 'loading' | 'unavailable' | 'stale' | null = !needsWorkspace
+        ? null
+        : workspace.status === 'unavailable'
+            ? 'unavailable'
+            : workspaceStale && !workspace.selectedWorkspaceId
+                ? 'stale'
+                : workspace.status === 'idle' || workspace.status === 'loading'
+                    ? 'loading'
+                    : null
+    // The library spinner belongs to pages that show library data.
+    const showDataSpinner = loadingState.isLoading && (needsWorkspace || !isAuthenticated)
+    // A URL naming content in another workspace is verified before the page loads.
+    const routeStatus = needsWorkspace && workspaceGate === null ? coordinator?.routeStatus ?? 'ready' : 'ready'
+    const switchFailure = coordinator?.switchFailure ?? null
 
     return (
         // `isolate` makes this div a stacking context so the -z-10 ambience
@@ -111,9 +154,30 @@ export function AppRouter() {
             <main ref={mainRef} data-app-main className="flex h-dvh min-w-0 flex-1 flex-col overflow-y-auto">
                 <MobileTopBar onOpenNav={() => setMobileNavOpen(true)} />
                 <ServicesDownBanner />
-                <AppUpdateBanner />
-                <DataLoadErrorBanner />
-                {loadingState.isLoading ? (
+                {/* A stale build keeps the update banner up even after "Not now". */}
+                <AppUpdateBanner updateAvailable={workspaceStale ? true : undefined} />
+                {/* Blocking workspace states replace the data-load banner (document 08). */}
+                {!workspaceBlocked && <DataLoadErrorBanner />}
+                {workspace.hasHiddenWorkspaces && <HiddenWorkspacesNotice />}
+                {switchFailure && coordinator && (
+                    <WorkspaceSwitchFailureNotice
+                        failure={switchFailure}
+                        sourceName={workspace.selectedWorkspace?.name ?? ''}
+                        onDismiss={coordinator.dismissSwitchFailure}
+                    />
+                )}
+                {needsWorkspace && workspaceGate === null && routeStatus === 'ready' && <ArchivedWorkspaceBanner />}
+                {workspaceGate === 'unavailable' ? (
+                    <WorkspaceUnavailableGate onRetry={workspace.refreshWorkspaces} />
+                ) : workspaceGate === 'stale' ? (
+                    <WorkspaceStaleNotice onReload={reloadPage} />
+                ) : routeStatus === 'unavailable' ? (
+                    <WorkspaceUnavailableTarget
+                        showLibrary={isPageFeatureEnabled('library')}
+                        onLibrary={() => setPage('library')}
+                        onHome={() => setPage('landing')}
+                    />
+                ) : workspaceGate === 'loading' || routeStatus === 'resolving' || showDataSpinner ? (
                     <div className="flex min-h-full flex-1 items-center justify-center">
                         <LoadingSpinner />
                     </div>
@@ -127,6 +191,7 @@ export function AppRouter() {
                             ) : (
                                 <>
                                     {currentPage === 'landing' && <LandingPage />}
+                                    {currentPage === 'library' && <LibraryPage />}
                                     {currentPage === 'gallery-characters' && <GalleryPage type="character" />}
                                     {currentPage === 'gallery-personas' && <GalleryPage type="persona" />}
                                     {currentPage === 'gallery-worlds' && <GalleryPage type="world" />}
@@ -205,6 +270,8 @@ export function AppRouter() {
             </main>
 
             <SidebarNavDrawer open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+            {/* Origin links, creator returns and creation-origin cleanup for the switch coordinator. */}
+            <WorkspaceNavigationBridge />
 
             {/* Global Login Modal */}
             <LoginModal
@@ -212,6 +279,11 @@ export function AppRouter() {
                 onClose={closeLoginModal}
             />
             <AppWarningModal />
+            <WorkspaceStaleDialog
+                open={workspaceStale && needsWorkspace && workspace.selectedWorkspaceId !== null && !staleDialogDismissed}
+                onReload={reloadPage}
+                onDismiss={() => setStaleDialogDismissed(true)}
+            />
             <CookieConsentBanner />
             <div key={`private-overlays:${authEpoch}`}>
                 <TasksDrawer />

@@ -5,22 +5,35 @@ import { apiService } from '@/infrastructure/api'
 import { authSession } from '@/infrastructure/api/authSession'
 import { imageCredentialSession } from '@/features/imageProfiles/imageCredentialSession'
 import { gptProfile, kreaProfile, personalProfile, userList } from '@/features/imageProfiles/imageProfileFixtures'
+import type { ReactNode } from 'react'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    WorkspaceTestProvider,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 
 // Personal provider keys only travel over HTTPS.
 vi.mock('@/infrastructure/api/baseUrl', () => ({ API_BASE_URL: 'https://api.test.invalid' }))
 
 // Treat relative URLs as-is so the thumbnail/lightbox render in tests.
-vi.mock('@/infrastructure/api', () => ({
-    apiService: {
+vi.mock('@/infrastructure/api', () => {
+    const apiService: Record<string, unknown> = {
         uploadCardImage: vi.fn(),
         generateCardPortrait: vi.fn(),
         getImageProfiles: vi.fn(async () => ({ items: [], system_default_profile_id: null, user_default_profile_id: null, effective_default_profile_id: null })),
         waitForImageJob: vi.fn(),
         generateThemeSong: vi.fn(),
         listThemeSongs: vi.fn(),
-    },
-    resolveMediaUrl: (u?: string | null) => (u == null || u === '' ? undefined : u),
-}))
+    }
+    // Workspace R1: a captured card workspace gets its own scoped client (here: a tagged view of the mock).
+    apiService.withWorkspace = vi.fn((workspaceId: string) => Object.assign(Object.create(apiService), {
+        workspaceScope: { workspaceId, initialCollectionIds: [] },
+    }))
+    return {
+        apiService,
+        resolveMediaUrl: (u?: string | null) => (u == null || u === '' ? undefined : u),
+    }
+})
 
 vi.mock('@/app/hooks', () => ({
     useBackgroundTasks: () => ({
@@ -30,6 +43,11 @@ vi.mock('@/app/hooks', () => ({
 }))
 
 const uploadMock = apiService.uploadCardImage as unknown as Mock
+
+// The committed workspace's client is the mocked singleton itself.
+function wrapper({ children }: { children: ReactNode }) {
+    return <WorkspaceTestProvider state={createWorkspaceTestState({ api: apiService })}>{children}</WorkspaceTestProvider>
+}
 
 function renderPanel(overrides: Partial<MediaStudioSectionProps> = {}) {
     const props: MediaStudioSectionProps = {
@@ -44,7 +62,7 @@ function renderPanel(overrides: Partial<MediaStudioSectionProps> = {}) {
         layout: 'compact',
         ...overrides,
     }
-    return { props, ...render(<MediaStudioSection {...props} />) }
+    return { props, ...render(<MediaStudioSection {...props} />, { wrapper }) }
 }
 
 afterEach(() => {
@@ -356,5 +374,17 @@ describe('MediaStudioSection theme generation', () => {
 
         await waitFor(() => expect(themeMock).toHaveBeenCalledTimes(1))
         expect(themeMock.mock.calls[0][0]).toMatchObject({ model_alias: 'ace_step', instrumental: true })
+    })
+
+    it("generates the theme in the card's own workspace when one is given", async () => {
+        listMock.mockResolvedValue({ items: [] })
+        themeMock.mockResolvedValue({ job_id: 't3', status: 'pending', assets: [] })
+        renderPanel({ ensureSaved: vi.fn().mockResolvedValue('card-1'), themeTargetId: 'card-1', workspaceId: OTHER_WORKSPACE_ID })
+
+        fireEvent.click(screen.getByRole('button', { name: /generate theme/i }))
+
+        await waitFor(() => expect(themeMock).toHaveBeenCalledTimes(1))
+        expect(apiService.withWorkspace).toHaveBeenCalledWith(OTHER_WORKSPACE_ID)
+        expect((themeMock.mock.contexts[0] as typeof apiService).workspaceScope?.workspaceId).toBe(OTHER_WORKSPACE_ID)
     })
 })

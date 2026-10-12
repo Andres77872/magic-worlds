@@ -3,10 +3,30 @@ import type { ComponentProps } from 'react'
 import type { BackgroundTaskBuckets, BackgroundTaskPublic } from '@/shared'
 import { BackgroundTasksContext } from '@/app/providers/backgroundTasksContext'
 import { DataContext } from '@/app/providers/DataProvider'
+import { NavigationContext } from '@/app/providers/NavigationProvider'
+import { WorkspaceContext } from '@/app/providers/workspaceContext'
+import { createWorkspaceTestState } from '@/shared/hooks/testing/workspaceTestUtils'
 import { SidebarTasksMenu } from './SidebarTasksMenu'
 
 type TasksValue = NonNullable<ComponentProps<typeof BackgroundTasksContext.Provider>['value']>
 type DataValue = NonNullable<ComponentProps<typeof DataContext.Provider>['value']>
+type NavValue = NonNullable<ComponentProps<typeof NavigationContext.Provider>['value']>
+
+// The panel opens task targets through navigation, in the task's workspace.
+const navStub: NavValue = {
+    currentPage: 'landing',
+    previousPage: undefined,
+    setPage: () => {},
+    goBack: () => {},
+    cardEdit: null,
+    resourceEdit: null,
+    replaceHash: () => {},
+    currentHash: '',
+    registerNavigationInterceptor: () => () => {},
+}
+
+// "Main library" is the selected workspace.
+const workspace = createWorkspaceTestState().value()
 
 function task(
     status: BackgroundTaskPublic['status'],
@@ -61,6 +81,8 @@ const withTasks = (
 ): Decorator =>
     function Provided(Story) {
         return (
+            <NavigationContext.Provider value={navStub}>
+            <WorkspaceContext.Provider value={workspace}>
             <DataContext.Provider value={data}>
                 <BackgroundTasksContext.Provider value={tasksValue(buckets, terminalHasMore)}>
                     <div style={{ display: 'flex', minHeight: 540, alignItems: 'flex-end', gap: '1rem' }}>
@@ -75,6 +97,8 @@ const withTasks = (
                     </div>
                 </BackgroundTasksContext.Provider>
             </DataContext.Provider>
+            </WorkspaceContext.Provider>
+            </NavigationContext.Provider>
         )
     }
 

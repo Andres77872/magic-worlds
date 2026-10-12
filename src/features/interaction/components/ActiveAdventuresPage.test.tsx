@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Adventure, Character, World } from '@/shared'
 import { ActiveAdventuresPage } from './ActiveAdventuresPage'
+import { createWorkspaceTestState, TEST_WORKSPACE_ID, testWorkspace, WorkspaceTestProvider } from '@/shared/hooks/testing/workspaceTestUtils'
 
 const setPage = vi.fn()
 const openLoginModal = vi.fn()
@@ -126,5 +127,21 @@ describe('ActiveAdventuresPage', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Browse adventures' }))
         expect(setPage).toHaveBeenCalledWith('gallery-adventures')
         expect(openLoginModal).not.toHaveBeenCalled()
+    })
+})
+
+describe('ActiveAdventuresPage in an archived workspace (Workspace R1)', () => {
+    it('keeps adventures resumable for reading but offers no delete', () => {
+        const workspace = createWorkspaceTestState({
+            workspaces: [testWorkspace(TEST_WORKSPACE_ID, 'Main library', { archived_at: '2026-10-10T00:00:00Z' })],
+        })
+        render(<WorkspaceTestProvider state={workspace}><ActiveAdventuresPage /></WorkspaceTestProvider>)
+
+        expect(screen.queryByRole('button', { name: 'Actions for Sunken Gate' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('menuitem', { name: 'Delete' })).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continue the tale: Lost Keep' }))
+        expect(editInProgress).toHaveBeenCalledWith(ADVENTURES[0])
+        expect(deleteInProgress).not.toHaveBeenCalled()
     })
 })

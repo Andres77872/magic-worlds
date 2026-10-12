@@ -1,12 +1,23 @@
 /**
- * useMediaGallery — server-driven state for the media gallery: a newest-first
- * merge over two independently paginated sources (images + theme songs), with
- * media-type / card-type / specific-card filters and local removal sync.
+ * useMediaGallery — server-driven state for the media gallery: a merge over two
+ * independently paginated sources (images + theme songs), with media-type /
+ * card-type / specific-card filters and local removal sync.
+ *
+ * Workspace R1 — two modes, both on the committed workspace:
+ * - discovery (no card-type and no card filter) pages the workspace media
+ *   associations per kind (`listWorkspaceMedia`, offset paging against
+ *   `total`). The projection has no timestamps, so the two kinds interleave
+ *   round-robin;
+ * - card-filtered views page the job histories (`listImageJobs`,
+ *   `listUserThemeSongs`, filtered by the job's origin workspace) through the
+ *   scoped client and merge newest-first.
+ * A committed workspace switch resets filters and feed and refetches from
+ * offset 0; pages of the previous workspace are ignored.
  *
  * Pagination model: each source keeps a private buffer + server offset + done
  * flag. Emitting a page repeatedly refills any empty-but-not-done buffer, then
- * pops the newer head of the two — chronologically correct across page
- * boundaries, unlike concatenate-then-sort. Asset-level deletes don't rewind
+ * pops the next head — chronologically correct across page boundaries for job
+ * histories, unlike concatenate-then-sort. Asset-level deletes don't rewind
  * job-level server offsets (one image job may hold several assets); dedupe on
  * append covers the rare boundary repeat — the same trade-off
  * MediaHistoryDrawer accepts.
@@ -14,11 +25,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { i18n } from '@/app/i18n'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace, type WorkspaceScopeCapture } from '@/app/hooks/useWorkspace'
+import type { ApiService } from '@/infrastructure/api'
+import type { WorkspaceMediaKind } from '@/shared'
 import { parseApiTimestamp } from '@/utils/time'
 import {
     imageJobToItems,
     themeJobToItem,
+    workspaceImageToItem,
+    workspaceThemeToItem,
     type CardRef,
     type CardTypeFilter,
     type MediaGalleryFilters,
@@ -58,6 +73,15 @@ interface SourceState {
     done: boolean
 }
 
+/** What one feed load reads: the committed workspace's client, captured when it started. */
+interface FeedContext {
+    api: ApiService
+    workspaceId: string
+    scope: WorkspaceScopeCapture | null
+    /** No card-type and no card filter: the workspace media associations. */
+    discovery: boolean
+}
+
 function newSource(done = false): SourceState {
     return { buffer: [], offset: 0, done }
 }
@@ -68,15 +92,35 @@ function appendDedupedById(prev: MediaGalleryItem[], page: MediaGalleryItem[]): 
 }
 
 function createdTime(item?: MediaGalleryItem): number {
-    if (!item) return Number.NEGATIVE_INFINITY
+    if (!item?.createdAt) return Number.NEGATIVE_INFINITY
     const stamp = parseApiTimestamp(item.createdAt)
     return Number.isNaN(stamp) ? Number.NEGATIVE_INFINITY : stamp
 }
 
 const DEFAULT_FILTERS: MediaGalleryFilters = { mediaType: 'all', cardType: 'all' }
 
+function isDiscovery(f: MediaGalleryFilters): boolean {
+    return f.cardType === 'all' && !f.card
+}
+
+/** One offset page of the workspace's media associations of one kind. */
+async function fetchWorkspaceMediaPage(
+    kind: Extract<WorkspaceMediaKind, 'image' | 'theme_song'>,
+    src: SourceState,
+    feed: FeedContext,
+    pageSize: number,
+): Promise<void> {
+    const res = await feed.api.listWorkspaceMedia(feed.workspaceId, { media_kind: kind, limit: pageSize, offset: src.offset })
+    const page: Array<MediaGalleryItem | null> = res.items.map((media) =>
+        kind === 'image' ? workspaceImageToItem(media) : workspaceThemeToItem(media))
+    src.buffer.push(...page.filter((item) => item !== null))
+    src.offset += res.items.length
+    src.done = res.items.length === 0 || src.offset >= res.total
+}
+
 export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGalleryOptions = {}): MediaGallery {
     const enabled = options.enabled ?? true
+    const { api, selectedWorkspaceId, workspaceEpoch, capture, isCurrent } = useWorkspace()
     const [items, setItems] = useState<MediaGalleryItem[]>([])
     const [filters, setFilters] = useState<MediaGalleryFilters>(DEFAULT_FILTERS)
     const [loading, setLoading] = useState(enabled)
@@ -88,6 +132,22 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
     const seqRef = useRef(0)
     const imagesRef = useRef<SourceState>(newSource())
     const themesRef = useRef<SourceState>(newSource())
+    // The feed being paged; "load more" continues it with the same client.
+    const feedRef = useRef<FeedContext | null>(null)
+    // Round-robin turn for discovery (no timestamps to merge by); survives page boundaries.
+    const imageTurnRef = useRef(true)
+
+    // A committed switch: the previous workspace's feed, filters and paging are dropped.
+    const [feedEpoch, setFeedEpoch] = useState(workspaceEpoch)
+    if (feedEpoch !== workspaceEpoch) {
+        setFeedEpoch(workspaceEpoch)
+        setFilters(DEFAULT_FILTERS)
+        setItems([])
+        setHasMore(false)
+        setLoadingMore(false)
+        setError(null)
+        setLoading(enabled)
+    }
 
     useEffect(() => {
         if (enabled) return
@@ -102,8 +162,9 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
     }, [enabled])
 
     const fetchImagesPage = useCallback(
-        async (f: MediaGalleryFilters, src: SourceState) => {
-            const res = await apiService.listImageJobs({
+        async (f: MediaGalleryFilters, src: SourceState, feed: FeedContext) => {
+            if (feed.discovery) return fetchWorkspaceMediaPage('image', src, feed, pageSize)
+            const res = await feed.api.listImageJobs({
                 status: 'completed',
                 limit: pageSize,
                 offset: src.offset,
@@ -118,8 +179,9 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
     )
 
     const fetchThemesPage = useCallback(
-        async (f: MediaGalleryFilters, src: SourceState) => {
-            const res = await apiService.listUserThemeSongs({
+        async (f: MediaGalleryFilters, src: SourceState, feed: FeedContext) => {
+            if (feed.discovery) return fetchWorkspaceMediaPage('theme_song', src, feed, pageSize)
+            const res = await feed.api.listUserThemeSongs({
                 status: 'completed',
                 limit: pageSize,
                 offset: src.offset,
@@ -134,20 +196,22 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
     )
 
     /**
-     * Pop up to `pageSize` items, newest first, refilling whichever source runs
-     * its buffer dry (while not exhausted) before each comparison.
+     * Pop up to `pageSize` items, refilling whichever source runs its buffer dry
+     * (while not exhausted) before each comparison: newest first for job
+     * histories, alternating kinds for workspace discovery.
      */
     const emitPage = useCallback(
-        async (f: MediaGalleryFilters, seq: number): Promise<MediaGalleryItem[]> => {
+        async (f: MediaGalleryFilters, seq: number, feed: FeedContext): Promise<MediaGalleryItem[]> => {
             const out: MediaGalleryItem[] = []
             const images = imagesRef.current
             const themes = themesRef.current
+            const live = () => seq === seqRef.current && isCurrent(feed.scope)
             // Keep this load's buffers together and stop before any further refill when
-            // a refresh, filter change, or unmount has invalidated the request.
-            while (seq === seqRef.current && out.length < pageSize) {
+            // a refresh, filter change, workspace switch, or unmount has invalidated the request.
+            while (live() && out.length < pageSize) {
                 const refills: Promise<void>[] = []
-                if (!images.done && images.buffer.length === 0) refills.push(fetchImagesPage(f, images))
-                if (!themes.done && themes.buffer.length === 0) refills.push(fetchThemesPage(f, themes))
+                if (!images.done && images.buffer.length === 0) refills.push(fetchImagesPage(f, images, feed))
+                if (!themes.done && themes.buffer.length === 0) refills.push(fetchThemesPage(f, themes, feed))
                 if (refills.length > 0) {
                     await Promise.all(refills)
                     continue
@@ -155,12 +219,13 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
                 const img = images.buffer[0]
                 const theme = themes.buffer[0]
                 if (!img && !theme) break
-                const takeImage = img && (!theme || createdTime(img) >= createdTime(theme))
+                const takeImage = img && (!theme || (feed.discovery ? imageTurnRef.current : createdTime(img) >= createdTime(theme)))
+                if (feed.discovery && img && theme) imageTurnRef.current = !imageTurnRef.current
                 out.push(takeImage ? images.buffer.shift()! : themes.buffer.shift()!)
             }
             return out
         },
-        [pageSize, fetchImagesPage, fetchThemesPage],
+        [pageSize, fetchImagesPage, fetchThemesPage, isCurrent],
     )
 
     const sourcesHaveMore = () =>
@@ -172,36 +237,43 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
     const fetchPage = useCallback(
         async (reset: boolean, f: MediaGalleryFilters) => {
             if (!enabled) return
+            const feed: FeedContext | null = reset
+                ? (api && selectedWorkspaceId ? { api, workspaceId: selectedWorkspaceId, scope: capture(), discovery: isDiscovery(f) } : null)
+                : feedRef.current
+            if (!feed) return
             const seq = ++seqRef.current
             if (reset) {
+                feedRef.current = feed
                 imagesRef.current = newSource(f.mediaType === 'themes')
                 themesRef.current = newSource(f.mediaType === 'images')
+                imageTurnRef.current = true
                 setLoading(true)
             } else {
                 setLoadingMore(true)
             }
             setError(null)
+            const current = () => seq === seqRef.current && isCurrent(feed.scope)
             try {
-                const page = await emitPage(f, seq)
-                if (seq !== seqRef.current) return
+                const page = await emitPage(f, seq, feed)
+                if (!current()) return
                 setHasMore(sourcesHaveMore())
                 setItems((prev) => (reset ? page : appendDedupedById(prev, page)))
             } catch (e) {
-                if (seq !== seqRef.current) return
+                if (!current()) return
                 setError(e instanceof Error ? e.message : i18n.t('mediaGallery.error.loadFailed'))
                 if (reset) setItems([])
                 setHasMore(false)
             } finally {
-                if (seq === seqRef.current) {
+                if (current()) {
                     setLoading(false)
                     setLoadingMore(false)
                 }
             }
         },
-        [emitPage, enabled],
+        [api, capture, emitPage, enabled, isCurrent, selectedWorkspaceId],
     )
 
-    // Mount + every filter change → reset & refetch.
+    // Mount + every filter change + every committed workspace (new client) → reset & refetch from offset 0.
     useEffect(() => {
         if (!enabled) return
         // eslint-disable-next-line react-hooks/set-state-in-effect

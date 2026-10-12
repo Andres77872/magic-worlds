@@ -29,7 +29,7 @@ export interface BeginZoneProps {
     onFilterChange: (filter: string) => void
     onBegin: (template: Adventure) => void
     onEdit: (template: Adventure) => void
-    onDelete: (template: Adventure) => void
+    onDelete?: (template: Adventure) => void
     onViewAll: () => void
     onCreate: () => void
 }
@@ -96,13 +96,14 @@ export function BeginZone({
                                 label: t('gallery.edit'),
                                 onClick: () => onEdit(scene.template),
                             },
-                            {
-                                type: 'custom',
+                            // Omitted (no onDelete) while the workspace is archived and read-only.
+                            ...(onDelete ? [{
+                                type: 'custom' as const,
                                 icon: <Icon icon={Trash2} size={15} />,
                                 label: t('gallery.delete'),
                                 onClick: () => onDelete(scene.template),
                                 danger: true,
-                            },
+                            }] : []),
                         ]
                         return (
                             <GalleryCard

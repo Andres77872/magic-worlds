@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/app/hooks'
-import { apiService } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { SharedCardResource } from '@/shared'
 import { isCommunityCardsFeatureEnabled } from '@/shared/featureFlags'
 
@@ -10,12 +11,29 @@ export interface ProfileSharedCardsState {
     isLoading: boolean
     error: string | null
     refresh: () => void
+    /**
+     * Workspace R1: sharing lists are workspace-scoped. The workspace these
+     * lists were read in; revoke/unpublish go to the same one.
+     */
+    workspaceId?: string | null
+    /** That workspace's name, for the scope caption. */
+    workspaceName?: string | null
+}
+
+interface LoadedSharing {
+    workspaceId: string
+    publicCards: SharedCardResource[]
+    shareLinks: SharedCardResource[]
 }
 
 export function useProfileSharedCards(): ProfileSharedCardsState {
+    const { t } = useTranslation()
     const { isAuthenticated } = useAuth()
-    const [publicCards, setPublicCards] = useState<SharedCardResource[]>([])
-    const [shareLinks, setShareLinks] = useState<SharedCardResource[]>([])
+    // The profile is an account page (not gated on the handshake), so wait for a committed workspace.
+    const { status, selectedWorkspaceId, selectedWorkspace, api, capture, isCurrent } = useWorkspace()
+    const enabled = isAuthenticated && isCommunityCardsFeatureEnabled()
+    const ready = status === 'ready' && selectedWorkspaceId !== null
+    const [loaded, setLoaded] = useState<LoadedSharing | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [reloadKey, setReloadKey] = useState(0)
@@ -27,38 +45,54 @@ export function useProfileSharedCards(): ProfileSharedCardsState {
     }, [])
 
     useEffect(() => {
-        if (!isAuthenticated || !isCommunityCardsFeatureEnabled()) {
-            setPublicCards([])
-            setShareLinks([])
+        if (!enabled) {
+            setLoaded(null)
             setIsLoading(false)
+            return
+        }
+        if (!ready || !selectedWorkspaceId || !api) {
+            // Still resolving the workspace: keep loading; a failed handshake explains itself.
+            setIsLoading(status === 'idle' || status === 'loading')
+            setError(status === 'unavailable' || status === 'stale' ? t('workspaceActivity.profile.unavailable') : null)
             return
         }
 
         let cancelled = false
+        const scope = capture()
+        const workspaceId = selectedWorkspaceId
         setIsLoading(true)
         setError(null)
         void Promise.all([
-            apiService.listMyPublicCards(0, 24),
-            apiService.listMyShareLinks(0, 24),
+            api.listMyPublicCards(0, 24),
+            api.listMyShareLinks(0, 24),
         ])
             .then(([publicResponse, shareResponse]) => {
-                if (cancelled) return
-                setPublicCards(publicResponse.items ?? [])
-                setShareLinks(shareResponse.items ?? [])
+                if (cancelled || !isCurrent(scope)) return
+                setLoaded({ workspaceId, publicCards: publicResponse.items ?? [], shareLinks: shareResponse.items ?? [] })
             })
             .catch((err) => {
-                if (cancelled) return
+                if (cancelled || !isCurrent(scope)) return
                 console.error('Failed to load profile sharing cards:', err)
                 setError(err instanceof Error ? err.message : 'Failed to load shared cards')
             })
             .finally(() => {
-                if (!cancelled) setIsLoading(false)
+                if (!cancelled && isCurrent(scope)) setIsLoading(false)
             })
 
         return () => {
             cancelled = true
         }
-    }, [isAuthenticated, reloadKey])
+    }, [api, capture, enabled, isCurrent, ready, reloadKey, selectedWorkspaceId, status, t])
 
-    return { publicCards, shareLinks, isLoading, error, refresh }
+    // Lists of a previously selected workspace are never shown for the new one.
+    const current = loaded && loaded.workspaceId === selectedWorkspaceId ? loaded : null
+    return {
+        publicCards: current?.publicCards ?? [],
+        shareLinks: current?.shareLinks ?? [],
+        isLoading,
+        error,
+        refresh,
+        workspaceId: current?.workspaceId ?? null,
+        workspaceName: current ? selectedWorkspace?.name ?? null : null,
+    }
 }

@@ -2,6 +2,18 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+    // Workspace R1: the committed workspace, the captured creation origin and scoped clients.
+    workspace: null as unknown as WorkspaceTestState,
+    origin: {
+        origin: null as { workspaceId: string; collectionId: string | null; returnTo: null } | null,
+        isCaptured: false,
+        capture: vi.fn(),
+        clear: vi.fn(),
+        registerReturnHandler: vi.fn(),
+        returnToLibrary: vi.fn<(created: unknown) => boolean>(() => false),
+    },
+    withWorkspace: vi.fn(),
+    getCollection: vi.fn(),
     setPage: vi.fn(),
     goBack: vi.fn(),
     loadData: vi.fn(),
@@ -40,11 +52,21 @@ vi.mock('@/app/hooks', () => ({
     useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
 }))
 
+vi.mock('@/app/hooks/useWorkspace', () => ({ useWorkspace: () => mocks.workspace.value() }))
+
+vi.mock('@/features/library/creationOrigin', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@/features/library/creationOrigin')>()),
+    useCreationOrigin: () => mocks.origin,
+}))
+
 vi.mock('@/infrastructure/api', () => ({
     ApiError: class ApiError extends Error { status = 500; isTransient = true },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
     isProtectedMediaUrl: () => false,
+    isWorkspaceApiError: (error: unknown, code: string) => (error as { code?: string } | null)?.code === code,
     apiService: {
+        withWorkspace: mocks.withWorkspace,
+        getCollection: mocks.getCollection,
         createAssistantConversation: mocks.createAssistantConversation,
         listAssistantConversations: mocks.listAssistantConversations,
         getAssistantConversation: mocks.getAssistantConversation,
@@ -69,7 +91,38 @@ vi.mock('@/infrastructure/api', () => ({
     },
 }))
 
+import { apiService } from '@/infrastructure/api'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_COLLECTION_ID,
+    TEST_WORKSPACE_ID,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { WorldCreator } from './WorldCreator'
+
+beforeEach(() => {
+    mocks.withWorkspace.mockImplementation((workspaceId: string, options: { initialCollectionIds?: readonly string[] } = {}) =>
+        Object.assign(Object.create(apiService), { workspaceScope: { workspaceId, initialCollectionIds: [...(options.initialCollectionIds ?? [])] } }))
+    mocks.workspace = createWorkspaceTestState({ api: mocks.withWorkspace(TEST_WORKSPACE_ID) })
+    mocks.withWorkspace.mockClear()
+    mocks.origin.origin = { workspaceId: TEST_WORKSPACE_ID, collectionId: null, returnTo: null }
+    mocks.origin.isCaptured = false
+    mocks.origin.returnToLibrary.mockImplementation(() => false)
+    mocks.getCollection.mockResolvedValue({ id: TEST_COLLECTION_ID, name: 'Heroes' })
+})
+
+/** The workspace scope (id + initial collections) a mocked API call was made through. */
+function scopeOf(fn: { mock: { contexts: unknown[] } }, index = 0) {
+    return (fn.mock.contexts[index] as { workspaceScope?: unknown } | undefined)?.workspaceScope
+}
+
+/** Opened from a Library folder: saves there and returns to the Library afterwards. */
+function captureFolderOrigin() {
+    mocks.origin.origin = { workspaceId: TEST_WORKSPACE_ID, collectionId: TEST_COLLECTION_ID, returnTo: null }
+    mocks.origin.isCaptured = true
+    mocks.origin.returnToLibrary.mockImplementation(() => true)
+}
 
 describe('WorldCreator AI generation', () => {
     it('opens a one-shot saved result from the gallery and refreshes the library', async () => {
@@ -325,5 +378,64 @@ describe('WorldCreator place type payloads', () => {
         render(<WorldCreator />)
 
         expect(screen.getByRole('combobox', { name: /place type/i })).toHaveTextContent('City')
+    })
+})
+
+describe('WorldCreator workspace origin', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingWorld = null
+        mocks.createWorld.mockResolvedValue({ id: 'world-2', name: 'Glass Province' })
+        mocks.loadData.mockResolvedValue(undefined)
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
+    })
+
+    it('creates at the captured folder and returns to the Library highlighting the world', async () => {
+        captureFolderOrigin()
+        render(<WorldCreator />)
+        await waitFor(() => expect(screen.getByTestId('creation-destination')).toHaveTextContent('Will be saved in Main library / Heroes'))
+
+        fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
+        fireEvent.change(screen.getByRole('textbox', { name: /^name/i }), { target: { value: 'Glass Province' } })
+        fireEvent.change(screen.getByLabelText(/genre \/ vibe/i), { target: { value: 'Mystery' } })
+        fireEvent.click(screen.getByRole('button', { name: /^Create World$/i }))
+
+        await waitFor(() => expect(mocks.origin.returnToLibrary).toHaveBeenCalledWith({ cardType: 'world', cardId: 'world-2' }))
+        expect(scopeOf(mocks.createWorld)).toEqual({ workspaceId: TEST_WORKSPACE_ID, initialCollectionIds: [TEST_COLLECTION_ID] })
+        expect(mocks.replaceHash).not.toHaveBeenCalled()
+    })
+
+    it('generates a saved world at the origin and notes a deleted collection', async () => {
+        captureFolderOrigin()
+        mocks.createWorldAI.mockResolvedValue({
+            id: 'generated-world', name: 'Moon Archive', type: 'library', description: 'A candlelit archive.',
+            organization: { workspace_id: TEST_WORKSPACE_ID, collection_ids: [] },
+            organization_warnings: [{ code: 'COLLECTION_REMOVED', collection_id: TEST_COLLECTION_ID }],
+        })
+        render(<WorldCreator />)
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Create a candlelit archive' } })
+        fireEvent.click(screen.getByRole('button', { name: /generate world/i }))
+
+        expect(await screen.findByTestId('organization-warning')).toHaveTextContent(/collection it was going into was deleted/i)
+        expect(scopeOf(mocks.createWorldAI)).toEqual({ workspaceId: TEST_WORKSPACE_ID, initialCollectionIds: [TEST_COLLECTION_ID] })
+    })
+
+    it("persists media of an existing world in the world's own workspace", async () => {
+        captureFolderOrigin()
+        mocks.editingWorld = {
+            id: 'world-1', name: 'Glass', type: 'desert', description: '', triggers: [],
+            organization: { workspace_id: OTHER_WORKSPACE_ID, collection_ids: [TEST_COLLECTION_ID] },
+        }
+        mocks.getCardDraft.mockResolvedValue({ id: 'world-1', is_draft: false, latest_version_number: 0 })
+        mocks.setCardMedia.mockResolvedValue({})
+        mocks.generateCardPortrait.mockResolvedValue({ job_id: 'job-1', status: 'completed', assets: [{ url: '/generated-images/w.png' }] })
+        render(<WorldCreator />)
+
+        fireEvent.click(screen.getByRole('button', { name: /generate setting image/i }))
+
+        await waitFor(() => expect(mocks.setCardMedia).toHaveBeenCalledTimes(1))
+        expect(scopeOf(mocks.setCardMedia)).toEqual({ workspaceId: OTHER_WORKSPACE_ID, initialCollectionIds: [] })
+        expect(scopeOf(mocks.generateCardPortrait)).toEqual({ workspaceId: OTHER_WORKSPACE_ID, initialCollectionIds: [] })
     })
 })

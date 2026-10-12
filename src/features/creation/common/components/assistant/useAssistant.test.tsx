@@ -10,6 +10,13 @@ import type {
     AssistantTurnResponse,
 } from '@/shared/types/assistant.types'
 import type { Lorebook } from '@/shared/types/lorebook.types'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_COLLECTION_ID,
+    TEST_WORKSPACE_ID,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 
 const mocks = vi.hoisted(() => ({
     createAssistantConversation: vi.fn(),
@@ -18,7 +25,12 @@ const mocks = vi.hoisted(() => ({
     getAssistantTurn: vi.fn(),
     deleteAssistantConversation: vi.fn(),
     streamAssistantMessage: vi.fn(),
+    withWorkspace: vi.fn(),
+    workspace: null as WorkspaceTestState | null,
 }))
+
+// Workspace R1: conversations and turns go through the conversation's workspace client.
+vi.mock('@/app/hooks/useWorkspace', () => ({ useWorkspace: () => mocks.workspace!.value() }))
 
 vi.mock('@/infrastructure/api', () => {
     class ApiError extends Error {
@@ -126,6 +138,8 @@ interface HookProps {
     onAuthRequired: () => void
     initialConversationId?: number | null
     onActiveConversationChange: (id: number | null) => void
+    workspaceId?: string | null
+    initialCollectionIds?: readonly string[]
 }
 
 function setup(kind: Kind, overrides: Partial<HookProps> = {}) {
@@ -175,8 +189,17 @@ function controllableStream() {
 
 const streamCalls = () => mocks.streamAssistantMessage.mock.calls as [number, Record<string, unknown>, unknown, { requestId: string; llm?: unknown }][]
 
+/** The workspace scope (id + initial collections) a mocked API call was made through. */
+function scopeOf(fn: { mock: { contexts: unknown[] } }, index: number) {
+    return (fn.mock.contexts[index] as { workspaceScope?: { workspaceId: string; initialCollectionIds: readonly string[] } } | undefined)?.workspaceScope
+}
+
 beforeEach(() => {
     vi.clearAllMocks()
+    mocks.withWorkspace.mockImplementation((workspaceId: string, options: { initialCollectionIds?: readonly string[] } = {}) =>
+        Object.assign(Object.create(mocks), { workspaceScope: { workspaceId, initialCollectionIds: [...(options.initialCollectionIds ?? [])] } }))
+    mocks.workspace = createWorkspaceTestState({ api: mocks.withWorkspace(TEST_WORKSPACE_ID) })
+    mocks.withWorkspace.mockClear()
     mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
     mocks.createAssistantConversation.mockImplementation(async (body: { kind: Kind }) => ({ conversation: conversation(body.kind), messages: [], target: null, target_cas: null }))
     mocks.getAssistantConversation.mockImplementation(async (kind: Kind, id: number) => ({ conversation: conversation(kind, { conversation_id: id }), messages: [], target: null, target_cas: null }))
@@ -552,7 +575,7 @@ describe.each(KINDS)('useAssistant (%s): history', (kind) => {
         expect(props.onTarget).not.toHaveBeenCalled()
         if (target) {
             act(() => result.current.applyPendingTarget())
-            expect(props.onTarget).toHaveBeenCalledWith(target)
+            expect(props.onTarget).toHaveBeenCalledWith(target, { organizationWarnings: [] })
             expect(result.current.pendingTarget).toBeNull()
         }
 
@@ -765,7 +788,7 @@ describe.each(DOCUMENT_KINDS)('useAssistant (%s): floating panel', (kind) => {
         const { result, props } = setup(kind)
         await act(async () => { await result.current.send('Rename it') })
 
-        expect(props.onTarget).toHaveBeenCalledWith(SAVED[kind])
+        expect(props.onTarget).toHaveBeenCalledWith(SAVED[kind], { organizationWarnings: [] })
         expect(result.current.turns[1].appliedChanges).toEqual([{
             kind: 'patch', ...(kind === 'lorebook' ? { subject: 'lorebook' } : {}), targetId: 'x-1', fields: ['name', 'description'],
         }])
@@ -782,7 +805,7 @@ describe.each(DOCUMENT_KINDS)('useAssistant (%s): floating panel', (kind) => {
         await act(async () => { stream.resolve!(); await pending })
 
         expect(props.onTarget).toHaveBeenCalledTimes(1)
-        expect(props.onTarget).toHaveBeenCalledWith(SAVED[kind])
+        expect(props.onTarget).toHaveBeenCalledWith(SAVED[kind], { organizationWarnings: [] })
         expect(result.current.pendingTarget).toBeNull()
 
         await act(async () => { await result.current.reloadConversation() })
@@ -910,6 +933,114 @@ describe.each(DOCUMENT_KINDS)('useAssistant (%s): panel hand-off', (kind) => {
 
         await waitFor(() => expect(result.current.ready).toBe(true))
         expect(result.current.activeConversation).toBeNull()
+        expect(result.current.turns).toEqual([])
+    })
+})
+
+describe('useAssistant: Workspace R1', () => {
+    const CARD = { id: 'x-1', name: 'New glass', ...PUBLISHED_REVISION } as unknown as AssistantCardDocument
+
+    it('sends initial collections only on the unbound card turn that creates the first card', async () => {
+        mocks.streamAssistantMessage.mockImplementation(async (_id: number, _body: unknown, emit: (event: AssistantStreamEvent) => void, options: { requestId: string }) => {
+            emit(finalEvent('card', options.requestId, {
+                conversation: conversation('card', { card_id: 'x-1' }), target: CARD,
+                organization_warnings: [],
+            } as Partial<AssistantTurnResponse>))
+        })
+        const { result, rerender, props } = setup('card', { initialCollectionIds: [TEST_COLLECTION_ID] })
+        await act(async () => { await result.current.send('Create a glass world') })
+
+        // Conversation creation rides the plain client; only the first-card turn adds the header.
+        expect(scopeOf(mocks.createAssistantConversation, 0)).toEqual({ workspaceId: TEST_WORKSPACE_ID, initialCollectionIds: [] })
+        expect(scopeOf(mocks.streamAssistantMessage, 0)).toEqual({ workspaceId: TEST_WORKSPACE_ID, initialCollectionIds: [TEST_COLLECTION_ID] })
+
+        // The form now edits the created card and the conversation is bound to it:
+        // later turns never re-send collections, even if the origin still has some.
+        rerender({ ...props, binding: binding('card', 'x-1') })
+        mocks.getAssistantConversation.mockResolvedValue({ conversation: bound('card'), messages: [], target: CARD, target_cas: TARGET_CAS })
+        await act(async () => { await result.current.send('Make it darker') })
+        expect(mocks.streamAssistantMessage).toHaveBeenCalledTimes(2)
+        expect(scopeOf(mocks.streamAssistantMessage, 1)).toEqual({ workspaceId: TEST_WORKSPACE_ID, initialCollectionIds: [] })
+    })
+
+    it('replays and reconciles the first-card request with the same initial collections', async () => {
+        const stream = controllableStream()
+        const { result } = setup('card', { initialCollectionIds: [TEST_COLLECTION_ID] })
+        let pending!: Promise<void>
+        act(() => { pending = result.current.send('Create a glass world') })
+        await waitFor(() => expect(stream.emit).toBeDefined())
+        await act(async () => { stream.resolve!(); await pending })
+
+        // The stream ended without a result: the reconcile reads that request back with its set.
+        expect(mocks.getAssistantTurn).toHaveBeenCalledTimes(1)
+        expect(scopeOf(mocks.getAssistantTurn, 0)).toEqual({ workspaceId: TEST_WORKSPACE_ID, initialCollectionIds: [TEST_COLLECTION_ID] })
+
+        mocks.streamAssistantMessage.mockRejectedValueOnce(new ApiError(502, 'upstream down', { retryable: true }))
+        act(() => result.current.retry())
+        await waitFor(() => expect(mocks.streamAssistantMessage).toHaveBeenCalledTimes(2))
+        expect(streamCalls()[1][3].requestId).toBe(streamCalls()[0][3].requestId)
+        expect(scopeOf(mocks.streamAssistantMessage, 1)).toEqual({ workspaceId: TEST_WORKSPACE_ID, initialCollectionIds: [TEST_COLLECTION_ID] })
+    })
+
+    it('never sends initial collections on a bound card turn', async () => {
+        mocks.createAssistantConversation.mockResolvedValue({ conversation: bound('card'), messages: [], target: null, target_cas: null })
+        mocks.getAssistantConversation.mockResolvedValue({ conversation: bound('card'), messages: [], target: SAVED.card, target_cas: TARGET_CAS })
+        const { result } = setup('card', { binding: binding('card', 'x-1'), initialCollectionIds: [TEST_COLLECTION_ID] })
+        await act(async () => { await result.current.send('Edit') })
+
+        expect(mocks.streamAssistantMessage).toHaveBeenCalledTimes(1)
+        expect(scopeOf(mocks.streamAssistantMessage, 0)?.initialCollectionIds).toEqual([])
+    })
+
+    it('never sends initial collections on a lorebook turn', async () => {
+        const { result } = setup('lorebook', { initialCollectionIds: [TEST_COLLECTION_ID] })
+        await act(async () => { await result.current.send('Start a lorebook') })
+
+        expect(mocks.streamAssistantMessage).toHaveBeenCalledTimes(1)
+        expect(scopeOf(mocks.streamAssistantMessage, 0)?.initialCollectionIds).toEqual([])
+    })
+
+    it('hands a removed initial collection to the form as an organization warning', async () => {
+        const warnings = [{ code: 'COLLECTION_REMOVED', collection_id: TEST_COLLECTION_ID }]
+        mocks.streamAssistantMessage.mockImplementation(async (_id: number, _body: unknown, emit: (event: AssistantStreamEvent) => void, options: { requestId: string }) => {
+            emit(finalEvent('card', options.requestId, {
+                conversation: conversation('card', { card_id: 'x-1' }), target: CARD, organization_warnings: warnings,
+            } as Partial<AssistantTurnResponse>))
+        })
+        const { result, props } = setup('card', { initialCollectionIds: [TEST_COLLECTION_ID] })
+        await act(async () => { await result.current.send('Create a glass world') })
+
+        expect(props.onTarget).toHaveBeenCalledWith(CARD, { organizationWarnings: warnings })
+    })
+
+    it('uses the captured workspace over the committed one', async () => {
+        const { result } = setup('card', { workspaceId: OTHER_WORKSPACE_ID })
+        await act(async () => { await result.current.send('Hello there') })
+
+        expect(scopeOf(mocks.createAssistantConversation, 0)?.workspaceId).toBe(OTHER_WORKSPACE_ID)
+        expect(scopeOf(mocks.streamAssistantMessage, 0)?.workspaceId).toBe(OTHER_WORKSPACE_ID)
+    })
+
+    it('a workspace switch mid-turn resets the panel and never applies the old target', async () => {
+        const stream = controllableStream()
+        const { result, rerender, props } = setup('card')
+        let pending!: Promise<void>
+        act(() => { pending = result.current.send('Create a glass world') })
+        await waitFor(() => expect(stream.emit).toBeDefined())
+        expect(result.current.turns).toHaveLength(1)
+
+        mocks.workspace!.switchTo(OTHER_WORKSPACE_ID)
+        rerender({ ...props })
+        expect(result.current.turns).toEqual([])
+        expect(result.current.activeConversation).toBeNull()
+        expect(result.current.status).toBe('idle')
+
+        await act(async () => {
+            stream.emit!(finalEvent('card', stream.requestId!, { conversation: conversation('card', { card_id: 'x-1' }), target: CARD } as Partial<AssistantTurnResponse>))
+            stream.resolve!()
+            await pending.catch(() => {})
+        })
+        expect(props.onTarget).not.toHaveBeenCalled()
         expect(result.current.turns).toEqual([])
     })
 })

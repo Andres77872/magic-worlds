@@ -5,6 +5,12 @@ import { AudioPlaylistProvider, PLAYLIST_AUDIO_PREFS_STORAGE_KEY } from '@/app/p
 import { themeTrack } from '@/app/providers/audioPlaylistContext'
 import { PLAYLIST_STORAGE_KEY } from '@/app/providers/playlistReducer'
 import { usePlaylist } from '@/app/hooks/usePlaylist'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { clearAudioDataCaches } from './audioData'
 import { PlaylistDock } from './PlaylistDock'
 
@@ -298,6 +304,38 @@ describe('PlaylistDock', () => {
         expect(JSON.parse(localStorage.getItem('magic_worlds:playlist_dock_position:v1') ?? 'null')).toEqual({
             x: 550,
             y: 440,
+        })
+    })
+
+    describe('Workspace R1', () => {
+        it('keeps playing across a switch and labels a song of another workspace without previewing its card', () => {
+            stubMedia()
+            const onOpenCard = vi.fn()
+            const workspace = createWorkspaceTestState()
+            const tree = () => (
+                <WorkspaceTestProvider state={workspace}>
+                    <AudioPlaylistProvider>
+                        <Seed />
+                        <PlaylistDock onOpenCard={onOpenCard} />
+                    </AudioPlaylistProvider>
+                </WorkspaceTestProvider>
+            )
+            const view = render(tree())
+            fireEvent.click(screen.getByText('seed-one'))
+            expect(screen.getByRole('button', { name: 'Open card Lyra' })).toBeInTheDocument()
+            expect(screen.queryByText(/^From /)).toBeNull()
+
+            workspace.switchTo(OTHER_WORKSPACE_ID)
+            view.rerender(tree())
+
+            // Same queue, labeled with the workspace it came from.
+            expect(screen.getByText('From Main library')).toBeInTheDocument()
+            expect(screen.queryByRole('button', { name: 'Open card Lyra' })).toBeNull()
+            expect(screen.getByText('Lyra')).toBeInTheDocument()
+
+            workspace.switchTo(TEST_WORKSPACE_ID)
+            view.rerender(tree())
+            expect(screen.getByRole('button', { name: 'Open card Lyra' })).toBeInTheDocument()
         })
     })
 })

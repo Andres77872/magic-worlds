@@ -1,7 +1,7 @@
 /**
  * MediaImageTile — a square image tile for the media gallery's mixed feed.
  * Click (or the Eye action) opens the shared lightbox; hovering reveals the
- * date and actions; a persistent glass badge names the tagged card and filters
+ * date (when the source has one) and actions; a persistent glass badge names the tagged card and filters
  * the gallery to it on click.
  */
 
@@ -17,11 +17,13 @@ export interface MediaImageTileProps {
     deleting?: boolean
     onView: () => void
     onDelete: () => void
+    /** Archived workspace: Delete is off; View and filtering keep working. */
+    readOnly?: boolean
     /** Filter the gallery to this tile's card (only offered when tagged). */
     onFilterCard?: (card: CardRef) => void
 }
 
-export function MediaImageTile({ item, deleting = false, onView, onDelete, onFilterCard }: MediaImageTileProps) {
+export function MediaImageTile({ item, deleting = false, onView, onDelete, readOnly = false, onFilterCard }: MediaImageTileProps) {
     const { t } = useTranslation()
     const [imageFailed, setImageFailed] = useState(false)
     const cardName = item.card?.name
@@ -110,12 +112,12 @@ export function MediaImageTile({ item, deleting = false, onView, onDelete, onFil
             )}
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-ink-900/85 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100">
-                <span className="font-mono text-micro text-parchment-300">{formatWhen(item.createdAt)}</span>
-                <div className="pointer-events-auto flex items-center gap-1">
+                {item.createdAt && <span className="font-mono text-micro text-parchment-300">{formatWhen(item.createdAt)}</span>}
+                <div className="pointer-events-auto ml-auto flex items-center gap-1">
                     <IconButton label={t('mediaGallery.tile.viewFullSize')} size="sm" onClick={onView}>
                         <Eye size={15} strokeWidth={1.75} />
                     </IconButton>
-                    <IconButton label={t('mediaGallery.tile.deleteImage')} size="sm" tone="danger" onClick={onDelete}>
+                    <IconButton label={t('mediaGallery.tile.deleteImage')} size="sm" tone="danger" onClick={onDelete} disabled={readOnly}>
                         <Trash2 size={15} strokeWidth={1.75} />
                     </IconButton>
                 </div>

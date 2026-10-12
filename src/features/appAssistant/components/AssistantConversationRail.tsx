@@ -23,7 +23,8 @@ export interface AssistantConversationRailProps {
     loading: boolean
     onNew: () => void
     onSelect: (id: number) => void
-    onDelete: (id: number) => void
+    /** Omitted while the workspace is archived: the history stays browsable, nothing is deleted. */
+    onDelete?: (id: number) => void
 }
 
 function isTag(value: string): value is AssistantTag {
@@ -121,7 +122,7 @@ export function AssistantConversationRail({ conversations, targetNames, activeId
                                         </span>
                                     </span>
                                 </button>
-                                {confirmId === id ? (
+                                {!onDelete ? null : confirmId === id ? (
                                     <button
                                         type="button"
                                         onClick={() => {

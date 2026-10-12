@@ -1,11 +1,22 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { i18n } from '@/app/i18n'
 import type { LorebookResource } from '@/shared'
+import {
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+    createWorkspaceTestState,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { LOREBOOK_RESOURCE_MAX_CHARS, LOREBOOK_RESOURCE_MAX_RESOURCES, LOREBOOK_RESOURCE_MAX_TRIGGERS, newLorebookResource } from '../lorebookResources'
 import { LorebookResourcePanel } from './LorebookResourcePanel'
 import { ApiError, apiService } from '@/infrastructure/api'
+
+let workspace: WorkspaceTestState
+/** The workspace (`X-Workspace-Id`) of each call: spies on the singleton see the scoped client as `this`. */
+const workspacesOf = (mock: MockInstance) => mock.mock.contexts.map((client) => (client as typeof apiService).workspaceScope?.workspaceId ?? null)
 
 function completedResource(overrides: Partial<LorebookResource> = {}): LorebookResource {
     return {
@@ -42,16 +53,20 @@ function Harness({
     saving = false,
     pendingExtractionCount = 0,
     extractMetadataOnSave = false,
-}: { initial?: LorebookResource[]; saving?: boolean; pendingExtractionCount?: number; extractMetadataOnSave?: boolean }) {
+    workspaceId,
+}: { initial?: LorebookResource[]; saving?: boolean; pendingExtractionCount?: number; extractMetadataOnSave?: boolean; workspaceId?: string | null }) {
     const [resources, setResources] = useState(initial)
     return (
-        <LorebookResourcePanel
-            resources={resources}
-            onChange={setResources}
-            saving={saving}
-            pendingExtractionCount={pendingExtractionCount}
-            extractMetadataOnSave={extractMetadataOnSave}
-        />
+        <WorkspaceTestProvider state={workspace}>
+            <LorebookResourcePanel
+                workspaceId={workspaceId}
+                resources={resources}
+                onChange={setResources}
+                saving={saving}
+                pendingExtractionCount={pendingExtractionCount}
+                extractMetadataOnSave={extractMetadataOnSave}
+            />
+        </WorkspaceTestProvider>
     )
 }
 
@@ -62,12 +77,14 @@ function LinkedHarness({ initial = [], linked = [completedResource({ id: 'shared
 }) {
     const [resources, setResources] = useState(initial)
     return (
-        <LorebookResourcePanel
-            resources={resources}
-            linkedResources={linked}
-            onChange={setResources}
-            onDetachResource={onDetach}
-        />
+        <WorkspaceTestProvider state={workspace}>
+            <LorebookResourcePanel
+                resources={resources}
+                linkedResources={linked}
+                onChange={setResources}
+                onDetachResource={onDetach}
+            />
+        </WorkspaceTestProvider>
     )
 }
 
@@ -75,6 +92,42 @@ describe('LorebookResourcePanel', () => {
     beforeEach(async () => {
         vi.restoreAllMocks()
         await i18n.changeLanguage('en')
+        workspace = createWorkspaceTestState({ api: apiService.withWorkspace(TEST_WORKSPACE_ID) })
+    })
+
+    it('keeps resources readable but unchangeable while read-only', () => {
+        const onChange = vi.fn()
+        const onDetach = vi.fn()
+        render(
+            <WorkspaceTestProvider state={workspace}>
+                <LorebookResourcePanel
+                    resources={[completedResource()]}
+                    linkedResources={[completedResource({ id: 'shared-resource', title: 'Shared atlas' })]}
+                    onChange={onChange}
+                    onDetachResource={onDetach}
+                    onExtractMetadataOnSaveChange={vi.fn()}
+                    readOnly
+                />
+            </WorkspaceTestProvider>,
+        )
+
+        for (const name of ['New text', 'New Markdown', 'Upload source', 'Edit', 'Remove Glass archive', 'Detach Shared atlas']) {
+            expect(screen.getByRole('button', { name })).toBeDisabled()
+        }
+        expect(screen.getByRole('switch', { name: 'Sync AI metadata on save' })).toBeDisabled()
+        expect(screen.getByTestId('lorebook-resource-upload')).toBeDisabled()
+
+        // Expanding a resource to read its source still works; its fields stay locked.
+        fireEvent.click(screen.getByRole('button', { name: 'Expand Glass archive' }))
+        expect(screen.getByTestId('lorebook-resource-content')).toHaveValue('Names spoken under glass are binding.')
+        expect(screen.getByTestId('lorebook-resource-content')).toBeDisabled()
+
+        fireEvent.change(screen.getByTestId('lorebook-resource-upload'), {
+            target: { files: [new File(['Mirror court notes'], 'court.md', { type: 'text/markdown' })] },
+        })
+        expect(screen.getByRole('alert')).toHaveTextContent('This workspace is archived. Restore it to create or edit content.')
+        expect(onChange).not.toHaveBeenCalled()
+        expect(onDetach).not.toHaveBeenCalled()
     })
 
     it('creates a manual text resource', async () => {
@@ -128,6 +181,26 @@ describe('LorebookResourcePanel', () => {
         expect(await screen.findByDisplayValue('# Court facts')).toBeInTheDocument()
         expect(screen.getByTestId('lorebook-resource-upload')).toBeEnabled()
         expect(importPdf).toHaveBeenCalledWith(file)
+        expect(workspacesOf(importPdf)).toEqual([TEST_WORKSPACE_ID])
+    })
+
+    it('converts PDFs in the open book workspace', async () => {
+        const importPdf = vi.spyOn(apiService, 'importLorebookResourcePdf').mockResolvedValueOnce(newLorebookResource('court.md', '# Court facts'))
+        render(<Harness workspaceId={OTHER_WORKSPACE_ID} />)
+        fireEvent.change(screen.getByTestId('lorebook-resource-upload'), { target: { files: [new File(['%PDF-binary'], 'court.pdf')] } })
+        expect(await screen.findByDisplayValue('# Court facts')).toBeInTheDocument()
+        expect(workspacesOf(importPdf)).toEqual([OTHER_WORKSPACE_ID])
+    })
+
+    it('keeps a conversion that finishes after a workspace switch out of the editor', async () => {
+        let finish!: (value: LorebookResource) => void
+        vi.spyOn(apiService, 'importLorebookResourcePdf').mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+        const { rerender } = render(<Harness />)
+        fireEvent.change(screen.getByTestId('lorebook-resource-upload'), { target: { files: [new File(['%PDF-binary'], 'court.pdf')] } })
+        act(() => workspace.switchTo(OTHER_WORKSPACE_ID))
+        rerender(<Harness />)
+        await act(async () => finish(newLorebookResource('court.md', '# Court facts')))
+        expect(screen.queryByDisplayValue('# Court facts')).not.toBeInTheDocument()
     })
 
     it('shows a localized PDF error and retains other successful imports', async () => {

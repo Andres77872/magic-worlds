@@ -9,9 +9,10 @@
  * the user accepts consent and grants microphone access.
  */
 
-import { useState } from 'react'
+import { useContext, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
+import { WorkspaceContext, type WorkspaceScopeCapture } from '@/app/providers/workspaceContext'
 import type { Character, CharacterChatSession } from '@/shared'
 import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { defaultPersonaForCharacter } from '@/utils/characterRoles'
@@ -41,12 +42,29 @@ export function useStartCall(): UseStartCall {
     const { isAuthenticated, openLoginModal } = useAuth()
     const { characters, startCharacterChat, resumeCharacterChat } = useData()
     const { setPage } = useNavigation()
+    // Workspace R1: a launch captures its workspace before any async work; a call
+    // whose chat finished creating after a switch never opens in the new workspace.
+    // The context is optional: call buttons also render in isolated surfaces
+    // (stories, page tests) with no workspace, where there is nothing to switch.
+    const workspace = useContext(WorkspaceContext)
+    const workspaceEpoch = workspace?.workspaceEpoch ?? 0
+    const capture = (): WorkspaceScopeCapture | null => workspace?.capture() ?? null
+    const isCurrent = (scope: WorkspaceScopeCapture | null): boolean => (workspace ? workspace.isCurrent(scope) : true)
 
     const [startingId, setStartingId] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [pendingCharacter, setPendingCharacter] = useState<Character | null>(null)
     const [personaPickConfirming, setPersonaPickConfirming] = useState(false)
     const [personaPickError, setPersonaPickError] = useState<string | null>(null)
+
+    // A committed switch closes a pending persona pick of the previous workspace.
+    const [launchEpoch, setLaunchEpoch] = useState(workspaceEpoch)
+    if (launchEpoch !== workspaceEpoch) {
+        setLaunchEpoch(workspaceEpoch)
+        setPendingCharacter(null)
+        setPersonaPickError(null)
+        setError(null)
+    }
 
     // Open the call in voice mode. startCharacterChat resets the mode to 'text', so the
     // voice flip MUST happen after it resolves and before navigation (keyed remount).
@@ -66,14 +84,15 @@ export function useStartCall(): UseStartCall {
             return
         }
         if (startingId) return
+        const scope = capture()
         setError(null)
         setStartingId(character.id)
         try {
             const chat = await startCharacterChat(character, persona)
-            launchVoice(chat)
+            if (isCurrent(scope)) launchVoice(chat)
         } catch (err) {
             console.error('Failed to start voice call:', err)
-            setError(errorMessage(err, t('call.start.error')))
+            if (isCurrent(scope)) setError(errorMessage(err, t('call.start.error')))
         } finally {
             setStartingId((current) => (current === character.id ? null : current))
         }
@@ -100,14 +119,16 @@ export function useStartCall(): UseStartCall {
     const confirmPersonaPick = async (persona: Character) => {
         const character = pendingCharacter
         if (!character || personaPickConfirming) return
+        const scope = capture()
         setPersonaPickError(null)
         setPersonaPickConfirming(true)
         try {
             const chat = await startCharacterChat(character, persona)
+            if (!isCurrent(scope)) return
             setPendingCharacter(null)
             launchVoice(chat)
         } catch (err) {
-            setPersonaPickError(errorMessage(err, t('call.start.error')))
+            if (isCurrent(scope)) setPersonaPickError(errorMessage(err, t('call.start.error')))
         } finally {
             setPersonaPickConfirming(false)
         }

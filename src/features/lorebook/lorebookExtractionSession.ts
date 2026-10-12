@@ -1,5 +1,6 @@
 import { ApiError, apiService } from '@/infrastructure/api'
 import { authSession } from '@/infrastructure/api/authSession'
+import { isWorkspaceUuid } from '@/infrastructure/api/workspaceContract'
 import { isLlmRequestSpent, llmIntents } from '@/infrastructure/api/llmIntent'
 import { isLorebookExtractionDisabled } from '@/infrastructure/api/lorebookExtractionErrors'
 import { prepareLlmRequest } from '@/infrastructure/api/llmPreparation'
@@ -10,11 +11,17 @@ import type { LorebookExtractionResult } from '@/shared/types/lorebookExtraction
 import { makeRequestId } from '@/utils/uuid'
 
 interface Receipt {
+    /** The resource's workspace at first submission; every later read/resume of this request uses it. */
+    workspaceId: string
     resourceId: string; lorebookId: string | null; expectedHash: string; requestId: string
     selection: LlmRequest['selection']; expected_revision_id?: string
 }
 
-/** Receipts contain identity only. Retries read a prior request, never resubmit it. */
+/**
+ * Receipts contain identity only. Retries read a prior request, never resubmit it.
+ * Workspace R1: a request belongs to the resource's workspace (`workspaceId`, captured
+ * by the caller); its status reads and recovery stay there after a workspace switch.
+ */
 export function createLorebookExtractionSession() {
     const receipts = new Map<string, Receipt>()
     const active = new Map<string, Promise<LorebookExtractionResult>>()
@@ -28,19 +35,28 @@ export function createLorebookExtractionSession() {
         owner = next
     })
 
-    const execute = (resource: LorebookResource, llm: LlmRequest = {}, lorebookId: string | null = null): Promise<LorebookExtractionResult> => {
+    const execute = (
+        resource: LorebookResource,
+        llm: LlmRequest = {},
+        lorebookId: string | null = null,
+        workspaceId: string | null = null,
+    ): Promise<LorebookExtractionResult> => {
         if (closed || owner.sessionPhase !== 'authenticated') return Promise.reject(new ApiError(401, 'Sign in to extract metadata.'))
+        if (!isWorkspaceUuid(workspaceId)) return Promise.reject(new ApiError(422, 'Open a workspace before extracting metadata.'))
         const hash = resource.evaluationHash
         if (typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash)) return Promise.reject(new ApiError(422, 'Save the resource before extracting metadata.'))
-        const key = JSON.stringify([lorebookId, resource.id])
+        const key = JSON.stringify([workspaceId, lorebookId, resource.id])
         let existing = receipts.get(key)
         const running = active.get(key)
         if (running) return running
         const freshReceipt = (): Receipt => ({
-            resourceId: resource.id, lorebookId, expectedHash: hash, requestId: makeRequestId('mw-lore-extract'),
+            workspaceId, resourceId: resource.id, lorebookId, expectedHash: hash, requestId: makeRequestId('mw-lore-extract'),
             selection: llm.selection ? { ...llm.selection } : { mode: 'inherit' as const }, expected_revision_id: llm.expected_revision_id,
         })
         let receipt = existing ?? freshReceipt()
+        // Never the committed workspace: the request's own one, frozen in its receipt
+        // (the key includes it, so a fresh receipt after a lost one keeps the same workspace).
+        const api = apiService.withWorkspace(receipt.workspaceId)
         const initiating = authSession.getSnapshot()
         const requireOwner = () => {
             if (closed || !authSession.isCurrent(initiating) || authSession.getSnapshot().sessionPhase !== 'authenticated') {
@@ -53,7 +69,7 @@ export function createLorebookExtractionSession() {
                 let retainedStatus
                 if (existing) {
                     try {
-                        retainedStatus = await apiService.getLorebookResourceExtraction(receipt.resourceId, receipt.expectedHash, { requestId: receipt.requestId }, receipt.lorebookId)
+                        retainedStatus = await api.getLorebookResourceExtraction(receipt.resourceId, receipt.expectedHash, { requestId: receipt.requestId }, receipt.lorebookId)
                     } catch (error) {
                         requireOwner()
                         if (!(error instanceof ApiError && error.status === 404 && error.code === 'LOREBOOK_EXTRACTION_NOT_FOUND')) throw error
@@ -70,7 +86,7 @@ export function createLorebookExtractionSession() {
                     else if (status.status === 'recovery_required') {
                         // Resume the same request against its frozen plan. A key is
                         // asked for only if the server needs one for that target.
-                        result = await apiService.extractLorebookResource(receipt.resourceId, {
+                        result = await api.extractLorebookResource(receipt.resourceId, {
                             expected_evaluation_hash: receipt.expectedHash,
                             llm: { selection: receipt.selection, ...(receipt.expected_revision_id ? { expected_revision_id: receipt.expected_revision_id } : {}) },
                         }, { requestId: receipt.requestId }, receipt.lorebookId)
@@ -79,13 +95,13 @@ export function createLorebookExtractionSession() {
                 } else {
                     // Resolve the feature choice before admission, and retain public identity only.
                     // Cancelling credential entry must not create a phantom recovery receipt.
-                    const prepared = await prepareLlmRequest('lorebook_extraction', llm)
+                    const prepared = await prepareLlmRequest('lorebook_extraction', llm, undefined, undefined, receipt.workspaceId)
                     try {
                         requireOwner()
                         receipt.selection = prepared.selection ? { ...prepared.selection } : { mode: 'inherit' }
                         receipt.expected_revision_id = prepared.expected_revision_id
                         receipts.set(key, receipt)
-                        result = await apiService.extractLorebookResource(resource.id, { expected_evaluation_hash: hash, llm: prepared }, { requestId: receipt.requestId }, lorebookId)
+                        result = await api.extractLorebookResource(resource.id, { expected_evaluation_hash: hash, llm: prepared }, { requestId: receipt.requestId }, lorebookId)
                         requireOwner()
                     } finally { delete prepared.credentials }
                 }

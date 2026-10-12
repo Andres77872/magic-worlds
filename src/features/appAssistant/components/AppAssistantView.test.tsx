@@ -76,6 +76,22 @@ describe('AppAssistantView', () => {
         expect(view.onSend).toHaveBeenCalledWith(expect.stringMatching(/^Summarize my library: /))
     })
 
+    it('keeps the history readable but sends nothing while the workspace is archived', () => {
+        const view = props({
+            readOnly: true,
+            activeConversation: { conversation_id: 3, kind: 'app', title: 'Lore check' },
+            turns: [turn(1, 'user', 'Where is my lore?'), turn(2, 'assistant', 'In Saltmarsh lore.')],
+        })
+        render(<AppAssistantView {...view} />)
+        expect(screen.getByText('In Saltmarsh lore.')).toBeInTheDocument()
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'And the keeper?' } })
+        expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
+        fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
+        expect(view.onSend).not.toHaveBeenCalled()
+        expect(screen.getAllByRole('button', { name: /Lore check/ }).length).toBeGreaterThan(0)
+        expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
+    })
+
     it('routes in-app links from replies through the page instead of the browser', () => {
         const view = props({
             activeConversation: { conversation_id: 3, kind: 'app', title: 'Lore check' },

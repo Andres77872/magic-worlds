@@ -2,6 +2,18 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+    // Workspace R1: the committed workspace, the captured creation origin and scoped clients.
+    workspace: null as unknown as WorkspaceTestState,
+    origin: {
+        origin: null as { workspaceId: string; collectionId: string | null; returnTo: null } | null,
+        isCaptured: false,
+        capture: vi.fn(),
+        clear: vi.fn(),
+        registerReturnHandler: vi.fn(),
+        returnToLibrary: vi.fn<(created: unknown) => boolean>(() => false),
+    },
+    withWorkspace: vi.fn(),
+    getCollection: vi.fn(),
     setPage: vi.fn(),
     goBack: vi.fn(),
     loadData: vi.fn(),
@@ -33,11 +45,21 @@ vi.mock('@/app/hooks', () => ({
     useBackgroundTasks: () => ({ tasks: [], registerThemeSongJob: mocks.registerThemeSongJob }),
 }))
 
+vi.mock('@/app/hooks/useWorkspace', () => ({ useWorkspace: () => mocks.workspace.value() }))
+
+vi.mock('@/features/library/creationOrigin', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@/features/library/creationOrigin')>()),
+    useCreationOrigin: () => mocks.origin,
+}))
+
 vi.mock('@/infrastructure/api', () => ({
     ApiError: class ApiError extends Error { status = 500; isTransient = true },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
     isProtectedMediaUrl: () => false,
+    isWorkspaceApiError: (error: unknown, code: string) => (error as { code?: string } | null)?.code === code,
     apiService: {
+        withWorkspace: mocks.withWorkspace,
+        getCollection: mocks.getCollection,
         createAssistantConversation: mocks.createAssistantConversation,
         listAssistantConversations: mocks.listAssistantConversations,
         getAssistantConversation: mocks.getAssistantConversation,
@@ -51,7 +73,50 @@ vi.mock('@/infrastructure/api', () => ({
     },
 }))
 
+import { apiService } from '@/infrastructure/api'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_COLLECTION_ID,
+    TEST_WORKSPACE_ID,
+    testWorkspace,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { AdventureCreator } from './AdventureCreator'
+
+beforeEach(() => {
+    mocks.withWorkspace.mockImplementation((workspaceId: string, options: { initialCollectionIds?: readonly string[] } = {}) =>
+        Object.assign(Object.create(apiService), { workspaceScope: { workspaceId, initialCollectionIds: [...(options.initialCollectionIds ?? [])] } }))
+    mocks.workspace = createWorkspaceTestState({ api: mocks.withWorkspace(TEST_WORKSPACE_ID) })
+    mocks.withWorkspace.mockClear()
+    mocks.origin.origin = { workspaceId: TEST_WORKSPACE_ID, collectionId: null, returnTo: null }
+    mocks.origin.isCaptured = false
+    mocks.origin.returnToLibrary.mockImplementation(() => false)
+    mocks.getCollection.mockResolvedValue({ id: TEST_COLLECTION_ID, name: 'Heroes' })
+})
+
+/** The workspace scope (id + initial collections) a mocked API call was made through. */
+function scopeOf(fn: { mock: { contexts: unknown[] } }, index = 0) {
+    return (fn.mock.contexts[index] as { workspaceScope?: unknown } | undefined)?.workspaceScope
+}
+
+/** The other workspace is archived (read-only until restored). */
+function archiveOtherWorkspace() {
+    mocks.workspace = createWorkspaceTestState({
+        api: mocks.withWorkspace(TEST_WORKSPACE_ID),
+        workspaces: [
+            testWorkspace(TEST_WORKSPACE_ID, 'Main library'),
+            testWorkspace(OTHER_WORKSPACE_ID, 'Novel A', { archived_at: '2026-10-10T00:00:00Z' }),
+        ],
+    })
+}
+
+/** Opened from a Library folder: saves there and returns to the Library afterwards. */
+function captureFolderOrigin() {
+    mocks.origin.origin = { workspaceId: TEST_WORKSPACE_ID, collectionId: TEST_COLLECTION_ID, returnTo: null }
+    mocks.origin.isCaptured = true
+    mocks.origin.returnToLibrary.mockImplementation(() => true)
+}
 
 describe('AdventureCreator AI generation', () => {
     beforeEach(() => {
@@ -251,5 +316,76 @@ describe('AdventureCreator guided payload', () => {
             'Opening Scene':
                 'Rain on the shrine steps at dusk. The dying protector presses the empty reliquary into your hands and says a name no one has spoken aloud in years.',
         })
+    })
+})
+
+describe('AdventureCreator workspace origin', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.editingTemplate = null
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.loadData.mockResolvedValue(undefined)
+    })
+
+    it('creates at the captured folder and returns to the Library highlighting the adventure', async () => {
+        captureFolderOrigin()
+        const create = apiService.createAdventureTemplate as ReturnType<typeof vi.fn>
+        create.mockResolvedValue({ id: 'tmpl-2', name: 'Quest' })
+        render(<AdventureCreator />)
+        await waitFor(() => expect(screen.getByTestId('creation-destination')).toHaveTextContent('Will be saved in Main library / Heroes'))
+
+        fireEvent.click(screen.getByRole('button', { name: /skip — start with the standard fields/i }))
+        fireEvent.change(screen.getByRole('textbox', { name: /premise/i }), { target: { value: 'The beacons are lit.' } })
+        fireEvent.click(screen.getByRole('button', { name: /^Create Adventure$/i }))
+
+        await waitFor(() => expect(mocks.origin.returnToLibrary).toHaveBeenCalledWith({ cardType: 'adventure_template', cardId: 'tmpl-2' }))
+        expect(scopeOf(create)).toEqual({ workspaceId: TEST_WORKSPACE_ID, initialCollectionIds: [TEST_COLLECTION_ID] })
+        expect(mocks.goBack).not.toHaveBeenCalled()
+    })
+
+    it("updates an existing adventure in its own workspace, never with initial collections", async () => {
+        captureFolderOrigin()
+        mocks.origin.returnToLibrary.mockImplementation(() => false)
+        mocks.editingTemplate = {
+            id: 'tmpl-1', scenario: 'A heist into the volcano fortress.', characters: [], triggers: [],
+            organization: { workspace_id: OTHER_WORKSPACE_ID, collection_ids: [] },
+        }
+        mocks.updateAdventureTemplate.mockResolvedValue({})
+        render(<AdventureCreator />)
+
+        expect(screen.queryByTestId('creation-destination')).toBeNull()
+        fireEvent.click(screen.getAllByRole('button', { name: /^Update$/i })[0])
+
+        await waitFor(() => expect(mocks.updateAdventureTemplate).toHaveBeenCalledTimes(1))
+        expect(scopeOf(mocks.updateAdventureTemplate)).toEqual({ workspaceId: OTHER_WORKSPACE_ID, initialCollectionIds: [] })
+        await waitFor(() => expect(mocks.goBack).toHaveBeenCalledWith('landing'))
+    })
+})
+
+describe('AdventureCreator in an archived workspace', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.isAuthenticated = true
+        mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
+        mocks.loadData.mockResolvedValue(undefined)
+        archiveOtherWorkspace()
+    })
+
+    it('opens an existing adventure read-only and never updates it', async () => {
+        mocks.editingTemplate = {
+            id: 'tmpl-1', scenario: 'A heist into the volcano fortress.', characters: [], triggers: [],
+            organization: { workspace_id: OTHER_WORKSPACE_ID, collection_ids: [] },
+        }
+        render(<AdventureCreator />)
+
+        expect(screen.getByRole('textbox', { name: /premise/i })).toBeDisabled()
+        for (const update of screen.getAllByRole('button', { name: /^Update/i })) expect(update).toBeDisabled()
+        expect(screen.getByRole('button', { name: /generate cover/i })).toBeDisabled()
+        expect(screen.getAllByRole('button', { name: /^Back$/i })[0]).toBeEnabled()
+
+        fireEvent.submit(screen.getByRole('textbox', { name: /premise/i }).closest('form')!)
+        expect(await screen.findByText(/this workspace is archived/i)).toBeInTheDocument()
+        expect(mocks.updateAdventureTemplate).not.toHaveBeenCalled()
     })
 })

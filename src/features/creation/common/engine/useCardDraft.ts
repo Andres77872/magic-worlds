@@ -11,8 +11,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiService } from '@/infrastructure/api'
 import { invalidateCardUsage } from '@/shared/hooks/useCardUsage'
+import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import type { CardEditVersion } from '@/features/gallery/galleryLinks'
 import type { CardDraftDocument, CardPublishResult, VersionableCardType } from '@/shared/types/cardVersion.types'
 
@@ -41,6 +41,11 @@ export interface UseCardDraftOptions {
      * historical version) — so the creator re-hydrates its fields. Fires once per (card, version).
      */
     onDraftLoaded?: (body: CardDraftDocument) => void
+    /**
+     * Workspace R1: the card's own workspace (its organization, or where it was
+     * just created). Default = the committed workspace. Never sends initial collections.
+     */
+    workspaceId?: string | null
 }
 
 export interface UseCardDraftApi {
@@ -72,7 +77,8 @@ function toState(doc: CardDraftDocument): CardDraftState {
     }
 }
 
-export function useCardDraft({ cardType, cardId, version, onDraftLoaded }: UseCardDraftOptions): UseCardDraftApi {
+export function useCardDraft({ cardType, cardId, version, onDraftLoaded, workspaceId }: UseCardDraftOptions): UseCardDraftApi {
+    const api = useScopedApi(workspaceId)
     const [draftState, setDraftState] = useState<CardDraftState | null>(null)
     const [isHistorical, setIsHistorical] = useState(false)
     const [viewingVersionNumber, setViewingVersionNumber] = useState<number | null>(null)
@@ -86,19 +92,19 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded }: UseCa
     onDraftLoadedRef.current = onDraftLoaded
 
     const fetchDraft = useCallback(async (): Promise<CardDraftDocument | null> => {
-        if (!cardId) return null
+        if (!cardId || !api) return null
         try {
-            return await apiService.getCardDraft(cardType, cardId)
+            return await api.getCardDraft(cardType, cardId)
         } catch {
             return null
         }
-    }, [cardType, cardId])
+    }, [api, cardType, cardId])
 
     // On open (and when the target card or version changes), load the draft markers and resolve
     // the body to display per `version`. The draft doc is always fetched (for the has-draft/latest
     // badges); the hydrated body depends on the version selector.
     useEffect(() => {
-        if (!cardId) {
+        if (!cardId || !api) {
             setDraftState(null)
             setIsHistorical(false)
             setViewingVersionNumber(null)
@@ -115,7 +121,7 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded }: UseCa
             if (typeof version === 'number') {
                 // Read-only historical view — never touches the draft. Falls back to the draft/
                 // published body already shown when the version no longer exists.
-                const body = await apiService.getCardVersion(cardType, cardId, version).catch(() => null)
+                const body = await api.getCardVersion(cardType, cardId, version).catch(() => null)
                 if (cancelled) return
                 if (body) {
                     setIsHistorical(true)
@@ -129,7 +135,7 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded }: UseCa
             } else if (version === 'latest') {
                 setIsHistorical(false)
                 setViewingVersionNumber(null)
-                const published = await apiService.getPublishedBody(cardType, cardId).catch(() => null)
+                const published = await api.getPublishedBody(cardType, cardId).catch(() => null)
                 if (cancelled) return
                 if (published) onDraftLoadedRef.current?.(published)
             } else {
@@ -144,7 +150,7 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded }: UseCa
         return () => {
             cancelled = true
         }
-    }, [cardId, version, cardType, fetchDraft])
+    }, [api, cardId, version, cardType, fetchDraft])
 
     const refresh = useCallback(async () => {
         const doc = await fetchDraft()
@@ -153,11 +159,11 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded }: UseCa
 
     const saveDraft = useCallback(
         async (body: unknown): Promise<boolean> => {
-            if (!cardId) return false
+            if (!cardId || !api) return false
             setSaving(true)
             setError(null)
             try {
-                const doc = await apiService.saveCardDraft(cardType, cardId, body)
+                const doc = await api.saveCardDraft(cardType, cardId, body)
                 setDraftState(toState(doc))
                 return true
             } catch {
@@ -167,16 +173,16 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded }: UseCa
                 setSaving(false)
             }
         },
-        [cardType, cardId],
+        [api, cardType, cardId],
     )
 
     const publish = useCallback(
         async (label?: string): Promise<CardPublishResult | null> => {
-            if (!cardId) return null
+            if (!cardId || !api) return null
             setPublishing(true)
             setError(null)
             try {
-                const result = await apiService.publishCardDraft(cardType, cardId, label)
+                const result = await api.publishCardDraft(cardType, cardId, label)
                 // Publish changes the live card (latest bumps, draft cleared); usage display
                 // for this card may now be stale in the shared cache.
                 invalidateCardUsage(cardType, cardId)
@@ -193,17 +199,17 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded }: UseCa
                 setPublishing(false)
             }
         },
-        [cardType, cardId],
+        [api, cardType, cardId],
     )
 
     const discard = useCallback(async (): Promise<CardDraftDocument | null> => {
-        if (!cardId) return null
+        if (!cardId || !api) return null
         setSaving(true)
         setError(null)
         try {
-            await apiService.discardCardDraft(cardType, cardId)
+            await api.discardCardDraft(cardType, cardId)
             // No draft now → getCardDraft returns the published body the form should reset to.
-            const published = await apiService.getCardDraft(cardType, cardId)
+            const published = await api.getCardDraft(cardType, cardId)
             setDraftState(toState(published))
             return published
         } catch {
@@ -212,15 +218,15 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded }: UseCa
         } finally {
             setSaving(false)
         }
-    }, [cardType, cardId])
+    }, [api, cardType, cardId])
 
     const restoreIntoDraft = useCallback(
         async (versionNumber: number): Promise<CardDraftDocument | null> => {
-            if (!cardId) return null
+            if (!cardId || !api) return null
             setSaving(true)
             setError(null)
             try {
-                const doc = await apiService.restoreVersionIntoDraft(cardType, cardId, versionNumber)
+                const doc = await api.restoreVersionIntoDraft(cardType, cardId, versionNumber)
                 setDraftState(toState(doc))
                 // Restore stages the version into the draft → we're now editing a draft, not viewing history.
                 setIsHistorical(false)
@@ -233,7 +239,7 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded }: UseCa
                 setSaving(false)
             }
         },
-        [cardType, cardId],
+        [api, cardType, cardId],
     )
 
     return {

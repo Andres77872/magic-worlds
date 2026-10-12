@@ -1,12 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ReactNode } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { apiService } from '@/infrastructure/api'
+import {
+    createWorkspaceTestState,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { CardHistoryDrawer } from './CardHistoryDrawer'
 
 afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
 })
+
+// Workspace R1: versions and usage are private reads through the committed workspace's client.
+function wrapper({ children }: { children: ReactNode }) {
+    const workspace = createWorkspaceTestState({ api: apiService.withWorkspace(TEST_WORKSPACE_ID) })
+    return <WorkspaceTestProvider state={workspace}>{children}</WorkspaceTestProvider>
+}
 
 function renderDrawer(props: Partial<Parameters<typeof CardHistoryDrawer>[0]> = {}) {
     const handlers = { onPublish: vi.fn(), onDiscard: vi.fn(), onRestore: vi.fn(), onView: vi.fn(), onClose: vi.fn() }
@@ -23,6 +35,7 @@ function renderDrawer(props: Partial<Parameters<typeof CardHistoryDrawer>[0]> = 
             {...handlers}
             {...props}
         />,
+        { wrapper },
     )
     return handlers
 }
@@ -108,5 +121,29 @@ describe('CardHistoryDrawer', () => {
         renderDrawer({ hasDraft: false })
 
         expect(await screen.findByText(/no published versions yet/i)).toBeInTheDocument()
+    })
+
+    it('keeps versions viewable but blocks publish, discard and restore when read-only', async () => {
+        vi.spyOn(apiService, 'listCardVersions').mockResolvedValue({
+            card_id: 'card-1',
+            latest_version_id: 'v2',
+            latest_version_number: 2,
+            versions: [
+                { version_id: 'v2', version_number: 2, label: null, created_at: '2026-06-15T10:00:00' },
+                { version_id: 'v1', version_number: 1, label: null, created_at: '2026-06-14T10:00:00' },
+            ],
+        })
+        vi.spyOn(apiService, 'getCardUsage').mockResolvedValue({ sessions: 0, stories: 0 })
+        const handlers = renderDrawer({ readOnly: true })
+
+        expect(await screen.findByText(/unpublished changes since v2/i)).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /^Publish$/i })).toBeDisabled()
+        expect(screen.getByRole('button', { name: /discard draft/i })).toBeDisabled()
+        for (const restore of screen.getAllByRole('button', { name: /^Restore$/i })) expect(restore).toBeDisabled()
+
+        const [view] = screen.getAllByRole('button', { name: /^View$/i })
+        expect(view).toBeEnabled()
+        fireEvent.click(view)
+        expect(handlers.onView).toHaveBeenCalledWith(2)
     })
 })

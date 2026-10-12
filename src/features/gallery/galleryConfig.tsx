@@ -2,11 +2,16 @@
  * Per-type gallery configuration — copy, fetcher, and raw-row → GalleryItem
  * mapping for the three card libraries. GalleryPage and useCardGallery are
  * generic; everything type-specific lives here.
+ *
+ * Workspace R1: owned-card fetchers take the scoped client of the selected
+ * workspace (`useWorkspace().api`) — `galleryConfigFor(type, api)` binds it.
+ * Public/community fetchers stay on the unscoped singleton.
  */
 
 import { Gem, Globe, Swords, UserCircle, Users, type LucideIcon } from 'lucide-react'
 import { readWorldPlaceType, worldPlaceTypeLabel, type Adventure, type CardActor, type CardVisibility, type Character, type Item, type PageType, type SharedCardResource, type ShareableCardType, type World } from '@/shared'
-import { apiService, resolveMediaUrl } from '@/infrastructure/api'
+import type { LibraryItem } from '@/shared/types'
+import { apiService, resolveMediaUrl, type ApiService } from '@/infrastructure/api'
 import { effectiveName } from '@/utils/displayName'
 import { transformCharacters, transformItems, transformTemplates, transformWorlds } from '../../utils/cardTransforms'
 import { sceneTags, sceneTitle } from '../landing/components/sceneModel'
@@ -61,6 +66,24 @@ export interface GalleryConfig {
     fetchItem?: (id: string) => Promise<unknown>
     toItems: (raw: unknown) => GalleryItem[]
     toItem?: (raw: unknown) => GalleryItem | null
+}
+
+/** A type's owned-library definition; its fetchers need the caller's scoped client. */
+export interface GalleryTypeConfig extends Omit<GalleryConfig, 'fetchPage' | 'fetchItem'> {
+    fetchPageWith: (api: ApiService, skip: number, limit: number, q?: string) => Promise<unknown>
+    fetchItemWith: (api: ApiService, id: string) => Promise<unknown>
+}
+
+const NO_WORKSPACE = () => Promise.reject(new Error('The library is not ready yet.'))
+
+/** The owned gallery of `type` bound to a scoped client (`null` before the workspace handshake). */
+export function galleryConfigFor(type: GalleryType, api: ApiService | null): GalleryConfig {
+    const { fetchPageWith, fetchItemWith, ...base } = GALLERY_CONFIG[type]
+    return {
+        ...base,
+        fetchPage: api ? (skip, limit, q) => fetchPageWith(api, skip, limit, q) : NO_WORKSPACE,
+        fetchItem: api ? (id) => fetchItemWith(api, id) : NO_WORKSPACE,
+    }
 }
 
 export const characterGalleryItem = (character: Character): GalleryItem => ({
@@ -250,7 +273,7 @@ export function publicConfigFor(type: GalleryType): GalleryConfig {
     }
 }
 
-export const GALLERY_CONFIG: Record<GalleryType, GalleryConfig> = {
+export const GALLERY_CONFIG: Record<GalleryType, GalleryTypeConfig> = {
     character: {
         eyebrow: 'Your library',
         title: 'Characters',
@@ -262,8 +285,8 @@ export const GALLERY_CONFIG: Record<GalleryType, GalleryConfig> = {
         noMatchDescription: 'Try a different name or trigger keyword.',
         createLabel: 'New character',
         createPage: 'character',
-        fetchPage: (skip, limit, q) => apiService.getCharacters(skip, limit, q, 'character'),
-        fetchItem: (id) => apiService.getCharacter(id),
+        fetchPageWith: (api, skip, limit, q) => api.getCharacters(skip, limit, q, 'character'),
+        fetchItemWith: (api, id) => api.getCharacter(id),
         toItems: characterItems,
         toItem: (raw) => firstItem(characterItems, raw),
     },
@@ -278,8 +301,8 @@ export const GALLERY_CONFIG: Record<GalleryType, GalleryConfig> = {
         noMatchDescription: 'Try a different name or trigger keyword.',
         createLabel: 'New persona',
         createPage: 'character',
-        fetchPage: (skip, limit, q) => apiService.getCharacters(skip, limit, q, 'persona'),
-        fetchItem: (id) => apiService.getCharacter(id),
+        fetchPageWith: (api, skip, limit, q) => api.getCharacters(skip, limit, q, 'persona'),
+        fetchItemWith: (api, id) => api.getCharacter(id),
         toItems: personaItems,
         toItem: (raw) => firstItem(personaItems, raw),
     },
@@ -294,8 +317,8 @@ export const GALLERY_CONFIG: Record<GalleryType, GalleryConfig> = {
         noMatchDescription: 'Try a different name or trigger keyword.',
         createLabel: 'New world',
         createPage: 'world',
-        fetchPage: (skip, limit, q) => apiService.getWorlds(skip, limit, q),
-        fetchItem: (id) => apiService.getWorld(id),
+        fetchPageWith: (api, skip, limit, q) => api.getWorlds(skip, limit, q),
+        fetchItemWith: (api, id) => api.getWorld(id),
         toItems: worldItems,
         toItem: (raw) => firstItem(worldItems, raw),
     },
@@ -310,8 +333,8 @@ export const GALLERY_CONFIG: Record<GalleryType, GalleryConfig> = {
         noMatchDescription: 'Try a different name or trigger keyword.',
         createLabel: 'New item',
         createPage: 'item',
-        fetchPage: (skip, limit, q) => apiService.getItems(skip, limit, q),
-        fetchItem: (id) => apiService.getItem(id),
+        fetchPageWith: (api, skip, limit, q) => api.getItems(skip, limit, q),
+        fetchItemWith: (api, id) => api.getItem(id),
         toItems: itemItems,
         toItem: (raw) => firstItem(itemItems, raw),
     },
@@ -326,9 +349,34 @@ export const GALLERY_CONFIG: Record<GalleryType, GalleryConfig> = {
         noMatchDescription: 'Try a different name or trigger keyword.',
         createLabel: 'New adventure',
         createPage: 'adventure',
-        fetchPage: (skip, limit, q) => apiService.getAdventureTemplates(skip, limit, q),
-        fetchItem: (id) => apiService.getAdventureTemplate(id),
+        fetchPageWith: (api, skip, limit, q) => api.getAdventureTemplates(skip, limit, q),
+        fetchItemWith: (api, id) => api.getAdventureTemplate(id),
         toItems: adventureItems,
         toItem: (raw) => firstItem(adventureItems, raw),
     },
+}
+
+/**
+ * Mixed library entries (`GET /workspaces/{id}/cards`) as gallery items, with
+ * the unchanged per-type mapping: personas keep their default marker, worlds
+ * their place-type badge, adventures their scene title. Unknown entries drop.
+ */
+export function galleryItemsFromLibrary(items: readonly LibraryItem[]): GalleryItem[] {
+    return items.flatMap((entry) => {
+        const card = entry.card as unknown
+        if (entry.card_type === 'character') {
+            const character = transformCharacters([card])[0]
+            if (!character) return []
+            return [character.role === 'persona' ? personaGalleryItem(character) : characterGalleryItem(character)]
+        }
+        if (entry.card_type === 'world') return worldItems([card])
+        if (entry.card_type === 'item') return itemItems([card])
+        if (entry.card_type === 'adventure_template') return adventureItems([card])
+        return []
+    })
+}
+
+/** One owned card (per-type read DTO) as a gallery item; personas map by role. */
+export function galleryItemFromCard(cardType: ShareableCardType, raw: unknown): GalleryItem | null {
+    return galleryItemsFromLibrary([{ card_type: cardType, card: raw as LibraryItem['card'] }])[0] ?? null
 }

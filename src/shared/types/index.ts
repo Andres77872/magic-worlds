@@ -25,5 +25,6 @@ export * from './ui.types'
 export * from './voice.types'
 export * from './voicePreset.types'
 export * from './world.types'
+export * from './workspace.types'
 
 export * from './textGeneration.types'

@@ -20,7 +20,10 @@ import {
     worldPlaceTypeOptionValue,
 } from '@/shared'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
-import { apiService, ApiError } from '@/infrastructure/api'
+import { useWorkspace } from '@/app/hooks/useWorkspace'
+import { ApiError } from '@/infrastructure/api'
+import { readCardOrganization } from '@/infrastructure/api/workspaceContract'
+import type { OrganizationWarning } from '@/shared/types/workspace.types'
 import type { WorldCardResponse } from '@/shared/types/aiCard.types'
 import type { AttributeCategory } from '@/ui/components/common/AttributeList'
 import { Button, Eyebrow, Icon, Select, SuggestInput } from '@/ui/primitives'
@@ -45,15 +48,21 @@ import {
     HistoricalVersionBanner,
     QualityHint,
     TriggerHints,
+    CreationDestination,
+    OrganizationWarningNotice,
+    ReadOnlyFieldset,
     type StudioNavItem,
     type AttributePreset,
 } from '../../common/components'
+import type { AssistantTargetMeta } from '../../common/components/assistant/useAssistant'
 import {
     GuidedSection,
     UseExampleLink,
     readCategoryAttribute,
     useCardDraft,
     useCardEditorRoute,
+    useCreatorWorkspace,
+    workspaceSaveErrorKey,
     useDirtyPayload,
     useGuidedCard,
     type CardTemplate,
@@ -108,6 +117,8 @@ function toWorld(card: WorldCardResponse): World {
         triggers: card.triggers ?? [],
         image_url: card.image_url,
         theme_song_url: card.theme_song_url,
+        // Server-owned placement (read-only): keeps edits in the card's own workspace.
+        ...(readCardOrganization(card.organization) ? { organization: readCardOrganization(card.organization) } : {}),
     }
 }
 
@@ -116,11 +127,19 @@ function initialPlaceType(world: World | null | undefined): string {
     return readCategoryAttribute(world, PLACE_TYPE_MIRROR.group, PLACE_TYPE_MIRROR.key) ?? DEFAULT_WORLD_PLACE_TYPE
 }
 
+/** A committed workspace switch starts a fresh form and assistant (document 08: reset local origin forms). */
 export function WorldCreator() {
+    const { workspaceEpoch } = useWorkspace()
+    return <WorldCreatorForm key={workspaceEpoch} />
+}
+
+function WorldCreatorForm() {
     const { t } = useTranslation()
     const { goBack, cardEdit, replaceHash } = useNavigation()
     const { editingWorld, setEditingWorld, loadData } = useData()
     const { isAuthenticated, openLoginModal } = useAuth()
+    // Workspace R1: new cards save to the captured origin; existing ones stay in their own workspace.
+    const creator = useCreatorWorkspace(editingWorld)
     const routeHasId = cardEdit?.cardType === 'world' && Boolean(cardEdit.cardId)
 
     // One minimal default category; users add details here or create more groups.
@@ -148,6 +167,8 @@ export function WorldCreator() {
     const [touched, setTouched] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
     const [assistantApplied, setAssistantApplied] = useState(false)
+    // Requested initial collections deleted while a generated card was saved (normally empty).
+    const [organizationWarnings, setOrganizationWarnings] = useState<OrganizationWarning[]>([])
     // undefined = template gallery (create mode); a pick (or null = empty/skip) shows the form.
     const [template, setTemplate] = useState<CardTemplate | null | undefined>(editingWorld ? null : undefined)
 
@@ -214,6 +235,7 @@ export function WorldCreator() {
         cardId: editingWorld?.id ?? null,
         version,
         onDraftLoaded: (body) => hydrateFromCardBody(body as unknown as WorldCardResponse),
+        workspaceId: creator.cardWorkspaceId,
     })
     const [draftToast, setDraftToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
 
@@ -238,6 +260,8 @@ export function WorldCreator() {
      * if needed (theme generation needs a real target id).
      */
     const ensureSaved = async (): Promise<string> => {
+        // Archived workspace: read-only until restored.
+        if (creator.readOnly) throw new Error(t('workspaceContent.saveErrors.archived'))
         if (!isAuthenticated) {
             openLoginModal()
             throw new Error(t('creation.world.validation.loginToContinue'))
@@ -253,8 +277,12 @@ export function WorldCreator() {
             return editingWorld.id
         }
         const payload = buildPayload()
-        const created = await apiService.createWorld(payload)
+        const scope = creator.capture()
+        const created = await creator.newCardClient().createWorld(payload)
+        // Switched workspace meanwhile: the card is saved at its origin, but this form is gone.
+        if (!creator.isCurrent(scope)) throw new DOMException('Workspace changed', 'AbortError')
         const saved = toWorld(created as WorldCardResponse)
+        creator.rememberCreated(saved.organization)
         if (saved.id) {
             setEditingWorld(saved)
             // Stamp the new id into the URL so a refresh mid-edit restores this card.
@@ -279,7 +307,7 @@ export function WorldCreator() {
         const id = savedIdRef.current ?? editingWorld?.id
         if (id) {
             // Media is a published-body property persisted immediately (not part of the draft).
-            void apiService.setCardMedia('world', id, { image_url: url ?? null }).catch(() => {
+            void creator.cardClient().setCardMedia('world', id, { image_url: url ?? null }).catch(() => {
                 setDraftToast({
                     tone: 'error',
                     message: t(url ? 'creation.common.media.errors.imageSaveFailed' : 'creation.common.media.errors.imageRemoveFailed'),
@@ -300,7 +328,7 @@ export function WorldCreator() {
             // Persist the link only — do NOT loadData() here. A refresh flips isLoading,
             // which makes AppRouter unmount the whole creator (discarding in-progress edits)
             // and re-run the theme effect. The gallery refreshes on Save / next navigation.
-            void apiService.setCardMedia('world', id, { theme_song_url: url ?? null }).catch(() => {
+            void creator.cardClient().setCardMedia('world', id, { theme_song_url: url ?? null }).catch(() => {
                 setDraftToast({ tone: 'error', message: t('creation.common.media.errors.themeSaveFailed') })
             })
         }
@@ -325,6 +353,8 @@ export function WorldCreator() {
             onGeneratedThemeSongUrl={setThemeSongUrl}
             ensureSaved={ensureSaved}
             themeTargetId={editingWorld?.id}
+            workspaceId={creator.cardWorkspaceId}
+            readOnly={creator.readOnly}
             isAuthenticated={isAuthenticated}
             onAuthRequired={openLoginModal}
         />
@@ -332,6 +362,10 @@ export function WorldCreator() {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
+        if (creator.readOnly) {
+            setSaveError(t('workspaceContent.saveErrors.archived'))
+            return
+        }
         // Read-only historical view: nothing to save until the version is restored into the draft.
         if (draft.isHistorical) return
         if (!isAuthenticated) {
@@ -356,15 +390,27 @@ export function WorldCreator() {
                 )
             } else {
                 // Create mode: create the live card, then transition into edit mode (drafts onward).
-                const created = await apiService.createWorld(payload)
+                // Opened from the Library: go back there and highlight the new card.
+                const scope = creator.capture()
+                const created = await creator.newCardClient().createWorld(payload)
+                // Switched workspace meanwhile: the card is saved at its origin; ignore the late result.
+                if (!creator.isCurrent(scope)) return
                 const saved = toWorld(created as WorldCardResponse)
+                creator.rememberCreated(saved.organization)
+                markClean(JSON.stringify(payload))
+                let returned = false
+                // The payload was just persisted: leave without consulting the (stale-dirty) guard.
+                if (saved.id) guard.skip(() => { returned = creator.returnToLibrary({ cardType: 'world', cardId: saved.id }) })
+                if (returned) {
+                    void loadData({ silent: true })
+                    return
+                }
                 if (saved.id) {
                     setEditingWorld(saved)
                     savedIdRef.current = saved.id
                     // Stamp the new id into the URL so a refresh keeps the freshly-created card.
                     replaceHash(buildCardEditHash('world', saved.id))
                 }
-                markClean(JSON.stringify(payload))
                 await loadData({ silent: true })
             }
         } catch (error) {
@@ -372,8 +418,11 @@ export function WorldCreator() {
             // Gentle, non-blocking inline message — the form stays put so the
             // user can retry. Transient backend outages get reassuring copy.
             const transient = error instanceof ApiError && error.isTransient
+            const workspaceError = workspaceSaveErrorKey(error)
             setSaveError(
-                transient
+                workspaceError
+                    ? t(workspaceError)
+                    : transient
                     ? t('creation.world.save.transient')
                     : editingWorld
                       ? t('creation.world.save.updateFailed')
@@ -384,9 +433,13 @@ export function WorldCreator() {
         }
     }
 
-    const applyAssistantCard = (card: WorldCardResponse) => {
+    const applyAssistantCard = (card: WorldCardResponse, meta?: AssistantTargetMeta) => {
         hydrateFromCardBody(card)
-        setEditingWorld(toWorld(card))
+        const applied = toWorld(card)
+        // A generated/assistant card created here lives at the origin even if the response omits it.
+        if (!editingWorld) creator.rememberCreated(applied.organization)
+        setOrganizationWarnings(meta?.organizationWarnings ?? [])
+        setEditingWorld(applied)
         const newId = card.id || card.uuid || null
         savedIdRef.current = newId
         if (newId) replaceHash(buildCardEditHash('world', newId))
@@ -398,6 +451,7 @@ export function WorldCreator() {
 
     /** Leave the read-only historical view by staging that version into the draft for editing. */
     const handleRestoreHistorical = async () => {
+        if (creator.readOnly) return
         const number = draft.viewingVersionNumber
         if (number == null) return
         const body = await draft.restoreIntoDraft(number)
@@ -411,7 +465,8 @@ export function WorldCreator() {
     const handleBack = () => {
         guard.confirm(() => {
             setEditingWorld(null)
-            goBack('landing')
+            // Opened from the Library: Back restores its captured folder/search/scroll.
+            if (!creator.returnToLibrary(null)) goBack('landing')
         })
     }
 
@@ -452,6 +507,9 @@ export function WorldCreator() {
             onTarget={applyAssistantCard}
             isAuthenticated={isAuthenticated}
             onAuthRequired={openLoginModal}
+            workspaceId={creator.cardWorkspaceId}
+            readOnly={creator.readOnly}
+            initialCollectionIds={editingWorld ? [] : creator.initialCollectionIds}
         />
     )
 
@@ -471,7 +529,7 @@ export function WorldCreator() {
     if (template === undefined && !editingWorld && !routeHasId) {
         return (
             <>
-                <CreatorIntro title={t('creation.world.createTitle')} icon={<Icon icon={Sparkles} size={28} />} onBack={handleBack}>
+                <CreatorIntro title={t('creation.world.createTitle')} icon={<Icon icon={Sparkles} size={28} />} onBack={handleBack} destination={<CreationDestination origin={creator.origin} />}>
                     <TemplateGallery
                         templates={WORLD_TEMPLATES}
                         fields={worldFields}
@@ -481,13 +539,15 @@ export function WorldCreator() {
                         onPick={pickTemplate}
                         onSkip={() => setTemplate(null)}
                     />
-                    <SavedCardGenerator
-                        cardType="world"
-                        generate={(description, options) => apiService.createWorldAI(description, options)}
-                        onSaved={applyAssistantCard}
-                        isAuthenticated={isAuthenticated}
-                        onAuthRequired={openLoginModal}
-                    />
+                    <ReadOnlyFieldset disabled={creator.readOnly}>
+                        <SavedCardGenerator
+                            cardType="world"
+                            generate={(description, options) => creator.newCardClient().createWorldAI(description, options)}
+                            onSaved={(card) => applyAssistantCard(card, { organizationWarnings: card.organization_warnings ?? [] })}
+                            isAuthenticated={isAuthenticated}
+                            onAuthRequired={openLoginModal}
+                        />
+                    </ReadOnlyFieldset>
                 </CreatorIntro>
                 {chatbot}
                 <ConfirmDialog
@@ -509,10 +569,11 @@ export function WorldCreator() {
             icon={<Icon icon={Sparkles} size={28} />}
             onBack={handleStudioBack}
             isLoading={isSubmitting}
+            destination={editingWorld ? undefined : <CreationDestination origin={creator.origin} />}
             nav={<StudioSectionNav items={navItems} />}
             headerActions={
                 <>
-                    <Button variant="primary" type="submit" form={FORM_ID} disabled={isSubmitting || draft.isHistorical}>
+                    <Button variant="primary" type="submit" form={FORM_ID} disabled={isSubmitting || draft.isHistorical || creator.readOnly}>
                         {isSubmitting
                             ? t('common.saving')
                             : editingWorld
@@ -529,12 +590,19 @@ export function WorldCreator() {
                             void loadData({ silent: true })
                         }}
                         disabled={isSubmitting}
+                        workspaceId={creator.cardWorkspaceId}
+                        readOnly={creator.readOnly}
                     />
                 </>
             }
             preview={
                 <StudioPreviewDock
-                    notice={assistantApplied ? <GeneratedDraftNotice noun="world" /> : undefined}
+                    notice={assistantApplied || organizationWarnings.length > 0 ? (
+                        <>
+                            {assistantApplied && <GeneratedDraftNotice noun="world" />}
+                            <OrganizationWarningNotice warnings={organizationWarnings} />
+                        </>
+                    ) : undefined}
                     footer={mediaPanel}
                 >
                     <WorldPreviewCard
@@ -551,177 +619,180 @@ export function WorldCreator() {
             }
         >
             <form id={FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-6" onKeyDown={handleKeyDown}>
-                {draft.isHistorical && draft.viewingVersionNumber != null && (
-                    <HistoricalVersionBanner
-                        versionNumber={draft.viewingVersionNumber}
-                        onRestore={() => void handleRestoreHistorical()}
-                        busy={draft.busy}
-                    />
-                )}
-                <StudioSection
-                    id="identity"
-                    icon={sectionById['identity'].icon}
-                    title={sectionById['identity'].title}
-                    description={sectionById['identity'].description}
-                >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <CreatorField
-                            label={t('creation.world.fieldsForm.nameLabel')}
-                            htmlFor="world-name"
-                            required
-                            error={nameError}
-                            tooltip={t('creation.world.fieldsForm.nameTooltip')}
-                        >
-                            <CreatorInput
-                                id="world-name"
-                                value={name}
-                                onChange={setName}
-                                onBlur={() => markFieldTouched('name')}
-                                autoFocus
-                                className="text-xl font-medium font-display"
-                                placeholder={firstClass.name ?? t('creation.world.fieldsForm.namePlaceholder')}
-                            />
-                        </CreatorField>
-
-                        <CreatorField
-                            label={t('creation.world.fieldsForm.placeTypeLabel')}
-                            htmlFor="world-place-type"
-                            required
-                            error={placeTypeError}
-                            tooltip={t('creation.world.fieldsForm.placeTypeTooltip')}
-                        >
-                            <Select
-                                id="world-place-type"
-                                value={selectedPlaceTypeOption}
-                                onChange={(next) => {
-                                    setPlaceType(next === CUSTOM_WORLD_PLACE_TYPE ? '' : next)
-                                }}
-                                options={placeTypeSelectOptions}
-                            />
-                        </CreatorField>
-                    </div>
-
-                    {selectedPlaceTypeOption === CUSTOM_WORLD_PLACE_TYPE && (
-                        <CreatorField label={t('creation.world.fieldsForm.customPlaceTypeLabel')} htmlFor="world-place-type-custom" required error={placeTypeError}>
-                            <CreatorInput
-                                id="world-place-type-custom"
-                                value={placeType}
-                                onChange={setPlaceType}
-                                onBlur={() => markFieldTouched('placeType')}
-                                placeholder={t('creation.world.fieldsForm.customPlaceTypePlaceholder')}
-                            />
-                        </CreatorField>
+                {/* Archived workspace: every field and in-form action is read-only. */}
+                <ReadOnlyFieldset disabled={creator.readOnly} className="flex flex-col gap-6">
+                    {draft.isHistorical && draft.viewingVersionNumber != null && (
+                        <HistoricalVersionBanner
+                            versionNumber={draft.viewingVersionNumber}
+                            onRestore={() => void handleRestoreHistorical()}
+                            busy={draft.busy}
+                        />
                     )}
-
-                    <CreatorField
-                        label={t('creation.world.fieldsForm.genreLabel')}
-                        htmlFor="world-type"
-                        required
-                        error={typeError}
-                        tooltip={t('creation.world.fieldsForm.genreTooltip')}
+                    <StudioSection
+                        id="identity"
+                        icon={sectionById['identity'].icon}
+                        title={sectionById['identity'].title}
+                        description={sectionById['identity'].description}
                     >
-                        <SuggestInput
-                            id="world-type"
-                            value={type}
-                            onChange={setType}
-                            onBlur={() => markFieldTouched('type')}
-                            options={genreOptions}
-                            placeholder={firstClass.type ?? t('creation.world.fieldsForm.genrePlaceholder')}
-                        />
-                    </CreatorField>
-                </StudioSection>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <CreatorField
+                                label={t('creation.world.fieldsForm.nameLabel')}
+                                htmlFor="world-name"
+                                required
+                                error={nameError}
+                                tooltip={t('creation.world.fieldsForm.nameTooltip')}
+                            >
+                                <CreatorInput
+                                    id="world-name"
+                                    value={name}
+                                    onChange={setName}
+                                    onBlur={() => markFieldTouched('name')}
+                                    autoFocus
+                                    className="text-xl font-medium font-display"
+                                    placeholder={firstClass.name ?? t('creation.world.fieldsForm.namePlaceholder')}
+                                />
+                            </CreatorField>
 
-                <StudioSection
-                    id="overview"
-                    icon={sectionById['overview'].icon}
-                    title={sectionById['overview'].title}
-                    description={sectionById['overview'].description}
-                >
-                    <CreatorField
-                        label={t('creation.world.fieldsForm.descriptionLabel')}
-                        htmlFor="world-description"
-                        tooltip={t('creation.world.fieldsForm.descriptionTooltip')}
+                            <CreatorField
+                                label={t('creation.world.fieldsForm.placeTypeLabel')}
+                                htmlFor="world-place-type"
+                                required
+                                error={placeTypeError}
+                                tooltip={t('creation.world.fieldsForm.placeTypeTooltip')}
+                            >
+                                <Select
+                                    id="world-place-type"
+                                    value={selectedPlaceTypeOption}
+                                    onChange={(next) => {
+                                        setPlaceType(next === CUSTOM_WORLD_PLACE_TYPE ? '' : next)
+                                    }}
+                                    options={placeTypeSelectOptions}
+                                />
+                            </CreatorField>
+                        </div>
+
+                        {selectedPlaceTypeOption === CUSTOM_WORLD_PLACE_TYPE && (
+                            <CreatorField label={t('creation.world.fieldsForm.customPlaceTypeLabel')} htmlFor="world-place-type-custom" required error={placeTypeError}>
+                                <CreatorInput
+                                    id="world-place-type-custom"
+                                    value={placeType}
+                                    onChange={setPlaceType}
+                                    onBlur={() => markFieldTouched('placeType')}
+                                    placeholder={t('creation.world.fieldsForm.customPlaceTypePlaceholder')}
+                                />
+                            </CreatorField>
+                        )}
+
+                        <CreatorField
+                            label={t('creation.world.fieldsForm.genreLabel')}
+                            htmlFor="world-type"
+                            required
+                            error={typeError}
+                            tooltip={t('creation.world.fieldsForm.genreTooltip')}
+                        >
+                            <SuggestInput
+                                id="world-type"
+                                value={type}
+                                onChange={setType}
+                                onBlur={() => markFieldTouched('type')}
+                                options={genreOptions}
+                                placeholder={firstClass.type ?? t('creation.world.fieldsForm.genrePlaceholder')}
+                            />
+                        </CreatorField>
+                    </StudioSection>
+
+                    <StudioSection
+                        id="overview"
+                        icon={sectionById['overview'].icon}
+                        title={sectionById['overview'].title}
+                        description={sectionById['overview'].description}
                     >
-                        <CreatorTextarea
-                            id="world-description"
-                            value={description}
-                            onChange={setDescription}
-                            placeholder={firstClass.description ?? DESCRIPTION_GHOST}
-                            rows={6}
-                        />
-                        <UseExampleLink
-                            value={description}
-                            hint={firstClass.description ?? DESCRIPTION_GHOST}
-                            onUse={setDescription}
-                        />
-                    </CreatorField>
-                </StudioSection>
+                        <CreatorField
+                            label={t('creation.world.fieldsForm.descriptionLabel')}
+                            htmlFor="world-description"
+                            tooltip={t('creation.world.fieldsForm.descriptionTooltip')}
+                        >
+                            <CreatorTextarea
+                                id="world-description"
+                                value={description}
+                                onChange={setDescription}
+                                placeholder={firstClass.description ?? DESCRIPTION_GHOST}
+                                rows={6}
+                            />
+                            <UseExampleLink
+                                value={description}
+                                hint={firstClass.description ?? DESCRIPTION_GHOST}
+                                onUse={setDescription}
+                            />
+                        </CreatorField>
+                    </StudioSection>
 
-                <GuidedSection section={sectionById['atmosphere']} guided={guided} />
-                <GuidedSection section={sectionById['powers']} guided={guided} />
-                <GuidedSection section={sectionById['pressure']} guided={guided} />
-                <GuidedSection
-                    section={sectionById['secrets']}
-                    guided={guided}
-                    footer={
-                        guided.values['secrets.truth']?.trim() && !guided.values['secrets.reveal']?.trim() ? (
-                            <QualityHint>
-                                {t('creation.world.secretHint')}
-                            </QualityHint>
-                        ) : undefined
-                    }
-                />
-                <GuidedSection section={sectionById['ground']} guided={guided} />
-
-                <StudioSection
-                    id="details"
-                    icon={sectionById['details'].icon}
-                    title={sectionById['details'].title}
-                    description={sectionById['details'].description}
-                >
-                    <div className="flex flex-col gap-2.5">
-                        <Eyebrow tone="muted">{t('creation.world.quickAddDetails')}</Eyebrow>
-                        <SuggestedAttributes
-                            presets={DETAIL_PRESETS}
-                            existingKeys={detailKeys}
-                            onAdd={(preset) => guided.addAttributeWith('details', { key: preset.key, value: preset.value ?? '' })}
-                        />
-                    </div>
-
-                    <AttributeManager
-                        title={t('creation.world.detailGroups')}
-                        icon={Globe}
-                        categories={guided.categories}
-                        attributes={guided.attributes}
-                        onAddCategory={guided.addCategory}
-                        onDeleteCategory={guided.deleteCategory}
-                        onAddAttribute={guided.addAttribute}
-                        onUpdateAttribute={guided.updateAttribute}
-                        onRemoveAttribute={guided.removeAttribute}
+                    <GuidedSection section={sectionById['atmosphere']} guided={guided} />
+                    <GuidedSection section={sectionById['powers']} guided={guided} />
+                    <GuidedSection section={sectionById['pressure']} guided={guided} />
+                    <GuidedSection
+                        section={sectionById['secrets']}
+                        guided={guided}
+                        footer={
+                            guided.values['secrets.truth']?.trim() && !guided.values['secrets.reveal']?.trim() ? (
+                                <QualityHint>
+                                    {t('creation.world.secretHint')}
+                                </QualityHint>
+                            ) : undefined
+                        }
                     />
-                </StudioSection>
+                    <GuidedSection section={sectionById['ground']} guided={guided} />
 
-                <StudioSection
-                    id="triggers"
-                    icon={sectionById['triggers'].icon}
-                    title={sectionById['triggers'].title}
-                    description={sectionById['triggers'].description}
-                >
-                    <TriggersField
-                        values={triggers}
-                        onChange={setTriggers}
-                        label={t('creation.world.fieldsForm.triggersLabel')}
-                        helper={t('creation.world.fieldsForm.triggersHelper')}
-                        placeholder={t('creation.world.fieldsForm.triggersPlaceholder')}
-                    />
-                    <TriggerHints triggers={triggers} hasContent={Boolean(description.trim())} />
-                </StudioSection>
+                    <StudioSection
+                        id="details"
+                        icon={sectionById['details'].icon}
+                        title={sectionById['details'].title}
+                        description={sectionById['details'].description}
+                    >
+                        <div className="flex flex-col gap-2.5">
+                            <Eyebrow tone="muted">{t('creation.world.quickAddDetails')}</Eyebrow>
+                            <SuggestedAttributes
+                                presets={DETAIL_PRESETS}
+                                existingKeys={detailKeys}
+                                onAdd={(preset) => guided.addAttributeWith('details', { key: preset.key, value: preset.value ?? '' })}
+                            />
+                        </div>
 
+                        <AttributeManager
+                            title={t('creation.world.detailGroups')}
+                            icon={Globe}
+                            categories={guided.categories}
+                            attributes={guided.attributes}
+                            onAddCategory={guided.addCategory}
+                            onDeleteCategory={guided.deleteCategory}
+                            onAddAttribute={guided.addAttribute}
+                            onUpdateAttribute={guided.updateAttribute}
+                            onRemoveAttribute={guided.removeAttribute}
+                        />
+                    </StudioSection>
+
+                    <StudioSection
+                        id="triggers"
+                        icon={sectionById['triggers'].icon}
+                        title={sectionById['triggers'].title}
+                        description={sectionById['triggers'].description}
+                    >
+                        <TriggersField
+                            values={triggers}
+                            onChange={setTriggers}
+                            label={t('creation.world.fieldsForm.triggersLabel')}
+                            helper={t('creation.world.fieldsForm.triggersHelper')}
+                            placeholder={t('creation.world.fieldsForm.triggersPlaceholder')}
+                        />
+                        <TriggerHints triggers={triggers} hasContent={Boolean(description.trim())} />
+                    </StudioSection>
+
+                </ReadOnlyFieldset>
                 <FormActions
                     onCancel={handleStudioBack}
                     submitLabel={editingWorld ? t('cardVersions.draft.saveButton') : t('creation.world.actions.createWorld')}
                     isSubmitting={isSubmitting}
-                    disabled={draft.isHistorical}
+                    disabled={draft.isHistorical || creator.readOnly}
                     error={saveError}
                 />
             </form>

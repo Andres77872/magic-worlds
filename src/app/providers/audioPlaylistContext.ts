@@ -19,6 +19,12 @@ export interface PlaylistTrack {
     /** Card portrait for the player dock thumbnail. */
     artworkUrl?: string
     durationMs?: number | null
+    /**
+     * Workspace R1: the workspace the song's card/media belongs to. Playback
+     * continues across workspace switches; the dock labels tracks of another
+     * workspace. Stamped with the selected workspace when a caller omits it.
+     */
+    workspaceId?: string
 }
 
 export type PlaylistLoopMode = 'off' | 'track' | 'queue'
@@ -88,6 +94,7 @@ export function themeTrack(args: {
     cardId?: string | null
     artworkUrl?: string | null
     durationMs?: number | null
+    workspaceId?: string | null
 }): PlaylistTrack {
     const cardName = args.cardName?.trim() || undefined
     return {
@@ -99,5 +106,6 @@ export function themeTrack(args: {
         cardId: args.cardId ?? undefined,
         artworkUrl: args.artworkUrl?.trim() || undefined,
         durationMs: args.durationMs ?? undefined,
+        workspaceId: args.workspaceId ?? undefined,
     }
 }

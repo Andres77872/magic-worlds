@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,20 +29,35 @@ vi.mock('@/app/hooks', () => ({
     useData: () => ({ createStory, openStory, deleteStory }),
 }))
 
-vi.mock('@/infrastructure/api', () => ({
-    apiService: {
+vi.mock('@/infrastructure/api', () => {
+    const apiService: Record<string, unknown> = {
         getStories: vi.fn(),
         getCharacters: vi.fn().mockResolvedValue([]),
         getWorlds: vi.fn().mockResolvedValue([]),
         getItems: vi.fn().mockResolvedValue([]),
         getAdventureTemplates: vi.fn().mockResolvedValue([]),
-    },
-    resolveMediaUrl: (url?: string | null) => url ?? undefined,
-}))
+    }
+    apiService.withWorkspace = vi.fn(() => apiService)
+    return { apiService, resolveMediaUrl: (url?: string | null) => url ?? undefined }
+})
 
 import type { Story, StoryChapter } from '@/shared'
 import { apiService } from '@/infrastructure/api'
+import {
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+    createWorkspaceTestState,
+    testWorkspace,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { NovelGalleryPage } from './NovelGalleryPage'
+
+let workspace: WorkspaceTestState
+
+function inWorkspace(ui: ReactElement) {
+    return <WorkspaceTestProvider state={workspace}>{ui}</WorkspaceTestProvider>
+}
 
 const ACTIVE_CONTEXT = {
     includeSelectedCards: true,
@@ -108,7 +123,7 @@ const STORIES: Story[] = [
 
 function renderSpanish(ui: ReactElement) {
     const localI18n = i18n.cloneInstance({ lng: 'es' })
-    return render(<I18nextProvider i18n={localI18n}>{ui}</I18nextProvider>)
+    return render(<I18nextProvider i18n={localI18n}>{inWorkspace(ui)}</I18nextProvider>)
 }
 
 describe('NovelGalleryPage', () => {
@@ -116,6 +131,7 @@ describe('NovelGalleryPage', () => {
         await i18n.changeLanguage('en')
         authed = true
         vi.clearAllMocks()
+        workspace = createWorkspaceTestState({ api: apiService })
         if (!globalThis.IntersectionObserver) {
             vi.stubGlobal('IntersectionObserver', class IntersectionObserver {
                 observe() {}
@@ -130,7 +146,7 @@ describe('NovelGalleryPage', () => {
     })
 
     it('renders novels fetched from the API with source badge and counts', async () => {
-        render(<NovelGalleryPage />)
+        render(inWorkspace(<NovelGalleryPage />))
 
         expect(await screen.findByText('Glass War')).toBeInTheDocument()
         expect(screen.getByText('Moon Court')).toBeInTheDocument()
@@ -142,7 +158,7 @@ describe('NovelGalleryPage', () => {
     it('renders signed-out without fetching and opens login from create', async () => {
         authed = false
 
-        render(<NovelGalleryPage />)
+        render(inWorkspace(<NovelGalleryPage />))
 
         expect(await screen.findByText('No novels yet')).toBeInTheDocument()
         expect(apiService.getStories).not.toHaveBeenCalled()
@@ -155,7 +171,7 @@ describe('NovelGalleryPage', () => {
     })
 
     it('fires a debounced server search with the typed query', async () => {
-        render(<NovelGalleryPage />)
+        render(inWorkspace(<NovelGalleryPage />))
         await screen.findByText('Glass War')
 
         fireEvent.change(screen.getByTestId('gallery-search-input'), { target: { value: 'moon' } })
@@ -164,7 +180,7 @@ describe('NovelGalleryPage', () => {
     })
 
     it('opens a novel and navigates to the studio when its card is activated', async () => {
-        render(<NovelGalleryPage />)
+        render(inWorkspace(<NovelGalleryPage />))
         const card = (await screen.findAllByTestId('gallery-card'))[0]
 
         fireEvent.click(card)
@@ -174,7 +190,7 @@ describe('NovelGalleryPage', () => {
     })
 
     it('deletes via the hover menu through the confirm dialog and removes the card', async () => {
-        render(<NovelGalleryPage />)
+        render(inWorkspace(<NovelGalleryPage />))
         await screen.findByText('Glass War')
 
         fireEvent.click(screen.getAllByTestId('card-options-button')[0])
@@ -189,7 +205,7 @@ describe('NovelGalleryPage', () => {
     })
 
     it('creates a blank novel from the create modal and navigates to the studio', async () => {
-        render(<NovelGalleryPage />)
+        render(inWorkspace(<NovelGalleryPage />))
         await screen.findByText('Glass War')
 
         fireEvent.click(screen.getByRole('button', { name: /New novel/ }))
@@ -209,7 +225,7 @@ describe('NovelGalleryPage', () => {
     })
 
     it('requires a picked card before creating from a card', async () => {
-        render(<NovelGalleryPage />)
+        render(inWorkspace(<NovelGalleryPage />))
         await screen.findByText('Glass War')
 
         fireEvent.click(screen.getByRole('button', { name: /New novel/ }))
@@ -232,5 +248,101 @@ describe('NovelGalleryPage', () => {
         expect(screen.getByLabelText('Título')).toBeInTheDocument()
         expect(screen.getByText('Empezar desde')).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Crear novela' })).toBeInTheDocument()
+    })
+
+    it('lists the committed workspace and restarts from offset 0 after a switch', async () => {
+        const otherApi = {
+            getStories: vi.fn().mockResolvedValue([STORIES[1]]),
+            getCharacters: vi.fn().mockResolvedValue([]),
+            getWorlds: vi.fn().mockResolvedValue([]),
+            getItems: vi.fn().mockResolvedValue([]),
+            getAdventureTemplates: vi.fn().mockResolvedValue([]),
+        }
+        workspace = createWorkspaceTestState({
+            api: apiService,
+            overrides: {
+                get api() {
+                    return (workspace.live.selectedWorkspaceId === OTHER_WORKSPACE_ID ? otherApi : apiService) as never
+                },
+            },
+        })
+        const { rerender } = render(inWorkspace(<NovelGalleryPage />))
+        expect(await screen.findByText('Glass War')).toBeInTheDocument()
+        fireEvent.change(screen.getByTestId('gallery-search-input'), { target: { value: 'glass' } })
+
+        workspace.switchTo(OTHER_WORKSPACE_ID)
+        rerender(inWorkspace(<NovelGalleryPage />))
+
+        expect(await screen.findByText('Moon Court')).toBeInTheDocument()
+        expect(screen.queryByText('Glass War')).not.toBeInTheDocument()
+        expect(otherApi.getStories).toHaveBeenCalledWith(0, 24, undefined)
+        // The search of the previous workspace does not carry over.
+        expect(screen.getByTestId('gallery-search-input')).toHaveValue('')
+    })
+
+    it('keeps an archived workspace readable but disables New and Delete', async () => {
+        workspace = createWorkspaceTestState({
+            api: apiService,
+            selectedWorkspaceId: OTHER_WORKSPACE_ID,
+            workspaces: [
+                testWorkspace(TEST_WORKSPACE_ID, 'Main library'),
+                testWorkspace(OTHER_WORKSPACE_ID, 'Novel A', { archived_at: '2026-10-10T00:00:00Z' }),
+            ],
+        })
+        render(inWorkspace(<NovelGalleryPage />))
+        expect(await screen.findByText('Glass War')).toBeInTheDocument()
+
+        // No new novel.
+        expect(screen.getByRole('button', { name: /New novel/ })).toBeDisabled()
+        fireEvent.click(screen.getByRole('button', { name: /New novel/ }))
+        expect(screen.queryByRole('dialog', { name: 'New novel' })).not.toBeInTheDocument()
+
+        // No delete.
+        fireEvent.click(screen.getAllByTestId('card-options-button')[0])
+        const deleteItem = screen.getAllByRole('menuitem', { name: 'Delete' })[0]
+        expect(deleteItem).toBeDisabled()
+        fireEvent.click(deleteItem)
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+        // Search and open keep working.
+        fireEvent.change(screen.getByTestId('gallery-search-input'), { target: { value: 'moon' } })
+        await waitFor(() => expect(apiService.getStories).toHaveBeenCalledWith(0, 24, 'moon'))
+        fireEvent.click(screen.getAllByTestId('gallery-card')[0])
+        await waitFor(() => expect(openStory).toHaveBeenCalled())
+        await waitFor(() => expect(setPage).toHaveBeenCalledWith('story'))
+
+        expect(createStory).not.toHaveBeenCalled()
+        expect(deleteStory).not.toHaveBeenCalled()
+    })
+
+    it('disables the empty-state New novel of an archived workspace', async () => {
+        vi.mocked(apiService.getStories).mockResolvedValue([])
+        workspace = createWorkspaceTestState({
+            api: apiService,
+            workspaces: [testWorkspace(TEST_WORKSPACE_ID, 'Main library', { archived_at: '2026-10-10T00:00:00Z' })],
+        })
+        render(inWorkspace(<NovelGalleryPage />))
+
+        expect(await screen.findByText('No novels yet')).toBeInTheDocument()
+        const buttons = screen.getAllByRole('button', { name: /New novel/ })
+        expect(buttons).toHaveLength(2)
+        for (const button of buttons) expect(button).toBeDisabled()
+    })
+
+    it('does not open the studio when a story opened after a workspace switch', async () => {
+        let finishOpen!: () => void
+        openStory.mockImplementationOnce(() => new Promise<void>((resolve) => { finishOpen = resolve }))
+        const { rerender } = render(inWorkspace(<NovelGalleryPage />))
+        fireEvent.click((await screen.findAllByTestId('gallery-card'))[0])
+        await waitFor(() => expect(openStory).toHaveBeenCalled())
+
+        workspace.switchTo(OTHER_WORKSPACE_ID)
+        rerender(inWorkspace(<NovelGalleryPage />))
+        await act(async () => {
+            finishOpen()
+            await Promise.resolve()
+        })
+
+        expect(setPage).not.toHaveBeenCalled()
     })
 })

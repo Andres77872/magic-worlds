@@ -16,12 +16,22 @@ vi.mock('../hooks/useData', () => ({
 vi.mock('@/infrastructure/api', () => ({
     apiService: {
         listTasks: vi.fn(),
+        getTask: vi.fn(),
         cancelTask: vi.fn(),
         archiveTask: vi.fn(),
+        // Scoped clients share the mocked methods; the scope is asserted through this spy.
+        withWorkspace: vi.fn(),
     },
 }))
 
 import { apiService } from '@/infrastructure/api'
+import {
+    createWorkspaceTestState,
+    OTHER_WORKSPACE_ID,
+    TEST_WORKSPACE_ID,
+    WorkspaceTestProvider,
+    type WorkspaceTestState,
+} from '@/shared/hooks/testing/workspaceTestUtils'
 import { BackgroundTasksProvider } from './BackgroundTasksProvider'
 import { BackgroundTasksContext } from './backgroundTasksContext'
 import { TASK_REQUEST_STARTED, TASK_REQUEST_FINISHED } from '@/infrastructure/api/resourceTaskEvents'
@@ -71,16 +81,26 @@ function Probe() {
             <button onClick={() => { void ctx?.clearTerminalTasks('completed').catch(() => undefined) }}>clear completed</button>
             <button onClick={() => { void ctx?.loadMoreTerminalTasks('completed') }}>load completed</button>
             <button onClick={() => ctx?.openDrawer()}>open drawer</button>
+            <button onClick={() => { void ctx?.cancelTask('theme_song', 'task-1').catch(() => undefined) }}>cancel task</button>
+            <span data-testid="task-origins">{ctx?.tasks.map((task) => `${task.task_id}@${task.organization?.workspace_id}:${task.status}`).join(',')}</span>
         </div>
     )
 }
 
-function renderProvider() {
-    return render(
-        <BackgroundTasksProvider>
-            <Probe />
-        </BackgroundTasksProvider>,
+let workspace: WorkspaceTestState
+
+function tree() {
+    return (
+        <WorkspaceTestProvider state={workspace}>
+            <BackgroundTasksProvider>
+                <Probe />
+            </BackgroundTasksProvider>
+        </WorkspaceTestProvider>
     )
+}
+
+function renderProvider() {
+    return render(tree())
 }
 
 describe('BackgroundTasksProvider', () => {
@@ -93,6 +113,8 @@ describe('BackgroundTasksProvider', () => {
         authMock.isAuthenticated = true
         authMock.authEpoch = 1
         authMock.accountKey = 'account-a'
+        workspace = createWorkspaceTestState({ api: apiService })
+        vi.mocked(apiService.withWorkspace).mockImplementation(() => apiService)
         mockListTasks()
     })
 
@@ -194,7 +216,7 @@ describe('BackgroundTasksProvider', () => {
 
         authMock.authEpoch = 2
         authMock.accountKey = 'account-b'
-        view.rerender(<BackgroundTasksProvider><Probe /></BackgroundTasksProvider>)
+        view.rerender(tree())
         await act(async () => { await vi.advanceTimersByTimeAsync(0) })
         expect(apiService.listTasks).toHaveBeenCalledTimes(3)
 
@@ -410,5 +432,130 @@ describe('BackgroundTasksProvider', () => {
         expect(apiService.archiveTask).toHaveBeenCalledTimes(25)
         expect(remaining).toHaveLength(0)
         expect(screen.getByTestId('completed-count')).toHaveTextContent('0')
+    })
+
+    describe('Workspace R1', () => {
+        it('reads the selected workspace lists and stamps each task with its origin', async () => {
+            renderProvider()
+            await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+
+            expect(apiService.withWorkspace).toHaveBeenCalledWith(TEST_WORKSPACE_ID)
+            expect(screen.getByTestId('task-origins')).toHaveTextContent(`task-1@${TEST_WORKSPACE_ID}:in_progress`)
+        })
+
+        it('keeps polling a running task in its own workspace after a switch without reloading the new library', async () => {
+            const view = renderProvider()
+            await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+            expect(screen.getByTestId('task-origins')).toHaveTextContent(`task-1@${TEST_WORKSPACE_ID}:in_progress`)
+
+            // The new workspace has no tasks of its own; the old one finishes meanwhile.
+            vi.mocked(apiService.listTasks).mockResolvedValue({ items: [] } as unknown as Awaited<ReturnType<typeof apiService.listTasks>>)
+            vi.mocked(apiService.getTask).mockResolvedValue(completedTask)
+            workspace.switchTo(OTHER_WORKSPACE_ID)
+            view.rerender(tree())
+            vi.mocked(apiService.withWorkspace).mockClear()
+            loadData.mockClear()
+
+            await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+
+            expect(apiService.withWorkspace).toHaveBeenCalledWith(OTHER_WORKSPACE_ID)
+            expect(apiService.withWorkspace).toHaveBeenCalledWith(TEST_WORKSPACE_ID)
+            expect(apiService.getTask).toHaveBeenCalledWith('theme_song', 'task-1')
+            expect(screen.getByTestId('task-origins')).toHaveTextContent(`task-1@${TEST_WORKSPACE_ID}:completed`)
+            // The account-wide list updates; the selected workspace's library does not reload.
+            expect(loadData).not.toHaveBeenCalled()
+        })
+
+        it('drops finished tasks of the previous selection on a switch and keeps running ones', async () => {
+            phase = 2
+            const view = renderProvider()
+            await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+            expect(screen.getByTestId('completed-count')).toHaveTextContent('1')
+
+            vi.mocked(apiService.listTasks).mockResolvedValue({ items: [] } as unknown as Awaited<ReturnType<typeof apiService.listTasks>>)
+            workspace.switchTo(OTHER_WORKSPACE_ID)
+            view.rerender(tree())
+            expect(screen.getByTestId('completed-count')).toHaveTextContent('0')
+        })
+
+        it('cancels a task in the workspace it was submitted in', async () => {
+            vi.mocked(apiService.cancelTask).mockResolvedValue({ ...baseTask, status: 'canceled' } as BackgroundTaskPublic)
+            const view = renderProvider()
+            await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+            vi.mocked(apiService.listTasks).mockResolvedValue({ items: [] } as unknown as Awaited<ReturnType<typeof apiService.listTasks>>)
+            vi.mocked(apiService.getTask).mockResolvedValue(baseTask)
+            workspace.switchTo(OTHER_WORKSPACE_ID)
+            view.rerender(tree())
+            vi.mocked(apiService.withWorkspace).mockClear()
+
+            await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'cancel task' })) })
+
+            expect(apiService.withWorkspace).toHaveBeenCalledWith(TEST_WORKSPACE_ID)
+            expect(apiService.withWorkspace).not.toHaveBeenCalledWith(OTHER_WORKSPACE_ID)
+            expect(apiService.cancelTask).toHaveBeenCalledWith('theme_song', 'task-1')
+        })
+
+        it('lists resource tasks per workspace and reloads them on a committed switch', async () => {
+            const resourceTarget = { type: 'resource', id: 'resource-1', display_name: 'court.pdf' }
+            const pdfImport = { ...completedTask, task_id: 'pdf-1', operation: 'pdf_import', target: resourceTarget } as unknown as BackgroundTaskPublic
+            const metadata = { ...baseTask, task_id: 'meta-1', operation: 'lorebook_extraction', target: resourceTarget } as unknown as BackgroundTaskPublic
+            const listed: string[] = []
+            const read: string[] = []
+            // One client per workspace, so every request records the workspace it carried.
+            vi.mocked(apiService.withWorkspace).mockImplementation((workspaceId: string) => ({
+                ...apiService,
+                listTasks: async (opts: Parameters<typeof apiService.listTasks>[0] = {}) => {
+                    listed.push(`${workspaceId}:${opts.operation}`)
+                    const statuses = new Set<string>(opts.statuses ?? [])
+                    const items = workspaceId !== TEST_WORKSPACE_ID ? [] : [pdfImport, metadata].filter((task) => statuses.has(task.status))
+                    return { items, limit: 20, offset: 0, next_offset: null }
+                },
+                getTask: async (operation: string, taskId: string) => {
+                    read.push(`${workspaceId}:${operation}:${taskId}`)
+                    return { ...metadata, status: 'completed', updated_at: '2026-06-01T00:02:00' }
+                },
+            }) as unknown as typeof apiService)
+            const view = renderProvider()
+            await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+            expect(listed.every((entry) => entry === `${TEST_WORKSPACE_ID}:all`)).toBe(true)
+            expect(screen.getByTestId('task-origins')).toHaveTextContent(`pdf-1@${TEST_WORKSPACE_ID}:completed`)
+            expect(screen.getByTestId('task-origins')).toHaveTextContent(`meta-1@${TEST_WORKSPACE_ID}:in_progress`)
+
+            listed.length = 0
+            workspace.switchTo(OTHER_WORKSPACE_ID)
+            view.rerender(tree())
+            // The previous workspace's finished import leaves the drawer at once.
+            expect(screen.getByTestId('task-origins')).not.toHaveTextContent('pdf-1@')
+
+            await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+            expect(listed.length).toBeGreaterThan(0)
+            expect(listed.every((entry) => entry === `${OTHER_WORKSPACE_ID}:all`)).toBe(true)
+            // The running metadata task is still read where it was submitted, never in the new workspace.
+            expect(read).toContain(`${TEST_WORKSPACE_ID}:lorebook_extraction:meta-1`)
+            expect(read.some((entry) => entry.startsWith(OTHER_WORKSPACE_ID))).toBe(false)
+            expect(screen.getByTestId('task-origins')).toHaveTextContent(`meta-1@${TEST_WORKSPACE_ID}:completed`)
+            expect(screen.getByTestId('task-origins')).not.toHaveTextContent('pdf-1@')
+        })
+
+        it('discards a list read for a workspace that is no longer selected', async () => {
+            let release!: () => void
+            const gate = new Promise<void>((resolve) => { release = resolve })
+            vi.mocked(apiService.listTasks).mockImplementation(async (opts) => {
+                await gate
+                const statuses = new Set<string>(opts?.statuses ?? [])
+                return { items: statuses.has('in_progress') ? [baseTask] : [] } as Awaited<ReturnType<typeof apiService.listTasks>>
+            })
+            const view = renderProvider()
+            await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+            workspace.switchTo(OTHER_WORKSPACE_ID)
+            view.rerender(tree())
+
+            await act(async () => {
+                release()
+                await Promise.resolve()
+            })
+            await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+            expect(screen.getByTestId('task-origins')).not.toHaveTextContent(`task-1@${TEST_WORKSPACE_ID}`)
+        })
     })
 })
