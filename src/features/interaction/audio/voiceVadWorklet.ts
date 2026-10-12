@@ -93,9 +93,15 @@ export interface VoiceVadWorkletMessage {
 }
 
 export function createPcm16WavBlob(samplesInput: Int16Array | readonly number[], sampleRate = 16_000): Blob {
-    const samples = samplesInput instanceof Int16Array ? samplesInput : Int16Array.from(samplesInput)
+    return new Blob([createPcm16WavBuffer(samplesInput, sampleRate)], { type: 'audio/wav;codec=pcm_s16le' })
+}
+
+/** True when typed arrays use little-endian byte order (every browser in practice). */
+const PLATFORM_LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1
+
+function createPcm16WavBuffer(samplesInput: Int16Array | readonly number[], sampleRate: number): ArrayBuffer {
     const bytesPerSample = 2
-    const dataSize = samples.length * bytesPerSample
+    const dataSize = samplesInput.length * bytesPerSample
     const buffer = new ArrayBuffer(44 + dataSize)
     const view = new DataView(buffer)
 
@@ -113,13 +119,17 @@ export function createPcm16WavBlob(samplesInput: Int16Array | readonly number[],
     writeAscii(view, 36, 'data')
     view.setUint32(40, dataSize, true)
 
+    if (samplesInput instanceof Int16Array && PLATFORM_LITTLE_ENDIAN) {
+        // Already PCM16 in WAV byte order: one bulk copy instead of a write per sample.
+        new Int16Array(buffer, 44, samplesInput.length).set(samplesInput)
+        return buffer
+    }
     let offset = 44
-    for (const sample of samples) {
+    for (const sample of samplesInput) {
         view.setInt16(offset, clampPcm16(sample), true)
         offset += bytesPerSample
     }
-
-    return new Blob([buffer], { type: 'audio/wav;codec=pcm_s16le' })
+    return buffer
 }
 
 export function calculatePcm16Metrics(samplesInput: Int16Array | readonly number[]): { rms: number; peak: number } {
@@ -141,7 +151,10 @@ export function calculatePcm16Metrics(samplesInput: Int16Array | readonly number
 export async function buildPcm16WavSegment(input: Pcm16SegmentInput): Promise<CapturedVoiceSegment> {
     const sampleRate = input.sampleRate ?? 16_000
     const samples = input.samples instanceof Int16Array ? input.samples : Int16Array.from(input.samples)
-    const blob = createPcm16WavBlob(samples, sampleRate)
+    const wav = createPcm16WavBuffer(samples, sampleRate)
+    // Hashed from the bytes just built: reading the blob back would copy them again.
+    const audioSha256 = await sha256Hex(wav)
+    const blob = new Blob([wav], { type: 'audio/wav;codec=pcm_s16le' })
     const durationMs = Math.max(0, Math.round((samples.length / sampleRate) * 1000))
     const metrics = calculatePcm16Metrics(samples)
     return {
@@ -152,7 +165,7 @@ export async function buildPcm16WavSegment(input: Pcm16SegmentInput): Promise<Ca
         sample_rate: sampleRate,
         channels: 1,
         byte_length: blob.size,
-        audio_sha256: await sha256Hex(blob),
+        audio_sha256: audioSha256,
         vad: {
             speech_ms: Math.max(0, Math.round(input.speechMs ?? durationMs)),
             silence_ms: Math.max(0, Math.round(input.silenceMs ?? 0)),
@@ -225,8 +238,7 @@ export class VoiceVadWorkletSegmenter {
     }
 }
 
-async function sha256Hex(blob: Blob): Promise<string> {
-    const buffer = await blob.arrayBuffer()
+async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
     if (globalThis.crypto?.subtle) {
         const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer)
         return hexFromBytes(new Uint8Array(digest))

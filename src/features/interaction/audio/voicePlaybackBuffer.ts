@@ -31,8 +31,9 @@ type PlaybackMode = 'media_source' | 'fallback'
 /** `ManagedMediaSource` (Safari 17.1+, the only MSE on iPhone) — not in the TS DOM lib yet. */
 type ManagedMediaSourceLike = MediaSource & { readonly streaming?: boolean }
 
-/** If ManagedMediaSource accepted data but never started playing within this window, the
- *  turn switches to Blob playback (WebKit may claim audio/mpeg support it can't play). */
+/** If ManagedMediaSource received the turn's audio but never started playing within this
+ *  window, the turn switches to Blob playback (WebKit may claim audio/mpeg support it can't
+ *  play, or never ask for data at all). */
 const MANAGED_STALL_MS = 2_000
 const MAX_REMEMBERED_CANCELLED_TURNS = 64
 
@@ -461,7 +462,9 @@ export class VoicePlaybackBuffer {
 
     private armManagedStallTimer(): void {
         if (!this.managed || this.mode !== 'media_source' || this.stallTimer || this.hasPlayed) return
-        if (!this.playRequested || this.appendedCount === 0 || this.currentState.status === 'blocked') return
+        // Armed from the first received chunk, not the first append: a source that never
+        // opens or never asks for data (`startstreaming`) appends nothing and would stay silent.
+        if (!this.playRequested || this.turnBytes.length === 0 || this.currentState.status === 'blocked') return
         this.stallTimer = setTimeout(() => {
             this.stallTimer = null
             if (!this.managed || this.mode !== 'media_source' || this.hasPlayed || this.currentState.status === 'blocked') return

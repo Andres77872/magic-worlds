@@ -149,7 +149,9 @@ describe('voiceVadProcessor.worklet', () => {
         expect(found).toHaveLength(1)
         const [segment] = found
         const inputFrames = segment.frame - lead.length / QUANTUM + 1
-        const expected = (inputFrames * QUANTUM * 16_000) / rate
+        // Of the 800 ms end-of-turn pause (whole quanta) only the first 200 ms is sent.
+        const pauseFrames = Math.round(800 / ((QUANTUM / rate) * 1_000))
+        const expected = ((inputFrames - pauseFrames) * QUANTUM * 16_000) / rate + 200 * 16
         expect(Math.abs(segment.message.samples.length - expected)).toBeLessThanOrEqual((QUANTUM * 16_000) / rate + 1)
         expect(Math.abs(segment.message.speech_ms - 2_000)).toBeLessThanOrEqual(10)
         expect(segment.message.speech_ms + segment.message.silence_ms).toBe(Math.round(segment.message.samples.length / 16))
@@ -183,10 +185,27 @@ describe('voiceVadProcessor.worklet', () => {
             expect(samples[index]).toBe(toPcm16(quiet[quiet.length - preRoll + index]))
         }
         expect(samples[preRoll]).toBe(toPcm16(speech[0]))
-        expect(samples.length).toBe(preRoll + speech.length + 800 * 16)
+        // Only the first 200 ms of the 800 ms end-of-turn pause is sent.
+        expect(samples.length).toBe(preRoll + speech.length + 200 * 16)
         expect(segment.message.speech_ms).toBe(speech.length / 16)
         // Pre-roll counts as non-speech audio in the segment.
-        expect(segment.message.silence_ms).toBe(300 + 800)
+        expect(segment.message.silence_ms).toBe(300 + 200)
+    })
+
+    it('re-seeds the next pre-roll from the full pause, not just the part that was sent', () => {
+        const processor = createProcessor(16_000, { preRollMs: 300 })
+        const tail = tone(16_000, 0.8, 97, 0.002)
+        const first = drive(processor, concat(silence(16_000, 0.5), tone(16_000, 0.5, 440), tail))
+        expect(segments(first)).toHaveLength(1)
+
+        const next = tone(16_000, 0.5, 440)
+        const [segment] = segments(drive(processor, concat(next, silence(16_000, 1))))
+        // The pre-roll is the end of the 800 ms pause, which was never part of a sent segment.
+        const preRoll = 4_800
+        for (let index = 0; index < preRoll; index += 1) {
+            expect(segment.message.samples[index]).toBe(toPcm16(tail[tail.length - preRoll + index]))
+        }
+        expect(segment.message.samples[preRoll]).toBe(toPcm16(next[0]))
     })
 
     it('cuts at maxSegmentMs including the pre-roll, without losing or repeating audio', () => {

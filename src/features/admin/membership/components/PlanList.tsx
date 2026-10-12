@@ -13,7 +13,7 @@ import { useLanguage } from '@/app/hooks'
 import type { MembershipPlan } from '@/shared'
 import { Badge, Button, Card, Icon, IconTile, cx } from '@/ui/primitives'
 import { EmptyState } from '@/ui/components/common/EmptyState'
-import { formatNumber, operationName, orderedLimitEntries, planBadgeTone } from './membershipFormat'
+import { formatNumber, isProfilePriced, operationName, orderedLimitEntries, planBadgeTone } from './membershipFormat'
 
 interface PlanListProps {
     plans: MembershipPlan[]
@@ -128,15 +128,23 @@ function PlanCard({
                                 {operationName(operation, t)}
                             </span>
                             <span className="font-ui text-[11px] text-parchment-300">
-                                {t('admin.membership.plans.limitRow', {
-                                    limit: formatNumber(limit.daily_request_limit, intlLocale),
-                                    inFlight: limit.max_in_flight,
-                                    cost: limit.credit_cost,
-                                })}
+                                {isProfilePriced(operation)
+                                    ? t('admin.membership.plans.limitRowProfilePriced', {
+                                          limit: formatNumber(limit.daily_request_limit, intlLocale),
+                                          inFlight: limit.max_in_flight,
+                                      })
+                                    : t('admin.membership.plans.limitRow', {
+                                          limit: formatNumber(limit.daily_request_limit, intlLocale),
+                                          inFlight: limit.max_in_flight,
+                                          cost: limit.credit_cost,
+                                      })}
                             </span>
                         </li>
                     ))}
                 </ul>
+                {limits.some(([operation]) => isProfilePriced(operation)) && (
+                    <p className="pt-1.5 font-ui text-[11px] text-parchment-400">{t('admin.membership.imagePricing.note')}</p>
+                )}
             </details>
 
             <div className="mt-auto flex gap-2">

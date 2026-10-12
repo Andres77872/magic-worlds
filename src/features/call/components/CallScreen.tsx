@@ -54,7 +54,10 @@ export function CallScreen({ character, sessionId, ensureSession, onSwitchToText
         enabled: voiceEnabled,
         // VAD turn-taking tuning. Add `speechThreshold` here (0..1 RMS) to override the
         // worklet default if mics under-/over-trigger; lower = more sensitive.
-        vad: { silenceMsToEnd: 800, minSpeechMs: 250 },
+        // 550 ms of silence ends a turn (fixed-silence voice agents use 400-550 ms). A pause
+        // that was only a breath still works: the server supersedes the cut turn and merges
+        // its text with the continuation while that turn is not yet admitted.
+        vad: { silenceMsToEnd: 550, minSpeechMs: 250 },
     })
 
     const name = character?.name?.trim() || t('call.screen.fallbackName')

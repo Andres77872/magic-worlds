@@ -110,7 +110,7 @@ const SERVER_RESERVED = ['model', 'messages', 'stream', 'stream_options', 'tools
     'private_key', 'base_url', 'headers', 'extra_headers', 'extra_body', 'callback', 'fallback', 'timeout',
     'organization', 'project']
 // The client refuses to send these anywhere in a profile payload (see llmProfileContract).
-const CLIENT_PRIVATE = ['credentials', 'api_key', 'provider_key', 'secret', 'secret_ref', 'secret_alias',
+export const CLIENT_PRIVATE = ['credentials', 'api_key', 'provider_key', 'secret', 'secret_ref', 'secret_alias',
     'base_url', 'url', 'headers', 'authorization', 'api_info', 'env', 'graph', 'agt', '__proto__', 'constructor']
 const RESERVED_KEYS = new Set([...SERVER_RESERVED, ...CLIENT_PRIVATE])
 const PRIVATE_KEYS = new Set(CLIENT_PRIVATE)
@@ -145,8 +145,11 @@ function checkValue(value: unknown, depth: number): ProviderOptionsIssue | null 
     return value === null || typeof value === 'boolean' ? null : { code: 'value' }
 }
 
-/** Parses the custom provider props text. Empty text means "none". */
-export function parseProviderOptions(text: string): ProviderOptionsResult {
+/**
+ * Parses the custom provider props text. Empty text means "none". `reserved`
+ * defaults to the LLM transport's fields; image profiles pass their own.
+ */
+export function parseProviderOptions(text: string, reserved: ReadonlySet<string> = RESERVED_KEYS): ProviderOptionsResult {
     if (!text.trim()) return { ok: true, value: {} }
     let parsed: unknown
     try { parsed = JSON.parse(text) } catch { return { ok: false, issue: { code: 'syntax' } } }
@@ -155,7 +158,7 @@ export function parseProviderOptions(text: string): ProviderOptionsResult {
     const keys = Object.keys(record)
     if (keys.length > MAX_PROVIDER_OPTIONS) return { ok: false, issue: { code: 'tooMany' } }
     for (const key of keys) {
-        if (RESERVED_KEYS.has(key)) return { ok: false, issue: { code: 'reserved', key } }
+        if (reserved.has(key)) return { ok: false, issue: { code: 'reserved', key } }
         if (!KEY_PATTERN.test(key)) return { ok: false, issue: { code: 'key', key } }
     }
     for (const key of keys) {

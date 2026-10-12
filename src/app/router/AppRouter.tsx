@@ -50,6 +50,8 @@ const NovelStudio = lazy(() => import('../../features/novel/components/NovelStud
 const ProfilePage = lazy(() => import('../../features/profile/components/ProfilePage').then(m => ({ default: m.ProfilePage })))
 const LlmProfilesPage = lazy(() => import('../../features/llmProfiles/LlmProfilesPage').then(m => ({ default: m.LlmProfilesPage })))
 const AdminLlmProfilesPage = lazy(() => import('../../features/llmProfiles/LlmProfilesPage').then(m => ({ default: m.AdminLlmProfilesPage })))
+const ImageProfilesPage = lazy(() => import('../../features/imageProfiles/ImageProfilesPage').then(m => ({ default: m.ImageProfilesPage })))
+const AdminImageProfilesPage = lazy(() => import('../../features/imageProfiles/ImageProfilesPage').then(m => ({ default: m.AdminImageProfilesPage })))
 const BillingPage = lazy(() => import('../../features/billing/components/BillingPage').then(m => ({ default: m.BillingPage })))
 const PasswordResetPage = lazy(() => import('../../features/auth/PasswordResetPage').then(m => ({ default: m.PasswordResetPage })))
 const EmailVerifyPage = lazy(() => import('../../features/auth/EmailVerifyPage').then(m => ({ default: m.EmailVerifyPage })))
@@ -177,6 +179,8 @@ export function AppRouter() {
                                     {currentPage === 'profile' && <ProfilePage />}
                                     {currentPage === 'llm-profiles' && <LlmProfilesPage key={accountKey} />}
                                     {currentPage === 'admin-llm-profiles' && <AdminLlmProfilesPage key={accountKey} />}
+                                    {currentPage === 'image-profiles' && <ImageProfilesPage key={accountKey} />}
+                                    {currentPage === 'admin-image-profiles' && <AdminImageProfilesPage key={accountKey} />}
                                     {currentPage === 'billing' && <BillingPage />}
                                     {currentPage === 'password-reset' && <PasswordResetPage />}
                                     {currentPage === 'verify-email' && <EmailVerifyPage />}

@@ -19,6 +19,7 @@ import {
     Code2,
     Crown,
     Globe,
+    ImageIcon,
     Info,
     Loader2,
     LogIn,
@@ -301,6 +302,8 @@ export function SidebarAccountMenu({
                         )}
                         {isAuthenticated && <AccountMenuRow icon={Bot} label={t('llmProfiles.title')}
                             current={currentPage === 'llm-profiles'} onClick={() => navigate('llm-profiles')} />}
+                        {isAuthenticated && <AccountMenuRow icon={ImageIcon} label={t('imageProfiles.title')}
+                            current={currentPage === 'image-profiles'} onClick={() => navigate('image-profiles')} />}
                         <AccountMenuRow
                             icon={Info}
                             label={t('sidebar.docs')}
@@ -339,6 +342,8 @@ export function SidebarAccountMenu({
                                 />
                                 <AccountMenuRow icon={Bot} label={t('llmProfiles.rootTitle')}
                                     current={currentPage === 'admin-llm-profiles'} onClick={() => navigate('admin-llm-profiles')} />
+                                <AccountMenuRow icon={ImageIcon} label={t('imageProfiles.rootTitle')}
+                                    current={currentPage === 'admin-image-profiles'} onClick={() => navigate('admin-image-profiles')} />
                                 <AccountMenuRow
                                     icon={WalletCards}
                                     label={t('sidebar.membershipAdmin')}

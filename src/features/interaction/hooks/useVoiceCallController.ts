@@ -8,6 +8,7 @@ import type {
     VoiceEndReason,
     VoiceErrorCategory,
     VoiceSegmentUploadRequest,
+    VoiceSegmentUploadResponse,
     VoiceSocketClientFrame,
     VoiceSocketServerFrame,
 } from '@/shared/types/voice.types'
@@ -111,6 +112,8 @@ const BARGE_IN_SETTLE_MS = 2_000
 const NOTICE_TTL_MS = 8_000
 /** Spacing between queued pre-ready uploads so they reach the server in order. */
 const QUEUED_UPLOAD_SPACING_MS = 120
+/** Pause before the one resend of an upload that failed at the network level. */
+const UPLOAD_RETRY_DELAY_MS = 300
 /**
  * The worklet reports the mic level ~30×/s; re-rendering the call screen that often is
  * wasted work. Publish at most ~12×/s, and only when the level visibly changed.
@@ -475,7 +478,18 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         }
 
         try {
-            const response = await apiService.uploadVoiceSegment(currentSessionId, body, { signal: controller.signal })
+            let response: VoiceSegmentUploadResponse
+            try {
+                response = await apiService.uploadVoiceSegment(currentSessionId, body, { signal: controller.signal })
+            } catch (networkError) {
+                // fetch rejects with a TypeError when no response arrived (a dropped or
+                // stale connection). One resend is safe: the Idempotency-Key makes a
+                // segment the server already has a `duplicate`, never a second turn.
+                if (!(networkError instanceof TypeError) || controller.signal.aborted) throw networkError
+                await delay(UPLOAD_RETRY_DELAY_MS)
+                if (controller.signal.aborted || lifecycleRef.current !== 'live') throw networkError
+                response = await apiService.uploadVoiceSegment(currentSessionId, body, { signal: controller.signal })
+            }
             // `cancelled` means a newer utterance superseded this one (its words
             // were merged into that turn); `accepted`/`duplicate` turns are driven
             // by socket frames. Only rejections need handling here.

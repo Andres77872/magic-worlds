@@ -14,6 +14,16 @@ export function operationName(operation: string, t: TFunction): string {
     return t(`membership.operations.${operation}`, { defaultValue: operationLabel(operation) })
 }
 
+/**
+ * Image operations are charged the chosen image profile's credit cost (0 for
+ * BYOK), so the plan-level credit cost of these operations is never billed.
+ */
+const PROFILE_PRICED_OPERATIONS: ReadonlySet<string> = new Set(['image_generation', 'card_image_generation'])
+
+export function isProfilePriced(operation: string): boolean {
+    return PROFILE_PRICED_OPERATIONS.has(operation)
+}
+
 /** Ember for the fallback + custom plans (locally owned), arcane for billing-owned, neutral when inactive. */
 export function planBadgeTone(plan: Pick<MembershipPlan, 'is_active' | 'is_billing_synced'>): BadgeTone {
     if (!plan.is_active) return 'neutral'

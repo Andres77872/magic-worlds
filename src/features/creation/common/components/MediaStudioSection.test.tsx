@@ -1,13 +1,20 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { MediaStudioSection, type MediaStudioSectionProps } from './MediaStudioSection'
 import { apiService } from '@/infrastructure/api'
+import { authSession } from '@/infrastructure/api/authSession'
+import { imageCredentialSession } from '@/features/imageProfiles/imageCredentialSession'
+import { gptProfile, kreaProfile, personalProfile, userList } from '@/features/imageProfiles/imageProfileFixtures'
+
+// Personal provider keys only travel over HTTPS.
+vi.mock('@/infrastructure/api/baseUrl', () => ({ API_BASE_URL: 'https://api.test.invalid' }))
 
 // Treat relative URLs as-is so the thumbnail/lightbox render in tests.
 vi.mock('@/infrastructure/api', () => ({
     apiService: {
         uploadCardImage: vi.fn(),
         generateCardPortrait: vi.fn(),
+        getImageProfiles: vi.fn(async () => ({ items: [], system_default_profile_id: null, user_default_profile_id: null, effective_default_profile_id: null })),
         waitForImageJob: vi.fn(),
         generateThemeSong: vi.fn(),
         listThemeSongs: vi.fn(),
@@ -142,9 +149,12 @@ describe('MediaStudioSection image generation', () => {
         })
         const { props } = renderPanel({ layout })
 
+        // Clicked before the image model list arrived: busy at once, the job starts once it is in.
         fireEvent.click(screen.getByRole('button', { name: /generate (profile image|portrait)/i }))
         expect(screen.getByRole('status')).toHaveTextContent('Starting image generation…')
         expect(screen.getByRole('button', { name: 'Generating…' })).toBeDisabled()
+        await waitFor(() => expect(genMock).toHaveBeenCalledTimes(1))
+        expect(screen.getByRole('status')).toHaveTextContent('Starting image generation…')
 
         await act(async () => { resolveStart({ job_id: 'j1', status: 'pending' }) })
         expect(screen.getByRole('status')).toHaveTextContent('Image queued…')
@@ -166,6 +176,147 @@ describe('MediaStudioSection image generation', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Stop waiting' }))
         await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/check your gallery/i))
         expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+})
+
+describe('MediaStudioSection image model', () => {
+    const genMock = apiService.generateCardPortrait as unknown as Mock
+    const profilesMock = apiService.getImageProfiles as unknown as Mock
+    const waitMock = apiService.waitForImageJob as unknown as Mock
+    const KEY = 'FAKE_FAL_KEY_CANARY'
+    const token = `header.${btoa(JSON.stringify({ project_hash: 'project-one' }))}.signature`
+
+    beforeEach(() => { authSession.continueSignedOut(); authSession.authenticate('alice', token) })
+    afterEach(() => { imageCredentialSession.clear(); authSession.continueSignedOut() })
+
+    it('sends the default app profile and no key', async () => {
+        profilesMock.mockResolvedValueOnce({ ...userList, user_default_profile_id: null, effective_default_profile_id: kreaProfile.profile_id })
+        genMock.mockResolvedValue({ job_id: 'j1', status: 'completed', assets: [{ url: '/img.png' }] })
+        const { props } = renderPanel()
+
+        expect(await screen.findByText('Krea 2 Turbo (default)')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+
+        await waitFor(() => expect(props.onImageUrl).toHaveBeenCalledWith('/img.png'))
+        expect(genMock.mock.calls[0][0]).toMatchObject({ image_profile_id: kreaProfile.profile_id })
+        expect(genMock.mock.calls[0][0]).not.toHaveProperty('credentials')
+    })
+
+    it('asks for the personal key first, then sends it with that one request', async () => {
+        profilesMock.mockResolvedValueOnce(userList)
+        genMock.mockResolvedValue({ job_id: 'j1', status: 'completed', assets: [{ url: '/img.png' }] })
+        const { props } = renderPanel()
+
+        expect(await screen.findByText('My Sana (default)')).toBeInTheDocument()
+        expect(screen.getByText('You will be asked for your fal.ai key.')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+
+        expect(await screen.findByRole('dialog', { name: 'Your fal.ai key' })).toBeInTheDocument()
+        expect(genMock).not.toHaveBeenCalled()
+        fireEvent.change(screen.getByLabelText('API key'), { target: { value: KEY } })
+        fireEvent.click(screen.getByRole('button', { name: 'Use key' }))
+
+        await waitFor(() => expect(props.onImageUrl).toHaveBeenCalledWith('/img.png'))
+        expect(genMock.mock.calls[0][0]).toMatchObject({ image_profile_id: personalProfile.profile_id, credentials: { api_key: KEY } })
+        expect(screen.getByText('Your fal.ai key is set for this tab.')).toBeInTheDocument()
+        expect(JSON.stringify(localStorage)).not.toContain(KEY)
+    })
+
+    it('drops a rejected personal key so the next attempt asks again', async () => {
+        imageCredentialSession.remember('fal', KEY)
+        profilesMock.mockResolvedValueOnce(userList)
+        // A personal fal key runs directly: the job is accepted, then fails while waiting.
+        genMock.mockResolvedValue({ job_id: 'j1', status: 'in_progress' })
+        waitMock.mockResolvedValue({ job_id: 'j1', status: 'failed',
+            error: { category: 'provider_completion', detail: 'The image provider rejected the API key.', code: 'provider_credentials_rejected' } })
+        renderPanel()
+
+        expect(await screen.findByText('Your fal.ai key is set for this tab.')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('The provider rejected your key.')
+        expect(imageCredentialSession.has('fal')).toBe(false)
+        expect(screen.getByText('You will be asked for your fal.ai key.')).toBeInTheDocument()
+    })
+
+    const appDefault = { ...userList, user_default_profile_id: null, effective_default_profile_id: kreaProfile.profile_id }
+    const apiError = (status: number, message: string, category: string, code: string) => Object.assign(new Error(message), { status, category, code })
+
+    it.each(['image_profile_unavailable', 'IMAGE_PROFILE_NOT_FOUND'])('explains a %s profile and reloads the picker', async (code) => {
+        profilesMock.mockResolvedValueOnce(appDefault)
+        // Archived elsewhere in the meantime: the reload no longer lists it.
+        profilesMock.mockResolvedValueOnce({ ...appDefault, items: appDefault.items.filter(item => item.profile_id !== gptProfile.profile_id) })
+        genMock.mockRejectedValue(apiError(404, 'Image resource not found.', 'not_found', code))
+        renderPanel()
+
+        fireEvent.click(await screen.findByRole('combobox', { name: 'Image model' }))
+        fireEvent.click(await screen.findByRole('option', { name: /GPT Image 2.5 Flare/ }))
+        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+
+        const alert = await screen.findByRole('alert')
+        expect(alert).toHaveTextContent(code.toUpperCase() === 'IMAGE_PROFILE_UNAVAILABLE'
+            ? 'This profile is not available right now.' : 'This profile no longer exists.')
+        expect(alert).not.toHaveTextContent(/save the card first/i)
+        expect(genMock.mock.calls[0][0]).toMatchObject({ image_profile_id: gptProfile.profile_id })
+        await waitFor(() => expect(profilesMock).toHaveBeenCalledTimes(2))
+        expect(await screen.findByText('Krea 2 Turbo (default)')).toBeInTheDocument()
+    })
+
+    it('loads a failed list before generating, so a personal default asks for its key', async () => {
+        profilesMock.mockRejectedValueOnce(new Error('offline'))
+        profilesMock.mockResolvedValueOnce(userList)
+        renderPanel()
+
+        expect(await screen.findByText('Image models could not be loaded.')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+
+        expect(await screen.findByRole('dialog', { name: 'Your fal.ai key' })).toBeInTheDocument()
+        expect(genMock).not.toHaveBeenCalled()
+        expect(screen.getByText('My Sana (default)')).toBeInTheDocument()
+    })
+
+    it('asks for the key when the server ran a personal default the list did not know', async () => {
+        profilesMock.mockRejectedValueOnce(new Error('offline'))
+        profilesMock.mockRejectedValueOnce(new Error('offline'))
+        profilesMock.mockResolvedValueOnce(userList)
+        genMock.mockRejectedValueOnce(apiError(422, 'This profile runs on your own provider key; add the key before generating.',
+            'validation', 'provider_credentials_missing'))
+        genMock.mockResolvedValueOnce({ job_id: 'j1', status: 'completed', assets: [{ url: '/img.png' }] })
+        const { props } = renderPanel()
+
+        expect(await screen.findByText('Image models could not be loaded.')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+
+        expect(await screen.findByRole('dialog', { name: 'Your fal.ai key' })).toBeInTheDocument()
+        // Still unknown when it was sent: the server resolved the default.
+        expect(genMock.mock.calls[0][0]).not.toHaveProperty('image_profile_id')
+        fireEvent.change(screen.getByLabelText('API key'), { target: { value: KEY } })
+        fireEvent.click(screen.getByRole('button', { name: 'Use key' }))
+
+        await waitFor(() => expect(props.onImageUrl).toHaveBeenCalledWith('/img.png'))
+        expect(genMock.mock.calls[1][0]).toMatchObject({ image_profile_id: personalProfile.profile_id, credentials: { api_key: KEY } })
+    })
+
+    it('offers a retry when the list could not be loaded', async () => {
+        profilesMock.mockRejectedValueOnce(new Error('offline'))
+        profilesMock.mockResolvedValueOnce(appDefault)
+        renderPanel()
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+        expect(await screen.findByText('Krea 2 Turbo (default)')).toBeInTheDocument()
+        expect(screen.queryByText('Image models could not be loaded.')).not.toBeInTheDocument()
+    })
+
+    it('shows a failed job’s own detail', async () => {
+        profilesMock.mockResolvedValueOnce({ ...userList, user_default_profile_id: null, effective_default_profile_id: kreaProfile.profile_id })
+        genMock.mockResolvedValue({ job_id: 'j1', status: 'pending' })
+        waitMock.mockResolvedValue({ job_id: 'j1', status: 'failed',
+            error: { category: 'provider_completion', detail: 'The image provider rejected the request settings.', code: 'provider_request_rejected' } })
+        renderPanel()
+
+        expect(await screen.findByText('Krea 2 Turbo (default)')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: /generate profile image/i }))
+        expect(await screen.findByRole('alert')).toHaveTextContent('The image provider rejected the request settings.')
     })
 })
 

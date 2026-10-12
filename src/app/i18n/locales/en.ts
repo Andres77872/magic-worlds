@@ -1,6 +1,8 @@
 import { llmProfilesEn } from './llmProfiles'
+import { imageProfilesEn } from './imageProfiles'
 export const en = {
     llmProfiles: llmProfilesEn,
+    imageProfiles: imageProfilesEn,
     imageGeneration: {
         stages: {
             starting: 'Starting image generation…',
@@ -4831,6 +4833,10 @@ export const en = {
                         walletsCount_other: '{{count}} wallets',
                         asOf: 'Usage for {{date}}',
                     },
+                    imagePricing: {
+                        perProfile: 'Per profile',
+                        note: 'Images are priced per image profile, not per plan. Set their credit cost in the Image profiles console.',
+                    },
                     plans: {
                         title: 'Plan catalog',
                         description: 'Default plans ship with the schema. Paid defaults mirror the Stripe catalog; custom plans are local and can be handed out from the Members tab.',
@@ -4850,6 +4856,7 @@ export const en = {
                         members_other: '{{count}} members',
                         limitsSummary: 'Daily limits',
                         limitRow: '{{limit}}/day · {{inFlight}} in flight · {{cost}} cr',
+                        limitRowProfilePriced: '{{limit}}/day · {{inFlight}} in flight · per profile',
                         edit: 'Edit',
                         viewMembers: 'Members',
                         codeLabel: 'Code',

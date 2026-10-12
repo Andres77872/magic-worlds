@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     streamAssistantMessage: vi.fn(),
     updateAdventureTemplate: vi.fn(),
     generateCardPortrait: vi.fn(),
+    getImageProfiles: vi.fn(async () => ({ items: [], system_default_profile_id: null, user_default_profile_id: null, effective_default_profile_id: null })),
     isAuthenticated: true,
     editingTemplate: null as Record<string, unknown> | null,
 }))
@@ -44,6 +45,7 @@ vi.mock('@/infrastructure/api', () => ({
         createAdventureTemplate: vi.fn(),
         updateAdventureTemplate: mocks.updateAdventureTemplate,
         generateCardPortrait: mocks.generateCardPortrait,
+        getImageProfiles: mocks.getImageProfiles,
         waitForImageJob: vi.fn(),
         listThemeSongs: vi.fn().mockResolvedValue({ items: [] }),
     },

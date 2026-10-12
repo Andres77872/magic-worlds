@@ -31,6 +31,10 @@ export interface CardPortraitRequest {
     /** Optional extra art direction the user typed in. */
     extra_direction?: string | null
     aspect_ratio?: ImageAspectRatio
+    /** The image profile to generate with; omitted uses the caller's default. */
+    image_profile_id?: string | null
+    /** A personal (BYOK) profile's provider key, for this request only. Never stored. */
+    credentials?: { api_key: string }
 }
 
 /**

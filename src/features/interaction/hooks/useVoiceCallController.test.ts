@@ -438,6 +438,37 @@ describe('useVoiceCallController', () => {
         expect(result.current.state).toBe('listening')
     })
 
+    it('resends an upload once when the network dropped it, with the same idempotent body', async () => {
+        mocks.apiService.uploadVoiceSegment
+            .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+            .mockResolvedValueOnce({ voice_session_id: 'voice-1', segment_id: 's1', seq: 1, status: 'duplicate' })
+        const { result } = await renderLiveCall()
+
+        act(() => mocks.microphoneOptions?.onSegment?.(createSegment(1)))
+        await waitFor(() => expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(2))
+        const [first, second] = mocks.apiService.uploadVoiceSegment.mock.calls
+        expect(second[1]).toBe(first[1])
+        await act(async () => { await Promise.resolve() })
+        expect(result.current.error).toBeNull()
+    })
+
+    it('reports an upload that fails twice at the network level, or once with an HTTP error', async () => {
+        mocks.apiService.uploadVoiceSegment
+            .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+            .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        const { result } = await renderLiveCall()
+
+        act(() => mocks.microphoneOptions?.onSegment?.(createSegment(1)))
+        await waitFor(() => expect(result.current.error).toMatchObject({ code: 'VOICE_UPLOAD_FAILED', fatal: false }))
+        expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(2)
+
+        mocks.apiService.uploadVoiceSegment.mockRejectedValueOnce(Object.assign(new Error('Bad gateway'), { status: 502 }))
+        act(() => mocks.microphoneOptions?.onSegment?.(createSegment(2)))
+        await waitFor(() => expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(3))
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)) })
+        expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(3)
+    })
+
     it('stays silent for no-speech rejections and labels other rejections by code', async () => {
         const { result } = await renderLiveCall()
 

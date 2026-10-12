@@ -8,7 +8,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field, Textarea } from '@/ui/primitives'
-import { formatProviderOptions, parseProviderOptions, type ProviderOptionsIssue } from './llmProfileModel'
+import { formatProviderOptions, parseProviderOptions, type ProviderOptionsIssue, type ProviderOptionsResult } from './llmProfileModel'
 
 interface ProviderPropsFieldProps {
     value: Record<string, unknown> | undefined
@@ -19,33 +19,37 @@ interface ProviderPropsFieldProps {
     onValidityChange?: (valid: boolean) => void
     /** A server rejection to show under the field. */
     serverError?: string
+    /** Validation rules; defaults to the LLM transport's. */
+    parse?: (text: string) => ProviderOptionsResult
+    /** Helper text under the field; defaults to the LLM wording. */
+    hint?: string
 }
 
-export function ProviderPropsField({ value, disabled = false, onChange, onValidityChange, serverError }: ProviderPropsFieldProps) {
+export function ProviderPropsField({ value, disabled = false, onChange, onValidityChange, serverError, parse = parseProviderOptions, hint }: ProviderPropsFieldProps) {
     const { t } = useTranslation()
     const [text, setText] = useState(() => formatProviderOptions(value))
     const [issue, setIssue] = useState<ProviderOptionsIssue | null>(() => {
-        const initial = parseProviderOptions(text)
+        const initial = parse(text)
         return initial.ok ? null : initial.issue
     })
 
     const update = (next: string) => {
         setText(next)
-        const result = parseProviderOptions(next)
+        const result = parse(next)
         const nextIssue = result.ok ? null : result.issue
         onValidityChange?.(!nextIssue)
         setIssue(nextIssue)
         if (result.ok) onChange(result.value)
     }
 
-    const parsed = issue ? null : parseProviderOptions(text)
+    const parsed = issue ? null : parse(text)
     const count = parsed?.ok ? Object.keys(parsed.value).length : 0
     const message = issue && t(`llmProfiles.editor.propsErrors.${issue.code}`,
         { key: 'key' in issue ? issue.key : '', open: '{{', close: '}}' })
 
     return <div className="flex flex-col gap-2">
         <Field label={t('llmProfiles.editor.propsLabel')} error={message || serverError}
-            helper={t('llmProfiles.editor.propsHint')}>
+            helper={hint ?? t('llmProfiles.editor.propsHint')}>
             <Textarea value={text} rows={5} spellCheck={false} disabled={disabled} placeholder="{}"
                 className="font-mono text-label" onChange={event => update(event.target.value)} />
         </Field>

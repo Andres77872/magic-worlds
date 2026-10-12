@@ -9,8 +9,10 @@ type TranslationValueShape<T> = T extends string
 type TranslationResource = TranslationValueShape<EnShape>
 
 import { llmProfilesEs } from './llmProfiles'
+import { imageProfilesEs } from './imageProfiles'
 export const es = {
     llmProfiles: llmProfilesEs,
+    imageProfiles: imageProfilesEs,
     imageGeneration: {
         stages: {
             starting: 'Iniciando la generación de imagen…',
@@ -4841,6 +4843,10 @@ export const es = {
                         walletsCount_other: '{{count}} monederos',
                         asOf: 'Uso del {{date}}',
                     },
+                    imagePricing: {
+                        perProfile: 'Por perfil',
+                        note: 'Las imágenes se cobran según el perfil de imagen, no según el plan. Define su costo en créditos en la consola Perfiles de imagen.',
+                    },
                     plans: {
                         title: 'Catálogo de planes',
                         description: 'Los planes predeterminados vienen con el esquema. Los de pago reflejan el catálogo de Stripe; los personalizados son locales y se asignan desde la pestaña Miembros.',
@@ -4860,6 +4866,7 @@ export const es = {
                         members_other: '{{count}} miembros',
                         limitsSummary: 'Límites diarios',
                         limitRow: '{{limit}}/día · {{inFlight}} en curso · {{cost}} cr',
+                        limitRowProfilePriced: '{{limit}}/día · {{inFlight}} en curso · por perfil',
                         edit: 'Editar',
                         viewMembers: 'Miembros',
                         codeLabel: 'Código',

@@ -26,6 +26,10 @@ import { ImageGenerationStatus, type ImageGenerationStage } from '@/ui/component
 import { CreatorField, CreatorTextarea } from './CreatorField'
 import { MediaHistoryDrawer } from './MediaHistoryDrawer'
 import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
+import { ImageKeyDialog } from '@/features/imageProfiles/ImageKeyDialog'
+import { ImageProfilePicker } from '@/features/imageProfiles/ImageProfilePicker'
+import { useImageGenerationProfile, type ImageGenerationSelection } from '@/features/imageProfiles/useImageGenerationProfile'
+import type { ImageProvider } from '@/shared/types/imageProfile.types'
 
 type AttributeGroups = CardPortraitRequest['category']
 
@@ -109,8 +113,15 @@ const EXTRA_DIRECTION_MAX = 600
 const DEFAULT_THEME_MODEL: ThemeSongModelAlias = 'minimax_music_3'
 
 function mediaErrorCopy(error: unknown, noun: string, t: TFunction): string {
-    const err = error as { message?: string; category?: string; status?: number; retryAfterSeconds?: number; requestId?: string }
+    // ApiError carries `message`; a failed job's public error carries `detail`.
+    const err = error as { message?: string; detail?: string; category?: string; code?: string | null; status?: number; retryAfterSeconds?: number; requestId?: string }
+    if (err.message === 'IMAGE_CREDENTIAL_HTTPS_REQUIRED') return t('imageProfiles.key.httpsRequired')
     const suffix = err.requestId ? t('creation.common.media.errors.supportId', { requestId: err.requestId }) : ''
+    // An archived or deleted image profile comes back as not_found too; it is not a missing card.
+    const profileCode = err.code?.toUpperCase()
+    if (profileCode === 'IMAGE_PROFILE_UNAVAILABLE' || profileCode === 'IMAGE_PROFILE_NOT_FOUND') {
+        return `${t(`imageProfiles.errors.${profileCode}`)}${suffix}`
+    }
     const Noun = noun.charAt(0).toUpperCase() + noun.slice(1)
     if (err.category === 'quota_exceeded' || err.status === 429) {
         const retry = err.retryAfterSeconds
@@ -122,11 +133,13 @@ function mediaErrorCopy(error: unknown, noun: string, t: TFunction): string {
         return `${t('creation.common.media.errors.unavailable', { noun: Noun })}${suffix}`
     }
     if (err.category === 'not_found') return `${t('creation.common.media.errors.notFound', { noun })}${suffix}`
-    if (err.category === 'invalid') return `${err.message || t('creation.common.media.errors.invalid')}${suffix}`
+    if (err.category === 'invalid' || err.category === 'validation') {
+        return `${err.message || err.detail || t('creation.common.media.errors.invalid')}${suffix}`
+    }
     if (err.status === 0 || err.category === 'timeout') {
         return `${t('creation.common.media.errors.timeout')}${suffix}`
     }
-    return err.message || t('creation.common.media.errors.generic', { noun })
+    return err.message || err.detail || t('creation.common.media.errors.generic', { noun })
 }
 
 function firstCompletedThemeUrl(jobs: ThemeSongJobPublic[]): string | undefined {
@@ -164,13 +177,16 @@ export function MediaStudioSection({
 
     /* ----------------------------- portrait ----------------------------- */
     const [direction, setDirection] = useState('')
-    const [imgBusy, setImgBusy] = useState(false)
+    const [imgJobBusy, setImgJobBusy] = useState(false)
     const [imgBusyKind, setImgBusyKind] = useState<'generate' | 'upload'>('generate')
     const [imgStage, setImgStage] = useState<ImageJobPublicResponse['status'] | null>(null)
     const [imgError, setImgError] = useState<string | null>(null)
     const [imgNotice, setImgNotice] = useState<string | null>(null)
     const [viewerOpen, setViewerOpen] = useState(false)
     const imgAbortRef = useRef<AbortController | null>(null)
+    const imageProfile = useImageGenerationProfile(isAuthenticated)
+    // Busy from the click on: an unloaded image model list loads before the job starts.
+    const imgBusy = imgJobBusy || imageProfile.preparing
     const fileInputRef = useRef<HTMLInputElement | null>(null)
 
     const openFilePicker = () => fileInputRef.current?.click()
@@ -191,7 +207,7 @@ export function MediaStudioSection({
         const controller = new AbortController()
         imgAbortRef.current = controller
         setImgBusyKind('upload')
-        setImgBusy(true)
+        setImgJobBusy(true)
         setImgError(null)
         setImgNotice(null)
         try {
@@ -206,7 +222,7 @@ export function MediaStudioSection({
                 setImgError(mediaErrorCopy(err, 'image', t))
             }
         } finally {
-            if (mountedRef.current) setImgBusy(false)
+            if (mountedRef.current) setImgJobBusy(false)
             imgAbortRef.current = null
         }
     }
@@ -224,7 +240,7 @@ export function MediaStudioSection({
         setViewerOpen(false)
     }
 
-    const handleGenerateImage = async () => {
+    const handleGenerateImage = () => {
         if (!isAuthenticated) {
             onAuthRequired()
             return
@@ -233,11 +249,28 @@ export function MediaStudioSection({
             setImgError(t('creation.common.media.notices.nameFirst', { noun }))
             return
         }
+        setImgBusyKind('generate')
+        // A personal profile may first ask for the user's provider key.
+        imageProfile.request((selection, byokProvider) => { void generateImage(selection, byokProvider) })
+    }
+
+    const generateImage = async (selection: ImageGenerationSelection, byokProvider?: ImageProvider) => {
+        // A wrong personal key is dropped so the next attempt asks for it again; a
+        // gone profile or a missing key refreshes the picker (see `recover`).
+        const failureCopy = (error: unknown) => {
+            const code = (error as { code?: string | null }).code
+            if (code === 'provider_credentials_rejected' && byokProvider) {
+                imageProfile.forgetKey(byokProvider)
+                return t('imageProfiles.key.rejected')
+            }
+            imageProfile.recover(code, (next, provider) => { void generateImage(next, provider) })
+            return mediaErrorCopy(error, 'portrait', t)
+        }
         const controller = new AbortController()
         imgAbortRef.current = controller
         setImgBusyKind('generate')
         setImgStage(null)
-        setImgBusy(true)
+        setImgJobBusy(true)
         setImgError(null)
         setImgNotice(null)
         try {
@@ -251,6 +284,7 @@ export function MediaStudioSection({
                 subtype: template.subtype?.trim() || undefined,
                 category: template.category,
                 extra_direction: direction.trim() || undefined,
+                ...selection,
             }
             let job: ImageJobPublicResponse = await apiService.generateCardPortrait(body, { signal: controller.signal })
             if (job.status !== 'completed') {
@@ -271,18 +305,18 @@ export function MediaStudioSection({
                 // this is "slow", not "failed".
                 setImgNotice(t('creation.common.media.errors.timeout'))
             } else {
-                setImgError(mediaErrorCopy(job.error ?? { category: job.status }, 'portrait', t))
+                setImgError(failureCopy(job.error ?? { category: job.status }))
             }
         } catch (err) {
             if (!mountedRef.current) return
             if (controller.signal.aborted) {
                 setImgNotice(t('creation.common.media.notices.imageCanceled'))
             } else {
-                setImgError(mediaErrorCopy(err, 'portrait', t))
+                setImgError(failureCopy(err))
             }
         } finally {
             if (mountedRef.current) {
-                setImgBusy(false)
+                setImgJobBusy(false)
                 setImgStage(null)
             }
             imgAbortRef.current = null
@@ -521,6 +555,7 @@ export function MediaStudioSection({
                 onChange={handleFileChange}
             />
             <ImageLightbox open={viewerOpen} src={resolvedImage} alt={template.name} onClose={() => setViewerOpen(false)} />
+            <ImageKeyDialog provider={imageProfile.keyPrompt} onSubmit={imageProfile.submitKey} onCancel={imageProfile.cancelKey} />
         </>
     )
 
@@ -542,6 +577,9 @@ export function MediaStudioSection({
                         <Eyebrow tone="muted">{imageLabel}</Eyebrow>
                     </div>
                     <LlmFeatureControl feature="image_prompt" disabled={imgBusy} />
+                    <ImageProfilePicker profiles={imageProfile.profiles} selected={imageProfile.selected} defaultId={imageProfile.defaultId}
+                        loaded={imageProfile.loaded} failed={imageProfile.failed} keyHeld={imageProfile.keyHeld} disabled={imgBusy}
+                        onSelect={imageProfile.select} onForgetKey={imageProfile.forgetSelectedKey} onRetry={imageProfile.reload} />
                     {resolvedImage && (
                         <div className="group relative">
                             <Portrait name={template.name} src={resolvedImage} height={150} className="rounded-xl" />
@@ -564,9 +602,9 @@ export function MediaStudioSection({
                     />
                     {imgBusy ? (
                         <div className="flex flex-wrap justify-end gap-2">
-                            <Button variant="secondary" size="sm" onClick={() => imgAbortRef.current?.abort()}>
+                            {imgJobBusy && <Button variant="secondary" size="sm" onClick={() => imgAbortRef.current?.abort()}>
                                 {imgBusyKind === 'generate' ? t('creation.common.media.stopWaiting') : t('common.cancel')}
-                            </Button>
+                            </Button>}
                             <Button variant="arcane" size="sm" disabled iconLeft={<Icon icon={Sparkles} size={15} />}>
                                 {imgBusyLabel}
                             </Button>
@@ -681,6 +719,9 @@ export function MediaStudioSection({
                 {imageControls}
                 <SectionHeader as="h3" icon={ImagePlus} tone="arcane" title={imageLabel} />
                 <LlmFeatureControl feature="image_prompt" disabled={imgBusy} />
+                <ImageProfilePicker profiles={imageProfile.profiles} selected={imageProfile.selected} defaultId={imageProfile.defaultId}
+                    loaded={imageProfile.loaded} failed={imageProfile.failed} keyHeld={imageProfile.keyHeld} disabled={imgBusy}
+                    onSelect={imageProfile.select} onForgetKey={imageProfile.forgetSelectedKey} onRetry={imageProfile.reload} />
                 <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
                     <div className="group relative">
                         <Portrait name={template.name} src={resolvedImage} height={180} className="rounded-xl" />
@@ -709,7 +750,7 @@ export function MediaStudioSection({
                                 {t('creation.common.media.gallery')}
                             </Button>
                             <div className="flex flex-wrap justify-end gap-2">
-                                {imgBusy && (
+                                {imgJobBusy && (
                                     <Button variant="secondary" onClick={() => imgAbortRef.current?.abort()}>
                                         {imgBusyKind === 'generate' ? t('creation.common.media.stopWaiting') : t('common.cancel')}
                                     </Button>

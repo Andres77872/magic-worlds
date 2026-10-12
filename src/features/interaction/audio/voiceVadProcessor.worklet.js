@@ -17,7 +17,8 @@
  *      so soft onsets aren't clipped;
  *   4. posts one `segment` on a natural pause (`silenceMsToEnd`) or at `maxSegmentMs`
  *      (pre-roll included). Blips with less than `minSpeechMs` of voiced audio never
- *      announce a turn and are discarded.
+ *      announce a turn and are discarded. A pause-ended segment keeps only
+ *      `TRAILING_SILENCE_KEEP_MS` of the pause.
  * It also streams a throttled `level` (smoothed RMS) for the live call meter.
  *
  * processorOptions: aggressiveness, silenceMsToEnd, minSpeechMs, maxSegmentMs,
@@ -38,6 +39,9 @@ const RENDER_QUANTUM = 128
 const DEFAULT_MAX_SEGMENT_MS = 7500
 const DEFAULT_PRE_ROLL_MS = 300
 const DEFAULT_LEVEL_INTERVAL_MS = 50
+// A pause-ended segment is sent with only this much of its trailing quiet: enough for
+// soft word endings, without uploading and transcribing the whole end-of-turn wait.
+const TRAILING_SILENCE_KEEP_MS = 200
 
 // Resampler low-pass: odd tap count (symmetric, integer group delay); cutoff at 90% of the
 // 8 kHz output Nyquist.
@@ -202,6 +206,7 @@ class VoiceVadProcessor extends AudioWorkletProcessor {
         this.announced = false
         this.silenceFrames = 0
         this.speechSamples = 0
+        this.trailingSilentSamples = 0
         this.frameIndex = 0
         this.smoothedLevel = 0
         this.noiseFloor = 0
@@ -300,6 +305,7 @@ class VoiceVadProcessor extends AudioWorkletProcessor {
         this.announced = false
         this.silenceFrames = 0
         this.speechSamples = 0
+        this.trailingSilentSamples = 0
         // Prepend the pre-roll (oldest first). Cap it so a tiny maxSegmentMs still leaves room
         // for speech.
         const take = Math.min(this.preRollLength, Math.floor(this.maxSamples / 2))
@@ -322,6 +328,7 @@ class VoiceVadProcessor extends AudioWorkletProcessor {
             this.segmentLength += take
             offset += take
             if (voiced) this.speechSamples += take
+            this.trailingSilentSamples = voiced ? 0 : this.trailingSilentSamples + take
 
             // Only announce a real turn once enough speech has accumulated, so coughs/
             // clicks never fire a turn (and never a false barge-in).
@@ -363,12 +370,16 @@ class VoiceVadProcessor extends AudioWorkletProcessor {
         const length = Math.min(total, this.maxSamples)
         const announced = this.announced
         const speechSamples = Math.min(this.speechSamples, length)
+        // Only the start of the pause is sent; the full quiet tail still re-seeds the pre-roll.
+        const trimmed = endedBySilence ? Math.max(0, this.trailingSilentSamples - msToSamples(TRAILING_SILENCE_KEEP_MS)) : 0
+        const sent = Math.max(speechSamples, length - trimmed)
 
         // Reset turn state regardless of whether we emit.
         this.speaking = false
         this.announced = false
         this.silenceFrames = 0
         this.speechSamples = 0
+        this.trailingSilentSamples = 0
         this.segmentLength = 0
 
         if (total > length) this.pushPreRoll(this.segment, length, total)
@@ -377,15 +388,16 @@ class VoiceVadProcessor extends AudioWorkletProcessor {
         // Discard sub-threshold blips that never became a real turn.
         if (!announced || length === 0) return
 
-        const samples = this.segment.slice(0, length)
+        const samples = this.segment.slice(0, sent)
         this.port.postMessage({
             type: 'segment',
             samples,
             sample_rate: TARGET_SAMPLE_RATE,
             started_at_ms: Math.max(0, this.elapsedMs() - Math.round((length / TARGET_SAMPLE_RATE) * 1000)),
             speech_ms: Math.round((speechSamples / TARGET_SAMPLE_RATE) * 1000),
-            // Everything that wasn't voiced: pre-roll, pauses between words, trailing silence.
-            silence_ms: Math.round(((length - speechSamples) / TARGET_SAMPLE_RATE) * 1000),
+            // Everything sent that wasn't voiced: pre-roll, pauses between words, the kept
+            // start of the trailing silence.
+            silence_ms: Math.round(((sent - speechSamples) / TARGET_SAMPLE_RATE) * 1000),
         }, [samples.buffer])
         this.port.postMessage({ type: 'vad', state: 'speech_end', at_ms: this.elapsedMs(), rms: roundMetric(rms) })
     }

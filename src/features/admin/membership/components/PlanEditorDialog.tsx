@@ -5,6 +5,9 @@
  * Ownership rules mirror the backend: default plans cannot be deactivated and
  * billing-synced paid defaults keep their name and daily credits read-only
  * (they mirror api.auth's Stripe catalog). Custom plans are fully editable.
+ * Image operations are priced per image profile, so their plan credit cost is
+ * not offered here: the stored value rides along unchanged to keep the limit
+ * row valid for the API.
  *
  * The parent remounts this component (via `key`) whenever a different plan is
  * opened, so the initial state is derived once and never re-seeded.
@@ -19,7 +22,7 @@ import type {
     MembershipPlanUpdateRequest,
 } from '@/shared'
 import { Button, Callout, Field, Icon, Input, Modal, Select, SwitchRow, controlClass, cx, type SelectOption } from '@/ui/primitives'
-import { operationName } from './membershipFormat'
+import { isProfilePriced, operationName } from './membershipFormat'
 
 export type PlanEditorMode = 'create' | 'edit'
 
@@ -128,7 +131,14 @@ export function PlanEditorDialog({
     const applyPreset = (planCode: string) => {
         setPreset(planCode)
         const source = plans.find((candidate) => candidate.plan_code === planCode)
-        if (source) setLimits(draftFromLimits(operations, source.limits))
+        if (!source) return
+        setLimits((current) => {
+            const next = draftFromLimits(operations, source.limits)
+            for (const operation of operations) {
+                if (isProfilePriced(operation) && current[operation]) next[operation].credit_cost = current[operation].credit_cost
+            }
+            return next
+        })
     }
 
     const updateLimit = (operation: string, field: LimitField, value: string) => {
@@ -272,18 +282,24 @@ export function PlanEditorDialog({
                                             </th>
                                             {LIMIT_FIELDS.map((field) => (
                                                 <td key={field} className={cx('pr-2', field === 'credit_cost' && 'pr-0')}>
-                                                    <input
-                                                        type="number"
-                                                        inputMode="numeric"
-                                                        min={LIMIT_MINIMUMS[field]}
-                                                        step={1}
-                                                        value={draft[field]}
-                                                        onChange={(event) => updateLimit(operation, field, event.target.value)}
-                                                        disabled={saving}
-                                                        aria-label={`${label} · ${t(`admin.membership.editor.columns.${fieldColumnKey(field)}`)}`}
-                                                        aria-invalid={!rowValid || undefined}
-                                                        className={cx(controlClass, 'w-full min-w-[84px] px-2.5 py-1.5 text-sm')}
-                                                    />
+                                                    {field === 'credit_cost' && isProfilePriced(operation) ? (
+                                                        <span className="block min-w-[84px] px-2.5 py-1.5 font-ui text-[12px] text-parchment-400">
+                                                            {t('admin.membership.imagePricing.perProfile')}
+                                                        </span>
+                                                    ) : (
+                                                        <input
+                                                            type="number"
+                                                            inputMode="numeric"
+                                                            min={LIMIT_MINIMUMS[field]}
+                                                            step={1}
+                                                            value={draft[field]}
+                                                            onChange={(event) => updateLimit(operation, field, event.target.value)}
+                                                            disabled={saving}
+                                                            aria-label={`${label} · ${t(`admin.membership.editor.columns.${fieldColumnKey(field)}`)}`}
+                                                            aria-invalid={!rowValid || undefined}
+                                                            className={cx(controlClass, 'w-full min-w-[84px] px-2.5 py-1.5 text-sm')}
+                                                        />
+                                                    )}
                                                 </td>
                                             ))}
                                         </tr>
@@ -292,6 +308,9 @@ export function PlanEditorDialog({
                             </tbody>
                         </table>
                     </div>
+                    {operations.some(isProfilePriced) && (
+                        <p className="font-ui text-[12px] text-parchment-300">{t('admin.membership.imagePricing.note')}</p>
+                    )}
                     {!limitsValid && (
                         <Callout tone="danger" role="alert" className="py-2">
                             {t('admin.membership.editor.limitsError')}

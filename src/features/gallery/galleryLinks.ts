@@ -45,6 +45,8 @@ const PAGE_TO_HASH: Record<PageType, string> = {
     profile: '#/profile',
     'llm-profiles': '#/models',
     'admin-llm-profiles': '#/admin/llm-profiles',
+    'image-profiles': '#/image-models',
+    'admin-image-profiles': '#/admin/image-profiles',
     billing: '#/billing',
     'voice-studio': '#/voices',
     'admin-voices': '#/admin/voices',

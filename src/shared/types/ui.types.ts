@@ -34,6 +34,8 @@ export type PageType =
     | 'profile'
     | 'llm-profiles'
     | 'admin-llm-profiles'
+    | 'image-profiles'
+    | 'admin-image-profiles'
     | 'billing'
     | 'voice-studio'
     | 'admin-voices'

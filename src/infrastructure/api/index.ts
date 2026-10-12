@@ -3,6 +3,7 @@ import { assertPublicLlmData, assertEffectiveLlmProfile, assertLlmCapacityUsage,
 import { prepareLlmRequest, prepareRetainedLlmRequest } from './llmPreparation'
 import { isLlmRequestSpent, llmIntents } from './llmIntent'
 import type { LlmFeature, LlmRequest, LlmSelection } from '@/shared/types/llm.types'
+import type { ImageCatalog, ImageProfile, ImageProfileList, ImageProfileMutation } from '@/shared/types/imageProfile.types'
 import type {
     LlmPage, LlmProfileSummary, LlmProfileDetail, LlmProfileMutation, LlmPreferences,
     LlmPreferencesView, LlmFeatureView, LlmCatalogModel, LlmConnection,
@@ -3787,16 +3788,66 @@ class ApiService {
      * Generate a profile portrait from a card's own information. The client sends
      * only the card template (+ optional art direction); the backend builds the
      * private prompt. Returns the job (200 = already done, 202 = poll it).
+     * `credentials` (a personal profile's key) only ever travels over HTTPS.
      */
     async generateCardPortrait(body: CardPortraitRequest, options: AiCardRequestOptions = {}): Promise<ImageJobPublicResponse> {
+        if (body.credentials && !API_BASE_URL.startsWith('https://')) throw new Error('IMAGE_CREDENTIAL_HTTPS_REQUIRED')
         const token = this.getStoredToken()
         return this.authenticatedRequest<ImageJobPublicResponse>('/images/card-portrait', token, {
             method: 'POST',
+            cache: 'no-store',
             headers: this.aiHeaders(options),
             body: body as unknown as BodyInit,
             signal: options.signal,
             timeoutMs: options.timeoutMs,
         })
+    }
+
+    // --- Image profiles ----------------------------------------------------
+    // Root owns the system profiles and the global default; every user picks a
+    // profile and may keep personal BYOK profiles. No call here carries a key.
+
+    getImageCatalog(): Promise<ImageCatalog> {
+        return this.profileRequest('/images/catalog')
+    }
+
+    /** Active app profiles plus the caller's own, with the defaults. */
+    getImageProfiles(): Promise<ImageProfileList> {
+        return this.profileRequest('/images/profiles')
+    }
+
+    /** Pick a personal default image profile; null falls back to the app default. */
+    setImagePreference(profileId: string | null): Promise<ImageProfileList> {
+        return this.profileRequest('/images/preferences', 'PUT', { profile_id: profileId })
+    }
+
+    createImageProfile(payload: ImageProfileMutation, system = false): Promise<ImageProfile> {
+        return this.profileRequest(system ? '/admin/images/profiles' : '/user/images/profiles', 'POST', payload)
+    }
+
+    updateImageProfile(profileId: string, payload: ImageProfileMutation, version: number, system = false): Promise<ImageProfile> {
+        const base = system ? '/admin/images/profiles' : '/user/images/profiles'
+        return this.profileRequest(`${base}/${encodeURIComponent(profileId)}`, 'PATCH', payload, version)
+    }
+
+    archiveImageProfile(profileId: string, version: number, system = false): Promise<ImageProfile> {
+        const base = system ? '/admin/images/profiles' : '/user/images/profiles'
+        return this.profileRequest(`${base}/${encodeURIComponent(profileId)}/archive`, 'POST', undefined, version)
+    }
+
+    /** Root: every system profile, archived ones included. */
+    getSystemImageProfiles(): Promise<ImageProfileList> {
+        return this.profileRequest('/admin/images/profiles')
+    }
+
+    /** Root: add a 1-credit profile for each starter model that has no active one. */
+    seedStarterImageProfiles(): Promise<ImageProfileList> {
+        return this.profileRequest('/admin/images/profiles/starter', 'POST')
+    }
+
+    /** Root: the profile every generation uses when the user has not picked one. */
+    setGlobalImageDefault(profileId: string): Promise<ImageProfileList> {
+        return this.profileRequest('/admin/images/default', 'PUT', { profile_id: profileId })
     }
 
     /**

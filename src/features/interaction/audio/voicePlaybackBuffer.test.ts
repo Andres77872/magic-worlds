@@ -270,6 +270,28 @@ describe('VoicePlaybackBuffer', () => {
             expect(buffer.state.status).toBe('playing')
             buffer.dispose()
         })
+
+        it('falls back to Blob playback when ManagedMediaSource never asks for data', async () => {
+            vi.useFakeTimers()
+            vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(() => new Promise<void>(() => undefined))
+            const audio = document.createElement('audio')
+            const assignments = trackSrcAssignments(audio)
+            const buffer = new VoicePlaybackBuffer({ audio })
+
+            buffer.startTurn('voice-1', 'turn-1')
+            const mediaSource = vi.mocked(URL.createObjectURL).mock.calls[0][0] as unknown as MockManagedMediaSource
+            buffer.appendChunk(chunk(1, toBase64(mp3Frame(1))))
+            // `streaming` stays false and `startstreaming` never fires: nothing is appended.
+            expect(mediaSource.sourceBuffers[0].appendBuffer).not.toHaveBeenCalled()
+
+            await vi.advanceTimersByTimeAsync(2_100)
+
+            expect(assignments).toEqual(['blob:voice-1', 'blob:voice-2'])
+            const blob = vi.mocked(URL.createObjectURL).mock.calls[1][0] as Blob
+            vi.useRealTimers()
+            expect(await readBlob(blob)).toEqual(mp3Frame(1))
+            buffer.dispose()
+        })
     })
 
     describe('Blob fallback path (no MediaSource)', () => {
