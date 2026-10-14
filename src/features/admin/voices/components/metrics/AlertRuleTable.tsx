@@ -50,9 +50,6 @@ function thresholdText(status: MetricsRuleStatus, t: TFunction, locale: string):
     for (const [name, value] of Object.entries(status.threshold)) {
         values[name] = name === 'limit' || name === 'warn' || name === 'page' ? formatValue(value, rule.format, locale) : formatNumber(value, locale)
     }
-    if (rule.id === 'jobP95' && status.threshold.limit === undefined) {
-        return t('admin.voices.metrics.rules.items.jobP95.thresholdNoBaseline', values)
-    }
     return t(`admin.voices.metrics.rules.items.${rule.id}.threshold`, values)
 }
 

@@ -71,9 +71,7 @@ export const narrationMetrics: NarrationMetricsResponse = {
     alerts: [
         { alert: 'narration_tts_failed_rate', severity: 'page', provider: 'elevenlabs', value: 0.073171, threshold: 0.02, sample: 205, runbook: 'RB-1', detail: null },
         { alert: 'narration_voice_unavailable', severity: 'page', provider: 'elevenlabs', value: 0.04878, threshold: 0.005, sample: 205, runbook: 'RB-3', detail: null },
-        { alert: 'narration_job_p95', severity: 'page', provider: 'elevenlabs', value: 7000, threshold: 6000, sample: 205, runbook: 'RB-1', detail: null },
     ],
-    baseline: { narration_failure_rate: 0.01, narration_p95_ms: 3000 },
 }
 
 export const callMetrics: CallMetricsResponse = {
@@ -104,7 +102,6 @@ export const callMetrics: CallMetricsResponse = {
         { alert: 'call_tts_failure_rate', severity: 'page', provider: 'elevenlabs', value: 0.08, threshold: 0.03, sample: 25, runbook: 'RB-1', detail: null },
         { alert: 'call_first_audio_p50', severity: 'page', provider: 'elevenlabs', value: 500, threshold: 400, sample: 20, runbook: 'RB-1', detail: null },
     ],
-    baseline: null,
 }
 
 export const providerMetrics: ProviderMetricsResponse = {
@@ -128,7 +125,6 @@ export const providerMetrics: ProviderMetricsResponse = {
         { alert: 'provider_429_share', severity: 'page', provider: 'elevenlabs', value: 0.3, threshold: 0.2, sample: 30, runbook: 'RB-2', detail: null },
         { alert: 'config_breaker_open', severity: 'page', provider: 'elevenlabs', value: 1, threshold: 1, sample: 1, runbook: 'RB-4', detail: 'config:narration' },
     ],
-    baseline: null,
 }
 
 export const moderationMetrics: ModerationMetricsResponse = {
@@ -144,7 +140,6 @@ export const moderationMetrics: ModerationMetricsResponse = {
         histograms: [{ metric: 'moderation_ms', provider: 'elevenlabs', count: 1, p50: 120, p95: 120, max: 120, mean: 120, window: 1 }],
     }),
     alerts: [],
-    baseline: null,
 }
 
 export const spendMetrics: SpendMetricsResponse = {
@@ -158,7 +153,6 @@ export const spendMetrics: SpendMetricsResponse = {
     },
     process: emptyProcessMetrics({ gauges: [{ metric: 'spend_budget_pct', provider: 'all', value: 85 }] }),
     alerts: [{ alert: 'spend_circuit_80', severity: 'warn', provider: 'all', value: 85, threshold: 80, sample: 34_000_000, runbook: 'RB-7', detail: null }],
-    baseline: null,
 }
 
 export const metricsByArea: AdminVoiceMetricsByArea = {

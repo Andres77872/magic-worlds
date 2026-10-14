@@ -12,7 +12,7 @@ import { createWorkspaceTestState } from '@/shared/hooks/testing/workspaceTestUt
 type AuthValue = NonNullable<ComponentProps<typeof AuthContext.Provider>['value']>
 type NavValue = NonNullable<ComponentProps<typeof NavigationContext.Provider>['value']>
 
-/** The user hash of the story reader (keys its first-exposure dismissal). */
+/** The user hash of the story reader (keys its per-account preview confirmation). */
 export const STORY_USER_HASH = 'storybook-reader'
 
 const workspace = createWorkspaceTestState().value()

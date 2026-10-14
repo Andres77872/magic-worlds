@@ -5,7 +5,7 @@
  * entry supplies the replacement.
  *
  * - "Switch to {replacement}" hands the host the stored voice rewritten by
- *   `voiceWithReplacement` (a V2 voice keeps its settings and emotion);
+ *   `voiceWithReplacement` (it keeps its settings and emotion);
  * - "Choose a voice" / "Pick another" call `onChoose` (the host opens its picker);
  * - "Keep for now" only closes the prompt.
  *

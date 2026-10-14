@@ -7,7 +7,7 @@ import type { VoiceBadgeKey } from '@/shared'
 import { BADGE_TONES, VoiceBadges, voiceBadgeCopy } from './VoiceBadges'
 
 const ALL: VoiceBadgeKey[] = [
-    'leaving', 'needs_reselect', 'review', 'retired', 'replaced', 'call_voice',
+    'leaving', 'needs_reselect', 'retired', 'replaced', 'call_voice',
     'locked', 'expressive_only', 'standard_fallback', 'not_tested_language', 'house_voice',
 ]
 
@@ -22,11 +22,11 @@ describe('VoiceBadges (R1-FE-03, 09 §8)', () => {
     })
 
     it('renders known badges in a fixed order, as text, and ignores unknown keys', () => {
-        render(<VoiceBadges badges={['house_voice', 'sparkles', 'review', 'leaving', 42]} context={{ date: '2026-12-01T00:00:00Z' }} />)
+        render(<VoiceBadges badges={['house_voice', 'sparkles', 'needs_reselect', 'leaving', 42]} context={{ date: '2026-12-01T00:00:00Z' }} />)
         const group = screen.getByTestId('voice-badges')
         const shown = Array.from(group.querySelectorAll('[data-badge]')).map((node) => node.getAttribute('data-badge'))
-        expect(shown).toEqual(['review', 'leaving', 'house_voice'])
-        expect(within(group).getByText('Review this voice: some settings changed')).toBeInTheDocument()
+        expect(shown).toEqual(['needs_reselect', 'leaving', 'house_voice'])
+        expect(within(group).getByText('Voice needs re-selection')).toBeInTheDocument()
         expect(within(group).getByText(/^Leaving on /)).toBeInTheDocument()
         expect(within(group).queryByText(/sparkles/)).not.toBeInTheDocument()
     })

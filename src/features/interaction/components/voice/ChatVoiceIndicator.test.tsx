@@ -20,6 +20,8 @@ type DataValue = NonNullable<ComponentProps<typeof DataContext.Provider>['value'
 
 const KEY_A = `vk_${'a'.repeat(32)}`
 const KEY_B = `vk_${'b'.repeat(32)}`
+/** The stored voice every card and cast entry carries; the projections decide what plays. */
+const STORED_VOICE = { schema_version: 2 as const, provider: 'elevenlabs' as const, voice_key: `vk_${'c'.repeat(32)}`, voice_name: 'Calm', preset_name: 'Calm' }
 
 function el(voiceKey: string, overrides: Partial<EffectiveVoice> = {}): EffectiveVoice {
     return {
@@ -27,7 +29,6 @@ function el(voiceKey: string, overrides: Partial<EffectiveVoice> = {}): Effectiv
         display_name: voiceKey === KEY_A ? 'Aria' : 'Bram',
         provider_route: 'elevenlabs',
         substitution_reason: null,
-        flags: [],
         badges: [],
         ...overrides,
     }
@@ -39,7 +40,7 @@ function card(effective?: EffectiveVoice | null): Character {
         name: 'Lyra',
         race: 'Elf',
         stats: {},
-        voice: { voice_id: 'male-qn-qingse', preset_name: 'Calm' },
+        voice: STORED_VOICE,
         ...(effective ? { effective_voice: effective } : {}),
     }
 }
@@ -180,10 +181,10 @@ describe('ChatVoiceIndicator header action (AC-C6)', () => {
         expect(container).toBeEmptyDOMElement()
     })
 
-    it('offers no action when the card’s own voice cannot be copied (R-9: a defaulted V1 translation)', async () => {
+    it('offers no action when the card’s own voice cannot be copied (R-9: it needs a new pick)', async () => {
         getEffectiveVoice.mockResolvedValue(sessionResponse(el(KEY_A, { substitution_reason: 'voice_removed', badges: ['replaced'] })))
-        const unmapped = el(KEY_B, { substitution_reason: 'unmapped_legacy', badges: ['replaced', 'needs_reselect'] })
-        renderIndicator(<ChatVoiceIndicator variant="panel" />, { library: [card(unmapped)] })
+        const reselect = el(KEY_B, { badges: ['needs_reselect'] })
+        renderIndicator(<ChatVoiceIndicator variant="panel" />, { library: [card(reselect)] })
         expect(await screen.findByText('Voice replaced')).toBeInTheDocument()
         expect(screen.queryByRole('button', { name: 'Use the card’s current voice' })).toBeNull()
     })
@@ -351,7 +352,6 @@ describe('InteractionTopBar chat voice strip', () => {
 })
 
 describe('InteractionTopBar adventure cast strip (05 §7.8, AC-C6)', () => {
-    const V1 = { voice_id: 'male-qn-qingse', preset_name: 'Calm' }
     const topBar = <InteractionTopBar title="The gate" mode="adventure" onToggleLeft={vi.fn()} leftOpen={false} dockAt="xl" />
 
     function adventureWith(cast: SnapshotCard[], overrides: Partial<Adventure> = {}): Adventure {
@@ -371,11 +371,11 @@ describe('InteractionTopBar adventure cast strip (05 §7.8, AC-C6)', () => {
         }
     }
     const libraryCard = (id: string, effective: EffectiveVoice | null): Character => ({
-        id, name: id, race: '', stats: {}, role: 'character', voice: V1, ...(effective ? { effective_voice: effective } : {}),
+        id, name: id, race: '', stats: {}, role: 'character', voice: STORED_VOICE, ...(effective ? { effective_voice: effective } : {}),
     })
     const affected = adventureWith([
-        { id: 'c1', name: 'Lyra', voice: V1, effective_voice: el(KEY_A, { substitution_reason: 'voice_removed', badges: ['replaced'] }) },
-        { id: 'c2', name: 'Tess', voice: V1, effective_voice: el(KEY_B) },
+        { id: 'c1', name: 'Lyra', voice: STORED_VOICE, effective_voice: el(KEY_A, { substitution_reason: 'voice_removed', badges: ['replaced'] }) },
+        { id: 'c2', name: 'Tess', voice: STORED_VOICE, effective_voice: el(KEY_B) },
     ])
 
     it('shows the cast block under the adventure bar below xl and refreshes from it', async () => {
@@ -397,7 +397,7 @@ describe('InteractionTopBar adventure cast strip (05 §7.8, AC-C6)', () => {
     })
 
     it('adds nothing without projections, for a local draft, or in an archived workspace', async () => {
-        const bare = adventureWith([{ id: 'c1', name: 'Lyra', voice: V1 }])
+        const bare = adventureWith([{ id: 'c1', name: 'Lyra', voice: STORED_VOICE }])
         const cases: RenderOptions[] = [
             { adventure: bare, library: [libraryCard('c1', null)] },
             { adventure: { ...affected, draft: { templateId: 'tpl-1', personaId: 'p1' } }, library: [libraryCard('c1', el(KEY_B))] },

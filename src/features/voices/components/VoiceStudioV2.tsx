@@ -3,18 +3,15 @@
  * `VoiceStudioPage` for every signed-in account.
  *
  * - Header with the narration-tier setting (R1-FE-04), refresh and "New preset".
- * - The first-exposure notice, the account's review flags and the language note.
+ * - The language note (voices are tuned for English and Spanish).
  * - "My presets" and "Global presets". Rows come from `GET /voice-presets`
- *   unfiltered (R-15): V2 rows are edited, previewed and deleted; a V1 row
- *   converts through its `conversion_draft` (same `preset_id`, D12); global
+ *   unfiltered (R-15): user rows are edited, previewed and deleted; global
  *   rows are read-only and duplicate.
- * - `#/voices?preset=<id>` (a review flag's "Adjust") opens that preset.
- * - Owner prompts on user V2 cards (05 §7.8): "Switch to {replacement}" writes
+ * - Owner prompts on user cards (05 §7.8): "Switch to {replacement}" writes
  *   the replacement voice with the preset's own settings and emotion; "Choose a
  *   voice" / "Pick another" open the editor on the picker.
  * - `not_tested_language` is checked against each preset's language, else the
- *   account's preferred language (05 §5.5), on V1 cards against the voice
- *   their projection plays.
+ *   account's preferred language (05 §5.5).
  * - Card previews default to the same language as the editor (05 §5.5, D17).
  * - The usage strip (AC-S3): previews, narration characters and call minutes
  *   left today, from the usage DTO the preview allowance already reads.
@@ -34,24 +31,18 @@ import { useTranslation } from 'react-i18next'
 import { AudioLines, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
-import type { PreviewTextId, VoiceCapabilities, VoicePresetRow, VoicePresetV2, VoiceReviewFlag } from '@/shared'
-import { isPresetV2 } from '@/shared'
-import { pageHash } from '@/features/gallery/galleryLinks'
+import type { PreviewTextId, VoiceCapabilities, VoicePresetV2 } from '@/shared'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { Button, Callout, Icon, IconTile, PageHeader, Toast } from '@/ui/primitives'
 import { useCatalogLookup } from '../hooks/useCatalogLookup'
 import { usePreferredLanguage } from '../hooks/usePreferredLanguage'
-import { useVoiceReviewFlags } from '../hooks/useVoiceReviewFlags'
-import { parsePresetEditHash } from '../presetLinks'
 import {
     editorModeFor,
     isFreeSamplePreview,
-    presetCatalogKey,
-    presetCatalogKeys,
     presetLanguage,
+    presetVoiceKeys,
     studioPreviewLanguage,
-    v2FieldsOf,
     type PresetEditorV2Mode,
 } from '../presetRowsV2'
 import { normalizeSettingsForWrite } from '../recipeV2'
@@ -65,9 +56,7 @@ import { PresetEditorV2, type PresetEditorV2Toast } from './PresetEditorV2'
 import { PreviewAllowanceHint, PreviewProblemNotice } from './PreviewAllowanceHint'
 import { PreviewCreditDialog } from './PreviewCreditDialog'
 import { RecipePreviewPlayer } from './RecipePreviewPlayer'
-import { ReviewFlagList } from './ReviewFlagList'
 import { defaultPreviewTier } from './TierToggle'
-import { VoiceNoticeStack } from './VoiceNoticeStack'
 import type { VoiceReplacement } from './VoiceOwnerPrompts'
 import { VoiceUsageStrip } from './VoiceUsageStrip'
 
@@ -77,7 +66,7 @@ const CARD_PREVIEW_TEXT: PreviewTextId = 'narration'
 interface EditorState {
     open: boolean
     mode: PresetEditorV2Mode
-    source: VoicePresetRow | null
+    source: VoicePresetV2 | null
     /** Open on the voice picker (an owner prompt). */
     pickVoice?: boolean
 }
@@ -93,37 +82,31 @@ interface VoiceStudioV2Props {
 export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudioV2Props) {
     const { t } = useTranslation()
     const { isAuthenticated, openLoginModal, userHash } = useAuth()
-    const [rows, setRows] = useState<VoicePresetRow[]>([])
+    const [rows, setRows] = useState<VoicePresetV2[]>([])
     const [loading, setLoading] = useState(false)
-    const [loaded, setLoaded] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [toast, setToast] = useState<PresetEditorV2Toast | null>(null)
     const [editor, setEditor] = useState<EditorState>(CLOSED)
-    const [pendingDelete, setPendingDelete] = useState<VoicePresetRow | null>(null)
+    const [pendingDelete, setPendingDelete] = useState<VoicePresetV2 | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [previewId, setPreviewId] = useState<string | null>(null)
     // The card the hook's preview belongs to, read after an await (a save or a switch).
     const previewIdRef = useRef<string | null>(null)
     const [switchingId, setSwitchingId] = useState<string | null>(null)
-    const [deepLink, setDeepLink] = useState<string | null>(() => parsePresetEditHash())
     const preferred = usePreferredLanguage(isAuthenticated)
 
-    const flags = useVoiceReviewFlags(isAuthenticated)
-    const voiceKeys = useMemo(() => presetCatalogKeys(rows), [rows])
+    const voiceKeys = useMemo(() => presetVoiceKeys(rows), [rows])
     const lookup = useCatalogLookup(voiceKeys, isAuthenticated)
     const recipePreview = useRecipePreview({ enabled: isAuthenticated })
     const credit = usePreviewCreditConfirm(userHash)
     const appLanguage = usePreviewLanguage()
     // The editor's default (05 §5.5, D17): language_code, then primary language, then the preferred one.
-    const languageOf = useCallback((row: VoicePresetRow) => {
-        const key = isPresetV2(row) ? row.voice_key : null
-        return studioPreviewLanguage(key ? lookup.get(key) : null, {
-            languageCode: isPresetV2(row) ? row.language_code : null,
-            preferredLanguage: preferred.language,
-            fallback: appLanguage,
-        })
-    }, [appLanguage, lookup, preferred.language])
-    const previewTexts = usePreviewTextSets(rows.filter(isPresetV2).map(languageOf), isAuthenticated)
+    const languageOf = useCallback((row: VoicePresetV2) => studioPreviewLanguage(row.voice_key ? lookup.get(row.voice_key) : null, {
+        languageCode: row.language_code,
+        preferredLanguage: preferred.language,
+        fallback: appLanguage,
+    }), [appLanguage, lookup, preferred.language])
+    const previewTexts = usePreviewTextSets(rows.map(languageOf), isAuthenticated)
     const cardTier = defaultPreviewTier(capabilities)
     /** The BFF answers this card's preview with the voice's own sample: an untuned recipe whose voice has one (EP-6, AC-P2). */
     const cardIsFreeSample = (row: VoicePresetV2) =>
@@ -136,19 +119,17 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
 
     const mine = rows.filter((row) => !row.is_global)
     const globals = rows.filter((row) => row.is_global)
-    const hasConvertedVoice = rows.some((row) => !isPresetV2(row) && !row.is_global)
 
     const refresh = useCallback(async () => {
         setLoading(true)
         setError(null)
         try {
-            // R-15: every row the server sends; V1 rows show their conversion state.
+            // R-15: every row the server sends.
             setRows(await apiService.listVoicePresets())
         } catch (failure) {
             setError(failure instanceof Error && failure.message ? failure.message : t('voices.studio.loadError'))
         } finally {
             setLoading(false)
-            setLoaded(true)
         }
     }, [t])
 
@@ -158,45 +139,8 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
         void refresh()
     }, [isAuthenticated, refresh])
 
-    // A review flag's "Adjust" may land here while the studio is already open.
-    useEffect(() => {
-        const onHash = () => setDeepLink(parsePresetEditHash())
-        window.addEventListener('hashchange', onHash)
-        return () => window.removeEventListener('hashchange', onHash)
-    }, [])
-
-    const openEditorFor = useCallback((row: VoicePresetRow, pickVoice = false) => {
-        const mode = editorModeFor(row)
-        if (mode) setEditor({ open: true, mode, source: row, pickVoice })
-    }, [])
-
-    // Open the linked preset once the rows are in, then drop the query so a reload does not reopen it.
-    useEffect(() => {
-        if (!deepLink || !loaded) return
-        const row = rows.find((candidate) => candidate.preset_id === deepLink)
-        /* eslint-disable-next-line react-hooks/set-state-in-effect -- consumes the one-shot deep link */
-        setDeepLink(null)
-        if (row) openEditorFor(row)
-        if (parsePresetEditHash() === deepLink && typeof window.history?.replaceState === 'function') {
-            window.history.replaceState(window.history.state, '', pageHash('voice-studio'))
-        }
-    }, [deepLink, loaded, rows, openEditorFor])
-
-    const adjustPreset = (presetId: string) => {
-        const row = rows.find((candidate) => candidate.preset_id === presetId)
-        if (row) openEditorFor(row)
-    }
-
-    /** "Listen" on a preset flag plays that preset's voice (its own or its conversion draft's). */
-    const flagVoiceKey = (flag: VoiceReviewFlag): string | null => {
-        if (flag.ref_type !== 'preset') return null
-        const row = rows.find((candidate) => candidate.preset_id === flag.ref_id)
-        return row ? v2FieldsOf(row)?.voice_key ?? null : null
-    }
-
-    /** A preset flag's notice is named after its preset (05 §10); cards fall back to the library name. */
-    const flagName = (flag: VoiceReviewFlag): string | null =>
-        flag.ref_type === 'preset' ? rows.find((candidate) => candidate.preset_id === flag.ref_id)?.name ?? null : null
+    const openEditorFor = (row: VoicePresetV2, pickVoice = false) =>
+        setEditor({ open: true, mode: editorModeFor(row), source: row, pickVoice })
 
     /** A rewritten preset's card clip and 05 §6.4 notice were for its old recipe: drop them. */
     const forgetCardPreview = (presetId: string) => {
@@ -228,8 +172,7 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
         }
     }
 
-    const preview = (row: VoicePresetRow) => {
-        if (!isPresetV2(row)) return
+    const preview = (row: VoicePresetV2) => {
         if (previewId === row.preset_id && recipePreview.loading) {
             recipePreview.stop()
             return
@@ -287,33 +230,29 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
         )
     }
 
-    const renderRow = (row: VoicePresetRow) => {
-        const v2 = isPresetV2(row)
+    const renderRow = (row: VoicePresetV2) => {
         const previewing = previewId === row.preset_id && recipePreview.loading
         const clip = recipePreview.clip?.key === row.preset_id ? recipePreview.clip : null
         const previewProblem = previewId === row.preset_id ? recipePreview.problem : null
         const mode = editorModeFor(row)
-        const catalogKey = presetCatalogKey(row)
         return (
             <PresetCardV2
                 key={row.preset_id}
                 row={row}
-                catalogItem={catalogKey ? lookup.get(catalogKey) ?? null : null}
-                reviewFlag={flags.flagFor('preset', row.preset_id, 'voice')}
+                catalogItem={row.voice_key ? lookup.get(row.voice_key) ?? null : null}
                 language={presetLanguage(row, preferred.language)}
                 switching={switchingId === row.preset_id}
-                onSwitchVoice={v2 && !row.is_global ? (replacement) => void switchVoice(row, replacement) : undefined}
+                onSwitchVoice={!row.is_global ? (replacement) => void switchVoice(row, replacement) : undefined}
                 onChooseVoice={mode === 'edit' ? () => openEditorFor(row, true) : undefined}
                 previewing={previewing}
                 // The hard limit stops renders; the free sample still plays (the editor's rule, AC-P2).
-                previewDisabled={recipePreview.limitReached && !(v2 && cardIsFreeSample(row))}
-                previewCostsCredit={v2 && cardCostsCredit(row)}
+                previewDisabled={recipePreview.limitReached && !cardIsFreeSample(row)}
+                previewCostsCredit={cardCostsCredit(row)}
                 // Before it plays: once played, the sample's player says it.
-                previewFree={v2 && !clip && cardIsFreeSample(row)}
+                previewFree={!clip && cardIsFreeSample(row)}
                 deleting={deletingId === row.preset_id}
-                onPreview={v2 ? () => preview(row) : undefined}
+                onPreview={() => preview(row)}
                 onEdit={mode === 'edit' ? () => openEditorFor(row) : undefined}
-                onUpdate={mode === 'convert' ? () => openEditorFor(row) : undefined}
                 onDuplicate={mode === 'duplicate' ? () => openEditorFor(row) : undefined}
                 onDelete={row.is_global ? undefined : () => setPendingDelete(row)}
             >
@@ -335,7 +274,7 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
                     messageClassName="text-body text-blood-300"
                     problem={previewProblem}
                     // 05 §6.4 "Pick another voice": the editor, on its picker (a global row duplicates).
-                    onPickVoice={mode === 'edit' || mode === 'duplicate' ? () => openEditorFor(row, true) : undefined}
+                    onPickVoice={() => openEditorFor(row, true)}
                 />
             </PresetCardV2>
         )
@@ -374,15 +313,6 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
             <NarrationTierSetting />
             <VoiceUsageStrip usage={recipePreview.usage} previewsLeft={recipePreview.previewsLeft} />
 
-            <VoiceNoticeStack userHash={userHash} hasConvertedVoice={hasConvertedVoice} />
-            <ReviewFlagList
-                flags={flags.flags}
-                onDismiss={(flagId) => void flags.dismiss(flagId)}
-                onAdjustPreset={adjustPreset}
-                voiceKeyFor={flagVoiceKey}
-                nameFor={flagName}
-            />
-            {flags.dismissError && <p role="alert" className="font-ui text-caption text-blood-300">{t(flags.dismissError)}</p>}
             <p className="font-ui text-caption text-fg-muted">{t('voices.notice.language_scope')}</p>
 
             {error && (
@@ -437,8 +367,8 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
                 userHash={userHash}
                 onClose={closeEditor}
                 onSaved={(row) => {
-                    // An edit or a conversion rewrote the source row in place (D12).
-                    const rewritten = editor.mode === 'edit' || editor.mode === 'convert' ? editor.source?.preset_id ?? row?.preset_id : null
+                    // An edit rewrote the source row in place.
+                    const rewritten = editor.mode === 'edit' ? editor.source?.preset_id ?? row?.preset_id : null
                     if (rewritten) forgetCardPreview(rewritten)
                     void refresh()
                 }}

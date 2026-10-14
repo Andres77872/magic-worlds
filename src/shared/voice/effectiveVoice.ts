@@ -10,12 +10,12 @@
 import type { EffectiveVoice, VoiceBadgeKey, VoiceSubstitutionReason } from '@/shared/types'
 
 const BADGE_KEYS: ReadonlySet<string> = new Set<VoiceBadgeKey>([
-    'leaving', 'needs_reselect', 'review', 'retired', 'replaced', 'call_voice',
+    'leaving', 'needs_reselect', 'retired', 'replaced', 'call_voice',
     'locked', 'expressive_only', 'standard_fallback', 'not_tested_language', 'house_voice',
 ])
 
 const SUBSTITUTION_REASONS: ReadonlySet<string> = new Set<VoiceSubstitutionReason>([
-    'unmapped_legacy', 'voice_removed', 'voice_unavailable', 'voice_blocked',
+    'voice_removed', 'voice_unavailable', 'voice_blocked',
     'not_call_eligible', 'default_voice', 'distinct_voice', 'language_unsupported', 'tier_fallback',
 ])
 
@@ -33,7 +33,7 @@ export function isSubstitutionReason(value: unknown): value is VoiceSubstitution
  * as `elevenlabs`, the only one). Malformed fields degrade instead
  * of failing: a non-string `display_name` reads as '' (callers then fall back
  * to the stored name), unknown badges are dropped, unknown substitution
- * reasons read as null, and flags keep every string.
+ * reasons read as null.
  */
 export function readEffectiveVoice(raw: unknown): EffectiveVoice | null {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null
@@ -46,7 +46,6 @@ export function readEffectiveVoice(raw: unknown): EffectiveVoice | null {
         display_name: typeof wire.display_name === 'string' ? wire.display_name : '',
         provider_route: 'elevenlabs',
         substitution_reason: isSubstitutionReason(wire.substitution_reason) ? wire.substitution_reason : null,
-        flags: Array.isArray(wire.flags) ? wire.flags.filter((flag): flag is string => typeof flag === 'string') : [],
         badges: [...new Set(badges)],
     }
 }

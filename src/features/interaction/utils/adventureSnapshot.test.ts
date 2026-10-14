@@ -18,10 +18,19 @@ import {
     writableAdventureSnapshot,
     worldEntries,
 } from './adventureSnapshot'
-import { LEGACY_V1_VOICE } from '@/test/fixtures/legacyMinimax'
 
-/** A stored V1 cast voice with an untrimmed id: read and written back whole (03 §5.1.2). */
-const UNTRIMMED_V1 = { ...LEGACY_V1_VOICE, voice_id: ` ${LEGACY_V1_VOICE.voice_id} `, vol: 1.7, pitch: -2 }
+/** A stored cast voice with every optional key set: read and written back whole (03 §5.1.2). */
+const CAST_VOICE = {
+    schema_version: 2 as const,
+    provider: 'elevenlabs' as const,
+    voice_key: 'vk_1111aaaa2222bbbb3333cccc4444dddd',
+    voice_name: 'Tobias',
+    settings: { stability: 0.35, similarity_boost: 0.8, speed: 0.9 },
+    emotion: 'angry' as const,
+    language_code: 'en',
+    preset_id: 'p1',
+    preset_name: 'Gruff smith',
+}
 
 function makeSnapshot(): AdventureSnapshot {
     return {
@@ -48,7 +57,7 @@ function makeSnapshot(): AdventureSnapshot {
                     race: 'Dwarf',
                     description: 'A gruff smith.',
                     category: [{ name: 'Stats', attributes: [{ Strength: '16' }] }],
-                    voice: { ...UNTRIMMED_V1 },
+                    voice: { ...CAST_VOICE },
                 },
             ],
             world: [
@@ -78,8 +87,8 @@ describe('adventureSnapshot', () => {
         expect(fields.characters).toHaveLength(1)
         expect(fields.characters[0].name).toBe('Dorn')
         expect(fields.characters[0].category?.[0].attributes?.[0]).toEqual({ Strength: '16' })
-        // The whole stored voice, untrimmed (03 §5.1.2).
-        expect(fields.characters[0].voice).toEqual(UNTRIMMED_V1)
+        // The whole stored voice (03 §5.1.2).
+        expect(fields.characters[0].voice).toEqual(CAST_VOICE)
 
         expect(fields.world?.name).toBe('Eldoria')
         expect(fields.world?.type).toBe('Kingdom')
@@ -135,7 +144,7 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         triggers: ['lyra'],
         image_url: '/generated-images/lyra.jpeg',
         theme_song_url: '/generated-audio/lyra.mp3',
-        voice: { ...LEGACY_V1_VOICE },
+        voice: { ...CAST_VOICE },
     }
     const libWorld: World = {
         id: 'world-9',
@@ -258,19 +267,18 @@ describe('adventureSnapshot stored voices (D11, D32)', () => {
         display_name: 'Eldrin',
         provider_route: 'elevenlabs',
         substitution_reason: null,
-        flags: [],
         badges: [],
     }
 
-    /** A read DTO as the BFF sends it: V1 cast, V2 persona and narrator, with projections (R1+). */
+    /** A read DTO as the BFF sends it: cast, persona and narrator voices, with projections (R1+). */
     function storedSnapshot(): AdventureSnapshot {
         const snapshot = makeSnapshot()
         snapshot.template.persona = { ...snapshot.template.persona!, voice: { ...V2 }, effective_voice: EFFECTIVE }
-        snapshot.template.characters!.push({ id: 'c2', name: 'Mira', race: 'Human', voice: { voice_id: 'English_radiant_girl', pitch: 3 }, effective_voice: EFFECTIVE })
+        snapshot.template.characters!.push({ id: 'c2', name: 'Mira', race: 'Human', voice: { ...V2, voice_key: 'vk_9f8e7d6c5b4a39281706f5e4d3c2b1a0', voice_name: 'Sela', settings: null }, effective_voice: EFFECTIVE })
         return { ...snapshot, narrator_voice: { ...V2, voice_name: 'Narrator' }, narrate_thoughts: true, effective_narrator_voice: EFFECTIVE } as AdventureSnapshot
     }
 
-    it('reads V1 and V2 voices whole, as the same objects', () => {
+    it('reads stored voices whole, as the same objects', () => {
         const snapshot = storedSnapshot()
         const fields = adventureFieldsFromSnapshot(snapshot)
         expect(fields.persona?.voice).toBe(snapshot.template.persona!.voice)
@@ -278,7 +286,7 @@ describe('adventureSnapshot stored voices (D11, D32)', () => {
         expect(fields.characters[1].voice).toBe(snapshot.template.characters![1].voice)
     })
 
-    it('a snapshot PUT keeps untouched V1 cast entries byte-identical and V2 voices whole', () => {
+    it('a snapshot PUT keeps untouched voices byte-identical', () => {
         const snapshot = storedSnapshot()
         const storedCast = JSON.stringify(snapshot.template.characters!.map((card) => card.voice))
         const storedPersona = JSON.stringify(snapshot.template.persona!.voice)
@@ -296,7 +304,7 @@ describe('adventureSnapshot stored voices (D11, D32)', () => {
     })
 
     it('keeps an unrecognised non-null cast voice on read and through a library clone (09 §3.2)', () => {
-        const odd = { voice_id: '' }
+        const odd = { schema_version: 2, voice_key: '' } as unknown as Character['voice']
         const snapshot = makeSnapshot()
         snapshot.template.characters!.push({ id: 'c3', name: 'Odd', race: 'Human', voice: odd })
         expect(adventureFieldsFromSnapshot(snapshot).characters[1].voice).toBe(odd)
@@ -335,7 +343,6 @@ describe('adventureSnapshot effective voice projections (R1-FE-03, D35)', () => 
         display_name: 'Maren',
         provider_route: 'elevenlabs',
         substitution_reason: 'voice_removed',
-        flags: [],
         badges: ['replaced'],
     }
 

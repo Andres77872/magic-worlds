@@ -159,7 +159,6 @@ describe('CardPreviewModal voice line (R1-FE-03)', () => {
         display_name: 'Maren',
         provider_route: 'elevenlabs' as const,
         substitution_reason: 'voice_removed' as const,
-        flags: [],
         badges: ['replaced' as const],
     }
     const CHARACTER: CardPreview = { id: 'c1', type: 'character', mediaType: 'character', title: 'Lyra', triggers: [], voice: { stored: voice, effective } }

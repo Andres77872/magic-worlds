@@ -69,17 +69,12 @@ interface ChatTurnProps {
     refreshDisabled?: boolean
     /** Told when this turn's narration starts or stops playing (stable callback; keyed by turn id). */
     onNarrationPlayingChange?: (turnId: string, playing: boolean) => void
-    /**
-     * Strip every call reply: one stored before the voice purge also shows without speech markup
-     * (D23, 10 §2.4 #16-#17). Off, only ElevenLabs call replies do.
-     */
-    stripCallMarkup?: boolean
 }
 
 // Memoized: the panel re-renders on every streaming delta and composer
 // keystroke — untouched turns keep their object identity and must not re-run
 // their markdown rendering.
-export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onConfirmDeleteClick, onCancelDeleteClick, onEditClick, onRequestNarration, onAttestNarration, narrationUnavailable = false, aiLabel, showForwardOptions = true, showImage = true, actionsDisabled = false, confirmingDelete = false, deleting = false, loreMatcher, aiSpeaker, versions, onSelectVersion, versionsDisabled = false, onRefreshVoice, onEditNarratorVoice, refreshDisabled, onNarrationPlayingChange, stripCallMarkup = false }: ChatTurnProps) {
+export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onConfirmDeleteClick, onCancelDeleteClick, onEditClick, onRequestNarration, onAttestNarration, narrationUnavailable = false, aiLabel, showForwardOptions = true, showImage = true, actionsDisabled = false, confirmingDelete = false, deleting = false, loreMatcher, aiSpeaker, versions, onSelectVersion, versionsDisabled = false, onRefreshVoice, onEditNarratorVoice, refreshDisabled, onNarrationPlayingChange }: ChatTurnProps) {
     const { t } = useTranslation()
     const resolvedAiLabel = aiLabel ?? t('interaction.chat.gameMaster')
     const isUser = turn.type === 'user'
@@ -103,9 +98,9 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
     const safeAssets = (turn.imageAssets ?? []).filter((asset) => isSafeAssetUrl(asset.url))
     const imageUrl = safeAssets[0]?.url ?? (turn.imageUrl && isSafeAssetUrl(turn.imageUrl) ? turn.imageUrl : undefined)
     const hasNarration = Boolean(turn.ttsUrl || turn.ttsAssets?.length || turn.ttsSegments?.length)
-    // D23: an ElevenLabs call reply (with `stripCallMarkup`, any call reply) shows, and copies, without speech markup; any other turn passes its own content and segments.
+    // D23: a call reply shows, and copies, without speech markup; any other turn passes its own content and segments.
     // Editing still starts from the stored text.
-    const display = useMemo(() => callTurnDisplay(turn, { allCallReplies: stripCallMarkup }), [turn, stripCallMarkup])
+    const display = useMemo(() => callTurnDisplay(turn), [turn])
 
     return (
         <article className={cx('mb-8 flex gap-3', isUser && 'flex-row-reverse')}>

@@ -80,8 +80,8 @@ export function findSnapshotEntry(
 }
 
 /**
- * Keep the WHOLE stored voice, V1 or V2 (03 §5.1.2): the same object, never a
- * whitelist or a trim, so snapshot PUTs re-send untouched voices byte-identical (D32).
+ * Keep the WHOLE stored voice (03 §5.1.2): the same object, never a whitelist
+ * or a trim, so snapshot PUTs re-send untouched voices byte-identical (D32).
  * An unrecognised non-null voice is kept as well (09 §3.2), so editing another
  * field of a cast entry never drops it.
  */

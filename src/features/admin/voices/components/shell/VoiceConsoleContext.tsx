@@ -13,7 +13,7 @@ import { languageName as formatLanguageName } from '../../format'
 import { useAbortableLoad, type AbortableLoad } from '../../hooks/useAbortableLoad'
 import { useCatalogIndex, type CatalogIndex } from '../../hooks/useCatalogIndex'
 
-export type ConsoleModule = 'catalog' | 'acceptance' | 'defaults' | 'globalPresets' | 'mapping' | 'library' | 'create' | 'lab' | 'metrics' | 'reports'
+export type ConsoleModule = 'catalog' | 'acceptance' | 'defaults' | 'globalPresets' | 'library' | 'create' | 'lab' | 'metrics' | 'reports'
 
 export interface ConsoleHandoff {
     voiceKey: string | null

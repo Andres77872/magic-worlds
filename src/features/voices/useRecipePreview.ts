@@ -132,7 +132,7 @@ export function classifyPreviewError(error: unknown): RecipePreviewProblem {
         return bucket || left !== null ? 'rateLimited' : 'limitReached'
     }
     if (status === 402 || code === 'insufficient_credits') return 'noCredits'
-    if (code === 'voice_unavailable' || code === 'voice_v1_not_allowed') return 'voiceUnavailable'
+    if (code === 'voice_unavailable') return 'voiceUnavailable'
     if (status === 503 || code === 'moderation_unavailable') return 'unavailable'
     return 'failed'
 }

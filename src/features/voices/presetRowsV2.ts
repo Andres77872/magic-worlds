@@ -1,35 +1,18 @@
 /**
  * Row helpers for the Voice studio (R1-FE-02, 09 §1.3, EP-4): what a
  * `GET /voice-presets` row offers, how an editor is seeded from it, and which
- * voice badges its card shows.
- *
- * - A V2 row is edited in place (user) or duplicated (global).
- * - A V1 row is never written as V1: a user row converts through
- *   its `conversion_draft` (same `preset_id`, D12), a global row duplicates
- *   from it, and a row without a draft offers neither.
+ * voice badges its card shows. A user row is edited in place; a global row is
+ * duplicated.
  */
 import type { TFunction } from 'i18next'
-import type {
-    CatalogVoice,
-    NarrationTier,
-    VoiceBadgeKey,
-    VoiceEmotion,
-    VoicePreset,
-    VoicePresetRow,
-    VoicePresetV2,
-    VoiceSettingsV2,
-} from '@/shared'
-import { isPresetV2 } from '@/shared'
+import type { CatalogVoice, NarrationTier, VoiceBadgeKey, VoiceEmotion, VoicePresetV2, VoiceSettingsV2 } from '@/shared'
 import { isElevenLabsProjection } from '@/shared/voice'
 import { normalizeLanguage } from '@/app/i18n/languages'
 import { acceptedLanguages, catalogBadges, speaksLanguage } from './catalogBadges'
 import { baseLanguageCode } from './languageCode'
 import { previewLanguage } from './previewTexts'
 
-export type PresetEditorV2Mode = 'create' | 'edit' | 'convert' | 'duplicate'
-
-/** The V2 fields a V1 row converts to (EP-4), or null. */
-export type PresetConversionDraft = NonNullable<VoicePreset['conversion_draft']>
+export type PresetEditorV2Mode = 'create' | 'edit' | 'duplicate'
 
 /** What the editor starts from. */
 export interface PresetEditorSeed {
@@ -61,7 +44,7 @@ export function isVoiceEmotion(value: unknown): value is VoiceEmotion {
 
 /** Emotion copy, shared with the admin console (the same seven values). */
 export function emotionLabel(emotion: VoiceEmotion, t: TFunction): string {
-    return t(`admin.voices.legacy.emotion.${emotion}`)
+    return t(`admin.voices.emotion.${emotion}`)
 }
 
 /** The Expressive option text: what the user will hear (05 §5.3, D13), e.g. "Happy: adds a cheerful delivery". */
@@ -69,65 +52,29 @@ export function emotionEffectLabel(emotion: VoiceEmotion, t: TFunction): string 
     return t(`voices.recipe.emotionEffect.${emotion}`)
 }
 
-/** The V1 row's conversion draft, when the BFF sent one with a voice key. */
-export function conversionDraftOf(row: VoicePresetRow): PresetConversionDraft | null {
-    if (isPresetV2(row)) return null
-    const draft = row.conversion_draft
-    return draft && typeof draft.voice_key === 'string' && draft.voice_key.trim() ? draft : null
+/** The editor mode a row's main action opens: a user row is edited, a global row duplicated. */
+export function editorModeFor(row: VoicePresetV2): PresetEditorV2Mode {
+    return row.is_global ? 'duplicate' : 'edit'
 }
 
-/** The V2 fields of a row: its own (V2) or its conversion draft (V1); null when it has none. */
-export function v2FieldsOf(row: VoicePresetRow): Omit<VoicePresetV2, 'preset_id' | 'effective_voice' | 'is_global'> | null {
-    if (isPresetV2(row)) return row
-    return conversionDraftOf(row)
-}
-
-/** The editor mode a row's main action opens, or null when it offers none. */
-export function editorModeFor(row: VoicePresetRow): PresetEditorV2Mode | null {
-    if (row.is_global) return v2FieldsOf(row) ? 'duplicate' : null
-    if (isPresetV2(row)) return 'edit'
-    return conversionDraftOf(row) ? 'convert' : null
-}
-
-/**
- * The editor's starting values. Duplicates are renamed "{{name}} (copy)";
- * a conversion keeps the row's own name and description.
- */
-export function editorSeed(mode: PresetEditorV2Mode, row: VoicePresetRow | null, t: TFunction): PresetEditorSeed {
+/** The editor's starting values. Duplicates are renamed "{{name}} (copy)". */
+export function editorSeed(mode: PresetEditorV2Mode, row: VoicePresetV2 | null, t: TFunction): PresetEditorSeed {
     if (!row || mode === 'create') return EMPTY_SEED
-    const fields = v2FieldsOf(row)
     const name = mode === 'duplicate' ? t('voices.studio.v2.duplicateName', { name: row.name }) : row.name
     return {
         name,
-        description: row.description ?? fields?.description ?? '',
-        voiceKey: fields?.voice_key ?? null,
-        voiceName: fields?.voice_name ?? null,
-        settings: fields?.settings ?? null,
-        emotion: isVoiceEmotion(fields?.emotion) ? fields.emotion : null,
+        description: row.description ?? '',
+        voiceKey: row.voice_key ?? null,
+        voiceName: row.voice_name ?? null,
+        settings: row.settings ?? null,
+        emotion: isVoiceEmotion(row.emotion) ? row.emotion : null,
     }
 }
 
-/** Every catalog voice key the rows reference (V2 voices and conversion drafts). */
-export function presetVoiceKeys(rows: readonly VoicePresetRow[]): string[] {
-    const keys = rows.map((row) => v2FieldsOf(row)?.voice_key).filter((key): key is string => typeof key === 'string' && key.length > 0)
+/** Every catalog voice key the rows reference, once each (the Studio's and the picker's lookup). */
+export function presetVoiceKeys(rows: readonly VoicePresetV2[]): string[] {
+    const keys = rows.map((row) => row.voice_key).filter((key): key is string => typeof key === 'string' && key.length > 0)
     return [...new Set(keys)]
-}
-
-/**
- * The catalog voice a Studio card's badges describe (05 §7.7): a V2 row's own
- * voice; a V1 row's effective voice, i.e. the voice its ElevenLabs projection
- * plays (none without a projection).
- */
-export function presetCatalogKey(row: VoicePresetRow): string | null {
-    if (isPresetV2(row)) return row.voice_key || null
-    const projection = row.effective_voice
-    return isElevenLabsProjection(projection) && projection.voice_key ? projection.voice_key : null
-}
-
-/** The Studio's catalog lookup keys: every voice a row references or plays, once each. */
-export function presetCatalogKeys(rows: readonly VoicePresetRow[]): string[] {
-    const played = rows.map(presetCatalogKey).filter((key): key is string => Boolean(key))
-    return [...new Set([...presetVoiceKeys(rows), ...played])]
 }
 
 /** What the catalog says of a voice in use (05 §7.7 Studio column): leaving, retired, needs re-selection, locked. */
@@ -141,29 +88,20 @@ export function catalogStateBadges(item: CatalogVoice): VoiceBadgeKey[] {
 }
 
 /**
- * A card's badges: the projection's own (when the BFF sent one), then, for a
- * V2 row, what the catalog lookup says of the voice (leaving with its date,
- * retired, needs re-selection, locked), then `not_tested_language` when the
- * preset's language has no accepted row for the voice (05 §5.5, §7.7; derived
- * here because the BFF does not emit it), then `review` when a flag is open on
- * the preset. A V1 row's `item` is its effective voice (`presetCatalogKey`): its
- * projection already carries the state badges, so the catalog adds only the
- * language check.
+ * A card's badges: the projection's own (when the BFF sent one), then what the
+ * catalog lookup says of the voice (leaving with its date, retired, needs
+ * re-selection, locked), then `not_tested_language` when the preset's language
+ * has no accepted row for the voice (05 §5.5, §7.7; derived here because the
+ * BFF does not emit it).
  */
-export function presetRowBadges(
-    row: VoicePresetRow,
-    item: CatalogVoice | null | undefined,
-    reviewFlagged = false,
-    language: string | null = null,
-): VoiceBadgeKey[] {
+export function presetRowBadges(row: VoicePresetV2, item: CatalogVoice | null | undefined, language: string | null = null): VoiceBadgeKey[] {
     const badges: VoiceBadgeKey[] = []
     const projection = row.effective_voice
     if (isElevenLabsProjection(projection)) badges.push(...projection.badges)
     if (item) {
-        if (isPresetV2(row)) badges.push(...catalogStateBadges(item))
+        badges.push(...catalogStateBadges(item))
         if (!speaksLanguage(item, language)) badges.push('not_tested_language')
     }
-    if (reviewFlagged) badges.push('review')
     return [...new Set(badges)]
 }
 
@@ -174,13 +112,10 @@ export function baseVoiceBadges(item: CatalogVoice, language: string | null = nu
 
 /**
  * The language a preset is checked against for `not_tested_language`: its own
- * `language_code` when stored (a V1 row: its conversion draft's, which the
- * migration fills from the stored V1 language), else the account's preferred
- * language (05 §5.5).
+ * `language_code` when stored, else the account's preferred language (05 §5.5).
  */
-export function presetLanguage(row: VoicePresetRow | null | undefined, preferredLanguage: string | null): string | null {
-    const own = row ? v2FieldsOf(row)?.language_code : null
-    return (own ?? '').trim() || preferredLanguage || null
+export function presetLanguage(row: VoicePresetV2 | null | undefined, preferredLanguage: string | null): string | null {
+    return (row?.language_code ?? '').trim() || preferredLanguage || null
 }
 
 /**
@@ -287,12 +222,11 @@ export function studioPreviewLanguage(item: CatalogVoice | null | undefined, { l
 
 /**
  * The editor drawer's title (05 §10 Modals: it states the preset name): the
- * edited, converted or duplicated row's name; a blank preset has none yet.
+ * edited or duplicated row's name; a blank preset has none yet.
  */
-export function editorTitle(mode: PresetEditorV2Mode, row: VoicePresetRow | null, t: TFunction): string {
+export function editorTitle(mode: PresetEditorV2Mode, row: VoicePresetV2 | null, t: TFunction): string {
     const name = row?.name?.trim()
     if (!name || mode === 'create') return t('voices.editor.newTitle')
-    if (mode === 'convert') return t('voices.studio.v2.updateTitle', { name })
     if (mode === 'duplicate') return t('voices.studio.v2.duplicateTitle', { name })
     return t('voices.studio.v2.editTitle', { name })
 }

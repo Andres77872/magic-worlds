@@ -19,7 +19,6 @@ const V2_PRESET: VoicePresetV2 = {
         display_name: 'Eldrin',
         provider_route: 'elevenlabs',
         substitution_reason: null,
-        flags: [],
         badges: [],
     },
 }
@@ -51,14 +50,11 @@ describe('presetMatchesVoice', () => {
     it('matches by preset linkage first', () => {
         expect(presetMatchesVoice(V2_PRESET, { schema_version: 2, provider: 'elevenlabs', voice_key: 'vk_x', voice_name: 'X', preset_id: 'p-sage' })).toBe(true)
         expect(presetMatchesVoice(V2_PRESET, { schema_version: 2, provider: 'elevenlabs', voice_key: 'vk_3f0c2a9e5b7d4c1a8e6f0b2d4a6c8e1f', voice_name: 'Eldrin', preset_id: 'other' })).toBe(false)
-        // A stored V1 voice that still names this preset (saved before the conversion) is linked to it.
-        expect(presetMatchesVoice(V2_PRESET, { voice_id: 'Other_voice', preset_id: 'p-sage' })).toBe(true)
     })
 
-    it('without linkage, compares the voice across shapes', () => {
+    it('without linkage, compares the voice', () => {
         expect(presetMatchesVoice(V2_PRESET, { schema_version: 2, provider: 'elevenlabs', voice_key: 'vk_3f0c2a9e5b7d4c1a8e6f0b2d4a6c8e1f', voice_name: 'Eldrin' })).toBe(true)
-        // A V1 voice never matches a V2 preset.
-        expect(presetMatchesVoice(V2_PRESET, { voice_id: 'vk_3f0c2a9e5b7d4c1a8e6f0b2d4a6c8e1f' })).toBe(false)
+        expect(presetMatchesVoice(V2_PRESET, { schema_version: 2, provider: 'elevenlabs', voice_key: 'vk_x', voice_name: 'X' })).toBe(false)
     })
 
     it('never matches without a voice', () => {

@@ -111,7 +111,6 @@ describe('InteractionLeftPanel effective voices (R1-FE-03)', () => {
         display_name: 'Maren',
         provider_route: 'elevenlabs',
         substitution_reason: 'voice_removed',
-        flags: [],
         badges: ['replaced'],
     }
 
@@ -166,7 +165,7 @@ describe('InteractionLeftPanel effective voices (R1-FE-03)', () => {
         render(
             <InteractionLeftPanel
                 adventure={adventureWith({}, {
-                    persona: { id: 'p1', name: 'Me', voice: V2, effective_voice: { ...EFFECTIVE, badges: ['review'] } },
+                    persona: { id: 'p1', name: 'Me', voice: V2, effective_voice: { ...EFFECTIVE, badges: ['retired'] } },
                     characters: [
                         { id: 'c1', name: 'Dorn', voice: V2, effective_voice: { ...EFFECTIVE, badges: ['leaving'] } },
                         { id: 'c2', name: 'Mira', voice: V2 },
@@ -178,6 +177,6 @@ describe('InteractionLeftPanel effective voices (R1-FE-03)', () => {
         const badges = screen.getAllByTestId('voice-badges')
         expect(badges).toHaveLength(1)
         expect(within(badges[0]).getByText('Leaving soon')).toBeInTheDocument()
-        expect(screen.queryByText('Review this voice: some settings changed')).not.toBeInTheDocument()
+        expect(screen.queryByText('Retired: pick another anytime')).not.toBeInTheDocument()
     })
 })

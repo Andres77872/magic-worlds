@@ -8,13 +8,10 @@ import type {
     AdminCatalogVoice,
     AdminGlobalPresetList,
     AdminVoiceLimits,
-    LegacyMappingCoverage,
-    LegacyMappingListResponse,
     LibraryVoicePage,
     VoiceDefaultsResponse,
     VoiceDesignResponse,
 } from '@/shared'
-import { LEGACY_V1_PRESET } from '@/test/fixtures/legacyMinimax'
 
 /** A silent WAV that plays without any network request. */
 export const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
@@ -164,42 +161,6 @@ export const auditDefaults: VoiceDefaultsResponse = {
     last_resort_voice_key: readyVoice.voice_key,
 }
 
-export const auditLegacyMapping: LegacyMappingListResponse = {
-    items: [
-        {
-            legacy_voice_id: 'English_Warm_Narrator',
-            voice_key: readyVoice.voice_key,
-            alternate_voice_keys: [replacementVoice.voice_key],
-            settings_override: null,
-            legacy_language: 'en',
-            status: 'approved',
-            reviewed_by_user_id: 1,
-            reviewed_at: '2026-10-09T12:00:00Z',
-            notes: null,
-            reference_count: 128,
-        },
-        {
-            legacy_voice_id: 'Spanish_Calm_Woman',
-            voice_key: null,
-            alternate_voice_keys: [],
-            settings_override: null,
-            legacy_language: 'es',
-            status: 'proposed',
-            reviewed_by_user_id: null,
-            reviewed_at: null,
-            notes: null,
-            reference_count: 17,
-        },
-    ],
-}
-
-export const auditCoverage: LegacyMappingCoverage = {
-    referenced: { total: 2, mapped: 1 },
-    unmapped_ids: ['Spanish_Calm_Woman'],
-    legacy_ids_per_target: [{ voice_key: readyVoice.voice_key, legacy_ids: 3, co_occurring_ids: 2, alternates: 1 }],
-    generated_at: '2026-10-12T06:00:00Z',
-}
-
 export const auditLibraryPage: LibraryVoicePage = {
     items: [
         {
@@ -255,7 +216,7 @@ export const auditDesign: VoiceDesignResponse = {
     text: null,
 }
 
-/** Global presets (EP-5, R1-FE-06): a public V2 preset, one on a non-public voice, and a stored V1 row (read-only, hidden). */
+/** Global presets (EP-5, R1-FE-06): a public preset and one on a non-public voice. */
 export const auditGlobalPresets: AdminGlobalPresetList = {
     items: [
         {
@@ -270,7 +231,6 @@ export const auditGlobalPresets: AdminGlobalPresetList = {
             is_global: true,
             schema_version: 2,
             provider: 'elevenlabs',
-            legacy_hidden: false,
             voice_public: true,
             seed_key: 'en:narrator',
         },
@@ -286,20 +246,7 @@ export const auditGlobalPresets: AdminGlobalPresetList = {
             is_global: true,
             schema_version: 2,
             provider: 'elevenlabs',
-            legacy_hidden: false,
             voice_public: false,
-            seed_key: null,
-        },
-        {
-            ...LEGACY_V1_PRESET,
-            preset_id: '17',
-            name: 'The patient storyteller',
-            description: 'Warm, unhurried narration for long scenes.',
-            base_voice_name: 'Warm narrator',
-            emotion: 'calm',
-            is_global: true,
-            legacy_hidden: true,
-            voice_public: null,
             seed_key: null,
         },
     ],

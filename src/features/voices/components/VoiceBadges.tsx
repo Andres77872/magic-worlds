@@ -31,7 +31,6 @@ export interface VoiceBadgeContext {
 
 export const BADGE_TONES: Record<VoiceBadgeKey, BadgeTone> = {
     leaving: 'warning',
-    review: 'warning',
     needs_reselect: 'warning',
     retired: 'warning',
     replaced: 'neutral',
@@ -45,7 +44,7 @@ export const BADGE_TONES: Record<VoiceBadgeKey, BadgeTone> = {
 
 /** Ordered for display: the actionable states first. */
 const ORDER: readonly VoiceBadgeKey[] = [
-    'needs_reselect', 'review', 'leaving', 'retired', 'replaced', 'locked',
+    'needs_reselect', 'leaving', 'retired', 'replaced', 'locked',
     'call_voice', 'standard_fallback', 'not_tested_language', 'expressive_only', 'house_voice',
 ]
 

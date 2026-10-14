@@ -85,10 +85,6 @@ import type {
     AdminVoiceSyncResponse,
     CatalogSampleRenderRequest,
     CatalogSampleRenderResponse,
-    LegacyMappingCoverage,
-    LegacyMappingListResponse,
-    LegacyMappingRow,
-    LegacyMappingUpdate,
     LibraryAddRequest,
     LibraryVoicePage,
     LibraryVoiceQuery,
@@ -110,7 +106,7 @@ import type {
     PreviewTextsResponse,
     VoicePresetPreviewRequestV2,
     VoicePresetPreviewResponse,
-    VoicePresetRow,
+    VoicePresetV2,
     VoicePresetV2Write,
 } from '../../shared/types/voicePreset.types'
 import type {
@@ -120,7 +116,6 @@ import type {
     EffectiveVoiceRefType,
     EffectiveVoiceResponse,
     VoiceCapabilities,
-    VoiceReviewFlagList,
 } from '../../shared/types/voiceCatalog.types'
 import type { SessionVoiceSettings, VoiceSessionBasePath } from '../../shared/types/sessionVoice.types'
 import type {
@@ -2150,36 +2145,6 @@ class ApiService {
         })
     }
 
-    /** The caller's undismissed D15 review flags (account list). A 404 (feature unavailable) is no flags. */
-    async listVoiceReviewFlags(): Promise<VoiceReviewFlagList> {
-        this.assertVoicesEnabled()
-        const token = this.getStoredToken()
-        try {
-            return await this.authenticatedRequest<VoiceReviewFlagList>('/voices/review-flags', token, {
-                method: 'GET',
-                omitWorkspaceScope: true,
-            })
-        } catch (error) {
-            if (error instanceof ApiError && error.status === 404) return { items: [] }
-            throw error
-        }
-    }
-
-    /** Dismiss one review flag (204). A 404 means it is already gone, so it resolves too. */
-    async dismissVoiceReviewFlag(flagId: number): Promise<void> {
-        this.assertVoicesEnabled()
-        const token = this.getStoredToken()
-        try {
-            await this.authenticatedRequest<void>(`/voices/review-flags/${encodeURIComponent(String(flagId))}/dismiss`, token, {
-                method: 'POST',
-                omitWorkspaceScope: true,
-            })
-        } catch (error) {
-            if (error instanceof ApiError && error.status === 404) return
-            throw error
-        }
-    }
-
     // --- Minor reports (R2-BE-02, EP-10) -------------------------------------
     // Account scope. While the feature is closed, the status reads `enabled:
     // false` and the POST answers 404 as if the route did not exist (I-16).
@@ -2360,18 +2325,6 @@ class ApiService {
         return this.adminVoiceRequest(path, 'PUT', { voice_keys: voiceKeys })
     }
 
-    async listLegacyMapping(signal?: AbortSignal): Promise<LegacyMappingListResponse> {
-        return this.adminVoiceRequest('/admin/voices/legacy-mapping', 'GET', undefined, signal)
-    }
-
-    async putLegacyMapping(legacyVoiceId: string, body: LegacyMappingUpdate): Promise<LegacyMappingRow> {
-        return this.adminVoiceRequest(`/admin/voices/legacy-mapping/${encodeURIComponent(legacyVoiceId)}`, 'PUT', body)
-    }
-
-    async getLegacyMappingCoverage(signal?: AbortSignal): Promise<LegacyMappingCoverage> {
-        return this.adminVoiceRequest('/admin/voices/legacy-mapping/coverage', 'GET', undefined, signal)
-    }
-
     /** Live Library browse. The D09 filters are always sent (AC-R6) and re-enforced by the BFF. */
     async listAdminLibrary(query: LibraryVoiceQuery = {}, signal?: AbortSignal): Promise<LibraryVoicePage> {
         const enforced = { ...query, min_notice_period_days: 365, include_custom_rates: false, include_live_moderated: false }
@@ -2446,7 +2399,7 @@ class ApiService {
         return this.adminVoiceRequest('/admin/voice-presets/global', 'POST', input)
     }
 
-    /** Partial update; a V1 target answers 409 `global_preset_legacy`. */
+    /** Partial update. */
     async updateAdminGlobalPreset(presetId: string, input: Partial<AdminGlobalPresetInput>): Promise<AdminGlobalPresetRow> {
         return this.adminVoiceRequest(`/admin/voice-presets/global/${encodeURIComponent(presetId)}`, 'PUT', input)
     }
@@ -2759,32 +2712,29 @@ class ApiService {
 
     // --- Voice presets (user-facing) ---------------------------------------
 
-    /**
-     * The caller's presets plus the globals the BFF shows them (EP-4): V2 rows and
-     * stored V1 rows (read-only, D12), never filtered here (R-15).
-     */
-    async listVoicePresets(q?: string): Promise<VoicePresetRow[]> {
+    /** The caller's presets plus the globals the BFF shows them (EP-4), never filtered here (R-15). */
+    async listVoicePresets(q?: string): Promise<VoicePresetV2[]> {
         this.assertVoicesEnabled()
         const token = this.getStoredToken()
         const query = q && q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''
-        return this.authenticatedRequest<VoicePresetRow[]>(`/voice-presets${query}`, token, { method: 'GET' })
+        return this.authenticatedRequest<VoicePresetV2[]>(`/voice-presets${query}`, token, { method: 'GET' })
     }
 
-    /** EP-3: a V2 body only; the BFF refuses a V1 body (422 `voice_v1_not_allowed`). */
-    async createVoicePreset(body: VoicePresetV2Write): Promise<VoicePresetRow> {
+    /** EP-3: a V2 body. */
+    async createVoicePreset(body: VoicePresetV2Write): Promise<VoicePresetV2> {
         this.assertVoicesEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest<VoicePresetRow>('/voice-presets', token, {
+        return this.authenticatedRequest<VoicePresetV2>('/voice-presets', token, {
             method: 'POST',
             body: stripVoiceProjections(body) as unknown as BodyInit,
         })
     }
 
-    /** EP-3: a V2 body; on a stored V1 row it converts the row in place, keeping the preset_id (D12). */
-    async updateVoicePreset(presetId: string, body: VoicePresetV2Write): Promise<VoicePresetRow> {
+    /** EP-3: a V2 body; the row keeps its preset_id. */
+    async updateVoicePreset(presetId: string, body: VoicePresetV2Write): Promise<VoicePresetV2> {
         this.assertVoicesEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest<VoicePresetRow>(`/voice-presets/${encodeURIComponent(presetId)}`, token, {
+        return this.authenticatedRequest<VoicePresetV2>(`/voice-presets/${encodeURIComponent(presetId)}`, token, {
             method: 'PUT',
             body: stripVoiceProjections(body) as unknown as BodyInit,
         })
@@ -2801,8 +2751,7 @@ class ApiService {
      * Answers `{cache_key, url, cached, previews_left}`; the audio is fetched as
      * an authed blob from `/voice-presets/preview/{cache_key}.mp3`. Errors: 428
      * `attestation_required`, 429 (daily limit or bucket), 503
-     * `moderation_unavailable`. Account scope: no workspace selector. V2 body only
-     * (a V1 body is 422 `voice_v1_not_allowed`).
+     * `moderation_unavailable`. Account scope: no workspace selector. V2 body only.
      */
     async previewVoice(
         body: VoicePresetPreviewRequestV2,

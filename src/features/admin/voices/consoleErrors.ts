@@ -52,7 +52,6 @@ const CODE_KEYS: Readonly<Record<string, string>> = {
     // Global presets (EP-5, R1-FE-06).
     voice_not_eligible: 'admin.voices.globalPresets.errors.voiceNotEligible',
     global_preset_seed_exists: 'admin.voices.globalPresets.errors.seedExists',
-    global_preset_legacy: 'admin.voices.globalPresets.errors.legacyReadOnly',
 }
 
 /** `text_rejected` carries the speech pipeline's fixed `reason` (never content). */

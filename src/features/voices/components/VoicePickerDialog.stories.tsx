@@ -6,11 +6,8 @@ import { Button } from '@/ui/primitives'
 import {
     CAPABILITIES_EL_PLUS,
     EFFECTIVE_BY_REASON,
-    PRESET_V1_GLOBAL,
-    PRESET_V1_WITH_DRAFT,
     PRESET_V2_GLOBAL,
     PRESET_V2_USER,
-    V1_VOICE,
     V2_VOICE,
     VOICE_KEY_SELA,
     effectiveVoice,
@@ -19,10 +16,10 @@ import { VoiceStoryProviders } from '../storybook/VoiceStoryProviders'
 import { installVoiceStoryApi, type VoiceStoryApiOptions } from '../storybook/voiceStoryApi'
 import { VoicePickerDialog } from './VoicePickerDialog'
 
-/** Presets (a classic one updated through its draft) and the catalog. */
+/** Presets (the account's own and a global one) and the catalog. */
 const ELEVENLABS_API: VoiceStoryApiOptions = {
     capabilities: CAPABILITIES_EL_PLUS,
-    presets: [PRESET_V2_USER, PRESET_V1_WITH_DRAFT, PRESET_V2_GLOBAL, PRESET_V1_GLOBAL],
+    presets: [PRESET_V2_USER, PRESET_V2_GLOBAL],
 }
 
 const withProviders: Decorator = function WithVoiceProviders(Story) {
@@ -69,7 +66,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'The character voice picker: presets and the voice catalog, and it only ever stores new voices. A classic preset is used through its updated draft, or shown disabled with a Studio link. Every story runs against local fakes.',
+                    'The character voice picker: presets and the voice catalog. A preset is copied onto the card with its link; a catalog voice starts at the voice defaults. Every story runs against local fakes.',
             },
         },
     },
@@ -94,10 +91,10 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-/** The new voices: a classic voice that now plays as a replacement, with its badges. */
+/** A removed voice that now plays as a replacement, with its badges. */
 export const ElevenLabs: Story = {
     parameters: { voiceApi: ELEVENLABS_API },
-    args: { currentVoice: V1_VOICE, currentEffectiveVoice: EFFECTIVE_BY_REASON.voice_removed },
+    args: { currentVoice: V2_VOICE, currentEffectiveVoice: EFFECTIVE_BY_REASON.voice_removed },
     render: (args) => <PickerDemo {...args} />,
 }
 

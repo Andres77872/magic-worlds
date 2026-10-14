@@ -138,19 +138,6 @@ describe('useCardDraft', () => {
         await waitFor(() => expect(result.current.error).toBe('voices.errors.planLocked'))
     })
 
-    it('maps a 409 voice_reload_required save to the reload copy', async () => {
-        vi.spyOn(apiService, 'getCardDraft').mockResolvedValue({ id: 'c5', is_draft: false, latest_version_number: 0 })
-        vi.spyOn(apiService, 'saveCardDraft')
-            .mockRejectedValue(new ApiError(409, 'Reload', { code: 'voice_reload_required' }))
-        const { result } = renderHook(() => useCardDraft({ cardType: 'character', cardId: 'c5' }))
-        await waitFor(() => expect(result.current.draftState).not.toBeNull())
-
-        await act(async () => {
-            await result.current.saveDraft({ name: 'x' })
-        })
-        await waitFor(() => expect(result.current.error).toBe('voices.errors.reloadRequired'))
-    })
-
     it('keeps the generic draftSave key for a non-voice failure and still reports it', async () => {
         vi.spyOn(apiService, 'getCardDraft').mockResolvedValue({ id: 'c5', is_draft: false, latest_version_number: 0 })
         const failure = new ApiError(500, 'Server error')

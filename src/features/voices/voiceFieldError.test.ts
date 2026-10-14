@@ -15,8 +15,6 @@ describe('voiceFieldErrorKey (05 §7.4)', () => {
     it('leaves every other failure to the form error', () => {
         expect(voiceFieldErrorKey(refusal(409, 'voice_not_eligible'))).toBeNull()
         expect(voiceFieldErrorKey(refusal(409, 'voice_reload_required'))).toBeNull()
-        // A refused V1 write stays a form-only message.
-        expect(voiceFieldErrorKey(refusal(422, 'voice_v1_not_allowed'))).toBeNull()
         expect(voiceFieldErrorKey(refusal(422, 'voice_invalid'))).toBeNull()
         expect(voiceFieldErrorKey(refusal(422))).toBeNull()
         expect(voiceFieldErrorKey(new Error('offline'))).toBeNull()

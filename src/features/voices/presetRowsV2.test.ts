@@ -6,29 +6,20 @@ import {
     CATALOG_IDRIS_ES_UNACCEPTED,
     CATALOG_ORRIN_UNTESTED,
     CATALOG_SELA_LEAVING,
-    PRESET_V1_GLOBAL,
-    PRESET_V1_USER,
-    PRESET_V1_WITH_DRAFT,
     PRESET_V2_GLOBAL,
     PRESET_V2_USER,
     VOICE_KEY_ELDRIN,
-    VOICE_KEY_IDRIS,
     VOICE_KEY_MAREN,
-    VOICE_KEY_SELA,
     catalogVoice,
     effectiveVoice,
 } from './fixtures'
-import { buildPresetEditHash, parsePresetEditHash } from './presetLinks'
 import {
     baseVoiceBadges,
-    conversionDraftOf,
     editorModeFor,
     editorSeed,
     emotionEffectLabel,
     isDefaultRecipe,
     isFreeSamplePreview,
-    presetCatalogKey,
-    presetCatalogKeys,
     presetLanguage,
     presetRowBadges,
     presetVoiceKeys,
@@ -43,23 +34,12 @@ import { voiceWriteErrorCode, voiceWriteErrorMessage } from './voiceWriteError'
 const t = i18n.getFixedT('en') as TFunction
 
 describe('preset rows (R1-FE-02, EP-4)', () => {
-    it('reads the conversion draft of a V1 row only', () => {
-        expect(conversionDraftOf(PRESET_V1_WITH_DRAFT)?.voice_key).toBe(VOICE_KEY_SELA)
-        expect(conversionDraftOf(PRESET_V1_USER)).toBeNull()
-        expect(conversionDraftOf(PRESET_V1_GLOBAL)).toBeNull()
-        expect(conversionDraftOf(PRESET_V2_USER)).toBeNull()
-    })
-
     it('maps each row kind to its editor action', () => {
         expect(editorModeFor(PRESET_V2_USER)).toBe('edit')
         expect(editorModeFor(PRESET_V2_GLOBAL)).toBe('duplicate')
-        expect(editorModeFor(PRESET_V1_WITH_DRAFT)).toBe('convert')
-        expect(editorModeFor(PRESET_V1_USER)).toBeNull()
-        expect(editorModeFor(PRESET_V1_GLOBAL)).toBeNull()
-        expect(editorModeFor({ ...PRESET_V1_WITH_DRAFT, is_global: true })).toBe('duplicate')
     })
 
-    it('seeds the editor: edit and convert keep the name, duplicate renames', () => {
+    it('seeds the editor: edit keeps the name, duplicate renames', () => {
         expect(editorSeed('edit', PRESET_V2_USER, t)).toEqual({
             name: 'Harbour master',
             description: 'Gruff but kind.',
@@ -68,55 +48,41 @@ describe('preset rows (R1-FE-02, EP-4)', () => {
             settings: { stability: 0.4, similarity_boost: 0.8, speed: 0.95 },
             emotion: 'calm',
         })
-        expect(editorSeed('convert', PRESET_V1_WITH_DRAFT, t)).toMatchObject({ name: 'My pirate', voiceKey: VOICE_KEY_SELA, settings: { speed: 1.1 } })
         expect(editorSeed('duplicate', PRESET_V2_GLOBAL, t)).toMatchObject({ name: 'Fireside narrator (copy)', voiceKey: VOICE_KEY_MAREN, settings: null })
         expect(editorSeed('create', PRESET_V2_USER, t)).toMatchObject({ name: '', voiceKey: null })
     })
 
     it('lists every referenced voice key once', () => {
-        expect(presetVoiceKeys([PRESET_V2_USER, PRESET_V2_GLOBAL, PRESET_V1_WITH_DRAFT, PRESET_V1_USER, { ...PRESET_V2_USER, preset_id: 'dup' }]))
-            .toEqual([VOICE_KEY_ELDRIN, VOICE_KEY_MAREN, VOICE_KEY_SELA])
+        expect(presetVoiceKeys([PRESET_V2_USER, PRESET_V2_GLOBAL, { ...PRESET_V2_USER, preset_id: 'dup' }, { ...PRESET_V2_USER, voice_key: '' }]))
+            .toEqual([VOICE_KEY_ELDRIN, VOICE_KEY_MAREN])
     })
 
-    it('merges projection, catalog and review badges', () => {
+    it('merges projection and catalog badges', () => {
         expect(presetRowBadges(PRESET_V2_USER, null)).toEqual([])
-        expect(presetRowBadges({ ...PRESET_V2_USER, effective_voice: effectiveVoice({ badges: ['replaced'] }) }, CATALOG_SELA_LEAVING, true))
-            .toEqual(['replaced', 'leaving', 'review'])
+        expect(presetRowBadges({ ...PRESET_V2_USER, effective_voice: effectiveVoice({ badges: ['replaced'] }) }, CATALOG_SELA_LEAVING))
+            .toEqual(['replaced', 'leaving'])
         expect(presetRowBadges(PRESET_V2_USER, catalogVoice({ status: 'removed' }))).toEqual(['retired'])
         expect(presetRowBadges(PRESET_V2_USER, catalogVoice({ status: 'blocked', locked: true }))).toEqual(['needs_reselect', 'locked'])
     })
 
     it('derives not_tested_language from the preset language (05 §5.5, §7.7)', () => {
-        expect(presetRowBadges(PRESET_V2_USER, CATALOG_ORRIN_UNTESTED, false, 'es')).toEqual(['not_tested_language'])
-        expect(presetRowBadges(PRESET_V2_USER, CATALOG_ORRIN_UNTESTED, false, 'en-GB')).toEqual([])
-        expect(presetRowBadges(PRESET_V2_USER, CATALOG_ORRIN_UNTESTED, false, null)).toEqual([])
-        expect(presetRowBadges(PRESET_V2_USER, null, false, 'es')).toEqual([])
+        expect(presetRowBadges(PRESET_V2_USER, CATALOG_ORRIN_UNTESTED, 'es')).toEqual(['not_tested_language'])
+        expect(presetRowBadges(PRESET_V2_USER, CATALOG_ORRIN_UNTESTED, 'en-GB')).toEqual([])
+        expect(presetRowBadges(PRESET_V2_USER, CATALOG_ORRIN_UNTESTED, null)).toEqual([])
+        expect(presetRowBadges(PRESET_V2_USER, null, 'es')).toEqual([])
         // The preset's own language first, else the preferred one.
         expect(presetLanguage({ ...PRESET_V2_USER, language_code: 'fr' }, 'es')).toBe('fr')
         expect(presetLanguage(PRESET_V2_USER, 'es')).toBe('es')
-        expect(presetLanguage(PRESET_V1_WITH_DRAFT, null)).toBeNull()
+        expect(presetLanguage({ ...PRESET_V2_USER, language_code: '  ' }, null)).toBeNull()
         expect(presetLanguage(null, 'en')).toBe('en')
-        // A V1 row: its conversion draft's language (filled from the stored V1 language).
-        expect(presetLanguage({ ...PRESET_V1_WITH_DRAFT, conversion_draft: { ...PRESET_V1_WITH_DRAFT.conversion_draft!, language_code: 'en' } }, 'es')).toBe('en')
     })
 
     it('treats a language row without an acceptance pass as not tested (05 §5.5)', () => {
-        expect(presetRowBadges(PRESET_V2_USER, CATALOG_IDRIS_ES_UNACCEPTED, false, 'es')).toEqual(['not_tested_language'])
+        expect(presetRowBadges(PRESET_V2_USER, CATALOG_IDRIS_ES_UNACCEPTED, 'es')).toEqual(['not_tested_language'])
         expect(baseVoiceBadges(CATALOG_IDRIS_ES_UNACCEPTED, 'es')).toEqual(['not_tested_language'])
         expect(previewableLanguages(CATALOG_IDRIS_ES_UNACCEPTED)).toEqual(['en'])
         expect(previewableLanguages(CATALOG_ELDRIN)).toEqual(['en', 'es'])
         expect(v2PreviewLanguage(CATALOG_IDRIS_ES_UNACCEPTED, 'es')).toBe('en')
-    })
-
-    it('derives a V1 card’s language badge from the voice its projection plays (05 §7.7)', () => {
-        const projected = { ...PRESET_V1_WITH_DRAFT, effective_voice: effectiveVoice({ voice_key: VOICE_KEY_IDRIS, display_name: 'Idris', badges: ['replaced'] }) }
-        expect(presetCatalogKey(projected)).toBe(VOICE_KEY_IDRIS)
-        expect(presetCatalogKey(PRESET_V1_WITH_DRAFT)).toBeNull()
-        expect(presetCatalogKey(PRESET_V2_USER)).toBe(VOICE_KEY_ELDRIN)
-        expect(presetCatalogKeys([PRESET_V2_USER, projected])).toEqual([VOICE_KEY_ELDRIN, VOICE_KEY_SELA, VOICE_KEY_IDRIS])
-        // The projection carries the state badges; the catalog adds only the language check.
-        expect(presetRowBadges(projected, catalogVoice({ ...CATALOG_IDRIS_ES_UNACCEPTED, status: 'blocked' }), false, 'es')).toEqual(['replaced', 'not_tested_language'])
-        expect(presetRowBadges(projected, CATALOG_IDRIS_ES_UNACCEPTED, false, 'en')).toEqual(['replaced'])
     })
 
     it('defaults the Studio preview to language_code, then primary, then preferred, among accepted languages (05 §5.5, D17)', () => {
@@ -158,16 +124,6 @@ describe('preset rows (R1-FE-02, EP-4)', () => {
         expect(v2PreviewLanguage(CATALOG_ORRIN_UNTESTED, 'es')).toBe('en')
         expect(v2PreviewLanguage(null, 'es', 'en')).toBe('en')
         expect(v2PreviewLanguage(null, 'es')).toBe('es')
-    })
-})
-
-describe('preset deep link', () => {
-    it('round-trips the preset id on the studio hash', () => {
-        const hash = buildPresetEditHash('user v2/1')
-        expect(hash.startsWith('#/voices?')).toBe(true)
-        expect(parsePresetEditHash(hash)).toBe('user v2/1')
-        expect(parsePresetEditHash('#/voices')).toBeNull()
-        expect(parsePresetEditHash('#/gallery?preset=x')).toBeNull()
     })
 })
 

@@ -781,7 +781,7 @@ describe('useVoiceCallController', () => {
         const elReady = () => ({
             ...readyFrame(),
             audio: { content_type: 'audio/mpeg', codec: 'mp3', sample_rate: 44100 as const, channels: 1 as const },
-            effective_voice: { voice_key: 'el:ava', display_name: 'Ava', provider_route: 'elevenlabs', substitution_reason: 'voice_removed', flags: [], badges: ['replaced'] },
+            effective_voice: { voice_key: 'el:ava', display_name: 'Ava', provider_route: 'elevenlabs', substitution_reason: 'voice_removed', badges: ['replaced'] },
             original_voice_name: 'Mia',
             ai_voice: true,
         })

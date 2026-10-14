@@ -37,7 +37,7 @@ let libraryState: { isLoading: boolean; error: string | null } = { isLoading: fa
 
 const PERSONA: Character = { id: 'p1', name: 'Aria', stats: {}, role: 'persona', is_default_persona: true } as Character
 const CARD_PERSONA: Character = { id: 'p2', name: 'Sera', stats: {}, role: 'persona' } as Character
-const MIRA: Character = { id: 'c1', name: 'Mira', race: 'Elf', stats: {}, role: 'character', voice: { voice_id: 'EN-1' } } as Character
+const MIRA: Character = { id: 'c1', name: 'Mira', race: 'Elf', stats: {}, role: 'character', voice: { schema_version: 2, provider: 'elevenlabs', voice_key: `vk_${'e'.repeat(32)}`, voice_name: 'Mira' } } as Character
 const MIRA_WITH_DEFAULT: Character = { ...MIRA, default_persona_id: 'p2' } as Character
 
 vi.mock('@/app/hooks', () => ({

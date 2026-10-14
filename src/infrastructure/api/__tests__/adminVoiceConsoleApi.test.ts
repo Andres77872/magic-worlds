@@ -86,22 +86,6 @@ describe('root voice console API (08 §5.3)', () => {
         ['renderCatalogSamples', () => apiService.renderCatalogSamples('vk_1', { languages: ['en'] }), 'POST', '/admin/voices/catalog/vk_1/samples', { languages: ['en'] }],
         ['getVoiceDefaults', () => apiService.getVoiceDefaults(), 'GET', '/admin/voices/defaults', undefined],
         ['putVoiceDefaults', () => apiService.putVoiceDefaults('character_fallback', 'es', ['vk_1', 'vk_2']), 'PUT', '/admin/voices/defaults/character_fallback/es', { voice_keys: ['vk_1', 'vk_2'] }],
-        ['listLegacyMapping', () => apiService.listLegacyMapping(), 'GET', '/admin/voices/legacy-mapping', undefined],
-        [
-            'putLegacyMapping',
-            () => apiService.putLegacyMapping('English_Warm', { voice_key: 'vk_1', alternate_voice_keys: [], settings_override: null, legacy_language: 'en', status: 'approved', notes: null }),
-            'PUT',
-            '/admin/voices/legacy-mapping/English_Warm',
-            { voice_key: 'vk_1', alternate_voice_keys: [], settings_override: null, legacy_language: 'en', status: 'approved', notes: null },
-        ],
-        ['getLegacyMappingCoverage', () => apiService.getLegacyMappingCoverage(), 'GET', '/admin/voices/legacy-mapping/coverage', undefined],
-        [
-            'putLegacyMapping (an id that needs encoding)',
-            () => apiService.putLegacyMapping('Warm voice/1', { voice_key: 'vk_1', alternate_voice_keys: [], settings_override: null, legacy_language: null, status: 'approved', notes: null }),
-            'PUT',
-            '/admin/voices/legacy-mapping/Warm%20voice%2F1',
-            { voice_key: 'vk_1', alternate_voice_keys: [], settings_override: null, legacy_language: null, status: 'approved', notes: null },
-        ],
         [
             'addAdminLibraryVoice',
             () => apiService.addAdminLibraryVoice({ public_owner_id: 'o', library_voice_id: 'l', new_name: 'N', attest_not_child_like: true, attest_no_public_figure: true }),
@@ -281,19 +265,15 @@ describe('root voice console API (08 §5.3)', () => {
         await expect(apiService.listAdminLabModels()).rejects.toMatchObject({ status: 404 })
     })
 
-    it('keeps only the legacy-mapping table among the legacy admin routes (I-13, I-68)', () => {
+    it('keeps no legacy admin route (I-13, I-68, native cutover)', () => {
         const paths = [...apiSource.matchAll(/[`'"](\/admin\/voices[^`'"]*)[`'"]/g)].map((match) => match[1])
-        expect(paths.length).toBeGreaterThan(20)
+        expect(paths.length).toBeGreaterThan(15)
         // The removed provider console routes: GET /admin/voices, clone, and DELETE /{voice_type}/{voice_id}.
         expect(paths).not.toContain('/admin/voices')
         expect(paths.filter((value) => /^\/admin\/voices\/(clone|clone-file)\b/.test(value))).toEqual([])
         expect(paths.filter((value) => /^\/admin\/voices\/\$\{[^}]*\}\/\$\{/.test(value))).toEqual([])
-        // No legacy audition, inventory or fallback route: the mapping table (keyed by the stored id) is all that is left.
-        expect(paths.filter((value) => value.startsWith('/admin/voices/legacy')).sort()).toEqual([
-            '/admin/voices/legacy-mapping',
-            '/admin/voices/legacy-mapping/${encodeURIComponent(legacyVoiceId)}',
-            '/admin/voices/legacy-mapping/coverage',
-        ])
+        // No legacy audition, inventory, fallback, mapping or coverage route.
+        expect(paths.filter((value) => value.startsWith('/admin/voices/legacy'))).toEqual([])
     })
 
     it('surfaces API errors with their code', async () => {

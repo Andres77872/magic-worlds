@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { readWorldPlaceType } from '../shared'
-import { LEGACY_V1_VOICE, LEGACY_V1_VOICE_ID } from '@/test/fixtures/legacyMinimax'
 import { asArray, transformCharacters, transformItems, transformTemplates, transformWorlds } from './cardTransforms'
 
 describe('cardTransforms', () => {
@@ -44,38 +43,39 @@ describe('cardTransforms', () => {
         expect(char.default_persona_id).toBe('p2')
     })
 
-    it('keeps the whole V1 voice byte-identical (no whitelist, no trim)', () => {
-        const v1 = {
-            ...LEGACY_V1_VOICE,
-            voice_id: ' English_magnetic_voiced_man ',
-            speed: 1.1,
-            vol: 1.8,
-            pitch: -2,
+    it('keeps the whole stored voice byte-identical (no whitelist, no trim)', () => {
+        const stored = {
+            schema_version: 2,
+            provider: 'elevenlabs',
+            voice_key: 'vk_1111aaaa2222bbbb3333cccc4444dddd',
+            voice_name: ' Warm narrator ',
+            settings: { stability: 0.35, similarity_boost: 0.8, speed: 1.1 },
             emotion: 'calm',
+            language_code: 'en',
             preset_id: 'preset-1',
             preset_name: 'Warm narrator',
         }
-        const raw = { ...v1 }
+        const raw = { ...stored }
         const [withVoice, noVoice] = transformCharacters([
             { id: 'c1', name: 'Mira', voice: raw },
             { id: 'c3', name: 'None', voice: null },
         ])
 
         expect(withVoice.voice).toBe(raw)
-        expect(JSON.stringify(withVoice.voice)).toBe(JSON.stringify(v1))
+        expect(JSON.stringify(withVoice.voice)).toBe(JSON.stringify(stored))
         expect(noVoice.voice).toBeUndefined()
     })
 
     it('keeps an unrecognised non-null voice so a save re-sends it instead of null (09 §3.2, D32)', () => {
-        const blankId = { voice_id: '' }
+        const blankKey = { schema_version: 2, provider: 'elevenlabs', voice_key: '', voice_name: 'Eldrin' }
         const keyless = { schema_version: 2, provider: 'elevenlabs', voice_name: 'Eldrin' }
         const [blank, v2NoKey, notAnObject] = transformCharacters([
-            { id: 'c1', name: 'Blank', voice: blankId },
+            { id: 'c1', name: 'Blank', voice: blankKey },
             { id: 'c2', name: 'Keyless', voice: keyless },
-            { id: 'c3', name: 'String', voice: 'English_radiant_girl' },
+            { id: 'c3', name: 'String', voice: 'vk_3f0c2a9e5b7d4c1a8e6f0b2d4a6c8e1f' },
         ])
 
-        expect(blank.voice).toBe(blankId)
+        expect(blank.voice).toBe(blankKey)
         expect(v2NoKey.voice).toBe(keyless)
         // The creator's write body (`voice: voice ?? null`) re-sends it untouched.
         expect(JSON.stringify({ voice: v2NoKey.voice ?? null })).toBe(JSON.stringify({ voice: keyless }))
@@ -102,13 +102,6 @@ describe('cardTransforms', () => {
         const edited = { ...char, name: 'Mira the Bold' }
         const body = { name: edited.name, race: edited.race, voice: edited.voice ?? null }
 
-        expect(JSON.stringify(body.voice)).toBe(stored)
-    })
-
-    it('a V1 voice survives read → edit another field → write byte-identical', () => {
-        const stored = JSON.stringify({ ...LEGACY_V1_VOICE, voice_id: ` ${LEGACY_V1_VOICE_ID} `, pitch: 5, preset_id: 'p1', preset_name: 'Child girl' })
-        const [char] = transformCharacters([{ id: 'c1', name: 'Lyra', race: 'Human', voice: JSON.parse(stored) }])
-        const body = { name: 'Lyra Renamed', race: char.race, voice: char.voice ?? null }
         expect(JSON.stringify(body.voice)).toBe(stored)
     })
 
@@ -168,12 +161,11 @@ describe('cardTransforms effective voice pass-through (R1-FE-03, D35)', () => {
         display_name: 'Eldrin',
         provider_route: 'elevenlabs',
         substitution_reason: null,
-        flags: [],
         badges: ['leaving', 'unknown_badge'],
     }
 
     it('keeps a valid projection next to the stored voice, read-only', () => {
-        const voice = { voice_id: ' English_radiant_girl ', pitch: 2 }
+        const voice = { schema_version: 2, provider: 'elevenlabs', voice_key: 'vk_0a1b2c3d4e5f60718293a4b5c6d7e8f9', voice_name: 'Maren' }
         const [card] = transformCharacters([{ uuid: 'c1', name: 'Mira', voice, effective_voice: EFFECTIVE }])
         expect(card.voice).toBe(voice)
         expect(card.effective_voice).toEqual({ ...EFFECTIVE, badges: ['leaving'] })

@@ -9,14 +9,13 @@
  */
 import { useMemo } from 'react'
 import type { CatalogVoice, EffectiveVoice, StoredCharacterVoice } from '@/shared'
-import { isElevenLabsProjection, isVoiceV2 } from '@/shared/voice'
+import { isElevenLabsProjection, parseStoredVoice } from '@/shared/voice'
 import { useCatalogLookup } from './useCatalogLookup'
 
-/** The catalog voice that is leaving: the stored V2 voice, else the one the projection plays. */
+/** The catalog voice that is leaving: the stored voice, else (no voice stored) the one the projection plays. */
 export function leavingVoiceKey(stored: StoredCharacterVoice | null | undefined, effective: EffectiveVoice | null | undefined): string | null {
     if (!isElevenLabsProjection(effective)) return null
-    if (stored && isVoiceV2(stored)) return stored.voice_key
-    return effective.voice_key || null
+    return parseStoredVoice(stored)?.voice_key ?? (effective.voice_key || null)
 }
 
 /** Whether the projection carries the `leaving` badge. */

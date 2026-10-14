@@ -50,9 +50,9 @@ import { apiService } from '@/infrastructure'
 import type { ApiService } from '@/infrastructure/api'
 import { DataContext, DataProvider } from './DataProvider'
 
-const OLD_VOICE = { voice_id: 'old-voice' }
-const NEW_VOICE = { provider: 'elevenlabs', voice_key: 'el:new', model_tier: 'standard' }
-const PROJECTION = { voice_key: 'el:new', display_name: 'Ava', provider_route: 'elevenlabs', substitution_reason: null, flags: [], badges: [] }
+const OLD_VOICE = { schema_version: 2, provider: 'elevenlabs', voice_key: 'old-voice', voice_name: 'Rook' }
+const NEW_VOICE = { schema_version: 2, provider: 'elevenlabs', voice_key: 'el:new', voice_name: 'Ava' }
+const PROJECTION = { voice_key: 'el:new', display_name: 'Ava', provider_route: 'elevenlabs', substitution_reason: null, badges: [] }
 
 const snapshotWith = (voice: unknown, extra: Record<string, unknown> = {}) => ({
     schema_version: 2,
@@ -77,13 +77,13 @@ const scopedApi = {
 function Probe() {
     const ctx = useContext(DataContext)
     const adventure = ctx?.inProgressAdventures.find((entry) => entry.id === '7')
-    const voice = adventure?.snapshot?.template.characters?.[0]?.voice as { voice_key?: string; voice_id?: string } | undefined
+    const voice = adventure?.snapshot?.template.characters?.[0]?.voice as { voice_key?: string } | undefined
     const chat = ctx?.characterChats.find((entry) => entry.id === '9')
-    const chatVoice = chat?.character?.voice as { voice_key?: string; voice_id?: string } | undefined
+    const chatVoice = chat?.character?.voice as { voice_key?: string } | undefined
     return (
         <div>
-            <span data-testid="adventure-voice">{voice?.voice_key ?? voice?.voice_id ?? 'none'}</span>
-            <span data-testid="chat-voice">{chatVoice?.voice_key ?? chatVoice?.voice_id ?? 'none'}</span>
+            <span data-testid="adventure-voice">{voice?.voice_key ?? 'none'}</span>
+            <span data-testid="chat-voice">{chatVoice?.voice_key ?? 'none'}</span>
             <button onClick={() => void ctx?.refreshAdventureVoices('7', ['c1'], scopedApi as unknown as ApiService)}>refresh adventure</button>
             <button onClick={() => void ctx?.refreshCharacterChatVoice('9', scopedApi as unknown as ApiService)}>refresh chat</button>
             <button onClick={() => adventure?.snapshot && void ctx?.saveInProgressSnapshot('7', adventure.snapshot, scopedApi as unknown as ApiService)}>echo</button>

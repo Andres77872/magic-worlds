@@ -122,8 +122,7 @@ import {
     testWorkspace,
     type WorkspaceTestState,
 } from '@/shared/hooks/testing/workspaceTestUtils'
-import { CAPABILITIES_EL_PLUS, CATALOG_MAREN_HOUSE, CATALOG_SELA_LEAVING, REVIEW_FLAG_CARD, VOICE_KEY_MAREN, VOICE_KEY_SELA } from '@/features/voices/fixtures'
-import { LEGACY_V1_VOICE, LEGACY_V1_VOICE_ID } from '@/test/fixtures/legacyMinimax'
+import { CAPABILITIES_EL_PLUS, CATALOG_MAREN_HOUSE, CATALOG_SELA_LEAVING, VOICE_KEY_MAREN, VOICE_KEY_SELA } from '@/features/voices/fixtures'
 import { CharacterCreator } from './CharacterCreator'
 
 beforeEach(() => {
@@ -736,7 +735,17 @@ describe('CharacterCreator in an archived workspace', () => {
 
 describe('CharacterCreator voice (D38, D32)', () => {
     // Stored values as the BFF returns them; saves must re-send them untouched.
-    const V1_VOICE = { ...LEGACY_V1_VOICE, voice_id: ` ${LEGACY_V1_VOICE_ID} `, pitch: 5, preset_id: 'p1', preset_name: 'Child girl' }
+    const PRESET_VOICE = {
+        schema_version: 2,
+        provider: 'elevenlabs',
+        voice_key: 'vk_1111aaaa2222bbbb3333cccc4444dddd',
+        voice_name: 'Child girl',
+        settings: { stability: 0.6, similarity_boost: 0.7, speed: 1.05 },
+        emotion: 'happy',
+        language_code: 'en',
+        preset_id: 'p1',
+        preset_name: 'Child girl',
+    }
     const V2_VOICE = {
         schema_version: 2,
         provider: 'elevenlabs',
@@ -775,7 +784,7 @@ describe('CharacterCreator voice (D38, D32)', () => {
     }
 
     it('hides the voice field and picker for persona cards and keeps the stored voice on save', async () => {
-        const voice = { ...V1_VOICE }
+        const voice = { ...PRESET_VOICE }
         mocks.editingCharacter = { id: 'p1', name: 'Aria', race: 'Human', role: 'persona', description: '', triggers: [], voice }
         render(<CharacterCreator />)
 
@@ -786,11 +795,11 @@ describe('CharacterCreator voice (D38, D32)', () => {
 
         const payload = await saveDraft()
         expect(payload.voice).toBe(voice)
-        expect(JSON.stringify(payload.voice)).toBe(JSON.stringify(V1_VOICE))
+        expect(JSON.stringify(payload.voice)).toBe(JSON.stringify(PRESET_VOICE))
     })
 
     it('hides the voice field once a card switches to the persona role', () => {
-        mocks.editingCharacter = { id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [], voice: { ...V1_VOICE } }
+        mocks.editingCharacter = { id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [], voice: { ...PRESET_VOICE } }
         render(<CharacterCreator />)
 
         expect(screen.getByText('Narration voice')).toBeInTheDocument()
@@ -814,24 +823,24 @@ describe('CharacterCreator voice (D38, D32)', () => {
         expect(JSON.stringify(payload.voice)).toBe(JSON.stringify(V2_VOICE))
     })
 
-    it('never shows a raw V1 id for a voice without a name', () => {
-        mocks.editingCharacter = { id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [], voice: { voice_id: 'English_radiant_girl' } }
+    it('never shows a raw voice key for a voice without a name', () => {
+        mocks.editingCharacter = { id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [], voice: { ...V2_VOICE, voice_name: '' } }
         render(<CharacterCreator />)
 
         expect(screen.getByText('Voice')).toBeInTheDocument()
-        expect(screen.queryByText(/English_radiant_girl/)).not.toBeInTheDocument()
+        expect(screen.queryByText(/vk_3f0c2a9e/)).not.toBeInTheDocument()
     })
 
     it('a deep-linked persona keeps its stored voice on save (no `voice: null` overwrite)', async () => {
         mocks.cardEdit = { cardType: 'character', cardId: 'p1' }
-        mocks.getCharacter.mockResolvedValue({ id: 'p1', name: 'Aria', race: 'Human', role: 'persona', description: '', triggers: [], voice: { ...V1_VOICE } })
+        mocks.getCharacter.mockResolvedValue({ id: 'p1', name: 'Aria', race: 'Human', role: 'persona', description: '', triggers: [], voice: { ...PRESET_VOICE } })
         render(<CharacterCreator />)
 
         await waitFor(() => expect(screen.getByDisplayValue('Aria')).toBeInTheDocument())
         expect(screen.queryByText('Narration voice')).not.toBeInTheDocument()
 
         const payload = await saveDraft()
-        expect(JSON.stringify(payload.voice)).toBe(JSON.stringify(V1_VOICE))
+        expect(JSON.stringify(payload.voice)).toBe(JSON.stringify(PRESET_VOICE))
     })
 
     it('shows an unrecognised stored voice as the default but re-sends it untouched on save (09 §3.2)', async () => {
@@ -845,7 +854,7 @@ describe('CharacterCreator voice (D38, D32)', () => {
     })
 
     it('a deep-linked card keeps an unrecognised stored voice instead of saving `voice: null`', async () => {
-        const stored = { voice_id: '' }
+        const stored = { schema_version: 2, voice_key: '' }
         mocks.cardEdit = { cardType: 'character', cardId: 'c1' }
         mocks.getCharacter.mockResolvedValue({ id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [], voice: stored })
         render(<CharacterCreator />)
@@ -872,11 +881,10 @@ describe('CharacterCreator effective voice (R1-FE-03, R1-FE-01)', () => {
         display_name: 'Maren',
         provider_route: 'elevenlabs',
         substitution_reason: 'voice_removed',
-        flags: [],
         badges: ['replaced'],
     }
     const extraApi = apiService as unknown as Record<string, unknown>
-    const EXTRA_KEYS = ['getVoiceCapabilities', 'listVoiceReviewFlags', 'dismissVoiceReviewFlag', 'listVoiceCatalog', 'listVoicePresets', 'getVoiceCatalogByKeys', 'getUserProfile', 'getEffectiveVoice', 'fetchProtectedMediaBlob']
+    const EXTRA_KEYS = ['getVoiceCapabilities', 'listVoiceCatalog', 'listVoicePresets', 'getVoiceCatalogByKeys', 'getUserProfile', 'getEffectiveVoice', 'fetchProtectedMediaBlob']
 
     beforeEach(() => {
         vi.clearAllMocks()
@@ -916,7 +924,7 @@ describe('CharacterCreator effective voice (R1-FE-03, R1-FE-01)', () => {
     it('keeps the plain name without a projection', () => {
         mocks.editingCharacter = {
             id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [],
-            voice: { voice_id: LEGACY_V1_VOICE_ID, preset_name: 'Child girl' },
+            voice: { ...V2_VOICE, voice_name: '', preset_name: 'Child girl' },
         }
         render(<CharacterCreator />)
         expect(screen.getByText('Child girl')).toBeInTheDocument()
@@ -962,12 +970,7 @@ describe('CharacterCreator effective voice (R1-FE-03, R1-FE-01)', () => {
         expect(mocks.pickerProps?.language).toBe('es')
         unmount()
 
-        // A stored V1 voice names its language too (`storedVoiceLanguage`); a V2 voice without one says nothing.
-        mocks.editingCharacter = { id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [], voice: { ...LEGACY_V1_VOICE } }
-        const v1 = render(<CharacterCreator />)
-        expect(mocks.pickerProps?.language).toBe('en')
-        v1.unmount()
-
+        // A stored voice without a language says nothing.
         mocks.editingCharacter = { id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [], voice: { ...V2_VOICE } }
         render(<CharacterCreator />)
         expect(mocks.pickerProps?.language).toBeNull()
@@ -1051,31 +1054,9 @@ describe('CharacterCreator effective voice (R1-FE-03, R1-FE-01)', () => {
         expect(extraApi.getVoiceCatalogByKeys).not.toHaveBeenCalled()
     })
 
-    it('shows the card’s review flag; Adjust opens the picker', async () => {
+    /** A saved card heard as Maren, with Maren's catalog sample (05 §7.8). */
+    function sampleApi() {
         extraApi.getVoiceCapabilities = vi.fn().mockResolvedValue(CAPABILITIES_EL_PLUS)
-        extraApi.listVoiceReviewFlags = vi.fn().mockResolvedValue({ items: [{ ...REVIEW_FLAG_CARD, ref_id: 'c1' }] })
-        extraApi.dismissVoiceReviewFlag = vi.fn().mockResolvedValue(undefined)
-        extraApi.listVoiceCatalog = vi.fn().mockResolvedValue({ items: [], next_cursor: null })
-        extraApi.listVoicePresets = vi.fn().mockResolvedValue([])
-        extraApi.getVoiceCatalogByKeys = vi.fn().mockResolvedValue([])
-        extraApi.getUserProfile = vi.fn().mockResolvedValue({ membership: {} })
-        mocks.editingCharacter = { id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [], voice: { ...V2_VOICE } }
-        render(<CharacterCreator />)
-
-        const notice = await screen.findByTestId('voice-review-notice')
-        expect(within(notice).getByText('Pitch is no longer applied.')).toBeInTheDocument()
-        fireEvent.click(within(notice).getByRole('button', { name: 'Adjust' }))
-        await waitFor(() => expect(mocks.pickerProps?.open).toBe(true))
-        fireEvent.click(within(notice).getByRole('button', { name: 'Dismiss review notice for Lyra' }))
-        await waitFor(() => expect(screen.queryByTestId('voice-review-notice')).not.toBeInTheDocument())
-        expect(extraApi.dismissVoiceReviewFlag).toHaveBeenCalledWith(REVIEW_FLAG_CARD.flag_id)
-    })
-
-    /** One review flag on card c1, heard as Maren (05 §7.8). */
-    function reviewFlagApi(workspaceId = TEST_WORKSPACE_ID) {
-        extraApi.getVoiceCapabilities = vi.fn().mockResolvedValue(CAPABILITIES_EL_PLUS)
-        extraApi.listVoiceReviewFlags = vi.fn().mockResolvedValue({ items: [{ ...REVIEW_FLAG_CARD, ref_id: 'c1', organization: { workspace_id: workspaceId } }] })
-        extraApi.dismissVoiceReviewFlag = vi.fn().mockResolvedValue(undefined)
         extraApi.getEffectiveVoice = vi.fn().mockResolvedValue({
             ref_type: 'card',
             ref_id: 'c1',
@@ -1086,65 +1067,9 @@ describe('CharacterCreator effective voice (R1-FE-03, R1-FE-01)', () => {
         extraApi.getUserProfile = vi.fn().mockResolvedValue({ membership: {} })
     }
 
-    it('the review notice is a region with a heading; a dismissal hands the focus to the field’s "Change" (05 §10)', async () => {
-        reviewFlagApi()
-        mocks.editingCharacter = { id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [], voice: { ...V2_VOICE } }
-        render(<CharacterCreator />)
-
-        const region = await screen.findByRole('region', { name: 'Review this voice' })
-        // Under the "Portrayal" section heading (h2).
-        expect(within(region).getByRole('heading', { level: 3, name: 'Review this voice' })).toBeInTheDocument()
-        const dismiss = within(region).getByRole('button', { name: 'Dismiss review notice for Lyra' })
-        dismiss.focus()
-        fireEvent.click(dismiss)
-        await waitFor(() => expect(screen.queryByRole('region', { name: 'Review this voice' })).not.toBeInTheDocument())
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Change' })).toHaveFocus())
-    })
-
-    it('in an archived workspace the voice field is read-only, but the review notice keeps Listen and Dismiss (AC-C7, 05 §7.8-§7.9)', async () => {
+    it('a known ElevenLabs voice gets a field sample that still plays in an archived workspace, without the effective read (AC-C7, 05 §7.9, §10)', async () => {
         archiveOtherWorkspace()
-        reviewFlagApi(OTHER_WORKSPACE_ID)
-        const objectUrls = { createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL }
-        Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:listen'), revokeObjectURL: vi.fn() })
-        try {
-            mocks.editingCharacter = {
-                id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [], voice: { ...V2_VOICE },
-                organization: { workspace_id: OTHER_WORKSPACE_ID, collection_ids: [] },
-            }
-            render(<CharacterCreator />)
-
-            const region = await screen.findByRole('region', { name: 'Review this voice' })
-            // The field and its section stay read-only.
-            expect(screen.getByRole('button', { name: 'Change' })).toBeDisabled()
-            expect(screen.getByDisplayValue('Lyra')).toBeDisabled()
-            expect(document.getElementById('character-description')).toBeDisabled()
-            expect(document.getElementById('character-system-instructions')).toBeDisabled()
-            // The notice does not: Adjust (an edit) is gone, Listen plays the free sample, Dismiss dismisses.
-            expect(within(region).queryByRole('button', { name: 'Adjust' })).not.toBeInTheDocument()
-            const listen = within(region).getByRole('button', { name: 'Listen to Lyra' })
-            expect(listen).toBeEnabled()
-            fireEvent.click(listen)
-            await waitFor(() => expect(extraApi.fetchProtectedMediaBlob).toHaveBeenCalledWith(CATALOG_MAREN_HOUSE.languages[0].sample_url, 'audio/mpeg'))
-            expect(mocks.withWorkspace).toHaveBeenCalledWith(OTHER_WORKSPACE_ID)
-            // 05 §10: once resolved, Listen also names the voice and the sample's language.
-            await waitFor(() => expect(within(region).getByRole('button', { name: 'Listen to Lyra: Maren, English' })).toHaveAttribute('aria-pressed', 'true'))
-
-            const dismiss = within(region).getByRole('button', { name: 'Dismiss review notice for Lyra' })
-            expect(dismiss).toBeEnabled()
-            dismiss.focus()
-            fireEvent.click(dismiss)
-            await waitFor(() => expect(extraApi.dismissVoiceReviewFlag).toHaveBeenCalledWith(REVIEW_FLAG_CARD.flag_id))
-            expect(screen.queryByRole('region', { name: 'Review this voice' })).not.toBeInTheDocument()
-            // "Change" is disabled here, so the focus goes to the field's section heading.
-            await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Portrayal' })).toHaveFocus())
-        } finally {
-            Object.assign(URL, objectUrls)
-        }
-    })
-
-    it('a known ElevenLabs voice gets a field sample that still plays in an archived workspace; Listen skips the effective read (AC-C7, 05 §7.9, §10)', async () => {
-        archiveOtherWorkspace()
-        reviewFlagApi(OTHER_WORKSPACE_ID)
+        sampleApi()
         const objectUrls = { createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL }
         Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:sample'), revokeObjectURL: vi.fn() })
         try {
@@ -1164,11 +1089,7 @@ describe('CharacterCreator effective voice (R1-FE-03, R1-FE-01)', () => {
             await waitFor(() => expect(screen.getByRole('button', { name: 'Play sample of Maren, English' })).toHaveAttribute('aria-pressed', 'true'))
             expect(extraApi.getVoiceCatalogByKeys).toHaveBeenCalledWith([VOICE_KEY_MAREN])
             expect(extraApi.fetchProtectedMediaBlob).toHaveBeenCalledWith(CATALOG_MAREN_HOUSE.languages[0].sample_url, 'audio/mpeg')
-
-            // The notice's Listen plays the same known voice without the effective-voice read.
-            const region = await screen.findByRole('region', { name: 'Review this voice' })
-            fireEvent.click(within(region).getByRole('button', { name: 'Listen to Lyra' }))
-            await waitFor(() => expect(within(region).getByRole('button', { name: 'Listen to Lyra: Maren, English' })).toHaveAttribute('aria-pressed', 'true'))
+            // The projection came with the card: no effective-voice read.
             expect(extraApi.getEffectiveVoice).not.toHaveBeenCalled()
         } finally {
             Object.assign(URL, objectUrls)
@@ -1176,13 +1097,9 @@ describe('CharacterCreator effective voice (R1-FE-03, R1-FE-01)', () => {
     })
 })
 
-describe('CharacterCreator voice save refusals (I-36, R5-BE-01)', () => {
-    const RELOAD_COPY = 'Voices changed since this page loaded. Reload to continue.'
-    // The Reload action's description copy is a hidden node; assert on the visible alert only.
-    const VISIBLE = { ignore: 'script, style, [hidden]' }
+describe('CharacterCreator voice save refusals (I-36)', () => {
     const PLAN_LOCKED_COPY = 'Your plan doesn’t include this voice option.'
     const DRAFT_SAVE_COPY = 'Could not save your draft. Try again.'
-    const DRAFT_LOAD_COPY = 'Could not load your draft. Try again.'
     const VOICE_TOOLTIP_COPY = "The voice used when this character's chat turns are read aloud. Pick a voice from the voice catalog or one of your saved presets."
     const voiceOf = (voice_name: string, voice_key: string) => ({
         schema_version: 2,
@@ -1193,9 +1110,8 @@ describe('CharacterCreator voice save refusals (I-36, R5-BE-01)', () => {
         emotion: null,
         language_code: null,
     })
-    const STALE_VOICE = voiceOf('Eldrin', 'vk_3f0c2a9e5b7d4c1a8e6f0b2d4a6c8e1f')
-    const REWRITTEN_VOICE = voiceOf('Maren', 'vk_0a1b2c3d4e5f60718293a4b5c6d7e8f9')
-    let storedDraft: Record<string, unknown>
+    const STORED_VOICE = voiceOf('Eldrin', 'vk_3f0c2a9e5b7d4c1a8e6f0b2d4a6c8e1f')
+    const PICKED_VOICE = voiceOf('Maren', 'vk_0a1b2c3d4e5f60718293a4b5c6d7e8f9')
 
     /** The mocked module's ApiError carrying a coded refusal, as the API client raises it. */
     function refusal(status: number, code?: string) {
@@ -1209,11 +1125,10 @@ describe('CharacterCreator voice save refusals (I-36, R5-BE-01)', () => {
         mocks.cardEdit = null
         mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })
         mocks.editingCharacter = {
-            id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [], voice: { ...STALE_VOICE },
+            id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [], voice: { ...STORED_VOICE },
             organization: { workspace_id: OTHER_WORKSPACE_ID, collection_ids: [] },
         }
-        storedDraft = { id: 'c1', is_draft: false, latest_version_number: 1 }
-        mocks.getCardDraft.mockImplementation(async () => storedDraft)
+        mocks.getCardDraft.mockResolvedValue({ id: 'c1', is_draft: false, latest_version_number: 1 })
     })
 
     afterEach(() => {
@@ -1225,124 +1140,6 @@ describe('CharacterCreator voice save refusals (I-36, R5-BE-01)', () => {
         fireEvent.click(screen.getAllByRole('button', { name: /^Save draft$/i })[0])
     }
 
-    it('a stale edit save (409 voice_reload_required) offers Reload, which refetches and re-hydrates the voice', async () => {
-        mocks.saveCardDraft.mockRejectedValueOnce(refusal(409, 'voice_reload_required'))
-        render(<CharacterCreator />)
-        expect(screen.getByText('Eldrin')).toBeInTheDocument()
-
-        await clickSaveDraft()
-        const form = screen.getByDisplayValue('Lyra').closest('form')!
-        expect(await within(form).findByText(RELOAD_COPY, VISIBLE)).toBeInTheDocument()
-        const reload = screen.getByRole('button', { name: 'Reload' })
-
-        // The R5 rewrite changed the stored voice; Reload fetches the card's current draft-or-published body.
-        storedDraft = {
-            id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [],
-            voice: { ...REWRITTEN_VOICE }, is_draft: false, latest_version_number: 2,
-        }
-        const callsBefore = mocks.getCardDraft.mock.calls.length
-        fireEvent.click(reload)
-
-        expect(await screen.findByText('Maren')).toBeInTheDocument()
-        expect(screen.queryByText('Eldrin')).not.toBeInTheDocument()
-        expect(mocks.getCardDraft.mock.calls[callsBefore]).toEqual(['character', 'c1'])
-        expect(scopeOf(mocks.getCardDraft, callsBefore)).toEqual({ workspaceId: OTHER_WORKSPACE_ID, initialCollectionIds: [] })
-        await waitFor(() => expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument())
-        expect(within(form).queryByText(RELOAD_COPY, VISIBLE)).not.toBeInTheDocument()
-
-        // The next save sends the reloaded voice, not the stale one.
-        mocks.saveCardDraft.mockResolvedValueOnce({ id: 'c1', is_draft: true, latest_version_number: 2 })
-        fireEvent.click(screen.getAllByRole('button', { name: /^Save draft$/i })[0])
-        await waitFor(() => expect(mocks.saveCardDraft).toHaveBeenCalledTimes(2))
-        expect((mocks.saveCardDraft.mock.calls[1][2] as Record<string, unknown>).voice).toEqual(REWRITTEN_VOICE)
-    })
-
-    it('Reload re-seeds only the voice: unsaved text edits survive, stay dirty and are sent with the stored voice', async () => {
-        mocks.saveCardDraft.mockRejectedValueOnce(refusal(409, 'voice_reload_required'))
-        render(<CharacterCreator />)
-        await waitFor(() => expect(mocks.getCardDraft).toHaveBeenCalled())
-        fireEvent.change(screen.getByPlaceholderText(/lyra emberwind/i), { target: { value: 'Lyra Dawnsong' } })
-        fireEvent.change(document.getElementById('character-description')!, { target: { value: 'A ranger of the northern marches' } })
-
-        await clickSaveDraft()
-        const form = screen.getByDisplayValue('Lyra Dawnsong').closest('form')!
-        expect(await within(form).findByText(RELOAD_COPY, VISIBLE)).toBeInTheDocument()
-
-        storedDraft = {
-            id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', description: '', triggers: [],
-            voice: { ...REWRITTEN_VOICE }, is_draft: false, latest_version_number: 2,
-        }
-        fireEvent.click(screen.getByRole('button', { name: 'Reload' }))
-
-        expect(await screen.findByText('Maren')).toBeInTheDocument()
-        await waitFor(() => expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument())
-        expect(screen.getByDisplayValue('Lyra Dawnsong')).toBeInTheDocument()
-        expect(screen.getByDisplayValue('A ranger of the northern marches')).toBeInTheDocument()
-
-        // Still unsaved: leaving asks first.
-        fireEvent.click(screen.getByRole('button', { name: /^Back$/i }))
-        expect(screen.getByText('Leave without saving?')).toBeInTheDocument()
-        fireEvent.click(screen.getByRole('button', { name: /keep editing/i }))
-        expect(mocks.goBack).not.toHaveBeenCalled()
-
-        mocks.saveCardDraft.mockResolvedValueOnce({ id: 'c1', is_draft: true, latest_version_number: 2 })
-        fireEvent.click(screen.getAllByRole('button', { name: /^Save draft$/i })[0])
-        await waitFor(() => expect(mocks.saveCardDraft).toHaveBeenCalledTimes(2))
-        expect(mocks.saveCardDraft.mock.calls[1][2]).toMatchObject({
-            name: 'Lyra Dawnsong',
-            description: 'A ranger of the northern marches',
-            voice: REWRITTEN_VOICE,
-        })
-    })
-
-    it('Reload is described by the message, shows its pending state, and says when the refetch fails', async () => {
-        mocks.saveCardDraft.mockRejectedValueOnce(refusal(409, 'voice_reload_required'))
-        render(<CharacterCreator />)
-
-        await clickSaveDraft()
-        const form = screen.getByDisplayValue('Lyra').closest('form')!
-        expect(await within(form).findByText(RELOAD_COPY, VISIBLE)).toBeInTheDocument()
-        const reload = screen.getByRole('button', { name: 'Reload' })
-        expect(reload).toHaveAccessibleDescription(RELOAD_COPY)
-
-        let failReload!: (error: unknown) => void
-        mocks.getCardDraft.mockImplementationOnce(() => new Promise((_, reject) => { failReload = reject }))
-        const callsBefore = mocks.getCardDraft.mock.calls.length
-        fireEvent.click(reload)
-        expect(reload).toBeDisabled()
-        fireEvent.click(reload)
-        expect(mocks.getCardDraft).toHaveBeenCalledTimes(callsBefore + 1)
-
-        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-        await act(async () => { failReload(new Error('offline')) })
-        expect(await screen.findByText(DRAFT_LOAD_COPY)).toBeInTheDocument()
-        await waitFor(() => expect(reload).toBeEnabled())
-        // The message and the stale voice stay; the user can try again.
-        expect(within(form).getByText(RELOAD_COPY, VISIBLE)).toBeInTheDocument()
-        expect(screen.getByText('Eldrin')).toBeInTheDocument()
-        consoleError.mockRestore()
-    })
-
-    it('a re-hydrated form (switching to a read-only version) drops the stale Reload callout', async () => {
-        mocks.saveCardDraft.mockRejectedValueOnce(refusal(409, 'voice_reload_required'))
-        const view = render(<CharacterCreator />)
-
-        await clickSaveDraft()
-        expect(await within(screen.getByDisplayValue('Lyra').closest('form')!).findByText(RELOAD_COPY, VISIBLE)).toBeInTheDocument()
-
-        mocks.getCardVersion.mockResolvedValueOnce({
-            id: 'c1', name: 'Lyra v1', race: 'Elf', role: 'character', description: '', triggers: [],
-            voice: { ...STALE_VOICE }, is_historical: true, viewing_version_number: 1,
-        })
-        mocks.cardEdit = { cardType: 'character', cardId: 'c1', version: 1 }
-        view.rerender(<CharacterCreator />)
-
-        const form = (await screen.findByDisplayValue('Lyra v1')).closest('form')!
-        expect(screen.getByRole('button', { name: /restore this version to edit/i })).toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument()
-        expect(within(form).queryByText(RELOAD_COPY, VISIBLE)).not.toBeInTheDocument()
-    })
-
     it('a 422 voice_not_eligible save shows on the voice field too, until the voice changes (05 §7.4)', async () => {
         const ELIGIBILITY_COPY = 'This voice can’t be picked right now. Choose another.'
         mocks.saveCardDraft.mockRejectedValueOnce(refusal(422, 'voice_not_eligible'))
@@ -1352,15 +1149,14 @@ describe('CharacterCreator voice save refusals (I-36, R5-BE-01)', () => {
         await clickSaveDraft()
         const fieldError = await screen.findByTestId('voice-field-error')
         expect(fieldError).toHaveTextContent(ELIGIBILITY_COPY)
-        // Inside the voice field, describing its control; the form's save error says it too (no Reload).
+        // Inside the voice field, describing its control; the form's save error says it too.
         expect(fieldError.closest('section')).toHaveAttribute('id', 'portrayal')
         expect(screen.getByRole('button', { name: 'Change' })).toHaveAccessibleDescription(ELIGIBILITY_COPY)
         const form = screen.getByDisplayValue('Lyra').closest('form')!
         expect(within(form).getByRole('alert')).toHaveTextContent(ELIGIBILITY_COPY)
-        expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument()
 
         // A new pick is a new voice: the field error was about the refused one.
-        act(() => (mocks.pickerProps?.onSelect as (voice: unknown) => void)({ ...REWRITTEN_VOICE }))
+        act(() => (mocks.pickerProps?.onSelect as (voice: unknown) => void)({ ...PICKED_VOICE }))
         expect(screen.queryByTestId('voice-field-error')).not.toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Change' })).not.toHaveAttribute('aria-describedby')
     })
@@ -1384,7 +1180,7 @@ describe('CharacterCreator voice save refusals (I-36, R5-BE-01)', () => {
         expect(screen.getByText(VOICE_TOOLTIP_COPY)).toBeInTheDocument()
     })
 
-    it('a refused edit save (422 voice_plan_locked) says which voice to change, with no Reload', async () => {
+    it('a refused edit save (422 voice_plan_locked) says which voice to change', async () => {
         mocks.saveCardDraft.mockRejectedValueOnce(refusal(422, 'voice_plan_locked'))
         render(<CharacterCreator />)
 
@@ -1394,7 +1190,6 @@ describe('CharacterCreator voice save refusals (I-36, R5-BE-01)', () => {
         // The save error, the voice field (05 §7.4) and the toast.
         expect(screen.getByTestId('voice-field-error')).toHaveTextContent(PLAN_LOCKED_COPY)
         expect(screen.getAllByText(PLAN_LOCKED_COPY).length).toBeGreaterThan(2)
-        expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument()
         expect(screen.queryByText(DRAFT_SAVE_COPY)).not.toBeInTheDocument()
     })
 
@@ -1404,8 +1199,6 @@ describe('CharacterCreator voice save refusals (I-36, R5-BE-01)', () => {
 
         await clickSaveDraft()
         expect(await screen.findByText(DRAFT_SAVE_COPY)).toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument()
-        expect(screen.queryByText(RELOAD_COPY)).not.toBeInTheDocument()
         expect(screen.queryByText(PLAN_LOCKED_COPY)).not.toBeInTheDocument()
         expect(screen.queryByTestId('voice-field-error')).not.toBeInTheDocument()
     })

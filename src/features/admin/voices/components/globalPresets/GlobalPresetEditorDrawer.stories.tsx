@@ -2,11 +2,10 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { fn } from 'storybook/test'
 import { installPlayAdminAuditApi } from '@/features/admin/playAdminAuditFixtures'
 import { auditGlobalPresets } from '../../fixtures'
-import { isEditableGlobalPreset, type GlobalPresetV2Row } from '../../globalPresetRules'
 import { VoiceConsoleProvider } from '../shell/VoiceConsoleContext'
 import { GlobalPresetEditorDrawer } from './GlobalPresetEditorDrawer'
 
-const [publicPreset, notPublicPreset] = auditGlobalPresets.items.filter(isEditableGlobalPreset) as GlobalPresetV2Row[]
+const [publicPreset, notPublicPreset] = auditGlobalPresets.items
 
 const meta = {
     title: 'Admin/Voices/GlobalPresetEditorDrawer',
@@ -17,7 +16,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'The preset editor in "global" mode (V2 only): name, description, a catalog voice, a language the voice lists, an emotion and all five voice settings. A warning shows when users could not apply the preset. The rules run before the write; saving fails locally in this offline preview.',
+                    'The preset editor in "global" mode: name, description, a catalog voice, a language the voice lists, an emotion and all five voice settings. A warning shows when users could not apply the preset. The rules run before the write; saving fails locally in this offline preview.',
             },
         },
     },
@@ -30,7 +29,7 @@ const meta = {
         ),
     ],
     argTypes: {
-        preset: { control: false, description: 'The V2 row to edit; omitted to create one.' },
+        preset: { control: false, description: 'The row to edit; omitted to create one.' },
         onClose: { action: 'closed', control: false },
         onSaved: { action: 'saved', control: false },
     },

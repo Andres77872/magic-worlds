@@ -12,14 +12,14 @@ import type { NarrationTier } from './auth.types'
 
 /** 03 §5.4.2 — values verbatim. */
 export type VoiceSubstitutionReason =
-    | 'unmapped_legacy' | 'voice_removed' | 'voice_unavailable' | 'voice_blocked'
+    | 'voice_removed' | 'voice_unavailable' | 'voice_blocked'
     | 'not_call_eligible' | 'default_voice' | 'distinct_voice' | 'language_unsupported' | 'tier_fallback'
 
 /** 03 §5.12 badge inventory keys (badge-type entries only; `daily_limit`, `previews_left` and the notices are
  *  rendered from other fields). 03 does not enumerate which keys `effective_voice.badges[]` carries versus which the
  *  SPA derives from catalog fields (`locked`, `house_voice`, `not_tested_language`); [08] fixes that split. */
 export type VoiceBadgeKey =
-    | 'leaving' | 'needs_reselect' | 'review' | 'retired' | 'replaced' | 'call_voice'
+    | 'leaving' | 'needs_reselect' | 'retired' | 'replaced' | 'call_voice'
     | 'locked' | 'expressive_only' | 'standard_fallback' | 'not_tested_language' | 'house_voice'
 
 export interface EffectiveVoice {
@@ -28,14 +28,12 @@ export interface EffectiveVoice {
     /** Always `elevenlabs`; `readEffectiveVoice` reads a missing route as it. */
     provider_route: 'elevenlabs'
     substitution_reason: VoiceSubstitutionReason | null
-    flags: string[]          // e.g. 'pitch_dropped' | 'vol_dropped' | 'speed_clamped' | 'needs_review'
     badges: VoiceBadgeKey[]  // unknown values are ignored by the UI (forward compatible)
 }
 
 // ---------------------------------------------------------------------------
-// Effective-voice lookup and review flags (R1-FE-03; BFF `voices_effective.py`).
-// Every authenticated caller is served; the API maps a review-flag 404 (feature
-// unavailable) to an empty list.
+// Effective-voice lookup (R1-FE-03; BFF `voices_effective.py`). Every
+// authenticated caller is served.
 // ---------------------------------------------------------------------------
 
 /** `ref_type` of `GET /voices/effective` (`RefType` in the BFF). */
@@ -46,29 +44,6 @@ export interface EffectiveVoiceResponse {
     ref_type: EffectiveVoiceRefType
     ref_id: string
     voices: { json_path: string; effective_voice: EffectiveVoice }[]
-}
-
-/** Document kinds a D15 review flag points at. */
-export type VoiceReviewFlagRefType = 'card' | 'card_draft' | 'preset' | 'template_cast'
-
-/** Known D15 flag values; `VoiceReviewFlag.flags` stays `string[]` so unknown values pass through. */
-export type VoiceReviewFlagKey = 'pitch_dropped' | 'vol_dropped' | 'speed_clamped' | 'needs_review'
-
-/** One undismissed D15 review flag of the caller (`GET /voices/review-flags` item). */
-export interface VoiceReviewFlag {
-    flag_id: number
-    ref_type: VoiceReviewFlagRefType
-    ref_id: string
-    json_path: string
-    flags: string[]
-    /** The BFF model allows null (`ReviewFlagItem.created_at: str | None`). */
-    created_at: string | null
-    /** Card items carry their workspace; presets are account level (null). */
-    organization: { workspace_id: string } | null
-}
-
-export interface VoiceReviewFlagList {
-    items: VoiceReviewFlag[]
 }
 
 // ---------------------------------------------------------------------------

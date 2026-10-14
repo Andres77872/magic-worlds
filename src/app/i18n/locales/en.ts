@@ -159,7 +159,6 @@ export const en = {
                     load: 'Could not load versions. Try again.',
                     save: 'Could not save a version. Try again.',
                     restore: 'Could not restore that version. Try again.',
-                    draftLoad: 'Could not load your draft. Try again.',
                     draftSave: 'Could not save your draft. Try again.',
                     publish: 'Could not publish. Try again.',
                     discard: 'Could not discard the draft. Try again.',

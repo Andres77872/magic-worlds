@@ -35,7 +35,6 @@ describe('describeConsoleError', () => {
         expect(describeConsoleError(notEligible, en).message).toBe('This voice cannot back a global preset: it must be active in the catalog and accepted on Flash.')
         expect(describeConsoleError(notEligible, es).message).toBe('Esta voz no puede respaldar un preset global: debe estar activa en el catálogo y aceptada en Flash.')
         expect(describeConsoleError(new ApiError(409, 'x', { code: 'global_preset_seed_exists' }), t).message).toBe('admin.voices.globalPresets.errors.seedExists')
-        expect(describeConsoleError(new ApiError(409, 'x', { code: 'global_preset_legacy' }), t).message).toBe('admin.voices.globalPresets.errors.legacyReadOnly')
     })
 
     it('gives the library sort and locale refusals their own copy, in both locales', () => {

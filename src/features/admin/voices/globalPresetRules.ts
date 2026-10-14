@@ -5,7 +5,7 @@
  * language the voice lists (when it lists any). The server stays the
  * authority: eligibility (`voice_not_eligible`) is only known on write.
  */
-import { isPresetV2, type AdminCatalogVoice, type AdminGlobalPresetInput, type AdminGlobalPresetRow, type VoiceEmotion, type VoicePresetV2, type VoiceSettingsV2 } from '@/shared'
+import type { AdminCatalogVoice, AdminGlobalPresetInput, VoiceEmotion, VoicePresetV2, VoiceSettingsV2 } from '@/shared'
 import { SETTING_RANGES, type LabSettingKey } from './constants'
 
 export const GLOBAL_PRESET_NAME_MAX = 255
@@ -23,9 +23,6 @@ export interface GlobalPresetDraft {
     emotion: VoiceEmotion | null
     language_code: string
 }
-
-/** A V2 global row with its admin fields: the rows the console can edit and delete. */
-export type GlobalPresetV2Row = VoicePresetV2 & Pick<AdminGlobalPresetRow, 'legacy_hidden' | 'voice_public' | 'seed_key'>
 
 export type GlobalPresetField = 'name' | 'voice_key' | 'settings' | 'language_code'
 
@@ -108,15 +105,6 @@ export function toGlobalPresetInput(draft: GlobalPresetDraft): AdminGlobalPreset
         emotion: draft.emotion,
         language_code: draft.language_code.trim() || null,
     }
-}
-
-/** Stored V1 global rows are read-only legacy rows (D12, D22). */
-export function isLegacyGlobalPreset(row: AdminGlobalPresetRow): boolean {
-    return !isPresetV2(row)
-}
-
-export function isEditableGlobalPreset(row: AdminGlobalPresetRow): row is GlobalPresetV2Row {
-    return isPresetV2(row)
 }
 
 export type GlobalPresetWarning = 'notPublic' | 'notActive'

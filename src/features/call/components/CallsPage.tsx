@@ -25,7 +25,7 @@ import { CallTranscriptView } from './CallTranscriptView'
 
 const CALLS_PAGE_SIZE = 30
 
-/** Any assigned voice, V1 or V2 (D35): a V1-only check would hide V2 voices. */
+/** Any assigned voice (D35), read through the shared stored-voice parser. */
 function hasVoice(character: Character): boolean {
     return hasAssignedVoice(character.voice)
 }

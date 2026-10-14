@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearVoiceCapabilitiesCache } from '@/shared/voice/voiceCapabilities'
-import { LEGACY_V1_VOICE } from '@/test/fixtures/legacyMinimax'
 import { apiService } from '../index'
 
 const WS_A = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
@@ -28,11 +27,10 @@ const EFFECTIVE = {
     display_name: 'Eldrin',
     provider_route: 'elevenlabs',
     substitution_reason: null,
-    flags: [],
     badges: [],
 }
 
-describe('effective voice and review flag API (R1-FE-03)', () => {
+describe('effective voice API (R1-FE-03)', () => {
     beforeEach(() => {
         vi.clearAllMocks()
         localStorage.clear()
@@ -72,43 +70,13 @@ describe('effective voice and review flag API (R1-FE-03)', () => {
         expect(headersAt(0)).not.toHaveProperty('X-Workspace-Id')
     })
 
-    it('lists review flags unscoped and maps a 404 (route not deployed) to no flags', async () => {
-        const list = {
-            items: [{ flag_id: 7, ref_type: 'preset', ref_id: 'p1', json_path: 'voice', flags: ['pitch_dropped'], created_at: null, organization: null }],
-        }
-        fetchMock.mockImplementationOnce(async () => jsonResponse(list))
-        await expect(apiService.withWorkspace(WS_A).listVoiceReviewFlags()).resolves.toEqual(list)
-        expect(urlAt(0).pathname).toMatch(/\/voices\/review-flags$/)
-        expect(headersAt(0)).not.toHaveProperty('X-Workspace-Id')
-
-        fetchMock.mockImplementationOnce(async () => jsonResponse({ detail: 'Not Found' }, 404))
-        await expect(apiService.listVoiceReviewFlags()).resolves.toEqual({ items: [] })
-
-        fetchMock.mockImplementationOnce(async () => jsonResponse({ detail: 'boom' }, 500))
-        await expect(apiService.listVoiceReviewFlags()).rejects.toMatchObject({ status: 500 })
-    })
-
-    it('dismisses a flag with a POST (204) and treats a 404 as already dismissed', async () => {
-        fetchMock.mockImplementationOnce(async () => new Response(null, { status: 204 }))
-        await expect(apiService.dismissVoiceReviewFlag(7)).resolves.toBeUndefined()
-        expect(urlAt(0).pathname).toMatch(/\/voices\/review-flags\/7\/dismiss$/)
-        expect(initAt(0).method).toBe('POST')
-        expect(headersAt(0)).not.toHaveProperty('X-Workspace-Id')
-
-        fetchMock.mockImplementationOnce(async () => jsonResponse({ detail: 'Review flag not found' }, 404))
-        await expect(apiService.dismissVoiceReviewFlag(8)).resolves.toBeUndefined()
-
-        fetchMock.mockImplementationOnce(async () => jsonResponse({ detail: 'boom' }, 500))
-        await expect(apiService.dismissVoiceReviewFlag(9)).rejects.toMatchObject({ status: 500 })
-    })
-
     describe('write boundary (D35): the projections never reach a write body', () => {
-        // A V1 voice with a padded id: re-sent byte-identical (D32), never normalised.
-        const V1 = { ...LEGACY_V1_VOICE, voice_id: ` ${LEGACY_V1_VOICE.voice_id} `, pitch: 2 }
+        // A stored voice with a padded name: re-sent byte-identical (D32), never normalised.
+        const STORED = { schema_version: 2, provider: 'elevenlabs', voice_key: EFFECTIVE.voice_key, voice_name: ' Eldrin ', settings: { speed: 1.1 }, emotion: null, language_code: null }
         const V2 = { schema_version: 2, provider: 'elevenlabs', voice_key: EFFECTIVE.voice_key, voice_name: 'Eldrin', settings: null, emotion: null, language_code: null }
         const card = () => ({
             name: 'Mira',
-            voice: V1,
+            voice: STORED,
             effective_voice: EFFECTIVE,
             category: [{ id: 'stats', attributes: [{ effective_voice: EFFECTIVE, label: 'kept' }] }],
         })
@@ -116,7 +84,7 @@ describe('effective voice and review flag API (R1-FE-03)', () => {
             name: 'Harbour',
             narrator_voice: V2,
             effective_narrator_voice: EFFECTIVE,
-            characters: [{ name: 'Mira', voice: V1, effective_voice: EFFECTIVE }, { name: 'Tobias', voice: null }],
+            characters: [{ name: 'Mira', voice: STORED, effective_voice: EFFECTIVE }, { name: 'Tobias', voice: null }],
             persona: { name: 'Me', voice: V2, effective_voice: EFFECTIVE },
         })
         const preset = () => ({ name: 'P', description: null, voice_key: EFFECTIVE.voice_key, settings: null, emotion: null, effective_voice: EFFECTIVE })
@@ -134,18 +102,18 @@ describe('effective voice and review flag API (R1-FE-03)', () => {
         register('updateVoicePreset', preset, (body) => apiService.updateVoicePreset('p1', body))
         register(
             'updateAdventureSnapshot',
-            () => ({ template: template(), narrator_voice: V1, effective_narrator_voice: EFFECTIVE, narrate_thoughts: true }),
+            () => ({ template: template(), narrator_voice: STORED, effective_narrator_voice: EFFECTIVE, narrate_thoughts: true }),
             (body) => apiService.withWorkspace(WS_A).updateAdventureSnapshot(5, body),
         )
 
-        it.each(writes.map(([name, call, input]) => ({ name, call, input })))('$name strips them at any depth, keeps V1 bytes, mutates nothing', async ({ call, input }) => {
+        it.each(writes.map(([name, call, input]) => ({ name, call, input })))('$name strips them at any depth, keeps the stored voice bytes, mutates nothing', async ({ call, input }) => {
             fetchMock.mockImplementation(async () => jsonResponse({ ok: true }))
             const before = JSON.stringify(input())
             await call()
             const raw = String(initAt(0).body)
             expect(raw).not.toContain('effective_voice')
             expect(raw).not.toContain('effective_narrator_voice')
-            if (before.includes('voice_id')) expect(raw).toContain('"voice_id":" English_radiant_girl "')
+            if (before.includes('" Eldrin "')) expect(raw).toContain(JSON.stringify(STORED))
             // The caller's object is untouched (copy-on-write).
             expect(JSON.stringify(input())).toBe(before)
         })
@@ -158,8 +126,6 @@ describe('effective voice and review flag API (R1-FE-03)', () => {
     it('refuses while voices are disabled', async () => {
         vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
         await expect(apiService.getEffectiveVoice('preset', 'p1')).rejects.toThrow('Voices are disabled.')
-        await expect(apiService.listVoiceReviewFlags()).rejects.toThrow('Voices are disabled.')
-        await expect(apiService.dismissVoiceReviewFlag(1)).rejects.toThrow('Voices are disabled.')
         expect(fetchMock).not.toHaveBeenCalled()
     })
 })

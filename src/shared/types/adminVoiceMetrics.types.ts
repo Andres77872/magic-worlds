@@ -11,8 +11,6 @@
  * - `alerts`: only the rules that fire now. Narration and call rules run over
  *   the last hour whatever the window, the 429 share over 5 minutes, spend
  *   over today (UTC). The console shows the full rule list beside them.
- * - `baseline`: the frozen R0 baseline loaded at startup, or null; the
- *   × baseline rules are not evaluated without it.
  *
  * Window: `hours` (1–720, default 24) on every area but `spend`, which takes
  * `days` (1–90, default 7). A database error is 503 with a plain `detail`.
@@ -52,12 +50,6 @@ export interface AdminVoiceMetricsAlert {
     runbook: string
     /** What exactly tripped, e.g. the breaker name (`config:narration`). */
     detail: string | null
-}
-
-/** The frozen R0 baseline (10 §7.2); any field may be unknown. */
-export interface AdminVoiceMetricsBaseline {
-    narration_failure_rate: number | null
-    narration_p95_ms: number | null
 }
 
 // ---- process (live, this server process) ----
@@ -304,8 +296,6 @@ interface AdminVoiceMetricsEnvelopeBase<S extends AdminVoiceMetricsArea, D> {
     db: D
     process: AdminVoiceProcessMetrics
     alerts: AdminVoiceMetricsAlert[]
-    /** Every area sends the key; only narration reads a loaded baseline today. */
-    baseline: AdminVoiceMetricsBaseline | null
 }
 
 export type NarrationMetricsResponse = AdminVoiceMetricsEnvelopeBase<'narration', NarrationDbMetrics>

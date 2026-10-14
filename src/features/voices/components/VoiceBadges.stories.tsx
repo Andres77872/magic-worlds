@@ -3,7 +3,7 @@ import type { VoiceBadgeKey } from '@/shared'
 import { VoiceBadges, type VoiceBadgeContext } from './VoiceBadges'
 
 const ALL_BADGES: VoiceBadgeKey[] = [
-    'needs_reselect', 'review', 'leaving', 'retired', 'replaced', 'locked',
+    'needs_reselect', 'leaving', 'retired', 'replaced', 'locked',
     'call_voice', 'standard_fallback', 'not_tested_language', 'expressive_only', 'house_voice',
 ]
 
@@ -34,7 +34,7 @@ const meta = {
         className: { control: false },
     },
     args: {
-        badges: ['leaving', 'review'],
+        badges: ['leaving', 'needs_reselect'],
         context: CONTEXT,
     },
 } satisfies Meta<typeof VoiceBadges>

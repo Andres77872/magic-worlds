@@ -11,7 +11,7 @@ import { ApiError, apiService, ChatSocket } from '@/infrastructure/api'
 import { adventures, characters, characterChats, worlds } from '@/ui/components/lists/fixtures'
 import { libraryCardToSnapshotCard } from '@/features/interaction/utils/adventureSnapshot'
 import type { Adventure, CallSummary, CatalogQuery, PreviewTextsResponse, VoicePresetV2 } from '@/shared'
-import { CAPABILITIES_EL_PLUS, CATALOG_ELDRIN, CATALOG_MAREN_HOUSE, CATALOG_PAGE, REVIEW_FLAG_CARD } from '@/features/voices/fixtures'
+import { CAPABILITIES_EL_PLUS, CATALOG_ELDRIN, CATALOG_MAREN_HOUSE, CATALOG_PAGE } from '@/features/voices/fixtures'
 import * as voiceConsole from './voices/fixtures'
 
 export type AuditState = 'populated' | 'empty' | 'loading' | 'error' | 'signed-out' | 'restricted'
@@ -75,7 +75,6 @@ export function installPlayAdminAuditApi(state: AuditState = 'populated') {
             return load({ items, next_cursor: null })
         },
         getVoiceCatalogByKeys: (keys: readonly string[]) => load(CATALOG_PAGE.filter((voice) => keys.includes(voice.voice_key))),
-        listVoiceReviewFlags: () => load({ items: empty ? [] : [REVIEW_FLAG_CARD] }),
         getPreviewTexts: () => load(auditPreviewTexts),
         listAdminCatalog: () => load({ items: empty ? [] : voiceConsole.auditCatalogVoices, next_cursor: null, summary: null }),
         getVoiceLimits: () => load(voiceConsole.auditLimits),

@@ -6,7 +6,7 @@
  */
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Activity, Bookmark, BookOpenText, Crown, Flag, Library, ListChecks, Map, Mic2, Sparkles, Star, TestTube2 } from 'lucide-react'
+import { Activity, Bookmark, BookOpenText, Crown, Flag, Library, ListChecks, Mic2, Sparkles, Star, TestTube2 } from 'lucide-react'
 import { useAuth } from '@/app/hooks'
 import { Button, Callout, Icon, IconTile, PageHeader, TabPanel, Tabs, type TabOption } from '@/ui/primitives'
 import { EmptyState } from '@/ui/components/common/EmptyState'
@@ -16,7 +16,6 @@ import { CreateModule } from './create/CreateModule'
 import { DefaultsModule } from './defaults/DefaultsModule'
 import { GlobalPresetsModule } from './globalPresets/GlobalPresetsModule'
 import { LibraryBrowser } from './library/LibraryBrowser'
-import { LegacyMappingModule } from './mapping/LegacyMappingModule'
 import { SynthLab } from './lab/SynthLab'
 import { MetricsModule } from './metrics/MetricsModule'
 import { MinorReportsModule } from './reports/MinorReportsModule'
@@ -64,7 +63,6 @@ function VoiceConsole() {
         { value: 'acceptance', label: t('admin.voices.nav.acceptance'), icon: <Icon icon={Star} size={16} /> },
         { value: 'defaults', label: t('admin.voices.nav.defaults'), icon: <Icon icon={Mic2} size={16} /> },
         { value: 'globalPresets', label: t('admin.voices.modules.globalPresets'), icon: <Icon icon={Bookmark} size={16} /> },
-        { value: 'mapping', label: t('admin.voices.nav.mapping'), icon: <Icon icon={Map} size={16} /> },
         { value: 'library', label: t('admin.voices.nav.library'), icon: <Icon icon={Library} size={16} /> },
         { value: 'create', label: t('admin.voices.nav.create'), icon: <Icon icon={Sparkles} size={16} /> },
         { value: 'lab', label: t('admin.voices.nav.lab'), icon: <Icon icon={TestTube2} size={16} /> },
@@ -132,7 +130,6 @@ function VoiceConsole() {
             {panel('acceptance', <AcceptanceModule key={acceptanceHandoff.nonce} initialVoiceKey={acceptanceHandoff.voiceKey} />)}
             {panel('defaults', <DefaultsModule />)}
             {panel('globalPresets', <GlobalPresetsModule />)}
-            {panel('mapping', <LegacyMappingModule />)}
             {panel('library', <LibraryBrowser />)}
             {panel('create', <CreateModule />)}
             {panel('lab', <SynthLab key={labHandoff.nonce} initialVoiceKey={labHandoff.voiceKey} />)}

@@ -89,7 +89,7 @@ describe('CallScreen (Workspace R1)', () => {
     it('opens the consent gate for an active workspace', async () => {
         renderCall(false)
 
-        // Consent opens once the required consent version is read (a failed read keeps v1).
+        // The consent is always the voice-v2 copy (D25, I-68): no version read gates it.
         const accept = screen.getByRole('button', { name: /I consent and start call/i })
         await waitFor(() => expect(accept).toBeEnabled())
         fireEvent.click(accept)

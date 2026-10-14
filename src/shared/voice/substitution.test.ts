@@ -3,7 +3,6 @@ import type { ChatTtsSegmentClip, VoiceSubstitutionReason } from '@/shared/types
 import { NO_VOICE_NOTES, REPLACED_REASONS, isCallVoiceReason, isReplacedReason, isStandardFallback, turnVoiceNotes } from './substitution'
 
 const ALL_REASONS: VoiceSubstitutionReason[] = [
-    'unmapped_legacy',
     'voice_removed',
     'voice_unavailable',
     'voice_blocked',
@@ -17,10 +16,9 @@ const ALL_REASONS: VoiceSubstitutionReason[] = [
 const clip = (overrides: Partial<ChatTtsSegmentClip>): ChatTtsSegmentClip => ({ segment_index: 0, ...overrides })
 
 describe('substitution reasons', () => {
-    it('classifies all nine reasons', () => {
+    it('classifies all eight reasons', () => {
         const table = Object.fromEntries(ALL_REASONS.map((reason) => [reason, [isReplacedReason(reason), isStandardFallback(reason), isCallVoiceReason(reason)]]))
         expect(table).toEqual({
-            unmapped_legacy: [true, false, false],
             voice_removed: [true, false, false],
             voice_unavailable: [true, false, false],
             voice_blocked: [true, false, false],
@@ -33,7 +31,7 @@ describe('substitution reasons', () => {
     })
 
     it('mirrors the BFF resolver set (R-7): default_voice is not a replacement', () => {
-        expect([...REPLACED_REASONS].sort()).toEqual(['language_unsupported', 'unmapped_legacy', 'voice_blocked', 'voice_removed', 'voice_unavailable'])
+        expect([...REPLACED_REASONS].sort()).toEqual(['language_unsupported', 'voice_blocked', 'voice_removed', 'voice_unavailable'])
     })
 
     it('ignores unknown and non-string reasons (forward compatible)', () => {
@@ -82,11 +80,11 @@ describe('turnVoiceNotes', () => {
 
     it('keys an id-less speaker by name, and blank names read as missing', () => {
         const notes = turnVoiceNotes([
-            clip({ kind: 'speech', speaker_name: 'Rook', substitution_reason: 'unmapped_legacy', voice_name: '  ', original_voice_name: '' }),
-            clip({ segment_index: 1, kind: 'speech', speaker_name: 'Rook', substitution_reason: 'unmapped_legacy' }),
+            clip({ kind: 'speech', speaker_name: 'Rook', substitution_reason: 'voice_unavailable', voice_name: '  ', original_voice_name: '' }),
+            clip({ segment_index: 1, kind: 'speech', speaker_name: 'Rook', substitution_reason: 'voice_unavailable' }),
         ])
         expect(notes.replaced).toEqual([
-            { speaker: 'Rook', kind: 'speech', cardId: null, speakerName: 'Rook', voiceName: null, originalVoiceName: null, reason: 'unmapped_legacy' },
+            { speaker: 'Rook', kind: 'speech', cardId: null, speakerName: 'Rook', voiceName: null, originalVoiceName: null, reason: 'voice_unavailable' },
         ])
     })
 })

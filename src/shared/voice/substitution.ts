@@ -21,7 +21,6 @@ export const REPLACED_REASONS: ReadonlySet<VoiceSubstitutionReason> = new Set<Vo
     'voice_removed',
     'voice_blocked',
     'voice_unavailable',
-    'unmapped_legacy',
     'language_unsupported',
 ])
 

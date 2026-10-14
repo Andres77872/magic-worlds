@@ -36,22 +36,18 @@ describe('MetricsModule (R0-OPS-07)', () => {
             const failure = ruleRow(rules, 'Narration failure rate')
             expect(failure).toHaveAttribute('data-state', 'firing')
             expect(within(failure).getByText('Firing')).toBeInTheDocument()
-            expect(within(failure).getByText('Above 2% of finished segments (2%, or 2× baseline when lower); at least 200 segments')).toBeInTheDocument()
+            expect(within(failure).getByText('Above 2% of finished segments; at least 200 segments')).toBeInTheDocument()
             expect(within(failure).getByText('7.32% (threshold 2%, sample 205)')).toBeInTheDocument()
             expect(within(failure).getByText('elevenlabs')).toBeInTheDocument()
             expect(within(failure).getByText('RB-1')).toBeInTheDocument()
 
-            const p95 = ruleRow(rules, 'Narration job p95')
-            expect(within(p95).getByText('Above 6,000 ms (2× the baseline p95); at least 200 segments')).toBeInTheDocument()
-            expect(within(p95).getByText('7,000 ms (threshold 6,000 ms, sample 205)')).toBeInTheDocument()
-
             const moderation = ruleRow(rules, 'Moderation unavailable')
             expect(moderation).toHaveAttribute('data-state', 'quiet')
             expect(within(moderation).getByText('Not firing')).toBeInTheDocument()
-            expect(screen.getByTestId('metrics-firing-count')).toHaveTextContent('3 rules firing')
+            expect(screen.getByTestId('metrics-firing-count')).toHaveTextContent('2 rules firing')
         })
 
-        it('shows segments per provider, outcomes, turn charges, the baseline and the live process metrics', async () => {
+        it('shows segments per provider, outcomes, turn charges and the live process metrics', async () => {
             renderInConsole(<MetricsModule />, 'metrics')
             const providers = await screen.findByRole('table', { name: 'Narration segments by provider' })
             const row = within(providers).getByRole('row', { name: /elevenlabs/ })
@@ -59,7 +55,6 @@ describe('MetricsModule (R0-OPS-07)', () => {
             expect(row).toHaveTextContent('7.32%')
             expect(row).toHaveTextContent('10 · 4.88%')
             expect(row).toHaveTextContent('7,000 ms')
-            expect(screen.getByTestId('metrics-baseline')).toHaveTextContent('Failure rate 1% · job p95 3,000 ms')
             expect(within(screen.getByRole('table', { name: 'Narration segment outcomes' })).getByRole('row', { name: /timeout/ })).toHaveTextContent('5')
             expect(within(screen.getByRole('table', { name: 'Narration turn charges by status and tier' })).getByRole('row', { name: /^open standard/ })).toHaveTextContent('30')
             expect(screen.getByText('Open charges older than 15 minutes count as stale.')).toBeInTheDocument()
@@ -80,19 +75,6 @@ describe('MetricsModule (R0-OPS-07)', () => {
             expect(moderation).toHaveAttribute('data-state', 'quiet')
             expect(within(moderation).getByText('0% (sample 205)')).toBeInTheDocument()
             expect(within(moderation).getByText('elevenlabs')).toBeInTheDocument()
-            expect(within(ruleRow(rules, 'Narration job p95')).getByText('7,000 ms (sample 205)')).toBeInTheDocument()
-        })
-
-        it('does not evaluate the × baseline rule without a baseline, and says so', async () => {
-            const withoutBaseline: NarrationMetricsResponse = { ...narrationMetrics, baseline: null, alerts: narrationMetrics.alerts.filter((alert) => alert.alert !== 'narration_job_p95') }
-            mock().getAdminVoiceMetrics.mockResolvedValue(withoutBaseline)
-            renderInConsole(<MetricsModule />, 'metrics')
-            const rules = await screen.findByRole('table', { name: 'Alert rules: Narration' })
-            const p95 = ruleRow(rules, 'Narration job p95')
-            expect(within(p95).getByText('Not evaluated')).toBeInTheDocument()
-            expect(within(p95).getByText('No baseline is loaded.')).toBeInTheDocument()
-            expect(within(p95).getByText('Above 2× the baseline p95; at least 200 segments')).toBeInTheDocument()
-            expect(screen.getByTestId('metrics-baseline')).toHaveTextContent('No baseline is loaded, so the × baseline rules are not evaluated.')
         })
 
         it('refetches for a new window and reports a small last-hour sample', async () => {

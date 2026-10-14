@@ -1,4 +1,4 @@
-/** Narration dashboard (11 §8.3): segments per provider, outcomes, turn charges and the baseline. */
+/** Narration dashboard (11 §8.3): segments per provider, outcomes and turn charges. */
 import { useTranslation } from 'react-i18next'
 import type { NarrationMetricsResponse } from '@/shared'
 import { formatMs, formatNumber, formatShare } from '../../format'
@@ -10,8 +10,6 @@ export function NarrationMetricsView({ envelope, locale }: { envelope: Narration
     const n = (value: number | null | undefined) => formatNumber(value, locale)
     const share = (value: number | null | undefined) => formatShare(value, locale)
     const countAndShare = (count: number, value: number | null) => `${n(count)} · ${share(value)}`
-    const baseline = envelope.baseline
-    const hasBaseline = baseline !== null && (baseline.narration_failure_rate !== null || baseline.narration_p95_ms !== null)
 
     return (
         <>
@@ -45,17 +43,6 @@ export function NarrationMetricsView({ envelope, locale }: { envelope: Narration
                         { key: 'p95', header: t('admin.voices.metrics.narration.p95'), numeric: true, cell: (row) => formatMs(row.latency?.p95_ms, locale) },
                     ]}
                 />
-            </MetricsPanel>
-
-            <MetricsPanel title={t('admin.voices.metrics.narration.baselineTitle')}>
-                <p className="font-ui text-sm text-parchment-200" data-testid="metrics-baseline">
-                    {hasBaseline
-                        ? t('admin.voices.metrics.narration.baselineValue', {
-                              rate: share(baseline?.narration_failure_rate),
-                              p95: formatMs(baseline?.narration_p95_ms, locale),
-                          })
-                        : t('admin.voices.metrics.narration.baselineMissing')}
-                </p>
             </MetricsPanel>
 
             <MetricsPanel title={t('admin.voices.metrics.narration.outcomesTitle')}>

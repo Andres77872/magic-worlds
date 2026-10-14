@@ -39,7 +39,7 @@ async function loadIndex(signal: AbortSignal): Promise<CatalogIndexData> {
 
 /**
  * The whole catalog in memory, for the pickers and the cross-module checks
- * (acceptance queue, defaults readiness, mapping targets, lab voice). The
+ * (acceptance queue, defaults readiness, preset voices, lab voice). The
  * Catalog manager keeps its own server-filtered list.
  */
 export function useCatalogIndex(enabled = true): CatalogIndex {

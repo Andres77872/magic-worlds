@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EffectiveVoice } from '@/shared/types'
-import { castVoiceDrift, hasConvertedVoice, MAX_REFRESH_CARD_IDS, refreshBatches, sessionVoiceDrift } from './sessionVoiceDrift'
+import { castVoiceDrift, MAX_REFRESH_CARD_IDS, refreshBatches, sessionVoiceDrift } from './sessionVoiceDrift'
 
 const KEY_A = `vk_${'a'.repeat(32)}`
 const KEY_B = `vk_${'b'.repeat(32)}`
@@ -11,7 +11,6 @@ function el(voiceKey: string | null, overrides: Partial<EffectiveVoice> = {}): E
         display_name: voiceKey === KEY_A ? 'Aria' : 'Bram',
         provider_route: 'elevenlabs',
         substitution_reason: null,
-        flags: [],
         badges: [],
         ...overrides,
     }
@@ -40,7 +39,7 @@ describe('sessionVoiceDrift (D36)', () => {
         expect(byReason).toEqual({ replaced: true, differs: false, sessionName: 'Aria', cardName: 'Aria' })
         const byBadge = sessionVoiceDrift(el(KEY_A, { badges: ['replaced'] }), null)
         expect(byBadge).toMatchObject({ replaced: true, differs: false, cardName: null })
-        expect(sessionVoiceDrift(el(KEY_A, { substitution_reason: 'unmapped_legacy' }), el(KEY_B))).toMatchObject({ replaced: true, differs: true })
+        expect(sessionVoiceDrift(el(KEY_A, { substitution_reason: 'voice_unavailable' }), el(KEY_B))).toMatchObject({ replaced: true, differs: true })
     })
 
     it('never offers the refresh for a missing card voice (source absent, D39 item 6)', () => {
@@ -50,7 +49,6 @@ describe('sessionVoiceDrift (D36)', () => {
     })
 
     const notCopyableCards: Array<[string, Partial<EffectiveVoice>]> = [
-        ['unmapped_legacy (a defaulted V1 translation)', { substitution_reason: 'unmapped_legacy', badges: ['replaced', 'needs_reselect'] }],
         ['voice_removed', { substitution_reason: 'voice_removed', badges: ['replaced'] }],
         ['voice_blocked', { substitution_reason: 'voice_blocked' }],
         ['voice_unavailable', { substitution_reason: 'voice_unavailable' }],
@@ -70,8 +68,7 @@ describe('sessionVoiceDrift (D36)', () => {
         expect(castVoiceDrift([{ cardId: 'c1', name: 'Lyra', effective: el(KEY_A) }], () => cardVoice)).toEqual([])
     })
 
-    it('still offers the refresh for an eligible card voice with review flags or a language substitution', () => {
-        expect(sessionVoiceDrift(el(KEY_A), el(KEY_B, { badges: ['review'] }))).toMatchObject({ differs: true })
+    it('still offers the refresh for an eligible card voice with a language or tier substitution', () => {
         expect(sessionVoiceDrift(el(KEY_A), el(KEY_B, { substitution_reason: 'language_unsupported', badges: ['replaced'] })))
             .toMatchObject({ differs: true })
         expect(sessionVoiceDrift(el(KEY_A), el(KEY_B, { substitution_reason: 'tier_fallback', badges: ['standard_fallback'] })))
@@ -113,22 +110,5 @@ describe('refreshBatches', () => {
         const batches = refreshBatches([...ids, 'c0'])
         expect(batches.map((batch) => batch.length)).toEqual([MAX_REFRESH_CARD_IDS, 2])
         expect(batches.flat()).toEqual(ids)
-    })
-})
-
-describe('hasConvertedVoice (first exposure)', () => {
-    const v1 = { voice_id: 'male-qn-qingse', preset_name: 'Calm' }
-    const v2 = { schema_version: 2, provider: 'elevenlabs', voice_key: KEY_A, voice_name: 'Aria' }
-
-    it('holds for a stored V1 voice that plays through ElevenLabs', () => {
-        expect(hasConvertedVoice([{ voice: v1, effective: el(KEY_A) }])).toBe(true)
-    })
-
-    it('does not hold for V2 voices, unreadable projections or missing voices', () => {
-        expect(hasConvertedVoice([{ voice: v2, effective: el(KEY_A) }])).toBe(false)
-        expect(hasConvertedVoice([{ voice: v1, effective: unknownRoute }])).toBe(false)
-        expect(hasConvertedVoice([{ voice: v1, effective: undefined }])).toBe(false)
-        expect(hasConvertedVoice([{ voice: null, effective: el(KEY_A) }])).toBe(false)
-        expect(hasConvertedVoice([])).toBe(false)
     })
 })

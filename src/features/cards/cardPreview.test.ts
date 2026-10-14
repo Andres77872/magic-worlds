@@ -12,10 +12,9 @@ const EFFECTIVE: EffectiveVoice = {
     display_name: 'Eldrin',
     provider_route: 'elevenlabs',
     substitution_reason: null,
-    flags: [],
     badges: [],
 }
-const VOICE = { voice_id: 'English_radiant_girl', preset_name: 'Child girl' }
+const VOICE = { schema_version: 2 as const, provider: 'elevenlabs' as const, voice_key: 'vk_3f0c2a9e5b7d4c1a8e6f0b2d4a6c8e1f', voice_name: 'Eldrin', preset_name: 'Child girl' }
 
 function library(characters: Character[]) {
     return { characters, worlds: [], items: [], templateAdventures: [] }

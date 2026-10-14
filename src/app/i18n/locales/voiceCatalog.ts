@@ -90,9 +90,6 @@ export const voiceCatalogEs = {
 /** New `voices.picker` keys, spread into the existing inline picker object. */
 export const voicePickerCatalogEn = {
     presetsTab: 'Presets',
-    v1PresetNeedsUpdate: 'Update this preset in the voice studio to use it with the new voices.',
-    convertedFromV1: 'Updated for the new voices',
-    openStudio: 'Open voice studio',
     /**
      * 05 §7.4 / §9.3 `voices.picker.eligibilityError` (D32): a 422 `voice_not_eligible` on save, shown
      * on the voice field and as the save error (`voiceWriteErrorKey`).
@@ -112,9 +109,6 @@ export const voicePickerCatalogEn = {
 
 export const voicePickerCatalogEs = {
     presetsTab: 'Presets',
-    v1PresetNeedsUpdate: 'Actualiza este preset en el Estudio de voz para usarlo con las nuevas voces.',
-    convertedFromV1: 'Actualizado para las nuevas voces',
-    openStudio: 'Abrir Estudio de voz',
     eligibilityError: 'Esta voz no se puede elegir ahora mismo. Elige otra.',
     previewNamed: 'Previsualizar {{name}}, {{voice}}, {{language}}',
     previewNamedCredit: '{{label}}: {{name}}, {{voice}}, {{language}}',

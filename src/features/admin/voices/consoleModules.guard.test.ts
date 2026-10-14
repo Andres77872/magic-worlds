@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 /**
- * Voice console module guard (R1-FE-06, then the I-68 voice purge): the
- * console modules deleted with the redesign stay deleted, and so do the
- * legacy-route modules the purge removed (the provider inventory, the legacy
- * audition, the reverse mapping) and the user-facing legacy studio. The
- * forward legacy mapping stays: it is pure data the V1 reader and the R5
- * rewrite read. The API keeps no legacy-provider admin route.
+ * Voice console module guard (R1-FE-06, the I-68 voice purge, then the native
+ * cutover): the console modules deleted with the redesign stay deleted, and so
+ * do the legacy-route modules the purges removed (the provider inventory, the
+ * legacy audition, the reverse and forward legacy mappings with their coverage
+ * report) and the user-facing legacy studio. The API keeps no legacy-provider,
+ * legacy-mapping or review-flag route.
  */
 
 const consoleFiles = Object.keys(import.meta.glob('/src/features/admin/voices/**/*.{ts,tsx}'))
@@ -40,10 +40,12 @@ const DELETED_CONSOLE_MODULES = [
     'components/mapping/ReverseMappingTable',
     'legacyAudition',
     'legacyInventory',
+    // Removed with the native cutover: no legacy voice can reach the catalog.
+    'components/mapping/LegacyMappingModule',
+    'components/mapping/CoverageReport',
+    'components/mapping/MappingEditorDrawer',
+    'components/shell/OrderedVoiceList',
 ]
-
-/** The forward legacy mapping: kept (03 §1.6 "Remain"). */
-const KEPT_MAPPING = ['components/mapping/LegacyMappingModule.tsx', 'components/mapping/CoverageReport.tsx', 'components/mapping/MappingEditorDrawer.tsx']
 
 const stem = (file: string) => file.replace('/src/features/admin/voices/', '').replace(/(\.test|\.stories)?\.tsx?$/, '')
 
@@ -61,20 +63,18 @@ describe('voice console module guard (R1-FE-06, I-68)', () => {
         expect(consoleFiles.filter((file) => RETIRED_PROVIDER_NAME.test(file))).toEqual([])
     })
 
-    it.each(KEPT_MAPPING)('keeps the forward legacy mapping module %s', (file) => {
-        expect(consoleFiles).toContain(`/src/features/admin/voices/${file}`)
+    it('keeps the legacy mapping folder deleted', () => {
+        expect(consoleFiles.filter((file) => file.includes('/components/mapping/'))).toEqual([])
     })
 
     it('keeps the user-facing legacy studio deleted', () => {
         expect(legacyStudioFiles).toEqual([])
     })
 
-    it('keeps no legacy-provider, reverse-mapping or clone admin route in the API', () => {
-        // `/admin/voices/legacy-mapping` (hyphen) is the kept forward mapping; any `/admin/voices/legacy/…` path was the provider.
-        expect(apiSource).toContain('/admin/voices/legacy-mapping')
-        expect(apiSource).not.toMatch(/\/admin\/voices\/legacy\//)
-        // Nor any other `legacy-…` route (the reverse mapping was one).
-        expect(apiSource).not.toMatch(/\/admin\/voices\/legacy-(?!mapping)/)
+    it('keeps no legacy-provider, legacy-mapping, review-flag or clone route in the API', () => {
+        // Any `/admin/voices/legacy/…` path was the provider; `legacy-…` paths were the mappings.
+        expect(apiSource).not.toMatch(/\/admin\/voices\/legacy[/-]/)
+        expect(apiSource).not.toContain('review-flags')
         expect(apiSource).not.toMatch(/['`"]\/admin\/voices\/clone/)
     })
 })

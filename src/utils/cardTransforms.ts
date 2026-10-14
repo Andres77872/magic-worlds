@@ -73,8 +73,8 @@ function organizationOf(row: RawCardRow): { organization?: CardOrganization } {
 }
 
 /**
- * Keep the WHOLE stored voice, V1 or V2 (03 §5.1.2): the same object, never a
- * whitelist or a trim, so an unchanged card save re-sends it byte-identical (D32).
+ * Keep the WHOLE stored voice (03 §5.1.2): the same object, never a whitelist
+ * or a trim, so an unchanged card save re-sends it byte-identical (D32).
  * A non-null voice the client does not recognise is kept too (09 §3.2): display
  * reads it as "no voice", but a save never turns it into `null`.
  */

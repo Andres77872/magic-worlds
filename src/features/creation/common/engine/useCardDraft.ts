@@ -15,7 +15,7 @@ import { invalidateCardUsage } from '@/shared/hooks/useCardUsage'
 import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import type { CardEditVersion } from '@/features/gallery/galleryLinks'
 import type { CardDraftDocument, CardPublishResult, VersionableCardType } from '@/shared/types/cardVersion.types'
-import { voiceSaveError } from './useCreatorWorkspace'
+import { voiceSaveErrorKey } from './useCreatorWorkspace'
 
 export interface CardDraftState {
     /** True when a private draft with unpublished edits exists. */
@@ -66,7 +66,7 @@ export interface UseCardDraftApi {
     /**
      * Save the form into the private draft. A voice write refusal (I-36) sets its
      * `voices.errors.*` key instead of the generic one; `onError` receives the
-     * failure so the editor can offer an action (409 `voice_reload_required`).
+     * failure so the editor can point at the refused field.
      */
     saveDraft: (body: unknown, options?: { onError?: (error: unknown) => void }) => Promise<boolean>
     publish: (label?: string) => Promise<CardPublishResult | null>
@@ -173,7 +173,7 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded, workspa
                 setDraftState(toState(doc))
                 return true
             } catch (cause) {
-                setError(voiceSaveError(cause)?.key ?? 'cardVersions.errors.draftSave')
+                setError(voiceSaveErrorKey(cause) ?? 'cardVersions.errors.draftSave')
                 options?.onError?.(cause)
                 return false
             } finally {

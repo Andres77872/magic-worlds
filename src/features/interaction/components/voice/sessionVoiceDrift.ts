@@ -15,15 +15,14 @@
  *   voice) is by design and does not count. Without a card projection (the
  *   card is not in the session's library, D39 item 6) nothing differs.
  *
- * The refresh judges the copied voice as a new pick (D32/D36, R-9): a V1 card
- * voice that translates only to a D31 default is refused, and so is any voice
- * that is not active in the catalog (BFF `refreshed_voice_v2` and
- * `_validate_v2_pick`, `voice_not_eligible`). A card projection that shows one
- * of those (`notCopyable`) never offers an action that is bound to fail; the
- * user fixes the card first (05 §7.8 owner prompts).
+ * The refresh judges the copied voice as a new pick (D32/D36, R-9): a voice
+ * that is not active in the catalog is refused (BFF `_validate_v2_pick`,
+ * `voice_not_eligible`). A card projection that shows one (`notCopyable`)
+ * never offers an action that is bound to fail; the user fixes the card first
+ * (05 §7.8 owner prompts).
  */
-import type { EffectiveVoice, StoredCharacterVoice, VoiceBadgeKey, VoiceSubstitutionReason } from '@/shared/types'
-import { isElevenLabsProjection, isReplacedReason, isVoiceV2, parseStoredVoice, readEffectiveVoice } from '@/shared/voice'
+import type { EffectiveVoice, VoiceBadgeKey, VoiceSubstitutionReason } from '@/shared/types'
+import { isElevenLabsProjection, isReplacedReason, readEffectiveVoice } from '@/shared/voice'
 
 export interface SessionVoiceDrift {
     replaced: boolean
@@ -60,8 +59,7 @@ function elevenLabs(raw: unknown): EffectiveVoice | null {
 
 /**
  * Card projections whose stored voice the refresh refuses to copy:
- * - `unmapped_legacy` / `needs_reselect`: a V1 voice with no mapping, translated
- *   to a D31 default (`defaulted_review`);
+ * - `needs_reselect`: the stored voice has to be picked again;
  * - `voice_removed`, `voice_blocked`, `voice_unavailable`, `retired` (hidden) and
  *   `leaving` (deprecating): the stored voice is not `active`;
  * - `default_voice`: the stored value is not a readable voice.
@@ -69,7 +67,6 @@ function elevenLabs(raw: unknown): EffectiveVoice | null {
  * session may play it in its own language.
  */
 const NOT_COPYABLE_REASONS: ReadonlySet<VoiceSubstitutionReason> = new Set<VoiceSubstitutionReason>([
-    'unmapped_legacy',
     'voice_removed',
     'voice_blocked',
     'voice_unavailable',
@@ -133,21 +130,4 @@ export function refreshBatches(cardIds: readonly string[]): string[][] {
         batches.push(unique.slice(index, index + MAX_REFRESH_CARD_IDS))
     }
     return batches
-}
-
-/** A stored voice and its projection, as a session holds them. */
-export interface StoredVoicePair {
-    voice: StoredCharacterVoice | null | undefined | unknown
-    effective: unknown
-}
-
-/**
- * The first-exposure condition for a session (D35, 05 §7.6): a stored V1
- * (legacy) voice that now plays through an ElevenLabs projection.
- */
-export function hasConvertedVoice(pairs: readonly StoredVoicePair[]): boolean {
-    return pairs.some(({ voice, effective }) => {
-        const stored = parseStoredVoice(voice)
-        return Boolean(stored && !isVoiceV2(stored) && elevenLabs(effective))
-    })
 }

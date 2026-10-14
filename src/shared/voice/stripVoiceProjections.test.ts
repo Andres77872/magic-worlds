@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { LEGACY_V1_VOICE } from '@/test/fixtures/legacyMinimax'
 import { stripVoiceProjections } from './stripVoiceProjections'
 
-const V1 = { ...LEGACY_V1_VOICE, voice_id: ' English_magnetic_voiced_man ' }
+/** A stored voice with an untrimmed name and a preset link: it must come back byte-identical. */
+const CAST = {
+    schema_version: 2,
+    provider: 'elevenlabs',
+    voice_key: 'vk_0a1b2c3d4e5f60718293a4b5c6d7e8f9',
+    voice_name: ' Maren ',
+    emotion: 'calm',
+    preset_id: 'preset-1',
+    preset_name: 'Warm narrator',
+}
 const V2 = {
     schema_version: 2,
     provider: 'elevenlabs',
@@ -15,25 +23,24 @@ const EFFECTIVE = {
     display_name: 'Eldrin',
     provider_route: 'elevenlabs',
     substitution_reason: null,
-    flags: [],
     badges: [],
 }
 
 describe('stripVoiceProjections', () => {
     it('removes effective_voice next to a card voice and leaves the voice byte-identical', () => {
-        const voice = { ...V1 }
+        const voice = { ...CAST }
         const card = { name: 'Dorn', voice, effective_voice: EFFECTIVE }
         const stripped = stripVoiceProjections(card)
-        expect(stripped).toEqual({ name: 'Dorn', voice: V1 })
+        expect(stripped).toEqual({ name: 'Dorn', voice: CAST })
         expect(stripped).not.toHaveProperty('effective_voice')
         expect(stripped.voice).toBe(voice)
-        expect(JSON.stringify(stripped.voice)).toBe(JSON.stringify(V1))
+        expect(JSON.stringify(stripped.voice)).toBe(JSON.stringify(CAST))
         // Pure: the input still carries its projection.
         expect(card).toHaveProperty('effective_voice')
     })
 
     it('removes projections at every voice path of an adventure snapshot', () => {
-        const castVoice = { ...V1 }
+        const castVoice = { ...CAST }
         const personaVoice = { ...V2 }
         const narratorVoice = { ...V2 }
         const snapshot = {
@@ -68,7 +75,7 @@ describe('stripVoiceProjections', () => {
     })
 
     it('returns the same reference when there is nothing to strip', () => {
-        const doc = { template: { characters: [{ voice: { ...V1 } }] }, narrator_voice: { ...V2 } }
+        const doc = { template: { characters: [{ voice: { ...CAST } }] }, narrator_voice: { ...V2 } }
         expect(stripVoiceProjections(doc)).toBe(doc)
     })
 

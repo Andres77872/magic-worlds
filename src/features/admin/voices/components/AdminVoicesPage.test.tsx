@@ -42,7 +42,7 @@ describe('AdminVoicesPage', () => {
         render(<AdminVoicesPage />)
         expect(screen.getByRole('heading', { name: 'Voice console' })).toBeInTheDocument()
         const tabs = within(screen.getByRole('tablist', { name: 'Voice console modules' })).getAllByRole('tab')
-        expect(tabs.map((tab) => tab.textContent)).toEqual(['Catalog', 'Acceptance', 'Defaults', 'Global presets', 'Legacy mapping', 'Library', 'Create', 'Synth lab', 'Metrics', 'Reports'])
+        expect(tabs.map((tab) => tab.textContent)).toEqual(['Catalog', 'Acceptance', 'Defaults', 'Global presets', 'Library', 'Create', 'Synth lab', 'Metrics', 'Reports'])
         expect(await screen.findByRole('table', { name: 'Catalog voices' })).toBeInTheDocument()
         expect(await screen.findByRole('button', { name: /Provider limits: Slots 48\/660/ })).toBeInTheDocument()
         // Modules mount on first visit only.

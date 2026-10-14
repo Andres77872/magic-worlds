@@ -26,8 +26,8 @@
  *   Past the free renders (AC-P5, 05 §6.3) the button reads "Preview voice ·
  *   1 credit" and the account's first paid render of the session asks once. The fixed
  *   text carries its language (`lang`, 05 §10).
- * - Save sends the V2 body (EP-3): create and duplicate POST; edit and the
- *   V1 conversion PUT to the row's own `preset_id` (D12). A refused write
+ * - Save sends the V2 body (EP-3): create and duplicate POST; edit PUTs to
+ *   the row's own `preset_id`. A refused write
  *   (`voice_not_eligible`, `voice_plan_locked`, …) shows inline and keeps the draft.
  *   A 422 refusing the voice itself also shows at the base-voice field, wired
  *   to it with `aria-describedby`, until another voice is chosen (AC-E6,
@@ -50,7 +50,7 @@ import type {
     VoiceCapabilities,
     VoiceControlSpec,
     VoiceEmotion,
-    VoicePresetRow,
+    VoicePresetV2,
     VoicePresetV2Write,
     VoiceSettingsV2,
 } from '@/shared'
@@ -75,7 +75,6 @@ import {
     previewableLanguages,
     previewSampleUrl,
     studioPreviewLanguage,
-    v2FieldsOf,
     VOICE_EMOTIONS,
     type PresetEditorSeed,
     type PresetEditorV2Mode,
@@ -109,8 +108,8 @@ export interface PresetEditorV2Toast {
 interface PresetEditorV2Props {
     open: boolean
     mode: PresetEditorV2Mode
-    /** The edited, converted or duplicated row; null for a blank preset. */
-    source: VoicePresetRow | null
+    /** The edited or duplicated row; null for a blank preset. */
+    source: VoicePresetV2 | null
     capabilities: VoiceCapabilities | null
     /** Re-read the capabilities when they failed (the recipe shows read-only). */
     onRetryCapabilities?: () => void
@@ -119,7 +118,7 @@ interface PresetEditorV2Props {
     /** The signed-in account: the one-time credit confirmation is remembered per account (05 §6.3). */
     userHash?: string | null
     onClose: () => void
-    onSaved: (row: VoicePresetRow | null) => void
+    onSaved: (row: VoicePresetV2 | null) => void
     notify: (toast: PresetEditorV2Toast) => void
 }
 
@@ -204,7 +203,7 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
     // Chips offer the voice's accepted languages only; the default follows D17 (05 §5.5).
     const previewLanguages = previewableLanguages(item)
     const defaultLanguage = studioPreviewLanguage(item, {
-        languageCode: source ? v2FieldsOf(source)?.language_code ?? null : null,
+        languageCode: source?.language_code ?? null,
         preferredLanguage: preferred.language,
         fallback: appLanguage,
     })
@@ -332,8 +331,8 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
             emotion,
         }
         try {
-            // Edit and conversion keep the row's own id (D12); create and duplicate make a new row.
-            const row = (mode === 'edit' || mode === 'convert') && source
+            // An edit keeps the row's own id; create and duplicate make a new row.
+            const row = mode === 'edit' && source
                 ? await apiService.updateVoicePreset(source.preset_id, write)
                 : await apiService.createVoicePreset(write)
             notify({ tone: 'success', title: t('voices.studio.v2.saved'), message: write.name })

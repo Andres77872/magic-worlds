@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { VoiceCapabilities, VoicePresetRow } from '@/shared'
+import type { VoiceCapabilities, VoicePresetV2 } from '@/shared'
 import {
     CAPABILITIES_EL_FREE,
     CAPABILITIES_EL_PLUS,
@@ -11,7 +11,6 @@ import {
     CATALOG_ORRIN_UNTESTED,
     CATALOG_PAGE,
     CATALOG_SELA_LEAVING,
-    PRESET_V1_WITH_DRAFT,
     PRESET_V2_GLOBAL,
     PRESET_V2_USER,
     VOICE_KEY_ELDRIN,
@@ -48,7 +47,7 @@ vi.mock('@/infrastructure/api', () => ({
 
 interface Props {
     mode?: PresetEditorV2Mode
-    source?: VoicePresetRow | null
+    source?: VoicePresetV2 | null
     capabilities?: VoiceCapabilities | null
     pickVoiceOnOpen?: boolean
     userHash?: string | null
@@ -106,7 +105,7 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
     it('badges a base voice not tested in the preset language: its own, else the preferred one (05 §5.5)', async () => {
         api.getUserPreferences.mockResolvedValue({ preferred_language: 'es', has_preference: true, narration_tier: 'standard' })
         lookupAnswers()
-        const orrin: VoicePresetRow = { ...PRESET_V2_USER, voice_key: VOICE_KEY_ORRIN, voice_name: 'Orrin' }
+        const orrin: VoicePresetV2 = { ...PRESET_V2_USER, voice_key: VOICE_KEY_ORRIN, voice_name: 'Orrin' }
         const { unmount } = render(<PresetEditorV2 open mode="edit" source={orrin} capabilities={CAPABILITIES_EL_PLUS} onSaved={vi.fn()} onClose={vi.fn()} notify={vi.fn()} />)
         const base = screen.getByTestId('preset-base-voice')
         expect(await within(base).findByText(/^Not tested in Spanish/)).toBeInTheDocument()
@@ -228,17 +227,6 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
         })
     })
 
-    it('converts a V1 preset under the same preset id', async () => {
-        renderEditor({ mode: 'convert', source: PRESET_V1_WITH_DRAFT })
-        expect(screen.getByRole('heading', { name: 'Update “My pirate” for new voices' })).toBeInTheDocument()
-        save()
-        await waitFor(() => expect(api.updateVoicePreset).toHaveBeenCalledTimes(1))
-        const [id, body] = api.updateVoicePreset.mock.calls[0] as [string, Record<string, unknown>]
-        expect(id).toBe('user-1')
-        expect(body).toEqual({ name: 'My pirate', description: null, voice_key: VOICE_KEY_SELA, settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.1 }, emotion: null })
-        expect(body).not.toHaveProperty('base_voice_id')
-    })
-
     it('duplicates a global preset as a new one', async () => {
         renderEditor({ mode: 'duplicate', source: PRESET_V2_GLOBAL })
         expect(screen.getByLabelText('Preset name')).toHaveValue('Fireside narrator (copy)')
@@ -264,7 +252,7 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
             ['voice_plan_locked', 'Your plan doesn’t include this voice option.'],
         ])('a 422 %s shows inline at the field, described on its control, until another voice is chosen', async (code, copy) => {
             api.updateVoicePreset.mockRejectedValue(Object.assign(new Error('Unprocessable'), { status: 422, code }))
-            renderEditor({ mode: 'convert', source: PRESET_V1_WITH_DRAFT })
+            renderEditor({ mode: 'edit', source: PRESET_V2_USER })
             save()
             const fieldError = await screen.findByTestId('voice-field-error')
             expect(fieldError).toHaveTextContent(copy)
@@ -410,7 +398,7 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
     })
 
     it('shows a stored value outside the range clamped and flagged, and clamps it only on save (AC-E2)', async () => {
-        const outside: VoicePresetRow = { ...PRESET_V2_USER, settings: { stability: 0.4, similarity_boost: 0.8, speed: 1.45 } }
+        const outside: VoicePresetV2 = { ...PRESET_V2_USER, settings: { stability: 0.4, similarity_boost: 0.8, speed: 1.45 } }
         renderEditor({ mode: 'edit', source: outside })
         const flagText = 'Speed was saved as 1.45×, outside the supported range, so it shows as 1.20×. Saving this preset stores 1.20×.'
         expect(screen.getByRole('note')).toHaveTextContent(flagText)

@@ -169,7 +169,6 @@ export const es = {
                     load: 'No se pudieron cargar las versiones. Inténtalo de nuevo.',
                     save: 'No se pudo guardar una versión. Inténtalo de nuevo.',
                     restore: 'No se pudo restaurar esa versión. Inténtalo de nuevo.',
-                    draftLoad: 'No se pudo cargar tu borrador. Inténtalo de nuevo.',
                     draftSave: 'No se pudo guardar tu borrador. Inténtalo de nuevo.',
                     publish: 'No se pudo publicar. Inténtalo de nuevo.',
                     discard: 'No se pudo descartar el borrador. Inténtalo de nuevo.',

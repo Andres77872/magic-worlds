@@ -38,7 +38,7 @@ describe('NarrationVoiceNotes', () => {
             <NarrationVoiceNotes clips={[clip(0, { kind: 'speech', speaker_id: 'c1', speaker_name: 'Rook', substitution_reason: 'voice_removed', voice_name: 'Ava', original_voice_name: 'Mia' })]} />,
         )
         expect(screen.getByText('Voice replaced')).toHaveAttribute('title', 'Mia isn’t available; using Ava')
-        rerender(<NarrationVoiceNotes clips={[clip(0, { kind: 'speech', speaker_id: 'c1', substitution_reason: 'unmapped_legacy' })]} />)
+        rerender(<NarrationVoiceNotes clips={[clip(0, { kind: 'speech', speaker_id: 'c1', substitution_reason: 'voice_unavailable' })]} />)
         expect(screen.getByText('Voice replaced')).toHaveAttribute('title', 'The chosen voice isn’t available, so a similar voice is used.')
     })
 

@@ -1,18 +1,15 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StoredCharacterVoice } from '@/shared'
-import { isVoiceV2 } from '@/shared'
+import { hasAssignedVoice } from '@/shared/voice'
 import {
     CAPABILITIES_EL_PLUS,
     CAPABILITIES_EL_PRO,
     CATALOG_ELDRIN,
     CATALOG_MAREN_HOUSE,
     CATALOG_SELA_LEAVING,
-    PRESET_V1_GLOBAL,
-    PRESET_V1_WITH_DRAFT,
     PRESET_V2_GLOBAL,
     PRESET_V2_USER,
-    V1_VOICE,
     V2_VOICE,
     VOICE_KEY_ELDRIN,
     VOICE_KEY_IDRIS,
@@ -57,9 +54,10 @@ function rowOf(name: string): HTMLElement {
     return screen.getAllByTestId('voice-picker-preset-row').find((row) => within(row).queryByText(name)) as HTMLElement
 }
 
-function expectNeverV1(onSelect: ReturnType<typeof vi.fn>) {
+/** Every pick is a recognised stored voice (or a cleared one). */
+function expectStoredVoices(onSelect: ReturnType<typeof vi.fn>) {
     for (const [voice] of onSelect.mock.calls as [StoredCharacterVoice | null][]) {
-        if (voice !== null) expect(isVoiceV2(voice)).toBe(true)
+        if (voice !== null) expect(hasAssignedVoice(voice)).toBe(true)
     }
 }
 
@@ -70,7 +68,7 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
         resetPreviewCreditConfirmation()
         api.getVoiceCapabilities.mockReset().mockResolvedValue(CAPABILITIES_EL_PLUS)
         api.peekVoiceCapabilities.mockReset().mockReturnValue(null)
-        api.listVoicePresets.mockReset().mockResolvedValue([PRESET_V2_USER, PRESET_V2_GLOBAL, PRESET_V1_WITH_DRAFT, PRESET_V1_GLOBAL])
+        api.listVoicePresets.mockReset().mockResolvedValue([PRESET_V2_USER, PRESET_V2_GLOBAL])
         api.listVoiceCatalog.mockReset().mockResolvedValue({ items: [CATALOG_ELDRIN, CATALOG_MAREN_HOUSE], next_cursor: null })
         api.getVoiceCatalogByKeys.mockReset().mockResolvedValue([CATALOG_ELDRIN, CATALOG_MAREN_HOUSE, CATALOG_SELA_LEAVING])
         api.previewVoice.mockReset().mockResolvedValue({ cache_key: 'k', previews_left: 4, tier_used: 'standard' })
@@ -104,31 +102,6 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
             preset_id: 'user-v2',
             preset_name: 'Harbour master',
         })
-    })
-
-    it('uses a V1 preset through its conversion draft, keeping the preset id', async () => {
-        const onSelect = vi.fn()
-        render(<VoicePickerDialog open onSelect={onSelect} onClose={vi.fn()} />)
-        await screen.findByText('My pirate')
-        const row = rowOf('My pirate')
-        expect(within(row).getByText('Updated for the new voices')).toBeInTheDocument()
-        fireEvent.click(within(row).getByRole('button', { name: 'Use My pirate' }))
-        expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ schema_version: 2, voice_key: VOICE_KEY_SELA, preset_id: 'user-1', preset_name: 'My pirate' }))
-        expectNeverV1(onSelect)
-    })
-
-    it('disables a V1 preset without a draft and points to the studio', async () => {
-        const onSelect = vi.fn()
-        render(<VoicePickerDialog open onSelect={onSelect} onClose={vi.fn()} />)
-        await screen.findByText('Old man')
-        const row = rowOf('Old man')
-        expect(within(row).getByText(/Update this preset in the voice studio/)).toBeInTheDocument()
-        const use = within(row).getByRole('button', { name: 'Use Old man' })
-        expect(use).toBeDisabled()
-        fireEvent.click(use)
-        expect(onSelect).not.toHaveBeenCalled()
-        // The raw legacy id never shows.
-        expect(screen.queryByText(/English_magnetic_voiced_man/)).not.toBeInTheDocument()
     })
 
     it('keeps a preset whose voice is locked for this plan reachable, with "Use" aria-disabled and the reason described (AC-K2, 05 §10)', async () => {
@@ -522,7 +495,7 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
             language_code: null,
         })
         expect(onClose).toHaveBeenCalled()
-        expectNeverV1(onSelect)
+        expectStoredVoices(onSelect)
     })
 
     it('shows the current voice with what it plays as', async () => {
@@ -566,7 +539,7 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
             emotion: 'calm',
         }))
         expect(onClose).toHaveBeenCalled()
-        expectNeverV1(onSelect)
+        expectStoredVoices(onSelect)
     })
 
     it('"Choose a voice" and "Pick another" open the catalog tab; "Keep for now" closes the prompt', async () => {
@@ -607,12 +580,12 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
         expect(current).toHaveAccessibleName('Currently using')
     })
 
-    it('dates a V1 voice\'s leaving projection and switches it from the picker\'s own lookup (05 §9.3)', async () => {
+    it('dates a leaving current voice and switches it from the picker\'s own lookup (05 §9.3)', async () => {
         const onSelect = vi.fn()
         render(
             <VoicePickerDialog
                 open
-                currentVoice={V1_VOICE}
+                currentVoice={{ ...V2_VOICE, voice_key: VOICE_KEY_SELA, voice_name: 'Sela', preset_id: 'gone', preset_name: 'Night ferry' }}
                 currentEffectiveVoice={effectiveVoice({ voice_key: VOICE_KEY_SELA, display_name: 'Sela', badges: ['leaving'] })}
                 onSelect={onSelect}
                 onClose={vi.fn()}
@@ -624,18 +597,17 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
         await screen.findByText('Harbour master')
         fireEvent.click(await within(current).findByRole('button', { name: 'Switch to Maren' }))
         expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ schema_version: 2, voice_key: VOICE_KEY_MAREN }))
-        // The current row reads the leaving key once; the prompts do not read it again (the other
-        // read naming Sela is the preset rows' batch: "My pirate" converts to Sela).
+        // The current row reads the leaving key once; the prompts do not read it again.
         const currentReads = api.getVoiceCatalogByKeys.mock.calls.filter(([keys]) => (keys as string[]).join() === VOICE_KEY_SELA)
         expect(currentReads).toHaveLength(1)
-        expectNeverV1(onSelect)
+        expectStoredVoices(onSelect)
     })
 
     it('plays a free sample of the voice the current row plays as, one sample at a time with the catalog (05 §7.2)', async () => {
         render(
             <VoicePickerDialog
                 open
-                currentVoice={V1_VOICE}
+                currentVoice={{ ...V2_VOICE, voice_key: VOICE_KEY_SELA, voice_name: 'Sela', preset_id: 'gone', preset_name: 'Night ferry' }}
                 currentEffectiveVoice={effectiveVoice({ voice_key: VOICE_KEY_MAREN, display_name: 'Maren', substitution_reason: 'voice_removed', badges: ['replaced'] })}
                 onSelect={vi.fn()}
                 onClose={vi.fn()}
@@ -672,11 +644,11 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
         await waitFor(() => expect(api.fetchProtectedMediaBlob).toHaveBeenCalledWith(CATALOG_ELDRIN.languages[1].sample_url, 'audio/mpeg'))
         unmount()
 
-        // A V1 voice with no projection names no catalog voice.
-        render(<VoicePickerDialog open currentVoice={V1_VOICE} currentEffectiveVoice={null} onSelect={vi.fn()} onClose={vi.fn()} />)
-        const v1 = await screen.findByTestId('voice-picker-current')
+        // A stored voice the catalog does not list, with no projection, offers no sample.
+        render(<VoicePickerDialog open currentVoice={{ ...V2_VOICE, voice_key: VOICE_KEY_IDRIS, voice_name: 'Idris', preset_id: 'gone' }} currentEffectiveVoice={null} onSelect={vi.fn()} onClose={vi.fn()} />)
+        const unlisted = await screen.findByTestId('voice-picker-current')
         await screen.findByText('Harbour master')
-        expect(within(v1).queryByRole('button')).not.toBeInTheDocument()
+        expect(within(unlisted).queryByRole('button')).not.toBeInTheDocument()
     })
 
     it('opens at once and lists the presets while the capabilities read is still out', async () => {

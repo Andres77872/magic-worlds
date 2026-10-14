@@ -5,15 +5,7 @@ import { vi } from 'vitest'
 import { ApiError } from '@/infrastructure/api'
 import type { AdminVoiceMetricsArea } from '@/shared'
 import { VoiceConsoleProvider, type ConsoleModule } from './components/shell/VoiceConsoleContext'
-import {
-    auditCatalogVoices,
-    auditCoverage,
-    auditDefaults,
-    auditGlobalPresets,
-    auditLegacyMapping,
-    auditLibraryPage,
-    auditLimits,
-} from './fixtures'
+import { auditCatalogVoices, auditDefaults, auditGlobalPresets, auditLibraryPage, auditLimits } from './fixtures'
 import { metricsByArea } from './metricsFixtures'
 
 /** Fresh `apiService` mocks for every console method, resolving the audit fixtures. */
@@ -29,9 +21,6 @@ export function consoleApiMock() {
         renderCatalogSamples: vi.fn(),
         getVoiceDefaults: vi.fn().mockResolvedValue(auditDefaults),
         putVoiceDefaults: vi.fn(),
-        listLegacyMapping: vi.fn().mockResolvedValue(auditLegacyMapping),
-        putLegacyMapping: vi.fn(),
-        getLegacyMappingCoverage: vi.fn().mockResolvedValue(auditCoverage),
         listAdminLibrary: vi.fn().mockResolvedValue(auditLibraryPage),
         addAdminLibraryVoice: vi.fn(),
         designAdminVoice: vi.fn(),

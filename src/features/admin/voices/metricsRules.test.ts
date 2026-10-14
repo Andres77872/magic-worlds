@@ -12,24 +12,14 @@ describe('metricsRuleStatuses (R0-OPS-07, D28 rules)', () => {
             failureRate: 'firing',
             voiceUnavailable: 'firing',
             moderationUnavailable: 'quiet',
-            jobP95: 'firing',
             substitution: 'quiet',
         })
         expect(status(narrationMetrics, 'failureRate').alerts.map((alert) => alert.value)).toEqual([0.073171])
     })
 
-    it('uses the lower of 2% and 2× baseline for the failure-rate threshold', () => {
-        const low: NarrationMetricsResponse = { ...narrationMetrics, alerts: [], baseline: { narration_failure_rate: 0.004, narration_p95_ms: 3000 } }
-        expect(status(low, 'failureRate').threshold.limit).toBe(0.008)
-        expect(status(low, 'jobP95').threshold.limit).toBe(6000)
-        const none: NarrationMetricsResponse = { ...narrationMetrics, alerts: [], baseline: null }
-        expect(status(none, 'failureRate').threshold.limit).toBe(0.02)
-    })
-
-    it('does not evaluate the × baseline p95 rule without a loaded baseline', () => {
-        const none: NarrationMetricsResponse = { ...narrationMetrics, alerts: [], baseline: null }
-        expect(status(none, 'jobP95')).toMatchObject({ state: 'not_evaluated', reason: 'baseline' })
-        expect(status(none, 'jobP95').threshold.limit).toBeUndefined()
+    it('uses the absolute 2% failure-rate threshold', () => {
+        const quiet: NarrationMetricsResponse = { ...narrationMetrics, alerts: [] }
+        expect(status(quiet, 'failureRate').threshold.limit).toBe(0.02)
     })
 
     it('reports a small sample only when the window is the rules’ own last hour', () => {
@@ -40,9 +30,9 @@ describe('metricsRuleStatuses (R0-OPS-07, D28 rules)', () => {
             db: { ...narrationMetrics.db, providers: [small] },
             alerts: [],
         }
-        expect(states(lastHour)).toMatchObject({ failureRate: 'low_sample', moderationUnavailable: 'low_sample', jobP95: 'low_sample', voiceUnavailable: 'quiet' })
+        expect(states(lastHour)).toMatchObject({ failureRate: 'low_sample', moderationUnavailable: 'low_sample', voiceUnavailable: 'quiet' })
         const day: NarrationMetricsResponse = { ...lastHour, window: narrationMetrics.window }
-        expect(states(day)).toMatchObject({ failureRate: 'quiet', jobP95: 'quiet' })
+        expect(states(day)).toMatchObject({ failureRate: 'quiet' })
     })
 
     it('says no data when nothing was recorded', () => {
@@ -103,7 +93,6 @@ describe('current values (10 §7.4)', () => {
         expect(status(hour, 'voiceUnavailable').current).toEqual([{ value: 0.04878, sample: 205, provider: 'elevenlabs' }])
         expect(status(hour, 'moderationUnavailable').current).toEqual([{ value: 0, sample: 205, provider: 'elevenlabs' }])
         expect(status(hour, 'substitution').current).toEqual([{ value: 0, sample: 205, provider: 'elevenlabs' }])
-        expect(status(hour, 'jobP95').current).toEqual([{ value: 7000, sample: 205, provider: 'elevenlabs' }])
         // D28 shared-card substitution (I-38) reads the shared share, as the BFF alert does, not every replaced voice.
         const [bucket] = hour.db!.providers
         const shared = { ...hour, db: { ...hour.db!, providers: [{ ...bucket, replaced: 20, replaced_share: 0.097561, shared_replaced: 1, shared_replaced_share: 0.004878 }] } }

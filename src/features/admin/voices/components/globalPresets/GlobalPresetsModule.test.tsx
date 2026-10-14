@@ -28,18 +28,14 @@ describe('GlobalPresetsModule (R1-FE-06, 05 §8.12)', () => {
         Object.assign(api, consoleApiMock())
     })
 
-    it('lists V2 presets with their voice and language, and V1 rows as read-only Legacy', async () => {
+    it('lists the presets with their voice, language and seed key', async () => {
         const table = await renderModule()
+        expect(within(table).getAllByRole('rowheader')).toHaveLength(2)
         const calmRow = rowOf(table, 'Calm narrator')
         expect(within(calmRow).getByText('English')).toBeInTheDocument()
         expect(within(calmRow).getByText('en:narrator')).toBeInTheDocument()
         expect(within(calmRow).getByRole('button', { name: 'Edit Calm narrator' })).toBeInTheDocument()
-
-        const legacy = rowOf(table, 'The patient storyteller')
-        expect(within(legacy).getByText('Legacy')).toBeInTheDocument()
-        expect(within(legacy).getByText('Hidden from users')).toBeInTheDocument()
-        expect(within(legacy).getByText('Warm narrator')).toBeInTheDocument()
-        expect(within(legacy).queryByRole('button')).toBeNull()
+        expect(within(calmRow).getByRole('button', { name: 'Delete Calm narrator' })).toBeInTheDocument()
     })
 
     it('flags a preset whose voice is not public or not active', async () => {
@@ -50,7 +46,7 @@ describe('GlobalPresetsModule (R1-FE-06, 05 §8.12)', () => {
         expect(within(rowOf(table, 'Calm narrator')).queryByText('Not public')).toBeNull()
     })
 
-    it('creates a V2 preset after the rules pass', async () => {
+    it('creates a preset after the rules pass', async () => {
         const created = { ...calm, preset_id: 'gp-9', name: 'Bright guide', voice_key: replacementVoice.voice_key, voice_name: 'Ysolde', seed_key: null } as AdminGlobalPresetRow
         mock().createAdminGlobalPreset.mockResolvedValue(created)
         await renderModule()
@@ -136,13 +132,13 @@ describe('GlobalPresetsModule (R1-FE-06, 05 §8.12)', () => {
     })
 
     it('deletes after the confirm, and keeps the row when the delete fails', async () => {
-        mock().deleteAdminGlobalPreset.mockRejectedValueOnce(new ApiError(409, 'Legacy', { code: 'global_preset_legacy' }))
+        mock().deleteAdminGlobalPreset.mockRejectedValueOnce(new ApiError(403, 'Forbidden'))
         const table = await renderModule()
         fireEvent.click(within(rowOf(table, 'Calm narrator')).getByRole('button', { name: 'Delete Calm narrator' }))
         const confirm = await screen.findByRole('dialog', { name: 'Delete this global preset?' })
         expect(confirm).toHaveTextContent('“Calm narrator” is removed for every user.')
         fireEvent.click(within(confirm).getByRole('button', { name: 'Delete preset' }))
-        expect(await within(confirm).findByRole('alert')).toHaveTextContent('Legacy presets are read-only.')
+        expect(await within(confirm).findByRole('alert')).toHaveTextContent('This action requires root access.')
         expect(screen.getByRole('rowheader', { name: /Calm narrator/ })).toBeInTheDocument()
 
         fireEvent.click(within(confirm).getByRole('button', { name: 'Delete preset' }))

@@ -3,8 +3,8 @@
  * error on the voice field." A save refused for the picked voice itself —
  * 422 `voice_not_eligible` ("This voice can’t be picked right now. Choose
  * another.") or `voice_plan_locked` — also shows on the voice field, not only
- * as the form's save error. Both codes answer a V2 pick only (I-27); a refused
- * V1 write (`voice_v1_not_allowed`, `voice_reload_required`) stays a form error.
+ * as the form's save error. Every other refusal (`voice_invalid`,
+ * `voice_reload_required`, …) stays a form error.
  */
 import { voiceWriteErrorKey } from '@/shared/voice/voiceWriteErrors'
 import { voiceWriteErrorCode } from './voiceWriteError'

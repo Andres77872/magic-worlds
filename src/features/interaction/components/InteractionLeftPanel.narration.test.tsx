@@ -154,7 +154,7 @@ describe('"Leaving on {date}" in the narrator panel and the cast list (05 §9.3)
 
     it('makes no catalog read when nothing is leaving', async () => {
         renderPanel(adventureWith({ narrator_voice: V2_VOICE, effective_narrator_voice: effectiveVoice({ badges: ['replaced'], substitution_reason: 'voice_removed', display_name: 'Maren', voice_key: VOICE_KEY_MAREN }) }, {
-            characters: [{ id: 'c1', name: 'Dorn', voice: V2_VOICE, effective_voice: effectiveVoice({ badges: ['review'] }) }],
+            characters: [{ id: 'c1', name: 'Dorn', voice: V2_VOICE, effective_voice: effectiveVoice({ badges: ['needs_reselect'] }) }],
         }))
         await flushReads()
         expect(readCatalog).not.toHaveBeenCalled()

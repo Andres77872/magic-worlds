@@ -41,7 +41,6 @@ const ROW = {
     is_global: true,
     schema_version: 2,
     provider: 'elevenlabs',
-    legacy_hidden: false,
     voice_public: true,
     seed_key: 'en:narrator',
 }
@@ -63,17 +62,16 @@ describe('admin global presets API (EP-5)', () => {
         localStorage.clear()
     })
 
-    it('lists the global presets, legacy rows included', async () => {
-        const legacy = { preset_id: 'v1-1', name: 'Old', base_voice_id: 'English_Warm', speed: 1, volume: 1, pitch: 0, is_global: true, legacy_hidden: true, voice_public: null, seed_key: null }
-        fetchMock.mockImplementationOnce(async () => response({ items: [ROW, legacy] }))
-        expect(await apiService.listAdminGlobalPresets()).toEqual({ items: [ROW, legacy] })
+    it('lists the global presets', async () => {
+        fetchMock.mockImplementationOnce(async () => response({ items: [ROW] }))
+        expect(await apiService.listAdminGlobalPresets()).toEqual({ items: [ROW] })
         expect(pathOf()).toBe('/admin/voice-presets/global')
         expect(call()[1].method).toBe('GET')
         expect(headersOf().Authorization).toBe('Bearer root-token')
         expect(headersOf()).not.toHaveProperty('X-Workspace-Id')
     })
 
-    it('creates a V2 global preset with the exact body', async () => {
+    it('creates a global preset with the exact body', async () => {
         expect(await apiService.createAdminGlobalPreset(INPUT)).toEqual(ROW)
         expect(pathOf()).toBe('/admin/voice-presets/global')
         expect(call()[1].method).toBe('POST')
@@ -107,7 +105,6 @@ describe('admin global presets API (EP-5)', () => {
 
     it.each([
         [422, { code: 'voice_not_eligible', path: 'voice' }],
-        [409, { code: 'global_preset_legacy' }],
         [409, { code: 'global_preset_seed_exists', preset_id: 'gp-0' }],
     ])('surfaces a %s refusal with its code', async (status, detail) => {
         vi.spyOn(console, 'error').mockImplementation(() => {})

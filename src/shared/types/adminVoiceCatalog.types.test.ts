@@ -40,7 +40,6 @@ describe('admin voice DTO proposals (frozen for R0-BE-35/36)', () => {
         'AcceptanceRenderResponse',
         'AcceptanceVerdictResponse',
         'VoiceDefaultsUpdateResponse',
-        'LegacyMappingCoverage',
         'AdminVoiceLimits',
     ])('%s carries a frozen-proposal doc with its missing-field behaviour', (name) => {
         expect(docOf(name)).toContain(FROZEN)
@@ -50,24 +49,15 @@ describe('admin voice DTO proposals (frozen for R0-BE-35/36)', () => {
     it.each([
         ['AdminCatalogPage', 'summary'],
         ['VoiceDefaultsResponse', 'last_resort_voice_key'],
-        ['LegacyMappingRow', 'reference_count'],
     ])('%s.%s carries a proposal doc with its missing-field behaviour', (owner, field) => {
         expect(fieldDocOf(owner, field)).toMatch(/Proposal/)
         expect(fieldDocOf(owner, field)).toMatch(MISSING_CLAUSE)
     })
 
-    it('keeps only the legacy-mapping curation DTOs: no reverse mapping, inventory or audition (I-68)', () => {
-        const legacyExports = [...source.matchAll(/export (?:interface|type) (Legacy\w+)/g)].map((match) => match[1]).sort()
-        expect(legacyExports).toEqual([
-            'LegacyCoverageCount',
-            'LegacyMappingCoverage',
-            'LegacyMappingListResponse',
-            'LegacyMappingRow',
-            'LegacyMappingStatus',
-            'LegacyMappingUpdate',
-            'LegacyTargetMetric',
-        ])
-        expect(source).not.toMatch(/offered_by_picker|picker_offered|legacy_provider/)
+    it('keeps no legacy DTO: no mapping, coverage, reverse mapping, inventory or audition (I-68, native cutover)', () => {
+        const legacyExports = [...source.matchAll(/export (?:interface|type) (Legacy\w+)/g)].map((match) => match[1])
+        expect(legacyExports).toEqual([])
+        expect(source).not.toMatch(/offered_by_picker|picker_offered|legacy_provider|legacy_voice_id|legacy_hidden/)
     })
 
     it('documents the contract details the BFF must match', () => {

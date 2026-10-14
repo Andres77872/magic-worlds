@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EffectiveVoice, StoredCharacterVoice } from '@/shared'
-import { CATALOG_SELA_LEAVING, V1_VOICE, V2_VOICE, VOICE_KEY_MAREN, VOICE_KEY_SELA, effectiveVoice } from '../fixtures'
+import { CATALOG_SELA_LEAVING, V2_VOICE, VOICE_KEY_MAREN, VOICE_KEY_SELA, effectiveVoice } from '../fixtures'
 import { CardVoiceOwnerPrompts } from './CardVoiceOwnerPrompts'
 
 const getVoiceCatalogByKeys = vi.fn()
@@ -91,8 +91,8 @@ describe('CardVoiceOwnerPrompts (05 §7.7 character editor, §7.8)', () => {
         // The host's lookup has not answered (or found nothing): no switch yet, still no read here.
         const { container } = render(<CardVoiceOwnerPrompts stored={SELA_VOICE} effective={SELA_LEAVING} leavingItem={null} onSwitch={vi.fn()} onChoose={vi.fn()} />)
         expect(container).toBeEmptyDOMElement()
-        // A V1 voice's leaving projection is matched by the voice it plays.
-        render(<CardVoiceOwnerPrompts stored={V1_VOICE} effective={SELA_LEAVING} leavingItem={CATALOG_SELA_LEAVING} onSwitch={vi.fn()} onChoose={vi.fn()} />)
+        // A slot without a stored voice: its leaving projection is matched by the voice it plays.
+        render(<CardVoiceOwnerPrompts stored={null} effective={SELA_LEAVING} leavingItem={CATALOG_SELA_LEAVING} onSwitch={vi.fn()} onChoose={vi.fn()} />)
         expect(screen.getByRole('button', { name: 'Switch to Maren' })).toBeInTheDocument()
         expect(getVoiceCatalogByKeys).not.toHaveBeenCalled()
     })

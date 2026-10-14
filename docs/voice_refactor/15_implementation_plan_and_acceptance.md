@@ -47,6 +47,7 @@ The rules are 03 D39 and §5.15; the evidence is [research 15](research/15_works
 10. [R1–R5 dark build status (2026-10-13)](#10-r1r5-dark-build-status-2026-10-13)
 11. [MiniMax voice purge (2026-10-14)](#11-minimax-voice-purge-2026-10-14)
 12. [Final cutover on the test database (2026-10-14)](#12-final-cutover-on-the-test-database-2026-10-14)
+13. [Native catalog and legacy removal (2026-10-14)](#13-native-catalog-and-legacy-removal-2026-10-14)
 
 ---
 
@@ -1029,7 +1030,7 @@ This section records what the R0 build delivered against the §2.1 rows. Where i
 
 > **Superseded on 2026-10-14 by [03 §5.16](03_target_architecture_and_decisions.md) I-68 and I-69.** The owner ordered the MiniMax voice integration purged and ElevenLabs served to everyone, so the dark model below (`rollout_mode = off` routes to MiniMax) no longer exists. This section stays as the record of the dark build. §11 records the purge.
 
-This section records what the R1 dark build delivered against the §2.2–§2.6 rows. Where it disagrees with an earlier section of this document, the decisions in [03 §5.16](03_target_architecture_and_decisions.md) (I-1…I-70) win.
+This section records what the R1 dark build delivered against the §2.2–§2.6 rows. Where it disagrees with an earlier section of this document, the decisions in [03 §5.16](03_target_architecture_and_decisions.md) (I-1…I-73) win.
 
 **What "dark" means.** The R1 code, plus every row of R2, R3 and R5 that can be built ahead of time, sits in the same uncommitted working trees as R0. All of it is behind the R0 switches. With `rollout_mode = off` in both the env and the database (I-12), `ProviderRouter.decide` answers MiniMax with reason `rollout_off` for every caller and surface. Features for the cohort only are gated by exposure (I-16, I-53) and by the capabilities `provider_route`. Nothing is committed, deployed or applied to a database, and no live or paid provider call was made.
 
@@ -1134,14 +1135,14 @@ The owner ordered the MiniMax voice integration purged now, with ElevenLabs serv
 | R4-QA-01 | The strict grep gate is done. The rest of the row is the staging smoke after deploy. |
 | R1-OPS-01, R2-OPS-02, R2-DATA-01, R3-OPS-01, R3-OPS-02 | Waived: there is no cohort rollout |
 | R5-DATA-01, R5-DATA-02 | Done on the test database (§12) |
-| R4-OPS-01 | After the deploy (below): the code no longer reads the key; revoking it is account hygiene for the owner |
+| R4-OPS-01 | The retired names were removed from the operator's BFF `.env` (03 I-71). Revoking the MiniMax key in MiniMax's console is account hygiene for the owner |
 | R4-DATA-01, R5-DATA-03…05 | Built as revision `2026_10_voice_contract` (03 I-70) and done on the test database (§12) |
-| R4-DATA-02 | Run on the test database; its apply is refused until the 14-day grace ends (§12) |
-| R5-QA-01 | Open: the §6 definition of done needs the deploy, the staging smoke and the rewrite |
+| R4-DATA-02 | Done on the test database on the native revision, with no grace period (03 I-72, §13) |
+| R5-QA-01 | Open: the §6 definition of done needs the deploy and the staging smoke (the rewrite is done, §12–§13) |
 | R1-QA-01, R2-QA-01 | Still external: the staging spikes now come before the deploy, not before a rollout step |
-| R1-LEG-01, R2-LEG-01, R2-LEG-02, R4-LEG-01 | Still external, and now release blockers (below) |
+| R1-LEG-01, R2-LEG-01, R2-LEG-02, R4-LEG-01 | Closed by the owner without counsel (03 I-71). The Privacy page wires the ElevenLabs variant and the `voice-v2` consent copy is final |
 
-**Release blockers (before the deploy):**
+**Release blockers (before the deploy):** items 1 and 2 were closed by the owner on 2026-10-14 (03 I-71); they are kept below as history.
 1. **Legal (R1-LEG-01).** The `voice-v2` consent copy and the `elevenlabsOnly` privacy variant are still drafts. The published privacy page still names MiniMax (`minimaxOnly`). Counsel signs, then the privacy variant is flipped. The legal gate test was not weakened.
 2. **Legal (R4-LEG-01).** Confirm that MiniMax-generated audio may be kept and played after the contract ends.
 3. **Production configuration.** Without the following, every surface is text-only, because there is no fallback:
@@ -1152,7 +1153,7 @@ The owner ordered the MiniMax voice integration purged now, with ElevenLabs serv
    - the moderation classifier on, with its `moderation` LLM profile published (moderation fails closed).
 4. **Deploy order.** BFF, then SPA, in the same window.
 
-**After the deploy (ops):** R4-OPS-01: once production is verified, revoke the MiniMax key and remove the retired env names (startup logs a WARNING while they are set). Run `rewrite_voices --check`, then `--apply`. Run the staging smoke.
+**After the deploy (ops):** R4-OPS-01: once production is verified, revoke the MiniMax key. The retired env names are already removed, and `rewrite_voices` no longer exists (03 I-72). Run the staging smoke.
 
 **Open owner choices:**
 - **Q2.** A call start refused with `surface_not_configured`, `surface_unverified` or `lane_unavailable` answers `provider_unavailable` (retryable), while narration answers `voice_unavailable`. Decide whether calls should match.
@@ -1182,12 +1183,55 @@ The owner asked for the final post-R5 state on the test host `192.168.1.90`, dat
 
 **Where the evidence is:** `~/.cache/magic-worlds/voice-final-20261014T154850Z/` on the operator machine, private. It holds the check, review and apply reports, the rewrite reports and the contract exports with their manifest.
 
-**Follow-ups for the owner:**
+**Follow-ups for the owner** (§13 supersedes the sweep, catalog and global-preset items):
 - **Deploy this build to `.90`.** The instance running there is the old build. It does not start on the new revision, and its V1 preset reads fail against the dropped columns.
 - **Run the T4 sweep apply** after 2026-10-25 15:27. Use the same commands; inspect again, because the review is tied to the counts.
 - **Catalog.** The test catalog voices have placeholder provider ids. After the deploy, sync the real ElevenLabs catalog from the root console. Then set each test voice to `removed`, with a `replacement_voice_key` pointing at a real voice, and update the defaults.
 - **Global presets.** The deleted V1 globals leave a soft `preset_id` (for example `global-child-girl`) in the rewritten card. Seed V2 globals with `seed_global_presets.py` after the real sync: seeding needs `call_eligible` voices with Flash acceptance, and the test voices have neither.
 - **R5-QA-01 (§6)** closes once the deployed build passes the staging smoke.
+
+---
+
+## 13. Native catalog and legacy removal (2026-10-14)
+
+The owner ordered everything left of the MiniMax voices removed, including the root console's Legacy mapping tab, and a native ElevenLabs voice set built in its place ([03 §5.16](03_target_architecture_and_decisions.md) I-72). The test database `192.168.1.90` / `magic_worlds` is the only database. The runbook is BFF `docs/voice_native_cutover.md`, with `docs/voice_native_purge.md` and `docs/voice_native_catalog.md`.
+
+**What ran on the test database** (2026-10-14, by Claude with the owner's permission):
+
+| Step | Result |
+|---|---|
+| Native set (`native_set.py --apply`, run `70ac8a40f921`) | The API was up, on the contract build. Six designed voices, each saved, labelled, accepted 4 of 4 automatically, sampled, activated, ringed and published. 24 of 24 acceptance rows pass. The `en`/`es` defaults were set (narrator F1; `character_fallback` M1, F2, M2, F3). Exit 0. |
+| Fixtures (D1) | By SQL: the 5 test voices set to `removed`/`admin`, and their 4 light-language narrator defaults deleted. `VOICE_LAST_RESORT_VOICE_KEY` set to F1 in the operator `.env`. |
+| N1 purge (run `9596bd70-7a64-49c0-b546-52e5cc797549`) | Inspect, then review, then apply: exit 0, 13 of 13 steps. Deleted: 12 MiniMax narration jobs and their 10 assets, 2 notifications, 12 operation contexts and 10 workspace media rows; 38 MiniMax calls (55 transcript segments) with 25 call turns (50 messages); 1 `voice-v1` consent; 5 stripped segment entries in 4 messages. The 7 V1 snapshot voices (`English_radiant_girl`) and the card body and version that named fixture `vk_…02` now hold F2 (Joven brillante). The 5 fixture voices were deleted. `voice_reference` was rebuilt (9 rows). Every cutover precondition read 0. |
+| N2 native cutover | Check exit 0 (phase `predecessor`, no stop reasons), then preflight (`review_matches`), then apply: exit 0, phase `target`. Exported 4 `voice_legacy_mapping` rows, 1 `voice_review_flag` row and the 2 retired runtime settings (sha256 manifest). Ran the 7 DDL steps and moved the marker. |
+| Post-checks | Revision `2026_10_voice_native`, 97 tables, and the API's own `init_db_pool` exact verification passes. The `tts_job`, `voice_session` and runtime-setting checks match `db.sql`. 4 runtime settings are left. No `tts_job`, `voice_session` or `voice_consent` rows remain. The catalog holds exactly the 6 native voices, all active and public. 0 V1 voices remain. The defaults probe (offline, provider confirmation skipped) reports no missing or failing default. |
+| N5 orphan sweep | Inspect, then preflight, then apply: exit 0, 10 row-less MP3s (8.3 MB) deleted from the local `TTS_STORAGE_ROOT`. A re-inspect reads 0. The 2 MiniMax files newer than the 7-day cutoff (2026-10-11) were deleted by hand, after a check that their asset rows were gone. One captured MiniMax asset was not under the local root: it lives on the storage of whichever API generated it. |
+
+**Caveat.** The purge review attests `api_stopped`. The local dev API could not start, because the code expects the native revision. The API instance on `.90` (old build) held 8 idle pool connections and was not stopped, as in §12. The database has no users.
+
+**Code verification** (offline):
+- **BFF.** Full pytest: 13,716 passed and 6 failed. The 6 were the stale `TestAuthProxyChain` tests, fixed afterwards (see below). `compileall` is clean, and the MiniMax grep gate is green.
+- **SPA.** `pnpm build`, `pnpm vitest run` (386 files, 4,018 tests) and `pnpm typecheck:stories` all pass. `pnpm lint` has no new errors in touched files.
+- **Review.** 21 findings from the adversarial review; 17 survived verification, and all were fixed. The last one, the stale `AGENTS.md` TTS lines, was fixed later with the owner's OK.
+
+**Evidence:** on the operator machine, private (mode 700):
+- `~/.cache/magic-worlds/voice-native-20261014/` holds the purge, cutover and sweep reports and the exports.
+- `~/.local/state/magic-worlds/voice_native_set/` holds the native set state, the report, the clips and the designs.
+
+**After the run** (2026-10-14, by Claude):
+- **Local API on the new build.** The local BFF on `:8010` was reloaded onto this build and started on `2026_10_voice_native`. `/ready` answers 200. On `/health/dependencies`, every component is `ok`: MySQL, api.auth, the LLM proxy, the TTS engine, voice calls, and the speech providers narration, call, preview, catalog and ops. So the provider confirmed the defaults and the last resort.
+- **Catalog sync Job A** ran with the API's own `CatalogSyncRunner`: `ok`, 30 voices listed, 0 missing. It added the account's 21 premade voices and 3 Library voices as `draft` / `admin`; one Library voice is `blocked` by the provider. None of them can be published or used as a default. The 6 native voices are unchanged.
+- **Moderation (03 I-73).** The owner had published the `moderation` system profile. Narration then failed in the UI with `moderation_unavailable`. A reproduction with a local test session measured about 2.3 s per classifier batch against the 2 s budget. One batch in about six also failed in transport. Moderation is now optional for testing: `VOICE_MODERATION_REQUIRED=false`, the LLM classifier is off, and a dedicated moderation model is TBD. After a reload, the health node shows `moderation` `ok` (`voice_moderation_optional`), and a narration check passes in under 1 ms.
+- **Local smoke (partial).** With a local test account (age and ToS attestations recorded), `/voices/capabilities`, `/voices/catalog` (the 6 native voices) and `/voices/preview-texts` answer 200, and a sample preview serves. A rendered preview answers 403 `voice_not_eligible`, because new accounts wait about 24 h.
+- **Agent instructions.** With the owner's OK, `AGENTS.md` (`CLAUDE.md`) names ElevenLabs for TTS. The grep-gate row Q7 that allowed the stale lines is removed.
+- **Auth tests.** The 6 `TestAuthProxyChain` failures were stale tests: signup no longer takes an email (it is added later through `POST /user/me/emails`), and the auth client drops a `session_token` alias. The tests now match the contract.
+
+**Follow-ups for the owner:**
+- **Deploy.** Deploy this build (BFF, then SPA) to `.90`. The old build does not start on `2026_10_voice_native`.
+- **Moderation model (TBD, I-73).** Choose a dedicated moderation model, then set `VOICE_MODERATION_REQUIRED=true` again before real users.
+- **Global presets.** Seeding V2 globals with `seed_global_presets.py` is now possible, because the native voices are `call_eligible` and Flash-accepted.
+- **R5-QA-01** closes with the staging smoke on the deployed build: narration, a rendered preview and a call with an eligible account.
+- **MiniMax key.** Revoke the MiniMax key in MiniMax's console; only the owner can do that.
 
 <!-- Short reference links used in the tables -->
 [README]: README.md

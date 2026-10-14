@@ -23,7 +23,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'Root global presets (05 §8.12): V2 presets every user can apply, created and edited in a drawer and deleted behind a confirm; stored V1 rows are read-only "Legacy" rows, hidden from users. A warning badge marks presets users could not apply (voice not public, or not active). Every API method is replaced offline; writes fail locally.',
+                    'Root global presets (05 §8.12): presets every user can apply, created and edited in a drawer and deleted behind a confirm. A warning badge marks presets users could not apply (voice not public, or not active). Every API method is replaced offline; writes fail locally.',
             },
         },
     },

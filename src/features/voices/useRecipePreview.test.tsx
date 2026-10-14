@@ -338,7 +338,6 @@ describe('classifyPreviewError', () => {
         [{ status: 429, details: { previews_left: 0 } }, 'limitReached'],
         [{ status: 402 }, 'noCredits'],
         [{ status: 409, code: 'voice_unavailable' }, 'voiceUnavailable'],
-        [{ status: 422, code: 'voice_v1_not_allowed' }, 'voiceUnavailable'],
         [{ status: 503 }, 'unavailable'],
         [{ status: 422 }, 'failed'],
         [new Error('network'), 'failed'],

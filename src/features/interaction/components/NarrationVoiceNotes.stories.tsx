@@ -47,7 +47,7 @@ export const SeveralSpeakers: Story = {
         clips: [
             clip(0, { kind: 'narrator', substitution_reason: 'tier_fallback' }),
             clip(1, { kind: 'speech', speaker_id: 'c1', speaker_name: 'Rook', substitution_reason: 'voice_removed', voice_name: 'Ava', original_voice_name: 'Mia' }),
-            clip(2, { kind: 'speech', speaker_id: 'c2', speaker_name: 'Wren', substitution_reason: 'unmapped_legacy' }),
+            clip(2, { kind: 'speech', speaker_id: 'c2', speaker_name: 'Wren', substitution_reason: 'voice_blocked' }),
         ],
     },
 }

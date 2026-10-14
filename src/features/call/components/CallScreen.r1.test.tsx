@@ -75,7 +75,7 @@ vi.mock('@/shared/voiceFeatureFlag', () => ({
 }))
 
 const caps = (body: unknown) => toVoiceCapabilities(body) as VoiceCapabilities
-const ava: EffectiveVoice = { voice_key: 'el:ava', display_name: 'Ava', provider_route: 'elevenlabs', substitution_reason: 'voice_removed', flags: [], badges: [] }
+const ava: EffectiveVoice = { voice_key: 'el:ava', display_name: 'Ava', provider_route: 'elevenlabs', substitution_reason: 'voice_removed', badges: [] }
 
 function renderCall(archived = false) {
     const workspace = createWorkspaceTestState({

@@ -6,19 +6,14 @@ import {
     CATALOG_MAREN_HOUSE,
     CATALOG_ORRIN_UNTESTED,
     CATALOG_SELA_LEAVING,
-    PRESET_V1_GLOBAL,
-    PRESET_V1_USER,
-    PRESET_V1_WITH_DRAFT,
     PRESET_V2_GLOBAL,
     PRESET_V2_USER,
-    REVIEW_FLAG_PRESET,
     VOICE_KEY_ELDRIN,
     VOICE_KEY_IDRIS,
     VOICE_KEY_MAREN,
     VOICE_KEY_ORRIN,
     VOICE_KEY_SELA,
     catalogVoice,
-    effectiveVoice,
 } from '../fixtures'
 import { clearPreferredLanguageCache } from '../hooks/usePreferredLanguage'
 import { resetPreviewCreditConfirmation } from '../usePreviewCreditConfirm'
@@ -30,8 +25,6 @@ const mockUseAuth = vi.fn()
 const api = {
     getVoiceCapabilities: vi.fn(),
     listVoicePresets: vi.fn(),
-    listVoiceReviewFlags: vi.fn(),
-    dismissVoiceReviewFlag: vi.fn(),
     listVoiceCatalog: vi.fn(),
     getVoiceCatalogByKeys: vi.fn(),
     deleteVoicePreset: vi.fn(),
@@ -72,10 +65,9 @@ const NIGHT_FERRY_PREVIEW = 'Preview Night ferry, Sela, English'
 describe('VoiceStudioPage (R1-FE-02)', () => {
     beforeEach(() => {
         mockUseAuth.mockReturnValue({ isAuthenticated: true, openLoginModal: vi.fn(), userHash: 'user-a' })
-        api.listVoicePresets.mockReset().mockResolvedValue([PRESET_V1_USER])
+        api.listVoicePresets.mockReset().mockResolvedValue([PRESET_V2_USER])
         api.getUserProfile.mockReset().mockResolvedValue({ membership: {} })
         api.getPreviewTexts.mockReset().mockRejectedValue(Object.assign(new Error('Not Found'), { status: 404 }))
-        api.listVoiceReviewFlags.mockReset().mockResolvedValue({ items: [] })
         api.getVoiceCatalogByKeys.mockReset().mockResolvedValue([])
     })
 
@@ -88,14 +80,14 @@ describe('VoiceStudioPage (R1-FE-02)', () => {
         await waitFor(() => expect(api.getVoiceCapabilities).toHaveBeenCalled())
         resolve(CAPABILITIES_EL_PRO)
         expect(await screen.findByTestId('voice-studio-v2')).toBeInTheDocument()
-        expect(await screen.findByText('My pirate')).toBeInTheDocument()
+        expect(await screen.findByText('Harbour master')).toBeInTheDocument()
     })
 
     it('still opens the studio when the capabilities read fails', async () => {
         api.getVoiceCapabilities.mockReset().mockRejectedValue(Object.assign(new Error('Not Found'), { status: 404 }))
         render(<VoiceStudioPage />)
         expect(await screen.findByTestId('voice-studio-v2')).toBeInTheDocument()
-        expect(await screen.findByText('My pirate')).toBeInTheDocument()
+        expect(await screen.findByText('Harbour master')).toBeInTheDocument()
     })
 
     it('keeps the studio and the open draft while the editor retries a failed capabilities read', async () => {
@@ -106,7 +98,7 @@ describe('VoiceStudioPage (R1-FE-02)', () => {
         api.listVoiceCatalog.mockReset().mockResolvedValue({ items: [], next_cursor: null })
         api.getUserPreferences.mockReset().mockResolvedValue({ preferred_language: 'en', has_preference: false, narration_tier: 'standard' })
         render(<VoiceStudioPage />)
-        await screen.findByText('My pirate')
+        await screen.findByText('Harbour master')
         fireEvent.click(screen.getByRole('button', { name: 'New preset' }))
         fireEvent.change(await screen.findByLabelText('Preset name'), { target: { value: 'My draft' } })
         // The failed read leaves the recipe read-only, with its retry.
@@ -131,9 +123,7 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
         window.history.replaceState(null, '', '/')
         mockUseAuth.mockReturnValue({ isAuthenticated: true, openLoginModal: vi.fn(), userHash: 'user-a' })
         api.getVoiceCapabilities.mockReset().mockResolvedValue(CAPABILITIES_EL_PRO)
-        api.listVoicePresets.mockReset().mockResolvedValue([PRESET_V2_USER, PRESET_V1_WITH_DRAFT, { ...PRESET_V1_USER, preset_id: 'user-2', name: 'No draft' }, PRESET_V2_GLOBAL, PRESET_V1_GLOBAL])
-        api.listVoiceReviewFlags.mockReset().mockResolvedValue({ items: [] })
-        api.dismissVoiceReviewFlag.mockReset().mockResolvedValue(undefined)
+        api.listVoicePresets.mockReset().mockResolvedValue([PRESET_V2_USER, PRESET_V2_GLOBAL])
         api.listVoiceCatalog.mockReset().mockResolvedValue({ items: [CATALOG_ELDRIN], next_cursor: null })
         api.getVoiceCatalogByKeys.mockReset().mockResolvedValue([CATALOG_ELDRIN, CATALOG_MAREN_HOUSE, CATALOG_SELA_LEAVING])
         api.deleteVoicePreset.mockReset().mockResolvedValue(undefined)
@@ -157,8 +147,6 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
         expect(screen.getByRole('heading', { name: 'Global presets' })).toBeInTheDocument()
         expect(screen.getByTestId('narration-tier-setting')).toBeInTheDocument()
         expect(screen.getByText(/tuned for English and Spanish/)).toBeInTheDocument()
-        // A V1 user preset now plays through the new engine: the first-exposure notice shows once.
-        expect(screen.getByTestId('voice-first-exposure')).toBeInTheDocument()
     })
 
     it('offers the actions of each row kind', async () => {
@@ -172,31 +160,22 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
         expect(within(v2).getByText('Stability 0.4')).toBeInTheDocument()
         expect(within(v2).getByText('Calm')).toBeInTheDocument()
 
-        const v1 = cardOf('My pirate')
-        expect(within(v1).getByText('Needs update')).toBeInTheDocument()
-        expect(within(v1).getByRole('button', { name: 'Update for new voices' })).toBeEnabled()
-        expect(within(v1).queryByRole('button', { name: /Edit/ })).not.toBeInTheDocument()
-
-        const noDraft = cardOf('No draft')
-        expect(within(noDraft).getByRole('button', { name: 'Update for new voices' })).toBeDisabled()
-        expect(within(noDraft).getByText(/can’t be updated automatically/)).toBeInTheDocument()
-
         const globalV2 = cardOf('Fireside narrator')
         expect(within(globalV2).getByText('Voice defaults')).toBeInTheDocument()
         expect(within(globalV2).getByRole('button', { name: 'Duplicate Fireside narrator' })).toBeEnabled()
         expect(within(globalV2).queryByRole('button', { name: /Edit|Delete/ })).not.toBeInTheDocument()
-        expect(within(cardOf('Old man')).getByRole('button', { name: 'Duplicate Old man' })).toBeDisabled()
-        // Never a raw legacy id.
-        expect(screen.queryByText(/English_/)).not.toBeInTheDocument()
     })
 
     it('opens the editor in the mode each action needs', async () => {
         render(<VoiceStudioPage />)
         await screen.findByText('Harbour master')
-        fireEvent.click(within(cardOf('My pirate')).getByRole('button', { name: 'Update for new voices' }))
-        expect(await screen.findByRole('heading', { name: 'Update “My pirate” for new voices' })).toBeInTheDocument()
+        fireEvent.click(within(cardOf('Harbour master')).getByRole('button', { name: 'Edit Harbour master' }))
+        expect(await screen.findByRole('heading', { name: 'Edit “Harbour master”' })).toBeInTheDocument()
         fireEvent.click(screen.getByRole('button', { name: 'Save preset' }))
-        await waitFor(() => expect(api.updateVoicePreset).toHaveBeenCalledWith('user-1', expect.objectContaining({ voice_key: PRESET_V1_WITH_DRAFT.conversion_draft?.voice_key })))
+        await waitFor(() => expect(api.updateVoicePreset).toHaveBeenCalledWith('user-v2', expect.objectContaining({ voice_key: VOICE_KEY_ELDRIN })))
+        await waitFor(() => expect(screen.queryByRole('heading', { name: 'Edit “Harbour master”' })).not.toBeInTheDocument())
+        fireEvent.click(within(cardOf('Fireside narrator')).getByRole('button', { name: 'Duplicate Fireside narrator' }))
+        expect(await screen.findByRole('heading', { name: 'Duplicate “Fireside narrator”' })).toBeInTheDocument()
     })
 
     it('previews a V2 preset on the stored narration tier', async () => {
@@ -224,34 +203,6 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
         fireEvent.click(within(screen.getByRole('dialog', { name: 'Delete preset' })).getByRole('button', { name: 'Delete' }))
         await waitFor(() => expect(api.deleteVoicePreset).toHaveBeenCalledWith('user-v2'))
         await waitFor(() => expect(screen.getAllByTestId('preset-card-v2').some((card) => card.getAttribute('data-preset-id') === 'user-v2')).toBe(false))
-    })
-
-    it('lists the account review flags and opens a flagged preset in place', async () => {
-        api.listVoiceReviewFlags.mockResolvedValue({ items: [REVIEW_FLAG_PRESET] })
-        render(<VoiceStudioPage />)
-        await screen.findByText('Harbour master')
-        const list = await screen.findByTestId('voice-review-flag-list')
-        expect(within(cardOf('My pirate')).getByText('Review this voice: some settings changed')).toBeInTheDocument()
-        // 05 §10: the notice is named after its preset, and so is its Dismiss.
-        const notice = within(list).getByRole('region', { name: 'Review this voice: My pirate' })
-        expect(within(notice).getByRole('button', { name: 'Dismiss review notice for My pirate' })).toBeInTheDocument()
-        fireEvent.click(within(list).getByRole('button', { name: 'Adjust' }))
-        expect(await screen.findByRole('heading', { name: 'Update “My pirate” for new voices' })).toBeInTheDocument()
-    })
-
-    it('badges a preset whose flag carries the BFF path (`voice`, no `$.` prefix)', async () => {
-        api.listVoiceReviewFlags.mockResolvedValue({ items: [{ ...REVIEW_FLAG_PRESET, ref_id: 'user-v2', json_path: 'voice' }] })
-        render(<VoiceStudioPage />)
-        await screen.findByText('Harbour master')
-        expect(await within(cardOf('Harbour master')).findByText('Review this voice: some settings changed')).toBeInTheDocument()
-    })
-
-    it('opens the preset a deep link names, once the rows are in', async () => {
-        window.history.replaceState(null, '', '/#/voices?preset=user-v2')
-        render(<VoiceStudioPage />)
-        expect(await screen.findByRole('heading', { name: 'Edit “Harbour master”' })).toBeInTheDocument()
-        await waitFor(() => expect(screen.getByLabelText('Preset name')).toHaveValue('Harbour master'))
-        expect(window.location.hash).toBe('#/voices')
     })
 
     describe('owner prompts and language badges (05 §5.5, §7.8)', () => {
@@ -298,22 +249,6 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
             expect(await within(cardOf('Quiet scribe')).findByText(/^Not tested in Spanish/)).toBeInTheDocument()
             expect(within(cardOf('Old scribe')).queryByText(/^Not tested in/)).not.toBeInTheDocument()
             expect(within(cardOf('Harbour master')).queryByText(/^Not tested in/)).not.toBeInTheDocument()
-        })
-
-        it('badges a V1 card by the voice its projection plays (05 §7.7)', async () => {
-            api.getUserPreferences.mockResolvedValue({ preferred_language: 'es', has_preference: true, narration_tier: 'expressive' })
-            api.getVoiceCatalogByKeys.mockResolvedValue([CATALOG_ORRIN_UNTESTED, CATALOG_SELA_LEAVING])
-            api.listVoicePresets.mockResolvedValue([
-                { ...PRESET_V1_WITH_DRAFT, effective_voice: effectiveVoice({ voice_key: VOICE_KEY_ORRIN, display_name: 'Orrin' }) },
-                { ...PRESET_V1_USER, preset_id: 'user-2', name: 'No projection' },
-            ])
-            render(<VoiceStudioPage />)
-            await screen.findByText('My pirate')
-            expect(await within(cardOf('My pirate')).findByText(/^Not tested in Spanish/)).toBeInTheDocument()
-            expect(api.getVoiceCatalogByKeys).toHaveBeenCalledWith(expect.arrayContaining([VOICE_KEY_ORRIN]))
-            // The conversion target's catalog state (Sela, leaving) is not the V1 card's voice.
-            expect(within(cardOf('My pirate')).queryByText(/^Leaving on /)).not.toBeInTheDocument()
-            expect(within(cardOf('No projection')).queryByText(/^Not tested in/)).not.toBeInTheDocument()
         })
     })
 
@@ -402,25 +337,6 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
     })
 
     describe('R1 round 3 gaps (AC-S1, AC-P2, 05 §6.4, §7.7)', () => {
-        it('a V1 card names the voice its projection plays, never the stored legacy one (AC-S1, D35, U-04)', async () => {
-            api.getVoiceCatalogByKeys.mockResolvedValue([CATALOG_ORRIN_UNTESTED, CATALOG_SELA_LEAVING])
-            api.listVoicePresets.mockResolvedValue([
-                { ...PRESET_V1_WITH_DRAFT, effective_voice: effectiveVoice({ voice_key: VOICE_KEY_ORRIN, display_name: 'Orrin' }) },
-                { ...PRESET_V1_USER, preset_id: 'user-2', name: 'No projection' },
-                { ...PRESET_V1_GLOBAL, effective_voice: effectiveVoice({ voice_key: VOICE_KEY_MAREN, display_name: 'Maren', substitution_reason: 'unmapped_legacy', badges: ['replaced', 'review'] }) },
-            ])
-            render(<VoiceStudioPage />)
-            await screen.findByText('My pirate')
-            const pirate = cardOf('My pirate')
-            expect(within(pirate).getByTestId('preset-card-voice')).toHaveTextContent(/^Orrin$/)
-            expect(within(pirate).queryByText('Radiant girl')).not.toBeInTheDocument()
-            expect(within(cardOf('Old man')).getByTestId('preset-card-voice')).toHaveTextContent(/^Maren$/)
-            expect(within(cardOf('Old man')).queryByText('Magnetic-voiced man')).not.toBeInTheDocument()
-            // Without a projection the stored name stays, and never the raw id.
-            expect(within(cardOf('No projection')).getByTestId('preset-card-voice')).toHaveTextContent(/^Radiant girl$/)
-            expect(screen.queryByText(/English_/)).not.toBeInTheDocument()
-        })
-
         it('an untuned card whose preview is the free sample says so before it plays (AC-P2)', async () => {
             api.previewVoice.mockResolvedValue({ cache_key: 'sha', url: '/voices/catalog/vk/sample.mp3', previews_left: 4, text: null, tier_used: 'expressive', source: 'sample' })
             render(<VoiceStudioPage />)
@@ -585,7 +501,6 @@ describe('Studio card Preview button (R1-FE-02, 05 §10 audio controls)', () => 
         mockUseAuth.mockReturnValue({ isAuthenticated: true, openLoginModal: vi.fn(), userHash: 'user-a' })
         api.getVoiceCapabilities.mockReset().mockResolvedValue(CAPABILITIES_EL_PRO)
         api.listVoicePresets.mockReset().mockResolvedValue([PRESET_V2_USER, PRESET_V2_GLOBAL])
-        api.listVoiceReviewFlags.mockReset().mockResolvedValue({ items: [] })
         api.listVoiceCatalog.mockReset().mockResolvedValue({ items: [CATALOG_ELDRIN], next_cursor: null })
         api.getVoiceCatalogByKeys.mockReset().mockResolvedValue([CATALOG_ELDRIN, CATALOG_MAREN_HOUSE])
         api.previewVoice.mockReset().mockResolvedValue({ cache_key: 'k', previews_left: 4, tier_used: 'expressive' })
@@ -707,11 +622,6 @@ describe('PresetCardV2 preview language (05 §10)', () => {
         } finally {
             await i18n.changeLanguage('en')
         }
-    })
-
-    it('a V1 card has no preview button', () => {
-        render(<PresetCardV2 row={PRESET_V1_USER} onPreview={vi.fn()} />)
-        expect(within(screen.getByTestId('preset-card-v2')).queryByRole('button', { name: /Preview/ })).not.toBeInTheDocument()
     })
 })
 

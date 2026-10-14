@@ -393,12 +393,12 @@ describe('AdventureCreator in an archived workspace', () => {
     })
 })
 
-describe('AdventureCreator voice write refusals (I-36, R5-BE-01)', () => {
+describe('AdventureCreator voice write refusals (I-36)', () => {
     // The mapping below is dormant: the BFF judges only the voices a save sets (enforce_voice_writes
     // skips absent ones), and this form sends none. These tests pin the FE wiring only; if this premise
     // ever changes, the refusals become reachable and need a contract test against the BFF route.
     it('sends no persona or cast voice, so the BFF has no voice to refuse', async () => {
-        const voice = { voice_id: 'male-qn-qingse', preset_name: 'Calm' }
+        const voice = { schema_version: 2, provider: 'elevenlabs', voice_key: `vk_${'c'.repeat(32)}`, voice_name: 'Calm', preset_name: 'Calm' }
         mocks.characters = [
             { id: 'c1', name: 'Lyra', role: 'character', voice, stats: {} },
             { id: 'p1', name: 'Me', role: 'persona', voice, stats: {} },
@@ -441,11 +441,10 @@ describe('AdventureCreator voice write refusals (I-36, R5-BE-01)', () => {
     })
 
     it.each([
-        ['voice_v1_not_allowed', 'This voice uses an older format that can no longer be saved. Choose a voice from the catalog.'],
         ['voice_not_eligible', 'This voice can’t be picked right now. Choose another.'],
         ['voice_plan_locked', 'Your plan doesn’t include this voice option.'],
         ['voice_invalid', 'This voice choice isn’t valid. Choose the voice again.'],
-    ])('shows the voice copy for a 422 %s and stays in the editor without Reload', async (code, copy) => {
+    ])('shows the voice copy for a 422 %s and stays in the editor', async (code, copy) => {
         mocks.updateAdventureTemplate.mockRejectedValue(refusal(422, code))
         render(<AdventureCreator />)
 
@@ -453,54 +452,16 @@ describe('AdventureCreator voice write refusals (I-36, R5-BE-01)', () => {
 
         expect(await screen.findByText(copy)).toBeInTheDocument()
         expect(screen.queryByText("Couldn't save your adventure. Please try again.")).toBeNull()
-        expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull()
         expect(mocks.goBack).not.toHaveBeenCalled()
     })
 
-    it('offers Reload on a 409 voice_reload_required; Reload re-reads the template in its workspace and clears the refusal', async () => {
-        mocks.editingTemplate = { ...mocks.editingTemplate, organization: { workspace_id: OTHER_WORKSPACE_ID, collection_ids: [] } }
-        mocks.updateAdventureTemplate.mockRejectedValue(refusal(409, 'voice_reload_required'))
-        mocks.getAdventureTemplate.mockResolvedValue({ id: 'tmpl-1', description: 'A heist into the volcano fortress.', characters: [] })
-        render(<AdventureCreator />)
-
-        update()
-
-        expect(await screen.findByRole('alert')).toHaveTextContent('Voices changed since this page loaded. Reload to continue.')
-        const reload = screen.getByRole('button', { name: 'Reload' })
-        expect(reload).toHaveAccessibleDescription('Voices changed since this page loaded. Reload to continue.')
-
-        fireEvent.click(reload)
-
-        await waitFor(() => expect(mocks.getAdventureTemplate).toHaveBeenCalledWith('tmpl-1'))
-        expect(scopeOf(mocks.getAdventureTemplate)).toEqual({ workspaceId: OTHER_WORKSPACE_ID, initialCollectionIds: [] })
-        await waitFor(() => expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull())
-        expect(screen.queryByRole('alert')).toBeNull()
-        expect(mocks.setEditingTemplate).toHaveBeenCalledWith(expect.objectContaining({ id: 'tmpl-1' }))
-    })
-
-    it('keeps the refusal when the reload fails', async () => {
-        mocks.updateAdventureTemplate.mockRejectedValue(refusal(409, 'voice_reload_required'))
-        mocks.getAdventureTemplate.mockRejectedValue(new Error('offline'))
-        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-        render(<AdventureCreator />)
-
-        update()
-        fireEvent.click(await screen.findByRole('button', { name: 'Reload' }))
-
-        await waitFor(() => expect(mocks.getAdventureTemplate).toHaveBeenCalled())
-        expect(await screen.findByRole('button', { name: 'Reload' })).toBeEnabled()
-        expect(screen.getByRole('alert')).toHaveTextContent('Voices changed since this page loaded. Reload to continue.')
-        consoleError.mockRestore()
-    })
-
-    it('keeps the generic copy for other failures (no voice code, or a 409 that is not a reload)', async () => {
+    it('keeps the generic copy for other failures (a 409 voice code is not a write refusal)', async () => {
         mocks.updateAdventureTemplate.mockRejectedValueOnce(refusal(409, 'voice_refresh_busy'))
         render(<AdventureCreator />)
 
         update()
 
         expect(await screen.findByText("Couldn't save your adventure. Please try again.")).toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull()
     })
 
     it('a refused cover save shows the voice copy instead of the media error', async () => {

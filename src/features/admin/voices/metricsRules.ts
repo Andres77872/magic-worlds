@@ -11,7 +11,7 @@
  * States, strongest first:
  * - `firing`: the server sent at least one alert for the rule.
  * - `not_evaluated`: the rule needs something the server does not have
- *   (no frozen baseline loaded, no daily budget set).
+ *   (no daily budget set).
  * - `no_data`: nothing the rule reads was recorded.
  * - `low_sample`: below the rule's minimum sample, so only an absolute rule
  *   could fire. Known only where the envelope shows the rule's own window:
@@ -28,7 +28,6 @@ import type { AdminVoiceMetricsAlert, AdminVoiceMetricsArea, AdminVoiceMetricsRe
 /** Mirrors the BFF constants (`metrics.py`); the server stays the source of truth. */
 export const METRICS_THRESHOLDS = Object.freeze({
     narrationFailureRate: 0.02,
-    baselineMultiplier: 2,
     voiceUnavailableShare: 0.005,
     voiceUnavailableCount: 5,
     moderationUnavailableShare: 0.01,
@@ -51,7 +50,6 @@ export type MetricsRuleId =
     | 'failureRate'
     | 'voiceUnavailable'
     | 'moderationUnavailable'
-    | 'jobP95'
     | 'substitution'
     | 'callFailure'
     | 'firstAudio'
@@ -76,7 +74,6 @@ export const METRICS_RULES: Readonly<Record<AdminVoiceMetricsArea, readonly Metr
         { id: 'failureRate', alerts: ['narration_tts_failed_rate'], severity: 'page', runbook: 'RB-1', format: 'share' },
         { id: 'voiceUnavailable', alerts: ['narration_voice_unavailable', 'narration_voice_unavailable_count'], severity: 'page', runbook: 'RB-3', format: 'share' },
         { id: 'moderationUnavailable', alerts: ['narration_moderation_unavailable'], severity: 'page', runbook: 'RB-1', format: 'share' },
-        { id: 'jobP95', alerts: ['narration_job_p95'], severity: 'page', runbook: 'RB-1', format: 'ms' },
         { id: 'substitution', alerts: ['narration_voice_substitution'], severity: 'page', runbook: 'RB-3', format: 'share' },
     ],
     calls: [
@@ -111,7 +108,7 @@ const ALERT_FORMATS: Readonly<Record<string, MetricsValueFormat>> = {
 }
 
 export type MetricsRuleState = 'firing' | 'not_evaluated' | 'no_data' | 'low_sample' | 'quiet'
-export type MetricsRuleReason = 'baseline' | 'budget'
+export type MetricsRuleReason = 'budget'
 
 /** The value a rule reads now, for one provider. */
 export interface MetricsRuleCurrent {
@@ -176,7 +173,6 @@ function evaluate(rule: MetricsRule, envelope: AdminVoiceMetricsResponse): Evalu
     switch (envelope.surface) {
         case 'narration': {
             const providers = envelope.db?.providers ?? []
-            const baseline = envelope.baseline
             const read = (pick: (bucket: (typeof providers)[number]) => MetricsRuleCurrent): MetricsRuleCurrent[] => (lastHour ? providers.map(pick) : [])
             const share = (pick: (bucket: (typeof providers)[number]) => number | null) =>
                 read((bucket) => ({ value: pick(bucket), sample: bucket.terminal, provider: bucket.provider }))
@@ -188,9 +184,7 @@ function evaluate(rule: MetricsRule, envelope: AdminVoiceMetricsResponse): Evalu
                 return quiet(threshold, current)
             }
             if (rule.id === 'failureRate') {
-                const base = baseline?.narration_failure_rate
-                const limit = typeof base === 'number' && base > 0 ? Math.min(T.narrationFailureRate, T.baselineMultiplier * base) : T.narrationFailureRate
-                return sample({ limit, min: T.minNarrationSample }, share((bucket) => bucket.failure_rate))
+                return sample({ limit: T.narrationFailureRate, min: T.minNarrationSample }, share((bucket) => bucket.failure_rate))
             }
             if (rule.id === 'voiceUnavailable') {
                 // Below the minimum sample the absolute count rule runs: show the count then.
@@ -207,14 +201,6 @@ function evaluate(rule: MetricsRule, envelope: AdminVoiceMetricsResponse): Evalu
             // D28 shared-card substitution (I-38): replaced voices on cards owned or authored by another
             // account, unknown owners included (the BFF's `shared_replaced` share, as its alert reads it).
             if (rule.id === 'substitution') return sample({ limit: T.substitutionShare, min: T.minNarrationSample }, share((bucket) => bucket.shared_replaced_share))
-            if (rule.id === 'jobP95') {
-                const current = share((bucket) => bucket.latency?.p95_ms ?? null)
-                const p95 = baseline?.narration_p95_ms
-                if (typeof p95 !== 'number' || p95 <= 0) {
-                    return { state: 'not_evaluated', reason: 'baseline', threshold: { multiplier: T.baselineMultiplier, min: T.minNarrationSample }, current }
-                }
-                return sample({ limit: T.baselineMultiplier * p95, multiplier: T.baselineMultiplier, min: T.minNarrationSample }, current)
-            }
             return quiet()
         }
         case 'calls': {

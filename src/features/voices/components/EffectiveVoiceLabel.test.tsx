@@ -1,15 +1,16 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { EFFECTIVE_BY_REASON, V1_VOICE, V2_VOICE, effectiveVoice } from '../fixtures'
+import { EFFECTIVE_BY_REASON, V2_VOICE, effectiveVoice } from '../fixtures'
 import { EffectiveVoiceLabel, substitutedName } from './EffectiveVoiceLabel'
 
 describe('EffectiveVoiceLabel (R1-FE-03, D35)', () => {
     it('is the plain name without a projection', () => {
-        const { rerender } = render(<EffectiveVoiceLabel stored={V1_VOICE} />)
+        const { rerender } = render(<EffectiveVoiceLabel stored={{ ...V2_VOICE, voice_name: '', preset_name: 'Child girl' }} />)
         expect(screen.getByText('Child girl')).toBeInTheDocument()
         expect(screen.queryByTestId('voice-badges')).not.toBeInTheDocument()
 
-        rerender(<EffectiveVoiceLabel stored={V1_VOICE} effective={null} />)
+        rerender(<EffectiveVoiceLabel stored={V2_VOICE} effective={null} />)
+        expect(screen.getByText('Eldrin')).toBeInTheDocument()
         expect(screen.queryByTestId('voice-badges')).not.toBeInTheDocument()
         expect(screen.queryByText(/Plays as/)).not.toBeInTheDocument()
     })
@@ -21,10 +22,10 @@ describe('EffectiveVoiceLabel (R1-FE-03, D35)', () => {
     })
 
     it('keeps the stored name and names the voice heard when substituted', () => {
-        render(<EffectiveVoiceLabel stored={V1_VOICE} effective={EFFECTIVE_BY_REASON.unmapped_legacy} />)
-        expect(screen.getByText('Child girl')).toBeInTheDocument()
+        render(<EffectiveVoiceLabel stored={V2_VOICE} effective={EFFECTIVE_BY_REASON.voice_removed} />)
+        expect(screen.getByText('Eldrin')).toBeInTheDocument()
         expect(screen.getByText('Plays as Maren')).toBeInTheDocument()
-        expect(document.querySelector('[data-badge="replaced"]')).toHaveAttribute('title', 'Child girl isn’t available; using Maren')
+        expect(document.querySelector('[data-badge="replaced"]')).toHaveAttribute('title', 'Eldrin isn’t available; using Maren')
     })
 
     it('uses the projection name when the stored voice has none, then the fallback', () => {
@@ -35,7 +36,7 @@ describe('EffectiveVoiceLabel (R1-FE-03, D35)', () => {
     })
 
     it('hides badges on request', () => {
-        render(<EffectiveVoiceLabel stored={V2_VOICE} effective={effectiveVoice({ badges: ['review'] })} showBadges={false} />)
+        render(<EffectiveVoiceLabel stored={V2_VOICE} effective={effectiveVoice({ badges: ['leaving'] })} showBadges={false} />)
         expect(screen.queryByTestId('voice-badges')).not.toBeInTheDocument()
     })
 

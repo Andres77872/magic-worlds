@@ -7,7 +7,6 @@ const voice = (overrides: Partial<EffectiveVoice> = {}): EffectiveVoice => ({
     display_name: 'Ava',
     provider_route: 'elevenlabs',
     substitution_reason: null,
-    flags: [],
     badges: [],
     ...overrides,
 })
@@ -23,7 +22,7 @@ describe('callVoiceNote', () => {
         expect(callVoiceNote(voice({ substitution_reason: 'not_call_eligible' }), null)).toEqual({ kind: 'call_voice', name: 'Ava' })
     })
 
-    it.each(['voice_removed', 'voice_blocked', 'voice_unavailable', 'unmapped_legacy', 'language_unsupported'] as const)('reads %s as replaced', (reason) => {
+    it.each(['voice_removed', 'voice_blocked', 'voice_unavailable', 'language_unsupported'] as const)('reads %s as replaced', (reason) => {
         expect(callVoiceNote(voice({ substitution_reason: reason }), ' Mia ')).toEqual({ kind: 'replaced', name: 'Ava', original: 'Mia' })
     })
 

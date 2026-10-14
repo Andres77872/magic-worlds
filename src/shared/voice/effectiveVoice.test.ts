@@ -6,8 +6,7 @@ const WIRE = {
     display_name: 'Eldrin',
     provider_route: 'elevenlabs',
     substitution_reason: 'voice_removed',
-    flags: ['pitch_dropped'],
-    badges: ['replaced', 'review'],
+    badges: ['replaced', 'needs_reselect'],
 }
 
 describe('readEffectiveVoice (R1-FE-03, D35)', () => {
@@ -38,14 +37,12 @@ describe('readEffectiveVoice (R1-FE-03, D35)', () => {
             voice_key: 42,
             display_name: { name: 'x' },
             substitution_reason: 'meteor_strike',
-            flags: ['speed_clamped', 7, null],
             badges: ['leaving', 'sparkles', 'leaving', 3],
         })).toEqual({
             voice_key: null,
             display_name: '',
             provider_route: 'elevenlabs',
             substitution_reason: null,
-            flags: ['speed_clamped'],
             badges: ['leaving'],
         })
     })
@@ -62,6 +59,6 @@ describe('readEffectiveVoice (R1-FE-03, D35)', () => {
         expect(isVoiceBadgeKey('house_voice')).toBe(true)
         expect(isVoiceBadgeKey('daily_limit')).toBe(false)
         expect(isSubstitutionReason('tier_fallback')).toBe(true)
-        expect(isSubstitutionReason('voice_v1_not_allowed')).toBe(false)
+        expect(isSubstitutionReason('voice_invalid')).toBe(false)
     })
 })

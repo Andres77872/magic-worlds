@@ -2,23 +2,18 @@
  * Test and story fixtures for the voice UI (R1-FE-01/02/03). Never imported
  * by the application. Capabilities are derived from the real BFF body
  * (`BFF_R0_BODY`) so ranges, steps and defaults are the server's, not ours.
- * Stored V1 values come from the shared legacy-row fixtures (`src/test/fixtures`).
  */
 import type {
     CatalogVoice,
-    CharacterVoiceLegacyV1,
     CharacterVoiceV2,
     EffectiveVoice,
     NarrationTier,
     VoiceCapabilities,
-    VoicePreset,
     VoicePresetV2,
-    VoiceReviewFlag,
     VoiceSubstitutionReason,
 } from '@/shared'
 import { toVoiceCapabilities } from '@/shared/voice/voiceCapabilities'
 import { BFF_R0_BODY } from '@/shared/voice/voiceCapabilities.fixtures'
-import { LEGACY_V1_PRESET, LEGACY_V1_VOICE, LEGACY_V1_VOICE_ID } from '@/test/fixtures/legacyMinimax'
 
 export const VOICE_KEY_ELDRIN = 'vk_3f0c2a9e5b7d4c1a8e6f0b2d4a6c8e1f'
 export const VOICE_KEY_MAREN = 'vk_0a1b2c3d4e5f60718293a4b5c6d7e8f9'
@@ -37,22 +32,12 @@ export const V2_VOICE: CharacterVoiceV2 = {
     language_code: null,
 }
 
-/** A stored V1 voice: the padded id is kept byte-identical on writes (D32). */
-export const V1_VOICE: CharacterVoiceLegacyV1 = {
-    ...LEGACY_V1_VOICE,
-    voice_id: ` ${LEGACY_V1_VOICE_ID} `,
-    pitch: 2,
-    preset_id: 'global-child-girl',
-    preset_name: 'Child girl',
-}
-
 export function effectiveVoice(overrides: Partial<EffectiveVoice> = {}): EffectiveVoice {
     return {
         voice_key: VOICE_KEY_ELDRIN,
         display_name: 'Eldrin',
         provider_route: 'elevenlabs',
         substitution_reason: null,
-        flags: [],
         badges: [],
         ...overrides,
     }
@@ -62,7 +47,6 @@ const REASON_BADGES: Partial<Record<VoiceSubstitutionReason, EffectiveVoice['bad
     voice_removed: ['replaced'],
     voice_blocked: ['replaced'],
     voice_unavailable: ['replaced'],
-    unmapped_legacy: ['replaced', 'review'],
     language_unsupported: ['replaced'],
     tier_fallback: ['standard_fallback'],
     not_call_eligible: ['call_voice'],
@@ -71,7 +55,7 @@ const REASON_BADGES: Partial<Record<VoiceSubstitutionReason, EffectiveVoice['bad
 /** One ElevenLabs projection per substitution reason (replacement voice "Maren"). */
 export const EFFECTIVE_BY_REASON: Record<VoiceSubstitutionReason, EffectiveVoice> = Object.fromEntries(
     ([
-        'unmapped_legacy', 'voice_removed', 'voice_unavailable', 'voice_blocked',
+        'voice_removed', 'voice_unavailable', 'voice_blocked',
         'not_call_eligible', 'default_voice', 'distinct_voice', 'language_unsupported', 'tier_fallback',
     ] as VoiceSubstitutionReason[]).map((reason) => [
         reason,
@@ -152,26 +136,6 @@ export const CATALOG_IDRIS_ES_UNACCEPTED = catalogVoice({
 
 export const CATALOG_PAGE: CatalogVoice[] = [CATALOG_ELDRIN, CATALOG_MAREN_HOUSE, CATALOG_TOBIAS_LOCKED, CATALOG_SELA_LEAVING, CATALOG_ORRIN_UNTESTED]
 
-export const REVIEW_FLAG_CARD: VoiceReviewFlag = {
-    flag_id: 11,
-    ref_type: 'card',
-    ref_id: 'card-1',
-    json_path: 'voice',
-    flags: ['pitch_dropped', 'vol_dropped'],
-    created_at: '2026-10-01T10:00:00Z',
-    organization: { workspace_id: '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b' },
-}
-
-export const REVIEW_FLAG_PRESET: VoiceReviewFlag = {
-    flag_id: 12,
-    ref_type: 'preset',
-    ref_id: 'user-1',
-    json_path: 'voice',
-    flags: ['speed_clamped'],
-    created_at: null,
-    organization: null,
-}
-
 export const PRESET_V2_USER: VoicePresetV2 = {
     preset_id: 'user-v2',
     name: 'Harbour master',
@@ -198,48 +162,6 @@ export const PRESET_V2_GLOBAL: VoicePresetV2 = {
     is_global: true,
     schema_version: 2,
     provider: 'elevenlabs',
-}
-
-export const PRESET_V1_USER: VoicePreset = {
-    ...LEGACY_V1_PRESET,
-    preset_id: 'user-1',
-    name: 'My pirate',
-    base_voice_name: 'Radiant girl',
-    speed: 1.1,
-    pitch: 2,
-}
-
-/** A V1 row as an elevenlabs caller reads it (EP-4): with its V2 conversion draft. */
-export const PRESET_V1_WITH_DRAFT: VoicePreset = {
-    ...PRESET_V1_USER,
-    conversion_draft: {
-        name: 'My pirate',
-        description: null,
-        voice_key: VOICE_KEY_SELA,
-        voice_name: 'Sela',
-        settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.1 },
-        emotion: null,
-        language_code: null,
-        is_global: false,
-        schema_version: 2,
-        provider: 'elevenlabs',
-    },
-    conversion_flags: ['pitch_dropped'],
-}
-
-export const PRESET_V1_GLOBAL: VoicePreset = {
-    ...LEGACY_V1_PRESET,
-    preset_id: 'global-old-man',
-    name: 'Old man',
-    description: 'Deep, weathered elder.',
-    base_voice_id: 'English_magnetic_voiced_man',
-    base_voice_name: 'Magnetic-voiced man',
-    speed: 0.9,
-    pitch: -5,
-    emotion: 'calm',
-    is_global: true,
-    conversion_draft: null,
-    conversion_flags: [],
 }
 
 type Plan = 'free' | 'plus' | 'pro'

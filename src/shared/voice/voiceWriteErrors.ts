@@ -6,7 +6,6 @@
  * another. Unknown codes return null and the caller keeps its own fallback.
  */
 const VOICE_WRITE_ERROR_KEYS: Readonly<Record<string, string>> = Object.freeze({
-    voice_v1_not_allowed: 'voices.errors.v1NotAllowed',
     voice_not_eligible: 'voices.picker.eligibilityError',
     voice_plan_locked: 'voices.errors.planLocked',
     voice_invalid: 'voices.errors.invalid',

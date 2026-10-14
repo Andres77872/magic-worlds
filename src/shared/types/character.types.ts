@@ -39,7 +39,7 @@ export interface Character {
     image_url?: string
     /** Hosted URL of the card's generated theme song, if any. */
     theme_song_url?: string
-    /** Assigned narration voice, either stored shape (legacy V1 or V2), kept whole (03 §5.1). */
+    /** Assigned narration voice, kept whole (03 §5.1). */
     voice?: StoredCharacterVoice
     /** Read-only projection of `voice` (D35): what plays. Never written back; absent for anonymous readers. */
     effective_voice?: EffectiveVoice | null

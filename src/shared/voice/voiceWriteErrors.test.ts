@@ -3,7 +3,6 @@ import { en } from '@/app/i18n/locales/en'
 import { voiceWriteErrorKey } from './voiceWriteErrors'
 
 const CODES = [
-    ['voice_v1_not_allowed', 'voices.errors.v1NotAllowed'],
     ['voice_not_eligible', 'voices.picker.eligibilityError'],
     ['voice_plan_locked', 'voices.errors.planLocked'],
     ['voice_invalid', 'voices.errors.invalid'],

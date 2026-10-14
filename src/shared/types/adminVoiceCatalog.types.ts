@@ -3,9 +3,9 @@
  * routes listed in 08 §5.3 (paths are 08's names; 05 §8.2 mirrors them).
  *
  * Column names follow the canonical tables of 03 §5.2 (`voice_catalog`,
- * `voice_catalog_acceptance`, `voice_default`, `voice_legacy_mapping`,
- * `voice_runtime_setting`). Envelopes that 08 does not
- * spell out are this file's proposal and are marked "Proposal".
+ * `voice_catalog_acceptance`, `voice_default`, `voice_runtime_setting`).
+ * Envelopes that 08 does not spell out are this file's proposal and are
+ * marked "Proposal".
  *
  * FE proposals frozen for R0-BE-35/36 (2026-10-12; 03 §5.16). The BFF adopts
  * them as written or renegotiates them here first. Every proposal below says
@@ -18,15 +18,14 @@
  * - `AcceptanceRender` / `AcceptanceRenderResponse` (with `audio_url`) and
  *   `AcceptanceVerdictResponse`.
  * - `VoiceDefaultsResponse.last_resort_voice_key` and `VoiceDefaultsUpdateResponse`.
- * - `LegacyMappingRow.reference_count` and the `LegacyMappingCoverage` envelope.
  * - `AdminVoiceLimits` and the `X-Voice-*` lab headers (I-14).
  *
- * Identity rule (D11, D35): catalog voices are keyed by `voice_key`. Stored V1
- * ids only appear as `legacy_voice_id`; nothing here carries a bare V1 voice-id
- * field. Audio is a BFF media path, base64 or a Blob — never hex.
+ * Identity rule (D11, D35): catalog voices are keyed by `voice_key`; nothing
+ * here carries a bare provider voice-id field. Audio is a BFF media path,
+ * base64 or a Blob — never hex.
  */
 import type { NarrationTier } from './auth.types'
-import type { VoiceEmotion, VoicePreset, VoicePresetV2, VoiceSettingsV2 } from './voicePreset.types'
+import type { VoiceEmotion, VoicePresetV2, VoiceSettingsV2 } from './voicePreset.types'
 
 // The root metrics envelopes (`/admin/voices/metrics/*`) ride on this module's barrel export.
 export * from './adminVoiceMetrics.types'
@@ -456,74 +455,6 @@ export interface VoiceDefaultsUpdateResponse {
     items: VoiceDefaultRow[]
 }
 
-// ---- Legacy mapping (03 §5.2, D21, D33) ----
-
-export type LegacyMappingStatus = 'proposed' | 'approved' | 'retired'
-
-export interface LegacyMappingRow {
-    legacy_voice_id: string
-    /** null = explicitly unmapped. */
-    voice_key: string | null
-    /** Ordered candidates for the D33 distinct-voice rule. */
-    alternate_voice_keys: string[]
-    settings_override: VoiceSettingsV2 | null
-    legacy_language: string | null
-    status: LegacyMappingStatus
-    reviewed_by_user_id: number | null
-    reviewed_at: string | null
-    notes: string | null
-    /**
-     * Proposal (FE, frozen for R0-BE-35): live `voice_reference`-style references
-     * to this legacy id across cards, drafts, versions, presets, template casts and
-     * session snapshots, persona cards excluded (D38). The R0-DATA-04 coverage
-     * query (C-1) is the source. 0 when unreferenced. Missing: the console shows —.
-     */
-    reference_count?: number
-}
-
-export interface LegacyMappingListResponse {
-    items: LegacyMappingRow[]
-}
-
-/** `PUT /admin/voices/legacy-mapping/{legacy_voice_id}` body. */
-export interface LegacyMappingUpdate {
-    voice_key: string | null
-    alternate_voice_keys: string[]
-    settings_override: VoiceSettingsV2 | null
-    legacy_language: string | null
-    status: LegacyMappingStatus
-    notes: string | null
-}
-
-export interface LegacyCoverageCount {
-    total: number
-    mapped: number
-}
-
-export interface LegacyTargetMetric {
-    voice_key: string
-    /** Distinct legacy ids mapped to this target. */
-    legacy_ids: number
-    /** Legacy ids mapped here that co-occur in the same casts (D33). */
-    co_occurring_ids: number
-    alternates: number
-}
-
-/**
- * Proposal (FE, frozen for R0-BE-35): `GET /admin/voices/legacy-mapping/coverage`,
- * built from the R0-DATA-04 queries (C-1 referenced ids, C-4 legacy ids per
- * target). `unmapped_ids` lists referenced ids without an
- * approved mapping, most referenced first. Required by the console: every field.
- * Missing route: the module shows its load error with a retry, and the mapping
- * table still works.
- */
-export interface LegacyMappingCoverage {
-    referenced: LegacyCoverageCount
-    unmapped_ids: string[]
-    legacy_ids_per_target: LegacyTargetMetric[]
-    generated_at: string | null
-}
-
 // ---- Library browser (D09, D19) ----
 
 export type LibrarySort = 'created_date' | 'usage_character_count_1y' | 'trending' | 'cloned_by_count'
@@ -798,12 +729,11 @@ export interface AdminGlobalPresetInput {
 }
 
 /**
- * One admin global-preset row: a V2 or V1 preset DTO plus the admin fields.
- * V1 rows (`schema_version` absent) are read-only legacy rows (D12).
- * `voice_public` is null for V1 rows.
+ * One admin global-preset row: the preset DTO plus the admin fields.
+ * `voice_public` is null when the catalog visibility is unknown (the BFF's
+ * catalog read failed).
  */
-export type AdminGlobalPresetRow = (VoicePresetV2 | VoicePreset) & {
-    legacy_hidden: boolean
+export type AdminGlobalPresetRow = VoicePresetV2 & {
     voice_public: boolean | null
     seed_key: string | null
 }

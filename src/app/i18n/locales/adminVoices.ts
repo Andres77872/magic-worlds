@@ -1,7 +1,7 @@
 /**
  * Root voice console copy (`admin.voices.*`, 05 §9.4). Provider-neutral except
  * where the console needs the provider operationally (Library terms, model
- * names, reference drawer; 05 §8.14). `legacy.emotion.*` and `controls.*` are
+ * names, reference drawer; 05 §8.14). `emotion.*` and `controls.*` are
  * also read by the user-facing voice UI (`src/features/voices`).
  */
 export const adminVoicesEn = {
@@ -20,7 +20,6 @@ export const adminVoicesEn = {
         catalog: 'Catalog',
         acceptance: 'Acceptance',
         defaults: 'Defaults',
-        mapping: 'Legacy mapping',
         library: 'Library',
         create: 'Create',
         lab: 'Synth lab',
@@ -140,7 +139,6 @@ export const adminVoicesEn = {
         verdictSaved: 'Verdict saved',
         samplesRendered: 'Samples rendered',
         defaultsSaved: 'Defaults saved',
-        mappingSaved: 'Mapping saved',
         designSaved: 'Voice saved as a draft',
         libraryAdded: 'Voice added to the catalog as a draft',
         budgetRaised: 'Daily budget updated',
@@ -514,72 +512,6 @@ export const adminVoicesEn = {
             sample: 'Own sample in {{language}}',
         },
     },
-    mapping: {
-        title: 'Legacy mapping',
-        description: 'Map every stored legacy voice to a catalog voice, with ordered alternates for casts. Stored legacy voices play through this mapping; unmapped ones play the default voice.',
-        coverage: {
-            title: 'Coverage',
-            referenced: 'Referenced legacy voices mapped',
-            value: '{{mapped}} of {{total}} ({{percent}}%)',
-            gateMet: '100%: gate met',
-            gateOpen: 'Below 100%: unmapped voices play the default voice',
-            unmapped: 'Unmapped legacy voices',
-            noUnmapped: 'Every referenced legacy voice is mapped.',
-            more: 'and {{count}} more',
-        },
-        legacyPerTarget: {
-            title: 'Legacy voices per target',
-            caption: 'Legacy voices mapped to each catalog voice',
-            target: 'Target voice',
-            legacyIds: 'Legacy voices',
-            coOccurring: 'Co-occurring in casts',
-            alternates: 'Alternates',
-            needsAlternates: 'Needs alternates',
-        },
-        filters: {
-            search: 'Search legacy voices',
-            status: 'Status',
-            unmappedOnly: 'Unmapped only',
-        },
-        columns: {
-            caption: 'Legacy voice mappings',
-            legacyVoice: 'Legacy voice',
-            language: 'Language',
-            references: 'References',
-            status: 'Status',
-            target: 'Target',
-            alternates: 'Alternates',
-            reviewed: 'Reviewed',
-            actions: 'Actions',
-        },
-        status: {
-            proposed: 'Proposed',
-            approved: 'Approved',
-            retired: 'Retired',
-        },
-        unmapped: 'Unmapped',
-        edit: 'Edit mapping for {{id}}',
-        editShort: 'Edit',
-        empty: 'No legacy voices match.',
-        editor: {
-            eyebrow: 'Legacy mapping',
-            target: 'Target voice',
-            alternates: 'Alternates (in order)',
-            alternatesHelp: 'Used in order when two characters in one cast would get the same voice.',
-            addAlternate: 'Add an alternate',
-            settingsOverride: 'Settings override',
-            overrideToggle: 'Override the target voice settings',
-            legacyLanguage: 'Legacy language',
-            legacyLanguageHelp: 'ISO 639-1 code, for example en.',
-            status: 'Status',
-            notes: 'Notes',
-            sample: 'Target sample',
-            targetTitle: 'Target {{name}}, sample',
-            targetNoSample: 'The target has no own sample to play yet.',
-            labHint: 'To hear the target with the override applied, send it to the lab.',
-            save: 'Save mapping',
-        },
-    },
     library: {
         title: 'Library browser',
         description: 'Browse shared provider voices with the curated filters enforced, then add a voice to the catalog as a root-only draft.',
@@ -763,7 +695,7 @@ export const adminVoicesEn = {
     /** Global presets (R1-FE-06, 05 §8.12, D12, D22). */
     globalPresets: {
         title: 'Global presets',
-        description: 'Presets every user can apply: a catalog voice with its settings, copied by value. New presets are V2 only; stored legacy presets are read-only rows hidden from users.',
+        description: 'Presets every user can apply: a catalog voice with its settings, copied by value.',
         create: 'New global preset',
         empty: 'No global presets yet.',
         columns: {
@@ -775,9 +707,6 @@ export const adminVoicesEn = {
             status: 'Status',
             actions: 'Actions',
         },
-        legacy: 'Legacy',
-        legacyHint: 'Legacy preset: read-only and hidden from users. Cards that already use it keep it.',
-        hiddenForUsers: 'Hidden from users',
         notPublic: 'Not public',
         anyLanguage: 'Any language',
         edit: 'Edit',
@@ -835,7 +764,6 @@ export const adminVoicesEn = {
         errors: {
             voiceNotEligible: 'This voice cannot back a global preset: it must be active in the catalog and accepted on Flash.',
             seedExists: 'Another global preset already uses this seed key.',
-            legacyReadOnly: 'Legacy presets are read-only.',
         },
     },
     limits: {
@@ -966,7 +894,6 @@ export const adminVoicesEn = {
                 quiet: 'Not firing',
             },
             reasons: {
-                baseline: 'No baseline is loaded.',
                 budget: 'No daily budget is set.',
             },
             severities: {
@@ -983,7 +910,7 @@ export const adminVoicesEn = {
             items: {
                 failureRate: {
                     label: 'Narration failure rate',
-                    threshold: 'Above {{limit}} of finished segments (2%, or 2× baseline when lower); at least {{min}} segments',
+                    threshold: 'Above {{limit}} of finished segments; at least {{min}} segments',
                 },
                 voiceUnavailable: {
                     label: 'Voice unavailable',
@@ -992,11 +919,6 @@ export const adminVoicesEn = {
                 moderationUnavailable: {
                     label: 'Moderation unavailable',
                     threshold: 'Above {{limit}} of finished segments; at least {{min}} segments',
-                },
-                jobP95: {
-                    label: 'Narration job p95',
-                    threshold: 'Above {{limit}} ({{multiplier}}× the baseline p95); at least {{min}} segments',
-                    thresholdNoBaseline: 'Above {{multiplier}}× the baseline p95; at least {{min}} segments',
                 },
                 substitution: {
                     label: 'Voice substitution',
@@ -1059,9 +981,6 @@ export const adminVoicesEn = {
             final: 'Credits final',
             countedChars: 'Counted characters',
             staleOpen: 'Stale open',
-            baselineTitle: 'Baseline',
-            baselineValue: 'Failure rate {{rate}} · job p95 {{p95}}',
-            baselineMissing: 'No baseline is loaded, so the × baseline rules are not evaluated.',
         },
         calls: {
             providersTitle: 'Calls by provider',
@@ -1189,16 +1108,14 @@ export const adminVoicesEn = {
         copy: 'Copy voice ID',
         copied: 'Copied',
     },
-    legacy: {
-        emotion: {
-            calm: 'Calm',
-            happy: 'Happy',
-            sad: 'Sad',
-            angry: 'Angry',
-            fearful: 'Fearful',
-            disgusted: 'Disgusted',
-            surprised: 'Surprised',
-        },
+    emotion: {
+        calm: 'Calm',
+        happy: 'Happy',
+        sad: 'Sad',
+        angry: 'Angry',
+        fearful: 'Fearful',
+        disgusted: 'Disgusted',
+        surprised: 'Surprised',
     },
 }
 
@@ -1218,7 +1135,6 @@ export const adminVoicesEs: typeof adminVoicesEn = {
         catalog: 'Catálogo',
         acceptance: 'Aceptación',
         defaults: 'Predeterminadas',
-        mapping: 'Mapeo heredado',
         library: 'Biblioteca',
         create: 'Crear',
         lab: 'Laboratorio',
@@ -1337,7 +1253,6 @@ export const adminVoicesEs: typeof adminVoicesEn = {
         verdictSaved: 'Veredicto guardado',
         samplesRendered: 'Muestras generadas',
         defaultsSaved: 'Predeterminadas guardadas',
-        mappingSaved: 'Mapeo guardado',
         designSaved: 'Voz guardada como borrador',
         libraryAdded: 'Voz añadida al catálogo como borrador',
         budgetRaised: 'Presupuesto diario actualizado',
@@ -1711,72 +1626,6 @@ export const adminVoicesEs: typeof adminVoicesEn = {
             sample: 'Muestra propia en {{language}}',
         },
     },
-    mapping: {
-        title: 'Mapeo heredado',
-        description: 'Asigna cada voz heredada guardada a una voz del catálogo, con alternativas ordenadas para los repartos. Las voces heredadas guardadas suenan a través de este mapeo; las que no tienen mapeo usan la voz predeterminada.',
-        coverage: {
-            title: 'Cobertura',
-            referenced: 'Voces heredadas referenciadas con mapeo',
-            value: '{{mapped}} de {{total}} ({{percent}} %)',
-            gateMet: '100 %: requisito cumplido',
-            gateOpen: 'Por debajo del 100 %: las voces sin mapeo usan la voz predeterminada',
-            unmapped: 'Voces heredadas sin mapeo',
-            noUnmapped: 'Todas las voces heredadas referenciadas tienen mapeo.',
-            more: 'y {{count}} más',
-        },
-        legacyPerTarget: {
-            title: 'Voces heredadas por destino',
-            caption: 'Voces heredadas asignadas a cada voz del catálogo',
-            target: 'Voz de destino',
-            legacyIds: 'Voces heredadas',
-            coOccurring: 'Coinciden en repartos',
-            alternates: 'Alternativas',
-            needsAlternates: 'Necesita alternativas',
-        },
-        filters: {
-            search: 'Buscar voces heredadas',
-            status: 'Estado',
-            unmappedOnly: 'Solo sin mapeo',
-        },
-        columns: {
-            caption: 'Mapeos de voces heredadas',
-            legacyVoice: 'Voz heredada',
-            language: 'Idioma',
-            references: 'Referencias',
-            status: 'Estado',
-            target: 'Destino',
-            alternates: 'Alternativas',
-            reviewed: 'Revisada',
-            actions: 'Acciones',
-        },
-        status: {
-            proposed: 'Propuesta',
-            approved: 'Aprobada',
-            retired: 'Retirada',
-        },
-        unmapped: 'Sin mapeo',
-        edit: 'Editar el mapeo de {{id}}',
-        editShort: 'Editar',
-        empty: 'Ninguna voz heredada coincide.',
-        editor: {
-            eyebrow: 'Mapeo heredado',
-            target: 'Voz de destino',
-            alternates: 'Alternativas (en orden)',
-            alternatesHelp: 'Se usan en orden cuando dos personajes de un reparto recibirían la misma voz.',
-            addAlternate: 'Añadir una alternativa',
-            settingsOverride: 'Ajustes específicos',
-            overrideToggle: 'Sustituir los ajustes de la voz de destino',
-            legacyLanguage: 'Idioma heredado',
-            legacyLanguageHelp: 'Código ISO 639-1, por ejemplo es.',
-            status: 'Estado',
-            notes: 'Notas',
-            sample: 'Muestra del destino',
-            targetTitle: 'Destino {{name}}, muestra',
-            targetNoSample: 'El destino aún no tiene una muestra propia que reproducir.',
-            labHint: 'Para oír el destino con los ajustes específicos, envíalo al laboratorio.',
-            save: 'Guardar mapeo',
-        },
-    },
     library: {
         title: 'Explorador de la Biblioteca',
         description: 'Explora las voces compartidas del proveedor con los filtros curados aplicados y añade una voz al catálogo como borrador solo para root.',
@@ -1959,7 +1808,7 @@ export const adminVoicesEs: typeof adminVoicesEn = {
     },
     globalPresets: {
         title: 'Presets globales',
-        description: 'Presets que cualquier usuario puede aplicar: una voz del catálogo con sus ajustes, copiada por valor. Los nuevos son solo V2; los presets heredados guardados son filas de solo lectura ocultas para los usuarios.',
+        description: 'Presets que cualquier usuario puede aplicar: una voz del catálogo con sus ajustes, copiada por valor.',
         create: 'Nuevo preset global',
         empty: 'Todavía no hay presets globales.',
         columns: {
@@ -1971,9 +1820,6 @@ export const adminVoicesEs: typeof adminVoicesEn = {
             status: 'Estado',
             actions: 'Acciones',
         },
-        legacy: 'Heredado',
-        legacyHint: 'Preset heredado: solo lectura y oculto para los usuarios. Las fichas que ya lo usan lo conservan.',
-        hiddenForUsers: 'Oculto para los usuarios',
         notPublic: 'No pública',
         anyLanguage: 'Cualquier idioma',
         edit: 'Editar',
@@ -2031,7 +1877,6 @@ export const adminVoicesEs: typeof adminVoicesEn = {
         errors: {
             voiceNotEligible: 'Esta voz no puede respaldar un preset global: debe estar activa en el catálogo y aceptada en Flash.',
             seedExists: 'Otro preset global ya usa esta clave de semilla.',
-            legacyReadOnly: 'Los presets heredados son de solo lectura.',
         },
     },
     limits: {
@@ -2162,7 +2007,6 @@ export const adminVoicesEs: typeof adminVoicesEn = {
                 quiet: 'Inactiva',
             },
             reasons: {
-                baseline: 'No hay una línea base cargada.',
                 budget: 'No hay un presupuesto diario definido.',
             },
             severities: {
@@ -2179,7 +2023,7 @@ export const adminVoicesEs: typeof adminVoicesEn = {
             items: {
                 failureRate: {
                     label: 'Tasa de fallos de narración',
-                    threshold: 'Más del {{limit}} de los segmentos terminados (2 %, o 2× la línea base si es menor); al menos {{min}} segmentos',
+                    threshold: 'Más del {{limit}} de los segmentos terminados; al menos {{min}} segmentos',
                 },
                 voiceUnavailable: {
                     label: 'Voz no disponible',
@@ -2188,11 +2032,6 @@ export const adminVoicesEs: typeof adminVoicesEn = {
                 moderationUnavailable: {
                     label: 'Moderación no disponible',
                     threshold: 'Más del {{limit}} de los segmentos terminados; al menos {{min}} segmentos',
-                },
-                jobP95: {
-                    label: 'p95 de trabajos de narración',
-                    threshold: 'Más de {{limit}} ({{multiplier}}× el p95 de la línea base); al menos {{min}} segmentos',
-                    thresholdNoBaseline: 'Más de {{multiplier}}× el p95 de la línea base; al menos {{min}} segmentos',
                 },
                 substitution: {
                     label: 'Sustitución de voz',
@@ -2255,9 +2094,6 @@ export const adminVoicesEs: typeof adminVoicesEn = {
             final: 'Créditos finales',
             countedChars: 'Caracteres contados',
             staleOpen: 'Abiertos vencidos',
-            baselineTitle: 'Línea base',
-            baselineValue: 'Tasa de fallos {{rate}} · p95 del trabajo {{p95}}',
-            baselineMissing: 'No hay una línea base cargada, así que las reglas × línea base no se evalúan.',
         },
         calls: {
             providersTitle: 'Llamadas por proveedor',
@@ -2384,15 +2220,13 @@ export const adminVoicesEs: typeof adminVoicesEn = {
         copy: 'Copiar ID de voz',
         copied: 'Copiado',
     },
-    legacy: {
-        emotion: {
-            calm: 'Calmada',
-            happy: 'Alegre',
-            sad: 'Triste',
-            angry: 'Enojada',
-            fearful: 'Temerosa',
-            disgusted: 'Disgustada',
-            surprised: 'Sorprendida',
-        },
+    emotion: {
+        calm: 'Calmada',
+        happy: 'Alegre',
+        sad: 'Triste',
+        angry: 'Enojada',
+        fearful: 'Temerosa',
+        disgusted: 'Disgustada',
+        surprised: 'Sorprendida',
     },
 }

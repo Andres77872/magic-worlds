@@ -14,7 +14,7 @@ const response = {
     ref_type: 'session',
     ref_id: '9',
     voices: [
-        { json_path: 'character.voice', effective_voice: { voice_key: KEY, display_name: 'Aria', provider_route: 'elevenlabs', substitution_reason: null, flags: [], badges: [] } },
+        { json_path: 'character.voice', effective_voice: { voice_key: KEY, display_name: 'Aria', provider_route: 'elevenlabs', substitution_reason: null, badges: [] } },
         { json_path: 'persona.voice', effective_voice: { provider_route: 'unknown' } },
         { json_path: 7, effective_voice: { voice_key: KEY, display_name: 'x', provider_route: 'elevenlabs' } },
     ],

@@ -35,7 +35,6 @@ function el(voiceKey: string, overrides: Partial<EffectiveVoice> = {}): Effectiv
         display_name: voiceKey === KEY_A ? 'Aria' : 'Bram',
         provider_route: 'elevenlabs',
         substitution_reason: null,
-        flags: [],
         badges: [],
         ...overrides,
     }
@@ -46,7 +45,7 @@ const lyra: Character = {
     name: 'Lyra',
     race: 'Elf',
     stats: {},
-    voice: { voice_id: 'male-qn-qingse', preset_name: 'Calm' },
+    voice: { schema_version: 2, provider: 'elevenlabs', voice_key: `vk_${'c'.repeat(32)}`, voice_name: 'Calm', preset_name: 'Calm' },
     effective_voice: el(KEY_B),
 }
 

@@ -9,7 +9,6 @@ const quietNarration: NarrationMetricsResponse = {
     window: { ...narrationMetrics.window, hours: 1 },
     db: { ...narrationMetrics.db, providers: [{ ...narrationMetrics.db.providers[0], terminal: 120 }] },
     alerts: [],
-    baseline: null,
 }
 
 const accountEvent: ProviderMetricsResponse = {
@@ -54,7 +53,7 @@ type Story = StoryObj<typeof meta>
 
 export const NarrationFiring: Story = {}
 
-export const NarrationSmallSampleNoBaseline: Story = {
+export const NarrationSmallSample: Story = {
     args: { statuses: metricsRuleStatuses(quietNarration) },
 }
 

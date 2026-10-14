@@ -36,7 +36,6 @@ import { useAutoNarrationPause } from '../hooks/useAutoNarrationPause'
 import { useVoiceAvailability } from '../hooks/useVoiceAvailability'
 import { useVoiceCapabilitiesSnapshot } from '../hooks/useVoiceCapabilitiesSnapshot'
 import { NarrationAllowanceNote } from './NarrationAllowanceNote'
-import { ChatFirstExposureBanner } from './voice/ChatFirstExposureBanner'
 import { BreakNudge, SafetyPauseNotice, useSafetyPause } from '@/features/safety'
 import { readSafeguards } from '@/shared/voice/voiceCapabilities'
 
@@ -1436,13 +1435,6 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                     </div>
                 </div>
             )}
-            {/* D35 first exposure (03 §5.12, 05 §7.6): once per account; the Studio's dismissal. */}
-            <ChatFirstExposureBanner
-                kind={config.kind}
-                sessionId={sessionId}
-                className="mx-auto mt-3 w-full max-w-[760px] px-4 md:px-6"
-            />
-
             <div className="relative flex min-h-0 flex-1 flex-col">
             <div ref={scrollContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto">
                 <div className="mx-auto w-full max-w-[760px] px-4 py-6 md:px-6">
@@ -1507,9 +1499,6 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                                         deleting={isDeleteTarget && isDeletingTurn}
                                         actionsDisabled={readOnly || isLoading || isClearingTurns || isSwitchingVersion || (isDeletingTurn && !isDeleteTarget)}
                                         loreMatcher={loreMatcher}
-                                        // D23 (10 §2.4 #16-#17): saved call replies show without speech markup,
-                                        // the rows stored before the voice purge too, as on the Calls page.
-                                        stripCallMarkup
                                     />
                                 )
                             })}

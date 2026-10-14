@@ -11,7 +11,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'Labelled on-brand range row with a mono readout and a reset-to-default affordance. Used by the user preset recipe controls (speed, volume, pitch), the voice console settings editor (stability, similarity, style, speed) and the Remix and Design guidance controls. Opt-in slots add end labels under the track and a note (such as an out-of-range flag) that describes the slider.',
+                    'Labelled on-brand range row with a mono readout and a reset-to-default affordance. Used by the user preset recipe controls (stability, similarity, speed), the voice console settings editor (stability, similarity, style, speed) and the Remix and Design guidance controls. Opt-in slots add end labels under the track and a note (such as an out-of-range flag) that describes the slider.',
             },
         },
     },

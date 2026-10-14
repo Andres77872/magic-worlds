@@ -79,7 +79,7 @@ export interface SnapshotCard {
     image_url?: string
     /** Hosted URL of this card's generated theme song, if any. */
     theme_song_url?: string
-    /** Assigned narration voice copied from a character/persona card (either stored shape, kept whole). */
+    /** Assigned narration voice copied from a character/persona card (kept whole). */
     voice?: StoredCharacterVoice | null
     /** Read-only session projection of `voice` (D35). Never written back; absent for anonymous readers. */
     effective_voice?: EffectiveVoice | null

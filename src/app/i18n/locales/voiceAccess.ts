@@ -166,11 +166,8 @@ export const voiceErrorsEn = {
     planLocked: 'Your plan doesn’t include this voice option.',
     /** `voice_invalid`. */
     invalid: 'This voice choice isn’t valid. Choose the voice again.',
-    /** `voice_v1_not_allowed`. */
-    v1NotAllowed: 'This voice uses an older format that can no longer be saved. Choose a voice from the catalog.',
     /** `voice_reload_required` (409). */
     reloadRequired: 'Voices changed since this page loaded. Reload to continue.',
-    reloadAction: 'Reload',
     /** `voice_region_unavailable` (PC-2). */
     regionUnavailable: 'Voice is not available in your region.',
     /** `voice_safety_pause` (PC-1). */
@@ -186,9 +183,7 @@ export const voiceErrorsEs = {
     tierUnavailable: 'La narración expresiva aún no está disponible para tu cuenta. La narración estándar sigue funcionando.',
     planLocked: 'Tu plan no incluye esta opción de voz.',
     invalid: 'Esta elección de voz no es válida. Vuelve a elegir la voz.',
-    v1NotAllowed: 'Esta voz usa un formato antiguo que ya no se puede guardar. Elige una voz del catálogo.',
     reloadRequired: 'Las voces cambiaron desde que se cargó esta página. Recarga para continuar.',
-    reloadAction: 'Recargar',
     regionUnavailable: 'La voz no está disponible en tu región.',
     safetyPause: 'La voz está en pausa por ahora.',
     callRestricted: 'La voz no está disponible para tu cuenta ahora mismo, así que la llamada terminó.',

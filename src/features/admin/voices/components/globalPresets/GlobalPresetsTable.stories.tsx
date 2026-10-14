@@ -14,7 +14,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'The global preset list: each V2 preset with its voice, language, seed key and state ("Not public", or the catalog status when the voice is not active), with Edit and Delete. A stored V1 row is labelled "Legacy" and "Hidden from users", and offers no action.',
+                    'The global preset list: each preset with its voice, language, seed key and state ("Not public", or the catalog status when the voice is not active), with Edit and Delete.',
             },
         },
     },
@@ -42,4 +42,4 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Mixed: Story = {}
-export const LegacyOnly: Story = { args: { rows: auditGlobalPresets.items.slice(2) } }
+export const NotPublicOnly: Story = { args: { rows: auditGlobalPresets.items.slice(1) } }

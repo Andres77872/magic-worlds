@@ -1,8 +1,8 @@
 /**
- * Global presets module (R1-FE-06, 05 §8.12, D12, D22): the root list of
- * `is_global` presets (EP-5 `GET /admin/voice-presets/global`, legacy rows
- * included), V2 create and edit in a drawer, and delete behind a confirm.
- * Deleting never breaks a card: presets are copied by value.
+ * Global presets module (R1-FE-06, 05 §8.12): the root list of `is_global`
+ * presets (EP-5 `GET /admin/voice-presets/global`), create and edit in a
+ * drawer, and delete behind a confirm. Deleting never breaks a card: presets
+ * are copied by value.
  */
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,7 +11,6 @@ import { apiService } from '@/infrastructure/api'
 import type { AdminGlobalPresetList, AdminGlobalPresetRow } from '@/shared'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { Button, Callout, Icon } from '@/ui/primitives'
-import type { GlobalPresetV2Row } from '../../globalPresetRules'
 import { useAbortableLoad } from '../../hooks/useAbortableLoad'
 import { ConsoleSection } from '../shell/ConsoleSection'
 import { useLoadErrorMessage, useVoiceConsole } from '../shell/VoiceConsoleContext'
@@ -20,7 +19,7 @@ import { GlobalPresetsTable } from './GlobalPresetsTable'
 
 const loadPresets = () => apiService.listAdminGlobalPresets()
 
-type Editing = { mode: 'create' } | { mode: 'edit'; row: GlobalPresetV2Row }
+type Editing = { mode: 'create' } | { mode: 'edit'; row: AdminGlobalPresetRow }
 
 export function GlobalPresetsModule() {
     const { t } = useTranslation()
@@ -28,7 +27,7 @@ export function GlobalPresetsModule() {
     const presets = useAbortableLoad<AdminGlobalPresetList>(loadPresets, 'globalPresets')
     const errorMessage = useLoadErrorMessage(presets.error)
     const [editing, setEditing] = useState<Editing | null>(null)
-    const [deleting, setDeleting] = useState<GlobalPresetV2Row | null>(null)
+    const [deleting, setDeleting] = useState<AdminGlobalPresetRow | null>(null)
     const [deleteBusy, setDeleteBusy] = useState(false)
     const [deleteError, setDeleteError] = useState<string | null>(null)
     const rows = presets.data?.items ?? []

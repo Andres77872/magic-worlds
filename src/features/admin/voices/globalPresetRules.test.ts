@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { AdminGlobalPresetRow, VoicePresetV2 } from '@/shared'
+import type { VoicePresetV2 } from '@/shared'
 import { draftVoice, makeCatalogVoice, readyVoice } from './fixtures'
 import {
     compactSettings,
@@ -8,7 +8,6 @@ import {
     GLOBAL_PRESET_NAME_MAX,
     globalPresetIssues,
     globalPresetWarnings,
-    isLegacyGlobalPreset,
     toGlobalPresetInput,
     type GlobalPresetDraft,
 } from './globalPresetRules'
@@ -91,13 +90,6 @@ describe('globalPresetRules (EP-5)', () => {
             emotion: 'calm',
             language_code: 'en',
         })
-    })
-
-    it('labels V1 rows as legacy', () => {
-        const extra = { legacy_hidden: false, voice_public: null, seed_key: null }
-        const v1 = { preset_id: 'v1', name: 'Old', base_voice_id: 'English_Warm', speed: 1, volume: 1, pitch: 0, is_global: true, ...extra } as AdminGlobalPresetRow
-        expect(isLegacyGlobalPreset(v1)).toBe(true)
-        expect(isLegacyGlobalPreset({ ...V2, ...extra })).toBe(false)
     })
 
     it('warns when users could not apply the preset', () => {

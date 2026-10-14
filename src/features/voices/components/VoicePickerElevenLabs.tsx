@@ -1,13 +1,9 @@
 /**
  * The voice picker (R1-FE-01, 05 §4, 09 §3): a "Presets" tab and a "Voice
- * catalog" tab. Every pick is a V2 voice (I-27: writes refuse a new V1 voice
- * with `voice_v1_not_allowed`):
+ * catalog" tab. Every pick is a stored voice:
  *
- * - a V2 preset → `voiceFromPreset` (V2 with its preset linkage), unless its
- *   voice is locked, removed or blocked;
- * - a V1 preset → its `conversion_draft` as V2 under the same `preset_id`
- *   ("Updated for the new voices"), or disabled with a Studio link when the
- *   server sent no draft;
+ * - a preset → `voiceFromPreset` (with its preset linkage), unless its voice
+ *   is locked, removed or blocked;
  * - a catalog voice → `voiceFromCatalog` (no preset linkage).
  *
  * The catalog list loads as soon as the picker opens; a 404 there shows as
@@ -43,20 +39,18 @@
  */
 import { useContext, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AudioLines, Check, ExternalLink, Loader2, Play, Square } from 'lucide-react'
+import { AudioLines, Check, Loader2, Play, Square } from 'lucide-react'
 import { AuthContext } from '@/app/providers/AuthProvider'
-import { NavigationContext } from '@/app/providers/NavigationProvider'
 import { apiService } from '@/infrastructure/api'
-import type { CatalogVoice, EffectiveVoice, PreviewTextId, StoredCharacterVoice, VoiceCapabilities, VoicePresetRow, VoicePresetV2 } from '@/shared'
-import { isPresetV2, isVoiceV2 } from '@/shared'
-import { hasAssignedVoice, isElevenLabsProjection, voiceDisplayName } from '@/shared/voice'
+import type { CatalogVoice, EffectiveVoice, PreviewTextId, StoredCharacterVoice, VoiceCapabilities, VoicePresetV2 } from '@/shared'
+import { hasAssignedVoice, isElevenLabsProjection, parseStoredVoice, voiceDisplayName } from '@/shared/voice'
 import { VoiceClipPlayer } from '@/ui/components/audio'
 import { Badge, Button, Chip, Drawer, Icon, IconButton, cx } from '@/ui/primitives'
 import { catalogSampleUrl } from '../catalogBadges'
 import type { CatalogRecommendationTarget } from '../hooks/useCatalogBrowser'
 import { useCatalogLookup } from '../hooks/useCatalogLookup'
 import { leavingVoiceKey } from '../hooks/useLeavingVoice'
-import { conversionDraftOf, isFreeSamplePreview, presetRowBadges, presetVoiceKeys, previewSampleUrl, v2PreviewLanguage } from '../presetRowsV2'
+import { isFreeSamplePreview, presetRowBadges, presetVoiceKeys, previewSampleUrl, v2PreviewLanguage } from '../presetRowsV2'
 import { useCatalogSample } from '../useCatalogSample'
 import { usePreviewCreditConfirm } from '../usePreviewCreditConfirm'
 import { usePreviewLanguage, usePreviewTextSets } from '../usePreviewTexts'
@@ -79,15 +73,6 @@ type Tab = 'presets' | 'catalog'
 
 /** Which part of the picker started the shared catalog sample. */
 type SampleSource = 'current' | 'catalog'
-
-/** The V2 preset a row is used as, or null when it cannot be used. */
-export function usableV2Preset(row: VoicePresetRow): VoicePresetV2 | null {
-    if (isPresetV2(row)) return row
-    const draft = conversionDraftOf(row)
-    if (!draft) return null
-    // The conversion keeps the V1 row's identity (D12): same preset_id, V2 fields from the draft.
-    return { ...draft, preset_id: row.preset_id, is_global: row.is_global, schema_version: 2, provider: 'elevenlabs' }
-}
 
 /** A catalog status that rules a voice out whatever the plan: upgrading would not make it pickable. */
 function withdrawn(item: CatalogVoice): boolean {
@@ -121,11 +106,10 @@ export function VoicePickerElevenLabs({
     onClose,
 }: VoicePickerElevenLabsProps) {
     const { t, i18n } = useTranslation()
-    const navigation = useContext(NavigationContext)
-    // Optional, like the navigation: without an account the paid-preview confirmation asks every time.
+    // Optional: without an account the paid-preview confirmation asks every time.
     const userHash = useContext(AuthContext)?.userHash ?? null
-    const currentKey = currentVoice && isVoiceV2(currentVoice) ? currentVoice.voice_key : null
-    // The voice the current row auditions: the one it plays as (a V1 voice's or a substitute's projection), else the stored V2 voice.
+    const currentKey = parseStoredVoice(currentVoice)?.voice_key ?? null
+    // The voice the current row auditions: the one it plays as (a substitute's projection), else the stored voice.
     const currentProjection = isElevenLabsProjection(currentEffectiveVoice) ? currentEffectiveVoice : null
     const heardKey = (hasAssignedVoice(currentVoice) ? currentProjection?.voice_key : null) || currentKey
     // Open on the tab that holds the current voice: a bare catalog voice has no preset row.
@@ -137,7 +121,7 @@ export function VoicePickerElevenLabs({
         setWasOpen(open)
         if (open) setTab(openingTab)
     }
-    const [rows, setRows] = useState<VoicePresetRow[]>([])
+    const [rows, setRows] = useState<VoicePresetV2[]>([])
     const [loading, setLoading] = useState(false)
     const [loadError, setLoadError] = useState(false)
     const [reload, setReload] = useState(0)
@@ -157,8 +141,7 @@ export function VoicePickerElevenLabs({
     const currentLookup = useCatalogLookup(currentKeys, open)
     const appLanguage = usePreviewLanguage()
     const languageOf = (preset: VoicePresetV2) => v2PreviewLanguage(lookup.get(preset.voice_key), language || appLanguage, preset.language_code)
-    const usable = rows.map((row) => ({ row, preset: usableV2Preset(row) }))
-    const previewTexts = usePreviewTextSets(usable.flatMap(({ preset }) => (preset ? [languageOf(preset)] : [])), open)
+    const previewTexts = usePreviewTextSets(rows.map(languageOf), open)
     const recipePreview = useRecipePreview({ enabled: open })
     const resetPreview = recipePreview.reset
     const previewTier = defaultPreviewTier(capabilities)
@@ -245,11 +228,6 @@ export function VoicePickerElevenLabs({
         })
     }
 
-    const openStudio = () => {
-        onClose()
-        navigation?.setPage('voice-studio')
-    }
-
     const chooseVoice = () => {
         setTab('catalog')
         setSearchFocusRequest((value) => value + 1)
@@ -257,7 +235,7 @@ export function VoicePickerElevenLabs({
 
     const currentItem = currentKey ? currentLookup.get(currentKey) ?? null : null
     const heardItem = heardKey ? currentLookup.get(heardKey) ?? null : null
-    // The leaving voice (the stored V2 voice, else the one a V1 voice plays as) dates the badge and names the replacement.
+    // The leaving voice (the stored voice) dates the badge and names the replacement.
     const leavingKey = hasAssignedVoice(currentVoice) ? leavingVoiceKey(currentVoice, currentProjection) : null
     const leavingItem = leavingKey ? currentLookup.get(leavingKey) ?? null : null
     const currentSampleUrl = heardItem ? catalogSampleUrl(heardItem, language) : null
@@ -383,42 +361,41 @@ export function VoicePickerElevenLabs({
                         <div className="flex flex-col gap-2">
                             <PreviewAllowanceHint previewsLeft={recipePreview.previewsLeft} loading={recipePreview.loading} />
                             <div className="flex flex-col divide-y divide-line-faint">
-                                {usable.map(({ row, preset }, index) => {
-                                    const item = preset ? lookup.get(preset.voice_key) : null
-                                    const blocked = !preset || unavailable(item)
+                                {rows.map((preset, index) => {
+                                    const item = lookup.get(preset.voice_key)
+                                    const blocked = unavailable(item)
                                     // AC-K2: a voice locked by the plan alone stays reachable; its "Use" says why it cannot be picked.
                                     // Removed, blocked or hidden, it stays natively disabled: no upgrade would make it pickable.
-                                    const locked = Boolean(preset && item?.locked && !withdrawn(item))
+                                    const locked = Boolean(item?.locked && !withdrawn(item))
                                     const lockedHintId = `${rowHintId}-locked-${index}`
-                                    const selected = preset ? presetMatchesVoice(preset, currentVoice) : false
-                                    const converted = Boolean(preset) && !isPresetV2(row)
-                                    const badges = preset ? presetRowBadges(preset, item) : []
-                                    const previewing = previewId === row.preset_id && recipePreview.loading
-                                    const clip = recipePreview.clip?.key === row.preset_id ? recipePreview.clip : null
-                                    const previewProblem = previewId === row.preset_id ? recipePreview.problem : null
-                                    const freeSample = preset ? isFreeSample(preset) : false
+                                    const selected = presetMatchesVoice(preset, currentVoice)
+                                    const badges = presetRowBadges(preset, item)
+                                    const previewing = previewId === preset.preset_id && recipePreview.loading
+                                    const clip = recipePreview.clip?.key === preset.preset_id ? recipePreview.clip : null
+                                    const previewProblem = previewId === preset.preset_id ? recipePreview.problem : null
+                                    const freeSample = isFreeSample(preset)
                                     // Until the catalog item is in, a preview counts as paid (the label may over-warn, never under-warn).
                                     const costsCredit = !freeSample && recipePreview.nextCostsCredit
                                     // The sample's own caption shows under its player while it plays.
                                     const showFreeHint = freeSample && clip?.source !== 'sample'
                                     const freeHintId = `${rowHintId}-free-${index}`
-                                    const voiceName = (preset ? voiceDisplayName(voiceFromPreset(preset)) : null) ?? t('voices.display.fallbackName')
+                                    const voiceName = voiceDisplayName(voiceFromPreset(preset)) ?? t('voices.display.fallbackName')
                                     // 05 §10: the row's buttons name the preset; the preview also the voice and the language heard.
                                     const paidLabel = `${t('voices.picker.preview')} · ${t('voices.preview.costsCredit')}`
-                                    const previewName = !preset ? '' : previewing
-                                        ? t('voices.picker.stopNamed', { name: row.name })
+                                    const previewName = previewing
+                                        ? t('voices.picker.stopNamed', { name: preset.name })
                                         // WCAG 2.5.3: the paid name starts with the visible "Preview · 1 credit".
                                         : t(costsCredit ? 'voices.picker.previewNamedCredit' : 'voices.picker.previewNamed', {
-                                            name: row.name,
+                                            name: preset.name,
                                             voice: voiceName,
                                             language: languageLabel(heardLanguageOf(preset, freeSample), i18n.language),
                                             label: paidLabel,
                                         })
                                     return (
                                         <div
-                                            key={row.preset_id}
+                                            key={preset.preset_id}
                                             data-testid="voice-picker-preset-row"
-                                            data-preset-id={row.preset_id}
+                                            data-preset-id={preset.preset_id}
                                             className={cx(
                                                 'flex flex-col gap-2 border-l-2 py-4 pl-3',
                                                 selected ? 'border-l-ember-500 bg-ember-500/[.05]' : 'border-l-transparent',
@@ -427,9 +404,8 @@ export function VoicePickerElevenLabs({
                                             <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
                                                 <div className="flex min-w-0 flex-col gap-1">
                                                     <div className="flex flex-wrap items-center gap-2">
-                                                        <p className="font-ui text-sm font-semibold text-parchment-50">{row.name}</p>
-                                                        {row.is_global && <Badge tone="arcane">{t('voices.picker.defaultBadge')}</Badge>}
-                                                        {converted && <Badge tone="glass">{t('voices.picker.convertedFromV1')}</Badge>}
+                                                        <p className="font-ui text-sm font-semibold text-parchment-50">{preset.name}</p>
+                                                        {preset.is_global && <Badge tone="arcane">{t('voices.picker.defaultBadge')}</Badge>}
                                                     </div>
                                                     <p className="font-ui text-xs text-parchment-400">{voiceName}</p>
                                                     {badges.length > 0 && (
@@ -440,48 +416,36 @@ export function VoicePickerElevenLabs({
                                                             {t('voices.badge.locked_hint')}
                                                         </p>
                                                     )}
-                                                    {!preset && (
-                                                        <div className="flex flex-wrap items-center gap-2">
-                                                            <p className="font-ui text-caption text-fg-muted">{t('voices.picker.v1PresetNeedsUpdate')}</p>
-                                                            {navigation && (
-                                                                <Button variant="ghost" size="sm" iconLeft={<Icon icon={ExternalLink} size={13} />} onClick={openStudio}>
-                                                                    {t('voices.picker.openStudio')}
-                                                                </Button>
-                                                            )}
-                                                        </div>
-                                                    )}
                                                 </div>
                                                 <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end">
                                                     <div className="flex gap-2">
-                                                        {preset && (
-                                                            <Button
-                                                                variant="secondary"
-                                                                size="sm"
-                                                                // The free sample is unmetered: the daily limit never gates it (05 §6.3).
-                                                                disabled={recipePreview.limitReached && !previewing && !freeSample}
-                                                                aria-label={previewName}
-                                                                aria-describedby={showFreeHint ? freeHintId : undefined}
-                                                                iconLeft={<Icon icon={previewing ? Square : Play} size={14} />}
-                                                                onClick={() => previewPreset(preset, costsCredit)}
-                                                            >
-                                                                {previewing
-                                                                    ? t('voices.preview.stop')
-                                                                    : costsCredit
-                                                                      ? paidLabel
-                                                                      : t('voices.picker.preview')}
-                                                            </Button>
-                                                        )}
+                                                        <Button
+                                                            variant="secondary"
+                                                            size="sm"
+                                                            // The free sample is unmetered: the daily limit never gates it (05 §6.3).
+                                                            disabled={recipePreview.limitReached && !previewing && !freeSample}
+                                                            aria-label={previewName}
+                                                            aria-describedby={showFreeHint ? freeHintId : undefined}
+                                                            iconLeft={<Icon icon={previewing ? Square : Play} size={14} />}
+                                                            onClick={() => previewPreset(preset, costsCredit)}
+                                                        >
+                                                            {previewing
+                                                                ? t('voices.preview.stop')
+                                                                : costsCredit
+                                                                  ? paidLabel
+                                                                  : t('voices.picker.preview')}
+                                                        </Button>
                                                         <Button
                                                             variant="primary"
                                                             size="sm"
                                                             disabled={blocked && !locked}
-                                                            aria-label={selected ? t('voices.picker.selectedNamed', { name: row.name }) : t('voices.picker.useNamed', { name: row.name })}
+                                                            aria-label={selected ? t('voices.picker.selectedNamed', { name: preset.name }) : t('voices.picker.useNamed', { name: preset.name })}
                                                             aria-disabled={locked || undefined}
                                                             aria-describedby={locked ? lockedHintId : undefined}
                                                             className={locked ? 'cursor-not-allowed opacity-50' : undefined}
                                                             iconLeft={selected ? <Icon icon={Check} size={14} /> : undefined}
                                                             onClick={() => {
-                                                                if (preset && !blocked) pick(voiceFromPreset(preset))
+                                                                if (!blocked) pick(voiceFromPreset(preset))
                                                             }}
                                                         >
                                                             {selected ? t('voices.picker.selected') : t('voices.picker.use')}
@@ -496,7 +460,7 @@ export function VoicePickerElevenLabs({
                                                 <RecipePreviewPlayer
                                                     src={clip.src}
                                                     volume={clip.volume}
-                                                    title={t('voices.picker.previewTitle', { name: row.name })}
+                                                    title={t('voices.picker.previewTitle', { name: preset.name })}
                                                     transcript={clipTranscript(clip, previewTexts(clip.language).texts[clip.textId])}
                                                     lang={clip.language}
                                                 />

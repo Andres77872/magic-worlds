@@ -30,7 +30,8 @@ vi.mock('@/features/lorebook', () => ({ SessionLorebookPanel: () => null }))
 
 const KEY_A = `vk_${'a'.repeat(32)}`
 const KEY_B = `vk_${'b'.repeat(32)}`
-const V1 = { voice_id: 'male-qn-qingse', preset_name: 'Calm' }
+/** The stored voice every card and cast entry carries; the projections decide what plays. */
+const STORED_VOICE = { schema_version: 2 as const, provider: 'elevenlabs' as const, voice_key: `vk_${'c'.repeat(32)}`, voice_name: 'Calm', preset_name: 'Calm' }
 
 function el(voiceKey: string, overrides: Partial<EffectiveVoice> = {}): EffectiveVoice {
     return {
@@ -38,7 +39,6 @@ function el(voiceKey: string, overrides: Partial<EffectiveVoice> = {}): Effectiv
         display_name: voiceKey === KEY_A ? 'Aria' : 'Bram',
         provider_route: 'elevenlabs',
         substitution_reason: null,
-        flags: [],
         badges: [],
         ...overrides,
     }
@@ -47,7 +47,7 @@ function el(voiceKey: string, overrides: Partial<EffectiveVoice> = {}): Effectiv
 const REPLACED = el(KEY_A, { substitution_reason: 'voice_removed', badges: ['replaced'] })
 
 function libraryCard(id: string, effective: EffectiveVoice | null): Character {
-    return { id, name: id, race: '', stats: {}, role: 'character', voice: V1, ...(effective ? { effective_voice: effective } : {}) }
+    return { id, name: id, race: '', stats: {}, role: 'character', voice: STORED_VOICE, ...(effective ? { effective_voice: effective } : {}) }
 }
 
 function adventureWith(cast: SnapshotCard[], overrides: Partial<Adventure> = {}): Adventure {
@@ -68,9 +68,9 @@ function adventureWith(cast: SnapshotCard[], overrides: Partial<Adventure> = {})
 }
 
 const AFFECTED_CAST: SnapshotCard[] = [
-    { id: 'c1', name: 'Lyra', voice: V1, effective_voice: REPLACED },
-    { id: 'c2', name: 'Mirren', voice: V1, effective_voice: el(KEY_A) },
-    { id: 'c3', name: 'Tess', voice: V1, effective_voice: el(KEY_B) },
+    { id: 'c1', name: 'Lyra', voice: STORED_VOICE, effective_voice: REPLACED },
+    { id: 'c2', name: 'Mirren', voice: STORED_VOICE, effective_voice: el(KEY_A) },
+    { id: 'c3', name: 'Tess', voice: STORED_VOICE, effective_voice: el(KEY_B) },
 ]
 
 function renderPanel(
@@ -106,14 +106,14 @@ beforeEach(() => {
 describe('InteractionLeftPanel cast voice refresh (R1-FE-04)', () => {
     it('adds nothing without projections (an older session, a share-link reader)', () => {
         mocks.library = [libraryCard('c1', null), libraryCard('c2', null)]
-        const { unmount } = renderPanel(adventureWith([{ id: 'c1', name: 'Lyra', voice: V1 }, { id: 'c2', name: 'Mirren', voice: V1 }]))
+        const { unmount } = renderPanel(adventureWith([{ id: 'c1', name: 'Lyra', voice: STORED_VOICE }, { id: 'c2', name: 'Mirren', voice: STORED_VOICE }]))
         expect(screen.queryByTestId('cast-voice-refresh')).toBeNull()
         expect(screen.queryByRole('button', { name: /Voice options/ })).toBeNull()
         unmount()
 
         // The session plays a projection but its card has none: nothing differs (D39 item 6).
         mocks.library = [libraryCard('c1', null)]
-        renderPanel(adventureWith([{ id: 'c1', name: 'Lyra', voice: V1, effective_voice: el(KEY_A) }]))
+        renderPanel(adventureWith([{ id: 'c1', name: 'Lyra', voice: STORED_VOICE, effective_voice: el(KEY_A) }]))
         expect(screen.queryByTestId('cast-voice-refresh')).toBeNull()
     })
 
@@ -224,7 +224,7 @@ describe('InteractionLeftPanel cast voice refresh (R1-FE-04)', () => {
 
     it('offers no refresh for a member whose card voice cannot be copied (R-9)', () => {
         mocks.library = [
-            libraryCard('c1', el(KEY_B, { substitution_reason: 'unmapped_legacy', badges: ['replaced', 'needs_reselect'] })),
+            libraryCard('c1', el(KEY_B, { badges: ['needs_reselect'] })),
             libraryCard('c2', el(KEY_B, { badges: ['leaving'] })),
             libraryCard('c3', el(KEY_B)),
         ]
@@ -260,7 +260,7 @@ describe('InteractionLeftPanel cast voice refresh (R1-FE-04)', () => {
 
     it('sends at most six cards per request', async () => {
         const cast: SnapshotCard[] = Array.from({ length: 7 }, (_, index) => ({
-            id: `m${index}`, name: `Member ${index}`, voice: V1, effective_voice: REPLACED,
+            id: `m${index}`, name: `Member ${index}`, voice: STORED_VOICE, effective_voice: REPLACED,
         }))
         mocks.library = cast.map((entry) => libraryCard(entry.id!, el(KEY_B)))
         renderPanel(adventureWith(cast))

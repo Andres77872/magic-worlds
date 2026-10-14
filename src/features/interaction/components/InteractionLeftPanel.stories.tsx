@@ -7,7 +7,7 @@ import { createWorkspaceTestState } from '@/shared/hooks/testing/workspaceTestUt
 import { adventures, characters, worlds } from '@/ui/components/lists/fixtures'
 import type { Adventure, EffectiveVoice, StoredCharacterVoice } from '@/shared'
 import type { SessionVoiceSettings } from '@/shared/types/sessionVoice.types'
-import { effectiveVoice, V1_VOICE, V2_VOICE, VOICE_KEY_MAREN, VOICE_KEY_SELA } from '@/features/voices/fixtures'
+import { effectiveVoice, V2_VOICE, VOICE_KEY_MAREN, VOICE_KEY_SELA } from '@/features/voices/fixtures'
 import { VoiceStoryProviders } from '@/features/voices/storybook/VoiceStoryProviders'
 import { installVoiceStoryApi } from '@/features/voices/storybook/voiceStoryApi'
 import { libraryCardToSnapshotCard } from '../utils/adventureSnapshot'
@@ -138,10 +138,10 @@ function withNarrator(narrator_voice: StoredCharacterVoice, effective_narrator_v
 const NEEDS_VOICES_FLAG = 'The narrator section renders only in a build with `VITE_FEATURE_VOICES_ENABLED=true`. With the example env (`false`) this story shows the panel without it.'
 
 /**
- * On the new voices (R1): the narrator's classic voice was removed, so Maren
- * plays instead ("Plays as Maren", replaced), the session tier toggle sits
- * under the narrator voice, and the first cast member's voice is leaving on
- * its catalog date. Needs `VITE_FEATURE_VOICES_ENABLED=true`; the picker runs on fakes.
+ * On the new voices (R1): the narrator's stored voice (Eldrin) was removed,
+ * so Maren plays instead ("Plays as Maren", replaced), the session tier toggle
+ * sits under the narrator voice, and the first cast member's voice is leaving
+ * on its catalog date. Needs `VITE_FEATURE_VOICES_ENABLED=true`; the picker runs on fakes.
  */
 export const NarratorOnNewVoices: Story = {
   beforeEach: () => installVoiceStoryApi(),
@@ -151,7 +151,7 @@ export const NarratorOnNewVoices: Story = {
     onSnapshotChange: async () => {},
     narrationTierSlot: <SessionTierDemo />,
     adventure: withNarrator(
-      V1_VOICE,
+      V2_VOICE,
       effectiveVoice({ voice_key: VOICE_KEY_MAREN, display_name: 'Maren', substitution_reason: 'voice_removed', badges: ['replaced'] }),
       true,
     ),

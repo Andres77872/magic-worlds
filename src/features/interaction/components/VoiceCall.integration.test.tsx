@@ -152,7 +152,7 @@ function readyFrame() {
         limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 300 },
         upload_url: '/character-chats/7/voice-segments',
         audio: { content_type: 'audio/mpeg', codec: 'mp3', sample_rate: 44100 as const, channels: 1 as const },
-        effective_voice: { voice_key: `vk_${'b'.repeat(32)}`, display_name: 'Lyra', provider_route: 'elevenlabs' as const, substitution_reason: null, flags: [], badges: [] },
+        effective_voice: { voice_key: `vk_${'b'.repeat(32)}`, display_name: 'Lyra', provider_route: 'elevenlabs' as const, substitution_reason: null, badges: [] },
         original_voice_name: null,
         ai_voice: true,
     }

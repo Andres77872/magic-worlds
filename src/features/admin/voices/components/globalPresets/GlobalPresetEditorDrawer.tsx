@@ -1,7 +1,7 @@
 /**
  * Global preset editor (R1-FE-06, 05 §8.12): the preset editor in "global"
- * mode. V2 only (D12): a catalog voice, all five settings (SETTING_RANGES), an
- * optional emotion and language. Warns when users could not apply the preset
+ * mode: a catalog voice, all five settings (SETTING_RANGES), an optional
+ * emotion and language. Warns when users could not apply the preset
  * (voice not public, or not active). The rules run before the write
  * (`globalPresetRules`); server refusals use the console copy (`consoleErrors`).
  */
@@ -23,15 +23,14 @@ import {
     type GlobalPresetDraft,
     type GlobalPresetField,
     type GlobalPresetIssue,
-    type GlobalPresetV2Row,
 } from '../../globalPresetRules'
 import { voiceSelectOptions } from '../../voiceOptions'
 import { VoiceSettingsEditor } from '../shell/VoiceSettingsEditor'
 import { useVoiceConsole } from '../shell/VoiceConsoleContext'
 
 interface GlobalPresetEditorDrawerProps {
-    /** The V2 row to edit; omitted to create one. */
-    preset?: GlobalPresetV2Row | null
+    /** The row to edit; omitted to create one. */
+    preset?: AdminGlobalPresetRow | null
     onClose: () => void
     onSaved: (row: AdminGlobalPresetRow, created: boolean) => void
 }

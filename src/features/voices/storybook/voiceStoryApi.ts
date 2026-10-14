@@ -18,21 +18,19 @@ import type {
     UserPreferences,
     UserPreferencesUpdate,
     VoiceCapabilities,
-    VoicePresetRow,
+    VoicePresetV2,
     VoicePresetV2Write,
-    VoiceReviewFlag,
 } from '@/shared'
 import { CAPABILITIES_EL_PLUS, CATALOG_PAGE, PRESET_V2_USER } from '../fixtures'
 
 export interface VoiceStoryApiOptions {
     /** `'fail'`: the capabilities read fails (the V2 surfaces show their read-only state). */
     capabilities?: VoiceCapabilities | 'fail'
-    presets?: VoicePresetRow[]
+    presets?: VoicePresetV2[]
     /** `'unavailable'`: the catalog answers 404; `'loading'`: it never answers. */
     catalog?: CatalogVoice[] | 'unavailable' | 'loading'
     /** Page size of the fake catalog, to show "Load more". */
     catalogPageSize?: number
-    reviewFlags?: VoiceReviewFlag[]
     /**
      * `GET /user/me`'s membership (usage fields, `limits.voice_preview`): the preview
      * allowance, the credit label and the Studio usage strip. Unset, the read fails.
@@ -75,7 +73,6 @@ export function installVoiceStoryApi(options: VoiceStoryApiOptions = {}): () => 
     const catalog = options.catalog ?? CATALOG_PAGE
     const pageSize = options.catalogPageSize ?? 24
     let presets = [...(options.presets ?? [])]
-    let flags = [...(options.reviewFlags ?? [])]
     let preferences: UserPreferences = {
         preferred_language: 'en',
         has_preference: true,
@@ -92,7 +89,7 @@ export function installVoiceStoryApi(options: VoiceStoryApiOptions = {}): () => 
             value: async () => { throw new StoryApiError(`The voice story has no fake for ${key}.`, 0) },
         })
     }
-    const write = (body: VoicePresetV2Write, presetId: string): VoicePresetRow => ({
+    const write = (body: VoicePresetV2Write, presetId: string): VoicePresetV2 => ({
         ...PRESET_V2_USER,
         ...body,
         preset_id: presetId,
@@ -126,10 +123,6 @@ export function installVoiceStoryApi(options: VoiceStoryApiOptions = {}): () => 
         },
         deleteVoicePreset: async (presetId: string) => {
             presets = presets.filter((row) => row.preset_id !== presetId)
-        },
-        listVoiceReviewFlags: async () => ({ items: flags }),
-        dismissVoiceReviewFlag: async (flagId: number) => {
-            flags = flags.filter((flag) => flag.flag_id !== flagId)
         },
         getUserProfile: async () => {
             if (!options.membership) throw new StoryApiError('The voice story has no profile.', 0)

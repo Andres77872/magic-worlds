@@ -20,7 +20,7 @@ const meta = {
         },
     },
     argTypes: {
-        badges: { control: 'check', options: ['leaving', 'needs_reselect', 'retired', 'review'] },
+        badges: { control: 'check', options: ['leaving', 'needs_reselect', 'retired', 'locked'] },
         replacement: { control: 'object' },
         busy: { control: 'boolean' },
         disabled: { control: 'boolean' },

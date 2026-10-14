@@ -2732,6 +2732,8 @@ The R0 code audit of 2026-10-12 found contract gaps and conflicts between docume
 | I-69 | MiniMax voice purge as built (2026-10-14) | The purge follows I-68. The details are in **I-69 as built** below this table. They cover routing (the surface gate), the wire contract, data, env and what was not executed. | I-68, 15 §2.5–§2.6, §6.1–§6.2 |
 | I-70 | Final contract revision (owner, 2026-10-14) | The owner asked for the final post-R5 database state on the owner's disposable test database, plus a runbook to replicate it. This supersedes I-68's "schema and data out of scope", the time gating in I-64 and I-67 (3), and I-62's `rollout_mode = all` requirement. The details are in **I-70 as built** below this table. | R4-DATA-01, R4-DATA-02, R5-DATA-01…05, I-68 |
 | I-71 | Legal rows closed, sweep grace waived, env cleaned (owner, 2026-10-14) | **Legal.** The project is the owner's own and has no users. The owner closed R1-LEG-01, R2-LEG-01, R2-LEG-02 and R4-LEG-01 (and the Q1 release blocker) without counsel. The Privacy page wires the ElevenLabs variant, the `voice-v2` consent copy is final, and no MiniMax wording is left in the legal copy. MiniMax audio already generated is kept and stays playable (D23). **Sweep.** The owner ordered the R4-DATA-02 orphan sweep to run before its 14-day `legacy_speech_recent` grace ends. The default is unchanged. Skipping the guard needs both `--waive-legacy-grace` on the apply and `legacy_grace_waived: true` in the review, and the apply output records the waiver with the waived counts. **Env (R4-OPS-01).** The retired names were removed from the operator's BFF `.env`. Revoking the MiniMax key in MiniMax's console stays with the owner. | R1-LEG-01, R2-LEG-01/02, R4-LEG-01, R4-DATA-02, R4-OPS-01, I-70 |
+| I-72 | Native ElevenLabs catalog and legacy removal (owner, 2026-10-14) | The owner ordered everything left of the MiniMax voices removed and a native ElevenLabs voice set built in its place. This supersedes: D23's retention of MiniMax audio (and I-71's "kept and playable"); D32's "snapshots are never rewritten"; D15 review flags and the first-exposure notice; 09 §9.2's "keep the V1 parser forever"; I-70's frozen-snapshot translation through `voice_legacy_mapping`; the I-71 sweep waiver; and the `rollout_mode` / `canary_percent` settings. Only the test database exists, so the pre-contract voice upgrade chains are deleted. The details are in **I-72 as built** below this table. | I-68…I-71, D15, D23, D32 |
+| I-73 | Moderation optional for testing; LLM classifier retired as a stopgap (owner, 2026-10-14) | Measured on the test stack, the D26 classifier (the `moderation` system profile on Claude Haiku 5.5 through api.magic_llm and OpenRouter) took about 2.3 s per batch. That is over the 2 s narration budget and far over the 300 ms per call sentence, so every unit failed closed (`moderation_unavailable`) and no surface spoke. The owner ordered moderation made optional for testing and the LLM classifier switched off. New BFF setting `VOICE_MODERATION_REQUIRED`: exactly true/false, default `true`, which keeps the D26 fail-closed behaviour unchanged. With `false`, a unit no classifier answers for (none configured, timeout, error) passes unmoderated: the surface gate opens every speech surface without a classifier, deterministic and classifier blocks still block, and an unmoderated allow is never cached. Startup logs one WARNING `issue=voice_moderation_optional`, and the `speech_providers` health node shows an `ok` `moderation` component with that message. The test `.env` sets `VOICE_MODERATION_REQUIRED=false` and `VOICE_MODERATION_CLASSIFIER_ENABLED=false`. **TBD:** replace the LLM classifier with a dedicated moderation model (for example an omni moderation endpoint), then set `VOICE_MODERATION_REQUIRED=true` again before real users. This supersedes D26's "fail closed on every surface" only while the flag is false. Q-06 (who pays for moderation) moves to the new model. | D26, I-6, I-21, Q-06 |
 
 **I-69 as built.**
 
@@ -2811,6 +2813,53 @@ I-70 supersedes this list.
 **Runbook.** The steps are T0 to T8 in BFF `docs/voice_final_cutover.md`:
 - T3 has SQL fixtures for a test catalog.
 - T4 warns that the sweep must not point at shared TTS storage.
+
+I-72 replaces this runbook with BFF `docs/voice_native_cutover.md`; `voice_final_cutover.md` and the scripts it ran are deleted.
+
+**I-72 as built.**
+
+**Native catalog.** `scripts/voice_catalog/native_set.py` (BFF `docs/voice_native_catalog.md`) designed six voices with Voice Design on the owner's account. They are neutral Latin American Spanish, with `es` as the primary language and also accepted in `en`:
+
+| Voice | Name | Ring (replacement) |
+|---|---|---|
+| F1 | Narradora | F2 |
+| F2 | Joven brillante | F3 |
+| F3 | Abuela sabia | F1 |
+| M1 | Narrador grave | M2 |
+| M2 | Joven amable | M3 |
+| M3 | Viejo rudo | M1 |
+
+- All six are `designed`, `active`, `public` and `call_eligible`. Each has its own showcase sample. No premade or Library voice is used (D09).
+- Acceptance is automatic, by owner decision: no one listened to the renders. Each voice passed Flash (`eleven_flash_v2_5`) and v4 (`eleven_v4`) in `es` and `en`, 24 of 24. A pass needs an integrated loudness that keeps the gain at or above -6 dB. The scores are a fixed 4. A `voice_catalog_event` of type `acceptance_auto_note` per voice, model and language records that the review was automatic, because the console row names the operator as reviewer.
+- The `en` and `es` defaults are: narrator F1; `character_fallback` M1, F2, M2 and F3. The `fr`, `de`, `pt` and `it` defaults fall back to `en`. `VOICE_LAST_RESORT_VOICE_KEY` is F1.
+
+**Code removed (BFF and SPA).**
+- The V1 stored-voice schema: `MiniMaxVoiceV1`, the V1 branch of the stored-voice union, `v1_translation` and the `unmapped_legacy` substitution reason. A stored voice that is not V2 now fails validation, and a malformed stored value plays the role default (`default_voice`).
+- The review flags (D15) with their job, route and table, the first-exposure notice, and `effective_voice.flags`.
+- The legacy mapping (`voice_legacy_mapping`) and the coverage report, including the root console's Legacy mapping tab.
+- The `rollout_mode` and `canary_percent` settings, and the retired-env warnings.
+- The MiniMax speech literals: the provider sets are now `elevenlabs`, `elevenlabs_streaming` and the `el_*` aliases.
+- The MiniMax-era tools (`rewrite_voices`, `inventory`, `coverage`, `voice_baseline_report`, `language_share`), the frozen metrics baseline (including the SPA baseline rules), and the voice r0, contract and live-rewrite migration chains.
+
+**Code kept.**
+- Theme songs (MiniMax music through fal) and MiniMax as an LLM provider.
+- `voice_reload_required`, and a generic `consent_stale` whose legacy list is empty.
+- The SPA's `needs_reselect` preset state. The BFF no longer emits it as a badge, because it came only from unmapped V1 voices and review flags.
+- `provider_route` and the `elevenlabs_only` geo alias.
+
+**Revision `2026_10_voice_native`** (BFF `db.sql`, 97 tables):
+- `voice_legacy_mapping` and `voice_review_flag` are dropped.
+- `chk_tts_job_identity` admits only `provider = 'elevenlabs'`, and the new `chk_voice_session_tts_provider` only `elevenlabs_streaming`.
+- The runtime-setting check and seed drop `rollout_mode` and `canary_percent`.
+
+`src/database/mysql/migrations/2026_10_voice_contract.sql` freezes the previous revision. The only upgrade path is from `2026_10_voice_contract`; every other database is provisioned fresh from `db.sql`.
+
+**Upgrade path.** The upgrade has three steps:
+- **N1, purge.** `scripts/voice_migration/native_purge.py` deletes the MiniMax history: narration jobs and their assets, calls and their turns, `voice-v1` consents, and legacy catalog events. It rewrites V1 voice objects and fixture keys to native voices, recomputes assistant-turn target hashes, and rebuilds `voice_reference`.
+- **N2, cutover.** `scripts/migrations/20261014_voice_native.py` exports, then runs the DDL. The marker moves last.
+- **N5, orphan sweep.** It runs only on the native revision, with no MiniMax grace period and no waiver.
+
+The run on the test database is in [15 §13](15_implementation_plan_and_acceptance.md#13-native-catalog-and-legacy-removal-2026-10-14).
 
 
 ---

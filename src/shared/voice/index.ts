@@ -1,9 +1,7 @@
 /**
- * Provider-neutral voice helpers (09 §3). Read stored voices only through
- * these: the D35 grep gate (`voiceIdGate.test.ts`) fails on `voice_id` reads
- * anywhere else.
+ * Voice helpers (09 §3). Read stored voices only through these: the D35 grep
+ * gate (`voiceIdGate.test.ts`) fails on any `voice_id` read.
  */
-export { isVoiceV2 } from '@/shared/types'
 export { keepStoredVoice, parseStoredVoice } from './parseStoredVoice'
 export { hasAssignedVoice, isSameVoice, voiceIdentity } from './voiceIdentity'
 export { voiceDisplayName } from './voiceDisplay'
