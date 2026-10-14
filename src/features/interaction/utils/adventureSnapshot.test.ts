@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readWorldPlaceType, type AdventureSnapshot, type Character, type SnapshotCard, type World } from '../../../shared'
+import { readWorldPlaceType, type AdventureSnapshot, type Character, type EffectiveVoice, type SnapshotCard, type World } from '../../../shared'
 import {
     addSnapshotCard,
     adventureFieldsFromSnapshot,
@@ -9,12 +9,19 @@ import {
     findSnapshotEntry,
     libraryCardToSnapshotCard,
     personaEntry,
+    asSnapshot,
     removeSnapshotCard,
+    setSnapshotNarratorVoice,
     setSnapshotPersona,
     snapshotSourceIds,
+    snapshotToCharacter,
     writableAdventureSnapshot,
     worldEntries,
 } from './adventureSnapshot'
+import { LEGACY_V1_VOICE } from '@/test/fixtures/legacyMinimax'
+
+/** A stored V1 cast voice with an untrimmed id: read and written back whole (03 §5.1.2). */
+const UNTRIMMED_V1 = { ...LEGACY_V1_VOICE, voice_id: ` ${LEGACY_V1_VOICE.voice_id} `, vol: 1.7, pitch: -2 }
 
 function makeSnapshot(): AdventureSnapshot {
     return {
@@ -41,14 +48,7 @@ function makeSnapshot(): AdventureSnapshot {
                     race: 'Dwarf',
                     description: 'A gruff smith.',
                     category: [{ name: 'Stats', attributes: [{ Strength: '16' }] }],
-                    voice: {
-                        voice_id: ' English_magnetic_voiced_man ',
-                        speed: 1.1,
-                        vol: 1.7,
-                        pitch: -2,
-                        emotion: 'calm',
-                        language_boost: 'English',
-                    },
+                    voice: { ...UNTRIMMED_V1 },
                 },
             ],
             world: [
@@ -78,14 +78,8 @@ describe('adventureSnapshot', () => {
         expect(fields.characters).toHaveLength(1)
         expect(fields.characters[0].name).toBe('Dorn')
         expect(fields.characters[0].category?.[0].attributes?.[0]).toEqual({ Strength: '16' })
-        expect(fields.characters[0].voice).toEqual({
-            voice_id: 'English_magnetic_voiced_man',
-            speed: 1.1,
-            vol: 1.7,
-            pitch: -2,
-            emotion: 'calm',
-            language_boost: 'English',
-        })
+        // The whole stored voice, untrimmed (03 §5.1.2).
+        expect(fields.characters[0].voice).toEqual(UNTRIMMED_V1)
 
         expect(fields.world?.name).toBe('Eldoria')
         expect(fields.world?.type).toBe('Kingdom')
@@ -141,7 +135,7 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         triggers: ['lyra'],
         image_url: '/generated-images/lyra.jpeg',
         theme_song_url: '/generated-audio/lyra.mp3',
-        voice: { voice_id: 'English_radiant_girl', speed: 1.05, language_boost: 'English' },
+        voice: { ...LEGACY_V1_VOICE },
     }
     const libWorld: World = {
         id: 'world-9',
@@ -165,7 +159,7 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         expect(snapCard.name).toBe('Lyra')
         expect(snapCard.race).toBe('Half-elf')
         expect(snapCard.category?.[0].attributes?.[0]).toEqual({ CHA: '17' })
-        expect(snapCard.voice).toEqual({ voice_id: 'English_radiant_girl', speed: 1.05, language_boost: 'English' })
+        expect(snapCard.voice).toBe(libChar.voice)
 
         const w = libraryCardToSnapshotCard(libWorld, 'world')
         expect(w).not.toHaveProperty('place_type')
@@ -246,5 +240,153 @@ describe('adventureSnapshot add / remove (per-adventure copy)', () => {
         expect(writable.template.characters![0]).not.toHaveProperty('uuid')
         expect(writable.template.world![0]).not.toHaveProperty('newer_version_available')
         expect(writable.template.world![0]).not.toHaveProperty('place_type')
+    })
+})
+
+describe('adventureSnapshot stored voices (D11, D32)', () => {
+    const V2 = {
+        schema_version: 2 as const,
+        provider: 'elevenlabs' as const,
+        voice_key: 'vk_3f0c2a9e5b7d4c1a8e6f0b2d4a6c8e1f',
+        voice_name: 'Eldrin',
+        settings: { stability: 0.5, similarity_boost: 0.75, speed: 1 },
+        emotion: 'calm' as const,
+        language_code: 'es',
+    }
+    const EFFECTIVE: EffectiveVoice = {
+        voice_key: 'vk_3f0c2a9e5b7d4c1a8e6f0b2d4a6c8e1f',
+        display_name: 'Eldrin',
+        provider_route: 'elevenlabs',
+        substitution_reason: null,
+        flags: [],
+        badges: [],
+    }
+
+    /** A read DTO as the BFF sends it: V1 cast, V2 persona and narrator, with projections (R1+). */
+    function storedSnapshot(): AdventureSnapshot {
+        const snapshot = makeSnapshot()
+        snapshot.template.persona = { ...snapshot.template.persona!, voice: { ...V2 }, effective_voice: EFFECTIVE }
+        snapshot.template.characters!.push({ id: 'c2', name: 'Mira', race: 'Human', voice: { voice_id: 'English_radiant_girl', pitch: 3 }, effective_voice: EFFECTIVE })
+        return { ...snapshot, narrator_voice: { ...V2, voice_name: 'Narrator' }, narrate_thoughts: true, effective_narrator_voice: EFFECTIVE } as AdventureSnapshot
+    }
+
+    it('reads V1 and V2 voices whole, as the same objects', () => {
+        const snapshot = storedSnapshot()
+        const fields = adventureFieldsFromSnapshot(snapshot)
+        expect(fields.persona?.voice).toBe(snapshot.template.persona!.voice)
+        expect(fields.characters[0].voice).toBe(snapshot.template.characters![0].voice)
+        expect(fields.characters[1].voice).toBe(snapshot.template.characters![1].voice)
+    })
+
+    it('a snapshot PUT keeps untouched V1 cast entries byte-identical and V2 voices whole', () => {
+        const snapshot = storedSnapshot()
+        const storedCast = JSON.stringify(snapshot.template.characters!.map((card) => card.voice))
+        const storedPersona = JSON.stringify(snapshot.template.persona!.voice)
+        const storedNarrator = JSON.stringify(snapshot.narrator_voice)
+
+        // Edit another card's text (not a voice), then build the strict PUT body.
+        const edited = applySnapshotCardEdit(snapshot, { kind: 'persona' }, { ...snapshot.template.persona!, description: 'Changed.' })
+        const writable = writableAdventureSnapshot(edited)
+
+        expect(JSON.stringify(writable.template.characters!.map((card) => card.voice))).toBe(storedCast)
+        expect(JSON.stringify(writable.template.persona!.voice)).toBe(storedPersona)
+        expect(JSON.stringify(writable.narrator_voice)).toBe(storedNarrator)
+        expect(writable.template.persona!.description).toBe('Changed.')
+        expect(writable.narrate_thoughts).toBe(true)
+    })
+
+    it('keeps an unrecognised non-null cast voice on read and through a library clone (09 §3.2)', () => {
+        const odd = { voice_id: '' }
+        const snapshot = makeSnapshot()
+        snapshot.template.characters!.push({ id: 'c3', name: 'Odd', race: 'Human', voice: odd })
+        expect(adventureFieldsFromSnapshot(snapshot).characters[1].voice).toBe(odd)
+
+        const lib: Character = { id: 'char-8', name: 'Odd', race: 'Elf', description: '', stats: {}, voice: odd }
+        expect(libraryCardToSnapshotCard(lib, 'character').voice).toBe(odd)
+    })
+
+    it('strips the read-only voice projections before the PUT (D35)', () => {
+        const writable = writableAdventureSnapshot(storedSnapshot())
+        expect(JSON.stringify(writable)).not.toContain('effective_')
+    })
+
+    it('a V2 voice survives clone into the snapshot and back out', () => {
+        const lib: Character = { id: 'char-7', name: 'Sage', race: 'Elf', description: '', stats: {}, voice: { ...V2 } }
+        const card = libraryCardToSnapshotCard(lib, 'character')
+        expect(card.voice).toBe(lib.voice)
+        const added = addSnapshotCard(makeSnapshot(), 'character', card)
+        const writable = writableAdventureSnapshot(added)
+        expect(JSON.stringify(writable.template.characters![1].voice)).toBe(JSON.stringify(V2))
+    })
+})
+
+describe('adventureSnapshot effective voice projections (R1-FE-03, D35)', () => {
+    const V2 = {
+        schema_version: 2 as const,
+        provider: 'elevenlabs' as const,
+        voice_key: 'vk_3f0c2a9e5b7d4c1a8e6f0b2d4a6c8e1f',
+        voice_name: 'Eldrin',
+        settings: null,
+        emotion: null,
+        language_code: null,
+    }
+    const EFFECTIVE: EffectiveVoice = {
+        voice_key: 'vk_0a1b2c3d4e5f60718293a4b5c6d7e8f9',
+        display_name: 'Maren',
+        provider_route: 'elevenlabs',
+        substitution_reason: 'voice_removed',
+        flags: [],
+        badges: ['replaced'],
+    }
+
+    function withProjections(): AdventureSnapshot {
+        const snapshot = makeSnapshot()
+        snapshot.template.characters = [{ ...snapshot.template.characters![0], voice: { ...V2 }, effective_voice: EFFECTIVE }]
+        snapshot.template.persona = { ...snapshot.template.persona!, voice: { ...V2 }, effective_voice: EFFECTIVE }
+        return { ...snapshot, narrator_voice: { ...V2 }, effective_narrator_voice: EFFECTIVE }
+    }
+
+    it('snapshotToCharacter keeps the cast projection', () => {
+        const card = withProjections().template.characters![0]
+        expect(snapshotToCharacter(card, 'k').effective_voice).toEqual(EFFECTIVE)
+        expect(snapshotToCharacter(makeSnapshot().template.characters![0], 'k')).not.toHaveProperty('effective_voice')
+    })
+
+    it('a library clone never carries the library card’s projection', () => {
+        const lib: Character = { id: 'char-1', name: 'Mira', race: 'Elf', description: '', stats: {}, voice: { ...V2 }, effective_voice: EFFECTIVE }
+        expect(libraryCardToSnapshotCard(lib, 'character')).not.toHaveProperty('effective_voice')
+    })
+
+    it('an edit drops the projection only when the voice changed', () => {
+        const snapshot = withProjections()
+        const cast = snapshot.template.characters![0]
+        const textOnly = applySnapshotCardEdit(snapshot, { kind: 'character', index: 0 }, { ...cast, description: 'Changed.' })
+        expect(textOnly.template.characters![0].effective_voice).toEqual(EFFECTIVE)
+
+        const revoiced = applySnapshotCardEdit(snapshot, { kind: 'character', index: 0 }, { ...cast, voice: { ...V2, settings: { stability: 0.2 } } })
+        expect(revoiced.template.characters![0]).not.toHaveProperty('effective_voice')
+
+        const persona = applySnapshotCardEdit(snapshot, { kind: 'persona' }, { ...snapshot.template.persona!, voice: null })
+        expect(persona.template.persona).not.toHaveProperty('effective_voice')
+        // Pure: the source snapshot keeps its projections.
+        expect(snapshot.template.characters![0].effective_voice).toEqual(EFFECTIVE)
+    })
+
+    it('a narrator re-pick drops the narrator projection', () => {
+        const snapshot = withProjections()
+        const next = setSnapshotNarratorVoice(snapshot, null)
+        expect(next.narrator_voice).toBeNull()
+        expect(next).not.toHaveProperty('effective_narrator_voice')
+        expect(snapshot.effective_narrator_voice).toEqual(EFFECTIVE)
+    })
+
+    it('asSnapshot keeps a valid narrator projection read-only and drops a malformed one', () => {
+        const parsed = asSnapshot(withProjections())
+        expect(parsed?.effective_narrator_voice).toEqual(EFFECTIVE)
+        const malformed = asSnapshot({ ...withProjections(), effective_narrator_voice: { provider_route: 'acme' } })
+        expect(malformed).not.toHaveProperty('effective_narrator_voice')
+        const plain = makeSnapshot()
+        expect(asSnapshot(plain)).toBe(plain)
+        expect(JSON.stringify(writableAdventureSnapshot(withProjections()))).not.toContain('effective_')
     })
 })

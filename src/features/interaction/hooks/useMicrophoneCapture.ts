@@ -6,6 +6,7 @@ import {
     VOICE_VAD_SAMPLE_RATE,
     type VoiceVadConfigureMessage,
     type VoiceVadProcessorOptions,
+    type VoiceVadSpeechEndMessage,
     type VoiceVadTuning,
     VoiceVadWorkletSegmenter,
     type VoiceVadWorkletMessage,
@@ -381,6 +382,9 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
             }
             if (data?.type === 'vad' && 'state' in data && typeof data.state === 'string') {
                 if (import.meta.env.DEV) console.info('[voice-call][VAD]', data.state, 'rms=', data.rms)
+                // R0-BE-37: stamp the segment this speech_end closed with its end of speech
+                // (arrival minus the hang-over); its upload measures from there.
+                if (data.state === 'speech_end') segmenter.noteSpeechEnd(data as Partial<VoiceVadSpeechEndMessage>)
                 optionsRef.current.onVadState?.(data.state as 'speech_start' | 'speech_end' | 'silence', {
                     seq: data.seq,
                     at_ms: Math.max(0, Math.round(performance.now() - captureStartedAtRef.current)),

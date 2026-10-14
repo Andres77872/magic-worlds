@@ -5,7 +5,8 @@
 import type { Character } from './character.types'
 import type { CardActor, CardVisibility } from './cardSharing.types'
 import type { ChatImageAsset, ChatImageError, ChatResponseSegment, ChatTtsAsset, ChatTtsError, ChatTtsSegmentClip, ImageLifecycleStatus, TtsLifecycleStatus } from './interaction.types'
-import type { CharacterVoice } from './voicePreset.types'
+import type { StoredCharacterVoice } from './voicePreset.types'
+import type { EffectiveVoice } from './voiceCatalog.types'
 import type { World } from './world.types'
 import type { CardOrganization, RootOrganization } from './workspace.types'
 
@@ -78,8 +79,10 @@ export interface SnapshotCard {
     image_url?: string
     /** Hosted URL of this card's generated theme song, if any. */
     theme_song_url?: string
-    /** Assigned narration voice copied from a character/persona card. */
-    voice?: CharacterVoice
+    /** Assigned narration voice copied from a character/persona card (either stored shape, kept whole). */
+    voice?: StoredCharacterVoice | null
+    /** Read-only session projection of `voice` (D35). Never written back; absent for anonymous readers. */
+    effective_voice?: EffectiveVoice | null
     [key: string]: unknown
 }
 
@@ -108,7 +111,9 @@ export interface AdventureSnapshot {
     template_card_id?: string
     template: SnapshotTemplate
     /** Narrator/GM voice for multi-voice narration (falls back to the global default). */
-    narrator_voice?: CharacterVoice | null
+    narrator_voice?: StoredCharacterVoice | null
+    /** Read-only projection of `narrator_voice` (D35, I-5). Never written back; absent for anonymous readers. */
+    effective_narrator_voice?: EffectiveVoice | null
     /** Whether visible character thoughts are voiced during narration (default off). */
     narrate_thoughts?: boolean
 }

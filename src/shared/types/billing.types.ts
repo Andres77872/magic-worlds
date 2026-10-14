@@ -299,6 +299,12 @@ export interface MembershipPlanLimit {
     daily_request_limit: number
     max_in_flight: number
     credit_cost: number
+    /**
+     * Hard daily quantity cap (D24): characters for `tts_generation`, seconds
+     * for `voice_call`, null elsewhere (null = no cap). Absent on servers before
+     * R0, which also reject the key on writes.
+     */
+    daily_quantity_limit?: number | null
 }
 
 /**

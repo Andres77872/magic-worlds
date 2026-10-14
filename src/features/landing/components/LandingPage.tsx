@@ -521,6 +521,7 @@ export function LandingPage() {
                         onBeginTemplate={handleTemplateStart}
                         onChatCharacter={handleCharacterChat}
                         onCallCharacter={voiceEnabled && !readOnly ? callControls.startCall : undefined}
+                        callsUnavailable={callControls.callsUnavailable}
                         onEditCharacter={handleCharacterEdit}
                         onEditWorld={handleWorldEdit}
                         onEditItem={handleItemEdit}
@@ -619,6 +620,7 @@ export function LandingPage() {
                             cast={aiCharacters}
                             onChat={handleCharacterChat}
                             onCall={voiceEnabled && !readOnly ? callControls.startCall : undefined}
+                            callsUnavailable={callControls.callsUnavailable}
                             onEdit={handleCharacterEdit}
                             onDelete={readOnly ? undefined : (character) => deleteCharacter(character.id)}
                             onViewAll={() => setPage('gallery-characters')}

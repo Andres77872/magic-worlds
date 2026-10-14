@@ -10,13 +10,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Phone, PhoneCall, Search, Users, X } from 'lucide-react'
+import { Phone, PhoneCall, PhoneOff, Search, Users, X } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { resolveMediaUrl } from '@/infrastructure/api'
 import type { CallSummary, Character } from '@/shared'
+import { hasAssignedVoice } from '@/shared/voice'
 import { EmptyState, CardGrid, GalleryCard, PersonaPickerDialog } from '@/ui/components'
-import { Badge, Button, Icon, IconButton, IconTile, PageHeader, controlClass } from '@/ui/primitives'
+import { Badge, Button, Callout, Icon, IconButton, IconTile, PageHeader, controlClass } from '@/ui/primitives'
 import { useStartCall } from '../useStartCall'
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { CallHistoryRow } from './CallHistoryRow'
@@ -24,8 +25,9 @@ import { CallTranscriptView } from './CallTranscriptView'
 
 const CALLS_PAGE_SIZE = 30
 
+/** Any assigned voice, V1 or V2 (D35): a V1-only check would hide V2 voices. */
 function hasVoice(character: Character): boolean {
-    return Boolean(character.voice?.voice_id)
+    return hasAssignedVoice(character.voice)
 }
 
 export function CallsPage() {
@@ -38,6 +40,9 @@ export function CallsPage() {
     const call = useStartCall()
     // An archived workspace keeps its call history readable; a new call is new work there.
     const readOnly = useWorkspaceReadOnly()
+    // 09 §7: calls switched off for this account (`capabilities.status`, account level,
+    // fail open): call buttons are disabled with copy; history stays readable.
+    const callsUnavailable = call.callsUnavailable
 
     const [query, setQuery] = useState('')
     const [recentCalls, setRecentCalls] = useState<CallSummary[]>([])
@@ -118,7 +123,7 @@ export function CallsPage() {
 
     /** Continue the call's own chat when we still have it; otherwise start a fresh one. */
     const callAgainHandler = (entry: CallSummary) => {
-        if (readOnly) return undefined
+        if (readOnly || callsUnavailable) return undefined
         const chat = entry.chat_id != null
             ? (characterChats ?? []).find((candidate) => candidate.id === String(entry.chat_id) && candidate.kind !== 'character_group')
             : undefined
@@ -150,7 +155,11 @@ export function CallsPage() {
     if (selectedCall) {
         return (
             <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-6 px-5 py-8 sm:px-8 sm:py-10" data-testid="calls-page">
-                <CallTranscriptView call={selectedCall} characters={characters ?? []} onBack={() => setSelectedCall(null)} />
+                <CallTranscriptView
+                    call={selectedCall}
+                    characters={characters ?? []}
+                    onBack={() => setSelectedCall(null)}
+                />
             </div>
         )
     }
@@ -197,6 +206,17 @@ export function CallsPage() {
                     </div>
                 </div>
 
+                {/* The live region stays mounted (out of the flex flow), so a switch-off that lands while
+                    the page is open is announced; the visible callout carries no role of its own. */}
+                <p aria-live="polite" className="sr-only" data-testid="calls-availability-status">
+                    {callsUnavailable ? t('call.page.unavailable') : ''}
+                </p>
+                {callsUnavailable && (
+                    <Callout tone="info" icon={<Icon icon={PhoneOff} size={16} />} data-testid="calls-unavailable">
+                        {t('call.page.unavailable')}
+                    </Callout>
+                )}
+
                 {filteredCharacters.length > 0 ? (
                     <CardGrid
                         items={filteredCharacters}
@@ -218,7 +238,7 @@ export function CallsPage() {
                                         aria-label={t('call.page.callName', { name: character.name })}
                                         iconLeft={<Icon icon={Phone} size={15} />}
                                         onClick={() => call.startCall(character)}
-                                        disabled={readOnly || call.startingId === character.id}
+                                        disabled={readOnly || callsUnavailable || call.startingId === character.id}
                                     >
                                         {call.startingId === character.id ? t('call.page.starting') : t('call.page.call')}
                                     </Button>

@@ -116,6 +116,8 @@ vi.mock('@/infrastructure/api', () => ({
         getPublicCard: vi.fn(),
         cloneCard: vi.fn(),
         duplicateCard: vi.fn(),
+        // useStartCall's shared capabilities read (09 §7); undefined reads as available.
+        getVoiceCapabilities: vi.fn(),
     },
     resolveMediaUrl: (url?: string | null) => url ?? undefined,
     isProtectedMediaUrl: () => false,
@@ -183,6 +185,7 @@ describe('GalleryPage', () => {
                 disconnect() {}
             })
         }
+        vi.mocked(apiService.getVoiceCapabilities).mockReset()
         vi.mocked(apiService.getCharacters).mockResolvedValue(CHARACTERS)
         vi.mocked(apiService.getCharacter).mockResolvedValue(CHARACTERS[0])
         vi.mocked(apiService.getWorlds).mockResolvedValue([])
@@ -269,6 +272,53 @@ describe('GalleryPage', () => {
         expect(await screen.findByText('Lyra')).toBeInTheDocument()
         expect(screen.getByText('Dorn')).toBeInTheDocument()
         expect(apiService.getCharacters).toHaveBeenCalledWith(0, 24, undefined, 'character')
+    })
+
+    it('disables the Call actions with the Calls page copy while calls are switched off', async () => {
+        vi.mocked(apiService.getVoiceCapabilities).mockResolvedValue({
+            surfaces: [],
+            provider_route: 'elevenlabs',
+            tiers_allowed: ['standard'],
+            narration_tier: 'standard',
+            consent_version_required: 'voice-v2',
+            status: { narration_available: true, calls_available: false, auto_narration_paused: false },
+        })
+        render(<GalleryPage type="character" />)
+
+        await screen.findByText('Lyra')
+        const copy = 'Voice calls are unavailable right now. Try again later.'
+        await waitFor(() => expect(screen.getAllByRole('button', { name: 'Call' })[0]).toBeDisabled())
+        for (const call of screen.getAllByRole('button', { name: 'Call' })) {
+            expect(call).toBeDisabled()
+            expect(call).toHaveAttribute('title', copy)
+            expect(call).toHaveAccessibleDescription(copy)
+        }
+        // Chat stays available.
+        expect(screen.getAllByRole('button', { name: 'New chat' })[0]).toBeEnabled()
+
+        fireEvent.contextMenu((await screen.findAllByTestId('gallery-card'))[0], { clientX: 120, clientY: 140 })
+        const menu = await screen.findByTestId('card-context-menu')
+        // The menu cannot carry the reason, so it leaves Call out; the footer Call keeps the copy.
+        expect(within(menu).queryByRole('menuitem', { name: 'Call' })).not.toBeInTheDocument()
+        expect(within(menu).getByRole('menuitem', { name: 'New chat' })).toBeEnabled()
+    })
+
+    it('keeps the Call actions enabled when capabilities carry no status (fail open)', async () => {
+        vi.mocked(apiService.getVoiceCapabilities).mockResolvedValue({} as never)
+        render(<GalleryPage type="character" />)
+
+        await screen.findByText('Lyra')
+        await waitFor(() => expect(apiService.getVoiceCapabilities).toHaveBeenCalled())
+        const calls = screen.getAllByRole('button', { name: 'Call' })
+        expect(calls.length).toBeGreaterThan(0)
+        for (const call of calls) {
+            expect(call).toBeEnabled()
+            expect(call).not.toHaveAttribute('title')
+            expect(call).not.toHaveAttribute('aria-describedby')
+        }
+        fireEvent.contextMenu((await screen.findAllByTestId('gallery-card'))[0], { clientX: 120, clientY: 140 })
+        const menu = await screen.findByTestId('card-context-menu')
+        expect(within(menu).getByRole('menuitem', { name: 'Call' })).toBeEnabled()
     })
 
     it('renders user personas above character cards and marks the default persona', async () => {

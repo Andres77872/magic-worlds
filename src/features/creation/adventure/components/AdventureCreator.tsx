@@ -10,7 +10,7 @@
  */
 
 import type { FormEvent, KeyboardEvent } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import type { Adventure, Character, World } from '@/shared'
 import { readWorldPlaceType } from '@/shared'
@@ -62,6 +62,7 @@ import {
     workspaceSaveErrorKey,
     type CardTemplate,
 } from '../../common/engine'
+import { voiceSaveError, type VoiceSaveError } from '../../common/engine/useCreatorWorkspace'
 import { useUnsavedChangesGuard } from '@/shared/hooks'
 import type { CreatedCardRef } from '@/features/library/creationOrigin'
 import { ConfirmDialog } from '@/ui/components'
@@ -207,6 +208,14 @@ function AdventureCreatorForm() {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showErrors, setShowErrors] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
+    // Defensive, dormant today: a refused voice write (I-36) would show its copy, and a 409
+    // voice_reload_required (R5-BE-01) a Reload next to it, as CharacterCreator does. This form never
+    // sends a persona or cast `voice` (buildPayload), and the BFF judges only the voices a save sets
+    // (enforce_voice_writes skips absent ones), so neither code can come back for it. It becomes live
+    // only if the payload starts carrying voices; add a BFF route contract test then.
+    const [saveErrorAction, setSaveErrorAction] = useState<VoiceSaveError['action']>(null)
+    const [reloading, setReloading] = useState(false)
+    const reloadHintId = useId()
     const [assistantApplied, setAssistantApplied] = useState(false)
     // Requested initial collections deleted while a generated template was saved (normally empty).
     const [organizationWarnings, setOrganizationWarnings] = useState<OrganizationWarning[]>([])
@@ -392,6 +401,36 @@ function AdventureCreatorForm() {
     }
 
     /**
+     * Reload after a 409 voice_reload_required save (R5-BE-01), should one ever come (see the
+     * `saveErrorAction` note: this form sends no voices, so today the BFF never returns it).
+     * Re-reading the template through its own workspace and clearing the refusal is enough; every
+     * unsaved edit stays in the form (still dirty) for the next save. A failed reload keeps the message.
+     */
+    const reloadEditedTemplate = async (templateId: string) => {
+        setReloading(true)
+        try {
+            const fresh = await creator.cardClient().getAdventureTemplate(templateId)
+            if (fresh && typeof fresh === 'object') setEditingTemplate(toTemplate(fresh as AdventureTemplateCardResponse))
+            setSaveError(null)
+            setSaveErrorAction(null)
+        } catch (error) {
+            console.error('Failed to reload adventure template after a voice change:', error)
+        } finally {
+            setReloading(false)
+        }
+    }
+
+    /** Shows a voice write refusal (I-36) with its Reload action; false when the error is not one (dormant, see above). */
+    const showVoiceRefusal = (error: unknown): boolean => {
+        const templateId = savedIdRef.current ?? editingTemplate?.id ?? null
+        const refusal = voiceSaveError(error, templateId ? () => { void reloadEditedTemplate(templateId) } : undefined)
+        if (!refusal) return false
+        setSaveError(t(refusal.key))
+        setSaveErrorAction(refusal.action)
+        return true
+    }
+
+    /**
      * Persist a freshly generated/uploaded/gallery-selected cover onto the template
      * (mirrors `handleThemeSongUrl`). Without this, the image only lives in form
      * state until Save — navigating away left the card unassigned even though the
@@ -404,7 +443,9 @@ function AdventureCreatorForm() {
         if (id) {
             void creator.cardClient()
                 .updateAdventureTemplate(id, { ...buildPayload(), image_url: url ?? null })
-                .catch(() => {
+                .catch((error: unknown) => {
+                    if (showVoiceRefusal(error)) return
+                    setSaveErrorAction(null)
                     setSaveError(t(url ? 'creation.common.media.errors.imageSaveFailed' : 'creation.common.media.errors.imageRemoveFailed'))
                 })
         }
@@ -424,7 +465,9 @@ function AdventureCreatorForm() {
             // and re-run the theme effect. The gallery refreshes on Save / next navigation.
             void creator.cardClient()
                 .updateAdventureTemplate(id, { ...buildPayload(), theme_song_url: url ?? null })
-                .catch(() => {
+                .catch((error: unknown) => {
+                    if (showVoiceRefusal(error)) return
+                    setSaveErrorAction(null)
                     setSaveError(t('creation.common.media.errors.themeSaveFailed'))
                 })
         }
@@ -455,6 +498,7 @@ function AdventureCreatorForm() {
         e.preventDefault()
         if (creator.readOnly) {
             setSaveError(t('workspaceContent.saveErrors.archived'))
+            setSaveErrorAction(null)
             return
         }
         if (!isAuthenticated) {
@@ -466,6 +510,7 @@ function AdventureCreatorForm() {
 
         setIsSubmitting(true)
         setSaveError(null)
+        setSaveErrorAction(null)
         try {
             const payload = buildPayload()
             const scope = creator.capture()
@@ -500,6 +545,8 @@ function AdventureCreatorForm() {
             guard.skip(() => goBack('landing'))
         } catch (error) {
             console.error('Failed to save adventure template:', error)
+            // Voice refusals (I-36, R5 reload) cannot happen while the payload carries no voices; kept as a guard.
+            if (showVoiceRefusal(error)) return
             // Gentle, non-blocking inline message — the form stays put so the
             // user can retry. Transient backend outages get reassuring copy.
             const transient = error instanceof ApiError && error.isTransient
@@ -833,6 +880,22 @@ function AdventureCreatorForm() {
                     disabled={creator.readOnly}
                     error={saveError}
                 />
+                {saveErrorAction && !creator.readOnly && (
+                    <div className="-mt-3 flex justify-end">
+                        {/* Ties the action to the alert above for screen readers (not read twice: hidden). */}
+                        {saveError && <span id={reloadHintId} hidden>{saveError}</span>}
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={saveErrorAction.run}
+                            disabled={reloading}
+                            aria-describedby={saveError ? reloadHintId : undefined}
+                            className="max-sm:w-full"
+                        >
+                            {t(saveErrorAction.labelKey)}
+                        </Button>
+                    </div>
+                )}
             </form>
         </CreatorStudio>
         {chatbot}

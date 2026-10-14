@@ -4,7 +4,8 @@
 
 import type {AttributeCategory} from '../../ui/components/common/AttributeList';
 import type { CardActor, CardVisibility } from './cardSharing.types'
-import type { CharacterVoice } from './voicePreset.types'
+import type { StoredCharacterVoice } from './voicePreset.types'
+import type { EffectiveVoice } from './voiceCatalog.types'
 import type { CardOrganization } from './workspace.types'
 
 export type CharacterRole = 'character' | 'persona'
@@ -38,8 +39,10 @@ export interface Character {
     image_url?: string
     /** Hosted URL of the card's generated theme song, if any. */
     theme_song_url?: string
-    /** Assigned narration voice (system voice or a copied preset recipe). */
-    voice?: CharacterVoice
+    /** Assigned narration voice, either stored shape (legacy V1 or V2), kept whole (03 §5.1). */
+    voice?: StoredCharacterVoice
+    /** Read-only projection of `voice` (D35): what plays. Never written back; absent for anonymous readers. */
+    effective_voice?: EffectiveVoice | null
     visibility?: CardVisibility
     original_creator?: CardActor
     /** Newest saved version pointer (read-only; 0/absent when no version saved yet). */

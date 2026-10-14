@@ -92,7 +92,7 @@ describe('LanguageProvider', () => {
 
     it('applies an existing account preference after sign-in', async () => {
         setAuthState({ isAuthenticated: true, token: 'token-1', user })
-        vi.spyOn(apiService, 'getUserPreferences').mockResolvedValue({ preferred_language: 'es', has_preference: true })
+        vi.spyOn(apiService, 'getUserPreferences').mockResolvedValue({ preferred_language: 'es', has_preference: true, narration_tier: 'standard' })
         const updateSpy = vi.spyOn(apiService, 'updateUserPreferences')
 
         renderLanguageProvider()
@@ -107,10 +107,10 @@ describe('LanguageProvider', () => {
         localStorage.setItem(LANGUAGE_STORAGE_KEY, 'es')
         await i18n.changeLanguage('es')
         setAuthState({ isAuthenticated: true, token: 'token-1', user })
-        vi.spyOn(apiService, 'getUserPreferences').mockResolvedValue({ preferred_language: 'en', has_preference: false })
+        vi.spyOn(apiService, 'getUserPreferences').mockResolvedValue({ preferred_language: 'en', has_preference: false, narration_tier: 'standard' })
         const updateSpy = vi
             .spyOn(apiService, 'updateUserPreferences')
-            .mockResolvedValue({ preferred_language: 'es', has_preference: true })
+            .mockResolvedValue({ preferred_language: 'es', has_preference: true, narration_tier: 'standard' })
 
         renderLanguageProvider()
 
@@ -123,9 +123,9 @@ describe('LanguageProvider', () => {
         const getSpy = vi
             .spyOn(apiService, 'getUserPreferences')
             .mockRejectedValueOnce(new Error('temporarily unavailable'))
-            .mockResolvedValueOnce({ preferred_language: 'es', has_preference: true })
+            .mockResolvedValueOnce({ preferred_language: 'es', has_preference: true, narration_tier: 'standard' })
         vi.spyOn(apiService, 'updateUserPreferences')
-            .mockResolvedValue({ preferred_language: 'es', has_preference: true })
+            .mockResolvedValue({ preferred_language: 'es', has_preference: true, narration_tier: 'standard' })
         vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
         const first = renderLanguageProvider()

@@ -1,18 +1,33 @@
 import type { ReactElement, ReactNode } from 'react'
-import { fireEvent, render as baseRender, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render as baseRender, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Adventure, TurnEntry } from '@/shared'
+import type { Adventure, AdventureSnapshot, TurnEntry } from '@/shared'
 import {
     createWorkspaceTestState,
     OTHER_WORKSPACE_ID,
     TEST_WORKSPACE_ID,
+    testWorkspace,
     WorkspaceTestProvider,
 } from '@/shared/hooks/testing/workspaceTestUtils'
 import { AdventureInteraction } from './AdventureInteraction'
+import { SessionNarrationTierToggle } from './SessionNarrationTierToggle'
 
-const mocks = vi.hoisted(() => ({ loadTurns: vi.fn(), ensureSession: vi.fn(), setPage: vi.fn(), configScope: null as { workspaceId: string } | null }))
+const mocks = vi.hoisted(() => ({
+    loadTurns: vi.fn(),
+    ensureSession: vi.fn(),
+    setPage: vi.fn(),
+    saveSnapshot: vi.fn(),
+    configScope: null as { workspaceId: string } | null,
+    leftPanel: null as {
+        readOnly?: boolean
+        onSnapshotChange?: (snapshot: AdventureSnapshot) => Promise<void>
+        narratorPickerOpen?: boolean
+        onNarratorPickerOpenChange?: (open: boolean) => void
+        narrationTierSlot?: ReactNode
+    } | null,
+}))
 
-const workspace = createWorkspaceTestState()
+let workspace = createWorkspaceTestState()
 function wrap(ui: ReactElement) {
     return <WorkspaceTestProvider state={workspace}>{ui}</WorkspaceTestProvider>
 }
@@ -30,7 +45,7 @@ const draft: Adventure = {
 vi.mock('../../../app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: true }),
     useNavigation: () => ({ setPage: mocks.setPage, goBack: vi.fn() }),
-    useData: () => ({ editingInProgress: adventure, ensureAdventureSession: mocks.ensureSession, saveInProgressSnapshot: vi.fn() }),
+    useData: () => ({ editingInProgress: adventure, ensureAdventureSession: mocks.ensureSession, saveInProgressSnapshot: mocks.saveSnapshot }),
 }))
 vi.mock('../chatSessionConfig', () => ({
     adventureChatConfig: (scope: { workspaceId: string }) => {
@@ -38,14 +53,20 @@ vi.mock('../chatSessionConfig', () => ({
         return { loadTurns: mocks.loadTurns, workspaceId: scope.workspaceId }
     },
 }))
+vi.mock('./SessionNarrationTierToggle', () => ({ SessionNarrationTierToggle: () => null }))
 vi.mock('./index', () => ({
     InteractionTopBar: () => null,
     SidePanelDrawer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    InteractionLeftPanel: () => null,
+    InteractionLeftPanel: (props: NonNullable<typeof mocks.leftPanel>) => {
+        mocks.leftPanel = props
+        return null
+    },
     InteractionRightPanel: () => null,
-    InteractionCenterPanel: ({ sessionId, turns, setTurns, ensureSession }: {
+    InteractionCenterPanel: ({ sessionId, turns, setTurns, ensureSession, onEditNarratorVoice }: {
         sessionId: number; turns: TurnEntry[]; setTurns: (turns: TurnEntry[]) => void; ensureSession?: () => Promise<number>
+        onEditNarratorVoice?: () => void
     }) => <div>
+        {onEditNarratorVoice && <button onClick={onEditNarratorVoice}>Change narrator voice</button>}
         <span data-testid="session-id">{String(sessionId)}</span>
         <input aria-label="Draft message" defaultValue="" />
         <span data-testid="transcript">{turns.map((turn) => turn.content).join(',')}</span>
@@ -59,7 +80,9 @@ vi.mock('./index', () => ({
 describe('AdventureInteraction draft lifecycle', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        workspace = createWorkspaceTestState()
         mocks.configScope = null
+        mocks.leftPanel = null
         adventure = draft
         mocks.loadTurns.mockResolvedValue([])
         mocks.ensureSession.mockResolvedValue(17)
@@ -116,5 +139,83 @@ describe('AdventureInteraction draft lifecycle', () => {
         render(<AdventureInteraction />)
         await waitFor(() => expect(mocks.loadTurns).toHaveBeenCalledWith(17))
         expect(mocks.configScope?.workspaceId).toBe(OTHER_WORKSPACE_ID)
+    })
+
+    it('saves snapshot edits (narrator voice included) through the session workspace client', async () => {
+        adventure = { ...draft, id: '17', draft: undefined, status: 'in-progress', organization: { workspace_id: OTHER_WORKSPACE_ID } }
+        render(<AdventureInteraction />)
+        await waitFor(() => expect(mocks.leftPanel).not.toBeNull())
+        expect(mocks.leftPanel?.readOnly).toBe(false)
+
+        const snapshot = { ...draft.snapshot!, narrate_thoughts: true }
+        await mocks.leftPanel?.onSnapshotChange?.(snapshot)
+        expect(mocks.saveSnapshot).toHaveBeenCalledWith('17', snapshot, expect.objectContaining({
+            workspaceScope: expect.objectContaining({ workspaceId: OTHER_WORKSPACE_ID }),
+        }))
+    })
+
+    it('marks the details panel read-only when the session workspace is archived', async () => {
+        workspace = createWorkspaceTestState({
+            workspaces: [
+                testWorkspace(TEST_WORKSPACE_ID, 'Main library'),
+                testWorkspace(OTHER_WORKSPACE_ID, 'Novel A', { archived_at: '2026-10-02T00:00:00Z' }),
+            ],
+        })
+        adventure = { ...draft, id: '17', draft: undefined, status: 'in-progress', organization: { workspace_id: OTHER_WORKSPACE_ID } }
+        render(<AdventureInteraction />)
+        await waitFor(() => expect(mocks.leftPanel?.readOnly).toBe(true))
+    })
+})
+
+describe('AdventureInteraction narration voice wiring (ER-G1)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        workspace = createWorkspaceTestState()
+        mocks.leftPanel = null
+        mocks.loadTurns.mockResolvedValue([])
+        adventure = { ...draft, id: '17', draft: undefined, status: 'in-progress', organization: { workspace_id: OTHER_WORKSPACE_ID } }
+    })
+
+    function tierSlot(): ReactElement<{ api: unknown; basePath: string; sessionId: number; readOnly?: boolean }> {
+        return mocks.leftPanel?.narrationTierSlot as ReactElement<{ api: unknown; basePath: string; sessionId: number; readOnly?: boolean }>
+    }
+
+    it('mounts the session tier toggle on the session workspace client', async () => {
+        render(<AdventureInteraction />)
+        await waitFor(() => expect(mocks.leftPanel?.narrationTierSlot).toBeTruthy())
+        expect(tierSlot().type).toBe(SessionNarrationTierToggle)
+        expect(tierSlot().props).toMatchObject({ basePath: 'adventure-sessions', sessionId: 17, readOnly: false })
+        expect(tierSlot().props.api).toEqual(expect.objectContaining({ workspaceScope: expect.objectContaining({ workspaceId: OTHER_WORKSPACE_ID }) }))
+    })
+
+    it('has no tier toggle for a draft', async () => {
+        adventure = draft
+        render(<AdventureInteraction />)
+        await waitFor(() => expect(mocks.leftPanel).not.toBeNull())
+        expect(mocks.leftPanel?.narrationTierSlot ?? null).toBeNull()
+    })
+
+    it('opens the left panel narrator picker from the center panel and closes it through the panel', async () => {
+        render(<AdventureInteraction />)
+        await waitFor(() => expect(mocks.leftPanel?.narratorPickerOpen).toBe(false))
+        fireEvent.click(await screen.findByRole('button', { name: 'Change narrator voice' }))
+        await waitFor(() => expect(mocks.leftPanel?.narratorPickerOpen).toBe(true))
+        act(() => mocks.leftPanel?.onNarratorPickerOpenChange?.(false))
+        await waitFor(() => expect(mocks.leftPanel?.narratorPickerOpen).toBe(false))
+    })
+
+    it('never opens the narrator picker on a read-only session', async () => {
+        workspace = createWorkspaceTestState({
+            workspaces: [
+                testWorkspace(TEST_WORKSPACE_ID, 'Main library'),
+                testWorkspace(OTHER_WORKSPACE_ID, 'Novel A', { archived_at: '2026-10-02T00:00:00Z' }),
+            ],
+        })
+        render(<AdventureInteraction />)
+        await waitFor(() => expect(mocks.leftPanel?.readOnly).toBe(true))
+        expect(screen.queryByRole('button', { name: 'Change narrator voice' })).not.toBeInTheDocument()
+        expect(tierSlot().props.readOnly).toBe(true)
+        act(() => mocks.leftPanel?.onNarratorPickerOpenChange?.(true))
+        expect(mocks.leftPanel?.narratorPickerOpen).toBe(false)
     })
 })

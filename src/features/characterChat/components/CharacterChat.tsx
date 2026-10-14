@@ -198,6 +198,7 @@ function CharacterChatView({
                         config={chatConfig}
                         llmFeature={chat.kind === 'character_group' ? 'chat_group' : 'chat_character'}
                         speakerRoster={speakerRoster}
+                        isGroupChat={chat.kind === 'character_group'}
                     /> : <LoadingSpinner />}
                 </div>
             </div>

@@ -245,6 +245,46 @@ describe('VoiceSocket', () => {
         expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_error', category: 'auth', fatal: true }))
     })
 
+    it('ends the call once on a 4404 close (chat not in this workspace), even mid-call', async () => {
+        vi.useFakeTimers()
+        const onMessage = vi.fn()
+        const required = vi.fn()
+        window.addEventListener('workspace:required', required)
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage(READY_FRAME)
+
+        MockWebSocket.instances[0].emitClose(4404)
+        await vi.advanceTimersByTimeAsync(30_000)
+        window.removeEventListener('workspace:required', required)
+
+        expect(MockWebSocket.instances).toHaveLength(1)
+        expect(socket.isResuming).toBe(false)
+        expect(required).not.toHaveBeenCalled()
+        expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_error', category: 'not_found', code: 'CHAT_SESSION_NOT_FOUND', fatal: true }))
+        expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('CLOSE_CHAT_SESSION_NOT_FOUND_4404'), expect.anything())
+    })
+
+    it('treats a 4422 close as a stale build: no reconnect, workspace:required fired', async () => {
+        vi.useFakeTimers()
+        const onMessage = vi.fn()
+        const required = vi.fn()
+        window.addEventListener('workspace:required', required)
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
+        socket.connect(startFrame())
+
+        MockWebSocket.instances[0].emitClose(4422)
+        await vi.advanceTimersByTimeAsync(30_000)
+        window.removeEventListener('workspace:required', required)
+
+        expect(MockWebSocket.instances).toHaveLength(1)
+        expect(required).toHaveBeenCalledOnce()
+        expect(onMessage).toHaveBeenCalledTimes(1)
+        expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_error', code: 'WORKSPACE_REQUIRED', fatal: true }))
+        expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('CLOSE_WORKSPACE_REQUIRED_4422'), expect.anything())
+    })
+
     it('reconnects transient closes with backoff', async () => {
         vi.useFakeTimers()
         const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
@@ -417,6 +457,21 @@ describe('VoiceSocket', () => {
         expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_error', category: 'unsupported_media' }))
     })
 
+    it.each(['xi_api_key', 'xi-api-key', 'XI-API-KEY', 'single_use_token'])('refuses a provider credential key (%s), even nested', (key) => {
+        const onMessage = vi.fn()
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].send.mockClear()
+
+        const frame = { ...startFrame(), capabilities: { media_source_mp3: true, [key]: 'secret' } }
+        const sent = socket.sendFrame(frame as unknown as VoiceSocketClientFrame)
+
+        expect(sent).toBe(false)
+        expect(MockWebSocket.instances[0].send).not.toHaveBeenCalled()
+        expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_error', category: 'unsupported_media' }))
+    })
+
     it('drops assistant text from canceled turns and other voice sessions', () => {
         const onMessage = vi.fn()
         const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
@@ -439,9 +494,9 @@ describe('VoiceSocket', () => {
         socket.connect(startFrame())
         MockWebSocket.instances[0].emitOpen()
 
-        MockWebSocket.instances[0].emitMessage({ type: 'voice_audio_chunk', voice_session_id: 'voice-1', turn_id: 'turn-1', seq: 1, content_type: 'audio/mpeg', sample_rate: 32000, channels: 1, data_b64: 'AA==', is_final: false })
+        MockWebSocket.instances[0].emitMessage({ type: 'voice_audio_chunk', voice_session_id: 'voice-1', turn_id: 'turn-1', seq: 1, content_type: 'audio/mpeg', sample_rate: 44100, channels: 1, data_b64: 'AA==', is_final: false })
         MockWebSocket.instances[0].emitMessage({ type: 'voice_cancelled', voice_session_id: 'voice-1', turn_id: 'turn-1', reason: 'barge_in' })
-        MockWebSocket.instances[0].emitMessage({ type: 'voice_audio_chunk', voice_session_id: 'voice-1', turn_id: 'turn-1', seq: 2, content_type: 'audio/mpeg', sample_rate: 32000, channels: 1, data_b64: 'AQ==', is_final: false })
+        MockWebSocket.instances[0].emitMessage({ type: 'voice_audio_chunk', voice_session_id: 'voice-1', turn_id: 'turn-1', seq: 2, content_type: 'audio/mpeg', sample_rate: 44100, channels: 1, data_b64: 'AQ==', is_final: false })
 
         expect(onMessage.mock.calls.filter(([frame]) => frame.type === 'voice_audio_chunk')).toHaveLength(1)
         expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_cancelled' }))
@@ -461,5 +516,58 @@ describe('VoiceSocket', () => {
         expect(console.error).not.toHaveBeenCalledWith(expect.stringContaining('old-token'), expect.anything())
         expect(console.warn).not.toHaveBeenCalledWith(expect.stringContaining('old-token'), expect.anything())
         expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining('old-token'), expect.anything())
+    })
+})
+
+describe('VoiceSocket R1 client frames (WS-C1, WS-C2)', () => {
+    beforeEach(() => {
+        localStorage.clear()
+        localStorage.setItem('magic_worlds:token', 'old-token')
+        MockWebSocket.instances = []
+        vi.stubGlobal('WebSocket', MockWebSocket)
+    })
+
+    afterEach(() => {
+        vi.unstubAllGlobals()
+        vi.restoreAllMocks()
+    })
+
+    function openSocket() {
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].send.mockClear()
+        return { socket, sent: () => MockWebSocket.instances[0].send.mock.calls.map(([raw]) => JSON.parse(raw as string)) }
+    }
+
+    it('sends playback progress with whole milliseconds', () => {
+        const { socket, sent } = openSocket()
+        expect(socket.sendPlayback('turn-1', 1499.6)).toBe(true)
+        expect(sent()).toEqual([{ type: 'voice_playback', turn_id: 'turn-1', played_ms: 1500 }])
+    })
+
+    it.each([['', 10], ['turn-1', -1], ['turn-1', Number.NaN], ['turn-1', Number.POSITIVE_INFINITY]])('refuses playback progress %j / %j', (turnId, played) => {
+        const { socket, sent } = openSocket()
+        expect(socket.sendPlayback(turnId as string, played as number)).toBe(false)
+        expect(sent()).toEqual([])
+    })
+
+    it('sends the R0 barge-in unchanged, and the turn fields only when given', () => {
+        const { socket, sent } = openSocket()
+        socket.sendBargeIn()
+        socket.sendBargeIn({ type: 'voice_barge_in', reason: 'barge_in' })
+        socket.sendBargeIn('turn-2', 640.2)
+        socket.sendBargeIn('turn-3')
+        expect(sent()).toEqual([
+            { type: 'voice_barge_in', reason: 'barge_in' },
+            { type: 'voice_barge_in', reason: 'barge_in' },
+            { type: 'voice_barge_in', reason: 'barge_in', turn_id: 'turn-2', played_ms: 640 },
+            { type: 'voice_barge_in', reason: 'barge_in', turn_id: 'turn-3' },
+        ])
+    })
+
+    it('sends nothing while closed', () => {
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
+        expect(socket.sendPlayback('turn-1', 10)).toBe(false)
     })
 })

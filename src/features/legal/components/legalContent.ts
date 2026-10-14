@@ -5,20 +5,25 @@ import {
     BookOpenText,
     Cookie,
     Database,
+    FileSignature,
     FileWarning,
     HeartHandshake,
     Mail,
+    MessageSquareWarning,
     Mic,
+    RefreshCw,
     Scale,
     Server,
     ShieldCheck,
     Sparkles,
     TriangleAlert,
     UserRound,
+    Users,
 } from 'lucide-react'
 import type { PageType } from '@/shared'
+import { PRIVACY_VOICE_LOCALE_KEYS, displayedTermsDocument, privacyVoiceCopy, type LegalLanguage } from '../documents'
 
-export type LegalPageId = Extract<PageType, 'about' | 'contact' | 'privacy' | 'disclaimer'>
+export type LegalPageId = Extract<PageType, 'about' | 'contact' | 'privacy' | 'disclaimer' | 'terms'>
 
 export interface LegalPageLink {
     page: LegalPageId
@@ -48,6 +53,33 @@ export interface LegalPageContent {
     updated: string
     highlights: LegalHighlight[]
     sections: LegalSection[]
+    /** A notice above the content, e.g. the Terms draft banner (13 §3.3). */
+    notice?: { title: string; body: string }
+    /** Registry-backed documents (Terms): the version shown and its effective date. */
+    version?: string
+    effectiveDate?: string | null
+}
+
+/** Inputs for the registry-backed copy (R2-FE-01): the Terms document and the privacy voice section. */
+export interface LegalPageOptions {
+    /** Document language; English by default. */
+    language?: LegalLanguage
+    /** The server's Terms version (attestation context); the newest shipped one when unknown or not shipped. */
+    termsVersion?: string | null
+}
+
+/** Icon and tone per Terms section id; an unknown id gets the document icon. */
+const TERMS_SECTION_STYLE: Readonly<Record<string, Pick<LegalSection, 'icon' | 'tone'>>> = {
+    eligibility: { icon: Users },
+    acceptableUse: { icon: Ban },
+    providers: { icon: Server, tone: 'arcane' },
+    enforcement: { icon: MessageSquareWarning },
+    aiVoices: { icon: Mic, tone: 'arcane' },
+    changes: { icon: RefreshCw },
+}
+
+function termsSectionStyle(id: string): Pick<LegalSection, 'icon' | 'tone'> {
+    return Object.prototype.hasOwnProperty.call(TERMS_SECTION_STYLE, id) ? TERMS_SECTION_STYLE[id] : { icon: FileSignature }
 }
 
 export const CONTACT_EMAIL = 'andres@arz.ai'
@@ -58,10 +90,20 @@ export function getLegalPageLinks(t: TFunction): LegalPageLink[] {
         { page: 'contact', label: t('legal.links.contact') },
         { page: 'privacy', label: t('legal.links.privacy') },
         { page: 'disclaimer', label: t('legal.links.disclaimer') },
+        { page: 'terms', label: t('legal.links.terms') },
     ]
 }
 
-export function getLegalPages(t: TFunction): Record<LegalPageId, LegalPageContent> {
+export function getLegalPages(t: TFunction, options: LegalPageOptions = {}): Record<LegalPageId, LegalPageContent> {
+    const language = options.language ?? 'en'
+    const termsDocument = displayedTermsDocument(options.termsVersion)
+    const terms = termsDocument[language]
+    // The voice section reads through the wired variant (the ElevenLabs text, I-71); a
+    // variant that is not shippable falls back to the published locale text it mirrors.
+    const privacyVoice = privacyVoiceCopy(language) ?? {
+        title: t(PRIVACY_VOICE_LOCALE_KEYS.title),
+        body: PRIVACY_VOICE_LOCALE_KEYS.body.map((key) => t(key)),
+    }
     return {
         about: {
             page: 'about',
@@ -208,14 +250,10 @@ export function getLegalPages(t: TFunction): Record<LegalPageId, LegalPageConten
                     ],
                 },
                 {
-                    title: t('legal.pages.privacy.sections.voice.title'),
+                    title: privacyVoice.title,
                     icon: Mic,
                     tone: 'arcane',
-                    body: [
-                        t('legal.pages.privacy.sections.voice.body1'),
-                        t('legal.pages.privacy.sections.voice.body2'),
-                        t('legal.pages.privacy.sections.voice.body3'),
-                    ],
+                    body: [...privacyVoice.body],
                 },
                 {
                     title: t('legal.pages.privacy.sections.controls.title'),
@@ -290,6 +328,50 @@ export function getLegalPages(t: TFunction): Record<LegalPageId, LegalPageConten
                     body: [t('legal.pages.disclaimer.sections.risk.body1'), t('legal.pages.disclaimer.sections.risk.body2')],
                 },
             ],
+        },
+        // The versioned document from the registry (R2-FE-01). `tos-v1` is the
+        // counsel outline (13 §3.3); the draft notice stays while a version is a draft.
+        terms: {
+            page: 'terms',
+            eyebrow: t('legal.pages.terms.eyebrow'),
+            title: t('legal.pages.terms.title'),
+            subtitle: t('legal.pages.terms.subtitle'),
+            icon: FileSignature,
+            updated: t('legal.pages.terms.updated'),
+            version: termsDocument.id,
+            effectiveDate: terms.effectiveDate,
+            ...(termsDocument.status === 'draft'
+                ? {
+                    notice: {
+                        title: t('legal.pages.terms.draftNotice.title'),
+                        body: t('legal.pages.terms.draftNotice.body'),
+                    },
+                }
+                : {}),
+            highlights: [
+                {
+                    title: t('legal.pages.terms.highlights.adults.title'),
+                    body: t('legal.pages.terms.highlights.adults.body'),
+                    icon: UserRound,
+                },
+                {
+                    title: t('legal.pages.terms.highlights.providers.title'),
+                    body: t('legal.pages.terms.highlights.providers.body'),
+                    icon: Server,
+                    tone: 'arcane',
+                },
+                {
+                    title: t('legal.pages.terms.highlights.voices.title'),
+                    body: t('legal.pages.terms.highlights.voices.body'),
+                    icon: Mic,
+                    tone: 'arcane',
+                },
+            ],
+            sections: terms.sections.map((section) => ({
+                title: section.title,
+                body: [...section.body],
+                ...termsSectionStyle(section.id),
+            })),
         },
     }
 }

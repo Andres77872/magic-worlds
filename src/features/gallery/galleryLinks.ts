@@ -61,6 +61,7 @@ const PAGE_TO_HASH: Record<PageType, string> = {
     contact: '#/contact',
     privacy: '#/privacy',
     disclaimer: '#/disclaimer',
+    terms: '#/terms',
     'gallery-characters': '#/gallery/characters',
     'gallery-personas': '#/gallery/personas',
     'gallery-worlds': '#/gallery/worlds',

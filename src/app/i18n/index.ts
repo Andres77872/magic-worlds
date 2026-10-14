@@ -10,6 +10,7 @@ import {
 } from './languages'
 import { resources } from './resources'
 import { lazyLocaleBackend } from './backend'
+import { installInAppCopyRelease } from '@/features/legal/documents/consentCopy'
 
 const initialLanguage = readStoredLanguage() ?? detectBrowserLanguage() ?? DEFAULT_LANGUAGE
 
@@ -29,6 +30,8 @@ if (!i18next.isInitialized) {
             },
             returnNull: false,
         })
+    // R2-FE-01: the signed in-app voice lines replace their keys once released (no-op until then).
+    installInAppCopyRelease(i18next)
 }
 
 syncDocumentLanguage(initialLanguage)

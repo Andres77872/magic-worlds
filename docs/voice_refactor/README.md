@@ -1,17 +1,19 @@
 # Voice refactor: MiniMax → ElevenLabs
 
 - **Date:** 2026-10-12
-- **Status:** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status)
+- **Status:** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status). R0 code is built but not deployed; see [15 §9](15_implementation_plan_and_acceptance.md#9-r0-execution-status-2026-10-12). The R1 code and the dark-buildable R2, R3 and R5 rows are also built, dark behind `rollout_mode = off` and not deployed; see [15 §10](15_implementation_plan_and_acceptance.md#10-r1r5-dark-build-status-2026-10-13). **On 2026-10-14 the owner ordered the MiniMax voice integration purged (03 I-68, I-69).** ElevenLabs now serves everyone with text-only fallbacks, and stored MiniMax (V1) voices are translated on read. The final contract revision (`2026_10_voice_contract`, 03 I-70) was then applied to the owner's test database; see [15 §12](15_implementation_plan_and_acceptance.md#12-final-cutover-on-the-test-database-2026-10-14). Nothing is committed or deployed; see [15 §11](15_implementation_plan_and_acceptance.md#11-minimax-voice-purge-2026-10-14).
 
 ## Scope
 
-This folder plans how to remove MiniMax from magic-worlds and move every speech surface to ElevenLabs. The surfaces are chat narration, realtime voice calls, the voice catalog, the user Voice Studio and presets, and the root admin voice console. It also covers the billing, privacy, content-policy and rollout rules those surfaces depend on. **The set is documentation only.** No code, schema, configuration or data has been changed in either repository ([magic-worlds](/home/andres/WebstormProjects/magic-worlds) and [magic-worlds-api](/home/andres/PycharmProjects/magic-worlds-api)), no ElevenLabs API key has been used and no paid API has been called. Everything here stays *Proposed* until the owner signs the decision record. This README is the entry point: an executive summary, an index, reading paths by role, the decisions at a glance, the timeline, what has been verified and what is still open, and a glossary.
+This folder plans how to remove MiniMax from magic-worlds and move every speech surface to ElevenLabs. The surfaces are chat narration, realtime voice calls, the voice catalog, the user Voice Studio and presets, and the root admin voice console. It also covers the billing, privacy, content-policy and rollout rules those surfaces depend on. **The planning documents were written before any code.** Since then, the locally doable R0 work has been built, uncommitted, in the working trees of [magic-worlds](/home/andres/WebstormProjects/magic-worlds) and [magic-worlds-api](/home/andres/PycharmProjects/magic-worlds-api). Nothing is deployed and no migration has been applied to any database. No ElevenLabs API key has been used and no paid API has been called. Build-time decisions are in [03 §5.16](03_target_architecture_and_decisions.md) and the per-row status is in [15 §9](15_implementation_plan_and_acceptance.md#9-r0-execution-status-2026-10-12). The decisions stay *Proposed* until the owner signs the decision record. This README is the entry point: an executive summary, an index, reading paths by role, the decisions at a glance, the timeline, what has been verified and what is still open, and a glossary.
+
+**Workspace R1 alignment (2026-10-12).** After the research, Workspace R1 (personal app workspaces, collections, copy to workspace) was committed in both repositories (backend `f37eefd`, frontend `c7307c6`, content schema `2026_10_workspace_r1`). It is migrated only on the owner's dev database and is **not deployed to production**. The plan was re-read against those commits. The result is decision **D39** and the scope matrix in [03 §5.15](03_target_architecture_and_decisions.md), with the evidence in [research 15](research/15_workspace_r1_impact.md); documents 04–10, 13, 15 and 16 were updated to match. "Workspace" alone in these documents usually means the **ElevenLabs** account workspace. The app's own workspaces are called "app workspaces" or "Workspace R1".
 
 **Related:**
-- [03 Target architecture and decisions](03_target_architecture_and_decisions.md) is the **source of truth**: D01–D38, canonical definitions in §5, spikes, legal items and gates in §6. Where any document disagrees with 03, 03 wins.
+- [03 Target architecture and decisions](03_target_architecture_and_decisions.md) is the **source of truth**: D01–D39, canonical definitions in §5, spikes, legal items and gates in §6. Where any document disagrees with 03, 03 wins.
 - [15 Implementation plan and acceptance](15_implementation_plan_and_acceptance.md): the work breakdown and the owner sign-off checklist.
 - [16 Risks and open questions](16_risks_and_open_questions.md): the risk register, every open question and the gate sign-offs.
-- [research/](research/): the 15 evidence notes behind the decisions (§6.3).
+- [research/](research/): the 16 evidence notes behind the decisions (§6.3).
 
 **Conventions.** Decisions are cited as (D11), staging spikes as (S-3) and written confirmations from ElevenLabs as (L-2), all defined in [03 §3 and §6](03_target_architecture_and_decisions.md#3-decision-index). Prices, plan limits and model facts are **as of 2026-10-12**, at list price; the `eleven_v4` launch promo ended that day and is never used for sizing. Anything that depends on a spike or a legal answer is labelled that way.
 
@@ -48,7 +50,8 @@ This folder plans how to remove MiniMax from magic-worlds and move every speech 
     - **R2 entry** needs **L-1, L-4 and L-8 answered** and external counsel sign-off.
     - L-2 gates public Library voices only.
     - ElevenLabs gives no response-time commitment, so this is on the critical path.
-18. **What is still open.** All 29 staging spikes (S-1…S-29) and all 15 written confirmations (L-1…L-16; there is no L-11) are still open. 14 of the spikes are in the R0 exit gate (§5.2, §6.4).
+18. **App workspaces (Workspace R1, D39).** Narration jobs, turn charges, session voice settings, refresh and calls belong to the session's app workspace. They need an active workspace for fresh work, and settlement and persistence still complete after an archive. The catalog, Studio, presets, attestation, preferences, caps, budget guards and cohort routing stay account-level. The voice migrations chain after `2026_10_workspace_r1`, so **Workspace R1 must reach production before R0's first schema step** (ROL-08, Q-33). They also never change the workspace capability value the SPA checks (TEC-13).
+19. **What is still open.** All 29 staging spikes (S-1…S-29) and all 15 written confirmations (L-1…L-16; there is no L-11) are still open. 14 of the spikes are in the R0 exit gate (§5.2, §6.4).
 
 ---
 
@@ -59,7 +62,7 @@ This folder plans how to remove MiniMax from magic-worlds and move every speech 
 | [README](README.md) | This entry point: summary, index, reading paths, decisions at a glance, timeline, evidence status, glossary | Everyone |
 | [01 Current state](01_current_state.md) | The "before" picture: the three MiniMax speech paths, the integration surface, the voice data model and where it is copied, billing today, 19 known bugs, what must disappear | Everyone new to the program; engineers |
 | [02 ElevenLabs capabilities](02_elevenlabs_capabilities.md) | Capability reference: models, TTS HTTP and WebSocket APIs, expressiveness, voices, Scribe, Agents, other products, platform rules, the fit table and gotchas against MiniMax. It decides nothing | Architect, engineers, product |
-| [03 Target architecture and decisions](03_target_architecture_and_decisions.md) | **Source of truth.** Target architecture, decisions D01–D38, canonical schemas and enums (§5), spikes, legal items and per-phase gates (§6), review log | Everyone; the owner signs it |
+| [03 Target architecture and decisions](03_target_architecture_and_decisions.md) | **Source of truth.** Target architecture, decisions D01–D39, canonical schemas and enums (§5), spikes, legal items and per-phase gates (§6), review log | Everyone; the owner signs it |
 | [04 Voice catalog and Library](04_voice_catalog_and_library.md) | Sourcing policy, `voice_key` identity, catalog DDL, sync jobs A/B/C, previews and samples, lifecycle, defaults and fallbacks, acceptance protocol, user catalog API, readiness checklist | Backend, voice curator, product |
 | [05 Voice Studio and admin console](05_voice_studio_and_admin_console.md) | User Voice Studio, presets v2, the voice picker, the root admin console redesign, MiniMax → ElevenLabs parameter mapping, preview UX, en/es copy, accessibility, screen acceptance | Frontend, product, voice curator |
 | [06 Chat narration](06_chat_narration_migration.md) | One narrated turn end to end: segments, tiers, voice resolution, `SpeechTextPipeline`, reuse, per-turn billing, errors and retries, job lifecycle, `TurnNarration`, narration bug fixes | Backend (tts_generation), frontend (interaction) |
@@ -72,8 +75,8 @@ This folder plans how to remove MiniMax from magic-worlds and move every speech 
 | [13 Policy, privacy and compliance](13_policy_privacy_and_compliance.md) | Licensing, content policy, age gate and ToS, cloning consent, privacy, security, compliance checklist per gate, counsel tasks CN-1…CN-11 | Legal and privacy, external counsel, product owner |
 | [14 Staging spike and contract tests](14_staging_spike_and_contract_tests.md) | Staging setup and safety rules, an exact test plan with pass/fail for S-1…S-29 (plus X-1…X-11), results template, permanent contract-test suite, listening-test protocol | QA, backend, voice curator |
 | [15 Implementation plan and acceptance](15_implementation_plan_and_acceptance.md) | Work breakdown R0–R5 with task ids, critical path, acceptance criteria and SLOs, test plan, definition of done, owner sign-off checklist, first 10 PRs | Engineering leads, product owner |
-| [16 Risks and open questions](16_risks_and_open_questions.md) | 51 risks, every open question (owner, L, CN, S, Q, PA), assumptions, sign-off checklist and record | Product owner, architect, all leads |
-| [research/](research/) | The evidence base: 15 notes (00–14), see §6.3 | Anyone checking a claim |
+| [16 Risks and open questions](16_risks_and_open_questions.md) | 53 risks, every open question (owner, L, CN, S, Q, PA), assumptions, sign-off checklist and record | Product owner, architect, all leads |
+| [research/](research/) | The evidence base: 16 notes (00–15), see §6.3 | Anyone checking a claim |
 
 ---
 
@@ -197,8 +200,9 @@ Spikes and legal items named next to a status are the open dependencies.
 | [D36](03_target_architecture_and_decisions.md#d36-user-initiated-voice-refresh-for-existing-chats-and-adventures) | Voice refresh in existing chats | "Use the card's current voice" per chat and per adventure cast entry; writes only voice paths as V2; substitutions surfaced | Recommended |
 | [D37](03_target_architecture_and_decisions.md#d37-budget-guards-exposure-and-abuse-controls) | Budget guards, abuse | App-side global spend circuit, per-user token buckets, daily reconciliation; caps hard for PAYG; Free voice needs a verified, attested account | Owner sign-off; S-28 |
 | [D38](03_target_architecture_and_decisions.md#d38-persona-card-voices) | Persona cards | Picker hidden for persona cards; stored values kept and mapped silently; excluded from badges and coverage gates | Recommended |
+| [D39](03_target_architecture_and_decisions.md#d39-workspace-scope-of-voice-surfaces) | App workspace scope (Workspace R1) | Content-bound voice work inherits the session's app workspace and needs it active for fresh work; catalog, Studio, presets, attestation, caps and routing stay account-level; migrations chain after `2026_10_workspace_r1` without changing the workspace capability; copies are shape-only (03 §5.15) | Recommended |
 
-**Tally:** 18 need owner sign-off (D01, D02, D05, D06, D09, D15, D18, D20, D22–D26, D28, D29, D31, D34, D37), 18 are Recommended, and 2 are blocked on a spike (D13, D14). How the contradictions C1–C18 and the research owner decisions 1–23 map to these is in [03 §3.1–§3.2](03_target_architecture_and_decisions.md#31-contradictions-c1c18-where-each-is-resolved).
+**Tally:** 18 need owner sign-off (D01, D02, D05, D06, D09, D15, D18, D20, D22–D26, D28, D29, D31, D34, D37), 19 are Recommended, and 2 are blocked on a spike (D13, D14). How the contradictions C1–C18 and the research owner decisions 1–23 map to these is in [03 §3.1–§3.2](03_target_architecture_and_decisions.md#31-contradictions-c1c18-where-each-is-resolved).
 
 ---
 
@@ -237,7 +241,7 @@ This is a summary. The binding gate table is [03 §6.3](03_target_architecture_a
 
 | Phase | Target | What happens | Gate to pass |
 |---|---|---|---|
-| **Before the R0 build** | about 2026-10-16 | Owner signs the pending decisions; D02 executed (Scale contracted); L-request drafted; counsel briefed | [16 §5.2](16_risks_and_open_questions.md) checklist |
+| **Before the R0 build** | about 2026-10-16 | Owner signs the pending decisions; D02 executed (Scale contracted); L-request drafted; counsel briefed. Workspace R1 scheduled for production before R0's first schema step (Q-33) | [16 §5.2](16_risks_and_open_questions.md) checklist |
 | **R0 Prepare** (still MiniMax) | 2026-11-06, plus a 7-day soak | Expand-only releases:<br/>- V1/V2 readers and the validator widening;<br/>- capability registry, `SpeechTextPipeline` with moderation, attestation;<br/>- per-turn billing and `voice_preview`;<br/>- catalog tables, Jobs A/B/C, Acceptance module, `voice_default`;<br/>- restricted MiniMax picker, `ProviderRouter` at `rollout_mode=off`, budget guards. | **R0 exit**, before any real user text reaches ElevenLabs:<br/>- spikes S-1…S-6, S-11, S-13, S-14, S-16, S-20, S-27, S-28, S-29;<br/>- L-1 sent with L-9; L-3 answered or its safe default applied;<br/>- training opt-out screenshots; dashboard seats recorded;<br/>- ≥ 40 published voices; `voice_default` rows;<br/>- legacy and reverse mapping at 100%; probes green. |
 | **R1 Internal** | 2026-11-18, for 7 days | Root and admin users plus an allow-list; `voice-v2` consent; effective voice and first-exposure notice; reverse mapping live | **R1 exit:**<br/>- S-7, S-9, S-10, S-15, S-17, S-23, S-25;<br/>- 7 days within the rollback thresholds;<br/>- coverage re-run green. |
 | **R2 Canary** | 2026-11-25 → 2026-12-04 | `hash(user_hash) % 100 < canary_percent` at 5 → 25 → 50%, at least 3 days per step | **R2 entry**, before any non-staff user text reaches ElevenLabs:<br/>- S-8 measured in the production region; S-21;<br/>- **L-1, L-4, L-8 answered**; counsel sign-off;<br/>- ToS, click-wrap, attestation and 428 live; privacy copy for all users;<br/>- budget guards live; history sweep within its SLO. |
@@ -272,7 +276,7 @@ flowchart LR
     B --> C["Adversarial fact-check<br/>re-fetch official pages,<br/>try to refute each claim<br/>(verification logs)"]
     C --> D["09 Completeness critic<br/>gaps G1–G17, contradictions C1–C18,<br/>owner decisions 1–23"]
     D --> E["10–14 Gap closure<br/>policy, catalog API, protocol facts,<br/>codebase checks, cost model"]
-    E --> F["03 Decision record<br/>D01–D38, §5 canon, §6 spikes/legal"]
+    E --> F["03 Decision record<br/>D01–D39, §5 canon, §6 spikes/legal"]
     F --> G["3 adversarial reviews<br/>product · engineering · cost/legal/privacy<br/>(Review log)"]
     G --> H["Plan docs 01–02, 04–16<br/>derived from 03"]
     H --> I["README"]
@@ -283,8 +287,9 @@ flowchart LR
 3. **Adversarial fact-check.** Each note then had a pass whose aim was to *refute* its load-bearing claims. For the ElevenLabs notes this meant re-fetching the live official pages; for the inventories, re-reading both working trees. Examples: 38 claims re-tested in research 01 and 36 in research 04. Corrections were made in place, and each note ends with a verification log.
 4. **Critic.** [Research 09](research/09_research_critic_gaps.md) read notes 00–08 and listed 17 gaps (G1–G17), 18 contradictions (C1–C18) and 23 owner decisions.
 5. **Gap closure.** Notes [10](research/10_gap_policy_licensing.md)–[14](research/14_cost_model.md) closed the gaps, or narrowed each one to a named staging test. Note 12 also defined the contract tests CT-01…CT-20.
-6. **Decision record.** [03](03_target_architecture_and_decisions.md) resolved every contradiction and owner question. It was then attacked by three adversarial reviews (product and catalog; engineering feasibility and rollout safety; cost, licensing, privacy and policy), and every finding was dispositioned in its Review log.
-7. **Plan documents** 01–02 and 04–16 were derived from 03. They copy its canonical definitions verbatim, and any amendments they propose are collected in [16 §3.8](16_risks_and_open_questions.md) (PA-1…PA-20). None of those take effect until 03 is edited.
+6. **Workspace R1 re-read.** After Workspace R1 was committed, [research 15](research/15_workspace_r1_impact.md) re-read every speech and voice path at backend `f37eefd` and frontend `c7307c6`. It records the schema scope, admission intents, capability coupling, migration chain, frontend gaps and line drift. Line numbers in notes 00–14 refer to the older commits; re-read them before the change they support.
+7. **Decision record.** [03](03_target_architecture_and_decisions.md) resolved every contradiction and owner question. It was then attacked by three adversarial reviews (product and catalog; engineering feasibility and rollout safety; cost, licensing, privacy and policy), and every finding was dispositioned in its Review log.
+8. **Plan documents** 01–02 and 04–16 were derived from 03. They copy its canonical definitions verbatim, and any amendments they propose are collected in [16 §3.8](16_risks_and_open_questions.md) (PA-1…PA-21). None of those take effect until 03 is edited.
 
 The whole process stayed read-only: no API key was used, no paid API was called, no database was queried and no code was changed.
 
@@ -317,6 +322,7 @@ The whole process stayed read-only: no API key was used, no paid API was called,
 | [12 Model and protocol facts](research/12_gap_model_protocol_facts.md) | Endpoint × model matrix, per-model settings behaviour, language handling, WebSocket protocol facts, contract tests CT-01…CT-20 |
 | [13 Codebase checks](research/13_gap_codebase_checks.md) | Age gate, clone audio, presets, membership ops, ingress, loudness, canary mechanics, language, brackets: what exists and where new behaviour hooks in |
 | [14 Cost model](research/14_cost_model.md) | One monthly cost model (narration, calls, previews, console) for MiniMax vs ElevenLabs options at 1k, 10k and 50k MAU; plan fit; re-pricing |
+| [15 Workspace R1 impact](research/15_workspace_r1_impact.md) | Workspace R1 against every voice path: what is workspace-scoped, admission intents for narration and calls, account-level surfaces, copies, account wipe, migration chain and capability coupling, frontend gaps, line drift |
 
 ### 6.4 Open items
 
@@ -327,9 +333,9 @@ The whole process stayed read-only: no API key was used, no paid API was called,
 | Written confirmations from ElevenLabs L-1…L-16 | 15 (there is no L-11; it was folded into L-3) | [03 §6.2](03_target_architecture_and_decisions.md#62-pending-written-confirmations-elevenlabs-sales-or-legal-items-from-research10-9) | [13 §1.4](13_policy_privacy_and_compliance.md), [16 §3.4](16_risks_and_open_questions.md) |
 | External counsel tasks CN-1…CN-11 | 11 | [13 §1.5](13_policy_privacy_and_compliance.md) | [16 §3.5](16_risks_and_open_questions.md) |
 | Owner decisions | 18 | [03 §3](03_target_architecture_and_decisions.md#3-decision-index) | [16 §3.2](16_risks_and_open_questions.md), [15 §7](15_implementation_plan_and_acceptance.md) |
-| Engineering, data and ops questions Q-01…Q-32 | 32 | [16 §3.7](16_risks_and_open_questions.md) | [16 §5.3](16_risks_and_open_questions.md) gate sign-offs |
-| Proposed amendments to 03 PA-1…PA-20 | 20 | [16 §3.8](16_risks_and_open_questions.md) | Architect accepts or rejects each before the R0 build |
-| Risks | 51 (3 Critical, 17 High, 23 Medium, 8 Low) | [16 §2](16_risks_and_open_questions.md) | Weekly review until R5 |
+| Engineering, data and ops questions Q-01…Q-35 | 35 | [16 §3.7](16_risks_and_open_questions.md) | [16 §5.3](16_risks_and_open_questions.md) gate sign-offs |
+| Proposed amendments to 03 PA-1…PA-21 | 21 (PA-21, the Workspace R1 alignment, already applied) | [16 §3.8](16_risks_and_open_questions.md) | Architect accepts or rejects each before the R0 build |
+| Risks | 53 (3 Critical, 19 High, 23 Medium, 8 Low) | [16 §2](16_risks_and_open_questions.md) | Weekly review until R5 |
 
 ---
 
@@ -339,7 +345,7 @@ The whole process stayed read-only: no API key was used, no paid API was called,
 
 | Prefix | Meaning | Defined in |
 |---|---|---|
-| D01…D38 | Decisions | [03 §4](03_target_architecture_and_decisions.md#4-decision-records) |
+| D01…D39 | Decisions | [03 §4](03_target_architecture_and_decisions.md#4-decision-records) |
 | S-1…S-29 | Staging spikes: assumptions to test on a paid staging workspace | [03 §6.1](03_target_architecture_and_decisions.md#61-staging-spike-paid-staging-workspace-synthetic-policy-safe-text-only), [14](14_staging_spike_and_contract_tests.md) |
 | L-1…L-16 | Written confirmations requested from ElevenLabs sales or legal | [03 §6.2](03_target_architecture_and_decisions.md#62-pending-written-confirmations-elevenlabs-sales-or-legal-items-from-research10-9) |
 | CN-n | Tasks for external counsel | [13 §1.5](13_policy_privacy_and_compliance.md) |
@@ -357,6 +363,7 @@ The whole process stayed read-only: no API key was used, no paid API was called,
 | Term | Meaning |
 |---|---|
 | **BFF** | `magic-worlds-api`, the only backend the SPA calls. It owns every provider call and key. |
+| **App workspace (Workspace R1)** | A user's personal workspace in magic-worlds that holds cards, sessions and media. Private routes select it with `X-Workspace-Id` (sockets: `?workspace_id=`); an archived one is read-only. Not the ElevenLabs workspace (D39, [03 §5.15](03_target_architecture_and_decisions.md)). |
 | **Standard tier** | Narration on `eleven_flash_v2_5`, available on every plan; 1 credit per 400 characters (D05, D24). |
 | **Expressive tier** | Narration on `eleven_v4` with audio tags, opt-in for Plus and Pro; 1 credit per 200 characters; falls back to Standard (D05). |
 | **Flash v2.5, v4, v4 Turbo** | `eleven_flash_v2_5`: low-latency model used for Standard narration and calls ($0.04/1K characters). `eleven_v4`: expressive model; it cannot use the TTS WebSockets, so it is used over HTTP ($0.08/1K). `eleven_v4_turbo`: faster v4, a flagged call upgrade via the Text to Dialogue socket ($0.04/1K). All prices as of 2026-10-12. |
@@ -406,7 +413,7 @@ The whole process stayed read-only: no API key was used, no paid API was called,
 
 ## Sources
 
-- Decision record: [03](03_target_architecture_and_decisions.md): §1 summary, §3 index, §4 D01–D38, §5 canonical definitions, §6 spikes, legal items and gates, Review log.
+- Decision record: [03](03_target_architecture_and_decisions.md): §1 summary, §3 index, §4 D01–D39, §5 canonical definitions, §6 spikes, legal items and gates, Review log.
 - Plan documents [01](01_current_state.md), [02](02_elevenlabs_capabilities.md) and [04](04_voice_catalog_and_library.md)–[16](16_risks_and_open_questions.md): scope, summary and "at a glance" sections; [15 §1](15_implementation_plan_and_acceptance.md) (timeline, capacity) and [16 §0, §3.2, §5](16_risks_and_open_questions.md) (risks, owner decisions, sign-off).
 - Research notes [00–14](research/) and their verification logs.
 - Code entry points in §3.7 were re-read in both working trees on 2026-10-12.

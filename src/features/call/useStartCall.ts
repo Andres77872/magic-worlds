@@ -13,6 +13,8 @@ import { useContext, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { WorkspaceContext, type WorkspaceScopeCapture } from '@/app/providers/workspaceContext'
+import { useVoiceAvailability } from '@/features/interaction/hooks/useVoiceAvailability'
+import { apiService } from '@/infrastructure/api'
 import type { Character, CharacterChatSession } from '@/shared'
 import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { defaultPersonaForCharacter } from '@/utils/characterRoles'
@@ -28,6 +30,12 @@ export interface UseStartCall {
     startingId: string | null
     /** Last error message from a failed start, or null. */
     error: string | null
+    /**
+     * Calls are switched off for this account right now (`capabilities.status.calls_available`
+     * false; 09 §7, fail open). Callers disable their Call buttons with copy; a start that
+     * still happens is blocked with copy on CallScreen.
+     */
+    callsUnavailable: boolean
     /** Persona-picker state — wire into <PersonaPickerDialog>. */
     personaPickOpen: boolean
     personaPickConfirming: boolean
@@ -42,6 +50,9 @@ export function useStartCall(): UseStartCall {
     const { isAuthenticated, openLoginModal } = useAuth()
     const { characters, startCharacterChat, resumeCharacterChat } = useData()
     const { setPage } = useNavigation()
+    // The shared 60 s capabilities read; only while calls can start at all.
+    const availability = useVoiceAvailability(apiService, isAuthenticated && isCallsFeatureEnabled())
+    const callsUnavailable = !availability.calls_available
     // Workspace R1: a launch captures its workspace before any async work; a call
     // whose chat finished creating after a switch never opens in the new workspace.
     // The context is optional: call buttons also render in isolated surfaces
@@ -145,6 +156,7 @@ export function useStartCall(): UseStartCall {
         resumeCall,
         startingId,
         error,
+        callsUnavailable,
         personaPickOpen: pendingCharacter !== null,
         personaPickConfirming,
         personaPickError,

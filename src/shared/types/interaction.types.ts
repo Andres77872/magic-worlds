@@ -2,6 +2,7 @@
  * Interaction and messaging types
  */
 import type { LlmRequest } from './llm.types'
+import type { VoiceSubstitutionReason } from './voiceCatalog.types'
 
 export interface Message {
     isLoading?: boolean
@@ -125,11 +126,59 @@ export interface ChatTtsAsset {
     output_format?: 'mp3'
 }
 
+/**
+ * Known public `tts_failed.error.code` values (06 §6.6). WN-2 adds
+ * `moderation_unavailable`, `content_blocked`, `voice_unavailable` and
+ * `voice_safety_pause`; `voice_region_unavailable` is the geo refusal (PC-2).
+ */
+export type ChatTtsErrorCode =
+    | 'voice_unavailable'
+    | 'attestation_required'
+    | 'moderation_unavailable'
+    | 'content_blocked'
+    | 'workspace_archived'
+    | 'voice_safety_pause'
+    | 'voice_region_unavailable'
+
+/**
+ * `code` is public and closed on the server (06 §6.6), e.g. `voice_unavailable`,
+ * `attestation_required`, `moderation_unavailable`, `content_blocked` or
+ * `workspace_archived`; unknown codes fall back to the category copy.
+ * `retryable` and `action` are optional, so older servers stay valid.
+ */
 export interface ChatTtsError {
     category: string
     detail: string
-    code?: string | null
+    code?: ChatTtsErrorCode | (string & {}) | null
     retry_after_seconds?: number | null
+    retryable?: boolean
+    /**
+     * `attest`: the user must accept the age and terms attestation first (D26).
+     * `crisis_resources`: voice is paused after a self-harm signal (PC-1); show the crisis panel.
+     */
+    action?: 'attest' | 'crisis_resources'
+}
+
+/** Narration quality tier of a clip (D05). Tier names, never provider model ids. */
+export type TtsNarrationTier = 'standard' | 'expressive'
+
+/**
+ * Display-only segment states: a daily or per-turn cap kept the segment from
+ * being enqueued. Never a job status (`TtsLifecycleStatus` is unchanged), but
+ * terminal for the player (03 §5.4.2, §5.8).
+ */
+export type TtsSegmentDisplayState = 'daily_limit_reached' | 'not_narrated'
+
+export type ChatTtsSegmentStatus = TtsLifecycleStatus | TtsSegmentDisplayState
+
+/** Optional per-clip voice fields (D05, D16, D36); absent on clips stored before WN-1. */
+interface ChatTtsClipVoiceFields {
+    tier?: TtsNarrationTier
+    /** Per-voice loudness gain in dB, attenuation only; clamped to [-24, 0] on read (D16). */
+    gain_db?: number | null
+    substitution_reason?: VoiceSubstitutionReason | null
+    voice_name?: string | null
+    original_voice_name?: string | null
 }
 
 /**
@@ -138,14 +187,14 @@ export interface ChatTtsError {
  * the clips in `segment_index` order. Snake_case to match both the WS `tts_*`
  * frames and the server projection's `ttsSegments`.
  */
-export interface ChatTtsSegmentClip {
+export interface ChatTtsSegmentClip extends ChatTtsClipVoiceFields {
     segment_index: number
     segment_count?: number
     kind?: ChatResponseSegmentKind
     speaker_id?: string | null
     speaker_name?: string | null
     job_id?: string
-    status?: TtsLifecycleStatus
+    status?: ChatTtsSegmentStatus
     status_url?: string | null
     result_url?: string | null
     url?: string | null
@@ -154,7 +203,7 @@ export interface ChatTtsSegmentClip {
 }
 
 /** Per-segment narration fields the `tts_*` frames carry for multi-voice turns. */
-interface ChatTtsSegmentFrameFields {
+interface ChatTtsSegmentFrameFields extends ChatTtsClipVoiceFields {
     segment_index?: number
     segment_count?: number
     kind?: ChatResponseSegmentKind
@@ -214,7 +263,18 @@ export type ChatSocketServerMessage = ChatFrameIdentity & (
     | { type: 'done'; interrupted?: boolean; user_message_id?: number; assistant_message_id?: number; turn_id?: string }
     | { type: 'error'; message: string; category?: string; code?: string }
     | { type: 'pong' }
+    | VoiceSafetyNoticeFrame
 )
+
+/**
+ * WN-3: sent once on the chat socket when a self-harm signal pauses voice.
+ * Voice resumes after `retry_after_seconds` when it is set.
+ */
+export interface VoiceSafetyNoticeFrame {
+    type: 'voice_safety_notice'
+    kind: 'self_harm'
+    retry_after_seconds: number | null
+}
 
 export interface ChatFrameIdentity { request_id?: string; turn_id?: string }
 

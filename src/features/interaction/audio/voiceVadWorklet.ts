@@ -3,7 +3,8 @@
  *
  * Holds the segment types, the worklet message/option contract, WAV/sha helpers, and
  * `VoiceVadWorkletSegmenter` (which turns worklet `segment` messages into uploadable
- * `CapturedVoiceSegment`s). The AudioWorklet processor itself lives in the sibling plain-JS
+ * `CapturedVoiceSegment`s and stamps each with its end of speech, from the `speech_end` that
+ * closed it). The AudioWorklet processor itself lives in the sibling plain-JS
  * file `voiceVadProcessor.worklet.js` (loaded via addModule) — it MUST be plain JS so it
  * loads in dev AND prod, so the types below mirror it by hand.
  */
@@ -43,9 +44,24 @@ export type VoiceVadConfigureMessage = { type: 'configure' } & VoiceVadTuning
 
 /** Worklet → main thread. */
 export type VoiceVadProcessorMessage =
-    | { type: 'vad'; state: 'speech_start' | 'speech_end'; at_ms: number; rms: number }
+    | { type: 'vad'; state: 'speech_start'; at_ms: number; rms: number }
+    | VoiceVadSpeechEndMessage
     | { type: 'level'; rms: number }
     | { type: 'segment'; samples: Int16Array; sample_rate: number; started_at_ms: number; speech_ms: number; silence_ms: number }
+
+/**
+ * Worklet → main thread, right after the segment it closed. `ended_by_silence` is false for
+ * a max-length cut (the user is still talking); `silence_tail_ms` is the quiet the worklet
+ * waited after the last voiced audio before closing the turn (the hang-over), 0 for a cut.
+ */
+export interface VoiceVadSpeechEndMessage {
+    type: 'vad'
+    state: 'speech_end'
+    at_ms: number
+    rms: number
+    ended_by_silence: boolean
+    silence_tail_ms: number
+}
 
 export interface CapturedVoiceSegment {
     seq: number
@@ -65,6 +81,14 @@ export interface CapturedVoiceSegment {
         aggressiveness: VoiceVadAggressiveness
     }
     audio: Blob
+    /**
+     * The user's end of speech on the main-thread clock (`performance.now()`), R0-BE-37:
+     * when the closing `speech_end` arrived minus its `silence_tail_ms`, so the VAD
+     * hang-over counts as waiting. Set by {@link VoiceVadWorkletSegmenter.noteSpeechEnd},
+     * possibly after the segment was emitted; absent until then, and never for a
+     * max-length cut (the user had not stopped). Never uploaded as is: see `speechEndLag.ts`.
+     */
+    speech_end_perf_ms?: number
 }
 
 export interface Pcm16SegmentInput {
@@ -184,6 +208,8 @@ export class VoiceVadWorkletSegmenter {
     private readonly source: VoiceVadSource
     private readonly aggressiveness: VoiceVadAggressiveness
     private readonly sampleRate: number
+    /** Worklet segments whose closing `speech_end` has not arrived yet, oldest first. */
+    private readonly awaitingSpeechEnd: SpeechEndSlot[] = []
 
     constructor(options: {
         onSegment: (segment: CapturedVoiceSegment) => void
@@ -208,6 +234,54 @@ export class VoiceVadWorkletSegmenter {
     }
 
     async emitPcm16(samples: Int16Array | readonly number[], options: Partial<Omit<Pcm16SegmentInput, 'seq' | 'samples'>> = {}): Promise<CapturedVoiceSegment> {
+        return this.emit(samples, options, null)
+    }
+
+    async handleMessage(message: VoiceVadWorkletMessage): Promise<CapturedVoiceSegment | null> {
+        if (message.type !== 'segment' && message.type !== 'voice_segment') return null
+        // Queued before anything else (and before the hash's await), in arrival order, so the
+        // `speech_end` posted right after this segment pairs with it whatever happens below.
+        const slot: SpeechEndSlot = { atMs: null, segment: null }
+        this.awaitingSpeechEnd.push(slot)
+        if (this.awaitingSpeechEnd.length > MAX_AWAITING_SPEECH_END) this.awaitingSpeechEnd.shift()
+        const samples = message.samples ?? message.pcm16
+        if (!samples) return null
+        return this.emit(samples, {
+            startedAtMs: message.started_at_ms ?? message.startedAtMs ?? performance.now(),
+            sampleRate: message.sample_rate ?? message.sampleRate ?? this.sampleRate,
+            speechMs: message.speech_ms ?? message.speechMs,
+            silenceMs: message.silence_ms ?? message.silenceMs,
+        }, slot)
+    }
+
+    /**
+     * The worklet's `speech_end` (R0-BE-37), received at `receivedAtMs` (main-thread clock).
+     * The worklet posts every segment and then the `speech_end` that closed it on the same
+     * port, so it belongs to the oldest segment still waiting for one. A pause-ended segment
+     * is stamped with its end of speech, `receivedAtMs - silence_tail_ms`: one still being
+     * hashed gets it when built, one already emitted gets it in place, so an upload not sent
+     * yet still reads it. A max-length cut (`ended_by_silence: false`) or a message without
+     * a usable tail consumes its slot but stamps nothing. A `speech_end` with no waiting
+     * segment is ignored.
+     */
+    noteSpeechEnd(
+        message: Partial<Record<keyof VoiceVadSpeechEndMessage, unknown>>,
+        receivedAtMs: number = performance.now(),
+    ): void {
+        const slot = this.awaitingSpeechEnd.shift()
+        if (!slot) return
+        const tail = message.silence_tail_ms
+        if (message.ended_by_silence !== true || typeof tail !== 'number' || !Number.isFinite(tail) || tail < 0) return
+        const atMs = receivedAtMs - tail
+        slot.atMs = atMs
+        if (slot.segment) slot.segment.speech_end_perf_ms = atMs
+    }
+
+    private async emit(
+        samples: Int16Array | readonly number[],
+        options: Partial<Omit<Pcm16SegmentInput, 'seq' | 'samples'>>,
+        slot: SpeechEndSlot | null,
+    ): Promise<CapturedVoiceSegment> {
         // Reserve before the await: two segments posted back to back must not share a seq.
         const seq = this.seqCursor
         this.seqCursor += 1
@@ -221,22 +295,23 @@ export class VoiceVadWorkletSegmenter {
             source: options.source ?? this.source,
             aggressiveness: options.aggressiveness ?? this.aggressiveness,
         })
+        if (slot) {
+            slot.segment = segment
+            if (slot.atMs !== null) segment.speech_end_perf_ms = slot.atMs
+        }
         this.onSegment(segment)
         return segment
     }
-
-    async handleMessage(message: VoiceVadWorkletMessage): Promise<CapturedVoiceSegment | null> {
-        if (message.type !== 'segment' && message.type !== 'voice_segment') return null
-        const samples = message.samples ?? message.pcm16
-        if (!samples) return null
-        return this.emitPcm16(samples, {
-            startedAtMs: message.started_at_ms ?? message.startedAtMs ?? performance.now(),
-            sampleRate: message.sample_rate ?? message.sampleRate ?? this.sampleRate,
-            speechMs: message.speech_ms ?? message.speechMs,
-            silenceMs: message.silence_ms ?? message.silenceMs,
-        })
-    }
 }
+
+/** A worklet segment waiting for its closing `speech_end`. */
+interface SpeechEndSlot {
+    atMs: number | null
+    segment: CapturedVoiceSegment | null
+}
+
+/** Bound on segments waiting for a `speech_end`; the worklet sends one right after each. */
+const MAX_AWAITING_SPEECH_END = 16
 
 async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
     if (globalThis.crypto?.subtle) {

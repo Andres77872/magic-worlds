@@ -16,6 +16,7 @@ import { WorkspaceProvider } from './WorkspaceProvider'
 import { LlmSessionProvider } from '@/features/llmProfiles/LlmSessionProvider'
 import { CreationOriginProvider } from '@/features/library/creationOrigin'
 import { OriginNavigationProvider } from '@/features/workspaces/originNavigation'
+import { AttestationProvider } from '@/features/legal/attestation/AttestationProvider'
 
 interface AppProviderProps {
     children: ReactNode
@@ -37,7 +38,10 @@ export function AppProvider({ children }: AppProviderProps) {
                                 <BackgroundTasksProvider>
                                     <AudioPlaylistProvider>
                                         <FloatingWindowsProvider>
-                                            {children}
+                                            {/* D26: 18+ / Terms attestation gate and prompt. */}
+                                            <AttestationProvider>
+                                                {children}
+                                            </AttestationProvider>
                                         </FloatingWindowsProvider>
                                     </AudioPlaylistProvider>
                                 </BackgroundTasksProvider>

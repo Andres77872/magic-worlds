@@ -261,6 +261,7 @@ export function AppRouter() {
                                     {currentPage === 'contact' && <LegalPage page="contact" />}
                                     {currentPage === 'privacy' && <LegalPage page="privacy" />}
                                     {currentPage === 'disclaimer' && <LegalPage page="disclaimer" />}
+                                    {currentPage === 'terms' && <LegalPage page="terms" />}
                                     {currentPage === 'not-found' && <NotFoundPage />}
                                 </>
                             )}

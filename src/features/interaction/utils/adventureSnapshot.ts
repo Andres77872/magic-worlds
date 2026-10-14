@@ -11,11 +11,12 @@ import type {
     Adventure,
     AdventureSnapshot,
     Character,
-    CharacterVoice,
     SnapshotCard,
     SnapshotTemplate,
+    StoredCharacterVoice,
     World,
 } from '../../../shared'
+import { keepStoredVoice, readEffectiveVoice, stripVoiceProjections } from '../../../shared/voice'
 
 /** Locates a card inside the snapshot so edits can be written back to it. */
 export type SnapshotCardRef =
@@ -78,21 +79,14 @@ export function findSnapshotEntry(
     return worldEntries(snapshot)[ref.index] ?? null
 }
 
-function snapshotVoice(value: unknown): CharacterVoice | undefined {
-    if (!value || typeof value !== 'object') return undefined
-    const voice = value as Partial<CharacterVoice>
-    const voiceId = typeof voice.voice_id === 'string' ? voice.voice_id.trim() : ''
-    if (!voiceId) return undefined
-    return {
-        voice_id: voiceId,
-        ...(voice.speed !== undefined ? { speed: voice.speed } : {}),
-        ...(voice.vol !== undefined ? { vol: voice.vol } : {}),
-        ...(voice.pitch !== undefined ? { pitch: voice.pitch } : {}),
-        ...(voice.emotion !== undefined ? { emotion: voice.emotion } : {}),
-        ...(voice.language_boost !== undefined ? { language_boost: voice.language_boost } : {}),
-        ...(voice.preset_id !== undefined ? { preset_id: voice.preset_id } : {}),
-        ...(voice.preset_name !== undefined ? { preset_name: voice.preset_name } : {}),
-    }
+/**
+ * Keep the WHOLE stored voice, V1 or V2 (03 §5.1.2): the same object, never a
+ * whitelist or a trim, so snapshot PUTs re-send untouched voices byte-identical (D32).
+ * An unrecognised non-null voice is kept as well (09 §3.2), so editing another
+ * field of a cast entry never drops it.
+ */
+function snapshotVoice(value: unknown): StoredCharacterVoice | undefined {
+    return keepStoredVoice(value)
 }
 
 /** Maps a snapshot card to the frontend Character shape (for compatibility/consumers). */
@@ -110,7 +104,28 @@ export function snapshotToCharacter(card: SnapshotCard, fallbackId: string): Cha
         image_url: card.image_url,
         theme_song_url: card.theme_song_url,
         voice: snapshotVoice(card.voice),
+        // The cast entry's read-only projection (D35), only when the server sent one.
+        ...effectiveVoiceOf(card),
     }
+}
+
+function effectiveVoiceOf(card: SnapshotCard): { effective_voice?: Character['effective_voice'] } {
+    const effective = readEffectiveVoice(card.effective_voice)
+    return effective ? { effective_voice: effective } : {}
+}
+
+/**
+ * A card whose stored voice changed drops its projection: it described the old
+ * voice (D35). Untouched voices keep theirs. Pure.
+ */
+function withoutStaleProjection(previous: SnapshotCard | null | undefined, card: SnapshotCard): SnapshotCard {
+    if (!card || !('effective_voice' in card)) return card
+    const before = previous?.voice ?? null
+    const after = card.voice ?? null
+    if (before === after || JSON.stringify(before) === JSON.stringify(after)) return card
+    const next = { ...card }
+    delete next.effective_voice
+    return next
 }
 
 /** Maps a snapshot card to the frontend World shape (for compatibility/consumers). */
@@ -157,10 +172,10 @@ export function applySnapshotCardEdit(
 ): AdventureSnapshot {
     const template: SnapshotTemplate = { ...snapshot.template }
     if (ref.kind === 'persona') {
-        template.persona = card
+        template.persona = withoutStaleProjection(template.persona, card)
     } else if (ref.kind === 'character') {
         const next = asCards(template.characters).slice()
-        next[ref.index] = card
+        next[ref.index] = withoutStaleProjection(next[ref.index], card)
         template.characters = next
     } else {
         const next = asCards(template.world).slice()
@@ -227,6 +242,17 @@ export function removeSnapshotCard(snapshot: AdventureSnapshot, ref: SnapshotCar
     return { ...snapshot, template }
 }
 
+/**
+ * Returns a new snapshot with the narrator voice set or cleared. The read-only
+ * `effective_narrator_voice` described the previous voice, so it is dropped
+ * (the server sends a fresh one on the next read). Pure.
+ */
+export function setSnapshotNarratorVoice(snapshot: AdventureSnapshot, voice: StoredCharacterVoice | null): AdventureSnapshot {
+    const next: AdventureSnapshot = { ...snapshot, narrator_voice: voice }
+    delete next.effective_narrator_voice
+    return next
+}
+
 /** Returns a new snapshot with the persona set or cleared. Pure. */
 export function setSnapshotPersona(snapshot: AdventureSnapshot, card: SnapshotCard | null): AdventureSnapshot {
     return { ...snapshot, template: { ...snapshot.template, persona: card } }
@@ -252,11 +278,20 @@ export function ensureAdventureSnapshot(adventure: Adventure): AdventureSnapshot
     return adventure.snapshot
 }
 
-/** Coerce a raw session field into a typed snapshot, or null if it isn't one. */
+/**
+ * Coerce a raw session field into a typed snapshot, or null if it isn't one. The
+ * read-only `effective_narrator_voice` (D35, I-5) is kept, parsed; a malformed
+ * one is dropped. A snapshot without it is returned as is.
+ */
 export function asSnapshot(value: unknown): AdventureSnapshot | null {
     if (value && typeof value === 'object' && 'template' in (value as Record<string, unknown>)) {
-        const template = (value as AdventureSnapshot).template
-        if (template && typeof template === 'object') return value as AdventureSnapshot
+        const snapshot = value as AdventureSnapshot
+        const template = snapshot.template
+        if (!template || typeof template !== 'object') return null
+        if (!('effective_narrator_voice' in snapshot)) return snapshot
+        const { effective_narrator_voice: raw, ...rest } = snapshot
+        const effective = readEffectiveVoice(raw)
+        return effective ? { ...rest, effective_narrator_voice: effective } : rest
     }
     return null
 }
@@ -288,10 +323,13 @@ function writableSnapshotCard(card: SnapshotCard, kind: 'character' | 'world'): 
     }
 }
 
-/** Strip read-only annotations and obsolete card fields before a strict snapshot PUT. */
+/**
+ * Strip read-only annotations (incl. the D35 voice projections) and obsolete card fields
+ * before a strict snapshot PUT. Stored voices (cast, persona, narrator) pass through untouched.
+ */
 export function writableAdventureSnapshot(snapshot: AdventureSnapshot): AdventureSnapshot {
     const template = snapshot.template
-    return {
+    return stripVoiceProjections({
         ...snapshot,
         template: {
             id: template.id,
@@ -306,5 +344,5 @@ export function writableAdventureSnapshot(snapshot: AdventureSnapshot): Adventur
             image_url: template.image_url,
             theme_song_url: template.theme_song_url,
         },
-    }
+    })
 }

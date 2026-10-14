@@ -9,7 +9,7 @@ function chunk(seq: number, data_b64: string, turn_id = 'turn-1') {
         turn_id,
         seq,
         content_type: 'audio/mpeg' as const,
-        sample_rate: 32000 as const,
+        sample_rate: 44100 as const,
         channels: 1 as const,
         data_b64,
         is_final: false as const,
@@ -24,7 +24,7 @@ function toBase64(bytes: Uint8Array): string {
     return btoa(String.fromCharCode(...bytes))
 }
 
-/** One MPEG-1 layer III frame (32 kbps, 32 kHz, mono → 144 bytes) whose payload is filled with `fill`. */
+/** One MPEG-1 layer III frame (32 kbps, 32 kHz header, mono → 144 bytes) whose payload is filled with `fill`; the parser reads the header, not the chunk rate. */
 function mp3Frame(fill: number): Uint8Array {
     const frame = new Uint8Array(144).fill(fill)
     frame.set([0xff, 0xfb, 0x18, 0xc4])
@@ -446,6 +446,177 @@ describe('VoicePlaybackBuffer', () => {
             buffer.appendChunk(chunk(1, 'AQ=='))
             audio.dispatchEvent(new Event('playing'))
             expect(buffer.state.status).toBe('playing')
+            buffer.dispose()
+        })
+    })
+
+    describe('loudness gain (D16)', () => {
+        it('leaves the volume alone for turns without gain_db', () => {
+            const audio = document.createElement('audio')
+            audio.volume = 0.4
+            const buffer = new VoicePlaybackBuffer({ audio, autoPlay: false })
+
+            buffer.appendChunk(chunk(1, 'AQ=='))
+            buffer.appendChunk({ ...chunk(1, 'AQ==', 'turn-2'), sample_rate: 44100 })
+            expect(audio.volume).toBe(0.4)
+            buffer.dispose()
+        })
+
+        it('sets the turn volume from its first chunk and restores it for a turn without gain', () => {
+            const audio = document.createElement('audio')
+            const buffer = new VoicePlaybackBuffer({ audio, autoPlay: false })
+
+            buffer.appendChunk({ ...chunk(1, 'AQ=='), sample_rate: 44100, codec: 'mp3', gain_db: -6 })
+            expect(audio.volume).toBeCloseTo(0.501, 3)
+            // Later chunks of the same turn never move it, even with another gain.
+            buffer.appendChunk({ ...chunk(2, 'Ag=='), sample_rate: 44100, gain_db: -20 })
+            expect(audio.volume).toBeCloseTo(0.501, 3)
+
+            // A boost is clamped away: gain is attenuation only.
+            buffer.appendChunk({ ...chunk(1, 'AQ==', 'turn-2'), sample_rate: 22050, gain_db: 6 })
+            expect(audio.volume).toBe(1)
+
+            buffer.appendChunk({ ...chunk(1, 'AQ==', 'turn-3'), sample_rate: 24000, gain_db: -3 })
+            expect(audio.volume).toBeCloseTo(0.708, 3)
+            buffer.appendChunk(chunk(1, 'AQ==', 'turn-4'))
+            expect(audio.volume).toBe(1)
+            buffer.dispose()
+        })
+    })
+    describe('R1 call audio (R1-FE-05)', () => {
+        /** One MPEG-2 (LSF) layer III frame, 64 kbps mono: 192 bytes at 24 kHz, 208 at 22.05 kHz. */
+        function lsfFrame(rate: 22050 | 24000, fill: number): Uint8Array {
+            const frame = new Uint8Array(rate === 24000 ? 192 : 208).fill(fill)
+            frame.set([0xff, 0xf3, rate === 24000 ? 0x84 : 0x80, 0xc4])
+            return frame
+        }
+
+        const elChunk = (seq: number, data_b64: string, rate: 22050 | 24000 | 44100, turn_id = 'turn-1') => ({
+            ...chunk(seq, data_b64, turn_id),
+            sample_rate: rate,
+            codec: 'mp3' as const,
+            gain_db: 0,
+            substitution_reason: null,
+        })
+
+        function withCurrentTime(audio: HTMLAudioElement) {
+            let seconds = 0
+            Object.defineProperty(audio, 'currentTime', { configurable: true, get: () => seconds, set: (value: number) => { seconds = value } })
+            return (value: number) => { seconds = value }
+        }
+
+        it('streams 44.1 kHz mp3 through MediaSource when nothing else is announced', () => {
+            const audio = document.createElement('audio')
+            const buffer = new VoicePlaybackBuffer({ audio, autoPlay: false })
+            buffer.setAudioFormat({ content_type: 'audio/mpeg', codec: 'mp3', sample_rate: 44100, channels: 1 })
+            buffer.startTurn('voice-1', 'turn-1')
+            const mediaSource = vi.mocked(URL.createObjectURL).mock.calls[0][0] as unknown as MockMediaSource
+            expect(buffer.appendChunk(elChunk(1, 'AQ==', 44100))).toBe(true)
+            expect(mediaSource.sourceBuffers[0].appendBuffer).toHaveBeenCalledTimes(1)
+            buffer.dispose()
+        })
+
+        it('plays 44.1 kHz mp3 as Blob groups when MediaSource refuses the announced type', () => {
+            MockMediaSource.isTypeSupported.mockImplementation((type: string) => type === 'audio/mpeg')
+            const audio = document.createElement('audio')
+            const buffer = new VoicePlaybackBuffer({ audio, autoPlay: false })
+            buffer.setAudioFormat({ content_type: 'audio/mpeg; codecs="mp3"', codec: 'mp3', sample_rate: 44100, channels: 1 })
+            expect(buffer.appendChunk(elChunk(1, 'AQ==', 44100))).toBe(true)
+            expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob))
+            expect(audio.src).toContain('blob:voice-1')
+            buffer.dispose()
+        })
+
+        it.each([24000, 22050] as const)('cuts Blob groups on whole MPEG-2 LSF frames at %i Hz', async (rate) => {
+            MockMediaSource.isTypeSupported.mockReturnValue(false)
+            const audio = document.createElement('audio')
+            const assignments = trackSrcAssignments(audio)
+            const buffer = new VoicePlaybackBuffer({ audio })
+            const [a, b] = [lsfFrame(rate, 0xa), lsfFrame(rate, 0xb)]
+            buffer.appendChunk(elChunk(1, toBase64(bytesOf(a, b.subarray(0, 40))), rate))
+            expect(assignments).toHaveLength(1)
+            const first = vi.mocked(URL.createObjectURL).mock.calls[0][0] as Blob
+            expect(await readBlob(first)).toEqual(a)
+            audio.dispatchEvent(new Event('playing'))
+            buffer.appendChunk(elChunk(2, toBase64(b.subarray(40)), rate))
+            buffer.finalize(final(2))
+            audio.dispatchEvent(new Event('ended'))
+            const second = vi.mocked(URL.createObjectURL).mock.calls[1][0] as Blob
+            expect(await readBlob(second)).toEqual(b)
+            buffer.dispose()
+        })
+
+        it('drops an unplayable chunk and reports it once per turn', () => {
+            const onUnsupportedFormat = vi.fn()
+            const audio = document.createElement('audio')
+            const assignments = trackSrcAssignments(audio)
+            const buffer = new VoicePlaybackBuffer({ audio, autoPlay: false, onUnsupportedFormat })
+            const pcm = { ...chunk(1, 'AQ=='), content_type: 'audio/pcm' } as unknown as Parameters<VoicePlaybackBuffer['appendChunk']>[0]
+            expect(buffer.appendChunk(pcm)).toBe(false)
+            expect(buffer.appendChunk({ ...pcm, seq: 2 })).toBe(false)
+            expect(buffer.appendChunk({ ...chunk(3, 'AQ=='), sample_rate: 48000 } as unknown as Parameters<VoicePlaybackBuffer['appendChunk']>[0])).toBe(false)
+            expect(onUnsupportedFormat).toHaveBeenCalledTimes(1)
+            expect(onUnsupportedFormat).toHaveBeenCalledWith('turn-1', 'voice-1')
+            expect(assignments).toEqual([])
+            expect(buffer.state.status).toBe('idle')
+
+            expect(buffer.appendChunk({ ...pcm, turn_id: 'turn-2' })).toBe(false)
+            expect(onUnsupportedFormat).toHaveBeenCalledTimes(2)
+            buffer.dispose()
+        })
+
+        it('reads gain from the first non-null gain_db of the turn and resets it per turn', () => {
+            const audio = document.createElement('audio')
+            const buffer = new VoicePlaybackBuffer({ audio, autoPlay: false })
+            buffer.appendChunk({ ...elChunk(1, 'AQ==', 44100), gain_db: null })
+            expect(audio.volume).toBe(1)
+            buffer.appendChunk({ ...elChunk(2, 'Ag==', 44100), gain_db: -6 })
+            expect(audio.volume).toBeCloseTo(0.501, 3)
+            buffer.appendChunk({ ...elChunk(3, 'Aw==', 44100), gain_db: -12 })
+            expect(audio.volume).toBeCloseTo(0.501, 3)
+            buffer.appendChunk({ ...elChunk(1, 'AQ==', 44100, 'turn-2'), gain_db: -12 })
+            expect(audio.volume).toBeCloseTo(0.251, 3)
+            buffer.dispose()
+        })
+
+        it('counts played time across Blob groups, per turn', () => {
+            MockMediaSource.isTypeSupported.mockReturnValue(false)
+            const audio = document.createElement('audio')
+            const setTime = withCurrentTime(audio)
+            const buffer = new VoicePlaybackBuffer({ audio })
+            const [a, b] = [lsfFrame(24000, 0xa), lsfFrame(24000, 0xb)]
+            expect(buffer.playedMs()).toBeNull()
+            buffer.appendChunk(elChunk(1, toBase64(a), 24000))
+            expect(buffer.playedMs('turn-1')).toBe(0)
+            audio.dispatchEvent(new Event('playing'))
+            setTime(0.5)
+            expect(buffer.playedMs('turn-1')).toBe(500)
+            expect(buffer.playedMs('other-turn')).toBeNull()
+
+            buffer.appendChunk(elChunk(2, toBase64(b), 24000))
+            setTime(1.2)
+            audio.dispatchEvent(new Event('ended'))
+            setTime(0)
+            expect(buffer.playedMs()).toBe(1200)
+            setTime(0.3)
+            expect(buffer.playedMs()).toBe(1500)
+
+            buffer.startTurn('voice-1', 'turn-2')
+            setTime(0)
+            expect(buffer.playedMs('turn-2')).toBe(0)
+            buffer.dispose()
+        })
+
+        it('counts MediaSource playback from the element time', () => {
+            const audio = document.createElement('audio')
+            const setTime = withCurrentTime(audio)
+            const buffer = new VoicePlaybackBuffer({ audio, autoPlay: false })
+            buffer.appendChunk(elChunk(1, 'AQ==', 44100))
+            setTime(2)
+            // Not audible yet: nothing has played.
+            expect(buffer.playedMs()).toBe(0)
+            audio.dispatchEvent(new Event('playing'))
+            expect(buffer.playedMs()).toBe(2000)
             buffer.dispose()
         })
     })

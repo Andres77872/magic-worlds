@@ -112,3 +112,35 @@ export const ByokLoading: Story = {
 export const ByokUnavailable: Story = {
   args: { llmUsage: { status: 'unavailable', usage: null } },
 }
+
+/** Voice allowance (D24): narration characters, call minutes and recipe previews left today. Hidden on servers that do not report it. */
+export const WithVoiceUsage: Story = {
+  args: {
+    profile: {
+      ...baseProfile,
+      membership: {
+        ...membership,
+        narration_chars_used: 1840,
+        narration_chars_limit: 2500,
+        call_seconds_used: 150,
+        call_seconds_limit: 180,
+        previews_left: 1,
+      },
+    },
+  },
+}
+
+/** Narration characters spent: the daily-limit copy replaces the count. */
+export const VoiceLimitReached: Story = {
+  args: {
+    profile: {
+      ...baseProfile,
+      membership: {
+        ...membership,
+        narration_chars_used: 2500,
+        narration_chars_limit: 2500,
+        previews_left: 0,
+      },
+    },
+  },
+}

@@ -2,9 +2,12 @@
  * CallTranscriptView — the saved transcript of one past voice call.
  *
  * User lines are STT text only (raw microphone audio is never stored). Character lines
- * additionally play the saved MiniMax TTS via the shared VoiceClipPlayer, fetched as an
+ * additionally play the saved AI voice audio via the shared VoiceClipPlayer, fetched as an
  * authenticated blob (the asset URL is protected). Clips are fetched only once their line
  * nears the viewport, so opening a long call does not download every clip in parallel.
+ *
+ * Character lines are shown without the speech markup the model may write into them
+ * (R1-FE-05; `stripMarkup`, on by default); user lines (STT) render exactly as saved.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -16,12 +19,19 @@ import type { CallSummary, CallTranscriptSegment, Character } from '@/shared'
 import { EmptyState } from '@/ui/components'
 import { VoiceClipPlayer } from '@/ui/components/audio'
 import { Button, Icon, IconTile, PageHeader } from '@/ui/primitives'
+import { stripSpeechMarkupV1 } from '@/shared/voice/speechMarkup'
 import { callDisplay, formatCallDuration, formatCallTime } from '../callTransforms'
 
 interface CallTranscriptViewProps {
     call: CallSummary
     characters: Character[]
     onBack: () => void
+    /** Strip speech markup from the saved character lines (default true). */
+    stripMarkup?: boolean
+}
+
+function lineText(text: string | null | undefined, stripMarkup: boolean): string | null | undefined {
+    return stripMarkup && text ? stripSpeechMarkupV1(text) : text
 }
 
 /** One-shot visibility gate (same approach as the lazy Portrait): flips true once the node nears the viewport. */
@@ -49,7 +59,7 @@ function useNearViewport<T extends Element>(enabled: boolean) {
     return [ref, near] as const
 }
 
-function CharacterTranscriptLine({ segment, speaker }: { segment: CallTranscriptSegment; speaker: string }) {
+function CharacterTranscriptLine({ segment, speaker, stripMarkup }: { segment: CallTranscriptSegment; speaker: string; stripMarkup: boolean }) {
     const { t } = useTranslation()
     const [lineRef, nearViewport] = useNearViewport<HTMLDivElement>(Boolean(segment.audio_url))
     const { src, loading } = useAuthenticatedMediaUrl(nearViewport ? segment.audio_url ?? undefined : undefined, 'audio/mpeg')
@@ -60,7 +70,7 @@ function CharacterTranscriptLine({ segment, speaker }: { segment: CallTranscript
                     <Icon icon={Volume2} size={12} />
                     {speaker}
                 </span>{' '}
-                {segment.text}
+                {lineText(segment.text, stripMarkup)}
             </p>
             {segment.audio_url && (
                 <div className="mt-2">
@@ -90,7 +100,7 @@ function UserTranscriptLine({ segment }: { segment: CallTranscriptSegment }) {
     )
 }
 
-export function CallTranscriptView({ call, characters, onBack }: CallTranscriptViewProps) {
+export function CallTranscriptView({ call, characters, onBack, stripMarkup = true }: CallTranscriptViewProps) {
     const { t } = useTranslation()
     const [segments, setSegments] = useState<CallTranscriptSegment[]>([])
     const [loading, setLoading] = useState(true)
@@ -160,7 +170,7 @@ export function CallTranscriptView({ call, characters, onBack }: CallTranscriptV
                 <div className="flex flex-col gap-2.5">
                     {segments.map((segment) =>
                         segment.role === 'assistant' ? (
-                            <CharacterTranscriptLine key={segment.segment_id} segment={segment} speaker={display.name} />
+                            <CharacterTranscriptLine key={segment.segment_id} segment={segment} speaker={display.name} stripMarkup={stripMarkup} />
                         ) : (
                             <UserTranscriptLine key={segment.segment_id} segment={segment} />
                         ),

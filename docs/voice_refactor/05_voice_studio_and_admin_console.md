@@ -25,9 +25,11 @@ Several topics are owned elsewhere, and this document only summarises and links 
 
 When a BFF route or DTO field is named here but is **not** in 03 §5, it is labelled *proposed*, and 08 or 09 fixes the final name.
 
+**Workspace R1 alignment (2026-10-12).** Re-read against frontend `c7307c6` and backend `f37eefd`. Voice Studio, the preset editor, the catalog picker's catalog tab, previews and the root console stay **account-level** pages (`pageAccess.ts:42-43`: `voice-studio` and `admin-voices` never wait for the workspace handshake). They use the unscoped API client and send no `X-Workspace-Id`. Presets are account-level, so one preset serves every app workspace. Surfaces bound to a card or a session follow that document's workspace: the character editor, the narrator panel, the D36 refresh and the review flags of cards. In an archived workspace they are read-only (§7.9). The rules are 03 D39 and §5.15; the evidence is [research 15](research/15_workspace_r1_impact.md).
+
 **Related**
 - Plan set: [README](README.md) · [01 current state](01_current_state.md) · [02 ElevenLabs capabilities](02_elevenlabs_capabilities.md) · [03 target architecture and decisions](03_target_architecture_and_decisions.md) · [04 voice catalog and library](04_voice_catalog_and_library.md) · [06 chat narration](06_chat_narration_migration.md) · [07 realtime calls](07_realtime_calls_migration.md) · [08 backend plan](08_backend_refactor_plan.md) · [09 frontend plan](09_frontend_refactor_plan.md) · [10 data migration and rollout](10_data_migration_and_rollout.md) · [11 cost, plans and operations](11_cost_plans_and_operations.md) · [12 best practices](12_best_practices_and_improvements.md) · [13 policy, privacy and compliance](13_policy_privacy_and_compliance.md) · [14 staging spike and contract tests](14_staging_spike_and_contract_tests.md) · [15 implementation plan and acceptance](15_implementation_plan_and_acceptance.md) · [16 risks and open questions](16_risks_and_open_questions.md)
-- Primary research: [01 TTS models and API](research/01_elevenlabs_tts_models_and_api.md) · [03 voices, catalog, cloning, design](research/03_elevenlabs_voices_catalog_cloning_design.md) · [07 frontend MiniMax inventory](research/07_frontend_minimax_inventory.md) · [08 voice data model](research/08_voice_data_model_migration_surface.md) · [10 policy and licensing](research/10_gap_policy_licensing.md) · [11 catalog API semantics](research/11_gap_catalog_api_semantics.md) · [12 model and protocol facts](research/12_gap_model_protocol_facts.md) · [13 codebase checks](research/13_gap_codebase_checks.md) · [14 cost model](research/14_cost_model.md)
+- Primary research: [01 TTS models and API](research/01_elevenlabs_tts_models_and_api.md) · [03 voices, catalog, cloning, design](research/03_elevenlabs_voices_catalog_cloning_design.md) · [07 frontend MiniMax inventory](research/07_frontend_minimax_inventory.md) · [08 voice data model](research/08_voice_data_model_migration_surface.md) · [10 policy and licensing](research/10_gap_policy_licensing.md) · [11 catalog API semantics](research/11_gap_catalog_api_semantics.md) · [12 model and protocol facts](research/12_gap_model_protocol_facts.md) · [13 codebase checks](research/13_gap_codebase_checks.md) · [14 cost model](research/14_cost_model.md) · [15 Workspace R1 impact](research/15_workspace_r1_impact.md)
 
 Conventions:
 - Decisions are cited as (D13), spikes as (S-3) and written confirmations as (L-2), all as defined in 03 §6.
@@ -68,6 +70,7 @@ All voice creation (design, remix, cloning, Library add) and all curation (accep
 | P6 | A save never fails because of a voice the user did not touch. The UI never rewrites an untouched voice: V1 values pass through byte-for-byte. | D32, §5.1.2 |
 | P7 | Root actions are explicit, previewed (impact view) and logged in `voice_catalog_event`. | D19, D20 |
 | P8 | Every string goes through i18n with en and es in the same release, and keyboard and screen-reader use are first-class (§9, §10). | D35; [research 07 §11.8](research/07_frontend_minimax_inventory.md#118-hard-coded-english-found-in-the-voice-ui-fix-while-rewriting) |
+| P9 | Account voice pages never take an app workspace; card and session voice controls follow their document's workspace and become read-only when it is archived. | D39, 03 §5.15 |
 
 ### 1.3 Phase map for these screens
 
@@ -376,7 +379,7 @@ const voiceFromPresetV2 = (p: VoicePresetV2): CharacterVoiceV2 => ({
 })
 ```
 
-Applying a preset is a "new pick" under §5.10, so its voice must be eligible (`visibility = public`, or `plan_gated` within the caller's plan). The picker therefore greys out presets whose voice is locked for the caller and shows the `locked` badge. The console warns root not to build global presets on `admin` voices (§8.12).
+Presets are account-level, so the picker's "My presets" tab lists the same presets in every app workspace. The copy is by value, so archiving or copying a card to another workspace never touches the preset, and deleting a preset never changes a card (D39). Applying a preset is a "new pick" under §5.10, so its voice must be eligible (`visibility = public`, or `plan_gated` within the caller's plan). The picker therefore greys out presets whose voice is locked for the caller and shows the `locked` badge. The console warns root not to build global presets on `admin` voices (§8.12).
 
 ### 4.4 V1 → V2 conversion and editing flow (D12)
 
@@ -496,7 +499,7 @@ D05 shows the user setting `user_preferences.narration_tier` in the Studio and i
 - **Plus and Pro.** The description reads "More emotional delivery. Uses 2× narration credits." The switch writes the preferences DTO.
 - **Free.** The switch is disabled, with the upgrade hint `voices.tier.upgradeHint` "Available on Plus and Pro." (*proposed* placement; D05 "Free users get Flash only").
 
-The per-session override lives in the narration panel ([06](06_chat_narration_migration.md)) and is stored in `session_voice_setting`, never in the snapshot (D05).
+The per-session override lives in the narration panel ([06](06_chat_narration_migration.md)) and is stored in `session_voice_setting`, never in the snapshot (D05). The preference is account-level, one value for every app workspace. The session override is written in the session's workspace (`X-Workspace-Id`, `new_work`) and is disabled when that workspace is archived (D39).
 
 ### 5.7 Studio page wireframe
 
@@ -555,7 +558,7 @@ Cost context (as of 2026-10-12): the full preview policy costs about $16/month a
 - When the voice carries an archetype tag (narrator, hero, villain, mentor, companion, creature, noble), an optional per-archetype dialogue line replaces the generic dialogue line.
 - Root curates the texts in the console (§8.3, "Preview scripts").
 - The editor shows the exact text under the player. This serves as a transcript (§10) and shows what is being judged.
-- **Cache-key caveat.** The D18 cache key includes `text_id` but not the text itself. Editing a text therefore needs a new `text_id` value (for example a version suffix), or a purge of the matching `voice_preview_render` rows. Otherwise users hear stale audio. This is an open item for 08 (§12).
+- **Cache-key caveat.** The D18 cache key includes `text_id` but not the text itself. Editing a text therefore needs a new `text_id` value (for example a version suffix), or a purge of the matching `voice_preview_render` rows. Otherwise users hear stale audio. **Decided for R0 ([03 §5.16](03_target_architecture_and_decisions.md) I-4):** the texts are code-owned constants, `text_id` stays the kind (`narration`, `dialogue`, `thought`), and a server `PREVIEW_TEXTS_VERSION` enters the cache key, so an edit bumps it. The console "Preview scripts" editor moves to R1.
 
 ### 6.3 Remaining-count UX
 
@@ -682,8 +685,8 @@ export function useRecipePreview() {
 
 | Entry point | Writes | Notes |
 |---|---|---|
-| Character editor "Choose/Change voice" | `card.voice` (V2) | Hidden for persona cards (D38). `recommended_for = card id` when editing an existing card. |
-| Narrator panel "Change" | `snapshot.narrator_voice` (V2) through `PUT …/template-snapshot` | Untouched cast entries keep their stored V1 values byte-for-byte (D21, D32). The snapshot parser must preserve them ([09](09_frontend_refactor_plan.md)). |
+| Character editor "Choose/Change voice" | `card.voice` (V2) | Hidden for persona cards (D38). `recommended_for = card id` when editing an existing card; the request carries the card's workspace (D39). Disabled inside `ReadOnlyFieldset` when the workspace is archived (already the case today). |
+| Narrator panel "Change" | `snapshot.narrator_voice` (V2) through `PUT …/template-snapshot` | Untouched cast entries keep their stored V1 values byte-for-byte (D21, D32). The snapshot parser must preserve them ([09](09_frontend_refactor_plan.md)). Saved with the session's workspace client, and disabled when that workspace is archived; neither is true today (D39, [09 §4.11](09_frontend_refactor_plan.md)). |
 | Preset editor "Change voice" | preset `voice_key` | Embedded `CatalogVoiceBrowser` (no presets tab) |
 | D36 refresh | not the picker: a server action (§7.8) | — |
 
@@ -791,17 +794,30 @@ Placement notes against the canonical 03 §5.12 inventory:
 | `retired` | "Pick another" (optional) | picker write |
 | `review` (D15 flags) | The notice "This voice used settings the new voice engine doesn't support. Listen and adjust, or pick another voice." with [▶ Listen] [Adjust] [Dismiss] | `POST /voices/review-flags/{id}/dismiss` |
 
-Review flags come from `GET /voices/review-flags`, filtered to undismissed rows. They also appear inline through `effective_voice.flags`. Flags are computed at R1 for cohort users' documents and at R3 for everyone. R5 adds `needs_review` (D15). Persona voices never get flags or badges (D38).
+Review flags come from `GET /voices/review-flags`, filtered to undismissed rows. The list is account-level and spans every app workspace. Each card item carries `organization` and shows a `WorkspaceOriginLabel`; "Adjust" opens the card in its workspace (read-only when archived, where only Listen and Dismiss stay active). Preset items have no origin (D39). They also appear inline through `effective_voice.flags`. Flags are computed at R1 for cohort users' documents and at R3 for everyone. R5 adds `needs_review` (D15). Persona voices never get flags or badges (D38).
 
 **D36 refresh: "Use the card's current voice".**
 - **Where.** The chat or adventure header, and the menu of the "voice replaced" indicator (call header included), shown when the effective voice differs from the source card's current voice.
 - **Character chat.** `POST /character-chats/{id}/voice/refresh`.
 - **Adventure.** `POST /adventure-sessions/{id}/voices/refresh`, with the cast card ids or all of them. The menu lists the affected cast members with checkboxes, pre-selected where a substitution is active. The narrator is changed through the narrator panel, not here.
 - **409 while a stream or call is active.** "Finish the current reply or call first, then try again." The action stays available.
+- **Workspace (D39).** The source card is resolved only in the session's app workspace. A card that was deleted, copied elsewhere or is in another workspace gives 409 `voice_source_unavailable`: "The original card isn't in this workspace anymore." The session keeps its voice. In an archived workspace the action is hidden; the server returns 409 `WORKSPACE_ARCHIVED`.
 - **Success.** Toast "Voice updated". The header indicator disappears once the effective voice matches.
 - **Retry fallback.** If BE cannot exclude voice paths from retry byte-equality, retries of pre-refresh failed turns return `CHAT_RETRY_CONFLICT`. The UI then explains: "This turn was written before the voice change and can't be retried." (D36 fallback.)
 
 Indicator placement in turns and calls is specified in [06](06_chat_narration_migration.md) and [07](07_realtime_calls_migration.md).
+
+### 7.9 App workspaces (D39)
+
+| Surface | Scope | Archived app workspace |
+|---|---|---|
+| Voice Studio, preset editor, recipe preview, catalog browser and samples, tier preference | account | not affected |
+| Character editor voice field and picker | the card's workspace | read-only (`ReadOnlyFieldset`); samples still play |
+| Narrator panel, per-session tier toggle, cast refresh | the session's workspace | read-only; stored voice and badges still shown |
+| Review-flag list | account, with origin per card item | Listen and Dismiss only |
+| Root console | account (root) | — |
+
+A card copied to another workspace keeps its voice object verbatim, including V1 `preset_id`/`preset_name` (Workspace R1 copy). It is a shape-only copy (D32): saving the copy without touching the voice never fails eligibility.
 
 ---
 
@@ -1117,7 +1133,7 @@ LEGAL confirms the SLAs (D19).
   - `el_v3`: stability (S-3 may turn it into a three-stop control).
 - **Common fields:** `output_format`, `language_code`, `seed`, `apply_text_normalization`.
 - **Text.**
-  - A free-text area with a per-model character counter. The maximum comes from `/v1/models`: v4 10,000, v3 5,000, Flash 40,000 (we cap narration at 1,200, but the lab may use the model maximum).
+  - A free-text area with a per-model character counter. The maximum comes from `/v1/models`: v4 10,000, v3 5,000, Flash 40,000 (we cap narration at 1,200, but the lab may use the model maximum). **R0 build:** the lab caps text at 5,000 characters and each model at its profile's `max_chars` (1,200), with only the two app MP3 formats; the SPA reads the limit from capabilities and shows `text_over_model_limit` ([03 §5.16 I-30](03_target_architecture_and_decisions.md)).
   - The two-mode markup toolbar (§3.3).
   - Moderation is fail-closed (D26).
 - **Result.** `VoiceResultCard`: player, download, `request-id`, `character-cost` (S-17), format and duration. "Compare" pins up to 3 results side by side.
@@ -1374,6 +1390,8 @@ Each criterion should be covered by a Vitest + Testing Library test, unless it i
 - **AC-C4.** The narrate-thoughts switch shows the D16 helper text.
 - **AC-C5.** The Calls page "Voice set" badge appears for V1 and V2 voices (`hasAssignedVoice`).
 - **AC-C6.** D36: the header action appears when the effective voice differs from the card's current voice. A 409 shows the busy copy, and success hides the indicator.
+- **AC-C7.** D39: in an archived workspace the voice field, the narrator "Change" action, the tier toggle and the refresh action are disabled or hidden; samples and stored clips still play. The narrator save uses the session's workspace client. `voice_source_unavailable` shows its copy.
+- **AC-C8.** D39: Voice Studio, presets and previews send no `X-Workspace-Id`, and the Studio renders without waiting for the workspace handshake. Review-flag items show their origin.
 
 ### 11.7 Root console
 
@@ -1437,3 +1455,4 @@ Each criterion should be covered by a Vitest + Testing Library test, unless it i
 | 08 §5.3: adopt the console additions A1–A6 (§8.2): replacement candidates, upstream preview, preview-script curation, lab model list, global-preset list with legacy rows, candidate-specific collision count. The console routes themselves are 08 §5.3's names | Catalog manager, Synth lab, Global presets | The fallbacks in the §8.2 table; no other route names are used |
 | 08: preview text versioning versus the D18 cache key (§6.2) | Preview scripts editor | A text edit requires a new `text_id` value |
 | G6: production count of `is_global` presets | Global presets module | Treat as unknown; list read-only |
+| Copy for `voice_source_unavailable` (en/es) | D36 refresh | "The original card isn't in this workspace anymore." |

@@ -5,7 +5,7 @@
  * header, because it lives inside the Begin zone's rhythm.
  */
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { ArrowRight, MessageCircle, Pencil, Phone, Trash2, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Character } from '@/shared'
@@ -22,13 +22,19 @@ export interface CastRailProps {
     onChat: (character: Character) => void
     /** Start a voice call. Only provided when voice mode is enabled. */
     onCall?: (character: Character) => void
+    /**
+     * Calls are switched off for this account right now (capabilities `status`,
+     * 09 §7): the Call buttons stay visible but disabled, with the Calls page copy.
+     */
+    callsUnavailable?: boolean
     onEdit: (character: Character) => void
     onDelete?: (character: Character) => Promise<void> | void
     onViewAll: () => void
 }
 
-export function CastRail({ cast, onChat, onCall, onEdit, onDelete, onViewAll }: CastRailProps) {
+export function CastRail({ cast, onChat, onCall, callsUnavailable = false, onEdit, onDelete, onViewAll }: CastRailProps) {
     const { t } = useTranslation()
+    const callsUnavailableId = useId()
     const [pending, setPending] = useState<Character | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -111,6 +117,9 @@ export function CastRail({ cast, onChat, onCall, onEdit, onDelete, onViewAll }: 
                                             className="min-w-0 flex-1"
                                             iconLeft={<Icon icon={Phone} size={15} />}
                                             onClick={() => onCall(character)}
+                                            disabled={callsUnavailable}
+                                            title={callsUnavailable ? t('call.page.unavailable') : undefined}
+                                            aria-describedby={callsUnavailable ? callsUnavailableId : undefined}
                                         >
                                             {t('landing.cast.call')}
                                         </Button>
@@ -121,6 +130,12 @@ export function CastRail({ cast, onChat, onCall, onEdit, onDelete, onViewAll }: 
                     )
                 }}
             />
+
+            {onCall && callsUnavailable && (
+                <span id={callsUnavailableId} hidden>
+                    {t('call.page.unavailable')}
+                </span>
+            )}
 
             <ConfirmDialog
                 visible={pending !== null}

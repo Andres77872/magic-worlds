@@ -10,6 +10,9 @@ import { useTranslation } from 'react-i18next'
 import { resolveMediaUrl } from '@/infrastructure/api'
 import type { VersionableCardType } from '@/shared'
 import { useCardUsage } from '@/shared/hooks/useCardUsage'
+import { isElevenLabsProjection } from '@/shared/voice'
+import { EffectiveVoiceLabel } from '@/features/voices/components/EffectiveVoiceLabel'
+import { useLeavingVoice } from '@/features/voices/hooks/useLeavingVoice'
 import { Card as DomainCard } from '@/ui/components/lists/Card'
 import { CardUsageLine } from '@/ui/components/common/CardUsageLine'
 import { Badge, Tag } from '@/ui/primitives'
@@ -74,6 +77,22 @@ function CardMetadata({ card, showUsage = false }: { card: CardPreview; showUsag
     )
 }
 
+/**
+ * A character's voice (ElevenLabs projections only). A leaving voice reads
+ * "Leaving on {date}" from its catalog `disable_at` (05 §9.3); the catalog is
+ * read only for a projection badged `leaving`.
+ */
+function CardVoiceLine({ voice }: { voice: NonNullable<CardPreview['voice']> }) {
+    const { t } = useTranslation()
+    const leaving = useLeavingVoice(voice.stored, voice.effective)
+    return (
+        <div className="flex flex-col gap-1" data-testid="card-preview-voice">
+            <span className="font-ui text-[11px] font-semibold uppercase tracking-wide text-parchment-400">{t('creation.character.fieldsForm.voiceLabel')}</span>
+            <EffectiveVoiceLabel stored={voice.stored} effective={voice.effective} badgeContext={{ date: leaving?.disable_at ?? null }} />
+        </div>
+    )
+}
+
 export interface CardPreviewBodyProps {
     card: CardPreview | null
     loading: boolean
@@ -113,6 +132,9 @@ export function CardPreviewBody({
                     <div className="flex flex-col gap-3">
                         {card.description && (
                             <p className="font-narrative text-sm leading-relaxed text-parchment-400">{card.description}</p>
+                        )}
+                        {card.type === 'character' && card.voice && isElevenLabsProjection(card.voice.effective) && (
+                            <CardVoiceLine voice={card.voice} />
                         )}
                         <CardMetadata card={card} showUsage={showUsage} />
                     </div>

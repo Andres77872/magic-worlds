@@ -15,6 +15,7 @@ import { invalidateCardUsage } from '@/shared/hooks/useCardUsage'
 import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import type { CardEditVersion } from '@/features/gallery/galleryLinks'
 import type { CardDraftDocument, CardPublishResult, VersionableCardType } from '@/shared/types/cardVersion.types'
+import { voiceSaveError } from './useCreatorWorkspace'
 
 export interface CardDraftState {
     /** True when a private draft with unpublished edits exists. */
@@ -62,7 +63,12 @@ export interface UseCardDraftApi {
     /** i18n key for the last failed operation, or null. */
     error: string | null
     clearError: () => void
-    saveDraft: (body: unknown) => Promise<boolean>
+    /**
+     * Save the form into the private draft. A voice write refusal (I-36) sets its
+     * `voices.errors.*` key instead of the generic one; `onError` receives the
+     * failure so the editor can offer an action (409 `voice_reload_required`).
+     */
+    saveDraft: (body: unknown, options?: { onError?: (error: unknown) => void }) => Promise<boolean>
     publish: (label?: string) => Promise<CardPublishResult | null>
     discard: () => Promise<CardDraftDocument | null>
     restoreIntoDraft: (versionNumber: number) => Promise<CardDraftDocument | null>
@@ -158,7 +164,7 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded, workspa
     }, [fetchDraft])
 
     const saveDraft = useCallback(
-        async (body: unknown): Promise<boolean> => {
+        async (body: unknown, options?: { onError?: (error: unknown) => void }): Promise<boolean> => {
             if (!cardId || !api) return false
             setSaving(true)
             setError(null)
@@ -166,8 +172,9 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded, workspa
                 const doc = await api.saveCardDraft(cardType, cardId, body)
                 setDraftState(toState(doc))
                 return true
-            } catch {
-                setError('cardVersions.errors.draftSave')
+            } catch (cause) {
+                setError(voiceSaveError(cause)?.key ?? 'cardVersions.errors.draftSave')
+                options?.onError?.(cause)
                 return false
             } finally {
                 setSaving(false)

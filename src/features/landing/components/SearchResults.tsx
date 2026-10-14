@@ -7,6 +7,7 @@
 
 import { ArrowRight, BookOpenText, Gem, Globe, MessageCircle, Phone, Play, SearchX, Swords, UserCircle, Users, Wand2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { Adventure, Character, Item, Story, World } from '@/shared'
@@ -38,6 +39,11 @@ export interface SearchResultsProps {
     onChatCharacter: (character: Character) => void
     /** Start a voice call. Only provided when voice mode is enabled. */
     onCallCharacter?: (character: Character) => void
+    /**
+     * Calls are switched off for this account right now (capabilities `status`,
+     * 09 §7): the Call buttons stay visible but disabled, with the Calls page copy.
+     */
+    callsUnavailable?: boolean
     onEditCharacter: (character: Character) => void
     onEditWorld: (world: World) => void
     onEditItem: (item: Item) => void
@@ -55,6 +61,7 @@ export function SearchResults({
     onBeginTemplate,
     onChatCharacter,
     onCallCharacter,
+    callsUnavailable = false,
     onEditCharacter,
     onEditWorld,
     onEditItem,
@@ -63,6 +70,7 @@ export function SearchResults({
     onViewGallery,
 }: SearchResultsProps) {
     const { t } = useTranslation()
+    const callsUnavailableId = useId()
     if (results.total === 0) {
         return (
             <EmptyState
@@ -111,6 +119,7 @@ export function SearchResults({
                         onBeginTemplate,
                         onChatCharacter,
                         onCallCharacter,
+                        callsUnavailableId: onCallCharacter && callsUnavailable ? callsUnavailableId : null,
                         onEditCharacter,
                         onEditWorld,
                         onEditItem,
@@ -118,6 +127,11 @@ export function SearchResults({
                     })}
                 </section>
             ))}
+            {onCallCharacter && callsUnavailable && (
+                <span id={callsUnavailableId} hidden>
+                    {t('call.page.unavailable')}
+                </span>
+            )}
         </div>
     )
 }
@@ -125,7 +139,10 @@ export function SearchResults({
 type GroupHandlers = Pick<
     SearchResultsProps,
     'onOpenSession' | 'onBeginTemplate' | 'onChatCharacter' | 'onCallCharacter' | 'onEditCharacter' | 'onEditWorld' | 'onEditItem' | 'onOpenStory'
->
+> & {
+    /** Set while calls are switched off: the id of the hidden copy the disabled Call buttons point at. */
+    callsUnavailableId: string | null
+}
 
 function cardGrid(children: React.ReactNode) {
     return <div className={CARD_GRID_CLASS}>{children}</div>
@@ -195,6 +212,9 @@ function renderGroup(group: DashboardSearchGroup, t: TFunction, handlers: GroupH
                                     className="min-w-0 flex-1"
                                     iconLeft={<Icon icon={Phone} size={15} />}
                                     onClick={() => handlers.onCallCharacter!(character)}
+                                    disabled={handlers.callsUnavailableId !== null}
+                                    title={handlers.callsUnavailableId !== null ? t('call.page.unavailable') : undefined}
+                                    aria-describedby={handlers.callsUnavailableId ?? undefined}
                                 >
                                     {t('landing.search.call')}
                                 </Button>

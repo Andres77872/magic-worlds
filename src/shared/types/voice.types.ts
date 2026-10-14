@@ -8,7 +8,24 @@
  * payloads and never through ChatSocket.
  */
 
+import type { EffectiveVoice, VoiceSubstitutionReason } from './voiceCatalog.types'
+
 export type VoiceAudioEncoding = 'audio/wav;codec=pcm_s16le'
+
+/** Assistant MP3 sample rates (D08). */
+export type VoiceAudioSampleRate = 22050 | 24000 | 44100
+
+/**
+ * The assistant audio format a call announces in `voice_ready.audio` (WS-S1):
+ * `audio/mpeg`, `mp3`, 44100, mono. A frame without it (an older BFF build) plays
+ * that default format. Untrusted on read: the playback guard re-checks every field.
+ */
+export interface VoiceAudioFormat {
+    content_type: string
+    codec: string
+    sample_rate: VoiceAudioSampleRate
+    channels: 1
+}
 
 export type VoiceVadSource = 'audio_worklet'
 
@@ -99,7 +116,21 @@ export type VoiceSocketClientFrame =
         capabilities: VoiceClientCapabilities
     }
     | { type: 'voice_resume'; voice_session_id: string; last_segment_seq: number }
-    | { type: 'voice_barge_in'; reason: 'barge_in' }
+    | {
+        type: 'voice_barge_in'
+        reason: 'barge_in'
+        /**
+         * WS-C1: the interrupted turn and how much of it played; sent whenever a
+         * turn was playing. A bare frame (no turn) is still valid.
+         */
+        turn_id?: string
+        played_ms?: number
+    }
+    /**
+     * WS-C2: playback progress of the current turn, at most every 500 ms (R-22).
+     * The server answers nothing.
+     */
+    | { type: 'voice_playback'; turn_id: string; played_ms: number }
     | { type: 'voice_end'; reason: 'user' }
     | { type: 'voice_ping'; voice_session_id?: string }
 
@@ -122,6 +153,8 @@ export type VoiceEndReason =
     | 'idle_timeout'
     | 'max_duration'
     | 'server_shutdown'
+    /** WS-S5: an operator restriction or a safety pause ended the call. */
+    | 'voice_restricted'
 
 export type VoiceCancelReason = 'barge_in' | 'end_call' | 'superseded' | 'provider_disconnected'
 
@@ -132,6 +165,14 @@ export type VoiceSocketServerFrame =
         server_time_ms: number
         limits: VoiceCallLimits
         upload_url: string
+        /** WS-S1: the assistant audio format. Optional on read (an older BFF build): mp3 44.1 kHz is assumed. */
+        audio?: VoiceAudioFormat
+        /** WS-S1: the voice the call speaks with (strict `EffectiveVoice`). */
+        effective_voice?: EffectiveVoice
+        /** WS-S1: the card voice's name when it was replaced (REPLACED_REASONS only), else null. */
+        original_voice_name?: string | null
+        /** WS-S1 provenance (R-5). The AI voice label never reads it (P-10). */
+        ai_voice?: boolean
     }
     | {
         type: 'voice_state_snapshot'
@@ -167,14 +208,40 @@ export type VoiceSocketServerFrame =
         turn_id: string
         seq: number
         content_type: 'audio/mpeg'
-        sample_rate: 32000
+        /** Optional on read so frames from older BFF builds still parse. */
+        codec?: 'mp3'
+        sample_rate: VoiceAudioSampleRate
         channels: 1
         data_b64: string
         is_final: false
+        /** Per-voice loudness gain in dB, attenuation only (D16); optional on read (older BFF builds). */
+        gain_db?: number | null
+        substitution_reason?: VoiceSubstitutionReason | null
     }
     | { type: 'voice_audio_final'; voice_session_id: string; turn_id: string; last_seq: number }
-    | { type: 'voice_turn_end'; voice_session_id: string; turn_id: string; status: 'completed' | 'interrupted' | 'failed'; partial: boolean; duration_ms: number }
-    | { type: 'voice_cancelled'; voice_session_id: string; turn_id?: string; reason: VoiceCancelReason }
+    | {
+        type: 'voice_turn_end'
+        voice_session_id: string
+        turn_id: string
+        status: 'completed' | 'interrupted' | 'failed'
+        partial: boolean
+        duration_ms: number
+        /** WS-S3: the reply was cut where playback stopped. */
+        truncated?: boolean
+        played_ms?: number | null
+        /** Characters of the reply kept (≥ 1); present only when `truncated`. */
+        kept_chars?: number
+    }
+    | {
+        type: 'voice_cancelled'
+        voice_session_id: string
+        turn_id?: string
+        reason: VoiceCancelReason
+        /** WS-S4: a post-end ElevenLabs truncation of the turn. */
+        truncated?: boolean
+        kept_chars?: number
+        played_ms?: number | null
+    }
     | { type: 'voice_error'; category: VoiceErrorCategory; code?: string; message: string; retry_after_seconds?: number; fatal?: boolean }
     | { type: 'voice_ended'; voice_session_id: string; reason: VoiceEndReason }
     | { type: 'voice_pong'; voice_session_id?: string }
@@ -189,7 +256,16 @@ export interface VoiceSegmentUploadRequest {
     sample_rate: number
     channels: 1
     audio_sha256: string
-    vad: VoiceSegmentVadMetadata & { source: VoiceVadSource; aggressiveness: VoiceVadAggressiveness }
+    vad: VoiceSegmentVadMetadata & {
+        source: VoiceVadSource
+        aggressiveness: VoiceVadAggressiveness
+        /**
+         * R0-BE-37: whole ms (0..120000) from the user's end of speech (the last voiced audio,
+         * so the VAD silence hang-over is included) to the upload's send, on the client clock.
+         * Absent for a max-length cut (see `speechEndLag.ts`).
+         */
+        speech_end_lag_ms?: number
+    }
     audio: Blob
 }
 

@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Character, CharacterChatSession } from '@/shared'
+import { apiService } from '@/infrastructure/api'
+import { toVoiceCapabilities } from '@/shared/voice/voiceCapabilities'
 import { ChatroomPage } from './ChatroomPage'
 import { createWorkspaceTestState, TEST_WORKSPACE_ID, testWorkspace, WorkspaceTestProvider } from '@/shared/hooks/testing/workspaceTestUtils'
 
@@ -73,6 +75,8 @@ beforeEach(() => {
     startCharacterChat.mockReset().mockResolvedValue(undefined)
     loadData.mockReset().mockResolvedValue(undefined)
     vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
+    // Call availability reads the capabilities; no network in tests, and a failed read fails open.
+    vi.spyOn(apiService, 'getVoiceCapabilities').mockRejectedValue(new Error('offline'))
 })
 
 async function renderChatroom() {
@@ -93,6 +97,7 @@ function selectNewChat(characterName = 'Lyra', personaName = 'Rowan') {
 afterEach(() => {
     vi.clearAllMocks()
     vi.unstubAllEnvs()
+    vi.restoreAllMocks()
 })
 
 describe('ChatroomPage', () => {
@@ -148,12 +153,53 @@ describe('ChatroomPage', () => {
     it('resumes an existing chat in voice mode when the flag is enabled', async () => {
         vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
         await renderChatroom()
+        // The availability read failed (offline): calls stay available.
+        await waitFor(() => expect(apiService.getVoiceCapabilities).toHaveBeenCalled())
 
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))
         fireEvent.click(await screen.findByRole('menuitem', { name: 'Start voice call' }))
 
         expect(resumeCharacterChat).toHaveBeenCalledWith(CHATS[0], { mode: 'voice' })
         expect(setPage).toHaveBeenCalledWith('character-chat')
+    })
+
+    it('hides the call start while calls are switched off (calls_available false, 09 §7)', async () => {
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        const read = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(toVoiceCapabilities({
+            surfaces: {},
+            status: { narration_available: true, calls_available: false, auto_narration_paused: false },
+        })!)
+        await renderChatroom()
+        await waitFor(() => expect(read).toHaveBeenCalled())
+        await act(async () => { await Promise.resolve() })
+
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))
+
+        expect(await screen.findByRole('menuitem', { name: 'Resume chat' })).toBeInTheDocument()
+        expect(screen.queryByRole('menuitem', { name: 'Start voice call' })).not.toBeInTheDocument()
+        expect(resumeCharacterChat).not.toHaveBeenCalled()
+        expect(setPage).not.toHaveBeenCalled()
+
+        // Resuming the chat in text still works.
+        fireEvent.click(screen.getByRole('button', { name: 'Resume chat: Lyra' }))
+        expect(resumeCharacterChat).toHaveBeenCalledWith(CHATS[0])
+    })
+
+    it('fails open on a capabilities read without calls_available', async () => {
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        const read = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(toVoiceCapabilities({
+            surfaces: {},
+            status: { narration_available: false },
+        })!)
+        await renderChatroom()
+        await waitFor(() => expect(read).toHaveBeenCalled())
+        await act(async () => { await Promise.resolve() })
+
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))
+        fireEvent.click(await screen.findByRole('menuitem', { name: 'Start voice call' }))
+
+        expect(resumeCharacterChat).toHaveBeenCalledWith(CHATS[0], { mode: 'voice' })
+        expect(screen.queryByText('Voice calls are unavailable right now. Try again later.')).not.toBeInTheDocument()
     })
 
     it('hides voice-call actions for group chats when the flag is enabled', async () => {

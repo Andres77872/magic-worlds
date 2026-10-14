@@ -19,6 +19,7 @@ import { WorkspaceOriginLabel } from '@/ui/components/WorkspaceOriginLabel'
 import { readWorldPlaceType, worldPlaceTypeLabel } from '@/shared'
 import { transformCharacters, transformItems, transformTemplates, transformWorlds } from '@/utils/cardTransforms'
 import { formatApiDateTime, formatRelativeTime } from '@/utils/time'
+import { narrationErrorKey } from '@/features/interaction/utils/narrationQueue'
 import { AudioWavePlayer } from '@/ui/components/audio'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
@@ -95,6 +96,24 @@ function targetTypeLabel(type: BackgroundTaskPublic['target']['type'], t: TFunct
 function attachedCardLabel(task: BackgroundTaskPublic, t: TFunction): string {
     const name = task.target.display_name || task.target.id
     return t('tasksDrawer.attached.label', { type: targetTypeLabel(task.target.type, t), name })
+}
+
+/**
+ * Copy for a task's error. Narration jobs carry the public voice codes
+ * (03 §5.8; 09 §4.5): each known code gets its localized line, the same one
+ * the narrated turn shows. `content_blocked` arrives as the category of a job
+ * that the task list folds into `failed`. Everything else shows the server's
+ * detail.
+ */
+function taskErrorCopy(task: BackgroundTaskPublic, t: TFunction): string | null {
+    const error = task.error
+    if (!error) return null
+    if (task.operation === 'text_to_speech') {
+        if (error.code === 'content_blocked' || error.category === 'content_blocked') return t('tasksDrawer.errors.contentBlocked')
+        const key = narrationErrorKey({ category: error.category, detail: error.detail, code: error.code })
+        if (key) return t(key)
+    }
+    return error.detail || null
 }
 
 function taskTitle(task: BackgroundTaskPublic, t: TFunction): string {
@@ -534,6 +553,7 @@ function TaskRow({
     const duration = formatDuration(audioAsset?.duration_ms)
     const format = audioAsset?.output_format?.toUpperCase()
     const cardLabel = attachedCardLabel(task, t)
+    const errorCopy = taskErrorCopy(task, t)
     const regionId = `task-detail-${task.operation}-${task.task_id}`
 
     return (
@@ -627,8 +647,8 @@ function TaskRow({
                                 className="py-2"
                             />
                         )}
-                        {task.error?.detail && (
-                            <Callout tone="danger" icon={<Icon icon={AlertCircle} size={14} />}>{task.error.detail}</Callout>
+                        {errorCopy && (
+                            <Callout tone="danger" icon={<Icon icon={AlertCircle} size={14} />}>{errorCopy}</Callout>
                         )}
                         {task.status === 'pending' && task.cancel_url && (
                             <Button variant="secondary" size="sm" className="self-start" onClick={onCancel}>

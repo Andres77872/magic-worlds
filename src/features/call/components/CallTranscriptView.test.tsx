@@ -86,6 +86,32 @@ describe('CallTranscriptView', () => {
         expect(requestedMedia.filter(Boolean)).toEqual([])
     })
 
+    it('strips speech markup from character lines by default (R1-FE-05)', async () => {
+        getVoiceCallTranscript.mockResolvedValue({
+            call: CALL,
+            segments: [
+                { segment_id: 's0', seq: 0, role: 'user', text: 'Did you (laughs)?' },
+                { segment_id: 's1', seq: 0, role: 'assistant', text: 'Well <#0.5#> met (laughs), traveller.' },
+            ],
+        })
+        render(<CallTranscriptView call={CALL} characters={[]} onBack={vi.fn()} />)
+
+        expect(await screen.findByText(/Well met, traveller\./)).toBeInTheDocument()
+        expect(screen.queryByText(/<#0\.5#>/)).toBeNull()
+        // User lines are STT text: they render as transcribed.
+        expect(screen.getByText(/Did you \(laughs\)\?/)).toBeInTheDocument()
+    })
+
+    it('renders saved lines exactly as stored with stripMarkup off', async () => {
+        getVoiceCallTranscript.mockResolvedValue({
+            call: CALL,
+            segments: [{ segment_id: 's1', seq: 0, role: 'assistant', text: 'Well <#0.5#> met (laughs), traveller.' }],
+        })
+        render(<CallTranscriptView call={CALL} characters={[]} onBack={vi.fn()} stripMarkup={false} />)
+
+        expect(await screen.findByText(/Well <#0\.5#> met \(laughs\), traveller\./)).toBeInTheDocument()
+    })
+
     it('shows an empty state when the call has no transcript', async () => {
         getVoiceCallTranscript.mockResolvedValue({ call: CALL, segments: [] })
         render(<CallTranscriptView call={CALL} characters={[]} onBack={vi.fn()} />)

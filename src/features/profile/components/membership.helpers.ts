@@ -11,6 +11,7 @@ export const OPERATION_LABELS: Record<string, string> = {
     theme_song_generation: 'Theme songs',
     tts_generation: 'TTS',
     voice_call: 'Call mode',
+    voice_preview: 'Voice previews',
     lorebook_resource_extraction: 'Resource metadata',
 }
 

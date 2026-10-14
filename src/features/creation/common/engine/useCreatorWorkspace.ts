@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWorkspace, type WorkspaceScopeCapture } from '@/app/hooks/useWorkspace'
-import { apiService, isWorkspaceApiError, type ApiService } from '@/infrastructure/api'
+import { ApiError, apiService, isWorkspaceApiError, type ApiService } from '@/infrastructure/api'
 import {
     initialCollectionIds as originCollectionIds,
     useCreationOrigin,
@@ -22,6 +22,8 @@ import {
 import { organizationWorkspaceId } from '@/shared/hooks/useScopedApi'
 import { isWorkspaceArchived } from '@/shared/hooks/useWorkspaceReadOnly'
 import type { CardOrganization, RootOrganization } from '@/shared/types/workspace.types'
+import { voiceWriteErrorKey } from '@/shared/voice/voiceWriteErrors'
+import { voiceWriteErrorCode } from '@/features/voices/voiceWriteError'
 
 export interface CreatorWorkspaceApi {
     /** The captured destination of a new card; null before the workspace handshake. */
@@ -117,4 +119,41 @@ export function workspaceSaveErrorKey(error: unknown): string | null {
     if (isWorkspaceApiError(error, 'COLLECTION_NOT_FOUND')) return 'workspaceContent.saveErrors.collectionMissing'
     if (isWorkspaceApiError(error, 'WORKSPACE_ARCHIVED')) return 'workspaceContent.saveErrors.archived'
     return null
+}
+
+/** The R5 write contract's stale-editor refusal (HTTP 409, R5-BE-01). */
+export const VOICE_RELOAD_REQUIRED = 'voice_reload_required'
+
+/** A save the voice write rules refused (I-36; R5-BE-01). */
+export interface VoiceSaveError {
+    /** Copy key of the message (`voices.errors.*`). */
+    key: string
+    /**
+     * 409 `voice_reload_required` only: the Reload action (label key plus the
+     * caller's refetch of the card or draft). The stored voice changed since the
+     * editor loaded it (the R5 rewrite), so saving again cannot succeed.
+     */
+    action: { labelKey: string; run: () => void } | null
+}
+
+/**
+ * Copy for a save refused by the voice write rules; null when the error is not one.
+ * 409 `voice_reload_required` → `voices.errors.reloadRequired` with the
+ * `voices.errors.reloadAction` action running `reload` (refetch the card or
+ * draft; no action without one). 422 voice codes map through `voiceWriteErrorKey`.
+ */
+export function voiceSaveError(error: unknown, reload?: () => void): VoiceSaveError | null {
+    if (!(error instanceof ApiError)) return null
+    const code = voiceWriteErrorCode(error)
+    if (!code) return null
+    if (code === VOICE_RELOAD_REQUIRED) {
+        if (error.status !== 409) return null
+        return {
+            key: 'voices.errors.reloadRequired',
+            action: reload ? { labelKey: 'voices.errors.reloadAction', run: reload } : null,
+        }
+    }
+    if (error.status !== 422) return null
+    const key = voiceWriteErrorKey(code)
+    return key ? { key, action: null } : null
 }

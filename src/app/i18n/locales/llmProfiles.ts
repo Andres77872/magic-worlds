@@ -85,7 +85,7 @@ export const llmProfilesEn = {
     features: { card_generation: 'Card generation', card_assistant: 'Card assistant', novel: 'Novel writing', chat_adventure: 'Adventure chat',
         chat_character: 'Character chat', chat_group: 'Group chat', lorebook_assistant: 'Lorebook assistant', lorebook_extraction: 'Lorebook extraction',
         image_prompt: 'Image prompt writing', theme_song_writer: 'Theme song writing', callbot: 'Voice conversation',
-        app_assistant: 'App assistant' },
+        app_assistant: 'App assistant', moderation: 'Speech moderation' },
     capabilities: { chat: 'Chat', streaming: 'Streaming', tools: 'Tool calling', json: 'JSON output', json_schema: 'Structured output (JSON schema)', vision: 'Image input', reasoning: 'Reasoning', agent: 'Agent' },
     page: {
         rootEyebrow: 'Root console',
@@ -287,7 +287,7 @@ export const llmProfilesEs = {
     features: { card_generation: 'Generación de tarjetas', card_assistant: 'Asistente de tarjetas', novel: 'Escritura de novelas', chat_adventure: 'Chat de aventura',
         chat_character: 'Chat de personaje', chat_group: 'Chat de grupo', lorebook_assistant: 'Asistente de lorebook', lorebook_extraction: 'Extracción de lorebook',
         image_prompt: 'Escritura de prompts de imagen', theme_song_writer: 'Escritura de canciones', callbot: 'Conversación de voz',
-        app_assistant: 'Asistente de la app' },
+        app_assistant: 'Asistente de la app', moderation: 'Moderación de voz' },
     capabilities: { chat: 'Chat', streaming: 'Streaming', tools: 'Llamadas a herramientas', json: 'Salida JSON', json_schema: 'Salida estructurada (esquema JSON)', vision: 'Entrada de imagen', reasoning: 'Razonamiento', agent: 'Agente' },
     page: {
         rootEyebrow: 'Consola root',

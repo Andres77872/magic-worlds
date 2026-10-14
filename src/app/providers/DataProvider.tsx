@@ -105,8 +105,18 @@ interface DataContextValue {
     deleteTemplateById: (id: string) => Promise<void>
     editInProgress: (adventure: Adventure) => void
     deleteInProgress: (index: number) => Promise<void>
-    /** Persist an edit to an adventure's cloned-card snapshot (its own copy only). */
-    saveInProgressSnapshot: (adventureId: string, snapshot: AdventureSnapshot) => Promise<void>
+    /**
+     * Persist an edit to an adventure's cloned-card snapshot (its own copy only).
+     * `api` is the session's workspace client (Workspace R1); without it the
+     * committed workspace's client is used.
+     */
+    saveInProgressSnapshot: (adventureId: string, snapshot: AdventureSnapshot, api?: ApiService | null) => Promise<void>
+    /**
+     * "Use the card's current voice" for an adventure (R1, EP-2): re-resolves the
+     * cast voices of `cardIds` (null: every cast card) on the session's client and
+     * stores the returned session snapshot. Refusals reject.
+     */
+    refreshAdventureVoices: (adventureId: string, cardIds: string[] | null, api?: ApiService | null) => Promise<void>
 
     // Lorebooks
     lorebooks: Lorebook[]
@@ -156,6 +166,8 @@ interface DataContextValue {
     addCharacterChatCodexCards: (chatId: string, cards: Array<{ kind: CharacterChatCodexCardKind; cardId: string }>) => Promise<CharacterChatSession>
     toggleCharacterChatCodexCard: (chatId: string, codexCardId: string, enabled: boolean) => Promise<CharacterChatSession>
     removeCharacterChatCodexCard: (chatId: string, codexCardId: string) => Promise<CharacterChatSession>
+    /** "Use the card's current voice" for a 1:1 chat (R1, EP-2): stores the returned chat. Refusals reject. */
+    refreshCharacterChatVoice: (chatId: string, api?: ApiService | null) => Promise<CharacterChatSession>
     deleteCharacterChat: (id: string) => Promise<void>
 
     // UI State
@@ -639,7 +651,7 @@ export function DataProvider({ children }: DataProviderProps) {
         setEditingInProgress(adventure)
     }
 
-    const saveInProgressSnapshot = async (adventureId: string, snapshot: AdventureSnapshot) => {
+    const saveInProgressSnapshot = async (adventureId: string, snapshot: AdventureSnapshot, api?: ApiService | null) => {
         if (!isAdventuresFeatureEnabled()) throw disabledFeatureError('Adventures')
         if (!isAuthenticated) {
             openLoginModal()
@@ -653,9 +665,12 @@ export function DataProvider({ children }: DataProviderProps) {
         }
         // Persist to this adventure's own snapshot — never the library/template card.
         const writableSnapshot = writableAdventureSnapshot(snapshot)
-        const response = await requireApi().updateAdventureSnapshot(Number(adventureId), writableSnapshot)
-        const persistedSnapshot = resolveAdventureSnapshot(response?.template_snapshot) ?? writableSnapshot
+        const response = await (api ?? requireApi()).updateAdventureSnapshot(Number(adventureId), writableSnapshot)
+        applyPersistedSnapshot(adventureId, resolveAdventureSnapshot(response?.template_snapshot) ?? writableSnapshot)
+    }
 
+    /** Store a session's persisted snapshot (and the fields derived from it) on the adventure lists. */
+    const applyPersistedSnapshot = (adventureId: string, persistedSnapshot: AdventureSnapshot) => {
         const fields = adventureFieldsFromSnapshot(persistedSnapshot)
         const patch = (adv: Adventure): Adventure =>
             adv.id === adventureId
@@ -671,6 +686,19 @@ export function DataProvider({ children }: DataProviderProps) {
                 : adv
         setInProgressAdventures((prev) => prev.map(patch))
         setEditingInProgress((prev) => (prev && prev.id === adventureId ? patch(prev) : prev))
+    }
+
+    const refreshAdventureVoices = async (adventureId: string, cardIds: string[] | null, api?: ApiService | null) => {
+        if (!isAdventuresFeatureEnabled()) throw disabledFeatureError('Adventures')
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to refresh adventure voices')
+        }
+        const response = await (api ?? requireApi()).refreshAdventureVoices(Number(adventureId), cardIds)
+        // The stored snapshot keeps its read-only projections for display; every
+        // echo strips them (`writableAdventureSnapshot` and the API write, D35).
+        const snapshot = resolveAdventureSnapshot((response as RawAdventureSession | null | undefined)?.template_snapshot)
+        if (snapshot) applyPersistedSnapshot(adventureId, snapshot)
     }
 
     const editLorebook = (lorebook: Lorebook) => {
@@ -1085,6 +1113,15 @@ export function DataProvider({ children }: DataProviderProps) {
                 codexCards: activeCharacterChat.codexCards?.filter((card) => card.id !== codexCardId) })
         }
         const updated = await requireApi().deleteCharacterChatCodexCard(Number(chatId), codexCardId)
+        return upsertCharacterChat(normalizeCharacterChat(updated, characters))
+    }
+
+    const refreshCharacterChatVoice = async (chatId: string, api?: ApiService | null): Promise<CharacterChatSession> => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            throw new Error('Login required to refresh the chat voice')
+        }
+        const updated = await (api ?? requireApi()).refreshChatVoice(Number(chatId))
         return upsertCharacterChat(normalizeCharacterChat(updated, characters))
     }
 
@@ -1515,6 +1552,7 @@ export function DataProvider({ children }: DataProviderProps) {
         editInProgress,
         deleteInProgress,
         saveInProgressSnapshot,
+        refreshAdventureVoices,
 
         lorebooks,
         setLorebooks,
@@ -1556,6 +1594,7 @@ export function DataProvider({ children }: DataProviderProps) {
         addCharacterChatCodexCards,
         toggleCharacterChatCodexCard,
         removeCharacterChatCodexCard,
+        refreshCharacterChatVoice,
         deleteCharacterChat,
 
         loadingState,

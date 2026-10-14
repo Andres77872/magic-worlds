@@ -41,6 +41,8 @@ export interface VoiceCallSocketApi {
     socketStatus: VoiceSocketStatus
     start: (frame: VoiceStartFrame) => void
     bargeIn: (frame: VoiceBargeInFrame) => boolean
+    /** WS-C2 playback progress (R-32). Optional so test doubles without it stay valid. */
+    playback?: (turnId: string, playedMs: number) => boolean
     /** Record the highest uploaded segment seq (sent in `voice_resume`). */
     noteSegmentSeq: (seq: number) => void
     end: () => boolean
@@ -157,6 +159,7 @@ export function useVoiceCallSocket(
     }, [])
 
     const bargeIn = useCallback((frame: VoiceBargeInFrame) => socketRef.current?.sendBargeIn(frame) ?? false, [])
+    const playback = useCallback((turnId: string, playedMs: number) => socketRef.current?.sendPlayback(turnId, playedMs) ?? false, [])
     const noteSegmentSeq = useCallback((seq: number) => socketRef.current?.noteSegmentSeq(seq), [])
     const end = useCallback(() => {
         pendingStartRef.current = null
@@ -167,5 +170,5 @@ export function useVoiceCallSocket(
         socketRef.current?.close()
     }, [])
 
-    return { socketStatus, start, bargeIn, noteSegmentSeq, end, close }
+    return { socketStatus, start, bargeIn, playback, noteSegmentSeq, end, close }
 }

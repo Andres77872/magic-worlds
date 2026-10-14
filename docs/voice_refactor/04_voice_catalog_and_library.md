@@ -9,13 +9,16 @@ This document designs the ElevenLabs voice **catalog** for magic-worlds. It cove
 
 The Voice Studio, presets and root console screens are in [05](05_voice_studio_and_admin_console.md). Narration and call synthesis are in [06](06_chat_narration_migration.md) and [07](07_realtime_calls_migration.md). The module-level plans are [08](08_backend_refactor_plan.md) (backend) and [09](09_frontend_refactor_plan.md) (frontend). The data rewrite is in [10](10_data_migration_and_rollout.md) and the legal texts are in [13](13_policy_privacy_and_compliance.md). This document links to them rather than repeating them.
 
-**Related:** [README](README.md) · [03 decision record](03_target_architecture_and_decisions.md) (source of truth) · [01 current state](01_current_state.md) · [02 ElevenLabs capabilities](02_elevenlabs_capabilities.md) · [05](05_voice_studio_and_admin_console.md) · [06](06_chat_narration_migration.md) · [07](07_realtime_calls_migration.md) · [08](08_backend_refactor_plan.md) · [09](09_frontend_refactor_plan.md) · [10](10_data_migration_and_rollout.md) · [11](11_cost_plans_and_operations.md) · [12](12_best_practices_and_improvements.md) · [13](13_policy_privacy_and_compliance.md) · [14](14_staging_spike_and_contract_tests.md) · [15](15_implementation_plan_and_acceptance.md) · [16](16_risks_and_open_questions.md) · research [03](research/03_elevenlabs_voices_catalog_cloning_design.md), [08](research/08_voice_data_model_migration_surface.md), [10](research/10_gap_policy_licensing.md), [11](research/11_gap_catalog_api_semantics.md), [13](research/13_gap_codebase_checks.md), [14](research/14_cost_model.md)
+**Related:** [README](README.md) · [03 decision record](03_target_architecture_and_decisions.md) (source of truth) · [01 current state](01_current_state.md) · [02 ElevenLabs capabilities](02_elevenlabs_capabilities.md) · [05](05_voice_studio_and_admin_console.md) · [06](06_chat_narration_migration.md) · [07](07_realtime_calls_migration.md) · [08](08_backend_refactor_plan.md) · [09](09_frontend_refactor_plan.md) · [10](10_data_migration_and_rollout.md) · [11](11_cost_plans_and_operations.md) · [12](12_best_practices_and_improvements.md) · [13](13_policy_privacy_and_compliance.md) · [14](14_staging_spike_and_contract_tests.md) · [15](15_implementation_plan_and_acceptance.md) · [16](16_risks_and_open_questions.md) · research [03](research/03_elevenlabs_voices_catalog_cloning_design.md), [08](research/08_voice_data_model_migration_surface.md), [10](research/10_gap_policy_licensing.md), [11](research/11_gap_catalog_api_semantics.md), [13](research/13_gap_codebase_checks.md), [14](research/14_cost_model.md), [15](research/15_workspace_r1_impact.md)
 
 **Conventions.**
 - Decisions are cited as (D09), staging spikes as (S-11) and pending written confirmations from ElevenLabs as (L-2), all as defined in [03 §3, §6](03_target_architecture_and_decisions.md).
 - A fact that still depends on a spike or a legal answer carries its id and is never stated as certain.
 - Prices, plan limits and model facts are **as of 2026-10-12**.
 - Text marked **(proposal)** is a detail this document adds where 03 is silent. It does not contradict 03, and every proposal is listed in §15.3 for confirmation.
+- **"Workspace" has two meanings.** In §3, §6.7 and §13, "workspace" is the **ElevenLabs** account workspace (voices, slots, webhooks). The app's own personal workspaces (Workspace R1) are written "app workspace" here.
+
+**Workspace R1 alignment (2026-10-12).** Re-read against backend `f37eefd` (content schema `2026_10_workspace_r1`). The catalog is **global**: no catalog table, sample, acceptance row, default or legacy mapping carries an app workspace, and the catalog routes take no workspace selector. Only three things touch app workspaces: `recommended_for` reads a card in its workspace (§12.2), `voice_reference` rows for cards point at workspace-scoped documents (§5.6), and the effective-voice projection follows the document's workspace (§12.3). The rules are 03 D39 and §5.15; the evidence is [research 15](research/15_workspace_r1_impact.md).
 
 ---
 
@@ -343,6 +346,8 @@ Notes:
 | `voice_review_flag`, `voice_migration_audit` | Review flags and rewrite audit | D15, D21 | [10](10_data_migration_and_rollout.md) |
 | `voice_preset` v2 | Presets on catalog voices | D12 | [05](05_voice_studio_and_admin_console.md), [03 §5.3](03_target_architecture_and_decisions.md) |
 
+**App workspace (D39).** None of these tables has a `workspace_id`. The catalog, samples, acceptance, defaults and mappings are global; presets stay account-level as in Workspace R1. Only `voice_review_flag` carries the flagged card's workspace (null for presets), per 03 §5.2. `voice_reference` stays root-only analytics without it: `ref_id` is unique across workspaces, because `tb_card.card_id` is the table's primary key.
+
 ### 5.2 Canonical DDL (copied verbatim from 03 §5.2)
 
 Catalog core:
@@ -558,7 +563,7 @@ The write service and the console enforce these rules **(proposal)**. DATA may l
 |---|---|
 | I-1 | `draft` and `failed` rows always have `visibility = admin`. |
 | I-2 | `status = active` with `visibility ∈ {public, plan_gated}` requires all of: `call_eligible = 1`; a `pass` row on `eleven_flash_v2_5` for every published language; a `showcase` sample per accepted (language, tier); `replacement_voice_key` set; and the source policy satisfied (§3.1, L-2). |
-| I-3 | `replacement_voice_key` ≠ `voice_key`. Its target is `active`, `visibility = public` (not `plan_gated`, so every owner can switch to it), `call_eligible = 1`, the same `primary_language`, the same gender, and the same age bucket where one exists. Owned targets are preferred, and two-cycles are rejected. |
+| I-3 | `replacement_voice_key` ≠ `voice_key`. Its target is `active`, `visibility = public` (not `plan_gated`, so every owner can switch to it), `call_eligible = 1`, the same `primary_language`, the same gender, and the same age bucket where one exists. Owned targets are preferred, and two-cycles are rejected. R0 build: the target may also have `visibility = admin` (§5.4), and before L-2 it must be owned ([03 §5.16 I-29](03_target_architecture_and_decisions.md)). |
 | I-4 | `source_kind ∈ {library_perpetual, library_noticed, pvc_shared}` ⇒ `library_voice_id`, `public_owner_id`, `terms_at_add` and `added_at` are not null. |
 | I-5 | `uses_custom_slot = 1` ⇔ `source_kind ∈ {designed, remixed, ivc}`. |
 | I-6 | Only the sync jobs write `provider_name`, `provider_labels`, `notice_period_days`, `disable_at`, `sharing_status`, `safety_control`, `last_seen_at` and `missing_sync_count`. Only root writes `display_name`, `description`, `tags`, `visibility`, `min_plan`, `sort_rank` and `replacement_voice_key`. |
@@ -619,6 +624,8 @@ Eligibility for a pick: `status = active` (not `hidden`, `deprecating`, `removed
 | Aspect | Rule |
 |---|---|
 | Write on save (D19) | Card, draft and version saves (`card`, `card_draft`, `card_version`); preset saves (`preset`); adventure-template cast copies (`template_cast`); snapshot narrator or cast changes and D36 refreshes (`session_snapshot`). The write deletes the row for the old `voice_key` at the same `ref_id` and upserts the new one. |
+| Copies (D39) | Workspace R1's "copy to workspace" ([workspace_copy.py:112-123](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/workspace_copy.py)) and the public clone copy `props.voice` verbatim. The copy transaction writes no `voice_reference` row and is not changed by this plan; the nightly scan picks the new card up. A copy is a D32 shape-only copy, so an impact view can lag one scan behind a copy. |
+| Archived app workspaces | Their cards stay referenced and counted. Archive changes nothing in impact counts or the delete guard. |
 | `ref_id` format (proposal) | `card_id`; `card_id:version`; `preset_id`; `template_id:cast_index`; `session_id:json_path`. Each fits `varchar(128)`. |
 | Nightly scan | Rebuilds every `ref_type`, **frozen snapshots included** (D19), by inserting missing rows and deleting stale ones. It runs under its own lease, `GET_LOCK('voice_reference_scan', 0)`, because it is long and DB-heavy **(proposal)**. |
 | V1 values (proposal) | Counted under the voice key they resolve to through an `approved` mapping, so impact views include legacy references during R1–R5. Unmapped V1 values are counted in a separate "unmapped" report for DATA. |
@@ -1095,7 +1102,7 @@ Renders are stored as `voice_sample_asset` rows with `kind=acceptance`. The side
 - a `pass` on `eleven_flash_v2_5` **and** on the narration model `eleven_v4` (D06 item 7: "passes the acceptance rubric on both");
 - `consistency_vs_v4 ≥ 4` on the Flash row (D09).
 
-**(proposal, P-13)** The same must hold in every language the voice is published in. Publishing requires `call_eligible = 1` (D06), so every catalog pick sounds like itself in calls. Eligibility is recomputed on every acceptance write; a re-acceptance that fails clears it and writes an event.
+**(proposal, P-13; adopted by the R0 build, [03 §5.16 I-28](03_target_architecture_and_decisions.md))** The same must hold in every language the voice is published in. Publishing requires `call_eligible = 1` (D06), so every catalog pick sounds like itself in calls. Eligibility is recomputed on every acceptance write; a re-acceptance that fails clears it and writes an event.
 
 The `not_call_eligible` substitution remains only for references that can still point at a non-eligible voice: legacy mappings made before a voice lost eligibility, root-assigned admin voices, and revoked eligibility (D06 item 7). S-15 (an R1 exit spike, [03 §6.3](03_target_architecture_and_decisions.md)) confirms the Flash/v4 consistency at scale. If it leaves fewer eligible voices than the launch target, the owner decides at R0 exit whether to publish non-eligible voices with a "Not available in calls: uses {replacement}" badge and a "Works in calls" filter (D06).
 
@@ -1225,10 +1232,10 @@ Item DTO:
 | Envelope (proposal) | `{"items": [Item DTO…], "next_cursor": "<opaque>" \| null}` plus an `ETag` header holding the catalog version (§9.4). The SPA revalidates with `If-None-Match`, and the response is 304 when nothing changed. |
 | Cursor (proposal) | Opaque base64 of the last item's sort tuple: `(sort_rank, display_name, voice_key)`, or `(score, sort_rank, display_name, voice_key)` under `recommended_for`. An invalid cursor → 422. |
 | Filter backing | `language`: a row in `voice_catalog_language`. `accent`: `voice_catalog.accent` or the language row's `accent`. `gender`, `age`: catalog columns. `tags`: any-of over `tags`. `use_case`: `provider_labels.use_case` or a `use_case:*` tag **(proposal)**. `works_in_calls`: `call_eligible = 1`. `q`: `FULLTEXT(display_name, description)` in natural-language mode, with a `LIKE` fallback for tokens shorter than InnoDB's minimum token size. At a few hundred rows, filtering JSON columns in-process after an indexed prefilter on `idx_voice_catalog_public` is acceptable. |
-| `recommended_for` (proposal) | Requires read access to the card (owner, or a public card); otherwise 404. Score per voice:<br>- **+3 per tag overlap.** The card's tags are its `category[].name` values ([character.py:51](/home/andres/PycharmProjects/magic-worlds-api/src/models/character.py), [category.py:6-9](/home/andres/PycharmProjects/magic-worlds-api/src/models/category.py); free text such as "Warrior"). They are mapped to voice tags through a root-curated synonym table, for example `warrior → hero`, `lich → villain, creature`.<br>- **+2** when the voice is accepted in the card's last turn language (else the caller's `preferred_language`).<br>- **+1 each** for gender and age, only when the card's current voice or tags carry them (D35).<br>Ties use the stable order. LLM-extracted traits are a later idea [research 03 §12.5](research/03_elevenlabs_voices_catalog_cloning_design.md). |
+| `recommended_for` (proposal) | Requires read access to the card (owner, or a public card); otherwise 404. An owned card is read in its app workspace: the request must carry `X-Workspace-Id` (422 `WORKSPACE_REQUIRED` without it), and a card in another workspace is 404, as Workspace R1 does for every private root (D39, 03 §5.15). An archived workspace can be read. A public card needs no selector. The catalog list itself stays account-level. Score per voice:<br>- **+3 per tag overlap.** The card's tags are its `category[].name` values ([character.py:51](/home/andres/PycharmProjects/magic-worlds-api/src/models/character.py), [category.py:6-9](/home/andres/PycharmProjects/magic-worlds-api/src/models/category.py); free text such as "Warrior"). They are mapped to voice tags through a root-curated synonym table, for example `warrior → hero`, `lich → villain, creature`.<br>- **+2** when the voice is accepted in the card's last turn language (else the caller's `preferred_language`).<br>- **+1 each** for gender and age, only when the card's current voice or tags carry them (D35).<br>Ties use the stable order. LLM-extracted traits are a later idea [research 03 §12.5](research/03_elevenlabs_voices_catalog_cloning_design.md). |
 | `?keys=` batch | ≤ 100 keys; no filters; the same item shape. It returns rows with `status ∈ {active, hidden, deprecating, removed, blocked}`, including `admin`-visibility rows (users may hear them as defaults, mapping targets or replacements). It **never returns `draft` or `failed` rows**, which are simply omitted **(proposal for "voices the caller references", [03 §5.12](03_target_architecture_and_decisions.md))**. Keys are random 128-bit values, and the DTO contains display data only. |
 | Taxonomy v1 (proposal) | **Role tags**: `narrator`, `hero`, `villain`, `mentor`, `companion`, `creature`, `noble` (the D09 and D18 archetypes). **Timbre tags**: `warm`, `deep`, `bright`, `soft`, `gravelly`, `raspy`, `ethereal`, `regal`. **Genre tags**: `fantasy`, `scifi`, `horror`, `modern`. i18n keys are `voices.tag.*` (en and es). |
-| Errors | 422 on invalid filters, more than 100 keys or `limit > 50`; 404 on an unreadable `recommended_for` card |
+| Errors | 422 on invalid filters, more than 100 keys or `limit > 50`; 422 `WORKSPACE_REQUIRED` on an owned `recommended_for` card without a selector; 404 on an unreadable `recommended_for` card (including one in another app workspace) |
 | Cost | DB only. No provider call on any of these routes (D10). |
 
 ### 12.3 Effective voice (from R1)
@@ -1236,7 +1243,8 @@ Item DTO:
 - Every stored voice in card, preset, snapshot and character-chat **read** DTOs carries `effective_voice`, computed by the resolver for the **caller's** provider route (D35, R1).
   - **Cohort users** see the mapped ElevenLabs voice, flags and substitution reason.
   - **Non-cohort users** see the stored MiniMax voice, with `voice_key: null` and `provider_route: "minimax"`.
-- `GET /voices/effective?ref_type=&ref_id=` returns the same projection for one document.
+- `GET /voices/effective?ref_type=&ref_id=` returns the same projection for one document. `ref_type=preset` takes no selector (presets are account-level); `card`, `card_draft`, `card_version` and `session` take `X-Workspace-Id` and resolve the document in that workspace only (404 otherwise). Archived workspaces can be read (D39).
+- The projection is computed from the stored document only. It never reads a card in another app workspace, and it never carries `organization` (that stays a separate read field, Workspace R1).
 - `flags` come from undismissed `voice_review_flag` rows (D15). `badges` derive from §5.4 and §11.
 - On a cohort user's **first exposure**, the one-time `first_exposure` notice explains the change.
 - **The SPA shows the effective name and plays the effective sample**, so users see what they hear, even while their live documents are still V1 (until R5). The FE helpers `hasAssignedVoice`, `voiceIdentity` and `isSameVoice`, and the CI grep gate on `.voice_id`, replace V1-keyed checks such as `hasVoice` ([CallsPage.tsx:25-27](/home/andres/WebstormProjects/magic-worlds/src/features/call/components/CallsPage.tsx)) and `presetMatchesVoice` ([VoicePickerDialog.tsx:35](/home/andres/WebstormProjects/magic-worlds/src/features/voices/components/VoicePickerDialog.tsx)); see [09](09_frontend_refactor_plan.md).
@@ -1387,10 +1395,11 @@ Budget rules:
 | P-10 | Showcase text = the D18 narration text; `text_id` carries a version | §7.2, §7.5 | Owner (preview copy) |
 | P-11 | `voice_preview_render` retention of 90 days; revocation purge covers samples and renders | §7.5, §8.8 | LEGAL and BE |
 | P-12 | Slot pre-flight margin of < 2 free slots; capacity alert thresholds | §6.4, §6.8 | Ops |
-| P-13 | Per-language reading of `call_eligible` (primary language plus every published language) | §10.6 | Owner |
+| P-13 | Per-language reading of `call_eligible` (primary language plus every published language). Adopted by the R0 build (03 §5.16 I-28); the owner may relax it at R0 exit. | §10.6 | Owner |
 | P-14 | `gain_db` lookup by (voice, model, effective language), falling back to the primary language | §4.3 | BE |
 | P-15 | IVC voices are not public before L-2 without owner sign-off and a consent scope covering public use (D09's safe default names only designed voices and owned remixes) | §3.1 | Owner and LEGAL |
 | P-16 | Scheduled sync runs skip on a held lease; on-demand single-voice Job B runs are queued | §6.5 | BE |
+| P-17 | `recommended_for` and card-level effective voice follow Workspace R1's selector rules; copies are picked up by the nightly scan, not the copy transaction | §5.6, §12.2, §12.3 | Applied in 03 §5.15 (D39) |
 
 ---
 

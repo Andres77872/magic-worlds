@@ -12,6 +12,7 @@ import {
     WorkspaceTestProvider,
     type WorkspaceTestState,
 } from '@/shared/hooks/testing/workspaceTestUtils'
+import { clearVoiceCapabilitiesCache, toVoiceCapabilities } from '@/shared/voice/voiceCapabilities'
 import { InteractionCenterPanel } from './InteractionCenterPanel'
 
 vi.mock('../../../infrastructure/api/useAuthenticatedMediaUrl', () => ({
@@ -100,6 +101,8 @@ describe('InteractionCenterPanel message deletion', () => {
         hookMocks.pageFocused = true
         // The session-lore hook lists attachments on mount; keep it empty + offline-safe.
         vi.spyOn(apiService, 'listLorebookAttachments').mockResolvedValue([])
+        // Narration availability reads the capabilities; offline reads fail open.
+        vi.spyOn(apiService, 'getVoiceCapabilities').mockRejectedValue(new Error('offline'))
         // A plain failed turn is spent on the server, so Retry starts a new request.
         vi.spyOn(apiService, 'reconcileChatTurn').mockImplementation(async (_basePath, _sessionId, requestId) => {
             const send = hookMocks.useAdventureChatSocket.mock.results[hookMocks.useAdventureChatSocket.mock.results.length - 1]?.value.sendChat
@@ -1172,6 +1175,57 @@ describe('InteractionCenterPanel message deletion', () => {
             expect(screen.getByTestId('chat-read-only')).toHaveTextContent('This workspace is archived.')
         })
 
+        it('keeps stored narration playable but stops requesting it in an archived workspace', () => {
+            workspace = createWorkspaceTestState({
+                api: apiService,
+                workspaces: [
+                    testWorkspace(TEST_WORKSPACE_ID, 'Main library'),
+                    testWorkspace(OTHER_WORKSPACE_ID, 'Novel A', { archived_at: '2026-10-02T00:00:00Z' }),
+                ],
+            })
+            const narrated: TurnEntry[] = [
+                ...initialTurns,
+                { id: '102', type: 'user', content: 'Listen', timestamp: '2026-06-04T00:00:02' },
+                {
+                    id: '103',
+                    type: 'ai',
+                    content: 'A song drifts in.',
+                    timestamp: '2026-06-04T00:00:03',
+                    assistantMessageId: 103,
+                    turnId: 'turn-3',
+                    ttsSegments: [{ segment_index: 0, status: 'completed', job_id: 'tts-103', url: '/tts/assets/asset-103.mp3' }],
+                },
+            ]
+            renderPanel(makeConfig({ workspaceId: OTHER_WORKSPACE_ID }), narrated)
+
+            // Only the stored clip offers Play; the turn without audio offers nothing to request.
+            expect(screen.getAllByRole('button', { name: 'Play narration' })).toHaveLength(1)
+            expect(screen.getByText('AI voice')).toBeInTheDocument()
+        })
+
+        it('offers narration requests in an active workspace', () => {
+            renderPanel(makeConfig())
+            expect(screen.getByRole('button', { name: 'Play narration' })).toBeInTheDocument()
+        })
+
+        it('shows the archived notice for a workspace_archived narration refusal', async () => {
+            const handlers = captureHandlers()
+            renderPanel(makeConfig())
+            act(() => handlers.current.onTtsFailed?.({
+                type: 'tts_failed',
+                adventure_id: 7,
+                assistant_message_id: 101,
+                turn_id: 'turn-1',
+                job_id: null,
+                status: 'invalid',
+                error: { category: 'invalid', detail: 'Workspace archived.', code: 'workspace_archived', retryable: false },
+            }))
+
+            expect(await screen.findByTestId('chat-read-only')).toHaveTextContent('This workspace is archived. Restore it to continue the conversation.')
+            expect(screen.queryByText(/Narration failed/)).toBeNull()
+            expect(screen.queryByRole('button', { name: 'Play narration' })).toBeNull()
+        })
+
         it('passes the session workspace to the socket and keeps it after a switch', () => {
             const view = renderPanel(makeConfig())
             expect(hookMocks.useAdventureChatSocket).toHaveBeenLastCalledWith(7, expect.any(Object), 'token', 'adventure-sessions', undefined, TEST_WORKSPACE_ID)
@@ -1181,5 +1235,247 @@ describe('InteractionCenterPanel message deletion', () => {
             // The hook closes it because the session's workspace is no longer selected; it never moves.
             expect(hookMocks.useAdventureChatSocket).toHaveBeenLastCalledWith(7, expect.any(Object), 'token', 'adventure-sessions', undefined, TEST_WORKSPACE_ID)
         })
+    })
+})
+
+describe('InteractionCenterPanel narration allowance (D24)', () => {
+    beforeEach(() => {
+        localStorage.clear()
+        vi.restoreAllMocks()
+        workspace = createWorkspaceTestState({ api: apiService })
+        hookMocks.pageFocused = true
+        vi.spyOn(apiService, 'listLorebookAttachments').mockResolvedValue([])
+        // Auto-narrate also reads the capabilities (pause flag); keep it offline.
+        vi.spyOn(apiService, 'getVoiceCapabilities').mockRejectedValue(new Error('offline'))
+        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', sendChat: vi.fn(), sendTts: vi.fn(), cancel: vi.fn() })
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
+    })
+
+    function profileWith(voiceUsage: Record<string, number> | null) {
+        // Flat on the membership (03 §5.16 I-1).
+        return { membership: { plan_code: 'free', ...voiceUsage } } as unknown as Awaited<ReturnType<typeof apiService.getUserProfile>>
+    }
+
+    it('reads nothing while narration is not in use', () => {
+        const getUserProfile = vi.spyOn(apiService, 'getUserProfile').mockResolvedValue(profileWith(null))
+        renderPanel(makeConfig())
+        expect(getUserProfile).not.toHaveBeenCalled()
+        expect(screen.queryByTestId('narration-allowance')).not.toBeInTheDocument()
+    })
+
+    it('shows the characters left while auto-narrate is on', async () => {
+        localStorage.setItem('test:autonarrate:7', '1')
+        vi.spyOn(apiService, 'getUserProfile').mockResolvedValue(profileWith({ narration_chars_used: 500, narration_chars_limit: 2500 }))
+        renderPanel(makeConfig())
+
+        expect(await screen.findByTestId('narration-allowance')).toHaveTextContent('2,000 narration characters left today')
+    })
+
+    it('shows the daily-limit copy once the characters run out', async () => {
+        localStorage.setItem('test:autonarrate:7', '1')
+        vi.spyOn(apiService, 'getUserProfile').mockResolvedValue(profileWith({ narration_chars_used: 2500, narration_chars_limit: 2500 }))
+        renderPanel(makeConfig())
+
+        expect(await screen.findByTestId('narration-allowance')).toHaveTextContent('Daily voice limit reached. Narration resumes tomorrow.')
+    })
+
+    it('stays hidden on a server without the usage fields', async () => {
+        localStorage.setItem('test:autonarrate:7', '1')
+        const getUserProfile = vi.spyOn(apiService, 'getUserProfile').mockResolvedValue(profileWith(null))
+        renderPanel(makeConfig())
+
+        await waitFor(() => expect(getUserProfile).toHaveBeenCalled())
+        expect(screen.queryByTestId('narration-allowance')).not.toBeInTheDocument()
+    })
+})
+
+describe('InteractionCenterPanel auto-narration pause (D37)', () => {
+    type Handlers = import('../hooks/useAdventureChatSocket').AdventureChatHandlers
+
+    beforeEach(() => {
+        localStorage.clear()
+        vi.restoreAllMocks()
+        clearVoiceCapabilitiesCache()
+        workspace = createWorkspaceTestState({ api: apiService })
+        hookMocks.pageFocused = true
+        vi.spyOn(apiService, 'listLorebookAttachments').mockResolvedValue([])
+        vi.spyOn(apiService, 'getUserProfile').mockResolvedValue({ membership: { plan_code: 'free' } } as unknown as Awaited<ReturnType<typeof apiService.getUserProfile>>)
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
+        localStorage.setItem('test:autonarrate:7', '1')
+    })
+
+    function capabilities(status?: Record<string, boolean>) {
+        return toVoiceCapabilities({ surfaces: { narration: {} }, ...(status ? { status } : {}) })!
+    }
+
+    function captureSocket() {
+        const ref: { current: Handlers } = { current: {} }
+        const sendChat = vi.fn()
+        const sendTts = vi.fn()
+        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: Handlers) => {
+            ref.current = h
+            return { status: 'open', sendChat, sendTts, cancel: vi.fn() }
+        })
+        return { handlers: ref, sendChat, sendTts }
+    }
+
+    async function finishTurn(socket: ReturnType<typeof captureSocket>) {
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Open the gate' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        await waitFor(() => expect(socket.sendChat).toHaveBeenCalledOnce())
+        act(() => {
+            socket.handlers.current.onTurnStarted?.({ type: 'turn_started', user_message_id: 200, assistant_message_id: 201, turn_id: 'turn-2' })
+            socket.handlers.current.onDelta?.('The gate creaks.')
+            socket.handlers.current.onDone?.({ interrupted: false, userMessageId: 200, assistantMessageId: 201, turnId: 'turn-2' })
+        })
+    }
+
+    it('auto-narrates a finished turn when the server reports no pause (status absent: fail open)', async () => {
+        const getCapabilities = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(capabilities())
+        const socket = captureSocket()
+        renderPanel(makeConfig())
+        await waitFor(() => expect(getCapabilities).toHaveBeenCalled())
+
+        await finishTurn(socket)
+
+        expect(socket.sendTts).toHaveBeenCalledWith(201, 'turn-2', expect.any(String))
+        expect(screen.queryByTestId('auto-narration-paused')).toBeNull()
+    })
+
+    it('skips the auto request and shows the notice while capabilities report auto_narration_paused', async () => {
+        vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(capabilities({ auto_narration_paused: true }))
+        const socket = captureSocket()
+        renderPanel(makeConfig())
+
+        expect(await screen.findByTestId('auto-narration-paused')).toHaveTextContent('Auto-narration is paused for now. You can still play turns.')
+        await finishTurn(socket)
+
+        expect(socket.sendTts).not.toHaveBeenCalled()
+        // Manual play still requests narration.
+        fireEvent.click(screen.getAllByRole('button', { name: 'Play narration' })[0])
+        expect(socket.sendTts).toHaveBeenCalledWith(101, 'turn-1', expect.any(String))
+    })
+
+    it('treats a tts_failed auto_narration_paused refusal as a pause, not a failure', async () => {
+        vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(capabilities())
+        const socket = captureSocket()
+        renderPanel(makeConfig())
+
+        act(() => socket.handlers.current.onTtsFailed?.({
+            type: 'tts_failed',
+            adventure_id: 7,
+            assistant_message_id: 101,
+            turn_id: 'turn-1',
+            job_id: null,
+            status: 'unavailable',
+            error: { category: 'unavailable', detail: 'Auto-narration is paused.', code: 'auto_narration_paused', retryable: false },
+        }))
+
+        expect(await screen.findByTestId('auto-narration-paused')).toBeInTheDocument()
+        expect(screen.queryByRole('alert')).toBeNull()
+        expect(screen.queryByText(/Narration failed/)).toBeNull()
+        // The refused turn stays playable by hand, not marked failed.
+        expect(screen.getByRole('button', { name: 'Play narration' })).toBeInTheDocument()
+
+        await finishTurn(socket)
+        expect(socket.sendTts).not.toHaveBeenCalled()
+    })
+
+    it('reports a tapped request refused with auto_narration_paused as a failure, not a silent pause', async () => {
+        vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(capabilities())
+        const socket = captureSocket()
+        renderPanel(makeConfig())
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'Play narration' })[0])
+        expect(socket.sendTts).toHaveBeenCalledWith(101, 'turn-1', expect.any(String))
+        act(() => socket.handlers.current.onTtsFailed?.({
+            type: 'tts_failed',
+            adventure_id: 7,
+            assistant_message_id: 101,
+            turn_id: 'turn-1',
+            job_id: null,
+            status: 'unavailable',
+            error: { category: 'unavailable', detail: 'Auto-narration is paused.', code: 'auto_narration_paused', retryable: false },
+        }))
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Narration failed: Auto-narration is paused.')
+        expect(screen.queryByTestId('auto-narration-paused')).toBeNull()
+        // The pending spinner is rolled back so the turn can be tried again.
+        expect(screen.getAllByRole('button', { name: 'Play narration' })[0]).toBeInTheDocument()
+    })
+
+    it('keeps the pause live region mounted so a mid-session pause is announced', async () => {
+        vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(capabilities())
+        const socket = captureSocket()
+        renderPanel(makeConfig())
+
+        const region = screen.getByTestId('auto-narration-status')
+        expect(region).toHaveAttribute('role', 'status')
+        expect(region).toHaveAttribute('aria-live', 'polite')
+        expect(region).toBeEmptyDOMElement()
+
+        act(() => socket.handlers.current.onTtsFailed?.({
+            type: 'tts_failed',
+            adventure_id: 7,
+            assistant_message_id: 101,
+            turn_id: 'turn-1',
+            job_id: null,
+            status: 'unavailable',
+            error: { category: 'unavailable', detail: 'Auto-narration is paused.', code: 'auto_narration_paused', retryable: false },
+        }))
+
+        expect(await screen.findByTestId('auto-narration-paused')).toBeInTheDocument()
+        expect(screen.getByTestId('auto-narration-status')).toBe(region)
+        expect(region).toContainElement(screen.getByTestId('auto-narration-paused'))
+    })
+
+    it('shows no pause notice while auto-narrate is off', async () => {
+        localStorage.setItem('test:autonarrate:7', '0')
+        // Read for narration availability (09 §7); the pause flag itself is ignored.
+        const getCapabilities = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(capabilities({ auto_narration_paused: true }))
+        captureSocket()
+        renderPanel(makeConfig())
+
+        await waitFor(() => expect(getCapabilities).toHaveBeenCalled())
+        await act(async () => {})
+        expect(screen.queryByTestId('auto-narration-paused')).toBeNull()
+        expect(screen.queryByTestId('auto-narration-status')).toBeNull()
+        expect(screen.queryByTestId('narration-unavailable')).toBeNull()
+    })
+
+    it('disables narrate with copy and requests nothing while narration is unavailable', async () => {
+        vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(capabilities({ narration_available: false, calls_available: true }))
+        const socket = captureSocket()
+        renderPanel(makeConfig())
+
+        // The live region is mounted before the switch-off lands, so the notice is announced.
+        const region = screen.getByTestId('narration-availability-status')
+        expect(region).toHaveAttribute('role', 'status')
+        expect(region).toBeEmptyDOMElement()
+        expect(await screen.findByTestId('narration-unavailable')).toHaveTextContent('Narration is unavailable right now. Saved narration still plays.')
+        expect(screen.getByTestId('narration-availability-status')).toBe(region)
+        expect(region).toContainElement(screen.getByTestId('narration-unavailable'))
+        const button = screen.getByRole('button', { name: 'Narration is unavailable right now' })
+        expect(button).toBeDisabled()
+        expect(screen.queryByRole('button', { name: 'Play narration' })).toBeNull()
+        fireEvent.click(button)
+        // The pause notice does not stack on top of the unavailable one.
+        expect(screen.queryByTestId('auto-narration-paused')).toBeNull()
+
+        await finishTurn(socket)
+        expect(socket.sendTts).not.toHaveBeenCalled()
+    })
+
+    it('fails open: a capabilities response without narration_available keeps narrate enabled', async () => {
+        localStorage.setItem('test:autonarrate:7', '0')
+        const getCapabilities = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(capabilities({ calls_available: false }))
+        const socket = captureSocket()
+        renderPanel(makeConfig())
+
+        await waitFor(() => expect(getCapabilities).toHaveBeenCalled())
+        await act(async () => {})
+        expect(screen.queryByTestId('narration-unavailable')).toBeNull()
+        fireEvent.click(screen.getByRole('button', { name: 'Play narration' }))
+        expect(socket.sendTts).toHaveBeenCalledWith(101, 'turn-1', expect.any(String))
     })
 })

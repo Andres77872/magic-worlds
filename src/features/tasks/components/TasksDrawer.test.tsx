@@ -143,6 +143,53 @@ describe('TasksDrawer', () => {
         expect(screen.queryByRole('button',{name:/Attached card:/})).toBeNull()
     })
 
+    describe('narration error codes (09 §4.5)', () => {
+        function failedNarration(id: string, error: BackgroundTaskPublic['error']): BackgroundTaskPublic {
+            return { ...task('failed', id), operation: 'text_to_speech', title: 'Narration', target: { type: 'media', id },
+                cancel_url: null, result: null, error }
+        }
+
+        it.each([
+            ['voice_unavailable', 'unavailable', 'This voice isn’t available right now.'],
+            ['moderation_unavailable', 'unavailable', 'Narration is briefly unavailable. Try again.'],
+            ['attestation_required', 'unavailable', 'Confirm your age and accept the terms to use voice features'],
+            ['content_blocked', 'content_blocked', 'This reply can’t be narrated because of its content.'],
+            ['workspace_archived', 'invalid', 'This workspace is archived. Restore it to continue the conversation.'],
+            ['daily_limit_reached', 'quota_exceeded', 'Daily voice limit reached. Narration resumes tomorrow.'],
+        ])('shows localized copy for %s instead of the raw detail', async (code, category, copy) => {
+            renderDrawer({ active: [], completed: [], failed: [failedNarration(`tts-${code}`, { category, code, detail: `raw ${code} detail` })] })
+            fireEvent.click(await screen.findByRole('button', { name: /failed\s*1/i }))
+
+            expect(screen.getByText(copy)).toBeInTheDocument()
+            expect(screen.queryByText(`raw ${code} detail`)).toBeNull()
+        })
+
+        it('reads a content_blocked job folded into failed by its category', async () => {
+            renderDrawer({ active: [], completed: [], failed: [failedNarration('tts-blocked', { category: 'content_blocked', detail: 'Blocked upstream.' })] })
+            fireEvent.click(await screen.findByRole('button', { name: /failed\s*1/i }))
+
+            expect(screen.getByText('This reply can’t be narrated because of its content.')).toBeInTheDocument()
+        })
+
+        it('keeps the server detail for unknown narration codes and for other operations', async () => {
+            renderDrawer({ active: [], completed: [], failed: [
+                failedNarration('tts-odd', { category: 'failed', code: 'something_new', detail: 'Narration failed upstream.' }),
+                { ...task('failed', 'song-1'), error: { category: 'unavailable', code: 'voice_unavailable', detail: 'Song service is down.' } },
+            ] })
+            fireEvent.click(await screen.findByRole('button', { name: /failed\s*2/i }))
+
+            expect(screen.getByText('Narration failed upstream.')).toBeInTheDocument()
+            expect(screen.getByText('Song service is down.')).toBeInTheDocument()
+        })
+
+        it('localizes the narration copy in Spanish', async () => {
+            renderDrawerSpanish({ active: [], completed: [], failed: [failedNarration('tts-es', { category: 'unavailable', code: 'moderation_unavailable', detail: 'raw' })] })
+            fireEvent.click(await screen.findByRole('button', { name: /Fallidas\s*1/i }))
+
+            expect(screen.getByText('La narración no está disponible por un momento. Inténtalo de nuevo.')).toBeInTheDocument()
+        })
+    })
+
     it('labels image generation without song progress text', async () => {
         const image: BackgroundTaskPublic = { ...task('in_progress','image-task'),operation:'image_generation',
             title:'Image generation',target:{type:'media',id:'image-task'},cancel_url:null,result:null }

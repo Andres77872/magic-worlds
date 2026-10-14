@@ -5,10 +5,14 @@ import { DataContext } from '@/app/providers/DataProvider'
 import { NavigationProvider } from '@/app/providers/NavigationProvider'
 import { FloatingWindowsProvider } from '@/app/providers/FloatingWindowsProvider'
 import { BackgroundTasksContext, type BackgroundTasksContextValue } from '@/app/providers/backgroundTasksContext'
-import { apiService, ChatSocket } from '@/infrastructure/api'
+import { WorkspaceContext } from '@/app/providers/workspaceContext'
+import { createWorkspaceTestState } from '@/shared/hooks/testing/workspaceTestUtils'
+import { ApiError, apiService, ChatSocket } from '@/infrastructure/api'
 import { adventures, characters, characterChats, worlds } from '@/ui/components/lists/fixtures'
 import { libraryCardToSnapshotCard } from '@/features/interaction/utils/adventureSnapshot'
-import type { AdminVoiceGroups, Adventure, CallSummary, VoicePreset } from '@/shared'
+import type { Adventure, CallSummary, CatalogQuery, PreviewTextsResponse, VoicePresetV2 } from '@/shared'
+import { CAPABILITIES_EL_PLUS, CATALOG_ELDRIN, CATALOG_MAREN_HOUSE, CATALOG_PAGE, REVIEW_FLAG_CARD } from '@/features/voices/fixtures'
+import * as voiceConsole from './voices/fixtures'
 
 export type AuditState = 'populated' | 'empty' | 'loading' | 'error' | 'signed-out' | 'restricted'
 type AuthValue = NonNullable<ComponentProps<typeof AuthContext.Provider>['value']>
@@ -24,15 +28,15 @@ export const auditAdventure: Adventure = {
         world: [libraryCardToSnapshotCard(worlds[0], 'world')],
     } },
 }
-export const auditVoices: AdminVoiceGroups = {
-    system: [{ voice_id: 'English_Warm_Narrator', voice_type: 'system', voice_name: 'Warm narrator', description: ['A measured English storyteller.'], deletable: false }],
-    voice_generation: [{ voice_id: 'archive_keeper', voice_type: 'voice_generation', voice_name: 'Archive keeper', description: ['Soft-spoken and curious.'], deletable: true }],
-    voice_cloning: [{ voice_id: 'courier_voice', voice_type: 'voice_cloning', voice_name: 'Courier', description: ['A calm messenger.'], deletable: true }],
-}
-export const auditPresets: VoicePreset[] = [
-    { preset_id: '1', name: 'The patient storyteller', description: 'Warm, unhurried narration for long scenes.', base_voice_id: 'English_Warm_Narrator', base_voice_name: 'Warm narrator', speed: .9, volume: 1, pitch: -1, emotion: 'calm', language_boost: 'English', is_global: true },
-    { preset_id: '2', name: 'My courier', description: 'A brisk, curious voice.', base_voice_id: 'English_Warm_Narrator', base_voice_name: 'Warm narrator', speed: 1.1, volume: 1, pitch: 1, is_global: false },
+export const auditPresets: VoicePresetV2[] = [
+    { preset_id: '1', name: 'The patient storyteller', description: 'Warm, unhurried narration for long scenes.', voice_key: CATALOG_MAREN_HOUSE.voice_key, voice_name: CATALOG_MAREN_HOUSE.display_name, settings: { stability: 0.6, similarity_boost: 0.75, speed: 0.9 }, emotion: 'calm', language_code: 'en', is_global: true, schema_version: 2, provider: 'elevenlabs' },
+    { preset_id: '2', name: 'My courier', description: 'A brisk, curious voice.', voice_key: CATALOG_ELDRIN.voice_key, voice_name: CATALOG_ELDRIN.display_name, settings: { speed: 1.1 }, emotion: null, language_code: null, is_global: false, schema_version: 2, provider: 'elevenlabs' },
 ]
+const auditPreviewTexts: PreviewTextsResponse = { items: [
+    { text_id: 'narration', kind: 'narration', text: 'Rain taps the leaded glass as the courier waits for an answer.' },
+    { text_id: 'dialogue', kind: 'dialogue', text: '"Read it twice. The ink fades by morning."' },
+    { text_id: 'thought', kind: 'thought', text: 'Whoever sealed this letter knew my name.' },
+] }
 export const auditCall: CallSummary = { voice_session_id: 'preview-call', chat_id: 90002, character_card_id: characters[0].id, character_name: characters[0].name, duration_seconds: 192, segment_count: 2, started_at: '2026-09-18T18:00:00Z', status: 'ended' }
 const codeGrant = { code_id: 1, label: 'Storyteller welcome', credits: 250, status: 'active' as const, expires_at: null, claimed_by_user_id: null, claimed_at: null, created_by_user_id: 9, reason: 'Preview grant', created_at: '2026-09-01T00:00:00Z', updated_at: null }
 const emailGrant = { ...codeGrant, grant_id: 2, email: 'reader@example.com', email_delivery_status: 'sent' }
@@ -60,8 +64,25 @@ export function installPlayAdminAuditApi(state: AuditState = 'populated') {
     }
     const empty = state === 'empty'
     Object.assign(target, {
-        listSystemVoices: () => load({ groups: empty ? { system: [], voice_generation: [], voice_cloning: [] } : auditVoices }),
-        listAdminVoices: () => load({ groups: empty ? { system: [], voice_generation: [], voice_cloning: [] } : auditVoices }),
+        // Workspace-scoped clients answer from the same offline fakes.
+        withWorkspace: () => apiService,
+        getVoiceCapabilities: () => load(CAPABILITIES_EL_PLUS),
+        // Synchronous like the real cache peek: the async catch-all would hand useVoiceCapabilities a Promise.
+        peekVoiceCapabilities: () => null,
+        listVoiceCatalog: (filters: CatalogQuery = {}) => {
+            const q = (filters.q ?? '').trim().toLowerCase()
+            const items = empty ? [] : CATALOG_PAGE.filter((voice) => !q || voice.display_name.toLowerCase().includes(q))
+            return load({ items, next_cursor: null })
+        },
+        getVoiceCatalogByKeys: (keys: readonly string[]) => load(CATALOG_PAGE.filter((voice) => keys.includes(voice.voice_key))),
+        listVoiceReviewFlags: () => load({ items: empty ? [] : [REVIEW_FLAG_CARD] }),
+        getPreviewTexts: () => load(auditPreviewTexts),
+        listAdminCatalog: () => load({ items: empty ? [] : voiceConsole.auditCatalogVoices, next_cursor: null, summary: null }),
+        getVoiceLimits: () => load(voiceConsole.auditLimits),
+        getRuntimeSettings: () => load({ items: [] }),
+        listAdminGlobalPresets: () => load(empty ? { items: [] } : voiceConsole.auditGlobalPresets),
+        // A4 does not exist yet: the synth lab falls back to the R0 model list.
+        listAdminLabModels: async () => Promise.reject(new ApiError(404, 'Not Found')),
         listVoicePresets: () => load(empty ? [] : auditPresets),
         getRecentVoiceCalls: () => load({ items: empty ? [] : [auditCall] }),
         getVoiceCallTranscript: () => load({ call: auditCall, segments: empty ? [] : [
@@ -105,5 +126,6 @@ export function PlayAdminAuditProviders({ children, state = 'populated' }: { chi
         addCharacterChatCodexCards: blocked, toggleCharacterChatCodexCard: blocked, removeCharacterChatCodexCard: blocked,
     } as unknown as DataValue
     const tasks = { tasks: [], activeTasks: [], activeCount: 0, taskBuckets: { active: [], completed: [], failed: [] }, drawerOpen: false, openDrawer: noop, closeDrawer: noop, refreshTasks: async () => {}, registerTask: noop, registerThemeSongJob: noop, cancelTask: blocked, clearTerminalTasks: blocked, terminalHasMore: { completed: false, failed: false }, loadMoreTerminalTasks: async () => {} } as unknown as BackgroundTasksContextValue
-    return <NavigationProvider><AuthContext.Provider value={auth}><DataContext.Provider value={data}><BackgroundTasksContext.Provider value={tasks}><FloatingWindowsProvider>{children}</FloatingWindowsProvider></BackgroundTasksContext.Provider></DataContext.Provider></AuthContext.Provider></NavigationProvider>
+    const workspace = createWorkspaceTestState({ api: apiService, selectedWorkspaceId: state === 'signed-out' ? null : undefined }).value()
+    return <NavigationProvider><AuthContext.Provider value={auth}><WorkspaceContext.Provider value={workspace}><DataContext.Provider value={data}><BackgroundTasksContext.Provider value={tasks}><FloatingWindowsProvider>{children}</FloatingWindowsProvider></BackgroundTasksContext.Provider></DataContext.Provider></WorkspaceContext.Provider></AuthContext.Provider></NavigationProvider>
 }

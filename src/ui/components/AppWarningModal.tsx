@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
+import { releasedInAppCopy } from '../../features/legal/documents/consentCopy'
+import { legalLanguage } from '../../features/legal/documents/legalPending'
 import { Button, Icon, Modal } from '../primitives'
 
 export const APP_WARNING_ACCEPTANCE_KEY = 'magic_worlds:app-warning-accepted:v1'
@@ -9,7 +11,8 @@ const APP_WARNING_ACCEPTANCE_VALUE = 'accepted'
 
 // Hashes the modal links to. When a new tab is opened on one of these public
 // legal pages, the (shared-localStorage) first-run modal must not block it.
-const LEGAL_HASH_PREFIXES = ['#/disclaimer', '#/privacy']
+// The attestation boxes link to the Terms page the same way.
+const LEGAL_HASH_PREFIXES = ['#/disclaimer', '#/privacy', '#/terms']
 
 function hasAcceptedAppWarning() {
     try {
@@ -28,9 +31,12 @@ function isViewingLegalPage() {
 }
 
 export function AppWarningModal() {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
     const [isOpen, setIsOpen] = useState(() => !hasAcceptedAppWarning() && !isViewingLegalPage())
     const voiceModeEnabled = isFrontendVoiceModeEnabled()
+    // R2-FE-01 (13 §5.8, 09 §4.7): once the R2 release switch flips, the rewritten voice bullet shows whenever
+    // any voice surface is on; narration has no client switch, so that is always. Switch off (null): today's modal.
+    const releasedVoiceBullet = releasedInAppCopy('warningVoice', legalLanguage(i18n.language))
 
     const acceptWarning = () => {
         try {
@@ -74,8 +80,8 @@ export function AppWarningModal() {
                     <li>{t('warning.aiContent')}</li>
                     <li>{t('warning.noPersonalData')}</li>
                     <li>{t('warning.credits')}</li>
-                    {voiceModeEnabled && (
-                        <li>{t('warning.voice')}</li>
+                    {(voiceModeEnabled || releasedVoiceBullet !== null) && (
+                        <li>{releasedVoiceBullet ?? t('warning.voice')}</li>
                     )}
                 </ul>
 

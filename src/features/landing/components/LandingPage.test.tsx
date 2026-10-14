@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { Adventure, Character, CharacterChatSession, Lorebook, Story, World } from '@/shared'
+import { apiService } from '@/infrastructure/api'
 import { LandingPage } from './LandingPage'
 import { createWorkspaceTestState, TEST_WORKSPACE_ID, testWorkspace, WorkspaceTestProvider } from '@/shared/hooks/testing/workspaceTestUtils'
 
@@ -239,6 +240,46 @@ describe('LandingPage (returning dashboard)', () => {
         expect(resumeCharacterChat).not.toHaveBeenCalled()
         expect(setPage).toHaveBeenCalledWith('character-chat')
         expect(screen.queryByRole('dialog', { name: 'Choose your persona' })).toBeNull()
+    })
+
+    it('disables the cast rail and search Call buttons with the Calls page copy while calls are switched off', async () => {
+        const capabilities = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue({
+            surfaces: [],
+            provider_route: 'elevenlabs',
+            tiers_allowed: ['standard'],
+            narration_tier: 'standard',
+            consent_version_required: 'voice-v2',
+            status: { narration_available: true, calls_available: false, auto_narration_paused: false },
+        })
+        try {
+            render(<LandingPage />)
+            const copy = 'Voice calls are unavailable right now. Try again later.'
+            const railCall = within(screen.getByTestId('cast-rail')).getByRole('button', { name: 'Call' })
+            await waitFor(() => expect(railCall).toBeDisabled())
+            expect(railCall).toHaveAttribute('title', copy)
+            expect(railCall).toHaveAccessibleDescription(copy)
+            expect(within(screen.getByTestId('cast-rail')).getByRole('button', { name: 'Start chat' })).toBeEnabled()
+
+            fireEvent.change(screen.getByLabelText('Search your library'), { target: { value: 'lyra' } })
+            const searchCall = within(screen.getByTestId('search-results')).getByRole('button', { name: 'Call' })
+            expect(searchCall).toBeDisabled()
+            expect(searchCall).toHaveAccessibleDescription(copy)
+        } finally {
+            capabilities.mockRestore()
+        }
+    })
+
+    it('keeps the cast rail Call button enabled when capabilities carry no status (fail open)', async () => {
+        const capabilities = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue({} as never)
+        try {
+            render(<LandingPage />)
+            await waitFor(() => expect(capabilities).toHaveBeenCalled())
+            const railCall = within(screen.getByTestId('cast-rail')).getByRole('button', { name: 'Call' })
+            expect(railCall).toBeEnabled()
+            expect(railCall).not.toHaveAttribute('aria-describedby')
+        } finally {
+            capabilities.mockRestore()
+        }
     })
 
     it('starts a fresh character chat from search character results', async () => {

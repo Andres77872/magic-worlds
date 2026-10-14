@@ -17,10 +17,18 @@ This document is the "before" picture for the MiniMax → ElevenLabs migration. 
 
 It summarizes the research notes and links to them for the exhaustive inventories. It proposes nothing. Target designs are in [03](03_target_architecture_and_decisions.md) and the plan documents. Code facts were read in the working trees on 2026-10-12: backend `magic-worlds-api` HEAD `f77e60f` and frontend HEAD `f0f5769`, both with uncommitted changes. Line numbers can drift by a few lines. Search by the symbol named next to each link.
 
+**Since then: Workspace R1 (2026-10-12).** Workspace R1 was committed afterwards (backend `f37eefd`, frontend `c7307c6`, content schema `2026_10_workspace_r1`), but it is not deployed to production. For speech it changes the following:
+- **Scoping.** `tts_job` rows now carry the session's `workspace_id`, and each job and asset gets a workspace association. The chat and voice sockets take `?workspace_id=`, and the private TTS and call routes take `X-Workspace-Id`.
+- **Archived workspaces.** A fresh narration or a new call needs an active workspace. Reusable jobs, call end and job completion still work after an archive.
+- **Account-level surfaces.** Presets, admin voices, consent, quotas and the one-call rule stay account-level.
+- **Line numbers.** About 3,000 lines moved in `models.py`, so many backend line numbers in this document are older than that commit.
+
+The details and the refreshed line numbers are in [research 15](research/15_workspace_r1_impact.md); the target rules are 03 D39 and §5.15.
+
 **Related.**
 - [README](README.md): index and reading guide.
 - [02](02_elevenlabs_capabilities.md): ElevenLabs capabilities.
-- [03](03_target_architecture_and_decisions.md): source of truth (decisions D01–D38, canonical definitions §5).
+- [03](03_target_architecture_and_decisions.md): source of truth (decisions D01–D39, canonical definitions §5).
 - Plan documents:
   - [04](04_voice_catalog_and_library.md): catalog and Voice Library;
   - [05](05_voice_studio_and_admin_console.md): Voice Studio and admin console;

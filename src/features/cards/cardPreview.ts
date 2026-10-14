@@ -1,4 +1,4 @@
-import type { Adventure, CardMediaTargetType, Character, Item, World } from '@/shared'
+import type { Adventure, CardMediaTargetType, Character, EffectiveVoice, Item, StoredCharacterVoice, World } from '@/shared'
 import { readWorldPlaceType, worldPlaceTypeLabel } from '@/shared'
 import { apiService, resolveMediaUrl, type ApiService } from '@/infrastructure/api'
 import { transformCharacters, transformItems, transformTemplates, transformWorlds } from '@/utils/cardTransforms'
@@ -26,6 +26,11 @@ export interface CardPreview {
     updatedAt?: string
     /** Newest saved version number (versionable cards only); 0/undefined when none. */
     versionNumber?: number
+    /**
+     * Character cards only, never personas (D38): the stored voice and its
+     * read-only projection. The body shows a voice line only for an ElevenLabs projection.
+     */
+    voice?: { stored: StoredCharacterVoice | null; effective: EffectiveVoice | null }
 }
 
 export interface CardPreviewLibrary {
@@ -62,6 +67,9 @@ function toCharacterPreview(card: Character, target: CardPreviewTarget): CardPre
         createdAt: card.createdAt,
         updatedAt: card.updatedAt,
         versionNumber: card.latest_version_number,
+        ...(type === 'character' && card.effective_voice
+            ? { voice: { stored: card.voice ?? null, effective: card.effective_voice } }
+            : {}),
     }
 }
 

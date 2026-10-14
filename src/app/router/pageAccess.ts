@@ -49,6 +49,7 @@ export const PAGE_ACCESS: Readonly<Record<PageType, PageAccess>> = {
     contact: 'public',
     privacy: 'public',
     disclaimer: 'public',
+    terms: 'public',
     'gallery-characters': 'private',
     'gallery-personas': 'private',
     'gallery-worlds': 'private',

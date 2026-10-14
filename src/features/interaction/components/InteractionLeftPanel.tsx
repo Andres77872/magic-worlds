@@ -1,12 +1,18 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useContext, useId, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, AudioLines, Check, Globe, Info, Pencil, Plus, UserCircle, Users, Volume2, X } from 'lucide-react'
-import type { Adventure, AdventureSnapshot, Character, CharacterVoice, World } from '../../../shared'
+import type { Adventure, AdventureSnapshot, Character, EffectiveVoice, StoredCharacterVoice, World } from '../../../shared'
 import { readWorldPlaceType, worldPlaceTypeLabel } from '../../../shared'
+import { hasAssignedVoice, isElevenLabsProjection, voiceDisplayName } from '../../../shared/voice'
 import { isLorebooksFeatureEnabled, isVoicesFeatureEnabled } from '../../../shared/featureFlags'
 import { Avatar, Button, Icon, IconButton, SectionHeader, SwitchRow, Textarea, ThemeSongButton } from '@/ui/primitives'
 import { ReferenceRow } from '@/ui/components'
 import { VoicePickerDialog } from '../../voices/components/VoicePickerDialog'
+import { EffectiveVoiceLabel } from '../../voices/components/EffectiveVoiceLabel'
+import { VoiceBadges } from '../../voices/components/VoiceBadges'
+import { isLeaving, leavingVoiceKey, useLeavingVoice } from '../../voices/hooks/useLeavingVoice'
+import { useCatalogLookup } from '../../voices/hooks/useCatalogLookup'
+import { AuthContext } from '@/app/providers/AuthProvider'
 import { SessionLorebookPanel } from '@/features/lorebook'
 import { organizationWorkspaceId } from '@/shared/hooks/useScopedApi'
 import { cardWindow } from '@/features/floatingWindows'
@@ -16,6 +22,9 @@ import { resolveMediaUrl } from '../../../infrastructure/api'
 import { useData, useFloatingWindows } from '../../../app/hooks'
 import { isAiCharacterCard, personaCandidates as orderedPersonaCandidates } from '../../../utils/characterRoles'
 import { AdventureCardDrawer } from './AdventureCardDrawer'
+import { CastVoiceMenu } from './voice/CastVoiceMenu'
+import { CastVoiceRefreshPanel } from './voice/CastVoiceRefreshPanel'
+import { useCastVoiceRefresh, type CastVoiceRefresh } from './voice/useCastVoiceRefresh'
 import { AddCardModal, type AddCandidate } from './AddCardModal'
 import {
     addSnapshotCard,
@@ -27,6 +36,7 @@ import {
     libraryCardToSnapshotCard,
     personaEntry,
     removeSnapshotCard,
+    setSnapshotNarratorVoice,
     setSnapshotPersona,
     snapshotSourceIds,
     worldEntries,
@@ -41,9 +51,27 @@ interface InteractionLeftPanelProps {
     onBack: () => void
     /** Persist an edit to this adventure's own cloned snapshot. */
     onSnapshotChange?: (snapshot: AdventureSnapshot) => Promise<void>
+    /** Workspace R1: the session's workspace is archived; narration settings are read-only. */
+    readOnly?: boolean
+    /** Rendered in the narration section under the narrator voice row (the session narration tier control). */
+    narrationTierSlot?: ReactNode
+    /** Controlled narrator voice picker; uncontrolled when omitted. */
+    narratorPickerOpen?: boolean
+    onNarratorPickerOpenChange?: (open: boolean) => void
+    /** The story language: catalog badges and samples in the narrator picker. */
+    language?: string | null
 }
 
-export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: InteractionLeftPanelProps) {
+export function InteractionLeftPanel({
+    adventure,
+    onBack,
+    onSnapshotChange,
+    readOnly = false,
+    narrationTierSlot,
+    narratorPickerOpen,
+    onNarratorPickerOpenChange,
+    language,
+}: InteractionLeftPanelProps) {
     const { t } = useTranslation()
     const { characters: libraryCharacters, worlds: libraryWorlds } = useData()
     const { openWindow } = useFloatingWindows()
@@ -54,6 +82,8 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
     const scenario = (snapshot.template.description ?? '').trim()
     const editable = Boolean(onSnapshotChange)
     const lorebooksEnabled = isLorebooksFeatureEnabled()
+    // D36 (R1-FE-04): cast voices that differ from their cards' current voices.
+    const castVoice = useCastVoiceRefresh({ adventure, cast, editable, readOnly })
 
     const [selectedRef, setSelectedRef] = useState<SnapshotCardRef | null>(null)
     const [picker, setPicker] = useState<PickerKind | null>(null)
@@ -162,8 +192,9 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
                     title={t('interaction.leftPanel.charactersTitle')}
                     right={editable ? <AddButton label={t('interaction.leftPanel.addCharacter')} onClick={() => setPicker('cast')} /> : undefined}
                 />
+                <CastVoiceRefreshPanel cast={castVoice} />
                 {cast.length > 0 ? (
-                    <CardList entries={cast} onPreview={openCardPreview} />
+                    <CardList entries={cast} onPreview={openCardPreview} castVoice={castVoice} />
                 ) : (
                     <EmptyState>{t('interaction.leftPanel.noCharacters')}</EmptyState>
                 )}
@@ -172,9 +203,15 @@ export function InteractionLeftPanel({ adventure, onBack, onSnapshotChange }: In
             {editable && isVoicesFeatureEnabled() && (
                 <NarrationSection
                     voice={snapshot.narrator_voice ?? null}
+                    effective={snapshot.effective_narrator_voice ?? null}
+                    language={language}
                     narrateThoughts={Boolean(snapshot.narrate_thoughts)}
-                    onVoiceChange={(narrator_voice) => onSnapshotChange?.({ ...snapshot, narrator_voice })}
+                    onVoiceChange={(narrator_voice) => onSnapshotChange?.(setSnapshotNarratorVoice(snapshot, narrator_voice))}
                     onNarrateThoughtsChange={(narrate_thoughts) => onSnapshotChange?.({ ...snapshot, narrate_thoughts })}
+                    disabled={readOnly}
+                    tierSlot={narrationTierSlot}
+                    pickerOpen={narratorPickerOpen}
+                    onPickerOpenChange={onNarratorPickerOpenChange}
                 />
             )}
 
@@ -221,25 +258,55 @@ function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
  */
 function NarrationSection({
     voice,
+    effective,
+    language,
     narrateThoughts,
     onVoiceChange,
     onNarrateThoughtsChange,
+    disabled = false,
+    tierSlot,
+    pickerOpen: controlledPickerOpen,
+    onPickerOpenChange,
 }: {
-    voice: CharacterVoice | null
+    voice: StoredCharacterVoice | null
+    /** The narrator voice's read-only projection (D35): name, badges and "Plays as" when the server sent one. */
+    effective?: EffectiveVoice | null
+    language?: string | null
     narrateThoughts: boolean
-    onVoiceChange: (voice: CharacterVoice | null) => void
+    onVoiceChange: (voice: StoredCharacterVoice | null) => void
     onNarrateThoughtsChange: (value: boolean) => void
+    disabled?: boolean
+    tierSlot?: ReactNode
+    pickerOpen?: boolean
+    onPickerOpenChange?: (open: boolean) => void
 }) {
     const { t } = useTranslation()
-    const [pickerOpen, setPickerOpen] = useState(false)
+    const [uncontrolledPickerOpen, setUncontrolledPickerOpen] = useState(false)
+    const pickerOpen = controlledPickerOpen ?? uncontrolledPickerOpen
+    const setPickerOpen = (open: boolean) => {
+        if (controlledPickerOpen === undefined) setUncontrolledPickerOpen(open)
+        onPickerOpenChange?.(open)
+    }
+    const signedIn = useSignedIn()
+    // 05 §9.3: "Leaving on {date}" from the catalog (read only for an ElevenLabs projection badged `leaving`).
+    const leavingVoice = useLeavingVoice(voice, effective, signedIn && hasAssignedVoice(voice))
+    // AC-C4 (D16, 05 §5.4): the description carries the thought-delivery helper.
+    const thoughtsDescription = `${t('interaction.narration.narrateThoughtsDesc')} ${t('interaction.narration.narrateThoughtsHelp')}`
     return (
         <section className="flex flex-col gap-2.5">
             <SectionHeader icon={Volume2} title={t('interaction.narration.title')} tone="ember" />
             <div className="flex flex-wrap items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
                     <p className="font-ui text-sm font-semibold text-parchment-50">{t('interaction.narration.narratorVoice')}</p>
-                    {voice?.voice_id ? (
-                        <code className="font-mono text-caption text-parchment-300 break-all">{voice.preset_name || voice.voice_id}</code>
+                    {hasAssignedVoice(voice) && isElevenLabsProjection(effective) ? (
+                        <EffectiveVoiceLabel
+                            stored={voice}
+                            effective={effective}
+                            badgeContext={{ language, date: leavingVoice?.disable_at ?? null }}
+                            nameClassName="font-ui text-xs text-parchment-300 break-words"
+                        />
+                    ) : hasAssignedVoice(voice) ? (
+                        <p className="font-ui text-xs text-parchment-300 break-words">{voiceDisplayName(voice) ?? t('voices.display.fallbackName')}</p>
                     ) : (
                         <p className="font-ui text-xs text-parchment-300">{t('interaction.narration.usesDefault')}</p>
                     )}
@@ -249,20 +316,25 @@ function NarrationSection({
                     size="sm"
                     iconLeft={<Icon icon={AudioLines} size={14} />}
                     onClick={() => setPickerOpen(true)}
+                    disabled={disabled}
                 >
-                    {voice?.voice_id ? t('interaction.narration.change') : t('interaction.narration.chooseVoice')}
+                    {hasAssignedVoice(voice) ? t('interaction.narration.change') : t('interaction.narration.chooseVoice')}
                 </Button>
             </div>
+            {tierSlot}
             <SwitchRow
                 variant="plain"
                 label={t('interaction.narration.narrateThoughts')}
-                description={t('interaction.narration.narrateThoughtsDesc')}
+                description={thoughtsDescription}
                 checked={narrateThoughts}
                 onChange={onNarrateThoughtsChange}
+                disabled={disabled}
             />
             <VoicePickerDialog
-                open={pickerOpen}
+                open={pickerOpen && !disabled}
                 currentVoice={voice}
+                currentEffectiveVoice={effective}
+                language={language}
                 onSelect={(next) => {
                     onVoiceChange(next)
                     setPickerOpen(false)
@@ -278,20 +350,47 @@ function NarrationSection({
 function CardList({
     entries,
     onPreview,
+    castVoice,
 }: {
     entries: SnapshotCardEntry[]
     onPreview: (entry: SnapshotCardEntry) => void
+    /** Cast lists only: members whose voice differs from their card get a cast menu (D36). */
+    castVoice?: CastVoiceRefresh
 }) {
+    // 05 §9.3: leaving cast voices are dated from one catalog read ("Leaving on {date}"),
+    // made only for ElevenLabs projections badged `leaving`.
+    const signedIn = useSignedIn()
+    const leavingKeys = entries.map(castLeavingKey)
+    const catalog = useCatalogLookup(leavingKeys, signedIn && leavingKeys.some(Boolean))
     return (
         <div className="flex min-w-0 flex-col gap-1">
-            {entries.map((entry) => (
-                <CompactCard key={entry.key} entry={entry} onPreview={onPreview} />
-            ))}
+            {entries.map((entry, index) => {
+                const key = leavingKeys[index]
+                return (
+                    <CompactCard
+                        key={entry.key}
+                        entry={entry}
+                        onPreview={onPreview}
+                        castVoice={castVoice}
+                        leavingDate={key ? catalog.get(key)?.disable_at ?? null : null}
+                    />
+                )
+            })}
         </div>
     )
 }
 
-function CompactCard({ entry, onPreview }: { entry: SnapshotCardEntry; onPreview: (entry: SnapshotCardEntry) => void }) {
+/** Voice reads (catalog dates) run for a signed-in caller only; never outside the auth provider. */
+function useSignedIn(): boolean {
+    return Boolean(useContext(AuthContext)?.isAuthenticated)
+}
+
+/** The catalog key of a cast member's leaving voice; null for anything else. */
+function castLeavingKey({ card, ref }: SnapshotCardEntry): string | null {
+    return ref.kind === 'character' && isLeaving(card.effective_voice) ? leavingVoiceKey(card.voice, card.effective_voice) : null
+}
+
+function CompactCard({ entry, onPreview, castVoice, leavingDate = null }: { entry: SnapshotCardEntry; onPreview: (entry: SnapshotCardEntry) => void; castVoice?: CastVoiceRefresh; leavingDate?: string | null }) {
     const { t } = useTranslation()
     const { card, ref } = entry
     const isWorld = ref.kind === 'world'
@@ -302,7 +401,9 @@ function CompactCard({ entry, onPreview }: { entry: SnapshotCardEntry; onPreview
     const title = card.name || t('interaction.leftPanel.untitled')
     const description = [badge, newer ? t('cardVersions.newer.badge') : undefined].filter(Boolean).join(' · ')
     const themeSongUrl = resolveMediaUrl(card.theme_song_url)
-    return (
+    // Cast voices show their state only when the server sent a projection.
+    const projection = ref.kind === 'character' && isElevenLabsProjection(card.effective_voice) ? card.effective_voice : null
+    const row = (
         <ReferenceRow
             leading={<Avatar name={title} src={resolveMediaUrl(card.image_url)} size={36} ring={ref.kind === 'persona' ? 'ember' : 'none'} />}
             title={title}
@@ -310,6 +411,33 @@ function CompactCard({ entry, onPreview }: { entry: SnapshotCardEntry; onPreview
             onTitleClick={() => onPreview(entry)}
             trailing={themeSongUrl ? <ThemeSongButton src={themeSongUrl} cardName={title} artworkUrl={resolveMediaUrl(card.image_url)} className="pointer-coarse:h-11 pointer-coarse:w-11" /> : undefined}
         />
+    )
+    // D36 cast menu: only for a member the refresh would change (its projection is ElevenLabs).
+    const drift = projection && card.id ? castVoice?.byCard.get(card.id) ?? null : null
+    if (!projection || (projection.badges.length === 0 && !drift)) return row
+    if (drift && castVoice) {
+        return (
+            <div className="flex min-w-0 flex-col gap-1">
+                {row}
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5 pl-12">
+                    <VoiceBadges
+                        badges={projection.badges}
+                        context={{ original: voiceDisplayName(card.voice), name: projection.display_name || null, date: leavingDate }}
+                    />
+                    <CastVoiceMenu drift={drift} cast={castVoice} />
+                </div>
+            </div>
+        )
+    }
+    return (
+        <div className="flex min-w-0 flex-col gap-1">
+            {row}
+            <VoiceBadges
+                className="pl-12"
+                badges={projection.badges}
+                context={{ original: voiceDisplayName(card.voice), name: projection.display_name || null, date: leavingDate }}
+            />
+        </div>
     )
 }
 

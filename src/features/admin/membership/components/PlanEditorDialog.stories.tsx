@@ -67,3 +67,17 @@ export const EditBillingSynced: Story = {
     args: { mode: 'edit', plan: proPlan },
     render: (args) => <DialogDemo {...args} />,
 }
+
+/** D24 caps (Starter numbers): a server that carries `daily_quantity_limit`. */
+const quantityCaps: Record<string, number> = { tts_generation: 8000, voice_call: 600 }
+const sponsorWithQuantities = {
+    ...sponsorPlan,
+    limits: Object.fromEntries(Object.entries(sponsorPlan.limits).map(([operation, limit]) =>
+        [operation, { ...limit, daily_quantity_limit: quantityCaps[operation] ?? null }])),
+}
+
+/** A server with daily quantity caps: narration characters for TTS and call seconds for call mode. */
+export const EditWithDailyQuantity: Story = {
+    args: { mode: 'edit', plan: sponsorWithQuantities, plans: [sponsorWithQuantities] },
+    render: (args) => <DialogDemo {...args} />,
+}

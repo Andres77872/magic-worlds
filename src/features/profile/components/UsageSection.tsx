@@ -4,7 +4,7 @@
  * Requests on the user's own provider key (BYOK) are a separate panel: they use
  * no app credits, so they never mix into the credit totals above.
  */
-import { Gauge, KeyRound } from 'lucide-react'
+import { Gauge, KeyRound, Mic } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { useLanguage } from '@/app/hooks'
@@ -16,6 +16,7 @@ import type {
     UserProfile,
 } from '@/shared'
 import type { LlmOperationCapacityUsage } from '@/shared/types/llmProfile.types'
+import { readVoiceUsage, type VoiceUsageView } from '@/shared/voice/voiceUsage'
 import { Badge, Eyebrow, SectionHeader } from '@/ui/primitives'
 import { cx } from '@/ui/primitives/cx'
 import type { LlmCapacityUsageState } from '../hooks/useLlmCapacityUsage'
@@ -37,6 +38,7 @@ export function UsageSection({ profile, llmUsage }: UsageSectionProps) {
 
     const operations = orderedLimitEntries(membership.limits ?? {})
     const monthly = membership.monthly_usage
+    const voiceUsage = readVoiceUsage(membership)
     const monthlyOperations = monthly ? orderedLimitEntries(monthly.operations ?? {}) : []
 
     return (
@@ -50,8 +52,75 @@ export function UsageSection({ profile, llmUsage }: UsageSectionProps) {
                 <DailyUsagePanel membership={membership} operations={operations} t={t} locale={intlLocale} />
                 {monthly && <MonthlyUsagePanel monthly={monthly} operations={monthlyOperations} t={t} locale={intlLocale} />}
             </div>
+            {voiceUsage && <VoiceUsagePanel usage={voiceUsage} t={t} locale={intlLocale} />}
             {llmUsage && <ByokUsagePanel state={llmUsage} membership={membership} t={t} locale={intlLocale} />}
         </section>
+    )
+}
+
+/** Seconds as minutes, to one decimal. */
+function toMinutes(seconds: number) {
+    return Math.round((seconds / 60) * 10) / 10
+}
+
+/**
+ * Today's voice allowance (D24, D18): narration characters, call minutes and
+ * recipe previews. Each row shows only when the server reports it.
+ */
+function VoiceUsagePanel({ usage, t, locale }: { usage: VoiceUsageView; t: TFunction; locale: string }) {
+    const { narration, call, previewsLeft } = usage
+    const minutesLeft = call ? toMinutes(call.remaining) : 0
+    return (
+        <div className="flex flex-col gap-4 border-t border-line-faint pt-6" aria-labelledby="usage-voice-heading" role="group">
+            <span className="flex items-center gap-2">
+                <Mic size={14} strokeWidth={1.75} className="text-ember-400" aria-hidden />
+                <Eyebrow tone="muted" id="usage-voice-heading">{t('usage.voice.title')}</Eyebrow>
+            </span>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-x-6 gap-y-4">
+                {narration && (
+                    <div className="flex flex-col gap-1.5">
+                        <UsageMeter
+                            label={t('usage.voice.narrationChars')}
+                            used={narration.used}
+                            max={narration.limit}
+                            ariaLabel={t('usage.voice.narrationCharsMeter')}
+                            t={t}
+                            locale={locale}
+                        />
+                        <span className="font-ui text-[12px] text-fg-subtle">
+                            {narration.remaining === 0
+                                ? t('usage.voice.dailyLimit')
+                                : t('usage.voice.charsRemaining', { count: narration.remaining, value: formatNumber(narration.remaining, locale) })}
+                        </span>
+                    </div>
+                )}
+                {call && (
+                    <div className="flex flex-col gap-1.5">
+                        <UsageMeter
+                            label={t('usage.voice.callMinutes')}
+                            used={call.used}
+                            max={call.limit}
+                            ariaLabel={t('usage.voice.callMinutesMeter')}
+                            valueLabel={t('usage.voice.minutesOf', {
+                                used: formatNumber(toMinutes(call.used), locale),
+                                max: formatNumber(toMinutes(call.limit), locale),
+                            })}
+                            t={t}
+                            locale={locale}
+                        />
+                        <span className="font-ui text-[12px] text-fg-subtle">
+                            {t('usage.voice.minutesRemaining', { count: minutesLeft, value: formatNumber(minutesLeft, locale) })}
+                        </span>
+                    </div>
+                )}
+                {previewsLeft !== null && (
+                    <div className="flex flex-col gap-1.5">
+                        <span className="font-ui text-caption font-semibold text-parchment-100">{t('usage.voice.previews')}</span>
+                        <span className="font-ui text-[12px] text-fg-subtle">{t('usage.voice.previewsLeft', { count: previewsLeft })}</span>
+                    </div>
+                )}
+            </div>
+        </div>
     )
 }
 

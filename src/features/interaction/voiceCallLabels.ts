@@ -52,6 +52,13 @@ export function formatElapsed(seconds: number): string {
     return `${minutes}:${String(remainder).padStart(2, '0')}`
 }
 
+/**
+ * Client code for a call start refused up front because the server reports calls
+ * switched off for this account (`capabilities.status.calls_available: false`,
+ * 09 §7). No redial is offered while it holds.
+ */
+export const CALLS_UNAVAILABLE_CODE = 'CALLS_UNAVAILABLE'
+
 /** i18n key for a controller-originated error code (client-side failures). */
 const CALL_ERROR_CODE_KEY: Record<string, string> = {
     VOICE_READY_TIMEOUT: 'interaction.callError.readyTimeout',
@@ -60,11 +67,40 @@ const CALL_ERROR_CODE_KEY: Record<string, string> = {
     VOICE_UPLOAD_FAILED: 'interaction.callError.uploadFailed',
     VOICE_NO_INPUT: 'interaction.callError.noInput',
     VOICE_DEVICE_LOST: 'interaction.callError.deviceLost',
+    [CALLS_UNAVAILABLE_CODE]: 'interaction.callError.callsUnavailable',
     // Workspace R1: the socket's `voice_error` (or an HTTP error) names the workspace code.
     WORKSPACE_ARCHIVED: 'workspaceActivity.call.workspaceArchived',
     WORKSPACE_NOT_FOUND: 'workspaceActivity.call.workspaceUnavailable',
     WORKSPACE_SELECTOR_MISMATCH: 'workspaceActivity.call.workspaceUnavailable',
     WORKSPACE_REQUIRED: 'workspaceActivity.call.stale',
+    WORKSPACE_ACTIVE_CALL: 'workspaceUi.errors.activeCall',
+    // The socket's 4404 close: the chat is missing or belongs to another workspace.
+    CHAT_SESSION_NOT_FOUND: 'workspaceActivity.chat.sessionUnavailable',
+    // Voice gates (D26, D37; 09 §2.2): attestation, token bucket, Free prerequisites, spent budget.
+    attestation_required: 'attestation.callRequired',
+    rate_limited: 'voices.errors.rateLimited',
+    voice_not_eligible: 'voices.errors.freeNotEligible',
+    narration_paused: 'voices.errors.budgetUnavailable',
+    // `voice_error{category:"tts_unavailable", code}` (03 §5.8, 08 §5.8; 09 §4.6): the code
+    // picks the copy so these never read as the generic provider failure.
+    voice_unavailable: 'interaction.callError.voiceUnavailable',
+    moderation_unavailable: 'interaction.callError.moderationUnavailable',
+    // R2 safeguards (PC-1, PC-2): a self-harm safety pause, and the `all_voice` geo block.
+    voice_safety_pause: 'voices.errors.safetyPause',
+    voice_region_unavailable: 'voices.errors.regionUnavailable',
+}
+
+/** Workspace R1 codes no redial can fix from the call screen. */
+export function isWorkspaceCallError(code: string | undefined | null): boolean {
+    return Boolean(code && (code.startsWith('WORKSPACE_') || code === 'CHAT_SESSION_NOT_FOUND'))
+}
+
+/** Voice refusals a redial cannot fix: the pause or the region block holds whatever the client does. */
+const TERMINAL_VOICE_CALL_CODES: ReadonlySet<string> = new Set(['voice_safety_pause', 'voice_region_unavailable'])
+
+/** True for a call error that ends voice for now (no redial): the safety pause and the region block. */
+export function isTerminalVoiceCallError(code: string | undefined | null): boolean {
+    return Boolean(code && TERMINAL_VOICE_CALL_CODES.has(code))
 }
 
 /**
@@ -123,6 +159,8 @@ const END_REASON_KEY: Record<VoiceEndReason, string> = {
     idle_timeout: 'call.screen.endReason.idleTimeout',
     max_duration: 'call.screen.endReason.maxDuration',
     server_shutdown: 'call.screen.endReason.serverShutdown',
+    // WS-S5: an operator restriction or a safety pause ended the call.
+    voice_restricted: 'voices.errors.callRestricted',
 }
 
 /** Copy explaining why a call ended; unknown reasons read as a plain "call ended". */

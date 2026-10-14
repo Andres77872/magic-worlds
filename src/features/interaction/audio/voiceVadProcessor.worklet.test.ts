@@ -208,6 +208,31 @@ describe('voiceVadProcessor.worklet', () => {
         expect(segment.message.samples[preRoll]).toBe(toPcm16(next[0]))
     })
 
+    it.each([16_000, 48_000])('reports the end-of-turn hang-over on a pause-ended speech_end at %i Hz (R0-BE-37)', (rate) => {
+        const processor = createProcessor(rate, { preRollMs: 0, silenceMsToEnd: 550 })
+        const posted = drive(processor, concat(silence(rate, 0.5), tone(rate, 0.5, 440), silence(rate, 1)))
+
+        const messages = posted.map((entry) => entry.message)
+        const endIndex = messages.findIndex((message) => message.type === 'vad' && message.state === 'speech_end')
+        // Posted right after the segment it closed.
+        expect(messages[endIndex - 1].type).toBe('segment')
+        const end = messages[endIndex]
+        expect(end.ended_by_silence).toBe(true)
+        // The quiet waited after the last voiced audio: 550 ms, in whole render quanta.
+        const quantumMs = (QUANTUM / rate) * 1_000
+        expect(Math.abs((end.silence_tail_ms as number) - 550)).toBeLessThanOrEqual(quantumMs + 1)
+    })
+
+    it('marks the speech_end of a max-length cut as not ended by silence, with no hang-over (R0-BE-37)', () => {
+        const processor = createProcessor(16_000, { preRollMs: 0, maxSegmentMs: 2_000 })
+        const posted = drive(processor, concat(silence(16_000, 0.5), tone(16_000, 3, 440), silence(16_000, 1)))
+
+        const ends = posted.map((entry) => entry.message).filter((message) => message.type === 'vad' && message.state === 'speech_end')
+        expect(ends).toHaveLength(2)
+        expect(ends[0]).toMatchObject({ ended_by_silence: false, silence_tail_ms: 0 })
+        expect(ends[1]).toMatchObject({ ended_by_silence: true, silence_tail_ms: 800 })
+    })
+
     it('cuts at maxSegmentMs including the pre-roll, without losing or repeating audio', () => {
         const processor = createProcessor(16_000, { preRollMs: 300, maxSegmentMs: 2_000 })
         const quiet = tone(16_000, 0.5, 97, 0.002)

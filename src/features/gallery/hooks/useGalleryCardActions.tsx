@@ -10,7 +10,7 @@
  * workspace is still the committed one (`capture`/`isCurrent`). `readOnly`
  * (an archived workspace) leaves only the read actions.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BookOpenText, Copy, Download, Globe2, History, Link2, Loader2, MessageCircle, Pencil, Phone, Play, Star, Trash2 } from 'lucide-react'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
@@ -103,6 +103,10 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
     const novelsEnabled = isNovelsFeatureEnabled()
     const voiceModeEnabled = isFrontendVoiceModeEnabled()
     const callControls = useStartCall()
+    // 09 §7: calls switched off for this account (capabilities `status`, fail open):
+    // the Call actions are disabled with the Calls page copy.
+    const callsUnavailable = callControls.callsUnavailable
+    const callsUnavailableId = useId()
 
     const [notice, setNotice] = useState<GalleryActionNotice | null>(null)
     const [highlightedId, setHighlightedId] = useState<string | null>(null)
@@ -449,7 +453,9 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
                 onClick: () => startCharacterChatFromCard(item),
                 disabled: Boolean(startingChatId),
             })
-            if (voiceModeEnabled) {
+            // Calls switched off: the menu drops Call (a menu item cannot carry the reason);
+            // the pinned footer Call, shown wherever this menu is, stays with the copy.
+            if (voiceModeEnabled && !callsUnavailable) {
                 options.push({
                     type: 'custom',
                     icon: <Icon icon={Phone} size={15} />,
@@ -551,11 +557,18 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
                                 <Icon icon={Phone} size={15} />
                             )
                         }
-                        disabled={Boolean(callControls.startingId)}
+                        disabled={callsUnavailable || Boolean(callControls.startingId)}
+                        title={callsUnavailable ? t('call.page.unavailable') : undefined}
+                        aria-describedby={callsUnavailable ? `${callsUnavailableId}-${item.id}` : undefined}
                         onClick={() => callControls.startCall(item.source as Character)}
                     >
                         {callControls.startingId === item.id ? t('gallery.starting') : t('gallery.call')}
                     </Button>
+                )}
+                {voiceModeEnabled && callsUnavailable && (
+                    <span id={`${callsUnavailableId}-${item.id}`} hidden>
+                        {t('call.page.unavailable')}
+                    </span>
                 )}
             </div>
         )

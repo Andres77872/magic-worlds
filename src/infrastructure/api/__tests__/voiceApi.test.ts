@@ -97,7 +97,7 @@ describe('voice API helpers', () => {
             .fn()
             .mockResolvedValueOnce(jsonResponse({
                 status: 'accepted',
-                consent_version: 'voice-v1',
+                consent_version: 'voice-v2',
                 limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 120 },
             }))
             .mockResolvedValueOnce(jsonResponse({ status: 'ended', voice_session_id: 'voice-1', reason: 'user' }))
@@ -106,12 +106,23 @@ describe('voice API helpers', () => {
         const consent = await apiService.saveVoiceConsent(7)
         const ended = await apiService.endVoiceCall(7, { voiceSessionId: 'voice-1' })
 
-        expect(consent.consent_version).toBe('voice-v1')
+        expect(consent.consent_version).toBe('voice-v2')
         expect(ended.status).toBe('ended')
         expect(String(fetchMock.mock.calls[0][0])).toContain('/character-chats/7/voice-consent')
         expect(String(fetchMock.mock.calls[1][0])).toContain('/character-chats/7/voice-end')
         expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'POST' })
         expect(fetchMock.mock.calls[1][1]?.body).toBe(JSON.stringify({ voice_session_id: 'voice-1', reason: 'user' }))
+    })
+
+    it('posts the consent without a version: the server records voice-v2 (R-13, I-68)', async () => {
+        const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ status: 'accepted', consent_version: 'voice-v2', limits: null }))
+        vi.stubGlobal('fetch', fetchMock)
+
+        const consent = await apiService.saveVoiceConsent(7)
+
+        expect(consent.consent_version).toBe('voice-v2')
+        expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'POST' })
+        expect(fetchMock.mock.calls[0][1]?.body).toBe(JSON.stringify({}))
     })
 
     it('maps backend voice error categories from FastAPI detail frames', async () => {

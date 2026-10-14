@@ -48,6 +48,7 @@ export type PageType =
     | 'contact'
     | 'privacy'
     | 'disclaimer'
+    | 'terms'
     | 'gallery-characters'
     | 'gallery-personas'
     | 'gallery-worlds'

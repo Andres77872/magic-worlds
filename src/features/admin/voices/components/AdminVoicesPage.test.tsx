@@ -1,202 +1,87 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { ApiError } from '@/infrastructure/api'
+import { consoleApiMock, type ConsoleApiMock } from '../testUtils'
 import { AdminVoicesPage } from './AdminVoicesPage'
 
-const mockUseAuth = vi.fn()
-const listAdminVoices = vi.fn()
-const designAdminVoice = vi.fn()
-const deleteAdminVoice = vi.fn()
-const testAdminVoice = vi.fn()
-const uploadAdminVoiceCloneSample = vi.fn()
-const cloneAdminVoice = vi.fn()
+const api = vi.hoisted(() => ({}) as Record<string, unknown>)
+const auth = vi.hoisted(() => ({ value: { isAuthenticated: true, user: { user_type: 'root' }, openLoginModal: () => {} } as Record<string, unknown> }))
 
-vi.mock('@/app/hooks', () => ({
-    useAuth: () => mockUseAuth(),
-}))
+vi.mock('@/infrastructure/api', async (importOriginal) => ({ ...(await importOriginal<object>()), apiService: api }))
+vi.mock('@/app/hooks', () => ({ useAuth: () => auth.value }))
 
-// VoiceClipPlayer pulls the audio barrel, which re-exports the playlist dock;
-// its hook is never called here, but mock the deep import per the known gotcha.
-vi.mock('@/app/hooks/usePlaylist', () => ({
-    usePlaylist: () => ({}),
-}))
-
-vi.mock('@/infrastructure/api', () => ({
-    apiService: {
-        listAdminVoices: (...args: unknown[]) => listAdminVoices(...args),
-        designAdminVoice: (...args: unknown[]) => designAdminVoice(...args),
-        deleteAdminVoice: (...args: unknown[]) => deleteAdminVoice(...args),
-        testAdminVoice: (...args: unknown[]) => testAdminVoice(...args),
-        uploadAdminVoiceCloneSample: (...args: unknown[]) => uploadAdminVoiceCloneSample(...args),
-        cloneAdminVoice: (...args: unknown[]) => cloneAdminVoice(...args),
-    },
-    isProtectedMediaUrl: () => false,
-}))
-
-const rootUser = {
-    user_hash: 'usr-root',
-    username: 'root',
-    user_type: 'root',
-    created_at: null,
-    updated_at: null,
-}
-
-const consumerUser = { ...rootUser, user_hash: 'usr-consumer', username: 'lyra', user_type: 'consumer' }
-
-const voiceGroups = {
-    system: [
-        {
-            voice_id: 'English_expressive_narrator',
-            voice_type: 'system',
-            voice_name: 'Expressive narrator',
-            description: ['Warm narrator voice.'],
-            created_time: '1970-01-01',
-            deletable: false,
-        },
-    ],
-    voice_cloning: [],
-    voice_generation: [
-        {
-            voice_id: 'ttv-voice-existing',
-            voice_type: 'voice_generation',
-            voice_name: null,
-            description: ['A designed voice.'],
-            created_time: '2026-06-13',
-            deletable: true,
-        },
-    ],
-}
+const mock = () => api as unknown as ConsoleApiMock
 
 describe('AdminVoicesPage', () => {
     beforeEach(() => {
-        vi.clearAllMocks()
-        vi.stubGlobal('URL', {
-            ...URL,
-            createObjectURL: vi.fn(() => 'blob:voice-preview'),
-            revokeObjectURL: vi.fn(),
-        })
-        mockUseAuth.mockReturnValue({ isAuthenticated: true, user: rootUser, openLoginModal: vi.fn() })
-        listAdminVoices.mockResolvedValue({
-            voice_type: 'all',
-            groups: voiceGroups,
-            base_resp: { status_code: 0, status_msg: 'success' },
-        })
-        designAdminVoice.mockResolvedValue({
-            voice_id: 'ttv-voice-created',
-            trial_audio: '00',
-            base_resp: { status_code: 0, status_msg: 'success' },
-        })
-        deleteAdminVoice.mockResolvedValue({
-            voice_id: 'ttv-voice-existing',
-            voice_type: 'voice_generation',
-            created_time: '2026-06-13',
-            base_resp: { status_code: 0, status_msg: 'success' },
-        })
-        testAdminVoice.mockResolvedValue({
-            voice_id: 'ttv-voice-existing',
-            audio_hex: '00',
-            content_type: 'audio/mpeg',
-            file_size_bytes: 1,
-            duration_ms: 2100,
-            sample_rate: 32000,
-            bitrate: 128000,
-            usage_characters: 54,
-            base_resp: { status_code: 0, status_msg: 'success' },
-        })
+        for (const key of Object.keys(api)) delete api[key]
+        Object.assign(api, consoleApiMock())
+        auth.value = { isAuthenticated: true, user: { user_type: 'root' }, openLoginModal: vi.fn() }
     })
 
-    it('asks signed-out users to log in', () => {
+    it('shows the access state to non-root users and makes no console request (AC-R1)', () => {
+        auth.value = { isAuthenticated: true, user: { user_type: 'user' }, openLoginModal: vi.fn() }
+        render(<AdminVoicesPage />)
+        expect(screen.getByText('Root access required')).toBeInTheDocument()
+        expect(screen.getByText('The voice console is limited to root users.')).toBeInTheDocument()
+        for (const fn of Object.values(mock())) expect(fn).not.toHaveBeenCalled()
+        expect(mock().getAdminVoiceMetrics).not.toHaveBeenCalled()
+    })
+
+    it('asks signed-out visitors to log in, with no console request', async () => {
         const openLoginModal = vi.fn()
-        mockUseAuth.mockReturnValue({ isAuthenticated: false, user: null, openLoginModal })
-
+        auth.value = { isAuthenticated: false, user: null, openLoginModal }
         render(<AdminVoicesPage />)
-
-        expect(screen.getByText('Root access required')).toBeInTheDocument()
         fireEvent.click(screen.getByRole('button', { name: 'Log in' }))
-        expect(openLoginModal).toHaveBeenCalledTimes(1)
-        expect(listAdminVoices).not.toHaveBeenCalled()
+        expect(openLoginModal).toHaveBeenCalled()
+        expect(mock().listAdminCatalog).not.toHaveBeenCalled()
+        expect(mock().getVoiceLimits).not.toHaveBeenCalled()
     })
 
-    it('denies authenticated non-root users', () => {
-        mockUseAuth.mockReturnValue({ isAuthenticated: true, user: consumerUser, openLoginModal: vi.fn() })
-
+    it('renders the console modules for root, starting on the catalog', async () => {
         render(<AdminVoicesPage />)
-
-        expect(screen.getByText('Root access required')).toBeInTheDocument()
-        expect(screen.getByText(/limited to root users/i)).toBeInTheDocument()
-        expect(listAdminVoices).not.toHaveBeenCalled()
+        expect(screen.getByRole('heading', { name: 'Voice console' })).toBeInTheDocument()
+        const tabs = within(screen.getByRole('tablist', { name: 'Voice console modules' })).getAllByRole('tab')
+        expect(tabs.map((tab) => tab.textContent)).toEqual(['Catalog', 'Acceptance', 'Defaults', 'Global presets', 'Legacy mapping', 'Library', 'Create', 'Synth lab', 'Metrics', 'Reports'])
+        expect(await screen.findByRole('table', { name: 'Catalog voices' })).toBeInTheDocument()
+        expect(await screen.findByRole('button', { name: /Provider limits: Slots 48\/660/ })).toBeInTheDocument()
+        // Modules mount on first visit only.
+        expect(mock().getVoiceDefaults).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole('tab', { name: 'Defaults' }))
+        await waitFor(() => expect(mock().getVoiceDefaults).toHaveBeenCalledTimes(1))
     })
 
-    it('designs a voice, previews it, lists, and deletes designed voices', async () => {
-        const { container } = render(<AdminVoicesPage />)
-
-        const designedSection = (await screen.findByRole('heading', { name: 'Designed voices' })).closest('section')!
-        expect(within(designedSection).getAllByText('ttv-voice-existing').length).toBeGreaterThan(0)
-        expect(screen.getByText('Expressive narrator')).toBeInTheDocument()
-        expect(screen.getByText('Protected')).toBeInTheDocument()
-
-        fireEvent.click(screen.getByRole('button', { name: 'Design voice' }))
-
-        await waitFor(() => {
-            expect(designAdminVoice).toHaveBeenCalledWith({
-                prompt: expect.stringContaining('fantasy narrator'),
-                preview_text: expect.stringContaining('hidden door opens'),
-            })
-        })
-        // The new id shows in both the result card and the success toast.
-        expect((await screen.findAllByText('ttv-voice-created')).length).toBeGreaterThan(0)
-        expect(screen.getByRole('button', { name: 'Play designed preview' })).toBeInTheDocument()
-        expect(container.querySelector('audio')?.getAttribute('src')).toBe('blob:voice-preview')
-
-        fireEvent.click(within(designedSection).getByRole('button', { name: 'Delete' }))
-        const dialog = screen.getByRole('dialog', { name: 'Delete voice' })
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
-
-        await waitFor(() => {
-            expect(deleteAdminVoice).toHaveBeenCalledWith('voice_generation', 'ttv-voice-existing')
-        })
-        expect(within(designedSection).queryByText('A designed voice.')).not.toBeInTheDocument()
-    })
-
-    it('sends a library voice to the lab and tests it with default controls', async () => {
+    it('loads the global presets module (after Defaults) on first visit only (R1-FE-06)', async () => {
         render(<AdminVoicesPage />)
-
-        const designedSection = (await screen.findByRole('heading', { name: 'Designed voices' })).closest('section')!
-        fireEvent.click(within(designedSection).getByRole('button', { name: 'Test' }))
-
-        expect(screen.getByLabelText('Voice ID')).toHaveValue('ttv-voice-existing')
-
-        const testText = 'The lock turns once.<#0.4#> (sighs) It has been waiting.'
-        fireEvent.change(screen.getByLabelText('Content input'), { target: { value: testText } })
-        fireEvent.click(screen.getByRole('button', { name: 'Test voice' }))
-
-        await waitFor(() => {
-            // Untouched controls are omitted; only voice_id + text are sent.
-            expect(testAdminVoice).toHaveBeenCalledWith({ voice_id: 'ttv-voice-existing', text: testText })
-        })
-        expect(screen.getByRole('button', { name: 'Play voice test' })).toBeInTheDocument()
+        await screen.findByRole('table', { name: 'Catalog voices' })
+        expect(mock().listAdminGlobalPresets).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole('tab', { name: 'Global presets' }))
+        await waitFor(() => expect(mock().listAdminGlobalPresets).toHaveBeenCalledTimes(1))
+        expect(await screen.findByRole('table', { name: 'Global presets' })).toBeInTheDocument()
     })
 
-    it('blocks over-limit lab content before calling the API', async () => {
+    it('loads the metrics module on first visit only, starting on narration (R0-OPS-07)', async () => {
         render(<AdminVoicesPage />)
-
-        await screen.findByRole('heading', { name: 'Designed voices' })
-        fireEvent.change(screen.getByLabelText('Voice ID'), { target: { value: 'ttv-voice-existing' } })
-        fireEvent.change(screen.getByLabelText('Content input'), { target: { value: 'x'.repeat(1001) } })
-
-        expect(screen.getByText('Test content must be 1000 characters or fewer.')).toBeInTheDocument()
-        const submit = screen.getByRole('button', { name: 'Test voice' })
-        expect(submit).toBeDisabled()
-        fireEvent.click(submit)
-        expect(testAdminVoice).not.toHaveBeenCalled()
+        await screen.findByRole('table', { name: 'Catalog voices' })
+        expect(mock().getAdminVoiceMetrics).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole('tab', { name: 'Metrics' }))
+        await waitFor(() => expect(mock().getAdminVoiceMetrics).toHaveBeenCalledWith('narration', { hours: 24 }, expect.any(AbortSignal)))
+        expect(await screen.findByRole('table', { name: 'Alert rules: Narration' })).toBeInTheDocument()
     })
 
-    it('opens the MiniMax reference drawer', async () => {
+    it('raises the configuration banner for a provider key error, not a voice error', async () => {
+        mock().getVoiceLimits.mockRejectedValue(new ApiError(403, 'Key rejected', { code: 'invalid_api_key' }))
         render(<AdminVoicesPage />)
+        fireEvent.click(await screen.findByRole('button', { name: /Provider limits/ }))
+        const banner = await screen.findByText('Voice provider configuration problem')
+        expect(banner.closest('[role="alert"]')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+        expect(screen.queryByText('Voice provider configuration problem')).not.toBeInTheDocument()
+    })
 
-        await screen.findByRole('heading', { name: 'Designed voices' })
+    it('opens the reference drawer with provider-neutral operating notes', async () => {
+        render(<AdminVoicesPage />)
         fireEvent.click(screen.getByRole('button', { name: 'Reference' }))
-
-        expect(await screen.findByText('Voice reference')).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Cloning' })).toBeInTheDocument()
+        expect(await screen.findByRole('heading', { name: 'Tiers and models' })).toBeInTheDocument()
     })
 })

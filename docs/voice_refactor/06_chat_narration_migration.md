@@ -27,11 +27,13 @@ Other plan documents cover the neighbouring work:
 
 Code was read on 2026-10-12 in the working trees of `magic-worlds-api` and `magic-worlds`. Line numbers can drift, so search by the symbol named next to each link. Prices and model facts are as of 2026-10-12. No code was changed.
 
+**Workspace R1 alignment (2026-10-12).** Re-read against backend `f37eefd` and frontend `c7307c6` (content schema `2026_10_workspace_r1`). Narration is bound to the session's workspace: the chat socket carries `?workspace_id=`, `tts_job` rows carry `workspace_id`, and the per-turn charge copies it. Caps, in-flight and credits stay per account. The rules are 03 D39 and §5.15; the evidence is [research 15](research/15_workspace_r1_impact.md). Line numbers cited in §2.3, §4.2 and §5.4 are at those commits.
+
 **Related.**
 - [README](README.md): index and reading guide.
 - [01](01_current_state.md): the current MiniMax stack and the bug list.
 - [02](02_elevenlabs_capabilities.md): ElevenLabs capabilities.
-- [03](03_target_architecture_and_decisions.md): decisions D01–D38 and the canonical definitions (§5).
+- [03](03_target_architecture_and_decisions.md): decisions D01–D39 and the canonical definitions (§5).
 - Plan documents:
   - [04](04_voice_catalog_and_library.md): catalog and Voice Library;
   - [05](05_voice_studio_and_admin_console.md): Voice Studio and admin console;
@@ -54,7 +56,8 @@ Code was read on 2026-10-12 in the working trees of `magic-worlds-api` and `magi
   - [research 08](research/08_voice_data_model_migration_surface.md): data model;
   - [research 12](research/12_gap_model_protocol_facts.md): model and protocol facts;
   - [research 13](research/13_gap_codebase_checks.md): codebase checks;
-  - [research 14](research/14_cost_model.md): cost model.
+  - [research 14](research/14_cost_model.md): cost model;
+  - [research 15](research/15_workspace_r1_impact.md): Workspace R1 impact.
 
 ## 1. Summary
 
@@ -194,6 +197,12 @@ The gates run after today's message and session scope checks and before any plan
 | 8 | Provider route | `ProviderRouter` (D28): `rollout_mode`, `canary_percent`, cohort. Before R2 entry only the internal cohort reaches ElevenLabs (L-1). | Continues on the MiniMax or the ElevenLabs path. Steps 1–7 and 10–13 are shared; steps 8–9 differ. |
 
 Membership limits (daily requests, in-flight, credits, daily characters) are checked at reservation (§5), not here, because only reuse misses are charged.
+
+**Workspace (D39).** The workspace is not a gate in this table; it is enforced by the socket and by planning, as Workspace R1 does today:
+- The chat socket resolves `?workspace_id=` with intent `read` ([route_chat.py:2215-2218](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py)); a missing selector closes with 4422 and a foreign one with 4404. The `tts` frame is handled in that workspace, and the session is re-read there (`:1319`).
+- An archived workspace does not refuse the request up front. Reuse hits attach for free, as today ([engine.py:135-139](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py)).
+- Reuse misses need an active workspace. Planning takes the workspace lock before any reservation (§5.4). If the workspace is archived, nothing is reserved and the turn gets `tts_failed` with `status:"invalid"`, `error.code:"workspace_archived"`, `retryable:false` (§6.6).
+- Gates 4–7 and every cap are per account, never per workspace (03 §5.15). Two workspaces cannot double a user's daily cap or token bucket.
 
 ### 2.4 Segment derivation and caps
 
@@ -698,17 +707,20 @@ The input is canonical JSON with sorted keys. It replaces today's MiniMax signat
 
 ### 4.2 Lookup
 
-`find_reusable_chat_job` ([models.py:8650](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)) keys:
+`find_reusable_chat_job` ([models.py:9118](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)) keys:
 - user, project, group;
+- `workspace_id` (Workspace R1, `:9157`). `idx_tts_job_reuse` ([db.sql:859](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql)) does not include it; that is fine, because `adventure_id` already fixes the workspace;
 - `adventure_id`, `assistant_message_id`, `turn_id`, `segment_index`;
 - `model_alias`, `provider_model_id`, `voice_id_hash`, `normalized_text_sha256`;
-- `provider`, a new predicate. The hash already includes it, so the existing `idx_tts_job_reuse` ([db.sql:694](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql)) still serves the query.
+- `provider`, a new predicate. The hash already includes it, so the existing `idx_tts_job_reuse` still serves the query.
 
 It matches either of these:
 - a job in `pending`, `in_progress`, `synthesizing` or `mirroring`; the request attaches to it and is not charged;
 - a `completed` job with a live asset where `content_type='audio/mpeg' AND output_format='mp3'`; the asset is attached for free.
 
-The lookup runs inside the planning transaction, under the per-message lock (`lock_assistant_message_for_tts`, [models.py:8577](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)). A double click or a second tab therefore attaches to the first request's jobs instead of creating a second charge.
+The lookup runs inside the planning transaction, under the per-message lock (`lock_assistant_message_for_tts`, [models.py:9029](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)). A double click or a second tab therefore attaches to the first request's jobs instead of creating a second charge.
+
+The lookup runs **before** the active-workspace check, as today. A hit is returned in an archived workspace; only misses need an active one (§2.3).
 
 ### 4.3 What reuse does not cover
 
@@ -716,6 +728,7 @@ The lookup runs inside the planning transaction, under the per-message lock (`lo
 - **Across providers:** MiniMax assets never match ElevenLabs keys. A cohort user keeps the MiniMax clips already stored in metadata. Retrying a failed clip of an old turn produces an ElevenLabs clip in the same turn; mixed turns are expected during R1–R4.
 - **Across pipeline changes:** a bump of `sanitizer_version` or `emotion_map_version`, a voice re-mapping, or a split change misses and re-synthesizes. That re-synthesis is charged as a normal miss.
 - **After a message edit:** the sidecars are dropped and the text differs, so every clip misses.
+- **Across workspaces:** the lookup is scoped to the session's workspace. A session copied to another workspace does not exist in R1 (only cards are copied), so this changes nothing in practice.
 
 ## 5. Billing per turn
 
@@ -771,8 +784,11 @@ D24 items 1–6, 9 and 10, verbatim (items 7 and 8 concern calls and previews):
 create table tts_turn_charge (
     turn_charge_id     char(36) character set utf8mb4 collate utf8mb4_bin primary key,
     user_id            int not null,
+    project_hash       varchar(64) character set utf8mb4 collate utf8mb4_bin not null,   -- same app scope as tts_job
+    user_group_hash    varchar(64) character set utf8mb4 collate utf8mb4_bin not null,
+    workspace_id       char(36)    character set utf8mb4 collate utf8mb4_bin not null,   -- the session's workspace (D39); never client-chosen
+    adventure_id       int not null,
     usage_day          date not null,                -- membership usage day of the reservation
-    -- + the same app-scope columns as tts_job (DATA copies them)
     assistant_message_id bigint not null,
     turn_id            bigint not null,
     tier               varchar(16) not null,         -- standard|expressive (effective, after D05 fallback)
@@ -785,17 +801,23 @@ create table tts_turn_charge (
     status             varchar(16) not null,         -- open|settled
     created_at         datetime default CURRENT_TIMESTAMP not null,
     settled_at         datetime null,
-    key idx_tts_turn_charge_day (user_id, usage_day),
-    key idx_tts_turn_charge_open (user_id, status)
+    key idx_tts_turn_charge_day (user_id, usage_day),     -- caps and in-flight are per account, never per workspace (D39)
+    key idx_tts_turn_charge_open (user_id, status),
+    key idx_tts_turn_charge_workspace (user_id, project_hash, user_group_hash, workspace_id, created_at),
+    constraint fk_tts_turn_charge_workspace foreign key (user_id, project_hash, user_group_hash, workspace_id)
+        references tb_workspace (user_id, project_hash, user_group_hash, workspace_id) on delete no action on update no action,
+    constraint chk_tts_turn_charge_scope_nonempty check (char_length(project_hash) > 0 and length(project_hash) = length(trim(project_hash)) and char_length(user_group_hash) > 0 and length(user_group_hash) = length(trim(user_group_hash)))
 ) engine = InnoDB default character set = utf8mb4 collate = utf8mb4_0900_ai_ci;
 -- tts_job gains: turn_charge_id char(36) null (FK to tts_turn_charge), billed_chars int null,
 --                tier varchar(16) null, substitution_reason varchar(32) null.
 
 -- Per-session tier override, outside template_snapshot (D05).
 create table session_voice_setting (
-    session_id     bigint primary key,           -- adventure_session id (character chats included)
+    session_id     int primary key,              -- adventure_session.adventure_id (character chats included); workspace inherited (D39)
     tier_override  varchar(16) character set utf8mb4 collate utf8mb4_bin null,   -- standard|expressive|null
-    updated_at     datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP
+    updated_at     datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP,
+    constraint fk_session_voice_setting_session foreign key (session_id)
+        references adventure_session (adventure_id) on delete cascade on update no action
 ) engine = InnoDB default character set = utf8mb4 collate = utf8mb4_0900_ai_ci;
 ```
 
@@ -821,6 +843,10 @@ Widening list (03 §5.14, verbatim rows used by narration):
 | `MEMBERSHIP_MEDIA_OPERATIONS`, `count_in_flight` (`models.py:2061-2117`, `:2943`) | add `voice_preview` with a branch over `voice_preview_render`; `tts_generation` branch counts open `tts_turn_charge` rows |
 | `membership_plan_limit` | `daily_quantity_limit` column; `voice_preview` seed rows |
 | FE `TERMINAL_STATUSES`, `tts_failed` union (`chatTtsTurnState.ts:21-32`, `interaction.types.ts:212`) | unchanged statuses; new `error.code` values and segment states `daily_limit_reached`, `not_narrated` |
+| *Added 2026-10-12 (Workspace R1 alignment, [research/15](research/15_workspace_r1_impact.md)); backend line numbers at `f37eefd`:* | |
+| `TtsJobModel.create_pending_job` provider set `allowed={"minimax"}` (`models.py:8935`) | add `elevenlabs` |
+| `_required_asset_parent_job` called with `provider="minimax"` from `TtsAssetModel.create_asset` (`models.py:766`, `:9465`) | accept the job's persisted provider from the widened set; never a literal |
+| `tts_job` provider CHECK (now `db.sql:835`) | the line above for `db.sql:670` moved; same change |
 
 Two more strict models must widen in R0; neither is in the 03 list:
 - `TtsErrorPublic` is strict, with fields `category`, `detail`, `code` and `retry_after_seconds` ([tts.py:32](/home/andres/PycharmProjects/magic-worlds-api/src/models/tts.py)). It must gain `retryable` and `action` for the §5.8 frames.
@@ -828,16 +854,21 @@ Two more strict models must widen in R0; neither is in the 03 list:
 
 ### 5.4 Planning and settlement transactions
 
-Planning runs in **one** `transaction_cursor`. `reserve_media_operation` accepts the caller's cursor, and its `_lock_limits` takes a per-user, per-operation lock ([models.py:2929](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)). Two turns of one user therefore cannot both pass the daily-cap check.
+Planning runs in **one** `transaction_cursor`. `reserve_media_operation` accepts the caller's cursor, and its `_lock_limits` takes a per-user, per-operation lock ([models.py:3074](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)). Two turns of one user therefore cannot both pass the daily-cap check, even from two workspaces.
+
+**Workspace order (D39).** The active-workspace lock (`_admit_media_job_origin`, [models.py:575-601](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)) is a shared lock that serializes with archive. It is taken after the reuse lookup and **before** `reserve_media_operation`. Today it runs inside `create_pending_job`, after `_enforce_quota`; with a per-turn charge that order would reserve credits and then fail, so the plan moves the check forward. `create_pending_job` still re-checks it, under the same lock and in the same transaction.
 
 ```python
 async with transaction_cursor() as (_conn, cur):
-    await lock_assistant_message_for_tts(cur, assistant_message_id)            # models.py:8577
-    write_terminal_jobs(cur, blocked + moderation_unavailable)                 # §2.7, no charge
-    hits = {c: await find_reusable_chat_job(cur, reuse_key(c)) for c in passed}
+    await lock_assistant_message_for_tts(cur, assistant_message_id, workspace_id=ws)  # models.py:9029; session's workspace
+    hits = {c: await find_reusable_chat_job(cur, reuse_key(c), workspace_id=ws) for c in passed}   # hits stay free when archived
     misses = [c for c in passed if hits[c] is None]
+    if misses or blocked or moderation_unavailable:
+        await admit_media_job_origin(cur, ctx, require_active=True)           # models.py:575; archived -> raise
+                                                                               # TurnRefused("workspace_archived"), rollback
+    write_terminal_jobs(cur, blocked + moderation_unavailable, workspace_id=ws)  # §2.7, no charge
     if misses:
-        await ensure_and_lock_limits(cur, user_id, "tts_generation")          # same lock reserve uses
+        await ensure_and_lock_limits(cur, user_id, "tts_generation")          # same lock reserve uses; per account
         used = await sum_counted_chars(cur, user_id, usage_day)               # open + settled charges
         plan = fit_daily_cap(misses, daily_quantity_limit - used, tier)       # Expressive -> Standard first,
                                                                                # then in-order fit; re-run steps 5, 8-10
@@ -850,16 +881,19 @@ async with transaction_cursor() as (_conn, cur):
             charge_id = str(uuid4())
             # 03 §5.2 column: ledger_entry_id (one id). reserve returns up to 3 ledger_ids;
             # until §12 item 1 is decided in 03, all of them must be persisted with the charge.
-            insert_turn_charge(cur, charge_id, plan, credits, ledger_ids=res["ledger_ids"], status="open")
+            insert_turn_charge(cur, charge_id, plan, credits, ledger_ids=res["ledger_ids"], status="open",
+                               workspace_id=ws, adventure_id=adventure_id)        # copied from the session row (D39)
             for c in plan.taken:
-                insert_tts_job(cur, c, provider="elevenlabs", turn_charge_id=charge_id,
+                insert_tts_job(cur, c, provider="elevenlabs", turn_charge_id=charge_id, workspace_id=ws,
                                billed_chars=c.counted_chars, tier=c.tier,
                                substitution_reason=c.substitution_reason)
         mark_display(plan.over_cap, "daily_limit_reached")
 # after commit: start job tasks; patch metadata for hits, capped clips and terminal jobs; send frames
 ```
 
-**Settlement** is idempotent. It runs after each terminal transition of a job that has a `turn_charge_id`, and from the sweep (§7.6):
+`ws` is the session's `workspace_id`, read under the message lock; it never comes from the client frame. `insert_tts_job` also writes today's `tb_content_operation_context` row (`operation_kind = 'tts_job'`).
+
+**Settlement** is idempotent. It runs after each terminal transition of a job that has a `turn_charge_id`, and from the sweep (§7.6). It is a continuation: it never re-checks that the workspace is active, so a turn planned before an archive settles and refunds normally (03 §5.15):
 
 ```python
 async with transaction_cursor() as (_conn, cur):
@@ -1057,6 +1091,7 @@ Config and billing breakers open on the first matching signal (§6.2) and close 
 | `canceled` | `unavailable` | true | Message edited, kill switch while queued (§7.4) |
 | Today's membership codes | `quota_exceeded` | unchanged | `reserve_media_operation` outcomes |
 | `narration_paused`, `auto_narration_paused`, `voice_not_eligible`, `voice_restricted` | `unavailable` (turn frame) | true, true, false, false | Gates (§2.3) [proposed, §12 item 7] |
+| `workspace_archived` | `invalid` (turn frame) | false | Reuse miss in an archived workspace (§2.3, D39). Today it is the private `internal_code` of `TtsGenerationError(INVALID)` ([engine.py:208-245](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py)); the enum makes it public [proposed, §12 item 16] |
 
 `detail` is fixed public copy per code, never provider text.
 
@@ -1300,6 +1335,11 @@ Copy used on narrated turns (03 §5.12, verbatim rows):
 
 **Accessibility.** Today a failed narration looks idle ([research 00](research/00_current_tts_review.md), "Lower"). The Retry and skip states get distinct labels and the `danger` tone, and the caption is a polite live region.
 
+**Read-only workspaces (D39).** Today narration is not read-only gated: `onRequestNarration` is passed regardless of `readOnly` ([InteractionCenterPanel.tsx:1367](/home/andres/WebstormProjects/magic-worlds/src/features/interaction/components/InteractionCenterPanel.tsx)), and `ChatTurn` renders `TurnNarration` regardless of `actionsDisabled` ([ChatTurn.tsx:135-143](/home/andres/WebstormProjects/magic-worlds/src/features/interaction/components/ChatTurn.tsx)). In R0:
+- In an archived workspace (`useWorkspaceReadOnly(session workspace)`), clips already stored play as today, and auto-narrate is off.
+- "Narrate" and "Retry" are disabled: the SPA cannot tell a reuse hit from a miss, so it sends no new request (the server still serves hits to older builds). A turn-level `workspace_archived` from the server shows `workspaceActivity.chat.workspaceArchived` (existing copy), not a generic failure.
+- TTS requests keep riding the session's scoped socket; polling keeps using the session's client; audio blobs keep using the unscoped client (no selector on binary assets).
+
 **Older builds.** Older SPA builds see only existing statuses. `useAppVersionCheck` ([useAppVersionCheck.ts:46](/home/andres/WebstormProjects/magic-worlds/src/app/hooks/useAppVersionCheck.ts)) prompts a reload after deploy.
 
 ## 10. Later options
@@ -1424,6 +1464,7 @@ Test files are under `/home/andres/PycharmProjects/magic-worlds-api/tests/`.
 | `test_chat_tts_delivery.py` | Update | Entry fields `tier`, `gain_db`, `substitution_reason`; capped entries; patch rules; `tts_segments_state` |
 | `test_chat_quota_errors.py` | Update | Turn-level frames: attestation, gates, membership outcomes |
 | `services/test_tts_storage.py` | Update | Raw bytes, validation, atomic write off-loop, cleanup on terminal job |
+| `services/test_turn_charge_workspace.py` | New (D39, [08](08_backend_refactor_plan.md) §9.4) | Charge carries the session's workspace; archived workspace reserves nothing and returns `workspace_archived`; reuse hit in an archived workspace attaches free; settlement and sweep after an archive; caps across two workspaces |
 | `services/test_tts_live_minimax_contract.py` | Removed at R4 | Replaced by the ElevenLabs contract suite behind an env flag ([14](14_staging_spike_and_contract_tests.md)) |
 
 ### 11.3 Frontend tests
@@ -1434,7 +1475,8 @@ Test files are under `/home/andres/PycharmProjects/magic-worlds-api/tests/`.
 | `src/features/interaction/utils/chatTtsTurnState.test.ts` | Update | No last-AI fallback; buffered unmatched frames; `safeError` keeps `retryable` and `action`; display states; segment merge rules |
 | `src/features/interaction/components/InteractionCenterPanel.test.tsx` | Update | Hydration with the real call-site inputs (research 00 test gap); polling backoff and deadline; auto-narrate queueing |
 | `src/features/interaction/utils/chatTurnMerge.test.ts` | Update | Live TTS fields carried across `mergeHydratedChatTurns` |
-| `src/features/interaction/hooks/useAdventureChatSocket.test.tsx` | Update | `tts_segments_state`; turn-level `tts_failed`; attestation prompt flow |
+| `src/features/interaction/hooks/useAdventureChatSocket.test.tsx` | Update | `tts_segments_state`; turn-level `tts_failed`; attestation prompt flow; `workspace_archived` turn error |
+| `src/features/interaction/components/ChatTurn.test.tsx` | Update (D39) | Archived workspace: stored clips play, auto-narrate off, archived copy on `workspace_archived` |
 
 ### 11.4 Staging and contract tests
 
@@ -1496,3 +1538,5 @@ Narration rollback triggers from D28, measured over 1 h:
 | 13 | Partial-fit tier choice when neither tier fits the remaining daily cap | Choose the tier that narrates more clips in order | Yes, D24 item 4 (minor) |
 | 14 | `TtsErrorPublic` and the public job projection are strict and lack the new fields | Add `retryable`, `action`, `tier`, `gain_db`, `substitution_reason` in R0 | Yes, §5.14 (add rows) |
 | 15 | Per-turn parallelism (3), queue wait (60 s), hard deadline (180 s), polling deadline (10 min) | Values in §3.6 and §9.6 | No; tune with S-21 |
+| 16 | A reuse miss in an archived workspace has no public code (today the private `internal_code` `workspace_archived`) | Public `workspace_archived`, status `invalid`, `retryable:false` (§6.6) | Applied in 03 §5.15 (D39); BE item in [08](08_backend_refactor_plan.md) §11 item 15 |
+| 17 | Workspace R1 is not deployed to production; R0 migration 1 chains after `2026_10_workspace_r1` | Deploy Workspace R1 first (Q-33 in [16](16_risks_and_open_questions.md)) | No (D39) |

@@ -1,20 +1,32 @@
-import { ArrowLeft, Mail } from 'lucide-react'
+import { ArrowLeft, Mail, TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigation } from '@/app/hooks'
 import { legalArt } from '@/assets/marketing'
-import { Badge, Button, Icon, IconTile, Illustration, PageHeader, cx } from '@/ui/primitives'
+import { Badge, Button, Callout, Icon, IconTile, Illustration, PageHeader, cx } from '@/ui/primitives'
 import { CONTACT_EMAIL, getLegalPageLinks, getLegalPages, type LegalPageId, type LegalSection } from './legalContent'
+import { ReportMinorForm } from './ReportMinorForm'
+import { useAttestation } from '../attestation/attestationContext'
+import { termsVersion } from '../attestation/attestationStatus'
+import { legalLanguage } from '../documents'
 
 interface LegalPageProps {
     page: LegalPageId
 }
 
 export function LegalPage({ page }: LegalPageProps) {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
     const { setPage } = useNavigation()
     const links = getLegalPageLinks(t)
-    const content = getLegalPages(t)[page]
+    // R2-FE-01: the Terms page shows the document of the server's version (the
+    // attestation status) when the SPA ships it, else the newest shipped one,
+    // and names the version it shows.
+    const attestation = useAttestation()
+    const serverTermsVersion = attestation?.termsVersion ?? termsVersion(attestation?.status)
+    const language = legalLanguage(i18n.resolvedLanguage ?? i18n.language)
+    const content = getLegalPages(t, { language, termsVersion: serverTermsVersion })[page]
     const art = legalArt[page]
+    const version = page === 'terms' ? content.version ?? null : null
+    const effectiveDate = page === 'terms' ? content.effectiveDate ?? null : null
 
     return (
         <div className="relative w-full">
@@ -39,6 +51,12 @@ export function LegalPage({ page }: LegalPageProps) {
 
                 <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
                     <main className="flex min-w-0 flex-col gap-6">
+                        {content.notice && (
+                            <Callout tone="warning" role="note" icon={<Icon icon={TriangleAlert} size={18} />}>
+                                <p className="m-0 font-semibold text-parchment-50">{content.notice.title}</p>
+                                <p className="mt-1 mb-0 leading-relaxed">{content.notice.body}</p>
+                            </Callout>
+                        )}
                         {art && (
                             <Illustration
                                 src={art}
@@ -72,6 +90,8 @@ export function LegalPage({ page }: LegalPageProps) {
                                 <LegalSectionContent key={section.title} section={section} />
                             ))}
                         </div>
+                        {/* R2-BE-02: shown only to signed-in users while reporting is open. */}
+                        {page === 'contact' && <ReportMinorForm />}
                     </main>
 
                     <aside className="flex min-w-0 flex-col gap-6 border-t border-line-faint pt-6 lg:sticky lg:top-6 lg:self-start lg:border-t-0 lg:border-l lg:pl-6 lg:pt-0">
@@ -132,12 +152,33 @@ export function LegalPage({ page }: LegalPageProps) {
                             <p className="mt-3 font-ui text-caption text-fg-subtle">
                                 {t('legal.side.lastUpdated', { date: content.updated })}
                             </p>
+                            {version && (
+                                <p className="mt-1 font-ui text-caption text-fg-subtle" data-testid="terms-version">
+                                    {t('legal.pages.terms.version', { version })}
+                                </p>
+                            )}
+                            {effectiveDate && (
+                                <p className="mt-1 font-ui text-caption text-fg-subtle" data-testid="terms-effective-date">
+                                    {t('legal.pages.terms.effectiveDate', { date: formatLegalDate(effectiveDate, i18n.resolvedLanguage ?? i18n.language) })}
+                                </p>
+                            )}
                         </section>
                     </aside>
                 </div>
             </div>
         </div>
     )
+}
+
+/** A registry ISO date (`2027-01-15`) as a long local date; the raw string when unparseable. */
+function formatLegalDate(iso: string, locale: string | undefined): string {
+    const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T00:00:00Z` : iso)
+    if (Number.isNaN(date.getTime())) return iso
+    try {
+        return new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'UTC' }).format(date)
+    } catch {
+        return iso
+    }
 }
 
 function LegalSectionContent({ section }: { section: LegalSection }) {

@@ -138,15 +138,37 @@ export interface MembershipProfileCards {
     payg: MembershipPaygProfileCard
 }
 
-export interface Membership {
+/**
+ * Today's voice usage against the plan's daily caps (D24, D18). Narration
+ * characters are Standard-equivalent (Expressive counts twice); call time is
+ * in seconds. Every field is optional: servers before the R0 usage DTO send
+ * none of them, and the UI shows a row only when its fields are present.
+ */
+export interface MembershipVoiceUsage {
+    narration_chars_used?: number | null
+    narration_chars_limit?: number | null
+    call_seconds_used?: number | null
+    call_seconds_limit?: number | null
+    /** Recipe previews (`voice_preview`) still allowed today. */
+    previews_left?: number | null
+}
+
+export interface Membership extends MembershipVoiceUsage {
     plan_code: string
     display_name: string
     credits: MembershipCredits
     payg: MembershipPayg
     total_available_credits: number
+    /** Per operation, including `voice_preview` (D18) once the server seeds it. */
     limits: Record<string, MembershipOperationLimit>
     monthly_usage?: MembershipMonthlyUsage | null
     profile_cards: MembershipProfileCards
+    /**
+     * Voice usage block. **Proposal (09 §1.8):** nested here; 08 §1.10 lists the
+     * same fields on the membership itself, so readers accept both placements
+     * (`readVoiceUsage`).
+     */
+    voice_usage?: MembershipVoiceUsage | null
 }
 
 /**
@@ -167,14 +189,44 @@ export interface UserProfile {
 
 export type PreferredLanguage = 'en' | 'es'
 
+/** Narration quality tier (D05). Tier names, never provider model ids. */
+export type NarrationTier = 'standard' | 'expressive'
+
+/** `user_preferences.narration_tier` until the account picks another (D05, 08 §5.2). */
+export const DEFAULT_NARRATION_TIER: NarrationTier = 'standard'
+
+/**
+ * `GET`/`PATCH /user/preferences` (08 §5.2, 09 §2). The API client fills
+ * `narration_tier` with {@link DEFAULT_NARRATION_TIER} when a server before R0
+ * leaves it out, so it is always present. The stored tier is returned as is:
+ * `GET /voices/capabilities` clamps it to `tiers_allowed`. No UI writes it in
+ * R0 (09: the toggle ships in R1).
+ */
 export interface UserPreferences {
     preferred_language: PreferredLanguage
     has_preference: boolean
+    /** The account's narration tier (D05); `standard` by default. Expressive needs Plus or Pro. */
+    narration_tier: NarrationTier
 }
 
-export interface UserPreferencesUpdate {
-    preferred_language: PreferredLanguage
-}
+/**
+ * `PATCH /user/preferences` (08 §5.2, 09 §2): a partial update; only the fields
+ * sent are written. At least one field is required, as the server refuses an
+ * empty body and an explicit null (422). `narration_tier: 'expressive'` is
+ * refused with 422 `{detail: {code, message, path: 'narration_tier'}}` and
+ * nothing is written: `voice_plan_locked` below Plus, and
+ * `voice_tier_unavailable` when the plan allows it but the Expressive model is
+ * unavailable (I-32: plan ∩ healthy models); copy in `voices.errors.tierUnavailable`.
+ *
+ * A tier-only body updates an existing row only: with no row yet (the account
+ * never saved a language) the server answers FastAPI's validation 422 for a
+ * missing `preferred_language` instead of storing a default language. So the
+ * R1 tier toggle must always send the current `preferred_language` together
+ * with `narration_tier`, which also covers a first write.
+ */
+export type UserPreferencesUpdate =
+    | { preferred_language: PreferredLanguage; narration_tier?: NarrationTier }
+    | { preferred_language?: PreferredLanguage; narration_tier: NarrationTier }
 
 export interface Project {
     project_hash: string

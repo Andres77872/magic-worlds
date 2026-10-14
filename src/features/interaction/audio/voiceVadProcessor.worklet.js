@@ -28,7 +28,11 @@
  *   { type: 'configure', maxSegmentMs?, minSpeechMs?, silenceMsToEnd?, speechThreshold? }
  *
  * Messages posted to the main thread:
- *   { type: 'vad', state: 'speech_start' | 'speech_end', at_ms, rms }
+ *   { type: 'vad', state: 'speech_start', at_ms, rms }
+ *   { type: 'vad', state: 'speech_end', at_ms, rms, ended_by_silence, silence_tail_ms }
+ *     // right after the segment it closed. `ended_by_silence` is false for a max-length cut
+ *     // (the user is still talking); `silence_tail_ms` is the quiet waited after the last
+ *     // voiced audio (the end-of-turn hang-over), 0 for a cut.
  *   { type: 'segment', samples: Int16Array, sample_rate: 16000, started_at_ms, speech_ms, silence_ms }
  *   { type: 'level', rms }   // throttled, 0..1
  */
@@ -373,6 +377,8 @@ class VoiceVadProcessor extends AudioWorkletProcessor {
         // Only the start of the pause is sent; the full quiet tail still re-seeds the pre-roll.
         const trimmed = endedBySilence ? Math.max(0, this.trailingSilentSamples - msToSamples(TRAILING_SILENCE_KEEP_MS)) : 0
         const sent = Math.max(speechSamples, length - trimmed)
+        // The hang-over: quiet since the last voiced audio, waited before closing the turn.
+        const silenceTailSamples = endedBySilence ? Math.min(this.trailingSilentSamples, length) : 0
 
         // Reset turn state regardless of whether we emit.
         this.speaking = false
@@ -399,7 +405,14 @@ class VoiceVadProcessor extends AudioWorkletProcessor {
             // start of the trailing silence.
             silence_ms: Math.round(((sent - speechSamples) / TARGET_SAMPLE_RATE) * 1000),
         }, [samples.buffer])
-        this.port.postMessage({ type: 'vad', state: 'speech_end', at_ms: this.elapsedMs(), rms: roundMetric(rms) })
+        this.port.postMessage({
+            type: 'vad',
+            state: 'speech_end',
+            at_ms: this.elapsedMs(),
+            rms: roundMetric(rms),
+            ended_by_silence: endedBySilence,
+            silence_tail_ms: Math.round((silenceTailSamples / TARGET_SAMPLE_RATE) * 1000),
+        })
     }
 
     alphaFor(timeConstantMs) {

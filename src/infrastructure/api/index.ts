@@ -64,25 +64,83 @@ import type { TextGenerationEvent, TextGenerationOptions } from '@/shared/types/
 
 import { readEventStream, StreamContractError, type SseEvent } from './sse'
 import type {
-    AdminVoiceCloneRequest,
-    AdminVoiceCloneResponse,
-    AdminVoiceClonePurpose,
-    AdminVoiceCloneUploadResponse,
-    AdminVoiceConcreteType,
-    AdminVoiceDeleteResponse,
-    AdminVoiceDesignRequest,
-    AdminVoiceDesignResponse,
-    AdminVoiceListResponse,
-    AdminVoiceQueryType,
-    AdminVoiceTestRequest,
-    AdminVoiceTestResponse,
-} from '../../shared/types/adminVoice.types'
+    AcceptanceRenderRequest,
+    AcceptanceRenderResponse,
+    AcceptanceVerdictRequest,
+    AcceptanceVerdictResponse,
+    AdminCatalogDeleteResponse,
+    AdminCatalogImpact,
+    AdminCatalogPage,
+    AdminCatalogQuery,
+    AdminCatalogUpdate,
+    AdminCatalogUpdateOptions,
+    AdminCatalogVoice,
+    AdminLabSynthesisRequest,
+    AdminLabSynthesisResult,
+    AdminVoiceLimits,
+    AdminVoiceMetricsArea,
+    AdminVoiceMetricsByArea,
+    AdminVoiceMetricsQuery,
+    AdminVoiceSyncRequest,
+    AdminVoiceSyncResponse,
+    CatalogSampleRenderRequest,
+    CatalogSampleRenderResponse,
+    LegacyMappingCoverage,
+    LegacyMappingListResponse,
+    LegacyMappingRow,
+    LegacyMappingUpdate,
+    LibraryAddRequest,
+    LibraryVoicePage,
+    LibraryVoiceQuery,
+    VoiceDefaultRole,
+    VoiceDefaultsResponse,
+    VoiceDefaultsUpdateResponse,
+    VoiceDesignRequest,
+    VoiceDesignResponse,
+    VoiceDesignSaveRequest,
+    VoiceRemixRequest,
+    VoiceRuntimeSetting,
+    VoiceRuntimeSettingsResponse,
+    AdminGlobalPresetInput,
+    AdminGlobalPresetList,
+    AdminGlobalPresetRow,
+    AdminLabModel,
+} from '../../shared/types/adminVoiceCatalog.types'
 import type {
-    VoicePreset,
-    VoicePresetCreatePayload,
-    VoicePresetPreviewRequest,
-    VoicePresetUpdatePayload,
+    PreviewTextsResponse,
+    VoicePresetPreviewRequestV2,
+    VoicePresetPreviewResponse,
+    VoicePresetRow,
+    VoicePresetV2Write,
 } from '../../shared/types/voicePreset.types'
+import type {
+    CatalogPage,
+    CatalogQuery,
+    CatalogVoice,
+    EffectiveVoiceRefType,
+    EffectiveVoiceResponse,
+    VoiceCapabilities,
+    VoiceReviewFlagList,
+} from '../../shared/types/voiceCatalog.types'
+import type { SessionVoiceSettings, VoiceSessionBasePath } from '../../shared/types/sessionVoice.types'
+import type {
+    MinorReportAccepted,
+    MinorReportAdminItem,
+    MinorReportAdminList,
+    MinorReportInput,
+    MinorReportOutcome,
+    MinorReportStatus,
+} from '../../shared/types/minorReport.types'
+import { VOICE_CAPABILITIES_TTL_MS, cachedVoiceCapabilities, toVoiceCapabilities } from '../../shared/voice/voiceCapabilities'
+import { catalogKeyBatches, catalogQueryString, toCatalogItems, toCatalogPage } from '../../shared/voice/voiceCatalog'
+import { stripVoiceProjections } from '../../shared/voice/stripVoiceProjections'
+import type {
+    AttestationMethod,
+    AttestationRecord,
+    AttestationRequirement,
+    AttestationStatus,
+    AttestationSubmission,
+} from '../../shared/types/attestation.types'
 import type {
     AgentCreateRequest,
     AgentDetail,
@@ -102,10 +160,12 @@ import type {
     LoginResponse,
     RegisterData,
     RegisterResponse,
+    NarrationTier,
     UserPreferences,
     UserPreferencesUpdate,
     UserProfile,
 } from '../../shared/types/auth.types'
+import { DEFAULT_NARRATION_TIER } from '../../shared/types/auth.types'
 import type {
     BillingCheckoutSessionResponse,
     BillingPlanCatalogResponse,
@@ -333,6 +393,27 @@ type AuthRefreshedDetail = BrowserAuthResponse & { token: string }
 let refreshInFlight: Promise<string> | null = null
 
 /**
+ * The last settled capabilities read per account key, for a synchronous peek
+ * (`peekVoiceCapabilities`). Set once per read (not per cache hit), so it never
+ * outlives that read by more than the request time; a failed read clears it.
+ */
+let voiceCapabilitiesLatestRead: Promise<VoiceCapabilities> | null = null
+let voiceCapabilitiesSnapshot: { key: string; value: VoiceCapabilities; expiresAt: number } | null = null
+
+function rememberVoiceCapabilities(key: string, read: Promise<VoiceCapabilities>): void {
+    if (read === voiceCapabilitiesLatestRead) return
+    voiceCapabilitiesLatestRead = read
+    read.then(
+        (value) => {
+            if (voiceCapabilitiesLatestRead === read) voiceCapabilitiesSnapshot = { key, value, expiresAt: Date.now() + VOICE_CAPABILITIES_TTL_MS }
+        },
+        () => {
+            if (voiceCapabilitiesLatestRead === read) voiceCapabilitiesSnapshot = null
+        },
+    )
+}
+
+/**
  * Error thrown for non-2xx HTTP responses, carrying the status code so callers
  * can distinguish a transient backend outage (5xx — e.g. the auth service is
  * briefly down and the API returns 503) from a real client-side error. Transient
@@ -391,6 +472,26 @@ export function isWorkspaceApiError(error: unknown, code?: WorkspaceErrorCode): 
 
 /** Window event dispatched when any response says `WORKSPACE_REQUIRED` (a stale client build). */
 export const WORKSPACE_REQUIRED_EVENT = 'workspace:required'
+
+/**
+ * HTTP 428 `attestation_required` (D26): the account has not accepted the
+ * current 18+ or Terms of Service version. Voice consent and the recipe
+ * preview answer it (13 §3.2). `AttestationProvider.withAttestation` opens the
+ * blocking prompt and retries the request once after the user attests.
+ */
+export class AttestationRequiredError extends ApiError {
+    constructor(status: number, message: string, metadata: Partial<Pick<ApiError, 'category' | 'code' | 'requestId' | 'retryable' | 'retryAfterSeconds' | 'action' | 'details'>> = {}) {
+        super(status, message, { ...metadata, code: metadata.code ?? 'attestation_required', action: metadata.action ?? 'attest' })
+        this.name = 'AttestationRequiredError'
+    }
+}
+
+export function isAttestationRequiredError(error: unknown): error is AttestationRequiredError {
+    return error instanceof AttestationRequiredError
+}
+
+/** Window event dispatched for every 428 `attestation_required`, so the prompt opens wherever it came from. */
+export const ATTESTATION_REQUIRED_EVENT = 'attestation:required'
 
 /**
  * The immutable workspace selector a scoped client captured. It is sent on
@@ -506,6 +607,15 @@ export function normalizeApiErrorBody(
     }
 }
 
+/** `/user/preferences` as served: a server before R0 sends no `narration_tier`. */
+type UserPreferencesWire = Omit<UserPreferences, 'narration_tier'> & { narration_tier?: unknown }
+
+/** A server before R0 sends no `narration_tier`: it reads as the D05 default, `standard`. */
+function withNarrationTier(preferences: UserPreferencesWire): UserPreferences {
+    const tier = preferences?.narration_tier
+    return { ...preferences, narration_tier: tier === 'standard' || tier === 'expressive' ? tier : DEFAULT_NARRATION_TIER }
+}
+
 type ApiRequestOptions = RequestInit & {
     timeoutMs?: number
     rejectAccepted?: boolean
@@ -573,6 +683,10 @@ class ApiService {
     private responseError(status: number, parsed: ParsedApiError): ApiError {
         if (parsed.code === 'WORKSPACE_REQUIRED' && typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent(WORKSPACE_REQUIRED_EVENT))
+        }
+        if (status === 428 || parsed.code === 'attestation_required') {
+            if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(ATTESTATION_REQUIRED_EVENT))
+            return new AttestationRequiredError(status, parsed.message, parsed)
         }
         return isWorkspaceErrorCode(parsed.code)
             ? new WorkspaceApiError(status, parsed.message, { ...parsed, code: parsed.code })
@@ -1878,11 +1992,14 @@ class ApiService {
     /**
      * Fetch the current user's profile (`GET /user/me`): identity, role, usage
      * quota, and per-type counts of authored cards. Read-only on this API.
+     * Account scope (09 §2.1): never carries a workspace selector, even on a
+     * scoped client.
      */
     async getUserProfile(): Promise<UserProfile> {
         const token = this.getStoredToken()
         return this.authenticatedRequest<UserProfile>('/user/me', token, {
             method: 'GET',
+            omitWorkspaceScope: true,
         })
     }
 
@@ -1901,16 +2018,190 @@ class ApiService {
 
     async getUserPreferences(): Promise<UserPreferences> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<UserPreferences>('/user/preferences', token, {
+        return withNarrationTier(await this.authenticatedRequest<UserPreferencesWire>('/user/preferences', token, {
             method: 'GET',
+        }))
+    }
+
+    /** Partial update (08 §5.2): only the fields present are sent and written. */
+    async updateUserPreferences(body: UserPreferencesUpdate): Promise<UserPreferences> {
+        const token = this.getStoredToken()
+        return withNarrationTier(await this.authenticatedRequest<UserPreferencesWire>('/user/preferences', token, {
+            method: 'PATCH',
+            body: body as unknown as BodyInit,
+        }))
+    }
+
+    /**
+     * The account's attestation status (D26): the current version required per
+     * kind and what the account accepted (`GET /user/attestations`, a proposal
+     * of 08 §5.1). Account scope: never carries a workspace selector. A 404
+     * means the route is not deployed yet; callers must not block on it.
+     */
+    async getAttestationStatus(): Promise<AttestationStatus> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<AttestationStatus>('/user/attestations', token, {
+            method: 'GET',
+            cache: 'no-store',
+            omitWorkspaceScope: true,
         })
     }
 
-    async updateUserPreferences(body: UserPreferencesUpdate): Promise<UserPreferences> {
+    /**
+     * Records attestations (`POST /user/attestations`). 08 §5.1 takes one
+     * `{kind, version, method}` per request and answers 201 `{kind, version,
+     * accepted_at}` (409 on a stale version), so each item is posted in turn.
+     */
+    async submitAttestations(items: AttestationRequirement[], method: AttestationMethod): Promise<AttestationRecord[]> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<UserPreferences>('/user/preferences', token, {
-            method: 'PATCH',
+        const records: AttestationRecord[] = []
+        for (const item of items) {
+            const body: AttestationSubmission = { kind: item.kind, version: item.version, method }
+            records.push(await this.authenticatedRequest<AttestationRecord>('/user/attestations', token, {
+                method: 'POST',
+                body: body as unknown as BodyInit,
+                omitWorkspaceScope: true,
+            }))
+        }
+        return records
+    }
+
+    // --- User voice catalog and capabilities (D13, D35; 08 §5.1) --------------
+    // Account scope: no workspace selector, except `recommended_for` an owned card,
+    // which the caller sends through that card's workspace client (08 §5.1).
+
+    /**
+     * Controls, ranges, defaults, text limits and health per surface and tier
+     * (`GET /voices/capabilities`), mapped to the 09 §1.5 view model by
+     * `toVoiceCapabilities`. Shared for 60 s per account (09 §7); `fresh` skips
+     * the cache. A body that is not a capabilities object rejects.
+     */
+    async getVoiceCapabilities(options: { fresh?: boolean } = {}): Promise<VoiceCapabilities> {
+        const token = this.getStoredToken()
+        const read = cachedVoiceCapabilities(token, async () => {
+            const raw = await this.authenticatedRequest<unknown>('/voices/capabilities', token, {
+                method: 'GET',
+                omitWorkspaceScope: true,
+            })
+            const capabilities = toVoiceCapabilities(raw)
+            if (!capabilities) throw new ApiError(502, 'The voice capabilities response was not recognised.')
+            return capabilities
+        }, options)
+        rememberVoiceCapabilities(token, read)
+        return read
+    }
+
+    /**
+     * This account's last capabilities read, synchronously, while it is within the
+     * 60 s cache lifetime; otherwise null (never a request). Lets a voice surface
+     * render its settled state on its first frame when the cache is warm.
+     */
+    peekVoiceCapabilities(): VoiceCapabilities | null {
+        const snapshot = voiceCapabilitiesSnapshot
+        if (!snapshot || snapshot.key !== this.getStoredToken() || snapshot.expiresAt <= Date.now()) return null
+        return snapshot.value
+    }
+
+    /** One page of the user catalog (`GET /voices/catalog`); `cursor` is the previous page's `next_cursor`. */
+    async listVoiceCatalog(filters: CatalogQuery = {}, cursor?: string | null, options: { signal?: AbortSignal } = {}): Promise<CatalogPage> {
+        this.assertVoicesEnabled()
+        const token = this.getStoredToken()
+        const raw = await this.authenticatedRequest<unknown>(`/voices/catalog${catalogQueryString(filters, cursor)}`, token, {
+            method: 'GET',
+            omitWorkspaceScope: !filters.recommended_for?.trim(),
+            ...(options.signal ? { signal: options.signal } : {}),
+        })
+        return toCatalogPage(raw)
+    }
+
+    /**
+     * Batch lookup for badges (`GET /voices/catalog?keys=`, ≤ 100 per request):
+     * includes non-public voices the caller references. Blank and repeated keys
+     * are dropped; more than 100 keys go out in several requests.
+     */
+    async getVoiceCatalogByKeys(keys: readonly string[]): Promise<CatalogVoice[]> {
+        this.assertVoicesEnabled()
+        const token = this.getStoredToken()
+        const items: CatalogVoice[] = []
+        for (const batch of catalogKeyBatches(keys)) {
+            const query = new URLSearchParams({ keys: batch.join(',') })
+            const raw = await this.authenticatedRequest<unknown>(`/voices/catalog?${query.toString()}`, token, {
+                method: 'GET',
+                omitWorkspaceScope: true,
+            })
+            items.push(...toCatalogItems(raw))
+        }
+        return items
+    }
+
+    /**
+     * What the caller hears for each voice path of one document (`GET
+     * /voices/effective`, D35). A `preset` ref is account level; every other
+     * ref must be called on the document's `withWorkspace(id)` client (422
+     * without the selector, 404 elsewhere).
+     */
+    async getEffectiveVoice(refType: EffectiveVoiceRefType, refId: string): Promise<EffectiveVoiceResponse> {
+        this.assertVoicesEnabled()
+        const token = this.getStoredToken()
+        const query = new URLSearchParams({ ref_type: refType, ref_id: refId })
+        return this.authenticatedRequest<EffectiveVoiceResponse>(`/voices/effective?${query.toString()}`, token, {
+            method: 'GET',
+            omitWorkspaceScope: refType === 'preset',
+        })
+    }
+
+    /** The caller's undismissed D15 review flags (account list). A 404 (feature unavailable) is no flags. */
+    async listVoiceReviewFlags(): Promise<VoiceReviewFlagList> {
+        this.assertVoicesEnabled()
+        const token = this.getStoredToken()
+        try {
+            return await this.authenticatedRequest<VoiceReviewFlagList>('/voices/review-flags', token, {
+                method: 'GET',
+                omitWorkspaceScope: true,
+            })
+        } catch (error) {
+            if (error instanceof ApiError && error.status === 404) return { items: [] }
+            throw error
+        }
+    }
+
+    /** Dismiss one review flag (204). A 404 means it is already gone, so it resolves too. */
+    async dismissVoiceReviewFlag(flagId: number): Promise<void> {
+        this.assertVoicesEnabled()
+        const token = this.getStoredToken()
+        try {
+            await this.authenticatedRequest<void>(`/voices/review-flags/${encodeURIComponent(String(flagId))}/dismiss`, token, {
+                method: 'POST',
+                omitWorkspaceScope: true,
+            })
+        } catch (error) {
+            if (error instanceof ApiError && error.status === 404) return
+            throw error
+        }
+    }
+
+    // --- Minor reports (R2-BE-02, EP-10) -------------------------------------
+    // Account scope. While the feature is closed, the status reads `enabled:
+    // false` and the POST answers 404 as if the route did not exist (I-16).
+
+    async getMinorReportStatus(): Promise<MinorReportStatus> {
+        this.assertVoicesEnabled()
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<MinorReportStatus>('/reports/minor/status', token, {
+            method: 'GET',
+            cache: 'no-store',
+            omitWorkspaceScope: true,
+        })
+    }
+
+    /** 202 `{report_id, received: true}`; 429 `minor_report_limit`, 403 `minor_report_disabled`, 404 when closed. */
+    async submitMinorReport(body: MinorReportInput): Promise<MinorReportAccepted> {
+        this.assertVoicesEnabled()
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<MinorReportAccepted>('/reports/minor', token, {
+            method: 'POST',
             body: body as unknown as BodyInit,
+            omitWorkspaceScope: true,
         })
     }
 
@@ -1960,45 +2251,219 @@ class ApiService {
         })
     }
 
-    async listAdminVoices(voiceType: AdminVoiceQueryType = 'all'): Promise<AdminVoiceListResponse> {
-        this.assertVoicesEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<AdminVoiceListResponse>(
-            `/admin/voices?voice_type=${encodeURIComponent(voiceType)}`,
-            token,
-            { method: 'GET' },
-        )
+    // --- Root voice console (D20; routes from 08 §5.3) -------------------------
+    // Account-level: the unscoped singleton, no workspace selector (D39). Audio
+    // comes back as `audio/*` bytes (`adminVoiceAudio`) or base64, never hex.
+
+    private adminVoiceQuery(params: object = {}): string {
+        const search = new URLSearchParams()
+        for (const [key, value] of Object.entries(params)) {
+            if (value === undefined || value === null || value === '') continue
+            search.set(key, String(value))
+        }
+        const query = search.toString()
+        return query ? `?${query}` : ''
     }
 
-    async designAdminVoice(body: AdminVoiceDesignRequest): Promise<AdminVoiceDesignResponse> {
+    private async adminVoiceRequest<T>(path: string, method = 'GET', payload?: unknown, signal?: AbortSignal): Promise<T> {
         this.assertVoicesEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<AdminVoiceDesignResponse>('/admin/voices/design', token, {
-            method: 'POST',
-            body: body as unknown as BodyInit,
+        return this.authenticatedRequest<T>(path, this.getStoredToken(), {
+            method,
+            signal,
+            omitWorkspaceScope: true,
+            ...(payload === undefined ? {} : { body: payload as BodyInit }),
         })
     }
 
-    async deleteAdminVoice(
-        voiceType: Exclude<AdminVoiceConcreteType, 'system'>,
-        voiceId: string,
-    ): Promise<AdminVoiceDeleteResponse> {
+    /**
+     * POST that answers audio: the auth replay and error mapping of `request`, the bytes as a Blob.
+     * A 2xx without an `audio/*` body is refused (502 `unexpected_audio_response`), so a JSON or
+     * HTML answer never reaches a player.
+     */
+    private async adminVoiceAudio(path: string, payload: unknown, signal?: AbortSignal): Promise<AdminLabSynthesisResult> {
         this.assertVoicesEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<AdminVoiceDeleteResponse>(
-            `/admin/voices/${encodeURIComponent(voiceType)}/${encodeURIComponent(voiceId)}`,
-            token,
-            { method: 'DELETE' },
-        )
+        let received: Response | null = null
+        await this.request<string>(path, {
+            method: 'POST',
+            signal,
+            omitWorkspaceScope: true,
+            body: payload as BodyInit,
+            // §2.9: the lab answers any audio container (mp3, pcm, opus…).
+            headers: { Accept: 'audio/*', Authorization: `Bearer ${this.getStoredToken()}` },
+            onResponse: (response) => {
+                if (response.ok) received = response.clone()
+            },
+        }, false)
+        const response = received as Response | null
+        const noAudio = () => new ApiError(502, 'The voice service returned no audio.', { code: 'unexpected_audio_response' })
+        if (!response) throw noAudio()
+        const contentType = response.headers.get('content-type')?.trim() ?? ''
+        // I-14: provider-neutral headers only (the provider's names stay inside the BFF adapter).
+        const requestId = response.headers.get('X-Voice-Request-Id')?.trim() || null
+        if (/^audio\//i.test(contentType)) {
+            const costHeader = response.headers.get('X-Voice-Character-Cost')?.trim() ?? ''
+            const blob = await response.blob()
+            return { blob, content_type: contentType, request_id: requestId, character_cost: /^\d+$/.test(costHeader) ? Number(costHeader) : null }
+        }
+        throw noAudio()
     }
 
-    async testAdminVoice(body: AdminVoiceTestRequest): Promise<AdminVoiceTestResponse> {
-        this.assertVoicesEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<AdminVoiceTestResponse>('/admin/voices/test', token, {
-            method: 'POST',
-            body: body as unknown as BodyInit,
-        })
+    private adminVoiceKeyPath(voiceKey: string): string {
+        return `/admin/voices/catalog/${encodeURIComponent(voiceKey)}`
+    }
+
+    async listAdminCatalog(query: AdminCatalogQuery = {}, signal?: AbortSignal): Promise<AdminCatalogPage> {
+        return this.adminVoiceRequest(`/admin/voices/catalog${this.adminVoiceQuery(query)}`, 'GET', undefined, signal)
+    }
+
+    /**
+     * `repointDependentsTo` answers a 409 `voice_is_replacement`: the same change,
+     * with the dependent voices moved to that replacement in one transaction (I-34).
+     */
+    async updateAdminCatalogVoice(voiceKey: string, body: AdminCatalogUpdate, options: AdminCatalogUpdateOptions = {}): Promise<AdminCatalogVoice> {
+        const query = this.adminVoiceQuery({ repoint_dependents_to: options.repointDependentsTo })
+        return this.adminVoiceRequest(`${this.adminVoiceKeyPath(voiceKey)}${query}`, 'PATCH', body)
+    }
+
+    async getAdminCatalogImpact(voiceKey: string, signal?: AbortSignal): Promise<AdminCatalogImpact> {
+        return this.adminVoiceRequest(`${this.adminVoiceKeyPath(voiceKey)}/impact`, 'GET', undefined, signal)
+    }
+
+    async syncAdminCatalog(body: AdminVoiceSyncRequest): Promise<AdminVoiceSyncResponse> {
+        return this.adminVoiceRequest('/admin/voices/sync', 'POST', body)
+    }
+
+    /** Two-step provider delete (D19): call without a token for the challenge, then again with it. */
+    async deleteAdminCatalogVoice(voiceKey: string, confirmToken?: string): Promise<AdminCatalogDeleteResponse> {
+        return this.adminVoiceRequest(`${this.adminVoiceKeyPath(voiceKey)}${this.adminVoiceQuery({ confirm_token: confirmToken })}`, 'DELETE')
+    }
+
+    async renderAcceptance(body: AcceptanceRenderRequest, signal?: AbortSignal): Promise<AcceptanceRenderResponse> {
+        return this.adminVoiceRequest('/admin/voices/acceptance/renders', 'POST', body, signal)
+    }
+
+    async putAcceptanceVerdict(voiceKey: string, modelId: string, language: string, body: AcceptanceVerdictRequest): Promise<AcceptanceVerdictResponse> {
+        const path = `/admin/voices/acceptance/${encodeURIComponent(voiceKey)}/${encodeURIComponent(modelId)}/${encodeURIComponent(language)}`
+        return this.adminVoiceRequest(path, 'PUT', body)
+    }
+
+    async renderCatalogSamples(voiceKey: string, body: CatalogSampleRenderRequest = {}): Promise<CatalogSampleRenderResponse> {
+        return this.adminVoiceRequest(`${this.adminVoiceKeyPath(voiceKey)}/samples`, 'POST', body)
+    }
+
+    async getVoiceDefaults(signal?: AbortSignal): Promise<VoiceDefaultsResponse> {
+        return this.adminVoiceRequest('/admin/voices/defaults', 'GET', undefined, signal)
+    }
+
+    async putVoiceDefaults(role: VoiceDefaultRole, language: string, voiceKeys: string[]): Promise<VoiceDefaultsUpdateResponse> {
+        const path = `/admin/voices/defaults/${encodeURIComponent(role)}/${encodeURIComponent(language)}`
+        return this.adminVoiceRequest(path, 'PUT', { voice_keys: voiceKeys })
+    }
+
+    async listLegacyMapping(signal?: AbortSignal): Promise<LegacyMappingListResponse> {
+        return this.adminVoiceRequest('/admin/voices/legacy-mapping', 'GET', undefined, signal)
+    }
+
+    async putLegacyMapping(legacyVoiceId: string, body: LegacyMappingUpdate): Promise<LegacyMappingRow> {
+        return this.adminVoiceRequest(`/admin/voices/legacy-mapping/${encodeURIComponent(legacyVoiceId)}`, 'PUT', body)
+    }
+
+    async getLegacyMappingCoverage(signal?: AbortSignal): Promise<LegacyMappingCoverage> {
+        return this.adminVoiceRequest('/admin/voices/legacy-mapping/coverage', 'GET', undefined, signal)
+    }
+
+    /** Live Library browse. The D09 filters are always sent (AC-R6) and re-enforced by the BFF. */
+    async listAdminLibrary(query: LibraryVoiceQuery = {}, signal?: AbortSignal): Promise<LibraryVoicePage> {
+        const enforced = { ...query, min_notice_period_days: 365, include_custom_rates: false, include_live_moderated: false }
+        return this.adminVoiceRequest(`/admin/voices/library${this.adminVoiceQuery(enforced)}`, 'GET', undefined, signal)
+    }
+
+    async addAdminLibraryVoice(body: LibraryAddRequest): Promise<AdminCatalogVoice> {
+        return this.adminVoiceRequest('/admin/voices/library/add', 'POST', body)
+    }
+
+    async saveAdminDesign(body: VoiceDesignSaveRequest): Promise<AdminCatalogVoice> {
+        return this.adminVoiceRequest('/admin/voices/design/save', 'POST', body)
+    }
+
+    async remixAdminVoice(voiceKey: string, body: VoiceRemixRequest, signal?: AbortSignal): Promise<VoiceDesignResponse> {
+        return this.adminVoiceRequest(`${this.adminVoiceKeyPath(voiceKey)}/remix`, 'POST', body, signal)
+    }
+
+    async getVoiceLimits(signal?: AbortSignal): Promise<AdminVoiceLimits> {
+        return this.adminVoiceRequest('/admin/voices/limits', 'GET', undefined, signal)
+    }
+
+    /**
+     * Root voice metrics (R0-OPS-07): `GET /admin/voices/metrics/{area}`. `spend`
+     * takes `days` (1–90); every other area takes `hours` (1–720). Omitted: the BFF
+     * defaults (24 hours, 7 days).
+     */
+    async getAdminVoiceMetrics<A extends AdminVoiceMetricsArea>(
+        area: A,
+        query: AdminVoiceMetricsQuery = {},
+        signal?: AbortSignal,
+    ): Promise<AdminVoiceMetricsByArea[A]> {
+        const window = area === 'spend' ? { days: query.days } : { hours: query.hours }
+        return this.adminVoiceRequest(`/admin/voices/metrics/${area}${this.adminVoiceQuery(window)}`, 'GET', undefined, signal)
+    }
+
+    async getRuntimeSettings(signal?: AbortSignal): Promise<VoiceRuntimeSettingsResponse> {
+        return this.adminVoiceRequest('/admin/voices/runtime-settings', 'GET', undefined, signal)
+    }
+
+    /** The console writes only `daily_budget_chars` (D37); other switches are out of scope. */
+    async putRuntimeSetting(settingKey: string, value: unknown): Promise<VoiceRuntimeSetting> {
+        return this.adminVoiceRequest(`/admin/voices/runtime-settings/${encodeURIComponent(settingKey)}`, 'PUT', { value_json: value })
+    }
+
+    /** Voice Design: three base64 previews to choose from (save with `saveAdminDesign`). */
+    async designAdminVoice(body: VoiceDesignRequest, signal?: AbortSignal): Promise<VoiceDesignResponse> {
+        return this.adminVoiceRequest('/admin/voices/design', 'POST', body, signal)
+    }
+
+    /** Synth lab render on the `admin_lab` surface; `audio/mpeg` back (the path is reused from R0, 08 §5.3). */
+    async testAdminVoice(body: AdminLabSynthesisRequest, signal?: AbortSignal): Promise<AdminLabSynthesisResult> {
+        return this.adminVoiceAudio('/admin/voices/test', body, signal)
+    }
+
+    /**
+     * Per-model lab capabilities (`GET /admin/voices/test/models`, A4). The route
+     * may not exist yet: the ApiError (404/501) propagates so the caller falls
+     * back to the R0 model list.
+     */
+    async listAdminLabModels(signal?: AbortSignal): Promise<{ models: AdminLabModel[] }> {
+        return this.adminVoiceRequest('/admin/voices/test/models', 'GET', undefined, signal)
+    }
+
+    // Global voice presets (EP-5). Root only; account level.
+
+    async listAdminGlobalPresets(): Promise<AdminGlobalPresetList> {
+        return this.adminVoiceRequest('/admin/voice-presets/global')
+    }
+
+    async createAdminGlobalPreset(input: AdminGlobalPresetInput): Promise<AdminGlobalPresetRow> {
+        return this.adminVoiceRequest('/admin/voice-presets/global', 'POST', input)
+    }
+
+    /** Partial update; a V1 target answers 409 `global_preset_legacy`. */
+    async updateAdminGlobalPreset(presetId: string, input: Partial<AdminGlobalPresetInput>): Promise<AdminGlobalPresetRow> {
+        return this.adminVoiceRequest(`/admin/voice-presets/global/${encodeURIComponent(presetId)}`, 'PUT', input)
+    }
+
+    async deleteAdminGlobalPreset(presetId: string): Promise<void> {
+        await this.adminVoiceRequest<void>(`/admin/voice-presets/global/${encodeURIComponent(presetId)}`, 'DELETE')
+    }
+
+    // Minor-report review queue (EP-10). Root only.
+
+    async adminListMinorReports(params: { status?: string; limit?: number; before?: string } = {}): Promise<MinorReportAdminList> {
+        return this.adminVoiceRequest(`/admin/voices/minor-reports${this.adminVoiceQuery(params)}`)
+    }
+
+    /** A second review answers 409 `minor_report_reviewed`. */
+    async adminReviewMinorReport(reportId: string, outcome: MinorReportOutcome): Promise<MinorReportAdminItem> {
+        return this.adminVoiceRequest(`/admin/voices/minor-reports/${encodeURIComponent(reportId)}/review`, 'POST', { outcome })
     }
 
     // --- Billing / promotional credit grants -------------------------------
@@ -2294,28 +2759,34 @@ class ApiService {
 
     // --- Voice presets (user-facing) ---------------------------------------
 
-    async listVoicePresets(q?: string): Promise<VoicePreset[]> {
+    /**
+     * The caller's presets plus the globals the BFF shows them (EP-4): V2 rows and
+     * stored V1 rows (read-only, D12), never filtered here (R-15).
+     */
+    async listVoicePresets(q?: string): Promise<VoicePresetRow[]> {
         this.assertVoicesEnabled()
         const token = this.getStoredToken()
         const query = q && q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''
-        return this.authenticatedRequest<VoicePreset[]>(`/voice-presets${query}`, token, { method: 'GET' })
+        return this.authenticatedRequest<VoicePresetRow[]>(`/voice-presets${query}`, token, { method: 'GET' })
     }
 
-    async createVoicePreset(body: VoicePresetCreatePayload): Promise<VoicePreset> {
+    /** EP-3: a V2 body only; the BFF refuses a V1 body (422 `voice_v1_not_allowed`). */
+    async createVoicePreset(body: VoicePresetV2Write): Promise<VoicePresetRow> {
         this.assertVoicesEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest<VoicePreset>('/voice-presets', token, {
+        return this.authenticatedRequest<VoicePresetRow>('/voice-presets', token, {
             method: 'POST',
-            body: body as unknown as BodyInit,
+            body: stripVoiceProjections(body) as unknown as BodyInit,
         })
     }
 
-    async updateVoicePreset(presetId: string, body: VoicePresetUpdatePayload): Promise<VoicePreset> {
+    /** EP-3: a V2 body; on a stored V1 row it converts the row in place, keeping the preset_id (D12). */
+    async updateVoicePreset(presetId: string, body: VoicePresetV2Write): Promise<VoicePresetRow> {
         this.assertVoicesEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest<VoicePreset>(`/voice-presets/${encodeURIComponent(presetId)}`, token, {
+        return this.authenticatedRequest<VoicePresetRow>(`/voice-presets/${encodeURIComponent(presetId)}`, token, {
             method: 'PUT',
-            body: body as unknown as BodyInit,
+            body: stripVoiceProjections(body) as unknown as BodyInit,
         })
     }
 
@@ -2325,20 +2796,87 @@ class ApiService {
         await this.authenticatedRequest(`/voice-presets/${encodeURIComponent(presetId)}`, token, { method: 'DELETE' })
     }
 
-    /** Authenticated (non-root) catalog of MiniMax system voices for the studio + picker. */
-    async listSystemVoices(): Promise<AdminVoiceListResponse> {
+    /**
+     * Metered recipe preview (D18, 08 §5.2): a fixed `text_id`, never free text.
+     * Answers `{cache_key, url, cached, previews_left}`; the audio is fetched as
+     * an authed blob from `/voice-presets/preview/{cache_key}.mp3`. Errors: 428
+     * `attestation_required`, 429 (daily limit or bucket), 503
+     * `moderation_unavailable`. Account scope: no workspace selector. V2 body only
+     * (a V1 body is 422 `voice_v1_not_allowed`).
+     */
+    async previewVoice(
+        body: VoicePresetPreviewRequestV2,
+        options: { signal?: AbortSignal } = {},
+    ): Promise<VoicePresetPreviewResponse> {
         this.assertVoicesEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest<AdminVoiceListResponse>('/voice-presets/system-voices', token, { method: 'GET' })
-    }
-
-    /** Ephemeral, non-root preview synthesis of a system voice + recipe (hex audio). */
-    async previewVoice(body: VoicePresetPreviewRequest): Promise<AdminVoiceTestResponse> {
-        this.assertVoicesEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<AdminVoiceTestResponse>('/voice-presets/preview', token, {
+        return this.authenticatedRequest<VoicePresetPreviewResponse>('/voice-presets/preview', token, {
             method: 'POST',
             body: body as unknown as BodyInit,
+            signal: options.signal,
+            omitWorkspaceScope: true,
+        })
+    }
+
+    /**
+     * The fixed recipe-preview texts for a language (`GET /voices/preview-texts`,
+     * 08 §5.1, 03 §5.16 I-4). Account scope. A 404 means an older server: the
+     * caller falls back to its built-in copies of the same texts.
+     */
+    async getPreviewTexts(language: string, options: { signal?: AbortSignal } = {}): Promise<PreviewTextsResponse> {
+        this.assertVoicesEnabled()
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<PreviewTextsResponse>(`/voices/preview-texts?language=${encodeURIComponent(language)}`, token, {
+            method: 'GET',
+            signal: options.signal,
+            omitWorkspaceScope: true,
+        })
+    }
+
+    // --- Session voice settings and voice refresh (EP-1, EP-2) ---------------
+    // Session documents: call these on the session's `withWorkspace(id)` client so
+    // X-Workspace-Id is sent and 409 WORKSPACE_ARCHIVED follows the workspace path.
+
+    /** `GET /{basePath}/{id}/voice-settings`: the session's narration tier override and effective tier. */
+    async getSessionVoiceSettings(basePath: VoiceSessionBasePath, sessionId: number): Promise<SessionVoiceSettings> {
+        this.assertVoicesEnabled()
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<SessionVoiceSettings>(`/${basePath}/${sessionId}/voice-settings`, token, {
+            method: 'GET',
+        })
+    }
+
+    /** `PUT /{basePath}/{id}/voice-settings` with `{tier_override}`; null clears the override. */
+    async setSessionNarrationTier(
+        basePath: VoiceSessionBasePath,
+        sessionId: number,
+        tierOverride: NarrationTier | null,
+    ): Promise<SessionVoiceSettings> {
+        this.assertVoicesEnabled()
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<SessionVoiceSettings>(`/${basePath}/${sessionId}/voice-settings`, token, {
+            method: 'PUT',
+            body: { tier_override: tierOverride } as unknown as BodyInit,
+        })
+    }
+
+    /** `POST /character-chats/{id}/voice/refresh` with `{}`: the raw chat DTO (normalise and strip before any echo). */
+    async refreshChatVoice(chatId: number): Promise<unknown> {
+        this.assertVoicesEnabled()
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<unknown>(`/character-chats/${chatId}/voice/refresh`, token, {
+            method: 'POST',
+            body: {} as unknown as BodyInit,
+        })
+    }
+
+    /** `POST /adventure-sessions/{id}/voices/refresh` with `{card_ids}` (null: every cast card): the raw session DTO. */
+    async refreshAdventureVoices(sessionId: number, cardIds: string[] | null): Promise<unknown> {
+        this.assertVoicesEnabled()
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<unknown>(`/adventure-sessions/${sessionId}/voices/refresh`, token, {
+            method: 'POST',
+            body: { card_ids: cardIds } as unknown as BodyInit,
         })
     }
 
@@ -2431,34 +2969,6 @@ class ApiService {
         return value
     }
 
-    /** Step 1 of cloning: upload an audio sample (multipart). The browser sets the boundary. */
-    async uploadAdminVoiceCloneSample(
-        file: File,
-        purpose: AdminVoiceClonePurpose = 'voice_clone',
-        options: { signal?: AbortSignal } = {},
-    ): Promise<AdminVoiceCloneUploadResponse> {
-        this.assertVoicesEnabled()
-        const token = this.getStoredToken()
-        const form = new FormData()
-        form.append('file', file)
-        form.append('purpose', purpose)
-        return this.authenticatedRequest<AdminVoiceCloneUploadResponse>('/admin/voices/clone-file', token, {
-            method: 'POST',
-            body: form as unknown as BodyInit,
-            signal: options.signal,
-        })
-    }
-
-    /** Step 2 of cloning: create the custom voice from an uploaded sample reference. */
-    async cloneAdminVoice(body: AdminVoiceCloneRequest): Promise<AdminVoiceCloneResponse> {
-        this.assertVoicesEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<AdminVoiceCloneResponse>('/admin/voices/clone', token, {
-            method: 'POST',
-            body: body as unknown as BodyInit,
-        })
-    }
-
     /**
      * Create a new character
      */
@@ -2469,7 +2979,8 @@ class ApiService {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: stripCardBodyOrganization(characterData)
+            // D35: the read-only voice projections never reach a write (copy-on-write; identity without them).
+            body: stripCardBodyOrganization(stripVoiceProjections(characterData))
         })
     }
 
@@ -2649,7 +3160,7 @@ class ApiService {
             {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: stripCardBodyOrganization(body) as unknown as BodyInit,
+                body: stripCardBodyOrganization(stripVoiceProjections(body)) as unknown as BodyInit,
             },
         )
     }
@@ -3469,7 +3980,7 @@ class ApiService {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: stripCardBodyOrganization(templateData)
+            body: stripCardBodyOrganization(stripVoiceProjections(templateData))
         })
     }
 
@@ -3670,7 +4181,7 @@ class ApiService {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: stripCardBodyOrganization(templateData)
+            body: stripCardBodyOrganization(stripVoiceProjections(templateData))
         })
     }
 
@@ -4018,19 +4529,6 @@ class ApiService {
         const blob = await response.blob()
         this.assertCurrentOwner(owner)
         return blob
-    }
-
-    /** Poll a chat TTS job until it reaches a terminal status (or the deadline). */
-    async waitForTts(
-        jobId: string,
-        opts: { signal?: AbortSignal; onUpdate?: (job: TtsJobPublicResponse) => void; intervalMs?: number; maxWaitMs?: number } = {},
-    ): Promise<TtsJobPublicResponse> {
-        return this.pollUntilTerminal(
-            () => this.getTtsJob(jobId),
-            ['pending', 'in_progress', 'synthesizing', 'mirroring'],
-            opts,
-            { intervalMs: 2_000, maxWaitMs: 120_000 },
-        )
     }
 
     /* ---------------------------- card media ---------------------------- */
@@ -4471,11 +4969,12 @@ class ApiService {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: {
+            // Defence in depth: `writableAdventureSnapshot` already strips the projections (D35).
+            body: stripVoiceProjections({
                 template: snapshot.template,
                 narrator_voice: snapshot.narrator_voice ?? null,
                 narrate_thoughts: snapshot.narrate_thoughts ?? false,
-            } as unknown as BodyInit
+            }) as unknown as BodyInit
         })
     }
 
@@ -4570,14 +5069,6 @@ class ApiService {
         const token = this.getStoredToken()
         const query = this.listQuery(params.skip ?? 0, params.limit ?? 20)
         return this.authenticatedRequest<VoiceCallListResponse>(`/voice-calls${query}`, token, { method: 'GET' })
-    }
-
-    /** Voice calls that belong to one character chat, newest first. */
-    async getCharacterChatCalls(chatId: number, params: { skip?: number; limit?: number } = {}): Promise<VoiceCallListResponse> {
-        this.assertCallsEnabled()
-        const token = this.getStoredToken()
-        const query = this.listQuery(params.skip ?? 0, params.limit ?? 20)
-        return this.authenticatedRequest<VoiceCallListResponse>(`/character-chats/${chatId}/calls${query}`, token, { method: 'GET' })
     }
 
     /** Ordered transcript for one call (user STT lines + character lines with saved audio). */

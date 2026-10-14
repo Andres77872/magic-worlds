@@ -25,6 +25,7 @@ const STATIC_PAGE_HASHES: Array<[PageType, string]> = [
     ['contact', '#/contact'],
     ['privacy', '#/privacy'],
     ['disclaimer', '#/disclaimer'],
+    ['terms', '#/terms'],
 ]
 
 describe('galleryLinks static page routes', () => {

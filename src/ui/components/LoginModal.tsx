@@ -6,12 +6,18 @@
  * account) unmistakable; register mode adds a confirm-password field. The sign-in
  * view also offers a "Forgot your password?" affordance that swaps to a recovery
  * sub-mode, and notes that the username field accepts an email (email login).
+ * Register mode also asks for the 18+ and Terms boxes (D26), which the
+ * attestation provider records right after the account signs in.
  */
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, ArrowLeft, Eye, EyeOff, Loader2, Lock, LogIn, Mail, MailCheck, ShieldCheck, Sparkles, User, UserPlus } from 'lucide-react'
 import { useAuth } from '../../app/hooks'
 import { apiService, ApiError } from '../../infrastructure/api'
+import { AttestationChecks } from '../../features/legal/attestation/AttestationChecks'
+import { useAttestation } from '../../features/legal/attestation/attestationContext'
+import { ATTESTATION_KINDS, allAttestationsChecked, type AttestationChecked } from '../../features/legal/attestation/attestationStatus'
+import { LATEST_TERMS_VERSION } from '../../features/legal/documents/termsDocuments'
 import { Button, Callout, cx, Field, Icon, Input, Modal } from '../primitives'
 
 interface LoginModalProps {
@@ -36,12 +42,16 @@ function GoogleGlyph() {
 export function LoginModal({ isOpen, onClose }: LoginModalProps) {
     const { t } = useTranslation()
     const { login, register, loginWithGoogle, isLoading, error, clearError } = useAuth()
+    const attestation = useAttestation()
+    const attestationErrorId = useId()
     const [mode, setMode] = useState<AuthMode>('login')
     const [forgotOpen, setForgotOpen] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
     const [credentials, setCredentials] = useState({ username: '', password: '' })
     const [confirmPassword, setConfirmPassword] = useState('')
     const [confirmError, setConfirmError] = useState<string | null>(null)
+    const [attested, setAttested] = useState<AttestationChecked>({})
+    const [attestationError, setAttestationError] = useState<string | null>(null)
     // Forgot-password sub-flow (kept local so it never pollutes auth error state).
     const [forgotIdentifier, setForgotIdentifier] = useState('')
     const [forgotSubmitting, setForgotSubmitting] = useState(false)
@@ -61,9 +71,21 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
             setConfirmError(t('auth.passwordMismatch'))
             return
         }
-        const success = mode === 'login' ? await login(credentials) : await register(credentials)
+        if (mode === 'register' && !allAttestationsChecked(ATTESTATION_KINDS, attested)) {
+            setAttestationError(t('attestation.signupMissing'))
+            return
+        }
+        if (mode === 'login') {
+            if (await login(credentials)) handleClose()
+            return
+        }
+        // Set before registering: the sign-in that follows records both boxes.
+        attestation?.expectSignupAttestation()
+        const success = await register(credentials)
         if (success) {
             handleClose()
+        } else {
+            attestation?.cancelSignupAttestation()
         }
     }
 
@@ -79,6 +101,8 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
         setCredentials({ username: '', password: '' })
         setConfirmPassword('')
         setConfirmError(null)
+        setAttested({})
+        setAttestationError(null)
         setShowPassword(false)
         setMode('login')
         resetForgot()
@@ -90,6 +114,8 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
         setMode(next)
         setConfirmPassword('')
         setConfirmError(null)
+        setAttested({})
+        setAttestationError(null)
         if (error) clearError()
     }
 
@@ -335,6 +361,28 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                                 />
                             </div>
                         </Field>
+                    )}
+
+                    {mode === 'register' && (
+                        <div className="flex flex-col gap-2">
+                            <AttestationChecks
+                                kinds={ATTESTATION_KINDS}
+                                checked={attested}
+                                onChange={(kind, value) => {
+                                    setAttested((current) => ({ ...current, [kind]: value }))
+                                    if (attestationError) setAttestationError(null)
+                                }}
+                                disabled={isLoading}
+                                invalid={attestationError !== null}
+                                describedBy={attestationError ? attestationErrorId : undefined}
+                                termsVersion={LATEST_TERMS_VERSION}
+                            />
+                            {attestationError && (
+                                <p id={attestationErrorId} role="alert" className="m-0 text-caption text-blood-500">
+                                    {attestationError}
+                                </p>
+                            )}
+                        </div>
                     )}
 
                     {error && (

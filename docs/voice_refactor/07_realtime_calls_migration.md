@@ -19,6 +19,8 @@ Conventions:
 - Anything marked **[spike]** or **[legal]** depends on an open item and is not certain. Anything marked **(proposal)** is a design detail this document adds. Each one is consistent with 03, but the owning doc (08 or 09) still has to confirm it.
 - Prices and model facts are as of 2026-10-12.
 
+**Workspace R1 alignment (2026-10-12).** Re-read against backend `f37eefd` and frontend `c7307c6` (content schema `2026_10_workspace_r1`). Workspace R1 changes no call mechanics this document designs. It adds a workspace selector and admission intents to the call routes, keeps supersede, quotas and the one-call rule account-wide, and stores call audio as `tts_job` rows in the session's workspace. The rules are 03 D39 and §5.15; the evidence is [research 15 §3](research/15_workspace_r1_impact.md). Section 9.6 sums up what calls must keep.
+
 **Related:**
 - [README](README.md)
 - [01 Current state](01_current_state.md)
@@ -40,6 +42,7 @@ Conventions:
   - [05 platform, pricing and limits](research/05_elevenlabs_platform_pricing_limits_policy.md)
   - [12 model and protocol facts](research/12_gap_model_protocol_facts.md)
   - [14 cost model](research/14_cost_model.md)
+  - [15 Workspace R1 impact](research/15_workspace_r1_impact.md)
 - Earlier reviews:
   - [voice calls review 2026-10-11](../voice-calls-review-2026-10-11.md)
   - [voice calls latency review 2026-10-11](../voice-calls-latency-review-2026-10-11.md)
@@ -135,7 +138,7 @@ It replaces `StreamingTtsClient` ([streaming_tts_minimax.py:87-105](/home/andres
 | URL | `wss://api.elevenlabs.io/v1/text-to-speech/{provider_voice_id}/multi-stream-input?model_id=eleven_flash_v2_5&output_format=mp3_44100_64&inactivity_timeout=180&sync_alignment=true&apply_text_normalization=auto[&language_code=…]` | D06 item 1 |
 | Auth | `xi-api-key` header with `ELEVENLABS_KEY_CALLS` (scope `text_to_speech`, about 30% `character_limit`). Never in the URL, never sent to the browser. | 03 §5.4.3 |
 | Base host | `ELEVENLABS_BASE_URL` (default `api.elevenlabs.io`; ops switch `api.us.elevenlabs.io`). The WS host follows it. | 03 §5.4.3, [research 05 §9.3](research/05_elevenlabs_platform_pricing_limits_policy.md) |
-| When | Opened at call accept, after attestation, consent and quota admission, in parallel with the first STT, so the handshake is off the first turn's critical path | D06 item 1 |
+| When | Opened at call accept, after the workspace admission (`new_work`, §9.6), attestation, consent and quota admission, in parallel with the first STT, so the handshake is off the first turn's critical path | D06 item 1, D39 |
 | How many | One per call. The voice is in the path, and a 1:1 call has one voice. | D06 |
 | `language_code` | Resolved once at call start (§5.6). Sent only if the model allow-list contains it. Fixed for the socket. | D17, 03 §5.7 |
 | Not sent | `enable_logging` (stays default until ZRM, D25 item 3), `auto_mode` and `enable_ssml_parsing` (launch). Both may be added only as S-8 or S-26 outcomes. | D25, §2.4 |
@@ -351,7 +354,7 @@ class LedgerEntry:
 |---|---|
 | Barge-in after the LLM finished (common: replies finish in 1–3 s, playback lasts longer) | The turn store already persisted the message as `completed` with the full text when the LLM finished (the call audio asset follows after the audio ends, [engine.py:1801-1821](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/engine.py)). The engine applies a one-shot truncation update: content plus `metadata.voice.{truncated, played_ms}`, validated by the widened callbot validator (03 §5.14). It applies only while that assistant message is the chat's latest, and it is idempotent per `turn_id`. |
 | Barge-in after `voice_turn_end` was published, while the client still plays | Same as above. The **truncation window** stays open from turn start until the client's progress shows the end of playback, or `delivered_ms` + 2 s of wall clock after `voice_audio_final` (proposal). `_cancel_turn`'s early return ([engine.py:1240](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/engine.py)) is split into two parts: TTS cancel (skipped) and truncation (still applied). |
-| Barge-in while the LLM is still streaming | Today the runner yields `interrupted` with `content=''` ([llm_turn_runner.py:219-224](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/llm_turn_runner.py)). Target: if the heard prefix is non-empty, persist `completed` with that prefix. The store requires `interrupted ⇒ content == ''` and `completed ⇒ content.strip() != ''` plus full graph metadata ([conversation_turn_store.py:366-397,581-610](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/conversation_turn_store.py)), so BE picks one of two paths in 08: (a) a store path that finishes a cancelled callbot execution as `completed`-truncated with the usage so far; or (b) stop TTS but let the LLM finish (text not spoken, bounded by its timeout), then apply the truncation update. |
+| Barge-in while the LLM is still streaming | Today the runner yields `interrupted` with `content=''` ([llm_turn_runner.py:219-224](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/llm_turn_runner.py)). Target: if the heard prefix is non-empty, persist `completed` with that prefix. The store requires `interrupted ⇒ content == ''` and `completed ⇒ content.strip() != ''` plus full graph metadata ([conversation_turn_store.py:366-397,581-610](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/conversation_turn_store.py)), so BE picks one of two paths in 08: (a) a store path that finishes a cancelled callbot execution as `completed`-truncated with the usage so far; or (b) stop TTS but let the LLM finish (text not spoken, bounded by its timeout), then apply the truncation update. **Adopted: (a)** ([03 §5.16](03_target_architecture_and_decisions.md) I-51). |
 | Nothing heard (`played_ms` before the first sentence's start, or no audio delivered) | `interrupted` with empty content: today's contract, unchanged. A `completed` turn cannot have empty content. |
 | `played_ms` absent (older SPA, supersede without a barge-in frame) | Use the latest `voice_playback` if present, else `delivered_ms` as an upper bound. This keeps more text than was heard, but never less than delivered audio. |
 | `turn_id` absent | Applies to the current turn only (today's semantics). |
@@ -425,10 +428,11 @@ Compatibility: the SPA does not check `sample_rate` at runtime today. Its stale-
 
 ### 4.3 Stored call assets
 
-[engine.py:2346-2416](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/engine.py) hard-codes `sample_rate=32_000`, `model_alias="speech_2_8_turbo"`, `provider="minimax"`, `provider_model_id="speech-2.8-turbo"` and `hex_payload=audio_bytes.hex()`. Target:
+`_persist_call_audio_asset` ([engine.py:2361-2466](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/engine.py), lines at `f37eefd`) stores each call turn's audio as a `tts_job` row plus a `tts_asset`. It calls `create_pending_job(source="call_character_tts", provider="minimax", model_alias="speech_2_8_turbo", provider_model_id="speech-2.8-turbo", …, workspace_id=…, continuation=True)` (`:2419-2444`) and hard-codes `sample_rate=32_000` and `hex_payload=audio_bytes.hex()`. Since Workspace R1, each such job also writes a `tb_content_operation_context` row and a `tts` row in `tb_workspace_media`. Target:
 - the values come from the session's provider and model profile (`elevenlabs`, `el_flash_v2_5`, `eleven_flash_v2_5`, 44100);
 - bytes are written off the event loop and outside the row lock (bug #11, D30);
-- `tts_job.provider` accepts `elevenlabs` (03 §5.14 widening, R0).
+- `tts_job.provider` accepts `elevenlabs`, and so do `create_pending_job`'s allowed set (`models.py:8935`) and the asset-parent provider check (`models.py:766`) (03 §5.14 widening, R0);
+- unchanged from Workspace R1: `workspace_id` is the session's, `continuation=True` (persistence completes even if the workspace is archived after the turn), and the job has no `turn_charge_id`, because calls are billed per second (D24, D39).
 
 ### 4.4 MP3 frame alignment (S-9) and the billing parser
 
@@ -713,7 +717,7 @@ The model is enabled only behind `VOICE_CALL_MODEL_PROFILE=expressive_turbo`, an
 
 | Guard | Rule | Source |
 |---|---|---|
-| One call per user | unchanged (`busy`) | [quota.py:239](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/quota.py) |
+| One call per user | unchanged (`busy`); per account across workspaces: a new call supersedes a live call in any workspace (`_supersede_active_voice_calls`, [route_voice_call.py:462-498](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_voice_call.py)) | [quota.py:239](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/quota.py), D39 |
 | Global concurrency | `VOICE_GLOBAL_CONCURRENCY` default 8, max 64 ([config.py:31,38](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/config.py)); research 05 §11.4 suggests 24 on Scale, sized from STT and a load test. It binds at a 12–18 call peak (large scenario). | D02, [research 14 §6.2](research/14_cost_model.md) |
 | Provider pool | 03 §5.6 puts call TTS in the `flash` pool, which ElevenLabs meters on generation time only. The app limiter's `flash` pool is 24 of Scale's 30 (D02). Generation on the socket cannot be observed per request, so the adapter holds no limiter permit per socket (proposal). Calls rely on the 6 unallocated slots plus back-pressure on 429 concurrent, and are sized from STT and load tests (D02). | 03 §5.6, D02 |
 | Call-start token bucket | 3 per 10 min per user, in-process until bug #19 | 03 §5.13 |
@@ -725,8 +729,8 @@ The model is enabled only behind `VOICE_CALL_MODEL_PROFILE=expressive_turbo`, an
 ### 9.4 Consent version per provider (D25)
 
 - `ProviderRouter` picks the provider at `start_call`. The required consent version follows it: `minimax_streaming → voice-v1`, `elevenlabs_streaming → voice-v2`.
-- `require_current_voice_consent(*, user_id, scope, config)` ([admission.py:96-107](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/admission.py)) gains a `provider` argument. `POST /character-chats/{id}/voice-consent` ([route_voice_call.py:574-588](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_voice_call.py)) stores the version for the caller's routed provider instead of `config.consent_version`.
-- The accepted version is persisted on `voice_session.consent_version` ([db.sql:260](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql)).
+- `require_current_voice_consent(*, user_id, scope, config)` ([admission.py:96-107](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/admission.py)) gains a `provider` argument. `POST /character-chats/{id}/voice-consent` ([route_voice_call.py:613-625](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_voice_call.py); intent `read`, the chat is validated in its workspace, consent itself is account-level) stores the version for the caller's routed provider instead of `config.consent_version`.
+- The accepted version is persisted on `voice_session.consent_version` ([db.sql:418](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql)).
 - Proposal: the `consent_required` error and `VoiceConsentResponse` carry the required `consent_version`, so the SPA shows ElevenLabs copy only to cohort users (non-cohort users never see it, D25 item 7).
 - The copy names ElevenLabs (TTS), Groq (STT) and the moderation classifier's provider, and never promises 24 h deletion ([13](13_policy_privacy_and_compliance.md)). [CallTranscriptView.tsx](/home/andres/WebstormProjects/magic-worlds/src/features/call/components/CallTranscriptView.tsx) still says "MiniMax TTS" in a doc comment and is cleaned up with the copy.
 - After R4 only `voice-v2` exists. The R2 entry gate requires the `voice-v2` copy live and counsel sign-off **[legal]** (03 §6.3).
@@ -735,6 +739,31 @@ The model is enabled only behind `VOICE_CALL_MODEL_PROFILE=expressive_turbo`, an
 
 - Whether multi-context WS TTS creates history items is **[spike] S-23** (an R1 exit gate). If it does, call sentences join the sweep volume (oldest-item SLO < 48 h).
 - Text never contains user identifiers, and no request-id stitching is used (D25), so ZRM can be switched on later without a code change (L-9 **[legal]**).
+
+### 9.6 Workspace scope (D39)
+
+Calls keep Workspace R1's rules unchanged ([research 15 §3](research/15_workspace_r1_impact.md), 03 §5.15):
+
+| Step | Selector | Intent | Archived workspace |
+|---|---|---|---|
+| `ws-voice` connect | `?workspace_id=` (required before any call traffic) | — | — |
+| New call (`start_call`) | same | `new_work` | refused: `voice_error`, code `WORKSPACE_ARCHIVED` |
+| Resume | same | `control_admitted` | works |
+| Segment upload | `X-Workspace-Id` | `new_work` | refused |
+| Voice consent | `X-Workspace-Id` | `read` | works (consent is account-level) |
+| End | `X-Workspace-Id` | `control_admitted` | works |
+| History, transcripts | `X-Workspace-Id` | `read` | works |
+| Archive while a call is live | — | — | 409 `WORKSPACE_ACTIVE_CALL` |
+
+- **Account-wide:** supersede, the one-call rule, `voice_usage_day`, `voice_quota_reservation`, the call in-flight count (`models.py:2251-2258`), the call-start token bucket, the spend circuit and the provider routing cohort. None of them becomes per workspace.
+- **Inherited:** `voice_session` has no `workspace_id`; it inherits the workspace through `adventure_session` (`fk_voice_session_adventure_scope`). The migration adds none.
+- **LLM turns** in a call are admitted through `execute_conversation_turn` with `ContentOrigin(workspace_id=…)`. That needs an active workspace, which holds because a workspace with a live call cannot be archived.
+- **The voice is the session's.** `_resolve_snapshot_voice` reads the session snapshot ([route_voice_call.py:426-443](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_voice_call.py)); a "Use the card's current voice" refresh resolves the source card only in the session's workspace (D36).
+- **Frontend gaps fixed in R0** (in files this plan already changes, [09](09_frontend_refactor_plan.md)):
+  - `voiceSocket.ts` ignores close codes 4404 and 4422 (`voiceCloseLabel` `:33-46`, `onclose` `:297-345`), so it reconnects in a loop and never fires `workspace:required`;
+  - the `CharacterChatSidebar` "Call" button is not read-only gated;
+  - `CallScreen` has no up-front read-only check;
+  - `voiceCallLabels.ts` has no label for `WORKSPACE_ACTIVE_CALL` or `CHAT_SESSION_NOT_FOUND`.
 
 ---
 
@@ -801,7 +830,7 @@ Circuit breaker (03 §5.8): one for the call TTS path, process-local while bug #
 | Call TTS failure > 3% or call first-audio p50 > 400 ms over 1 h (D28 triggers); a breaker that keeps re-opening is an operator signal for the same decision | D28 rollback: before R4, route the cohort back to MiniMax with `rollout_mode` (TTL ≤ 60 s, no restart). The provider is pinned on `voice_session.tts_provider` at `start_call`, so live calls finish on their provider (as text if their TTS leg ended) and only new calls move. After R4, rollback means text-only calls |
 | Regional degradation | `ELEVENLABS_BASE_URL` → `https://api.us.elevenlabs.io` (ops switch, research 05 §9.3). It applies to new sockets only. |
 | Account event (key disabled, enforcement email, voice ban) | rollback trigger; incident runbook; per-user voice kill switch (D26 item 8) |
-| Kill switches | `tts_engine_enabled=false`: live calls continue as text, no new TTS legs. `voice_mode_enabled=false`: no new calls. Both live in `voice_runtime_setting`, read with TTL ≤ 60 s. Never restart to switch: a restart drops every live call (bug #19). |
+| Kill switches | `tts_engine_enabled=false`: live calls continue as text, no new TTS legs. **Superseded:** `tts_engine_enabled` governs narration only, and calls go text-only through the spend circuit ([03 §5.16](03_target_architecture_and_decisions.md) I-67). `voice_mode_enabled=false`: no new calls. Both live in `voice_runtime_setting`, read with TTL ≤ 60 s. Never restart to switch: a restart drops every live call (bug #19). |
 
 ElevenLabs offers no self-serve SLA, and a TTS or STT degradation (usually latency, not a hard outage) is to be expected about every 2–4 weeks ([research 05 §9.1-9.2](research/05_elevenlabs_platform_pricing_limits_policy.md)). Text-only continuation is therefore a normal path to test, not an edge case.
 
@@ -842,9 +871,11 @@ ElevenLabs offers no self-serve SLA, and a TTS or STT degradation (usually laten
 - [ ] Reconnect: replays only unacknowledged sentences; a second failure sends `tts_stream_interrupted` and the turn continues as text.
 - [ ] Unknown-voice close → substitution, one re-open and `substitution_reason` on the chunks.
 - [ ] Error mapping: one test per row of §10.1.
-- [ ] Consent: a cohort user with only `voice-v1` gets `consent_required`; a non-cohort user is unaffected; `voice_session.consent_version` is stored.
+- [ ] Consent: a cohort user with only `voice-v1` gets `consent_stale` (03 §5.16 I-67; was `consent_required`); a non-cohort user is unaffected; `voice_session.consent_version` is stored.
 - [ ] Validators (03 §5.14): `elevenlabs_streaming` accepted; sample rates {22050, 24000, 44100} accepted and 32000 accepted on read only; the callbot voice key set accepts `truncated` and `played_ms`.
 - [ ] Asset persistence: 44.1 kHz, provider and model from the session, bytes written off-loop.
+- [ ] Asset persistence (D39): the `tts_job` row keeps the session's `workspace_id`, `continuation=True` and no `turn_charge_id`; it writes one operation-context row and one `tts` media association; persistence completes when the workspace is archived right after the turn (`test_call_audio_provider`, 08 §9.4).
+- [ ] Workspace (D39): start and segment upload refused in an archived workspace; resume, end and consent work; a new call in workspace B supersedes a live call in workspace A; archive with a live call returns `WORKSPACE_ACTIVE_CALL`.
 
 ### 11.2 Frontend tests
 
@@ -856,6 +887,8 @@ ElevenLabs offers no self-serve SLA, and a TTS or STT degradation (usually laten
 - [ ] `hasAssignedVoice` replaces `CallsPage.hasVoice` (V2 voices show the call button).
 - [ ] `FORBIDDEN_CLIENT_PAYLOAD_KEYS` ([voiceSocket.ts:64-79](/home/andres/WebstormProjects/magic-worlds/src/infrastructure/api/voiceSocket.ts)) also blocks `xi_api_key`, `xi-api-key` and `single_use_token` (hardening).
 - [ ] Story files touched by the header copy pass `pnpm typecheck:stories`.
+- [ ] `voiceSocket`: close 4404 and 4422 are terminal (no reconnect); 4422 dispatches `workspace:required`; labels exist for `WORKSPACE_ACTIVE_CALL` and `CHAT_SESSION_NOT_FOUND` (D39).
+- [ ] The "Call" button in `CharacterChatSidebar` and `CallScreen` are disabled in a read-only workspace (D39).
 
 ### 11.3 Staging contract tests (synthetic policy-safe text only; scripts in [14](14_staging_spike_and_contract_tests.md))
 
@@ -891,6 +924,7 @@ ElevenLabs offers no self-serve SLA, and a TTS or STT degradation (usually laten
 - [ ] (proposal) Whole-frame billing meter live on MiniMax: it is provider-neutral and fixes the parser before the switch.
 - [ ] (proposal) Sentence ledger and `played_ms` truncation live on MiniMax, using MP3 frame durations for offsets. Truncation does not depend on the provider, so bug #17 can be fixed before R1.
 - [ ] Call-eligible defaults present (D31); readiness probe green.
+- [ ] Workspace R1 deployed first; the call-audio widening (`create_pending_job` provider set, asset-parent check, `voice_session` insert guard `models.py:6027-6033`) deployed; the FE call gaps of §9.6 fixed (D39).
 
 **R1 exit (staff cohort on ElevenLabs):**
 - [ ] S-7, S-9, S-10, S-15, S-17, S-23 and S-25 closed or on their documented fallbacks.
@@ -903,7 +937,7 @@ ElevenLabs offers no self-serve SLA, and a TTS or STT degradation (usually laten
 - [ ] S-21; L-1, L-4 and L-8 answered **[legal]**; counsel sign-off; `voice-v2` consent copy live; privacy copy naming both providers published for all users; ToS, `user_attestation` and the 428 / WS error frame live (D26); budget guards live; history sweep within its SLO (D25).
 
 **R4:**
-- [ ] `streaming_tts_minimax.py`, the MiniMax constants in `config.py` (`:25`, `:91`, `:93`), `minimax_tts_voice_id` and the MiniMax literals in `_persist_call_audio_asset` removed.
+- [ ] `streaming_tts_minimax.py`, the MiniMax constants in `config.py` (`:25`, `:91`, `:93`), `minimax_tts_voice_id` and the MiniMax literals in `_persist_call_audio_asset` (`engine.py:2419-2444`) removed.
 - [ ] `sentence_buffer.py` **stays**. D06 keeps it, overriding the research 02 §13.2 removal list.
 
 ---
@@ -932,3 +966,5 @@ ElevenLabs offers no self-serve SLA, and a TTS or STT degradation (usually laten
 | Owner | consistency trade-off (Expressive narration vs Flash calls); S-15 badge fallback | — | R0 exit |
 | BE (08) | mid-stream barge-in persistence path (§3.5 option a vs b); truncating `response_display_text` and `response_segments`; the `code` string format | — | R0 |
 | FE (09) | `voice_playback` frame (name per 08 §5.8, every 500 ms); transcript treatment of the unheard tail; client first-audible marks | — | R0 |
+| Q-33 | Workspace R1 production deploy date | R0 cannot start its migration; the call widenings wait | R0 entry |
+| Q-34 | FE workspace gaps on call surfaces (§9.6) | a closed or archived workspace can loop the voice socket | R0 exit |

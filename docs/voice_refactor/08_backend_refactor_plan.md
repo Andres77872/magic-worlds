@@ -18,7 +18,8 @@
 
   Theme songs are unchanged (D01).
 - **Related:** [README](README.md) · [01](01_current_state.md) · [03](03_target_architecture_and_decisions.md) · [04](04_voice_catalog_and_library.md) · [05](05_voice_studio_and_admin_console.md) · [06](06_chat_narration_migration.md) · [07](07_realtime_calls_migration.md) · [09](09_frontend_refactor_plan.md) · [10](10_data_migration_and_rollout.md) · [11](11_cost_plans_and_operations.md) · [12](12_best_practices_and_improvements.md) · [13](13_policy_privacy_and_compliance.md) · [14](14_staging_spike_and_contract_tests.md) · [15](15_implementation_plan_and_acceptance.md) · [16](16_risks_and_open_questions.md)
-  - Evidence: [research 06](research/06_backend_minimax_inventory.md), [research 08](research/08_voice_data_model_migration_surface.md), [research 12](research/12_gap_model_protocol_facts.md) and [research 13](research/13_gap_codebase_checks.md).
+  - Evidence: [research 06](research/06_backend_minimax_inventory.md), [research 08](research/08_voice_data_model_migration_surface.md), [research 12](research/12_gap_model_protocol_facts.md), [research 13](research/13_gap_codebase_checks.md) and [research 15](research/15_workspace_r1_impact.md) (Workspace R1).
+- **Workspace R1 alignment (2026-10-12).** Re-read against backend `f37eefd` (content schema `2026_10_workspace_r1`). Workspace rules come from 03 D39 and §5.15. Line numbers in §1–§2 that predate Workspace R1 were refreshed where this plan relies on them; the full drift table is [research 15 §10](research/15_workspace_r1_impact.md).
 
 **Conventions used in this plan:**
 
@@ -49,6 +50,7 @@ All backend paths are under `/home/andres/PycharmProjects/magic-worlds-api`.
 | **Guards** | Process-global env flags | DB `voice_runtime_setting`, `ProviderRouter`, spend circuit, buckets, limiter, breakers (D28, D37) | R0 |
 | **Removal** | `MINIMAX_*`, `VOICE_MINIMAX_*`, `TTS_DEFAULT_VOICE_ID` | Key revoked, code deleted, `voice_legacy_fallback` dropped | R4 (2026-12-18) |
 | **Contract** | V1 data in live cards and presets | Rewrite at 100% coverage; drop the preset legacy columns | R5 (January 2027) |
+| **Workspace scope** | Workspace R1: `tts_job`, sessions and cards carry a workspace; presets, consent, quotas and memberships are account-level | Content-bound voice work inherits the session's workspace; everything else stays account-level (D39, 03 §5.15). Migrations chain after `2026_10_workspace_r1` | R0 |
 
 ---
 
@@ -511,8 +513,13 @@ async def enqueue_turn_narration(turn, user, ctx) -> TurnPlan:
     segs = build_segments(turn, max_turn_chars=2_500, max_segments=12, max_segment_chars=1_200)   # step 1
     prepared = pipeline_prepare(segs)                     # sanitize + one batched moderation call (fail closed)
     resolved = [resolver.resolve(s.voice, surface="narration", tier=effective_tier(ctx), ctx=ctx) for s in prepared]
-    hits, pending_hits, misses = await reuse_lookup(resolved)  # step 2: BEFORE any reservation (engine.py:226-258 order)
     async with transaction_cursor() as (_c, cur):
+        await lock_assistant_message_for_tts(cur, ..., workspace_id=ctx.workspace_id)   # session's workspace (D39)
+        hits, pending_hits, misses = await reuse_lookup(cur, resolved, workspace_id=ctx.workspace_id)  # step 2: BEFORE
+                                                                   # any reservation; hits stay free even when archived
+        if misses:
+            await admit_media_job_origin(cur, ctx, require_active=True)  # models.py:575; share lock serializes with
+                                                                         # archive; archived → WORKSPACE_ARCHIVED, nothing reserved
         fit = fit_daily_cap(misses, remaining=await counted_chars_today(cur, user),   # step 4: Σ counted_chars of
                             plan_cap=daily_quantity_limit(user, "tts_generation"))     # the day's tts_turn_charge rows
         # Expressive that does not fit but Standard does → whole turn falls back to Standard first (D05, tier_fallback)
@@ -520,10 +527,13 @@ async def enqueue_turn_narration(turn, user, ctx) -> TurnPlan:
             credits = max(1, ceil(fit.std_chars / 400 + fit.expr_chars / 200))       # step 3, rounded per turn
             res = await MembershipModel.reserve_media_operation(user_id=user.id, operation="tts_generation",
                                                                 cursor=cur, credit_cost=credits)
-            charge = await TurnChargeRepo.open(cur, credits_reserved=credits, counted_chars=fit.std_chars + 2 * fit.expr_chars,
+            charge = await TurnChargeRepo.open(cur, scope=ctx.owner_scope, workspace_id=ctx.workspace_id,   # D39
+                                               adventure_id=turn.adventure_id,
+                                               credits_reserved=credits, counted_chars=fit.std_chars + 2 * fit.expr_chars,
                                                reserved_std_chars=fit.std_chars, reserved_expr_chars=fit.expr_chars,
                                                ledger_ids=res["ledger_ids"], tier=fit.tier)   # EVERY id, never only [0] (§4.9)
-            await TtsJobRepo.insert_pending(cur, fit.charged, turn_charge_id=charge.turn_charge_id)
+            await TtsJobRepo.insert_pending(cur, fit.charged, turn_charge_id=charge.turn_charge_id,
+                                            workspace_id=ctx.workspace_id)   # + operation-context row per job (today)
         mark_display_state(fit.over_daily_cap, "daily_limit_reached")   # never partially narrated
         mark_display_state(fit.over_turn_cap, "not_narrated")
     spend_circuit.record("narration", ...)                              # §1.11
@@ -536,7 +546,8 @@ async def settle(turn_charge_id):  # runs when every job of the charge is termin
 
 | Item | Backend change |
 |---|---|
-| In-flight | The `count_in_flight` `tts_generation` branch counts open `tts_turn_charge` rows, not jobs (today it counts jobs, [models.py:2098-2105](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)). |
+| In-flight | The `count_in_flight` `tts_generation` branch counts open `tts_turn_charge` rows, not jobs (today it counts jobs by `user_id` only, [models.py:2243-2250](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)). It stays per account, never per workspace (D39). |
+| Workspace (D39) | The charge copies the session's `workspace_id`, `adventure_id` and app scope. Settlement, refunds and the stale sweep are continuations: they never re-check that the workspace is active. Call-audio `tts_job` rows never get a `turn_charge_id`. |
 | Daily request limit | One `reserve_media_operation` call per turn, so `daily_request_limit` counts turns. Seeds are unchanged at 20/100/500; their meaning changes. In code it is an included-operations allowance (past it, PAYG pays), so the hard bound is the daily character cap enforced in the same transaction (D24 items 4 and 9). |
 | **Partial refund gap** | `refund_credit_ledger` flips whole reservation rows to `refunded` ([models.py:3159](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)), and a reservation writes one ledger row per non-zero `credit_source` and returns them all as `ledger_ids` ([models.py:3085-3110](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)). D24 needs `reserved − final` refunds.<br/>**Interim rule, the same as [06 §5.4](06_chat_narration_migration.md), until PA-17 / Q-24 amends 03 §5.2:** the charge persists **every** id in `res["ledger_ids"]` (storage in §4.9) and settlement refunds across all of them. Nothing keeps only the first id.<br/>Proposed here: a new primitive `MembershipModel.settle_media_reservation(ledger_ids, final_credits)` that refunds the delta in reverse spend order (PAYG billed, then PAYG free, then included), credits only, idempotent per `turn_charge_id`. 06 §5.4 sketches the same primitive as `refund_credit_ledger_partial`; BE-08 picks one name. `final = 0` uses the existing full refund over all ids. BILL signs off on the ledger representation (§11). |
 | Calls | `debit_operation_credits` post-hoc, 1 credit per 10 s of billed audio, computed with `mp3_frames.parse(buffer) → (duration_ms, consumed_bytes)`. Advance by consumed bytes only and parse the remainder at turn end. Per-plan seconds come from `membership_plan_limit.daily_quantity_limit` for `voice_call` (180/600/600). `VOICE_DAILY_MINUTES_PER_USER` stays as the global upper bound. |
@@ -606,13 +617,13 @@ Phases:
 |---|---|---|---|---|
 | [tts_generation/minimax_adapter.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py) | MiniMax T2A, hex, `TtsProvider` Protocol `:114-119` | replace (Protocol moved R0; module deleted R4) | `speech/providers/elevenlabs/tts_http.py`; legacy shim `speech/providers/minimax/synthesis.py` | R0, R4 |
 | [tts_generation/registry.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/registry.py) | `TtsRegistryModel` literals `:21-32`, `ResolvedVoice`, `build_resolved_voice` `:71`, `voice_signature_sha256` `:104`, `to_provider_payload` `:206`, `normalize_tts_text` `:248` | replace | `speech/capabilities.py`, `speech/resolver.py`, `speech/text_pipeline.py` | R0: widen `Literal`; R1: switch; R4: delete |
-| [tts_generation/engine.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py) | Reuse `:226-258`; per-job `_enforce_quota` `:318`; storage inside the row lock `:611-639`; `save_provider_audio(hex)` `:626`; alias checks `:980`, `:997` | modify | uses `billing/turn_charge.py`, bytes, off-lock storage | R0 |
+| [tts_generation/engine.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py) | Workspace admission `enqueue_chat_tts_request(…, workspace_id)` `:125`, `_create_or_reuse_chat_job_in_workspace` `:247-352` (lock → reuse → `_enforce_quota` `:315` → `create_pending_job`); `WorkspaceError` → `INVALID` with internal code `workspace_archived` `:208-245`; finalize origin check `:687`; storage inside the row lock; `save_provider_audio(hex)`; alias checks (lines at `f37eefd`; pre-R1 citations were `:226-258`, `:318`, `:611-639`, `:980`) | modify | uses `billing/turn_charge.py` after the workspace lock (§1.10), bytes, off-lock storage; public `error.code: "workspace_archived"` | R0 |
 | [tts_generation/storage.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/storage.py) | Hex decode; synchronous `_atomic_write` | modify | bytes; `asyncio.to_thread` | R0 |
 | [tts_generation/errors.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/errors.py) | `TtsErrorCategory`; MiniMax secret markers | modify | add `voice_unavailable`, `attestation_required`, `moderation_unavailable`; EL patterns | R0 |
 | [tts_generation/\_\_init\_\_.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/__init__.py) | MiniMax exports | modify | — | R0, R4 |
 | [chat_tts_delivery.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/chat_tts_delivery.py) | `tts_failed` `:284`, `:471-489`; alias check `:536`; `"minimax"` substring markers `:28-49` (bug #6) | modify | new segment fields and display states (§5.7) | R0 |
 | [chat_segments.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/chat_segments.py) | Segment metadata | modify | — | R0 |
-| [route_chat.py](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py) | Text cap `:155`; thought `vol×0.6` `:1129-1134`; resolver `:1137`; `_narrated_segments` `:1174`; `_handle_chat_tts_request` `:1224`; segment-0 quota `:1433` | modify | per-turn charge, pipeline, attestation frame, tier; `_dim_voice_for_thought` removed (thoughts keep the character's voice, `[whispers]` on Expressive, −3 dB applied by the player from `kind = thought`, D16) | R0 (R1 traffic) |
+| [route_chat.py](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py) | Text cap; thought `vol×0.6`; resolver `_build_segment_voice_resolver` `:1142-1176`; `_narrated_segments`; `_handle_chat_tts_request(…, workspace_id)` (session re-read `:1319`, enqueue `:1403-1416`); socket `?workspace_id=` `:2215-2218`, close 4422/4404 `:2162-2165`; segment-0 quota (pre-R1 citations: `:155`, `:1129-1134`, `:1137`, `:1174`, `:1224`, `:1433`) | modify | per-turn charge, pipeline, attestation frame, tier; `_dim_voice_for_thought` removed (thoughts keep the character's voice, `[whispers]` on Expressive, −3 dB applied by the player from `kind = thought`, D16) | R0 (R1 traffic) |
 | [routes/tts.py](/home/andres/PycharmProjects/magic-worlds-api/src/routes/tts.py) | Dead forbidden-fields constant `:26-37` | modify (delete dead code) | — | R0 |
 | [media_tasks.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/media_tasks.py), [models/task.py](/home/andres/PycharmProjects/magic-worlds-api/src/models/task.py), [notifications.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/notifications.py) | Strict `TtsJobPublic` alias | modify (widen) | — | R0 |
 
@@ -621,7 +632,7 @@ Phases:
 | File | Today | Action | New file | Phase |
 |---|---|---|---|---|
 | [streaming_tts_minimax.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/streaming_tts_minimax.py) | MiniMax WS per turn and per sentence; Protocols `:87-122`; hex; 32 kHz | replace | `speech/providers/elevenlabs/tts_multicontext_ws.py`; shim `speech/providers/minimax/streaming.py` | R0, R4 |
-| [voice_orchestration/engine.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/engine.py) | Default voice `:512`; `start_call` `:538`; `tts_provider` `:611`; billing `:1572-1599`; `_mp3_duration_ms` `:2286`; call-audio persistence `:2346-2415` | modify | contexts per turn, flush-ahead, barge-in truncation; parser moved to `speech/mp3_frames.py` | R0: parser fix, widen; R1: EL |
+| [voice_orchestration/engine.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/engine.py) | Default voice; `start_call(…, workspace_id)` `:562`; `tts_provider`; billing; `_mp3_duration_ms`; call-audio persistence `_persist_call_audio_asset` `:2361-2466` writes `tts_job` rows with `provider="minimax"`, `model_alias="speech_2_8_turbo"`, `continuation=True` (`:2419-2444`) (lines at `f37eefd`) | modify | contexts per turn, flush-ahead, barge-in truncation; parser moved to `speech/mp3_frames.py`; call-audio rows written from the routed provider (03 §5.14) | R0: parser fix, widen; R1: EL |
 | [delivery.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/delivery.py) | 32 kHz defaults `:159`, `:349`; guard `:352`; `voice_ready` `:212-240` | modify | format and `gain_db` fields (§5.8) | R0 |
 | [voice_orchestration/errors.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/errors.py) | `VoiceErrorCategory`; `_SECRET_PATTERNS` `:58-69`; `code` derived from category | modify | explicit `code` override; EL patterns | R0 |
 | [observability.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/observability.py) | `SAFE_OBSERVABILITY_FIELDS` `:18`; forbidden markers | modify | §8.2 | R0 |
@@ -631,7 +642,7 @@ Phases:
 | [admission.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/admission.py) | Single consent version `:96-107` | modify | per-provider version, attestation check | R0 |
 | [stt.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/stt.py), [stt_groq_client.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/stt_groq_client.py) | `SttClient` Protocol `:85`; global `VOICE_STT_LANGUAGE` | rename and modify | `SpeechToTextProvider` with a `language` hint from the D17 chain | R0 |
 | [quota.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/quota.py) | Env daily minutes | modify | per-plan seconds (`daily_quantity_limit`) | R0 |
-| [route_voice_call.py](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_voice_call.py) | `media_source_mp3` `:113`; `VoiceBargeInFrame` `:143-147`; `_resolve_snapshot_voice` `:404`; consent `:484`, `:574`; WS `:889` | modify | resolver, barge-in `played_ms`, 428 | R0, R1 |
+| [route_voice_call.py](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_voice_call.py) | `media_source_mp3`; `VoiceBargeInFrame`; `_resolve_snapshot_voice` `:426-443`; new call `_create_admitted_voice_session` `:501` (`new_work`), resume `:568` (`control_admitted`), consent `:613` (`read`), segments `:633` (`new_work`), end `:746` (`control_admitted`); WS `:947` with `?workspace_id=` `:969`; account-wide supersede `:462-498` (lines at `f37eefd`) | modify | resolver, barge-in `played_ms`, 428; keep the R1 intents and account-wide supersede (D39) | R0, R1 |
 
 ### 2.4 Text, prompts and graphs
 
@@ -665,15 +676,19 @@ Phases:
 
 | File | Today | Action | New file | Phase |
 |---|---|---|---|---|
-| [db.sql](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql) | `tts_job` CHECK `:670`; preset `:1279-1309`; seeds `:909-942`; revision `2026_10_image_profiles` | modify | §4 | R0, R4, R5 |
-| [bootstrap.py](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py) | `CONTENT_SCHEMA_REVISION` `:17`; upgrade chain `:1699-1709`; seed contract `_membership_seed_issues` `:1108` | modify | — | R0, R4, R5 |
-| [models.py](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py) | Ops `:57-67`; `count_in_flight` `:2062`; reserve `:2929`; refund `:3159`; `voice_session` validator `:5343-5348`; `tts_job` provider `:8497-8502`; asset provider `:8990-8996`; `VoicePresetModel` `:14858` | modify | `voice_preview` op and branch; turn-charge in-flight; widened sets; settle primitive | R0 |
+| [db.sql](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql) | `tts_job` CHECK `:835` (constraint `:826-836`); `workspace_id` + FK `:794`, `:863`; reuse index `:859`; `voice_session.tts_provider` default `:421`; preset `:1485-1515`; plan limits `:899`; revision seed `2026_10_workspace_r1` `:2296` | modify | §4 | R0, R4, R5 |
+| [bootstrap.py](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py) | `CONTENT_SCHEMA_REVISION = "2026_10_workspace_r1"` `:17`; upgrade chain `:1699-1716` (every path ends with `20261012_workspace_r1.py`); seed contract `_membership_seed_issues` | modify (§4.1 chain rules) | — | R0, R4, R5 |
+| [models.py](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py) | Ops `:57-67`; media origin helpers `_admit_media_job_origin` `:575`, `_record_media_job_origin` `:604`, `_associate_job_asset` `:801`; `count_in_flight` `:2207` (TTS `:2243-2250`, call `:2251-2258`); reserve `:3074`; refund `:3304`; `delete_all_user_data` `:5237-5311`; `voice_session` validator `:5509-5520` and insert guard `:6027-6033`; `TtsJobModel.create_pending_job` `:8840` (provider set `:8935`); `lock_assistant_message_for_tts` `:9029`; `find_reusable_chat_job` `:9118`; asset-parent provider check `:766`/`:9465`; `VoicePresetModel` `:16367` (line numbers at `f37eefd`) | modify | `voice_preview` op and branch; turn-charge in-flight; widened sets; settle primitive; wipe order (03 §5.15) | R0 |
 | (new) | — | add | `src/database/mysql/voice_catalog_models.py` (repositories for every new table) | R0 |
 | [conversation_turn_store.py](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/conversation_turn_store.py) | `tts_provider` checks `:395`, `:604`; callbot validators `:383-397`, `:580-605`; retry byte-equality `:124-137`, `:241-252` | modify | §6.5 | R0 |
 | [card_body.py](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/card_body.py) | `props.voice` validation | modify (union) | — | R0 |
 | [membership_admin_models.py](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/membership_admin_models.py) | Op-set validation `:123-130` | modify (`voice_preview`; editable `daily_quantity_limit`, custom plans included) | — | R0 |
 | [models/tts.py](/home/andres/PycharmProjects/magic-worlds-api/src/models/tts.py) | `model_alias: Literal["speech_2_8_turbo"]`; strict `TtsErrorPublic` | modify | §6.3 | R0 |
-| `scripts/migrations/` | Latest `20261012_image_profiles.py`, `20261012_resource_tasks.py` | add | §4.2 scripts | R0, R4, R5 |
+| `scripts/migrations/` | Latest `20261012_image_profiles.py`, `20261012_resource_tasks.py`, `20261012_workspace_r1.py` | add | §4.2 scripts | R0, R4, R5 |
+| `src/database/mysql/migrations/` | Frozen predecessors up to `2026_10_image_profiles.sql` and the `2026_10_resource_tasks.sql` delta; **no `2026_10_workspace_r1.sql` yet** | add `2026_10_workspace_r1.sql` (frozen copy of `db.sql` at that revision) before any voice DDL | — | R0 |
+| [workspace_cutover.py](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/workspace_cutover.py) | Cutover pattern `:497-592` (advisory lock, revision gate, frozen-schema check, fingerprint, marker CAS) | reference only | `voice_r0_cutover.py` follows it | R0 |
+| [services/workspaces.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/workspaces.py), [models/workspaces.py](/home/andres/PycharmProjects/magic-worlds-api/src/models/workspaces.py) | Capability `schema_revision: "2026_10_workspace_r1"` hard-coded (`:27`, `:78`); intents and `resolve_workspace_context` (`:30`, `:102-115`) | **no change** to the capability; a test pins it across the voice revision (D39). New voice routes use `resolve_workspace_context` | — | R0 |
+| [workspace_copy.py](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/workspace_copy.py) | `_copied_body` copies `props.voice` verbatim `:112-123` | **no change** (shape-only copy, D32); the nightly `voice_reference` scan picks copies up | — | — |
 
 ### 2.7 Redaction outside the voice modules
 
@@ -833,22 +848,36 @@ Readiness probes (verbatim from D04):
 
 | Rule | Detail |
 |---|---|
-| Location | `scripts/migrations/<yyyymmdd>_<name>.py`, appended after [20261012_image_profiles.py](/home/andres/PycharmProjects/magic-worlds-api/scripts/migrations/20261012_image_profiles.py), and after `20261012_resource_tasks.py` if that lands first ([research 06 §11.11](research/06_backend_minimax_inventory.md)) |
-| Parity | Every DDL change updates [db.sql](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql), bumps `CONTENT_SCHEMA_REVISION` ([bootstrap.py:17](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py)) and extends the upgrade chain ([bootstrap.py:1699-1709](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py)). [test_schema_bootstrap.py](/home/andres/PycharmProjects/magic-worlds-api/tests/test_schema_bootstrap.py) covers it. |
+| Location | `scripts/migrations/<yyyymmdd>_<name>.py`, appended after [20261012_workspace_r1.py](/home/andres/PycharmProjects/magic-worlds-api/scripts/migrations/20261012_workspace_r1.py), the current last step ([research 15 §8](research/15_workspace_r1_impact.md)) |
+| Baseline (D39) | The predecessor is `2026_10_workspace_r1`. Migration 1 first freezes `db.sql` at that revision as `src/database/mysql/migrations/2026_10_workspace_r1.sql` (with a loader like `_historical_statements` in `llm_profile_migration.py`). The cutover module follows [workspace_cutover.py:497-592](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/workspace_cutover.py): advisory lock, exact revision gate, check against the frozen predecessor, data fingerprint before and after, marker compare-and-set. Workspace R1 must be live in production before migration 1 runs (D28) |
+| Parity | Every DDL change updates [db.sql](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql) (including the revision seed, `:2296`), bumps `CONTENT_SCHEMA_REVISION` ([bootstrap.py:17](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py)) and extends the upgrade chain ([bootstrap.py:1699-1716](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py)): a new `"2026_10_workspace_r1": (<voice script>,)` entry, `20261012_workspace_r1.py` inserted before the voice script in every older entry, and the final guidance step changed from `20261012_workspace_r1.py` to the voice script. [test_schema_bootstrap.py](/home/andres/PycharmProjects/magic-worlds-api/tests/test_schema_bootstrap.py) (~`:600-667`) covers it. |
+| Workspace capability (D39) | `CAPABILITIES['schema_revision']` ([services/workspaces.py:27](/home/andres/PycharmProjects/magic-worlds-api/src/services/workspaces.py)) and `WorkspaceCapabilities.schema_revision: Literal['2026_10_workspace_r1']` ([models/workspaces.py:78](/home/andres/PycharmProjects/magic-worlds-api/src/models/workspaces.py)) **stay unchanged**. The SPA accepts only that value ([workspaceContract.ts:94](/home/andres/WebstormProjects/magic-worlds/src/infrastructure/api/workspaceContract.ts)); a new value would block private content in every deployed build. The value names the workspace contract, not the content revision. A test asserts it after each voice migration |
 | Lockstep ops | Adding `voice_preview` is a one-way startup contract ([research 13 §4.4](research/13_gap_codebase_checks.md)):<br/>- the migration inserts limit rows for **every** plan, custom plans included, before the new build boots;<br/>- a reverse script exists only for a rollback before R1 (D28). |
 | Expand and contract | R0 is expand-only. R4 removes MiniMax-only objects. R5 contracts. Rollback from R1 on is route-only. |
-| Data wipe | Every new user-owned table is added to `DELETE /user/data` coverage ([test_user_data_wipe.py:63](/home/andres/PycharmProjects/magic-worlds-api/tests/models/test_user_data_wipe.py)), except legal records whose retention LEGAL sets (`user_attestation`, `voice_consent_record`; see §11). |
+| Data wipe | Every new user-owned table is added to `DELETE /user/data` coverage ([test_user_data_wipe.py:63](/home/andres/PycharmProjects/magic-worlds-api/tests/models/test_user_data_wipe.py)), except legal records whose retention LEGAL sets (`user_attestation`, `voice_consent_record`; see §11). Order (03 §5.15): `tts_job` → **`tts_turn_charge`** → **`voice_review_flag`** → **`voice_preview_render`** (requester's rows) → `resource_task` → `tb_workspace_scope` → `tb_workspace`, inside the existing workspace-row lock of [delete_all_user_data](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py) (`:5237-5311`). `session_voice_setting` and `tts_turn_charge_ledger` go by cascade. |
 
 ### 4.2 Ordered migration plan
 
 | # | Script (name proposed here) | Release | Phase | Content (in order) | Revision |
 |---|---|---|---|---|---|
+| 0 | (precondition) | R0 | — | Workspace R1 deployed in production at `2026_10_workspace_r1` ([workspace_r1 11](../workspace_r1/11_migration_and_rollout.md)). Freeze `src/database/mysql/migrations/2026_10_workspace_r1.sql` in the same PR as migration 1. | `2026_10_workspace_r1` |
 | 1 | `2026MMDD_voice_r0_expand.py` | R0 | expand | (a) Catalog tables (§4.3, in 03 §5.2 order).<br/>(b) Billing and guard tables: `tts_turn_charge` (plus the interim `tts_turn_charge_ledger` unless PA-17 is accepted first, §4.9), `session_voice_setting`, `voice_runtime_setting` + seed rows, `voice_abuse_counter`, `voice_spend_daily`.<br/>(c) `user_attestation` (§4.5).<br/>(d) Column adds and CHECK widening (§4.4).<br/>(e) `voice_preset` v2 expand (§4.6).<br/>(f) Membership seeds (§4.7). | `2026_11_voice_r0` |
 | 2 | (reserved) `2026MMDD_voice_r0b.py` | R0 | expand | Only if R0 discovers more DDL | `2026_11_voice_r0b` |
 | — | No DDL | R1–R3 | — | Data only:<br/>- runtime settings;<br/>- mapping curation;<br/>- R3 hide of MiniMax global presets via `metadata.legacy_hidden = true` (reversible flag, D22) | — |
-| 3 | `2026MMDD_voice_r4_cleanup.py` | R4 | contract | Drop `voice_legacy_fallback`. Change defaults: `tts_job.provider` → `'elevenlabs'`, `voice_session.tts_provider` → `'elevenlabs_streaming'`. The `minimax` CHECK values stay (D23). | `2026_12_voice_r4` |
-| 4 | `scripts/voice_migration/rewrite_voices.py --check/--apply` | R5 | data | One-shot rewrite of cards, drafts, versions and presets at 100% coverage. One `voice_migration_audit` row per JSON path. Timestamps preserved (D21). | — |
-| 5 | `2027MMDD_voice_r5_contract.py` | R5 | contract | 03 §5.3 R5 preset DDL. Precondition: `--check` reports 0 rows with `schema_version = 1`. | `2027_01_voice_r5` |
+| 3 | `2026MMDD_voice_r4_cleanup.py` | R4 | contract | Drop `voice_legacy_fallback`. Change defaults: `tts_job.provider` → `'elevenlabs'` (`db.sql:804`), `voice_session.tts_provider` → `'elevenlabs_streaming'` (`db.sql:421`). The `minimax` CHECK values stay (D23). Predecessor frozen as `2026_11_voice_r0.sql` (or `r0b`). | `2026_12_voice_r4` |
+| 4 | `scripts/voice_migration/rewrite_voices.py --check/--apply` | R5 | data | One-shot rewrite of cards, drafts, versions and presets at 100% coverage, **in every workspace, archived ones included** (a system write: it takes row locks only, never `lock_workspace(require_active=True)`, and never touches `is_default_persona`, organization or copy receipts). One `voice_migration_audit` row per JSON path. Timestamps preserved (D21, D39). | — |
+| 5 | `2027MMDD_voice_r5_contract.py` | R5 | contract | 03 §5.3 R5 preset DDL. Precondition: `--check` reports 0 rows with `schema_version = 1`. Predecessor frozen as `2026_12_voice_r4.sql`. | `2027_01_voice_r5` |
+
+Every revision above follows the §4.1 chain rules: freeze the predecessor, fingerprint, compare-and-set the marker, extend `upgrades`, and leave the workspace capability at `2026_10_workspace_r1`.
+
+**As built (R0, 2026-10-12, not yet applied anywhere).** Migration 1 exists as `scripts/migrations/20261012_voice_expand.py` with `src/database/mysql/voice_r0_cutover.py`; the parity and chain tests are `tests/test_voice_schema_chain.py`. Differences from the table above:
+- The revision is **`2026_10_voice_r0`** (the repo names revisions by build month), so the R4 predecessor is frozen as `2026_10_voice_r0.sql` and a reserved row 2 would be `2026_10_voice_r0b`. The workspace capability stays `2026_10_workspace_r1` (`services/workspaces.py`, pinned by a `Literal`).
+- The `voice_preview` and `daily_quantity_limit` membership seeds (R0-DATA-07) are part of migration 1, in the same transaction, not a separate `…_voice_membership_ops.py`. The reverse refuses once any V2 value exists (rows in new tables, changed switches, ElevenLabs or v2 rows, non-standard tiers, `voice_preview` usage).
+- `--apply` and `--reverse` require a `--review-file` produced from the check output. When custom plans exist it must carry `custom_plans_copy_pro: true` (custom plans copy the Pro limits).
+- Runtime-setting seeds are literal values (`rollout_mode=off`, `canary_percent=0`, `daily_budget_chars=1,140,000` from the 11 §6.3 1k-MAU row), not env boot defaults.
+- The `voice_catalog` FULLTEXT index is deferred: the strict startup verifier has no FULLTEXT support. Catalog search uses indexed filters plus `LIKE` until it does.
+- Refinements over §4.3–§4.7: binary collation on id, hash and enum columns; `turn_id char(36)`; `int unsigned` counters; extra value, JSON and lifecycle CHECKs.
+- `voice_preview_render` carries `idx_voice_preview_status_created (status, created_at)` for the 120 s stale-render sweep (03 §5.16 I-3). It ships inside the `voice_preview_render:create` step, not as its own step; a database that ran an earlier build of the expand must add it by hand (`ALTER TABLE voice_preview_render ADD INDEX idx_voice_preview_status_created (status, created_at)`) and re-run the check. No database has run the expand yet.
 
 ### 4.3 R0 expand: new tables (canonical DDL)
 
@@ -1037,6 +1066,9 @@ create table voice_legacy_fallback (
 create table voice_review_flag (
     flag_id        bigint auto_increment primary key,
     owner_user_id  int not null,
+    project_hash   varchar(64)  character set utf8mb4 collate utf8mb4_bin not null,   -- app scope of the flagged document (D39)
+    user_group_hash varchar(64) character set utf8mb4 collate utf8mb4_bin not null,
+    workspace_id   char(36)     character set utf8mb4 collate utf8mb4_bin null,       -- card refs: the card's workspace; presets: null (account-level)
     ref_type       varchar(32)  character set utf8mb4 collate utf8mb4_bin not null,   -- card|card_draft|preset|template_cast
     ref_id         varchar(128) character set utf8mb4 collate utf8mb4_bin not null,
     json_path      varchar(255) not null,
@@ -1044,7 +1076,12 @@ create table voice_review_flag (
     created_at     datetime default CURRENT_TIMESTAMP not null,
     dismissed_at   datetime null,
     unique key uq_voice_review_flag (ref_type, ref_id, json_path),
-    key idx_voice_review_flag_owner (owner_user_id, dismissed_at)
+    key idx_voice_review_flag_owner (owner_user_id, project_hash, user_group_hash, dismissed_at),
+    key idx_voice_review_flag_workspace (owner_user_id, project_hash, user_group_hash, workspace_id, dismissed_at),
+    constraint fk_voice_review_flag_workspace foreign key (owner_user_id, project_hash, user_group_hash, workspace_id)
+        references tb_workspace (user_id, project_hash, user_group_hash, workspace_id) on delete no action on update no action,
+    constraint chk_voice_review_flag_workspace check ((ref_type = 'preset') = (workspace_id is null)),
+    constraint chk_voice_review_flag_scope_nonempty check (char_length(project_hash) > 0 and length(project_hash) = length(trim(project_hash)) and char_length(user_group_hash) > 0 and length(user_group_hash) = length(trim(user_group_hash)))
 ) engine = InnoDB default character set = utf8mb4 collate = utf8mb4_0900_ai_ci;
 
 -- Recipe preview render cache and in-flight source (D18).
@@ -1084,8 +1121,11 @@ create table voice_sample_asset (
 create table tts_turn_charge (
     turn_charge_id     char(36) character set utf8mb4 collate utf8mb4_bin primary key,
     user_id            int not null,
+    project_hash       varchar(64) character set utf8mb4 collate utf8mb4_bin not null,   -- same app scope as tts_job
+    user_group_hash    varchar(64) character set utf8mb4 collate utf8mb4_bin not null,
+    workspace_id       char(36)    character set utf8mb4 collate utf8mb4_bin not null,   -- the session's workspace (D39); never client-chosen
+    adventure_id       int not null,
     usage_day          date not null,                -- membership usage day of the reservation
-    -- + the same app-scope columns as tts_job (DATA copies them)
     assistant_message_id bigint not null,
     turn_id            bigint not null,
     tier               varchar(16) not null,         -- standard|expressive (effective, after D05 fallback)
@@ -1098,17 +1138,23 @@ create table tts_turn_charge (
     status             varchar(16) not null,         -- open|settled
     created_at         datetime default CURRENT_TIMESTAMP not null,
     settled_at         datetime null,
-    key idx_tts_turn_charge_day (user_id, usage_day),
-    key idx_tts_turn_charge_open (user_id, status)
+    key idx_tts_turn_charge_day (user_id, usage_day),     -- caps and in-flight are per account, never per workspace (D39)
+    key idx_tts_turn_charge_open (user_id, status),
+    key idx_tts_turn_charge_workspace (user_id, project_hash, user_group_hash, workspace_id, created_at),
+    constraint fk_tts_turn_charge_workspace foreign key (user_id, project_hash, user_group_hash, workspace_id)
+        references tb_workspace (user_id, project_hash, user_group_hash, workspace_id) on delete no action on update no action,
+    constraint chk_tts_turn_charge_scope_nonempty check (char_length(project_hash) > 0 and length(project_hash) = length(trim(project_hash)) and char_length(user_group_hash) > 0 and length(user_group_hash) = length(trim(user_group_hash)))
 ) engine = InnoDB default character set = utf8mb4 collate = utf8mb4_0900_ai_ci;
 -- tts_job gains: turn_charge_id char(36) null (FK to tts_turn_charge), billed_chars int null,
 --                tier varchar(16) null, substitution_reason varchar(32) null.
 
 -- Per-session tier override, outside template_snapshot (D05).
 create table session_voice_setting (
-    session_id     bigint primary key,           -- adventure_session id (character chats included)
+    session_id     int primary key,              -- adventure_session.adventure_id (character chats included); workspace inherited (D39)
     tier_override  varchar(16) character set utf8mb4 collate utf8mb4_bin null,   -- standard|expressive|null
-    updated_at     datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP
+    updated_at     datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP,
+    constraint fk_session_voice_setting_session foreign key (session_id)
+        references adventure_session (adventure_id) on delete cascade on update no action
 ) engine = InnoDB default character set = utf8mb4 collate = utf8mb4_0900_ai_ci;
 
 -- DB-backed rollout switches, read with TTL <= 60 s (D28).
@@ -1154,7 +1200,8 @@ create table voice_spend_daily (
 The changes below implement the 03 §5.2 comments and the 03 §5.14 list. MySQL refuses to drop and re-add a CHECK with the same name in one `ALTER`, so they are two statements.
 
 ```sql
--- 1. tts_job identity CHECK: today ends with "and provider = 'minimax'" (db.sql:661-671)
+-- 1. tts_job identity CHECK: today ends with "and provider = 'minimax'" (db.sql:826-836 at 2026_10_workspace_r1;
+--    re-copy the live text from the frozen predecessor before editing, the other conditions must stay identical)
 alter table tts_job drop check chk_tts_job_identity;
 alter table tts_job add constraint chk_tts_job_identity check (
         regexp_like(job_id, '^[A-Za-z0-9][A-Za-z0-9_-]{0,35}$')
@@ -1290,8 +1337,8 @@ These are type refinements, which 03 §5.2 allows. They are not renames.
 | Column | Canonical sketch | Existing column it joins to | Recommendation |
 |---|---|---|---|
 | `tts_turn_charge.turn_id` | `bigint` | `tts_job.turn_id char(36)` (regex id) | `char(36) … utf8mb4_bin` |
-| `session_voice_setting.session_id` | `bigint` | `adventure_session.adventure_id int` | `int`, FK to `adventure_session` with cascade |
-| `tts_turn_charge` app scope | "+ the same app-scope columns as tts_job" | `project_hash`, `user_group_hash`, `adventure_id` | Copy these three with the `tts_job` types |
+| `session_voice_setting.session_id` | `int` + FK cascade (**applied in 03 §5.2 on 2026-10-12**, D39) | `adventure_session.adventure_id int` | Done |
+| `tts_turn_charge` app scope | `project_hash`, `user_group_hash`, `workspace_id`, `adventure_id` + `fk_tts_turn_charge_workspace` (**applied in 03 §5.2 on 2026-10-12**, D39) | `tts_job` scope and `fk_tts_job_workspace` (`db.sql:794`, `:863`) | Done. `workspace_id` is copied from the session row in the planning transaction, never from the client |
 | `tts_turn_charge.ledger_entry_id` | `varchar(64) not null` (one id) | `membership_credit_ledger.ledger_id bigint`; a reservation writes one row per non-zero `credit_source` and returns them all as `ledger_ids` ([models.py:3085-3110](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)) | **Interim rule, the same as [06 §5.4](06_chat_narration_migration.md), until PA-17 / Q-24 amends 03 §5.2: persist every id and settle across all of them.**<br/>- If PA-17 is accepted before Migration 1 runs: `ledger_ids json not null` replaces the column.<br/>- Otherwise: keep `ledger_entry_id` exactly as 03 defines it (it holds the first id) and add the side table `tts_turn_charge_ledger` below, which holds **every** id, the first included.<br/>- The repository exposes `TurnCharge.ledger_ids: list[int]` in both cases, so the pseudo-code in §1.10 and 06 §5.4 does not change.<br/>- The ledger's own `reference_id` cannot link the siblings: `reserve_media_operation` does not write it ([models.py:3091-3101](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)) and it is not indexed ([db.sql:799](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql)). |
 | `voice_preview_render.ledger_entry_id` | `varchar(64) null` | `membership_credit_ledger.ledger_id bigint` | Keep the name and the single id. A paid render reserves 1 credit, which comes from exactly one `credit_source` ([models.py:2298-2304](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)), so it writes exactly one ledger row; free renders write none (null). |
 | `voice_abuse_counter.kind`, `voice_spend_daily.surface`/`model_id` | no collation | — | Add `utf8mb4_bin` like the other enum-like columns |
@@ -1317,21 +1364,25 @@ All user routes are authenticated through the existing user dependency. All `/ad
 
 ### 5.1 New user routes
 
+Workspace selectors, intents and archived behaviour for every route below are canonical in 03 §5.15 (D39). In short: catalog, capabilities, preview texts, presets, attestations and preferences take **no** workspace selector; session-bound routes take `X-Workspace-Id` and use `new_work` for writes; a foreign or mismatched root is 404.
+
+**R1 dark build:** the session voice-settings routes refuse Expressive with 422 `voice_plan_locked` / `voice_tier_unavailable` (03 §5.16 I-41), not 403, and the chat alias is `/character-chats/{id}/voice-settings`. A voice refresh does not bump `conversation_version` (I-42).
+
 | Method and path | Request | Response | Errors | Release |
 |---|---|---|---|---|
-| `GET /voices/catalog` | `language, accent, gender, age, tags, use_case, works_in_calls, q, recommended_for, include_locked, after, limit≤50` | `{items: CatalogItem[], next_cursor}`. Order: `sort_rank, display_name, voice_key`. | 400 invalid filter | R0 (root), R1 (cohort), R3 (all) |
+| `GET /voices/catalog` | `language, accent, gender, age, tags, use_case, works_in_calls, q, recommended_for, include_locked, after, limit≤50` | `{items: CatalogItem[], next_cursor}`. Order: `sort_rank, display_name, voice_key`. | 400 invalid filter; with an owned `recommended_for` card: 422 `WORKSPACE_REQUIRED` without `X-Workspace-Id`, 404 when the card is not in that workspace | R0 (root), R1 (cohort), R3 (all) |
 | `GET /voices/catalog?keys=vk_…,…` (≤ 100) | — | `{items: CatalogItem[]}`. Includes non-public voices the caller references; no filters. | 400 | same |
 | `GET /voices/catalog/{voice_key}/preview.mp3?lang=&tier=&h=` | — | `audio/mpeg` own sample; `Cache-Control: private, max-age=86400` | 404; 429 (bucket 60/min) | R0 |
 | `GET /voices/capabilities` | — | Per surface and tier: controls, ranges, defaults, `supports_emotion`, `supports_speed`, text limits (D13). No provider names. | — | R0 |
-| `GET /voices/effective?ref_type=&ref_id=` | — | `{ref_type, ref_id, voices: [{json_path, effective_voice}]}` | 404 | R1 |
-| `GET /voices/review-flags` | — | `{items: [{flag_id, ref_type, ref_id, json_path, flags, created_at}]}` (undismissed) | — | R1 |
+| `GET /voices/effective?ref_type=&ref_id=` | `X-Workspace-Id` for `card`, `card_draft`, `card_version`, `session`; none for `preset` | `{ref_type, ref_id, voices: [{json_path, effective_voice}]}` | 404 (also for a document in another workspace) | R1 |
+| `GET /voices/review-flags` | — (account list) | `{items: [{flag_id, ref_type, ref_id, json_path, flags, created_at, organization: {workspace_id} \| null}]}` (undismissed; `organization` null for presets) | — | R1 |
 | `POST /voices/review-flags/{id}/dismiss` | — | 204 | 404 | R1 |
 | `GET /voices/preview-texts?language=` (proposed here) | — | `{items: [{text_id, kind: "narration"\|"dialogue"\|"thought", text}]}` | — | R0 |
 | `POST /user/attestations` | `{kind: "age_18_plus"\|"terms_of_service", version, method: "signup_password"\|"signup_oauth"\|"reprompt"}` (§4.5) | 201 `{kind, version, accepted_at}` | 409 stale version | R0 |
 | `GET /user/attestations` (proposed here) | — | `{required: [{kind, version}], accepted: [{kind, version, accepted_at}]}` | — | R0 |
-| `PUT /adventure-sessions/{id}/voice-settings` (proposed here) | `{tier_override: "standard"\|"expressive"\|null}` | `{tier_override, effective_tier}` | 403 plan; 404 | R1 |
-| `POST /character-chats/{id}/voice/refresh` | — | Updated chat DTO with `effective_voice` | 409 stream or call active; 422 ineligible | R1 |
-| `POST /adventure-sessions/{id}/voices/refresh` | `{card_ids: string[] \| null}` (null = all cast) | Updated session DTO | 409; 422 | R1 |
+| `PUT /adventure-sessions/{id}/voice-settings` (proposed here) | `X-Workspace-Id`; `{tier_override: "standard"\|"expressive"\|null}` | `{tier_override, effective_tier}` | 403 plan; 404; 409 `WORKSPACE_ARCHIVED` | R1 |
+| `POST /character-chats/{id}/voice/refresh` | `X-Workspace-Id` | Updated chat DTO with `effective_voice` | 409 stream or call active; 409 `WORKSPACE_ARCHIVED`; 409 `voice_source_unavailable` (source card not in the session's workspace, D36); 422 ineligible | R1 |
+| `POST /adventure-sessions/{id}/voices/refresh` | `X-Workspace-Id`; `{card_ids: string[] \| null}` (null = all cast) | Updated session DTO | 409 (active stream or call, `WORKSPACE_ARCHIVED`, `voice_source_unavailable`); 422 | R1 |
 
 ### 5.2 Changed user routes
 
@@ -1461,6 +1512,19 @@ These replace the MiniMax routes in [admin_voices.py](/home/andres/PycharmProjec
 }
 ```
 
+**As built (R0, [03 §5.16 I-32](03_target_architecture_and_decisions.md)).** The response also carries the 09 §1.5 client switches at the top level, next to `surfaces`:
+
+```jsonc
+{
+  "surfaces": { "…": "as above; each tier also has steps {control: 0.05} and user_editable {control: bool}" },
+  "provider_route": "minimax",            // the caller's narration route (D28); "elevenlabs" from R1 for the cohort
+  "tiers_allowed": ["standard"],          // plan rank (I-8) ∩ route; the MiniMax route offers Standard only
+  "narration_tier": "standard",           // user_preferences.narration_tier clamped to tiers_allowed
+  "consent_version_required": "voice-v1", // follows the call route (R0-BE-22)
+  "status": { "narration_available": true, "calls_available": true, "auto_narration_paused": false }
+}
+```
+
 ### 5.7 Chat WebSocket frames
 
 The public mapping is defined in §7.1. The changes are:
@@ -1471,6 +1535,7 @@ The public mapping is defined in §7.1. The changes are:
 | `tts_failed` | `error` keeps `{category, detail, code, retry_after_seconds}` and gains `retryable: bool` and `action: "attest" \| null`. `category` equals the public status. New `code` values: `voice_unavailable`, `attestation_required`, `moderation_unavailable`. The attestation frame has no `job_id` (the existing no-job path, [chat_tts_delivery.py:284](/home/andres/PycharmProjects/magic-worlds-api/src/services/chat_tts_delivery.py)). | They see only existing statuses and treat them as terminal (03 §5.14) |
 | `tts_queued` / `tts_complete` / `tts_failed` segment fields and `metadata.tts_segments[i]` | Add `tier`, `gain_db`, `substitution_reason`. `kind` already exists ([chat_tts_delivery.py:503-526](/home/andres/PycharmProjects/magic-worlds-api/src/services/chat_tts_delivery.py)). | Extra keys are ignored by the SPA parser ([09](09_frontend_refactor_plan.md) confirms) |
 | `metadata.tts_segments[i].status` | Display-only `daily_limit_reached` and `not_narrated`, with `job_id: null`, no failure frame, and no `tts_job` row | Shown as not narrated |
+| `tts_failed` for an archived workspace (D39) | Turn-level, no `job_id`: `status: "invalid"`, `error.code: "workspace_archived"`, `retryable: false`, `action: null`. Sent only for reuse misses; hits still attach. Nothing is reserved | Existing terminal status; the FE also disables the request in read-only workspaces ([09](09_frontend_refactor_plan.md)) |
 
 Example attestation frame (03 §5.8 shape):
 
@@ -1488,7 +1553,7 @@ Example attestation frame (03 §5.8 shape):
 | `voice_ready` | server | Adds `audio: {content_type: "audio/mpeg", codec: "mp3", sample_rate, channels}` and `effective_voice` (§5.6 shape, for the "Call voice" or "Voice replaced" header). Built at [delivery.py:212](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/delivery.py). | R0 (format), R1 (voice) |
 | `voice_audio_chunk` | server | `sample_rate` ∈ {22050, 24000, 44100} (+ 32000 legacy). Adds `codec`, `gain_db`, `substitution_reason`. The 32 kHz guard at [delivery.py:352](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/delivery.py) is removed in the same release as FE `voice.types.ts`. | R0 |
 | `voice_barge_in` | client | 03's `interrupt {turn_id, played_ms}` maps onto the existing strict frame ([route_voice_call.py:143-147](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_voice_call.py)). It gains optional `turn_id` and `played_ms` (int ≥ 0). Without them the server estimates `played_ms` from sent audio and elapsed time. | R0 |
-| `voice_playback` (proposed here) | client | `{turn_id, played_ms}` every ≤ 1 s while audio plays. Feeds the D06 flush-ahead window. It must be registered in `_VOICE_FRAME_MODELS` ([route_voice_call.py:163-170](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_voice_call.py)). Older SPA builds never send it, so the server falls back to its estimate. | R0 |
+| `voice_playback` (adopted by the R1 dark build; cadence 500 ms, 07 §2.5) | client | `{turn_id, played_ms}` every ≤ 1 s while audio plays. The SPA sends it, and the barge-in `turn_id`/`played_ms`, only when `voice_ready.audio` is present, because older BFF frame models forbid extra fields. Feeds the D06 flush-ahead window. It must be registered in `_VOICE_FRAME_MODELS` ([route_voice_call.py:163-170](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_voice_call.py)). Older SPA builds never send it, so the server falls back to its estimate. | R0 |
 | `voice_error` | server | Keeps existing categories. `code` may be set explicitly instead of the derived `VOICE_<CATEGORY>`: `{category: "tts_unavailable", code: "voice_unavailable" \| "moderation_unavailable" \| "attestation_required"}`. The FE type is `code?: string`. | R0 |
 | `voice_turn_end` | server | Adds `truncated` and `played_ms`, mirroring `metadata.voice` | R1 |
 
@@ -1634,10 +1699,18 @@ R0 widening list (verbatim from 03 §5.14):
 | `CharacterVoice` readers (BE `character.py:11-41`, FE `cardTransforms.ts:57-72`, `adventureSnapshot.ts:81-96`) | V1/V2 union (§5.1) |
 | Retry byte-equality (`conversation_turn_store.py:124-137,241-252`) | voice paths excluded (D36) |
 | FE `TERMINAL_STATUSES`, `tts_failed` union (`chatTtsTurnState.ts:21-32`, `interaction.types.ts:212`) | unchanged statuses; new `error.code` values and segment states `daily_limit_reached`, `not_narrated` |
+| *Added 2026-10-12 (Workspace R1 alignment, [research/15](research/15_workspace_r1_impact.md)); backend line numbers at `f37eefd`:* | |
+| `TtsJobModel.create_pending_job` provider set `allowed={"minimax"}` (`models.py:8935`) | add `elevenlabs` |
+| `_required_asset_parent_job` called with `provider="minimax"` from `TtsAssetModel.create_asset` (`models.py:766`, `:9465`) | accept the job's persisted provider from the widened set; never a literal |
+| `voice_session` insert guard and row validator (`models.py:6027-6033`, `:5509-5520`) | `tts_provider ∈ {minimax_streaming, elevenlabs_streaming}` |
+| Call-audio persistence (`voice_orchestration/engine.py:2419-2444`: `provider="minimax"`, `model_alias="speech_2_8_turbo"`, `provider_model_id="speech-2.8-turbo"`) | written from the call's routed provider and model; keeps `source="call_character_tts"`, `continuation=True` and no `turn_charge_id` (calls are billed per second, D24) |
+| `tts_job` provider CHECK (now `db.sql:835`) | the line above for `db.sql:670` moved; same change |
 
 **Backend additions to the list:**
 - **Barge-in persistence.** The turn is persisted as `completed` with sentence-truncated content. `metadata.voice` gains `truncated: bool` and `played_ms: int | null` (fixes bug #17). `interrupted` keeps `content == ''` (D06).
 - **Retry comparison.** It canonicalizes both snapshots with every voice object removed. An R0 test asserts that the LLM graph payload is identical with and without voices. If that test cannot pass, the fallback is to accept 409 `CHAT_RETRY_CONFLICT`, with a message (D36).
+  - **R0 finding (built):** voices did enter graph input, through the read-card node's `snapshot_json` and the `template_snapshot` frozen into the upstream graph metadata. `card_context.without_voices()` now drops `voice` / `narrator_voice` objects (and nulls) from both, and retry/recovery compare both sides after it. The fresh-turn `CHAT_CONTEXT_STALE` check stays strict. The speaker roster's `has_voice` flag stays (display data, not model input).
+  - **Rollback hazard:** a build rollback below this change makes retries of turns that failed under the new build return 409, and in-flight turns unrecoverable, for chats with voices ([10 §6.2](10_data_migration_and_rollout.md), TEC-12). Route rollback is unaffected.
 
 ---
 
@@ -1832,10 +1905,15 @@ The baseline inventory is in [research 06 §8](research/06_backend_minimax_inven
 | `models/test_character_voice_union.py` | V1/V2 discriminator; strict int→float; `extra=forbid`; shape on read/write/resolve (#10) |
 | `services/test_catalog_sync_jobs.py` | Mass-miss abort; two-miss → Job B; per-voice confirmation; premade tagging; lease; `Retry-After` |
 | `services/test_mp3_frames.py` | Unaligned chunk splits at every offset; tail carry; false-sync resistance (D08) |
-| `services/test_retry_snapshot_voice_exclusion.py` | Graph payload identical with and without voices; retry passes after a voice-only change (D36) |
+| `services/test_voice_graph_payload.py` (built in R0; planned as `test_retry_snapshot_voice_exclusion.py`) | Graph payload identical with and without voices; retry passes after a voice-only change (D36) |
 | `routes/test_voices_catalog.py`, `routes/test_attestations.py`, `routes/test_voice_refresh.py`, `routes/test_webhook_elevenlabs.py` | User routes, 428, 409 refresh, HMAC, dedupe |
 | `services/test_card_assistant_voice.py` | The card assistant keeps `voice` byte-identical |
 | `voice/test_flush_ahead_and_contexts.py` | ≤ 4 live contexts, queueing, flush-ahead, keepalive-after-init, 1008 reconnect and replay |
+| `services/test_turn_charge_workspace.py` (D39) | Real MySQL: the charge carries the session's workspace and app scope; an archived workspace reserves nothing and returns `workspace_archived`; a reuse hit in an archived workspace attaches for free; settlement, refunds and the stale sweep complete after an archive; caps and in-flight count across workspaces (two workspaces cannot double the daily cap) |
+| `routes/test_voice_routes_workspace.py` (D39) | Every 03 §5.15 row: missing selector 422, foreign workspace 404, archived 409 on `new_work`; refresh with the source card in another workspace → `voice_source_unavailable`; review-flag items carry `organization`; `recommended_for` scoping |
+| `database/test_voice_schema_chain.py` | Frozen `2026_10_workspace_r1.sql` predecessor; fingerprint equality; `upgrades` lists `20261012_workspace_r1.py` before the voice script; the workspace capability still reports `schema_revision = "2026_10_workspace_r1"` after migration 1 |
+| `models/test_user_data_wipe.py` (extended) | Wipe order with `tts_turn_charge` after `tts_job` and `voice_review_flag` before `tb_workspace`; no FK error; membership ledger rows kept |
+| `voice/test_call_audio_provider.py` | Call-audio `tts_job` rows carry the routed provider and model, `continuation=True`, a workspace association, and no `turn_charge_id` |
 
 ### 9.5 Fakes
 
@@ -1872,7 +1950,7 @@ The baseline inventory is in [research 06 §8](research/06_backend_minimax_inven
 
 | Guard | Rule |
 |---|---|
-| Import boundary | Outside `src/services/speech/providers/elevenlabs/`, no file contains `elevenlabs.io`, `xi-api-key`, `character-cost`, or provider `detail.code` literals such as `voice_not_found`. |
+| Import boundary | Outside `src/services/speech/providers/elevenlabs/`, no file contains `elevenlabs.io`, `xi-api-key`, `character-cost`, or provider `detail.code` literals such as `voice_not_found`. As built, the `character-cost` rule is `(?<!voice-)character-cost`, so the neutral `X-Voice-Character-Cost` header that 03 §5.16 I-14 requires passes, and console codes use neutral names (I-30). |
 | MiniMax removal (R4) | `grep -i minimax src/` returns only the theme-song allow-list (D01), the read-only legacy literals (`speech_2_8_turbo`, `minimax_streaming`, `minimax` in CHECKs and the V1 parser) and `voice_legacy_mapping`. |
 | Premade guard | Configured defaults and the last-resort key never resolve to premade or old-Default ids (D09). |
 | No `eleven_*` model ids | Only in the capability registry table. |
@@ -1995,3 +2073,6 @@ flowchart LR
 | 11 | Metrics exporter (no metrics library today) | Ops | R1 dashboards |
 | 12 | Which three graphs carry the turn `language` field (adventure, character and group chat assumed) | BE | BE-16 |
 | 13 | Server-side loudness library vs offline meter import for Acceptance (S-16) | BE | R0 exit |
+| 14 | Workspace R1 production deploy date (owner step in [workspace_r1 12, Phase 6](../workspace_r1/12_implementation_plan_and_acceptance.md)); voice migration 1 cannot run before it ([16](16_risks_and_open_questions.md) Q-33) | Owner | Migration 1 |
+| 15 | Public code for an archived workspace on the chat `tts` frame: `error.code: "workspace_archived"` with `status: "invalid"` (today's category, [engine.py:208-245](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py)) — confirm with FE | BE, FE | R0 API freeze |
+| 16 | `voice_preview_render` rows on account wipe: delete the requester's rows (default) vs keep shared renders with a nullable requester ([16](16_risks_and_open_questions.md) Q-35) | BE, LEGAL | Migration 1 |

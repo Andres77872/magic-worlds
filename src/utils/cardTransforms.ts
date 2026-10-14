@@ -6,9 +6,11 @@
 
 import type { Adventure, Character, Item, World } from '../shared'
 import type { CardActor, CardVisibility } from '../shared'
-import type { CharacterVoice } from '../shared/types/voicePreset.types'
+import type { StoredCharacterVoice } from '../shared/types/voicePreset.types'
 import type { CardOrganization } from '../shared/types/workspace.types'
 import { readCardOrganization } from '../infrastructure/api/workspaceContract'
+import { keepStoredVoice } from '../shared/voice/parseStoredVoice'
+import { readEffectiveVoice } from '../shared/voice/effectiveVoice'
 
 /**
  * Guard list transforms at the boundary so malformed responses never reach
@@ -40,7 +42,9 @@ interface RawCardRow {
     system_instructions?: string
     image_url?: string
     theme_song_url?: string
-    voice?: CharacterVoice
+    voice?: unknown
+    /** Read-only projection of `voice` (D35); absent when the server sends none (I-16). */
+    effective_voice?: unknown
     visibility?: CardVisibility
     original_creator?: CardActor
     latest_version_id?: string | null
@@ -68,21 +72,20 @@ function organizationOf(row: RawCardRow): { organization?: CardOrganization } {
     return organization ? { organization } : {}
 }
 
-function readCharacterVoice(value: unknown): CharacterVoice | undefined {
-    if (!value || typeof value !== 'object') return undefined
-    const voice = value as Partial<CharacterVoice>
-    const voiceId = typeof voice.voice_id === 'string' ? voice.voice_id.trim() : ''
-    if (!voiceId) return undefined
-    return {
-        voice_id: voiceId,
-        ...(voice.speed !== undefined ? { speed: voice.speed } : {}),
-        ...(voice.vol !== undefined ? { vol: voice.vol } : {}),
-        ...(voice.pitch !== undefined ? { pitch: voice.pitch } : {}),
-        ...(voice.emotion !== undefined ? { emotion: voice.emotion } : {}),
-        ...(voice.language_boost !== undefined ? { language_boost: voice.language_boost } : {}),
-        ...(voice.preset_id !== undefined ? { preset_id: voice.preset_id } : {}),
-        ...(voice.preset_name !== undefined ? { preset_name: voice.preset_name } : {}),
-    }
+/**
+ * Keep the WHOLE stored voice, V1 or V2 (03 §5.1.2): the same object, never a
+ * whitelist or a trim, so an unchanged card save re-sends it byte-identical (D32).
+ * A non-null voice the client does not recognise is kept too (09 §3.2): display
+ * reads it as "no voice", but a save never turns it into `null`.
+ */
+function readCharacterVoice(value: unknown): StoredCharacterVoice | undefined {
+    return keepStoredVoice(value)
+}
+
+/** The read-only voice projection (D35), kept for display; the API client strips it before any write. */
+function effectiveVoiceOf(row: RawCardRow): { effective_voice?: Character['effective_voice'] } {
+    const effective = readEffectiveVoice(row.effective_voice)
+    return effective ? { effective_voice: effective } : {}
 }
 
 export function transformCharacters(raw: unknown): Character[] {
@@ -104,6 +107,8 @@ export function transformCharacters(raw: unknown): Character[] {
         image_url: char.image_url,
         theme_song_url: char.theme_song_url,
         voice: readCharacterVoice(char.voice),
+        // Only present when the server sent a projection, so entities without one keep their exact shape.
+        ...effectiveVoiceOf(char),
         visibility: char.visibility,
         original_creator: char.original_creator,
         latest_version_id: char.latest_version_id,

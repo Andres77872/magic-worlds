@@ -43,6 +43,8 @@ export interface AdventureChatHandlers {
     onTtsJob?: (frame: Extract<ChatSocketServerMessage, { type: 'tts_job' }>) => void
     onTtsComplete?: (frame: Extract<ChatSocketServerMessage, { type: 'tts_complete' }>) => void
     onTtsFailed?: (frame: Extract<ChatSocketServerMessage, { type: 'tts_failed' }>) => void
+    /** WN-3: a self-harm signal paused voice; sent once per pause. */
+    onVoiceSafetyNotice?: (frame: Extract<ChatSocketServerMessage, { type: 'voice_safety_notice' }>) => void
     /** The backend reported an error for this turn. `detail` carries the
      *  server's fixed error category and the ids needed to find the matching
      *  backend log line. */
@@ -214,7 +216,7 @@ export function useAdventureChatSocket(
                 // A frame that arrives after this socket was torn down (session or
                 // workspace switch) belongs to work this view no longer shows.
                 if (socketRef.current !== socket) return
-                if (message.request_id && message.request_id !== requestRef.current && !message.type.startsWith('tts_') && !message.type.startsWith('image_')) return
+                if (message.request_id && message.request_id !== requestRef.current && !message.type.startsWith('tts_') && !message.type.startsWith('image_') && message.type !== 'voice_safety_notice') return
                 const current = handlersRef.current
                 switch (message.type) {
                     case 'turn_started':
@@ -282,6 +284,9 @@ export function useAdventureChatSocket(
                     case 'tts_failed':
                         notifyTaskHistoryChanged(socketWorkspaceId)
                         current.onTtsFailed?.(message)
+                        break
+                    case 'voice_safety_notice':
+                        current.onVoiceSafetyNotice?.(message)
                         break
                     case 'error':
                         if (message.code === 'BYOK_CREDENTIAL_REQUIRED' && latest.current.resendWithKey(socket, message.request_id)) break

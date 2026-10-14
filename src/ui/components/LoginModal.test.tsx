@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { I18nextProvider } from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/app/i18n'
+import { AttestationContext, type AttestationContextValue } from '@/features/legal/attestation/attestationContext'
 import { LoginModal } from './LoginModal'
 
 const login = vi.fn()
@@ -19,14 +20,31 @@ vi.mock('@/app/hooks', () => ({
     }),
 }))
 
-function renderModal(onClose = vi.fn()) {
+function renderModal(onClose = vi.fn(), attestation: AttestationContextValue | null = null) {
     const localI18n = i18n.cloneInstance({ lng: 'en' })
     render(
         <I18nextProvider i18n={localI18n}>
-            <LoginModal isOpen onClose={onClose} />
+            <AttestationContext.Provider value={attestation}>
+                <LoginModal isOpen onClose={onClose} />
+            </AttestationContext.Provider>
         </I18nextProvider>,
     )
     return { onClose }
+}
+
+function attestationApi(): AttestationContextValue {
+    return {
+        gate: 'idle',
+        requestAttestation: vi.fn(async () => true),
+        withAttestation: vi.fn(async (operation) => operation()),
+        expectSignupAttestation: vi.fn(),
+        cancelSignupAttestation: vi.fn(),
+    }
+}
+
+function tickAttestations() {
+    fireEvent.click(screen.getByRole('checkbox', { name: 'I am 18 or older' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Terms of Service/ }))
 }
 
 function fillCredentials(username = 'aria', password = 'hunter22') {
@@ -76,10 +94,68 @@ describe('LoginModal', () => {
         fireEvent.click(screen.getByRole('radio', { name: 'Create account' }))
         fillCredentials('aria', 'hunter22')
         fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'hunter22' } })
+        tickAttestations()
         fireEvent.click(screen.getByRole('button', { name: /create account/i }))
 
         await waitFor(() => expect(register).toHaveBeenCalledWith({ username: 'aria', password: 'hunter22' }))
         await waitFor(() => expect(onClose).toHaveBeenCalled())
+    })
+
+    it('asks for the 18+ and Terms boxes, unticked, only when creating an account', () => {
+        renderModal()
+        expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Create account' }))
+        const age = screen.getByRole('checkbox', { name: 'I am 18 or older' })
+        const terms = screen.getByRole('checkbox', { name: /I agree to the Terms of Service/ })
+        expect(age).not.toBeChecked()
+        expect(terms).not.toBeChecked()
+        expect(screen.getByRole('link', { name: 'Terms of Service' })).toHaveAttribute('href', '#/terms')
+    })
+
+    it('names the Terms version being accepted under the register Terms box only', () => {
+        renderModal()
+        expect(screen.queryByTestId('attestation-terms-version')).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Create account' }))
+        const version = screen.getByTestId('attestation-terms-version')
+        expect(version).toHaveTextContent('Terms of Service, version tos-v1')
+        expect(screen.getByRole('checkbox', { name: /I agree to the Terms of Service/ }))
+            .toHaveAttribute('aria-describedby', version.id)
+        expect(screen.getByRole('checkbox', { name: 'I am 18 or older' })).not.toHaveAttribute('aria-describedby')
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Sign in' }))
+        expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('attestation-terms-version')).not.toBeInTheDocument()
+    })
+
+    it('blocks register until both boxes are ticked', async () => {
+        renderModal()
+        fireEvent.click(screen.getByRole('radio', { name: 'Create account' }))
+        fillCredentials('aria', 'hunter22')
+        fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'hunter22' } })
+        fireEvent.click(screen.getByRole('checkbox', { name: 'I am 18 or older' }))
+        fireEvent.click(screen.getByRole('button', { name: /create account/i }))
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Confirm you are 18 or older and accept the Terms of Service')
+        expect(screen.getByRole('checkbox', { name: /I agree to the Terms of Service/ })).toHaveAttribute('aria-invalid', 'true')
+        expect(register).not.toHaveBeenCalled()
+    })
+
+    it('hands the ticked boxes to the attestation gate before registering, and drops them on failure', async () => {
+        const attestation = attestationApi()
+        register.mockResolvedValue(false)
+        renderModal(vi.fn(), attestation)
+        fireEvent.click(screen.getByRole('radio', { name: 'Create account' }))
+        fillCredentials('aria', 'hunter22')
+        fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'hunter22' } })
+        tickAttestations()
+        fireEvent.click(screen.getByRole('button', { name: /create account/i }))
+
+        await waitFor(() => expect(attestation.cancelSignupAttestation).toHaveBeenCalledTimes(1))
+        expect(attestation.expectSignupAttestation).toHaveBeenCalledTimes(1)
+        expect(vi.mocked(attestation.expectSignupAttestation).mock.invocationCallOrder[0])
+            .toBeLessThan(register.mock.invocationCallOrder[0])
     })
 
     it('logs in and closes on success', async () => {

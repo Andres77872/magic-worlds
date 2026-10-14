@@ -11,7 +11,9 @@ import { Button } from '@/ui/primitives'
 import { adventureChatConfig } from '../chatSessionConfig'
 import { useSessionWorkspace } from '../hooks/useSessionWorkspace'
 import { organizationWorkspaceId } from '@/shared/hooks/useScopedApi'
+import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel, InteractionTopBar, SidePanelDrawer} from './index'
+import { SessionNarrationTierToggle } from './SessionNarrationTierToggle'
 
 export function AdventureInteraction() {
     const { editingInProgress } = useData()
@@ -34,9 +36,16 @@ function AdventureInteractionView() {
     const [openPanelId, setOpenPanelId] = useState<'left' | 'right' | null>(null)
     const openPanel = (id: 'left' | 'right') => setOpenPanelId((cur) => (cur === id ? null : id))
     const closePanels = useCallback(() => setOpenPanelId(null), [])
+    // The narrator voice picker lives in the left panel; it is controlled here so the
+    // center panel's narration notes can open it too (ER-G1, wired with onEditNarratorVoice).
+    const [narratorPickerOpen, setNarratorPickerOpen] = useState(false)
     // Workspace R1: the session keeps its own workspace (this view remounts per session).
     const session = useSessionWorkspace(organizationWorkspaceId(editingInProgress))
     const { workspaceId: sessionWorkspaceId, api: sessionApi } = session
+    // An archived session workspace keeps the adventure readable, not writable.
+    const sessionReadOnly = useWorkspaceReadOnly(sessionWorkspaceId)
+    // Read-only sessions never open the picker, so it cannot pop open once the workspace is restored.
+    const openNarratorPicker = useCallback(() => setNarratorPickerOpen(true), [])
     // Stable per-session config so the chat engine's callbacks/effects don't churn.
     const chatConfig = useMemo(
         () => (sessionWorkspaceId && sessionApi ? adventureChatConfig({ workspaceId: sessionWorkspaceId, api: sessionApi }) : null),
@@ -117,9 +126,11 @@ function AdventureInteractionView() {
 
     // Persist an edit to this adventure's cloned-card snapshot. saveInProgressSnapshot
     // updates editingInProgress, which cascades back into currentAdventure below.
+    // The snapshot lives in the session's workspace, so it is written through that
+    // workspace's client, never the one committed later.
     const handleSnapshotChange = async (snapshot: AdventureSnapshot) => {
         if (!currentAdventure) return
-        await saveInProgressSnapshot(currentAdventure.id, snapshot)
+        await saveInProgressSnapshot(currentAdventure.id, snapshot, sessionApi)
         setCurrentAdventure((prev) =>
             prev ? { ...prev, snapshot, scenario: snapshot.template.description ?? prev.scenario } : prev,
         )
@@ -162,7 +173,22 @@ function AdventureInteractionView() {
 
             <div className="flex min-h-0 flex-1 overflow-hidden lg:flex-row">
                 <SidePanelDrawer side="left" open={openPanelId === 'left'} onClose={closePanels} label={t('interaction.panels.detailsLabel')} dockAt="xl">
-                    <InteractionLeftPanel adventure={currentAdventure} onBack={handleBack} onSnapshotChange={handleSnapshotChange} />
+                    <InteractionLeftPanel
+                        adventure={currentAdventure}
+                        onBack={handleBack}
+                        onSnapshotChange={handleSnapshotChange}
+                        readOnly={sessionReadOnly}
+                        narratorPickerOpen={narratorPickerOpen && !sessionReadOnly}
+                        onNarratorPickerOpenChange={setNarratorPickerOpen}
+                        narrationTierSlot={sessionApi && !currentAdventure.draft ? (
+                            <SessionNarrationTierToggle
+                                api={sessionApi}
+                                basePath="adventure-sessions"
+                                sessionId={Number(currentAdventure.id)}
+                                readOnly={sessionReadOnly}
+                            />
+                        ) : null}
+                    />
                 </SidePanelDrawer>
 
                 <div className="min-w-0 flex-1">
@@ -171,6 +197,7 @@ function AdventureInteractionView() {
                         sessionId={Number(currentAdventure.id)}
                         ensureSession={currentAdventure.draft ? () => ensureAdventureSession(currentAdventure) : undefined}
                         turns={turns} setTurns={setTurns} config={chatConfig}
+                        onEditNarratorVoice={sessionReadOnly ? undefined : openNarratorPicker}
                     />
                 </div>
 

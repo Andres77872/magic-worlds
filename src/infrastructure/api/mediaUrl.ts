@@ -6,6 +6,11 @@ const PROTECTED_MEDIA_PATH_PREFIXES = [
     '/generated-images/',
     '/generated-audio/',
     '/tts/assets/',
+    // Voice audio (D10, D18): catalog samples and recipe-preview renders are
+    // owned, `Cache-Control: private` media, fetched as authed blobs and never
+    // hotlinked as a bare `<audio src>`.
+    '/voices/catalog/',
+    '/voice-presets/preview/',
 ]
 
 /**

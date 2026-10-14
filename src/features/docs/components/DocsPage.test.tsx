@@ -84,7 +84,7 @@ describe('DocsPage', () => {
             'Voice studio',
             'New preset',
             'Base voice',
-            'speed, volume, pitch, emotion, and language boost',
+            'stability, similarity, speed, and emotion',
             'Preview voice',
             'Narration voice',
             'My presets',
@@ -133,7 +133,7 @@ describe('DocsPage', () => {
         const pageText = document.body.textContent ?? ''
 
         for (const text of [
-            'Use Markdown or plain text',
+            'Use Markdown, plain text, or PDF',
             '.md / .txt',
             'New text',
             'New Markdown',

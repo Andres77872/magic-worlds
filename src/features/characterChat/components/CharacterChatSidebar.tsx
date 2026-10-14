@@ -3,13 +3,18 @@
  * frozen AI cast plus the user's persona.
  */
 
+import { useId, useMemo } from 'react'
 import { ArrowLeft, MessageCircle, Pencil, Phone, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Character, CharacterChatCodexCard } from '../../../shared'
 import type { CodexLibraryCardSelection } from '@/features/codex'
+import { useVoiceAvailability } from '@/features/interaction/hooks/useVoiceAvailability'
+import { SessionNarrationTierToggle } from '@/features/interaction/components/SessionNarrationTierToggle'
+import { ChatVoiceIndicator } from '@/features/interaction/components/voice/ChatVoiceIndicator'
 import { SessionLorebookPanel } from '@/features/lorebook'
 import { isLorebooksFeatureEnabled } from '@/shared/featureFlags'
-import { resolveMediaUrl } from '../../../infrastructure/api'
+import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
+import { apiService, resolveMediaUrl } from '../../../infrastructure/api'
 import { Avatar, Button, Eyebrow, Icon, Portrait } from '@/ui/primitives'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
 import { CharacterChatCodexPanel } from './CharacterChatCodexPanel'
@@ -59,6 +64,25 @@ export function CharacterChatSidebar({
     const heading = title || cast.map((entry) => entry.name).filter(Boolean).join(', ') || t('characterChat.fallbackTitle')
     const hasCodexControls = Boolean(onAddCodexCards && onToggleCodexCard && onRemoveCodexCard)
     const lorebooksEnabled = isLorebooksFeatureEnabled()
+    // Workspace R1: a chat in an archived workspace cannot start a call (as on CallsPage).
+    const readOnly = useWorkspaceReadOnly(sessionWorkspaceId)
+    // 09 §7: calls switched off for this account (the shared 60 s capabilities read,
+    // fail open), only while the Call button is shown: disabled with the Calls page copy.
+    const callOffered = !isGroup && Boolean(lead) && voiceEnabled && Boolean(onSetMode) && mode !== 'voice'
+    const callsUnavailable = !useVoiceAvailability(apiService, callOffered).calls_available
+    const callsUnavailableId = useId()
+    // R1-FE-04: the chat's narration tier override rides the chat's own workspace
+    // client (EP-1); the toggle renders nothing when its reads fail.
+    const sessionApi = useMemo(() => {
+        if (!sessionWorkspaceId) return null
+        try {
+            return apiService.withWorkspace(sessionWorkspaceId)
+        } catch {
+            return null
+        }
+    }, [sessionWorkspaceId])
+    const chatId = sessionId ? Number(sessionId) : Number.NaN
+    const narrationTierOffered = Boolean(sessionApi) && Number.isInteger(chatId) && chatId > 0
 
     return (
         <div className="flex h-full flex-col bg-ink-900">
@@ -92,6 +116,9 @@ export function CharacterChatSidebar({
                         {!isGroup && lead?.race && <p className="text-label text-parchment-300">{lead.race}</p>}
                     </div>
 
+                    {/* R1-FE-04 (D36): "Voice replaced" and "Use the card's current voice". */}
+                    {!isGroup && sessionId ? <ChatVoiceIndicator variant="panel" chatId={sessionId} workspaceId={sessionWorkspaceId} /> : null}
+
                     {persona && (
                         <section className="border-l-2 border-ember-500/40 py-1 pl-3">
                             <Eyebrow tone="ember" className="mb-1">
@@ -118,6 +145,10 @@ export function CharacterChatSidebar({
                                 <SessionLorebookPanel targetKind="character_chat" targetId={sessionId} framed={false} workspaceId={sessionWorkspaceId} />
                             )}
                         </div>
+                    )}
+
+                    {narrationTierOffered && sessionApi && (
+                        <SessionNarrationTierToggle api={sessionApi} basePath="character-chats" sessionId={chatId} readOnly={readOnly} />
                     )}
 
                     {isGroup ? (
@@ -190,14 +221,24 @@ export function CharacterChatSidebar({
                                 {t('characterChat.sidebar.switchToText')}
                             </Button>
                         ) : (
-                            <Button
-                                variant="primary"
-                                onClick={() => onSetMode('voice')}
-                                iconLeft={<Icon icon={Phone} size={15} />}
-                                className="w-full"
-                            >
-                                {t('characterChat.sidebar.call', { name: lead.name })}
-                            </Button>
+                            <>
+                                <Button
+                                    variant="primary"
+                                    onClick={() => onSetMode('voice')}
+                                    iconLeft={<Icon icon={Phone} size={15} />}
+                                    className="w-full"
+                                    disabled={readOnly || callsUnavailable}
+                                    title={callsUnavailable ? t('call.page.unavailable') : undefined}
+                                    aria-describedby={callsUnavailable ? callsUnavailableId : undefined}
+                                >
+                                    {t('characterChat.sidebar.call', { name: lead.name })}
+                                </Button>
+                                {callsUnavailable && (
+                                    <span id={callsUnavailableId} hidden>
+                                        {t('call.page.unavailable')}
+                                    </span>
+                                )}
+                            </>
                         )
                     )}
                     <Button variant="secondary" onClick={() => onEditCharacter(lead)} iconLeft={<Pencil size={15} />} className="w-full">

@@ -1,4 +1,5 @@
-import type { ChatTtsAsset, ChatTtsError, ChatTtsSegmentClip, ChatSocketServerMessage, TtsLifecycleStatus, TurnEntry } from '../../../shared'
+import type { ChatTtsAsset, ChatTtsError, ChatTtsSegmentClip, ChatTtsSegmentStatus, ChatSocketServerMessage, TtsLifecycleStatus, TurnEntry } from '../../../shared'
+import { clipGainDb } from '@/shared/voice/clipVolume'
 import { isSafeAssetUrl } from './chatImageTurnState'
 
 /**
@@ -8,7 +9,7 @@ import { isSafeAssetUrl } from './chatImageTurnState'
  */
 export type ChatTtsFrame = Extract<ChatSocketServerMessage, { type: 'tts_job' | 'tts_complete' | 'tts_failed' }>
 
-export interface TtsJobHydration {
+export interface TtsJobHydration extends Pick<ChatTtsSegmentClip, 'tier' | 'gain_db' | 'substitution_reason' | 'voice_name' | 'original_voice_name'> {
   job_id: string
   status: TtsLifecycleStatus
   status_url?: string | null
@@ -29,7 +30,25 @@ const TERMINAL_STATUSES = new Set<TtsLifecycleStatus>([
   'content_blocked',
 ])
 
-const NON_TERMINAL_STATUSES = new Set<TtsLifecycleStatus>(['pending', 'in_progress', 'synthesizing', 'mirroring'])
+const NON_TERMINAL_STATUSES = new Set<ChatTtsSegmentStatus>(['pending', 'in_progress', 'synthesizing', 'mirroring'])
+
+/**
+ * Display-only segment states (03 §5.4.2): a cap kept the segment from being
+ * enqueued. They are not job statuses, so `TERMINAL_STATUSES` stays closed, but
+ * they settle the clip: it is never "generating" and never polled.
+ */
+const DISPLAY_STATES = new Set<ChatTtsSegmentStatus>(['daily_limit_reached', 'not_narrated'])
+
+/** True for a clip status that will not change without a new request. */
+export function isSettledClipStatus(status: ChatTtsSegmentStatus | undefined): boolean {
+  if (!status) return false
+  return TERMINAL_STATUSES.has(status as TtsLifecycleStatus) || DISPLAY_STATES.has(status)
+}
+
+/** True while a clip's job is still running (display states are settled, never generating). */
+export function isGeneratingClipStatus(status: ChatTtsSegmentStatus | undefined): boolean {
+  return status != null && NON_TERMINAL_STATUSES.has(status)
+}
 
 export function hasNonTerminalTtsJob(turn: TurnEntry): boolean {
   if (turn.ttsJobId && turn.ttsStatus && NON_TERMINAL_STATUSES.has(turn.ttsStatus)) return true
@@ -103,17 +122,17 @@ export function mergeHydratedTtsTurns(current: TurnEntry[], hydrated: TurnEntry[
 // -- per-segment multi-voice narration ------------------------------------
 
 function clipFromSegmentFrame(frame: ChatTtsFrame, index: number): ChatTtsSegmentClip {
-  const f = frame as ChatTtsFrame & { segment_count?: number; kind?: ChatTtsSegmentClip['kind']; speaker_id?: string | null; speaker_name?: string | null }
   const base: ChatTtsSegmentClip = {
     segment_index: index,
-    segment_count: f.segment_count,
-    kind: f.kind,
-    speaker_id: f.speaker_id ?? null,
-    speaker_name: f.speaker_name ?? null,
+    segment_count: frame.segment_count,
+    kind: frame.kind,
+    speaker_id: frame.speaker_id ?? null,
+    speaker_name: frame.speaker_name ?? null,
     job_id: frame.job_id ?? undefined,
     status: frame.status,
     status_url: frame.status_url ?? undefined,
     result_url: frame.result_url ?? undefined,
+    ...clipVoiceFields(frame),
   }
   if (frame.type === 'tts_complete') {
     const assets = safeAssets(frame.assets)
@@ -136,14 +155,41 @@ function clipFromJobResult(result: TtsJobHydration, index: number): ChatTtsSegme
     assets: assets.length > 0 ? assets : undefined,
     url: assets[0]?.url ?? safeAssetUrl(result.url) ?? null,
     error: result.error ? safeError(result.error) : undefined,
+    ...clipVoiceFields(result),
   }
+}
+
+type ClipVoiceFields = Pick<ChatTtsSegmentClip, 'tier' | 'gain_db' | 'substitution_reason' | 'voice_name' | 'original_voice_name'>
+
+/**
+ * The optional voice fields of a clip (D05, D16, D36), copied only when present
+ * so an older frame never erases them. `gain_db` is clamped to [-24, 0].
+ */
+function clipVoiceFields(source: Partial<ClipVoiceFields>): ClipVoiceFields {
+  const fields: ClipVoiceFields = {}
+  if (source.tier === 'standard' || source.tier === 'expressive') fields.tier = source.tier
+  const gain = clipGainDb(source.gain_db)
+  if (gain !== null) fields.gain_db = gain
+  if (typeof source.substitution_reason === 'string') fields.substitution_reason = source.substitution_reason
+  const voiceName = safeName(source.voice_name)
+  if (voiceName) fields.voice_name = voiceName
+  const originalVoiceName = safeName(source.original_voice_name)
+  if (originalVoiceName) fields.original_voice_name = originalVoiceName
+  return fields
+}
+
+function safeName(value: unknown): string | undefined {
+  return typeof value === 'string' ? safeText(value, '') || undefined : undefined
 }
 
 function mergeClip(existing: ChatTtsSegmentClip | undefined, incoming: ChatTtsSegmentClip): ChatTtsSegmentClip {
   if (!existing) return incoming
-  const existingTerminal = existing.status ? TERMINAL_STATUSES.has(existing.status) : false
-  const incomingTerminal = incoming.status ? TERMINAL_STATUSES.has(incoming.status) : false
-  const keepTerminal = existingTerminal && !incomingTerminal
+  const existingTerminal = isSettledClipStatus(existing.status)
+  const incomingTerminal = isSettledClipStatus(incoming.status)
+  // A new job for the segment (a retry, or a capped segment narrated later)
+  // replaces the settled clip; the same job never moves back from terminal.
+  const newerJob = Boolean(incoming.job_id) && incoming.job_id !== existing.job_id
+  const keepTerminal = existingTerminal && !incomingTerminal && !newerJob
   const assets = dedupeAssets([...(existing.assets ?? []), ...(incoming.assets ?? [])])
   return {
     ...existing,
@@ -153,10 +199,17 @@ function mergeClip(existing: ChatTtsSegmentClip | undefined, incoming: ChatTtsSe
     kind: incoming.kind ?? existing.kind,
     speaker_id: incoming.speaker_id ?? existing.speaker_id,
     speaker_name: incoming.speaker_name ?? existing.speaker_name,
+    tier: incoming.tier ?? existing.tier,
+    gain_db: incoming.gain_db ?? existing.gain_db,
+    substitution_reason: incoming.substitution_reason ?? existing.substitution_reason,
+    voice_name: incoming.voice_name ?? existing.voice_name,
+    original_voice_name: incoming.original_voice_name ?? existing.original_voice_name,
     status: keepTerminal ? existing.status : incoming.status ?? existing.status,
     assets: assets.length > 0 ? assets : undefined,
     url: assets[0]?.url ?? incoming.url ?? existing.url ?? null,
-    error: incoming.status === 'completed' ? undefined : keepTerminal ? existing.error : incoming.error ?? existing.error,
+    error: incoming.status === 'completed'
+      ? undefined
+      : keepTerminal ? existing.error : newerJob && existingTerminal ? incoming.error ?? undefined : incoming.error ?? existing.error,
   }
 }
 
@@ -170,8 +223,12 @@ function upsertClip(segments: ChatTtsSegmentClip[] | undefined, incoming: ChatTt
 }
 
 function mergeSegmentFrame(turn: TurnEntry, frame: ChatTtsFrame, index: number): TurnEntry {
+  // A segment frame means a newer request was admitted, so a turn-level gate
+  // failure (no job: attestation, archived workspace, …) no longer applies.
+  const staleGate = !turn.ttsJobId && turn.ttsError != null
   return {
     ...turn,
+    ...(staleGate ? { ttsStatus: undefined, ttsError: undefined } : {}),
     assistantMessageId: frame.assistant_message_id ?? turn.assistantMessageId,
     turnId: frame.turn_id ?? turn.turnId,
     ttsSegments: upsertClip(turn.ttsSegments, clipFromSegmentFrame(frame, index)),
@@ -180,8 +237,15 @@ function mergeSegmentFrame(turn: TurnEntry, frame: ChatTtsFrame, index: number):
 
 function sanitizeClip(clip: ChatTtsSegmentClip): ChatTtsSegmentClip {
   const assets = safeAssets(clip.assets ?? [])
+  // Hydrated clips are cast from stored metadata: re-validate the voice fields.
+  const voice = clipVoiceFields(clip)
   return {
     ...clip,
+    tier: voice.tier,
+    gain_db: voice.gain_db,
+    substitution_reason: voice.substitution_reason,
+    voice_name: voice.voice_name,
+    original_voice_name: voice.original_voice_name,
     assets: assets.length > 0 ? assets : undefined,
     url: assets[0]?.url ?? (clip.url && isSafeTtsAudioUrl(clip.url) ? clip.url : undefined),
     error: clip.error ? safeError(clip.error) : undefined,
@@ -340,12 +404,32 @@ function safeError(error: ChatTtsError): ChatTtsError {
   const retry = typeof error.retry_after_seconds === 'number' && Number.isFinite(error.retry_after_seconds) && error.retry_after_seconds >= 0
     ? error.retry_after_seconds
     : undefined
+  const action = safeErrorAction(error.action)
   return {
     category: safeText(error.category, 'failed'),
     detail: safeText(error.detail, 'Narration failed.'),
-    code: error.code ? safeText(error.code, '') || undefined : undefined,
+    code: safeErrorCode(error.code),
     retry_after_seconds: retry,
+    ...(typeof error.retryable === 'boolean' ? { retryable: error.retryable } : {}),
+    ...(action ? { action } : {}),
   }
+}
+
+/**
+ * The public actions a narration error may carry: `attest` (D26) and
+ * `crisis_resources` (PC-1, a `voice_safety_pause` refusal). Anything else is dropped.
+ */
+function safeErrorAction(action: unknown): ChatTtsError['action'] | undefined {
+  return action === 'attest' || action === 'crisis_resources' ? action : undefined
+}
+
+/** Public error codes are short identifiers (`voice_unavailable`, `WORKSPACE_ARCHIVED`); anything else is dropped. */
+const SAFE_ERROR_CODE = /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/
+
+function safeErrorCode(code: unknown): string | undefined {
+  if (typeof code !== 'string') return undefined
+  const trimmed = code.trim()
+  return SAFE_ERROR_CODE.test(trimmed) ? trimmed : undefined
 }
 
 function safeText(value: string, fallback: string): string {

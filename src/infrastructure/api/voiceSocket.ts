@@ -40,6 +40,10 @@ function voiceCloseLabel(code: number): string {
             return 'ORIGIN'
         case 4408:
             return 'NOT_ADMITTED'
+        case 4404:
+            return 'CHAT_SESSION_NOT_FOUND'
+        case 4422:
+            return 'WORKSPACE_REQUIRED'
         default:
             return 'ABNORMAL'
     }
@@ -68,8 +72,6 @@ const FORBIDDEN_CLIENT_PAYLOAD_KEYS = new Set([
     'audio_blob',
     'audio_base64',
     'audio_b64',
-    'audio_hex',
-    'hex_audio',
     'data_b64',
     'provider_url',
     'provider_key',
@@ -77,6 +79,10 @@ const FORBIDDEN_CLIENT_PAYLOAD_KEYS = new Set([
     'api_key',
     'access_token',
     'bearer_token',
+    // Provider credentials never come from the browser (09 §2.3, 07 hardening).
+    'xi_api_key',
+    'xi-api-key',
+    'single_use_token',
 ])
 
 let refreshAccessTokenForVoiceSocket: (() => Promise<string>) | null = null
@@ -199,8 +205,30 @@ export class VoiceSocket {
         return this.resumeDeadline !== null
     }
 
-    sendBargeIn(frame: VoiceBargeInFrame): boolean {
+    /**
+     * Barge-in. Pass the frame, or the interrupted turn and how much of it
+     * played (WS-C1). Without a turn the frame is the bare `voice_barge_in`.
+     */
+    sendBargeIn(frameOrTurnId?: VoiceBargeInFrame | string, playedMs?: number): boolean {
+        if (typeof frameOrTurnId === 'object' && frameOrTurnId !== null) return this.sendFrame(frameOrTurnId)
+        const frame: VoiceBargeInFrame = { type: 'voice_barge_in', reason: 'barge_in' }
+        if (typeof frameOrTurnId === 'string' && frameOrTurnId) {
+            frame.turn_id = frameOrTurnId
+            const played = wholeMs(playedMs)
+            if (played !== null) frame.played_ms = played
+        }
         return this.sendFrame(frame)
+    }
+
+    /**
+     * Playback progress of the turn that is playing (WS-C2), at most every 500 ms
+     * (R-22); the server answers nothing. Returns false (and sends nothing) for a
+     * bad turn or time.
+     */
+    sendPlayback(turnId: string, playedMs: number): boolean {
+        const played = wholeMs(playedMs)
+        if (!turnId || played === null) return false
+        return this.sendFrame({ type: 'voice_playback', turn_id: turnId, played_ms: played })
     }
 
     end(): boolean {
@@ -329,6 +357,21 @@ export class VoiceSocket {
                 // message) just before this close; this is the fallback if that didn't arrive.
                 this.resumeDeadline = null
                 this.emitError('busy', 'The call could not start. Please try again.', true)
+                return
+            }
+
+            // Workspace R1 handshake rejections: the chat is missing or belongs to
+            // another workspace (4404), or no workspace was named (4422, a stale
+            // build). Neither a resume nor a reconnect can succeed: end the call once.
+            if (event.code === 4404 || event.code === 4422) {
+                this.resumeDeadline = null
+                if (event.code === 4422) {
+                    // Same signal as an HTTP WORKSPACE_REQUIRED (WORKSPACE_REQUIRED_EVENT) and chatSocket's 4422.
+                    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('workspace:required'))
+                    this.emitError('internal', 'This page is out of date. Reload to continue.', true, 'WORKSPACE_REQUIRED')
+                } else {
+                    this.emitError('not_found', 'This conversation is not available in this workspace.', true, 'CHAT_SESSION_NOT_FOUND')
+                }
                 return
             }
 
@@ -590,4 +633,9 @@ export class VoiceSocket {
             this.openSocket()
         }, delay)
     }
+}
+
+/** A non-negative whole number of milliseconds, or null. */
+function wholeMs(value: number | undefined): number | null {
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : null
 }

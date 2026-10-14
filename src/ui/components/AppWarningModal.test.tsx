@@ -1,6 +1,35 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { i18n } from '@/app/i18n'
+import { IN_APP_COPY_DRAFTS, IN_APP_COPY_SWITCHES, releasedInAppCopy } from '@/features/legal/documents/consentCopy'
+import { isShippable } from '@/features/legal/documents/legalPending'
 import { AppWarningModal, APP_WARNING_ACCEPTANCE_KEY } from './AppWarningModal'
+
+const flags = vi.hoisted(() => ({ calls: false, released: false }))
+
+// The calls build flag (today's only gate on the voice bullet), pinned per test.
+vi.mock('@/shared/voiceFeatureFlag', () => ({ isFrontendVoiceModeEnabled: () => flags.calls }))
+
+// The modal reads the shipped switches, on since I-71 (13 §5.8: the Privacy page publishes the
+// ElevenLabs variant); `flags.released` stands in for the rest of the release act: the draft marked final.
+vi.mock('@/features/legal/documents/consentCopy', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/features/legal/documents/consentCopy')>()
+    const finalDrafts = Object.fromEntries(
+        Object.entries(actual.IN_APP_COPY_DRAFTS).map(([id, draft]) => [id, { ...draft, status: 'final' }]),
+    ) as unknown as typeof actual.IN_APP_COPY_DRAFTS
+    return {
+        ...actual,
+        releasedInAppCopy: (id: Parameters<typeof actual.releasedInAppCopy>[0], language: Parameters<typeof actual.releasedInAppCopy>[1]) =>
+            flags.released ? actual.releasedInAppCopy(id, language, actual.IN_APP_COPY_SWITCHES, finalDrafts) : actual.releasedInAppCopy(id, language),
+    }
+})
+
+/** Today's bullets, in order (the voice one last, behind its gate). */
+const TODAY_KEYS = ['ageRequirement', 'contentSaved', 'localOnly', 'authRequired', 'wipe', 'nsfw', 'aiContent', 'noPersonalData', 'credits']
+
+function bullets(): string[] {
+    return within(screen.getByRole('dialog')).getAllByRole('listitem').map((item) => item.textContent ?? '')
+}
 
 describe('AppWarningModal', () => {
     beforeEach(() => {
@@ -68,5 +97,59 @@ describe('AppWarningModal', () => {
 
         expect(screen.getByRole('dialog')).toBeInTheDocument()
         expect(localStorage.getItem(APP_WARNING_ACCEPTANCE_KEY)).toBeNull()
+    })
+})
+
+describe('AppWarningModal voice bullet (R2-FE-01; 13 §5.8, 09 §4.7)', () => {
+    const today = (key: string, lng = 'en') => i18n.t(`warning.${key}`, { lng })
+    const draft = IN_APP_COPY_DRAFTS.warningVoice
+
+    beforeEach(() => {
+        localStorage.clear()
+    })
+
+    afterEach(async () => {
+        flags.calls = false
+        flags.released = false
+        await i18n.changeLanguage('en')
+    })
+
+    it('ships with the switch on but the draft unreleased (I-71)', () => {
+        expect(isShippable(IN_APP_COPY_SWITCHES.privacy)).toBe(true)
+        expect(releasedInAppCopy('warningVoice', 'en')).toBeNull()
+        expect(draft.status).toBe('draft')
+    })
+
+    it('draft unreleased, calls off: today’s modal, no voice bullet', () => {
+        render(<AppWarningModal />)
+        expect(bullets()).toEqual(TODAY_KEYS.map((key) => today(key)))
+        expect(screen.queryByText(draft.en.text)).toBeNull()
+    })
+
+    it('draft unreleased, calls on: today’s voice bullet, unchanged', () => {
+        flags.calls = true
+        render(<AppWarningModal />)
+        expect(bullets()).toEqual([...TODAY_KEYS, 'voice'].map((key) => today(key)))
+        expect(screen.queryByText(draft.en.text)).toBeNull()
+    })
+
+    it('once released, the rewritten bullet shows with calls off (narration is a voice surface)', () => {
+        flags.released = true
+        render(<AppWarningModal />)
+        expect(bullets()).toEqual([...TODAY_KEYS.map((key) => today(key)), draft.en.text])
+        expect(screen.queryByText(today('voice'))).toBeNull()
+    })
+
+    it('once released, the rewritten bullet replaces today’s with calls on, once, in the UI language', async () => {
+        flags.released = true
+        flags.calls = true
+        const { unmount } = render(<AppWarningModal />)
+        expect(bullets()).toEqual([...TODAY_KEYS.map((key) => today(key)), draft.en.text])
+        unmount()
+
+        await i18n.changeLanguage('es')
+        expect(today('ageRequirement', 'es')).not.toBe(today('ageRequirement'))
+        render(<AppWarningModal />)
+        expect(bullets()).toEqual([...TODAY_KEYS.map((key) => today(key, 'es')), draft.es.text])
     })
 })

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { apiService, type ApiService } from '@/infrastructure/api'
+import { ApiError, apiService, type ApiService } from '@/infrastructure/api'
 import {
     createWorkspaceTestState,
     OTHER_WORKSPACE_ID,
@@ -118,6 +118,51 @@ describe('useCardDraft', () => {
             ok = await result.current.saveDraft({ name: 'x' })
         })
         expect(ok).toBe(false)
+        await waitFor(() => expect(result.current.error).toBe('cardVersions.errors.draftSave'))
+    })
+
+    it('maps a voice write refusal to its copy key and hands the failure to onError', async () => {
+        vi.spyOn(apiService, 'getCardDraft').mockResolvedValue({ id: 'c5', is_draft: false, latest_version_number: 0 })
+        const refusal = new ApiError(422, 'Plan locked', { code: 'voice_plan_locked' })
+        vi.spyOn(apiService, 'saveCardDraft').mockRejectedValue(refusal)
+        const onError = vi.fn()
+        const { result } = renderHook(() => useCardDraft({ cardType: 'character', cardId: 'c5' }))
+        await waitFor(() => expect(result.current.draftState).not.toBeNull())
+
+        let ok = true
+        await act(async () => {
+            ok = await result.current.saveDraft({ name: 'x' }, { onError })
+        })
+        expect(ok).toBe(false)
+        expect(onError).toHaveBeenCalledExactlyOnceWith(refusal)
+        await waitFor(() => expect(result.current.error).toBe('voices.errors.planLocked'))
+    })
+
+    it('maps a 409 voice_reload_required save to the reload copy', async () => {
+        vi.spyOn(apiService, 'getCardDraft').mockResolvedValue({ id: 'c5', is_draft: false, latest_version_number: 0 })
+        vi.spyOn(apiService, 'saveCardDraft')
+            .mockRejectedValue(new ApiError(409, 'Reload', { code: 'voice_reload_required' }))
+        const { result } = renderHook(() => useCardDraft({ cardType: 'character', cardId: 'c5' }))
+        await waitFor(() => expect(result.current.draftState).not.toBeNull())
+
+        await act(async () => {
+            await result.current.saveDraft({ name: 'x' })
+        })
+        await waitFor(() => expect(result.current.error).toBe('voices.errors.reloadRequired'))
+    })
+
+    it('keeps the generic draftSave key for a non-voice failure and still reports it', async () => {
+        vi.spyOn(apiService, 'getCardDraft').mockResolvedValue({ id: 'c5', is_draft: false, latest_version_number: 0 })
+        const failure = new ApiError(500, 'Server error')
+        vi.spyOn(apiService, 'saveCardDraft').mockRejectedValue(failure)
+        const onError = vi.fn()
+        const { result } = renderHook(() => useCardDraft({ cardType: 'character', cardId: 'c5' }))
+        await waitFor(() => expect(result.current.draftState).not.toBeNull())
+
+        await act(async () => {
+            await result.current.saveDraft({ name: 'x' }, { onError })
+        })
+        expect(onError).toHaveBeenCalledExactlyOnceWith(failure)
         await waitFor(() => expect(result.current.error).toBe('cardVersions.errors.draftSave'))
     })
 

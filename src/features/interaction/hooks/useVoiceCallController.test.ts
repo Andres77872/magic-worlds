@@ -6,6 +6,8 @@ import type { MicrophoneCaptureApi, UseMicrophoneCaptureOptions } from './useMic
 import type { VoiceCallSocketApi, VoiceCallSocketHandlers } from './useVoiceCallSocket'
 import { deriveVoiceCallState, useVoiceCallController } from './useVoiceCallController'
 import { activeVoiceCallWorkspaceId, endActiveVoiceCall, hasActiveVoiceCall } from '@/features/call/activeVoiceCall'
+import { createElement, type ReactNode } from 'react'
+import { AttestationContext, type AttestationContextValue } from '@/features/legal/attestation/attestationContext'
 
 const MAIN_WORKSPACE = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
 const OTHER_WORKSPACE = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
@@ -17,6 +19,7 @@ const mocks = vi.hoisted(() => ({
         saveVoiceConsent: vi.fn(),
         uploadVoiceSegment: vi.fn(),
         endVoiceCall: vi.fn(),
+        getVoiceCapabilities: vi.fn(),
         // The call's scoped client shares these methods; the scope is asserted on this spy.
         withWorkspace: vi.fn(),
     },
@@ -66,6 +69,9 @@ function createSegment(seq = 1): CapturedVoiceSegment {
     }
 }
 
+/** The announced call audio (WS-S1): every call sends it. */
+const CALL_AUDIO = { content_type: 'audio/mpeg', codec: 'mp3', sample_rate: 44100 as const, channels: 1 as const }
+
 function readyFrame(limits: Record<string, number> = {}) {
     return {
         type: 'voice_ready' as const,
@@ -73,11 +79,12 @@ function readyFrame(limits: Record<string, number> = {}) {
         server_time_ms: 1,
         limits: { max_call_seconds: 600, idle_timeout_seconds: 120, remaining_daily_seconds: 120, ...limits },
         upload_url: '/character-chats/7/voice-segments',
+        audio: { ...CALL_AUDIO },
     }
 }
 
 function chunk(turnId = 'turn-1', seq = 1) {
-    return { type: 'voice_audio_chunk' as const, voice_session_id: 'voice-1', turn_id: turnId, seq, content_type: 'audio/mpeg' as const, sample_rate: 32000 as const, channels: 1 as const, data_b64: 'AA==', is_final: false as const }
+    return { type: 'voice_audio_chunk' as const, voice_session_id: 'voice-1', turn_id: turnId, seq, content_type: 'audio/mpeg' as const, codec: 'mp3' as const, sample_rate: 44100 as const, channels: 1 as const, data_b64: 'AA==', is_final: false as const }
 }
 
 function turnStart(turnId = 'turn-1') {
@@ -132,11 +139,13 @@ describe('useVoiceCallController', () => {
         mocks.apiService.withWorkspace.mockImplementation(() => mocks.apiService)
         mocks.apiService.saveVoiceConsent.mockResolvedValue({
             status: 'accepted',
-            consent_version: 'voice-v1',
+            consent_version: 'voice-v2',
             limits: { max_call_seconds: 600, idle_timeout_seconds: 120, remaining_daily_seconds: 120, max_segment_duration_ms: 30_000 },
         })
         mocks.apiService.uploadVoiceSegment.mockResolvedValue({ voice_session_id: 'voice-1', segment_id: 'segment-1', seq: 1, status: 'accepted' })
         mocks.apiService.endVoiceCall.mockResolvedValue({ status: 'ended', voice_session_id: 'voice-1', reason: 'user' })
+        // The controller never reads capabilities (I-68): a read would show up on this spy.
+        mocks.apiService.getVoiceCapabilities.mockRejectedValue(Object.assign(new Error('Not Found'), { status: 404 }))
         mocks.socketApi = {
             socketStatus: 'closed',
             start: vi.fn(),
@@ -365,7 +374,8 @@ describe('useVoiceCallController', () => {
 
         await act(async () => { vi.advanceTimersByTime(3_000) })
         act(() => mocks.microphoneOptions?.onVadState?.('speech_start'))
-        expect(mocks.socketApi!.bargeIn).toHaveBeenCalledWith({ type: 'voice_barge_in', reason: 'barge_in' })
+        // WS-C1: the interrupted turn is named (the mock player reports no played time).
+        expect(mocks.socketApi!.bargeIn).toHaveBeenCalledWith({ type: 'voice_barge_in', reason: 'barge_in', turn_id: 'turn-1' })
 
         emitPlayback('idle', null)
         expect(mocks.microphoneApi!.configure).toHaveBeenLastCalledWith({ minSpeechMs: 250 })
@@ -569,6 +579,35 @@ describe('useVoiceCallController', () => {
         expect(mocks.socketApi!.close).toHaveBeenCalled()
     })
 
+    it('ends the call on attestation_required by code and opens the attestation prompt (D26)', async () => {
+        const attestation: AttestationContextValue = {
+            gate: 'unavailable',
+            requestAttestation: vi.fn(async () => true),
+            withAttestation: vi.fn(async (operation) => operation()),
+            expectSignupAttestation: vi.fn(),
+            cancelSignupAttestation: vi.fn(),
+        }
+        const wrapper = ({ children }: { children: ReactNode }) => createElement(AttestationContext.Provider, { value: attestation }, children)
+        const { result } = renderHook(() => useVoiceCallController({
+            sessionId: 7,
+            authKey: 'token-1',
+            consentGranted: true,
+            enabled: true,
+            clientCallId: 'call-1',
+            playbackBuffer: mocks.playback as unknown as VoicePlaybackBuffer,
+        }), { wrapper })
+        await act(async () => { await result.current.startCall() })
+        expect(attestation.withAttestation).toHaveBeenCalledTimes(1)
+        act(() => mocks.socketHandlers?.onReady?.(readyFrame()))
+
+        act(() => mocks.socketHandlers?.onError?.({ type: 'voice_error', category: 'tts_unavailable', code: 'attestation_required', message: 'Attestation required.', fatal: false }))
+
+        expect(result.current.error).toMatchObject({ code: 'attestation_required', fatal: true })
+        expect(result.current.state).toBe('error')
+        expect(mocks.socketApi!.close).toHaveBeenCalled()
+        expect(attestation.requestAttestation).toHaveBeenCalledTimes(1)
+    })
+
     it('ends the call with a keepalive request when the page is torn down', async () => {
         await renderLiveCall()
 
@@ -589,6 +628,94 @@ describe('useVoiceCallController', () => {
         unmount()
         await waitFor(() => expect(mocks.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-1', reason: 'user' }, { keepalive: true }))
         expect(mocks.playback!.dispose).toHaveBeenCalled()
+    })
+
+    describe('speech_end_lag_ms (R0-BE-37; always sent, I-68)', () => {
+        /** Emit a captured segment whose closing speech_end arrived at `speechEndAt`, with the clock at `now`. */
+        function emitStampedSegment(seq: number, speechEndAt: number, now: number) {
+            const clock = vi.spyOn(performance, 'now').mockReturnValue(now)
+            try {
+                act(() => mocks.microphoneOptions?.onSegment?.({ ...createSegment(seq), speech_end_perf_ms: speechEndAt }))
+            } finally {
+                clock.mockRestore()
+            }
+        }
+
+        function uploadedVad(call = 0): Record<string, unknown> {
+            return mocks.apiService.uploadVoiceSegment.mock.calls[call][1].vad
+        }
+
+        it('sends the ms from speech_end to the upload, with no capabilities read', async () => {
+            await renderLiveCall()
+
+            emitStampedSegment(1, 10_000, 10_437.6)
+
+            await waitFor(() => expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(1))
+            expect(uploadedVad()).toEqual({ ...createSegment(1).vad, speech_end_lag_ms: 438 })
+            expect(mocks.apiService.getVoiceCapabilities).not.toHaveBeenCalled()
+        })
+
+        it('measures a segment queued before voice_ready up to the moment it is sent', async () => {
+            const { result } = renderController()
+            await act(async () => { await result.current.startCall() })
+
+            emitStampedSegment(1, 1_000, 1_100)
+            expect(mocks.apiService.uploadVoiceSegment).not.toHaveBeenCalled()
+
+            const clock = vi.spyOn(performance, 'now').mockReturnValue(3_250)
+            try {
+                act(() => mocks.socketHandlers?.onReady?.(readyFrame()))
+            } finally {
+                clock.mockRestore()
+            }
+            await waitFor(() => expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(1))
+            expect(uploadedVad().speech_end_lag_ms).toBe(2_250)
+        })
+
+        it('clamps a lag over two minutes to 120000', async () => {
+            await renderLiveCall()
+
+            emitStampedSegment(1, 0, 600_000)
+
+            await waitFor(() => expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(1))
+            expect(uploadedVad().speech_end_lag_ms).toBe(120_000)
+        })
+
+        it('keeps the measured body for the one network resend', async () => {
+            mocks.apiService.uploadVoiceSegment
+                .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+                .mockResolvedValueOnce({ voice_session_id: 'voice-1', segment_id: 's1', seq: 1, status: 'duplicate' })
+            await renderLiveCall()
+
+            emitStampedSegment(1, 500, 800)
+
+            await waitFor(() => expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(2))
+            expect(uploadedVad(1)).toBe(uploadedVad(0))
+            expect(uploadedVad(0).speech_end_lag_ms).toBe(300)
+        })
+
+        it('omits it for a segment whose speech_end was not seen', async () => {
+            await renderLiveCall()
+
+            act(() => mocks.microphoneOptions?.onSegment?.(createSegment(1)))
+
+            await waitFor(() => expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(1))
+            expect(uploadedVad()).toEqual(createSegment(1).vad)
+        })
+
+        it('treats a 409 as the real answer: no resend, and the next segment still carries the lag', async () => {
+            const { result } = await renderLiveCall()
+            mocks.apiService.uploadVoiceSegment.mockRejectedValueOnce(Object.assign(new Error('Voice segment vad_json is invalid.'), { status: 409, category: 'conflict' }))
+
+            emitStampedSegment(1, 10_000, 10_400)
+
+            await waitFor(() => expect(result.current.error).toMatchObject({ fatal: false }))
+            expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(1)
+
+            emitStampedSegment(2, 20_000, 20_250)
+            await waitFor(() => expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(2))
+            expect(uploadedVad(1).speech_end_lag_ms).toBe(250)
+        })
     })
 
     describe('Workspace R1', () => {
@@ -647,6 +774,212 @@ describe('useVoiceCallController', () => {
             expect(mocks.apiService.withWorkspace).not.toHaveBeenCalledWith(OTHER_WORKSPACE)
             expect(hasActiveVoiceCall()).toBe(false)
             unmount()
+        })
+    })
+
+    describe('R1 call audio and voice (R1-FE-05; the only lane, I-68)', () => {
+        const elReady = () => ({
+            ...readyFrame(),
+            audio: { content_type: 'audio/mpeg', codec: 'mp3', sample_rate: 44100 as const, channels: 1 as const },
+            effective_voice: { voice_key: 'el:ava', display_name: 'Ava', provider_route: 'elevenlabs', substitution_reason: 'voice_removed', flags: [], badges: ['replaced'] },
+            original_voice_name: 'Mia',
+            ai_voice: true,
+        })
+        const elChunk = (turnId = 'turn-1', seq = 1) => ({ ...chunk(turnId, seq), sample_rate: 44100 as const, codec: 'mp3' as const, gain_db: -3, substitution_reason: 'voice_removed' as const })
+
+        function withPlayedMs(value: number) {
+            const playedMs = vi.fn(() => value)
+            const setAudioFormat = vi.fn()
+            Object.assign(mocks.playback!, { playedMs, setAudioFormat })
+            return { playedMs, setAudioFormat }
+        }
+
+        async function renderElCall() {
+            const rendered = renderController()
+            await act(async () => { await rendered.result.current.startCall() })
+            act(() => mocks.socketHandlers?.onReady?.(elReady() as never))
+            return rendered
+        }
+
+        it('forwards the announced audio, the effective voice and the original name', async () => {
+            const { setAudioFormat } = withPlayedMs(0)
+            const { result } = await renderElCall()
+            expect(setAudioFormat).toHaveBeenCalledWith({ content_type: 'audio/mpeg', codec: 'mp3', sample_rate: 44100, channels: 1 })
+            expect(result.current.audioFormat?.sample_rate).toBe(44100)
+            expect(result.current.effectiveVoice?.display_name).toBe('Ava')
+            expect(result.current.originalVoiceName).toBe('Mia')
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(elChunk()))
+            expect(result.current.substitutionReason).toBe('voice_removed')
+        })
+
+        it('plays the default mp3 44.1 kHz format when voice_ready carries no audio (older BFF build)', async () => {
+            const { setAudioFormat } = withPlayedMs(0)
+            const bare = { ...readyFrame(), audio: undefined }
+            const { result } = renderController()
+            await act(async () => { await result.current.startCall() })
+            act(() => mocks.socketHandlers?.onReady?.(bare))
+            expect(setAudioFormat).toHaveBeenCalledWith(CALL_AUDIO)
+            expect(result.current.audioFormat).toEqual(CALL_AUDIO)
+            expect(result.current.effectiveVoice).toBeNull()
+            expect(result.current.originalVoiceName).toBeNull()
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(chunk()))
+            expect(mocks.playback!.appendChunk).toHaveBeenCalled()
+            expect(result.current.substitutionReason).toBeNull()
+        })
+
+        it('reports playback progress every 500 ms while a reply plays', async () => {
+            vi.useFakeTimers()
+            const playback = vi.fn(() => true)
+            mocks.socketApi!.playback = playback
+            withPlayedMs(750)
+            await renderElCall()
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(elChunk()))
+            emitPlayback('playing')
+            await act(async () => { vi.advanceTimersByTime(499) })
+            expect(playback).not.toHaveBeenCalled()
+            await act(async () => { vi.advanceTimersByTime(1) })
+            expect(playback).toHaveBeenCalledWith('turn-1', 750)
+            await act(async () => { vi.advanceTimersByTime(1_000) })
+            expect(playback).toHaveBeenCalledTimes(3)
+            emitPlayback('idle', null)
+            await act(async () => { vi.advanceTimersByTime(2_000) })
+            expect(playback).toHaveBeenCalledTimes(3)
+        })
+
+        it('reports playback progress for a call whose voice_ready carried no audio too', async () => {
+            vi.useFakeTimers()
+            const playback = vi.fn(() => true)
+            mocks.socketApi!.playback = playback
+            withPlayedMs(750)
+            const bare = { ...readyFrame(), audio: undefined }
+            const { result } = renderController()
+            await act(async () => { await result.current.startCall() })
+            act(() => mocks.socketHandlers?.onReady?.(bare))
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(chunk()))
+            emitPlayback('playing')
+            await act(async () => { vi.advanceTimersByTime(500) })
+            expect(playback).toHaveBeenCalledWith('turn-1', 750)
+        })
+
+        it('names the interrupted turn and its played time in the barge-in, read before the cancel', async () => {
+            const { playedMs } = withPlayedMs(1234.4)
+            const { result } = await renderElCall()
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(elChunk()))
+            emitPlayback('playing')
+            act(() => { result.current.bargeIn() })
+            expect(mocks.socketApi!.bargeIn).toHaveBeenCalledWith({ type: 'voice_barge_in', reason: 'barge_in', turn_id: 'turn-1', played_ms: 1234 })
+            const cancels = vi.mocked(mocks.playback!.cancel).mock.invocationCallOrder
+            expect(playedMs.mock.invocationCallOrder[0]).toBeLessThan(cancels[cancels.length - 1])
+        })
+
+        it('cuts the captions to kept_chars (code points) on a truncated turn end or cancel', async () => {
+            withPlayedMs(0)
+            const { result } = await renderElCall()
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAssistantDelta?.({ type: 'voice_assistant_delta', voice_session_id: 'voice-1', turn_id: 'turn-1', content: 'Héllo 👋 there, traveller.' }))
+            // WS-S3: only a completed turn is truncated.
+            act(() => mocks.socketHandlers?.onTurnEnd?.({ type: 'voice_turn_end', voice_session_id: 'voice-1', turn_id: 'turn-1', status: 'completed', partial: false, duration_ms: 900, truncated: true, played_ms: 900, kept_chars: 7 }))
+            expect(result.current.assistantText).toBe('Héllo 👋')
+            // A post-end cancel truncation cuts again; another turn's frame does not.
+            act(() => mocks.socketHandlers?.onCancelled?.({ type: 'voice_cancelled', voice_session_id: 'voice-1', turn_id: 'turn-0', reason: 'barge_in', truncated: true, kept_chars: 1 }))
+            expect(result.current.assistantText).toBe('Héllo 👋')
+            act(() => mocks.socketHandlers?.onCancelled?.({ type: 'voice_cancelled', voice_session_id: 'voice-1', turn_id: 'turn-1', reason: 'barge_in', truncated: true, kept_chars: 5 }))
+            expect(result.current.assistantText).toBe('Héllo')
+        })
+
+        it('keeps the captions when the turn end is not truncated', async () => {
+            withPlayedMs(0)
+            const { result } = await renderElCall()
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAssistantDelta?.({ type: 'voice_assistant_delta', voice_session_id: 'voice-1', turn_id: 'turn-1', content: 'All of it.' }))
+            act(() => mocks.socketHandlers?.onTurnEnd?.({ type: 'voice_turn_end', voice_session_id: 'voice-1', turn_id: 'turn-1', status: 'completed', partial: false, duration_ms: 900, kept_chars: 2 }))
+            expect(result.current.assistantText).toBe('All of it.')
+        })
+
+        it('keeps the captions on an interrupted, non-truncated turn end', async () => {
+            withPlayedMs(0)
+            const { result } = await renderElCall()
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAssistantDelta?.({ type: 'voice_assistant_delta', voice_session_id: 'voice-1', turn_id: 'turn-1', content: 'Cut short.' }))
+            act(() => mocks.socketHandlers?.onTurnEnd?.({ type: 'voice_turn_end', voice_session_id: 'voice-1', turn_id: 'turn-1', status: 'interrupted', partial: true, duration_ms: 400, truncated: false, played_ms: 400 }))
+            expect(result.current.assistantText).toBe('Cut short.')
+        })
+
+        it('clears the chunk reason when the chunks say null', async () => {
+            withPlayedMs(0)
+            const { result } = await renderElCall()
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(elChunk()))
+            expect(result.current.substitutionReason).toBe('voice_removed')
+            act(() => mocks.socketHandlers?.onAudioChunk?.({ ...elChunk('turn-1', 2), substitution_reason: null }))
+            expect(result.current.substitutionReason).toBeNull()
+        })
+
+        it('reads the substitute the chunks name after a mid-call swap (R1-BE-04)', async () => {
+            withPlayedMs(0)
+            const { result } = await renderElCall()
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(elChunk()))
+            expect(result.current.replacedVoiceName).toBeNull()
+            act(() => mocks.socketHandlers?.onAudioChunk?.({ ...elChunk('turn-1', 2), substitution_reason: 'voice_unavailable', voice_name: ' Other ' } as never))
+            expect(result.current.substitutionReason).toBe('voice_unavailable')
+            expect(result.current.replacedVoiceName).toBe('Other')
+            // A chunk without the name clears it, as the reason does.
+            act(() => mocks.socketHandlers?.onAudioChunk?.({ ...elChunk('turn-1', 3), voice_name: '  ' } as never))
+            expect(result.current.replacedVoiceName).toBeNull()
+            act(() => mocks.socketHandlers?.onAudioChunk?.({ ...elChunk('turn-1', 4), substitution_reason: 'voice_unavailable', voice_name: 'Other' } as never))
+            expect(result.current.replacedVoiceName).toBe('Other')
+
+            // A new call on the same screen starts without the name.
+            act(() => mocks.socketHandlers?.onEnded?.({ type: 'voice_ended', voice_session_id: 'voice-1', reason: 'user' }))
+            await act(async () => { await result.current.startCall() })
+            act(() => mocks.socketHandlers?.onReady?.(elReady() as never))
+            expect(result.current.replacedVoiceName).toBeNull()
+        })
+
+        it('sends a bare barge-in when no turn is playing', async () => {
+            withPlayedMs(0)
+            const { result } = await renderElCall()
+            act(() => { result.current.bargeIn() })
+            expect(mocks.socketApi!.bargeIn).toHaveBeenCalledWith({ type: 'voice_barge_in', reason: 'barge_in' })
+        })
+
+        it('starts a second call on the same screen with no stale reason or notice', async () => {
+            withPlayedMs(0)
+            const { result } = await renderElCall()
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(elChunk()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.({ ...elChunk('turn-1', 2), content_type: 'audio/pcm' } as never))
+            expect(result.current.substitutionReason).toBe('voice_removed')
+            expect(result.current.audioUnsupported).toBe(true)
+            act(() => mocks.socketHandlers?.onEnded?.({ type: 'voice_ended', voice_session_id: 'voice-1', reason: 'user' }))
+            expect(result.current.state).toBe('ended')
+
+            // "Call again": the card's voice was refreshed, so the new call is not substituted.
+            await act(async () => { await result.current.startCall() })
+            act(() => mocks.socketHandlers?.onReady?.({ ...elReady(), effective_voice: { ...elReady().effective_voice, substitution_reason: null, badges: [] }, original_voice_name: null } as never))
+            expect(result.current.substitutionReason).toBeNull()
+            expect(result.current.audioUnsupported).toBe(false)
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart('turn-2')))
+            act(() => mocks.socketHandlers?.onAudioChunk?.({ ...elChunk('turn-2'), substitution_reason: null }))
+            expect(result.current.substitutionReason).toBeNull()
+            expect(result.current.effectiveVoice?.substitution_reason).toBeNull()
+        })
+
+        it('drops an unplayable chunk, shows the reply as text, and clears the notice on the next turn', async () => {
+            withPlayedMs(0)
+            const { result } = await renderElCall()
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.({ ...elChunk(), content_type: 'audio/pcm' } as never))
+            expect(mocks.playback!.appendChunk).not.toHaveBeenCalled()
+            expect(result.current.audioUnsupported).toBe(true)
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart('turn-2')))
+            expect(result.current.audioUnsupported).toBe(false)
         })
     })
 })

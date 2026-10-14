@@ -15,14 +15,22 @@ This document turns the decision record into work that engineering can run. It c
 
 Architecture, schemas and policies are **not** redefined here. They come from [03](03_target_architecture_and_decisions.md), and every task points to the decision (D-n), spike (S-n) or legal item (L-n) it implements. Module-level design lives in the backend plan [08](08_backend_refactor_plan.md) and the frontend plan [09](09_frontend_refactor_plan.md). Spike procedures live in [14](14_staging_spike_and_contract_tests.md). This plan only orders, sizes and gates that work. Nothing here was run against a provider or a database.
 
+**Workspace R1 alignment (2026-10-12).** Workspace R1 (personal app workspaces, content schema `2026_10_workspace_r1`) is committed in both repositories (backend `f37eefd`, frontend `c7307c6`) but not deployed to production. This plan adds:
+- a prerequisite, R0-DATA-00: Workspace R1 live in production and its schema frozen;
+- workspace rules in R0-DATA-01, R0-BE-01 and R0-BE-23;
+- new tasks R0-BE-38 (workspace scope and wipe) and R0-FE-15 (workspace gaps on voice surfaces);
+- the capability pin test, rehearsals and acceptance rows.
+
+The rules are 03 D39 and §5.15; the evidence is [research 15](research/15_workspace_r1_impact.md).
+
 ## Related
 
 - [README](README.md): index and reading guide
-- [03](03_target_architecture_and_decisions.md): **source of truth**. Decisions D01–D38, canonical definitions §5, spikes §6.1, legal items §6.2, gates §6.3
+- [03](03_target_architecture_and_decisions.md): **source of truth**. Decisions D01–D39, canonical definitions §5, spikes §6.1, legal items §6.2, gates §6.3
 - [04](04_voice_catalog_and_library.md) catalog · [05](05_voice_studio_and_admin_console.md) Studio and console · [06](06_chat_narration_migration.md) narration · [07](07_realtime_calls_migration.md) calls
 - [08](08_backend_refactor_plan.md) backend plan · [09](09_frontend_refactor_plan.md) frontend plan · [10](10_data_migration_and_rollout.md) data migration and rollout · [11](11_cost_plans_and_operations.md) cost and operations
 - [12](12_best_practices_and_improvements.md) best practices and bug backlog · [13](13_policy_privacy_and_compliance.md) policy and privacy · [14](14_staging_spike_and_contract_tests.md) spikes and contract tests · [16](16_risks_and_open_questions.md) risks and open questions
-- Research inventories used for the task lists: [research 06 §11](research/06_backend_minimax_inventory.md) (backend removal checklist), [research 07 §12](research/07_frontend_minimax_inventory.md) (frontend change checklist), [research 08 §18](research/08_voice_data_model_migration_surface.md) (migration surface), [research 13 §4, §7](research/13_gap_codebase_checks.md) (membership ops, canary routing)
+- Research inventories used for the task lists: [research 06 §11](research/06_backend_minimax_inventory.md) (backend removal checklist), [research 07 §12](research/07_frontend_minimax_inventory.md) (frontend change checklist), [research 08 §18](research/08_voice_data_model_migration_surface.md) (migration surface), [research 13 §4, §7](research/13_gap_codebase_checks.md) (membership ops, canary routing), [research 15](research/15_workspace_r1_impact.md) (Workspace R1 impact)
 
 ## Contents
 
@@ -35,6 +43,10 @@ Architecture, schemas and policies are **not** redefined here. They come from [0
 6. [Definition of done for the whole migration](#6-definition-of-done-for-the-whole-migration)
 7. [Owner sign-off checklist](#7-owner-sign-off-checklist)
 8. [Suggested first 10 PRs](#8-suggested-first-10-prs)
+9. [R0 execution status (2026-10-12)](#9-r0-execution-status-2026-10-12)
+10. [R1–R5 dark build status (2026-10-13)](#10-r1r5-dark-build-status-2026-10-13)
+11. [MiniMax voice purge (2026-10-14)](#11-minimax-voice-purge-2026-10-14)
+12. [Final cutover on the test database (2026-10-14)](#12-final-cutover-on-the-test-database-2026-10-14)
 
 ---
 
@@ -118,8 +130,8 @@ D28 calls R0 "expand-only releases" (plural). This plan cuts R0 into four deploy
 
 | Release | Target (proposed) | Contents (task ids in §2.1) | Why this order |
 |---|---|---|---|
-| **R0.1 Expand** | 2026-10-23 | Schema expand (R0-DATA-01), §5.14 widening (R0-BE-01), V1/V2 union readers and FE helpers (R0-BE-02, R0-FE-01…03), neutral seams (R0-BE-07, -08), card-assistant fix (R0-BE-05), baseline metrics (R0-BE-37), turn `language` field (R0-BE-16) | Everything later writes into these tables and types. Baselines need ≥ 7 days of MiniMax data before R1. The D34 light-language list is computed from R0 telemetry of the turn `language` field, so that field must ship first. |
-| **R0.2 Billing and policy** | 2026-10-30 | Per-turn charge and caps (R0-BE-23, -24, -27), `voice_preview` lockstep (R0-DATA-07, R0-BE-25, -26), attestation (R0-BE-21, R0-FE-05), consent per provider (R0-BE-22), `SpeechTextPipeline` + moderation (R0-BE-18…20), MP3 parser (R0-BE-17) | These change behaviour for all MiniMax users, so they need the longest soak before R1. |
+| **R0.1 Expand** | 2026-10-23, and not before Workspace R1 is live in production (R0-DATA-00) | Schema expand (R0-DATA-01), §5.14 widening (R0-BE-01), V1/V2 union readers and FE helpers (R0-BE-02, R0-FE-01…03), neutral seams (R0-BE-07, -08), card-assistant fix (R0-BE-05), baseline metrics (R0-BE-37), turn `language` field (R0-BE-16) | Everything later writes into these tables and types. Baselines need ≥ 7 days of MiniMax data before R1. The D34 light-language list is computed from R0 telemetry of the turn `language` field, so that field must ship first. |
+| **R0.2 Billing and policy** | 2026-10-30 | Per-turn charge and caps (R0-BE-23, -24, -27), `voice_preview` lockstep (R0-DATA-07, R0-BE-25, -26), attestation (R0-BE-21, R0-FE-05), consent per provider (R0-BE-22), `SpeechTextPipeline` + moderation (R0-BE-18…20), MP3 parser (R0-BE-17) | These change behaviour for all MiniMax users, so they need the longest soak before R1. Moderation is the exception: in R0 it runs only on ElevenLabs-bound and root synth-lab text ([03 §5.16](03_target_architecture_and_decisions.md) I-6). |
 | **R0.3 Catalog (dark)** | 2026-10-30 | ElevenLabs adapters and registry (R0-BE-09…13), catalog provider, Jobs A/B/C, admin API, acceptance renders (R0-BE-29…31, -35, -36), console modules (R0-FE-08…12) | Unblocks curation, the longest pole (§3.2). |
 | **R0.4 Routing (dark)** | 2026-11-06 | Resolver, router, runtime settings (R0-BE-14, -15, R0-DATA-06), catalog user API and effective voice (R0-BE-32…34), budget guards (R0-BE-28), restricted MiniMax picker (R0-BE-06), TurnNarration fixes (R0-FE-13, -14) | Ships with `rollout_mode=off`. The 7-day soak runs on this build. |
 
@@ -197,7 +209,8 @@ Each table is one epic. "Depends on" lists only blocking dependencies. Tasks wit
 
 | ID | Task | Repo | Depends on | Size | Ref |
 |---|---|---|---|---|---|
-| R0-DATA-01 | **One expand migration** (`scripts/migrations/<date>_voice_expand.py` + `db.sql` parity). Adds every §5.2 table, the §5.3 R0 block, `user_attestation` (D26 column list), `user_preferences.narration_tier`, `membership_plan_limit.daily_quantity_limit`, the `tts_job` columns `turn_charge_id`, `billed_chars`, `tier`, `substitution_reason`, and widens the `tts_job` CHECK to `provider IN ('minimax','elevenlabs')`. Bumps `CONTENT_SCHEMA_REVISION` ([bootstrap.py:17](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py)) and adds the upgrade-chain entry ([bootstrap.py:1697-1711](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py)). | DATA | — | M | §5.2, §5.3, §5.14 · [10] |
+| R0-DATA-00 | **Workspace R1 prerequisite (D39).** Workspace R1 deployed to production (its own Phase 6 cutover and soak, scheduled by the owner, Q-33). Freeze `db.sql` at `2026_10_workspace_r1` as `src/database/mysql/migrations/2026_10_workspace_r1.sql` with a historical loader. Add a test that pins the workspace capability `schema_revision = "2026_10_workspace_r1"` ([services/workspaces.py:27](/home/andres/PycharmProjects/magic-worlds-api/src/services/workspaces.py), [models/workspaces.py:78](/home/andres/PycharmProjects/magic-worlds-api/src/models/workspaces.py)), independent of `CONTENT_SCHEMA_REVISION`. | DATA + OPS | Workspace R1 deploy | S | D39 · [08 §4.1](08_backend_refactor_plan.md) |
+| R0-DATA-01 | **One expand migration** (`scripts/migrations/<date>_voice_expand.py` + `db.sql` parity). Its predecessor is `2026_10_workspace_r1`, and it follows the `workspace_cutover.py` pattern: advisory lock, exact revision gate, check against the frozen predecessor, data fingerprint before and after, marker compare-and-set. `tts_turn_charge` and `voice_review_flag` carry the app-workspace columns and FKs of 03 §5.2; `session_voice_setting.session_id` is an `int` FK to `adventure_session`. Adds every §5.2 table, the §5.3 R0 block, `user_attestation` (D26 column list), `user_preferences.narration_tier`, `membership_plan_limit.daily_quantity_limit`, the `tts_job` columns `turn_charge_id`, `billed_chars`, `tier`, `substitution_reason`, and widens the `tts_job` CHECK to `provider IN ('minimax','elevenlabs')`. Bumps `CONTENT_SCHEMA_REVISION` ([bootstrap.py:17](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py)) and adds the upgrade-chain entry ([bootstrap.py:1699-1716](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py)), never the workspace capability value (D39). | DATA | R0-DATA-00 | M | §5.2, §5.3, §5.14, §5.15 · [10] |
 | R0-DATA-02 | Read-replica `--check` inventory: research 08 §18 counts #1, #7–#11, #13, #18, #23, #30; G6 `is_global` count; distinct legacy ids × reference count × recipe usage; legacy ids that co-occur in one cast; the language of each MiniMax id; persona voices counted separately. Export as CSV for curation. | DATA | — | M | D21, D33, D34, D38 · [research 08 §18](research/08_voice_data_model_migration_surface.md) |
 | R0-DATA-03 | List MiniMax custom (cloned or designed) voices from the root inventory ([admin_voices.py:166-179](/home/andres/PycharmProjects/magic-worlds-api/src/routes/admin_voices.py)). Record the operator's answer on off-platform source audio. | DATA | — | S | D22 |
 | R0-DATA-04 | Coverage script. Compares approved `voice_legacy_mapping` rows with referenced ids and picker-offered ids (persona excluded), and `voice_legacy_fallback` with published voices. Non-zero exit on any gap. Re-run at R0 exit, before R1, before each canary step, at R3 and before R5. | DATA | R0-DATA-01 | S | D21, D28 |
@@ -209,7 +222,7 @@ Each table is one epic. "Depends on" lists only blocking dependencies. Tasks wit
 
 | ID | Task | Repo | Depends on | Size | Ref |
 |---|---|---|---|---|---|
-| R0-BE-01 | §5.14 Python widening. Covers: registry `Literal` ([registry.py:24](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/registry.py)); the `model_alias` union in `TtsJobPublic`, `/tasks` and notifications; the `tts_provider` unions (config guard, `voice_session`, message metadata); the turn-store callbot validators with `truncated` and `played_ms` ([conversation_turn_store.py:580-605](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/conversation_turn_store.py)); the sample-rate set {22050, 24000, 44100} plus 32000 on read. | BE | R0-DATA-01 | M | §5.14, D23 |
+| R0-BE-01 | §5.14 Python widening. Covers: registry `Literal` ([registry.py:24](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/registry.py)); the `model_alias` union in `TtsJobPublic`, `/tasks` and notifications; the `tts_provider` unions (config guard, `voice_session`, message metadata); the turn-store callbot validators with `truncated` and `played_ms` ([conversation_turn_store.py:580-605](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/conversation_turn_store.py)); the sample-rate set {22050, 24000, 44100} plus 32000 on read. Also the MiniMax checks added by Workspace R1: `create_pending_job` `allowed={"minimax"}` (`models.py:8935`), the asset-parent `provider="minimax"` check (`:766`, `:9465`), the `voice_session` insert guard (`:6027-6033`), and the call-audio literals in `_persist_call_audio_asset` (`voice_orchestration/engine.py:2419-2444`). | BE | R0-DATA-01 | M | §5.14, D23, D39 |
 | R0-BE-02 | `CharacterVoiceV2`, `VoiceSettingsV2` and the `StoredCharacterVoice` discriminated union (§5.1.3), I/O-free. Every reader of cards, presets, snapshots and chats accepts both shapes. A bad preset row is skipped and logged, never fatal to the list. | BE | — | M | D11, D12 · §5.1 |
 | R0-BE-03 | `validate_voice_change(old, new, actor)` in the write-service layer per §5.10. Used by card, draft, preset and snapshot `PUT` and by every copy flow, with a per-path "voice changed?" comparison. Copies are shape-only. One model for write, read and resolve fixes bug #10. | BE | R0-BE-02, R0-DATA-01 | L | D32, D11, D30 #10 · §5.10 |
 | R0-BE-04 | Retry and restore byte-equality exclude voice paths. Adds a test asserting that the graph payload is identical with and without voices. If that test cannot pass, the fallback is to accept 409 with a message. | BE | R0-BE-02 | M | D36 |
@@ -256,7 +269,7 @@ Each table is one epic. "Depends on" lists only blocking dependencies. Tasks wit
 
 | ID | Task | Repo | Depends on | Size | Ref |
 |---|---|---|---|---|---|
-| R0-BE-23 | Per-turn charge (the D24 algorithm, steps 1–6). Reuse check first. One `reserve_media_operation` call per turn, recorded in `tts_turn_charge` with `turn_charge_id` on each job. Daily cap checked in the same transaction, with the cap-crossing rule. In-flight counts open turn charges. Settlement refunds failed segments. Adds a stale-charge sweep, plus a global stale-job sweep and terminalization on shutdown. Fixes #5, #7 and #8; replaces the segment-0-only quota at [route_chat.py:1433](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py). | BE | R0-DATA-01 | L | D24 · §5.9 |
+| R0-BE-23 | Per-turn charge (the D24 algorithm, steps 1–6). Reuse check first. One `reserve_media_operation` call per turn, recorded in `tts_turn_charge` with `turn_charge_id` on each job. Daily cap checked in the same transaction, with the cap-crossing rule. In-flight counts open turn charges. Settlement refunds failed segments. Adds a stale-charge sweep, plus a global stale-job sweep and terminalization on shutdown. Fixes #5, #7 and #8; replaces the segment-0-only quota at [route_chat.py:1433](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py). **Workspace (D39):** reserve only after the active-workspace lock (`_admit_media_job_origin`); reuse hits stay free in an archived workspace; misses there get `workspace_archived` and reserve nothing; the charge copies the session's `workspace_id`; caps, in-flight and credits stay per account; settlement and sweeps are continuations. | BE | R0-DATA-01 | L | D24, D39 · §5.9, §5.15 |
 | R0-BE-24 | Per-plan seeds and `daily_quantity_limit`: Standard-equivalent characters for `tts_generation`; seconds for `voice_call` (3/10/10 min). `VOICE_DAILY_MINUTES_PER_USER` stays only as a global upper bound. Caps are hard against PAYG. | BE + DATA | R0-DATA-01 | M | D24 · §5.9 |
 | R0-BE-25 | `voice_preview` operation: added to `MEMBERSHIP_MEDIA_OPERATIONS`, with a `count_in_flight` branch over `voice_preview_render` rows in `rendering` ([models.py:2061-2117](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)). Deployed in lockstep with R0-DATA-07. | BE | R0-DATA-07 | M | D18 |
 | R0-BE-26 | MiniMax preview limited to fixed per-language texts (`text_id`). Settings quantized to 0.05, metered on cache misses, token bucket 6/min. Closes #1 on MiniMax already ([voice_presets.py:99-118](/home/andres/PycharmProjects/magic-worlds-api/src/routes/voice_presets.py)). | BE | R0-BE-25, R0-CUR-01 | M | D18, D30 |
@@ -277,6 +290,7 @@ Each table is one epic. "Depends on" lists only blocking dependencies. Tasks wit
 | R0-BE-34 | Review flags: computed from the mapping (`pitch_dropped`, `vol_dropped`, `speed_clamped`), `GET /voices/review-flags`, `POST /voices/review-flags/{id}/dismiss`. Not yet visible to users. | BE | R0-DATA-01, R0-CUR-05 | M | D15 |
 | R0-BE-35 | Admin catalog API `/admin/voices/*` (root only, `ADMIN` key): list and filter; publish (requires `call_eligible`, acceptance and an own sample per accepted language); hide/retire; set replacement; impact view; sync now; design and save; remix of owned voices; Library search and add (refused when fewer than 5 ops remain); defaults with §5.11 checks; legacy-mapping CRUD and coverage report; limits widget. Every action is logged in `voice_catalog_event` with actor and voice. | BE | R0-BE-29 | L | D19, D20 · [05] |
 | R0-BE-36 | Acceptance renders: fixed scripts per (voice, model, language) on the `ADMIN` key; rubric write to `voice_catalog_acceptance`; integrated LUFS → `gain_db ≤ 0` (flag voices needing more than −6 dB); own samples to `voice_sample_asset`. | BE | R0-BE-35, R0-CUR-01 | M | D09, D16, D20 |
+| R0-BE-38 | **Workspace scope and wipe (D39).** New voice routes use `resolve_workspace_context` with the 03 §5.15 selectors and intents (`recommended_for`, effective voice, voice settings, refresh with source resolution in the session's workspace and 409 `voice_source_unavailable`, review flags with `organization`). `delete_all_user_data` gains `tts_turn_charge`, `voice_review_flag` and the user's `voice_preview_render` rows in the 03 §5.15 order (Q-35). Tests: `test_voice_routes_workspace`, `test_turn_charge_workspace`, `test_voice_schema_chain`, the wipe test (08 §9.4). | BE | R0-DATA-01, R0-BE-23 | M | D39 · §5.15 |
 | R0-BE-37 | MiniMax baseline metrics, collected ≥ 7 days before R1: narration `tts_failed` rate, job p50/p95, call first-audio p50/p95, "user stops speaking → first audio", call TTS failure rate, per provider and cohort label. | BE | — | M | D28, D06 |
 
 #### Epic R0-J: root console, R0 modules ([05](05_voice_studio_and_admin_console.md))
@@ -308,6 +322,7 @@ Each table is one epic. "Depends on" lists only blocking dependencies. Tasks wit
 |---|---|---|---|---|---|
 | R0-FE-13 | `TurnNarration`: new failure categories and a retry state, so one failed segment never halts the turn (#3). Stuck pause (#2) in the same release. First `TurnNarration` tests. | FE | R0-FE-03 | M | D30 |
 | R0-FE-14 | Player gain: `volume = user × 10^(gain_db/20) × (kind=='thought' ? 0.708 : 1)`. With no `gain_db` on MiniMax clips it changes nothing, so it ships early. | FE | — | S | D16 |
+| R0-FE-15 | **Workspace gaps on voice surfaces** ([09 §4.11](09_frontend_refactor_plan.md)). `voiceSocket` treats close 4404 and 4422 as terminal and dispatches `workspace:required`; narration, the narrator picker and the Call button are read-only gated; the narrator save uses the session's client; labels for `WORKSPACE_ACTIVE_CALL` and `CHAT_SESSION_NOT_FOUND`; `workspace_archived` narration copy. Can ship before R0 as independent workspace fixes (Q-34). | FE | — | S | D39 |
 
 #### Epic R0-M: observability and runbooks
 
@@ -420,6 +435,7 @@ flowchart LR
         O02["R0-OPS-02<br/>staging"]
         L01["R0-LEG-01<br/>L-1 + L-9 sent"]
         L02["R0-LEG-02..04<br/>counsel brief, ToS, privacy drafts"]
+        W00["R0-DATA-00<br/>Workspace R1 live + frozen"]:::crit
         D01["R0-DATA-01<br/>expand DDL"]
         D02["R0-DATA-02<br/>inventory"]
         B07["R0-BE-07<br/>neutral seams"]:::crit
@@ -462,6 +478,7 @@ flowchart LR
     B07 --> B10 --> B29 --> B35 --> C03
     F10 --> C03
     C02 --> C03 --> C05
+    W00 --> D01
     D01 --> B29
     D01 --> B23
     D01 --> B21
@@ -487,6 +504,7 @@ flowchart LR
 
 | # | Step | Earliest finish (proposed, fully staffed) | Why it is critical |
 |---|---|---|---|
+| 0 | Workspace R1 deployed to production and its schema frozen (R0-DATA-00, Q-33) | before R0.1 | R0's schema chain starts at `2026_10_workspace_r1`. It runs in parallel with step 1, but if it slips, every R0 schema step waits (16 ROL-08). |
 | 1 | Owner signs D02, then Scale is contracted and `mw-prod` keys are issued (R0-PROD-01, R0-OPS-01, -03) | 2026-10-16 | Nothing on ElevenLabs (acceptance, curation, S-1) can start without it. |
 | 2 | Neutral seams → ElevenLabs HTTP adapter (R0-BE-07, -10) | 2026-10-23 | Every render and every sync depends on the adapter. |
 | 3 | Catalog provider, Jobs A/B/C, admin API, acceptance renders (R0-BE-29, -30, -35, -36) | 2026-10-30 | Curation writes into `voice_catalog_acceptance` only through these. |
@@ -517,7 +535,7 @@ Every SLO is measured at the BFF in the production region, over a 1-hour rolling
 
 | Phase | Accept when | Verified by |
 |---|---|---|
-| **R0.1–R0.4 (each release)** | Deployed with no regression vs the previous R0 build. MiniMax narration and calls unchanged for users, except intended fixes (#1, #2, #3, #5, #6, #7, #8, #10, #11, #12, #16, the card-assistant erasure, the FE whitelists, V1-keyed FE checks and per-turn billing). BE suite and `pnpm build` green. `.voice_id` gate green; §6.2 MiniMax gate run in report mode and its count recorded. | Local suites, dashboards |
+| **R0.1–R0.4 (each release)** | Deployed with no regression vs the previous R0 build. MiniMax narration and calls unchanged for users, except intended fixes (#1, #2, #3, #5, #6, #7, #8, #10, #11, #12, #16, the card-assistant erasure, the FE whitelists, V1-keyed FE checks and per-turn billing). BE suite and `pnpm build` green. `.voice_id` gate green; §6.2 MiniMax gate run in report mode and its count recorded. The workspace capability still reports `2026_10_workspace_r1`, and the SPA opens private content after each deploy (D39). | Local suites, dashboards |
 | **R0 exit** | The §6.3 R0 gate (§1.2), plus: 7 days with no regression vs the baselines; coverage exit 0; every R0 test in §5 green; owner decision R0-CUR-08 recorded; restricted MiniMax picker live; `rollout_mode=off` confirmed. | Gate review with the owner |
 | **R1 exit** | The §6.3 R1 gate. 7 days within every D28 rollback threshold for the cohort (§4.3). Contract and spike results S-7, S-9, S-10, S-15, S-17, S-23, S-25 recorded in [14](14_staging_spike_and_contract_tests.md). History sweep running. | Gate review |
 | **R2 entry** | The §6.3 R2 entry gate. S-8 targets met (C-01, C-02). S-21 load test passed (§5.7). Companion safeguards and minor report live **(proposed gating)**. | Gate review + LEGAL |
@@ -698,6 +716,7 @@ Kill switches: `tts_engine_enabled`, `voice_mode_enabled` and `rollout_mode=off`
 - **Copy flows:** clone, version restore, session creation and snapshot `PUT` with retired, gated, removed and V1 voices (D32).
 - **Legacy reads:** `/tasks`, notifications, call history and replay with MiniMax-era rows (`speech_2_8_turbo`, `minimax_streaming`, 32 kHz) after each widening and after R4 (D23).
 - **FE:** existing `VoiceCall.integration.test.tsx` updated for 44.1 kHz and ElevenLabs sentinels; new picker and Studio flows with mocked APIs.
+- **Workspaces (D39):** narration and calls in an active, an archived and a foreign workspace (hits free, misses refused, nothing reserved, 404 for foreign roots); a call in workspace B supersedes one in workspace A; caps across two workspaces; archive with a live call → `WORKSPACE_ACTIVE_CALL`; account wipe with every new voice table populated.
 
 ### 5.4 Contract tests
 
@@ -764,10 +783,11 @@ Budget **(estimate)**: full Flash saturation is ~24 slots × ~670 characters/s �
 
 | Rehearsal | When | Pass |
 |---|---|---|
+| Upgrade chain from a production copy at `2026_10_workspace_r1` (after the Workspace R1 cutover) to the voice revision; data fingerprint unchanged; workspace capability unchanged | Before R0.1 | Marker advanced once; fingerprint equal; the SPA opens private content (D39) |
 | Expand migration on a production copy; old (pre-R0) build still boots against the expanded schema until the lockstep op lands | Before R0.1 | Boots; reads unchanged |
 | `voice_preview` lockstep forward and reverse migration (custom plans included) | Before R0.2 | New build boots after forward; previous build boots after reverse |
 | Route-only rollback: `rollout_mode` internal → off → internal with live narration and a live call | R1 week 1 | Narration on MiniMax within 60 s; V2 voices play through the reverse mapping; no data reverted |
-| R5 `--check` on a production copy, then `--apply` on the copy; audit-based reversal | Before R5 | 0 errors; 0 V1 presets; reversal restores the copy byte-for-byte |
+| R5 `--check` on a production copy, then `--apply` on the copy; audit-based reversal | Before R5 | 0 errors; 0 V1 presets, also in archived app workspaces; reversal restores the copy byte-for-byte |
 | Orphan sweep dry run with exact counts | R4 + 7 d | Counts reviewed and signed |
 
 ### 5.9 Test data rules
@@ -894,7 +914,7 @@ Status per 03 §3: the bold rows are "Needs owner sign-off". If the owner does n
 | ☐ | **D25** Privacy posture | No ZRM at launch; history sweep with SLO; dual-provider copy | Owner: R1 start **(proposed)**; owner + counsel: R2 entry (03 D25 item 9) | Staff text reaches ElevenLabs at R1; non-staff text at R2 |
 | ☐ | **D23** Legacy MiniMax assets | Keep referenced audio; orphan sweep at R4 + 14 d; purge only on legal advice | R4 | Key revocation ends the MiniMax relationship |
 | ☐ | D13 Capability handling, D14 tag mapping and sanitizer | Not owner items: status is "Blocked on staging spike" (S-3 for D13's allow-lists, S-6 for D14's tag wording). The code ships in R0; the frozen allow-lists and tag rows are confirmed from the spike results (R0-QA-03, -05, -08) | R0 exit | R0 gate spikes |
-| ☐ | Recommended decisions (D03, D04, D07, D08, D10, D11, D12, D16, D17, D19, D21, D27, D30, D32, D33, D35, D36, D38) | No objection | R0 start | Built in R0 |
+| ☐ | Recommended decisions (D03, D04, D07, D08, D10, D11, D12, D16, D17, D19, D21, D27, D30, D32, D33, D35, D36, D38, D39) | No objection | R0 start | Built in R0 |
 
 ### 7.2 Written confirmations and counsel
 
@@ -920,7 +940,7 @@ All ten are part of R0. They are expand-only and leave every user on MiniMax. Th
 
 | # | PR | Repo | Tasks | Contents | Tests | Depends on | Size |
 |---|---|---|---|---|---|---|---|
-| 1 | **Voice schema expand** | BE | R0-DATA-01, R0-DATA-06 | One migration with every §5.2 table, the §5.3 R0 block, `user_attestation`, the column additions, the `tts_job` CHECK widening and the `voice_runtime_setting` seeds; `db.sql` parity; revision bump; upgrade chain | Schema bootstrap and parity tests; data-wipe coverage for the new tables | — | M |
+| 1 | **Voice schema expand** | BE | R0-DATA-00, R0-DATA-01, R0-DATA-06 | Frozen `2026_10_workspace_r1.sql` predecessor and the capability pin test first. One migration (cutover pattern of `workspace_cutover.py`) with every §5.2 table, the §5.3 R0 block, `user_attestation`, the column additions, the `tts_job` CHECK widening and the `voice_runtime_setting` seeds; `db.sql` parity; revision bump; upgrade chain | Schema bootstrap and parity tests; upgrade-chain test from `2026_10_workspace_r1`; capability pin; data-wipe coverage for the new tables in the 03 §5.15 order | Workspace R1 in production | M |
 | 2 | **Read-only inventory and coverage scripts** | BE (DATA) | R0-DATA-02, R0-DATA-04 | `scripts/voice_migration/inventory.py --check` (research 08 §18 counts, legacy ids × refs, co-occurrence, languages, persona split) and `coverage.py` (non-zero exit on gap). Read replica only. | Unit tests on SQL builders with a seeded test DB | 1 | M |
 | 3 | **Validator widening** | BE | R0-BE-01 | §5.14 Python unions: provider, alias, `tts_provider`, sample rates, callbot `truncated`/`played_ms`; `/tasks` and notifications keep MiniMax rows valid | Legacy-read tests for `/tasks`, call history and replay | 1 | M |
 | 4 | **CharacterVoice v2 union + retry equality + card-assistant fix** | BE | R0-BE-02, R0-BE-04, R0-BE-05 | Pydantic models per §5.1.3; readers accept both shapes; retry and restore ignore voice paths; card assistant keeps `voice` | V1/V2 fixtures; graph-payload identity test; assistant round-trip | 3 | M |
@@ -931,9 +951,243 @@ All ten are part of R0. They are expand-only and leave every user on MiniMax. Th
 | 9 | **Catalog provider, Jobs A/B/C and admin catalog API v1** | BE | R0-BE-29, R0-BE-30, R0-BE-35 (list, sync, design/save, publish, acceptance render/verdict, samples, defaults, mapping) | `VoiceCatalogProvider`; sync loop with lease, mass-miss guard and premade query; root-only admin routes logging to `voice_catalog_event` | Fake-provider integration tests (§5.3 catalog list); root-only 403 tests | 1, 8 | L |
 | 10 | **Root console v2: shell, Acceptance, Catalog manager, Design** | FE | R0-FE-08…R0-FE-11 | Provider-neutral admin types; i18n en/es; acceptance player and rubric; publish and impact view; design previews and save. Built against the PR 9 contract (mocks until PR 9 merges). | Component tests per module; i18n parity; `pnpm typecheck:stories` for new stories | contract of 9 | L |
 
-**Next in line (PR 11 onward):** `SpeechTextPipeline` + moderation (R0-BE-18…20); per-turn charge and caps (R0-BE-23, -24, -27); `voice_preview` lockstep (R0-DATA-07, R0-BE-25, -26); attestation (R0-BE-21, R0-FE-05); MP3 parser (R0-BE-17); baseline metrics (R0-BE-37) and the turn `language` field (R0-BE-16), both in R0.1 because their telemetry must accumulate before R1; resolver and router (R0-BE-14, -15); catalog user API and effective voice (R0-BE-32, -33); budget guards (R0-BE-28); `TurnNarration` fixes (R0-FE-13).
+**Next in line (PR 11 onward):** workspace gaps on voice surfaces (R0-FE-15; may ship earlier, Q-34); workspace scope and wipe (R0-BE-38, with PR 1 and the per-turn charge); `SpeechTextPipeline` + moderation (R0-BE-18…20); per-turn charge and caps (R0-BE-23, -24, -27); `voice_preview` lockstep (R0-DATA-07, R0-BE-25, -26); attestation (R0-BE-21, R0-FE-05); MP3 parser (R0-BE-17); baseline metrics (R0-BE-37) and the turn `language` field (R0-BE-16), both in R0.1 because their telemetry must accumulate before R1; resolver and router (R0-BE-14, -15); catalog user API and effective voice (R0-BE-32, -33); budget guards (R0-BE-28); `TurnNarration` fixes (R0-FE-13).
 
 **Non-PR actions for week 1:** owner sign-offs (R0-PROD-01), Scale contract and keys (R0-OPS-01, -03), staging (R0-OPS-02), L-1 + L-9 letter (R0-LEG-01), counsel brief (R0-LEG-02), start voice design in the dashboard (R0-CUR-02), training opt-out screenshots (R0-OPS-04).
+
+---
+
+## 9. R0 execution status (2026-10-12)
+
+This section records what the R0 build delivered against the §2.1 rows. Where it disagrees with an earlier section of this document, the decisions in [03 §5.16](03_target_architecture_and_decisions.md) (I-1…I-40) win.
+
+**Where the code is.** The R0 code is built in the working trees of the SPA (this repo) and the BFF (`magic-worlds-api`). It also includes a one-feature change in `api.magic_llm`. Nothing is committed, deployed or applied to any database, and no live or paid provider call was made: every test uses fakes. The schema revision `2026_10_voice_r0` has run nowhere, so it can still be edited until its first rehearsal (§5.8).
+
+**Verification on 2026-10-12:**
+
+| Check | Result |
+|---|---|
+| BFF full suite (`pytest`, minus the 6 `TestAuthProxyChain` failures already present at HEAD) | 12,854 passed, 0 failed, 758 skipped (real-MySQL tests that need a socket), 42 deselected |
+| SPA `pnpm test` | 3,189 passed, 1 failed: `DocsPage.test.tsx`, which already failed after commit f0f5769 (PDF copy) and is unrelated to voice |
+| SPA `pnpm build` and `pnpm typecheck:stories` | Both exit 0 |
+| SPA ↔ BFF voice contract | Every voice call the SPA makes has a matching BFF route and compatible request and response models. The check compared the SPA types against a freshly generated OpenAPI and ran the SPA's capabilities adapter on real registry output. |
+| `api.magic_llm` | The `moderation` feature is registered in `src/models/llm_execution.py`, `src/services/llm_features.py` and `src/services/llm_execution.py`, and its own 16 tests pass. The gateway's other unit-test failures predate this work: the tests and the code had already drifted apart. |
+
+**Status legend:**
+- **Done:** every locally doable clause is built and tested.
+- **Done, pending external:** the code is done, but the row also needs an act outside the code, such as applying a migration, a staging run, curation or a sign-off.
+- **External:** the row is owner, ops, legal, curation or live-QA work.
+
+**Totals:** 46 done, 24 done pending external, 20 external.
+
+**Done (46):**
+- R0-BE-01…05, -07…18 and -20…22.
+- R0-BE-26, -27 and -29…35.
+- R0-DATA-05 and R0-CUR-01.
+- R0-FE-01…15.
+
+**Done, pending external (24):**
+
+| Row | External step still needed |
+|---|---|
+| R0-BE-06 | Turn on `VOICE_LEGACY_PICKER_RESTRICTED` once curation (R0-CUR-05) has approved the top-referenced ids. I-10 requires it to be on by R0 exit. |
+| R0-BE-19 | Policy and LEG sign-off on the deterministic term lists. Q-06 decides the moderation provider and admission path, and the `moderation` system profile must be published (I-21, I-31). Until then `VOICE_MODERATION_CLASSIFIER_ENABLED` stays false. The S-29 spike is also needed. |
+| R0-BE-23, R0-BE-38 | Run the real-MySQL integration tests (`test_turn_charge_workspace_database.py`, `test_voice_wipe_database.py`) against an isolated MySQL 8 after the migration. |
+| R0-BE-24, R0-BE-25, R0-DATA-06, R0-DATA-07 | Rehearse forward and reverse on a production copy that includes a custom plan (§5.8), then apply in lockstep with the build. The owner confirms the D24 Free cap and the D37 `daily_budget_chars`. |
+| R0-BE-28 | Set the production `VOICE_IP_HASH_KEY` secret. The verified-email rule waits for Q-17. |
+| R0-BE-36 | The light-language scripts (R0-CUR-04); real renders on the ADMIN key. |
+| R0-BE-37 | After deploy, capture at least 7 days of MiniMax baseline and freeze the `voice_baseline_report` output in the ROLL log. The exporter is Q-07. |
+| R0-DATA-00 | Workspace R1 production deploy, cutover and soak (Q-33). Migration 1 builds on `2026_10_workspace_r1`. |
+| R0-DATA-01 | Rehearsal on a production copy (§5.8), then check → apply after R0-DATA-00. |
+| R0-DATA-02, R0-DATA-04 | Run on the read replica with the root MiniMax export, and file the CSVs. Coverage exits 0 only after curation. |
+| R0-OPS-07 | Alert channel and paging (Q-07), routing the enforcement inbox to the pager, a metrics exporter, and setting `VOICE_METRICS_MONITOR_ENABLED` and `VOICE_METRICS_BASELINE_PATH` in production. Scope limits are recorded in I-38 and I-39. |
+| R0-OPS-08 | Owner sign-off on the R0 RB-1 step; route-only rollback rehearsal in R1 week 1. |
+| R0-QA-01…06 | The spike cases are scripted and tested against fakes; staging and production runs need R0-OPS-02 and -03. Results must be promoted into `tests/providers/elevenlabs/fixtures` as PCT-F tests. S-27 also needs L-12 in writing, S-6 a listening panel, and S-29 the Q-06 decision. |
+| R0-CUR-06 | `derive_reverse_mapping.py --check`, then `--apply`, after R0-CUR-05 curation. |
+
+**External (20):**
+
+| Rows | Owner and blocker |
+|---|---|
+| R0-PROD-01 | The owner signs the §7.1 "before R0" decisions. |
+| R0-OPS-01…06 | Scale contract, staging workspace, the six scoped keys per environment, opt-out screenshots, forecast and grant. |
+| R0-LEG-01…04 | The L-1 + L-9 letter (its "sent" date is an R0-exit gate), counsel, ToS, and the privacy and consent copy. |
+| R0-DATA-03 | Per-voice answers on custom voices (Q-02) from live MiniMax. |
+| R0-CUR-02, -03, -05, -07, -08 | Voice design on production keys, the rater panel and acceptance (≥ 40 published voices), legacy-mapping curation, replacements, and the S-14/S-15 fallbacks. |
+| R0-CUR-04 | Native review of the drafted fr/de/pt/it texts (I-40), then defaults curation from production language telemetry. |
+| R0-QA-07, R0-QA-08 | They need the R0-CUR-03 and R0-QA-03 results. |
+
+**Open follow-ups (no R0 row is blocked by them):**
+- **R1-entry gate:** the shared-card flag that 10 §7 requires (I-38).
+- **Root route for enforcement emails:** a route to record account events from them (I-39).
+- **Owner choices:** whether staff need a paid plan for Expressive (I-33), and P-13 (I-28).
+- **`api.magic_llm` envelope path:** blocked by symbols missing from that repository before this work (`get_async_llm_pool`). The inline path the BFF uses today needs only a published profile.
+
+---
+
+## 10. R1–R5 dark build status (2026-10-13)
+
+> **Superseded on 2026-10-14 by [03 §5.16](03_target_architecture_and_decisions.md) I-68 and I-69.** The owner ordered the MiniMax voice integration purged and ElevenLabs served to everyone, so the dark model below (`rollout_mode = off` routes to MiniMax) no longer exists. This section stays as the record of the dark build. §11 records the purge.
+
+This section records what the R1 dark build delivered against the §2.2–§2.6 rows. Where it disagrees with an earlier section of this document, the decisions in [03 §5.16](03_target_architecture_and_decisions.md) (I-1…I-70) win.
+
+**What "dark" means.** The R1 code, plus every row of R2, R3 and R5 that can be built ahead of time, sits in the same uncommitted working trees as R0. All of it is behind the R0 switches. With `rollout_mode = off` in both the env and the database (I-12), `ProviderRouter.decide` answers MiniMax with reason `rollout_off` for every caller and surface. Features for the cohort only are gated by exposure (I-16, I-53) and by the capabilities `provider_route`. Nothing is committed, deployed or applied to a database, and no live or paid provider call was made.
+
+**Dark gate (checked on 2026-10-13):**
+- `decide()` answers MiniMax/`rollout_off` on every surface for every kind of caller (30 probes), and the exposure checks fail closed (5 probes).
+- No new background task starts with default settings.
+- The MiniMax call frames are byte-identical to HEAD.
+- The capabilities golden for non-cohort callers is unchanged (I-47).
+- The SQL text of the rollout-off path is unchanged except for the hidden-V2-globals clause (I-49), which gives identical results until V2 globals are seeded at R3.
+
+**Verification:**
+
+| Check | Result |
+|---|---|
+| BFF full suite (minus the 6 `TestAuthProxyChain` failures already present at HEAD) | 14,247 passed, 0 failed |
+| SPA `pnpm test` | 3,994 passed, 0 failed |
+| SPA `pnpm build` and `pnpm typecheck:stories` | Both exit 0 |
+| Real-MySQL integration tests | Not run: they need an isolated MySQL 8, and the owner must allow it (§9) |
+
+**Status legend:**
+- **Built dark:** every locally doable clause is built and tested; the row goes live with the rollout flip.
+- **Built dark, pending external:** as above, but the row also needs a spike fact, a key, curation, legal copy, or an ops act such as a flag flip or a run on the replica.
+- **External:** owner, ops, legal or live-QA work.
+- **Time-gated:** the row may start only after an earlier phase has run in production, for example the R4 deletions after the key is revoked.
+- **Optional:** not started by design.
+
+**Totals (56 rows):** 9 built dark, 19 built dark pending external, 13 external, 13 time-gated, 2 optional.
+
+**Built dark (9):** R1-BE-03…09, R1-BE-12, R1-FE-04.
+
+**Built dark, pending external (19):**
+
+| Row | External step still needed |
+|---|---|
+| R1-BE-01 | Live S-7, S-10 and S-25 (R1-QA-01). If S-7 fails, the adapter falls back to one single-context socket per turn. `ELEVENLABS_KEY_CALLS`, published `call_eligible` voices, rollout `internal` (R1-OPS-01). |
+| R1-BE-02 | Live S-25 (drained billing) and S-9 (MP3 alignment). Q-19 is settled as I-51 and the drained-character score as I-52. |
+| R1-BE-10 | S-23 facts on the OPS key (history scope, filters, delete throughput, whether multi-context TTS creates history items). Then `VOICE_HISTORY_SWEEP_ENABLED=true` and 7 days within the SLO before R2. The harness is built (I-54). |
+| R1-BE-11 | The analytics response schema, the X-10 model weights, the S-1 key-hash mapping, the PAYG cap value, the OPS key, then `VOICE_RECONCILIATION_ENABLED=true`. |
+| R1-FE-01 | The "Works in calls" filter waits for R0-CUR-08 and S-15. The accent filter and the curated taxonomy labels wait for the 04 curation. Spanish localization review. |
+| R1-FE-02 | Per-model control behaviour (S-3), emotion on Standard (S-6) and v4/Expressive availability (S-2) arrive as capabilities data. |
+| R1-FE-03 | A server-side first-exposure dismissal has no endpoint (localStorage only, a proposal). The review flag's `ref_name` is not in the DTO. `VOICE_REVIEW_FLAGS_JOB_ENABLED`. |
+| R1-FE-05 | Counsel signs the `voice-v2` consent text (R1-LEG-01). It ships as `draft`. |
+| R1-FE-06 | Lab models need keys and the registry. `v4_turbo` stays hidden until S-2, and Library publishing waits for L-2. |
+| R1-DATA-01 | Coverage on the read replica after R0-CUR-05, then the review-flags job (drained restart), then the first run after rollout `internal`. |
+| R2-FE-01 | Final ToS (CN-2), dual-provider privacy copy, consent copy and Spanish legal review. Then the release act: flip `PRIVACY_VOICE_VARIANT`, mark the drafts final and bump the ToS version. |
+| R2-BE-01 | CN-7 phrase lists, a classifier graph with a published profile, crisis copy and per-country numbers, and the break-nudge interval. Then `VOICE_SELF_HARM_DETECTION_ENABLED`. The retention guard is deferred (I-48). |
+| R2-BE-02 | Q-17 (a verified-email fact), which is out of scope for this execution (owner, 2026-10-14). Also the contact-page copy, the review SLA and retention (CN-9), then `VOICE_MINOR_REPORTS_ENABLED`. |
+| R2-BE-03 | Q-13 (a country signal), which is out of scope for this execution (owner, 2026-10-14). Also the L-15/CN-8 list and mode, then `VOICE_GEO_BLOCK_MODE` (I-45). |
+| R3-BE-01 | The curated preset JSON, kept outside the repo, then `--apply` together with `rollout_mode=all`. |
+| R3-DATA-01 | The review-flags job and coverage after `rollout_mode=all`. |
+| R5-DATA-01, R5-DATA-02 | Production runs after R4 is done, in order: `--check` with 0 errors, then `--apply`. |
+| R5-BE-01 | Ops sets `VOICE_CONTRACT_PHASE=r5` after R5-DATA-02, with rollout `all`. Frozen snapshot PUTs follow the same-path rule at R5 (I-55). |
+
+**External (13):**
+
+| Rows | Owner and blocker |
+|---|---|
+| R1-QA-01 | Staging and production spike runs with the OPS, CALLS and ADMIN keys, plus a listening panel for S-15. Every scripted case, S-23 included, is ready. |
+| R1-OPS-01 | R0 exit first, then rollout `internal` with the allow-list, the PAYG cap at 1.5× the forecast, the daily budget and a 7-day watch. |
+| R1-LEG-01 | Counsel signs the 13 §5.8 consent text in en and es, and the dual-provider privacy text. The moderation provider name waits for Q-06. |
+| R2-QA-01, R2-LEG-01, R2-LEG-02, R2-OPS-01 | The R2 entry gate (§6.3): production-region QA, L-1/L-4/L-8 in writing, counsel sign-off, and the ops gate review. |
+| R2-OPS-02 | The canary steps 5 → 25 → 50 %, each step at least 3 days. Its code prerequisite, the R-23 exposure widening, is built (I-53). |
+| R2-DATA-01 | Coverage on the replica before each canary step. |
+| R2-OPS-03 | Owner and ops open the pricing talks from spend telemetry. |
+| R3-OPS-01, R3-OPS-02 | `rollout_mode=all` after a clean R2, then the 14-day watch at 100 %. |
+| R4-LEG-01 | A written legal answer before R4. |
+
+**Time-gated (13):** R4-OPS-01, R4-BE-01…03, R4-DATA-01, R4-DATA-02, R4-FE-01, R4-QA-01, R5-DATA-03…05, R5-FE-01 and R5-QA-01. The R4 deletions remove the MiniMax code that is still the rollback path, so they may start only after the key is revoked (R3 + 14 days). The R5 rows follow R5-DATA-02.
+
+**Optional, not started (2):** R1-OPT-01 (IVC: needs S-22, L-13 and the consent and biometric texts) and R1-OPT-02 (webhooks: needs public HTTPS ingress and S-12).
+
+**Open follow-ups (no row is blocked by them):**
+- **I-48:** the retention guard needs a design that leaves `graph_hash` unchanged, plus approved copy.
+- **I-51:** a stored mid-stream turn carries `usage: null` rather than the usage so far.
+- **Barge-in during persistence:** a barge-in that lands while the call audio asset is being persisted leaves that asset's transcript un-truncated.
+- **Group chats:** they get no "voice replaced" indicator, which is consistent with the 404 the refresh route answers (Q-18).
+
+---
+
+## 11. MiniMax voice purge (2026-10-14)
+
+The owner ordered the MiniMax voice integration purged now, with ElevenLabs serving everyone ([03 §5.16](03_target_architecture_and_decisions.md) I-68). What was built is recorded in I-69. Theme songs (`minimax_music_3` through fal.ai) and MiniMax as an LLM provider are out of scope. The database schema and data were out of scope for the purge; the owner then asked for them too (I-70, §12). Nothing is committed or deployed.
+
+**Verification on 2026-10-14** (offline: no network, `.env` never loaded):
+
+| Check | Result |
+|---|---|
+| BFF full suite, with `TestAuthProxyChain` (38 tests) left out because 6 of them failed before this work | 13,950 passed, 0 failed, 759 skipped: 756 need a MySQL socket, 2 are live auth tests, 1 is the frozen-schema test |
+| BFF `import src.main` (dotenv loader stubbed) | OK; OpenAPI regenerated (312 paths) |
+| SPA `pnpm test` | 393 files, 4,129 tests passed, 0 failed |
+| SPA `pnpm build` and `pnpm typecheck:stories` | Both exit 0 |
+| MiniMax grep gate (15 §6.2), strict, tracked and untracked files | Green in both repos; every remaining hit is on the allow-list in the gate test |
+| Unchanged files | `db.sql`, the 7 migrations, every theme-song file, `CLAUDE.md` and `AGENTS.md` are byte-identical to a snapshot taken before the purge |
+| BFF ↔ SPA contract | The SPA voice types match the regenerated OpenAPI. The capabilities body equals the SPA fixture. |
+
+**Rows after the purge:**
+
+| Rows | Status |
+|---|---|
+| R4-BE-01…03, R5-BE-01, R5-FE-01 | Done now in code (I-69), with no time gate |
+| R4-FE-01 | Done, except `CLAUDE.md` and `AGENTS.md`: they are not edited in this program, so their stale TTS lines stay for the owner |
+| R4-QA-01 | The strict grep gate is done. The rest of the row is the staging smoke after deploy. |
+| R1-OPS-01, R2-OPS-02, R2-DATA-01, R3-OPS-01, R3-OPS-02 | Waived: there is no cohort rollout |
+| R5-DATA-01, R5-DATA-02 | Done on the test database (§12) |
+| R4-OPS-01 | After the deploy (below): the code no longer reads the key; revoking it is account hygiene for the owner |
+| R4-DATA-01, R5-DATA-03…05 | Built as revision `2026_10_voice_contract` (03 I-70) and done on the test database (§12) |
+| R4-DATA-02 | Run on the test database; its apply is refused until the 14-day grace ends (§12) |
+| R5-QA-01 | Open: the §6 definition of done needs the deploy, the staging smoke and the rewrite |
+| R1-QA-01, R2-QA-01 | Still external: the staging spikes now come before the deploy, not before a rollout step |
+| R1-LEG-01, R2-LEG-01, R2-LEG-02, R4-LEG-01 | Still external, and now release blockers (below) |
+
+**Release blockers (before the deploy):**
+1. **Legal (R1-LEG-01).** The `voice-v2` consent copy and the `elevenlabsOnly` privacy variant are still drafts. The published privacy page still names MiniMax (`minimaxOnly`). Counsel signs, then the privacy variant is flipped. The legal gate test was not weakened.
+2. **Legal (R4-LEG-01).** Confirm that MiniMax-generated audio may be kept and played after the contract ends.
+3. **Production configuration.** Without the following, every surface is text-only, because there is no fallback:
+   - the ElevenLabs keys;
+   - `VOICE_LAST_RESORT_VOICE_KEY`;
+   - a published call profile;
+   - a synced catalog with published voices;
+   - the moderation classifier on, with its `moderation` LLM profile published (moderation fails closed).
+4. **Deploy order.** BFF, then SPA, in the same window.
+
+**After the deploy (ops):** R4-OPS-01: once production is verified, revoke the MiniMax key and remove the retired env names (startup logs a WARNING while they are set). Run `rewrite_voices --check`, then `--apply`. Run the staging smoke.
+
+**Open owner choices:**
+- **Q2.** A call start refused with `surface_not_configured`, `surface_unverified` or `lane_unavailable` answers `provider_unavailable` (retryable), while narration answers `voice_unavailable`. Decide whether calls should match.
+- **Preview with moderation off.** It answers 503 `moderation_unavailable`, retryable.
+- **D04.** The wording of the preview-probe step.
+- **Outside voice.** An assistant replace drops the cast `source_card_id`. This bug existed before this work.
+
+---
+
+## 12. Final cutover on the test database (2026-10-14)
+
+The owner asked for the final post-R5 state on the test host `192.168.1.90`, database `magic_worlds` (MySQL 8.1.0). It holds test data only, with no users, and the owner waived the backup. The owner also asked for a process that can be replicated. The process is the BFF runbook `docs/voice_final_cutover.md` (steps T0 to T8). The code it runs is described in [03 §5.16](03_target_architecture_and_decisions.md) I-70.
+
+**What ran** (2026-10-14 15:46–15:50 UTC, by Claude with the owner's permission):
+
+| Step | Result |
+|---|---|
+| T0 | The revision was `2026_10_workspace_r1`, with 78 tables. No backup (owner waiver). An API instance on `.90` held 8 idle pool connections; it was not stopped. |
+| T1 voice expand | Check, then preflight (`review_matches`), then apply: exit 0, revision `2026_10_voice_r0`, 29 steps. The seeds are 6 runtime settings, 3 preview limits and 6 daily quantities. |
+| T2 | V-1: 1 card body and 1 card version, both `English_radiant_girl`. 6 V1 global presets. 7 V1 snapshot references. |
+| T3 | Test fixtures in one transaction: 5 test catalog voices (placeholder provider ids), 14 defaults (C-5) and 4 approved mappings with 2 alternates each. |
+| T4 orphan sweep (R4-DATA-02) | Inspect and preflight: 1 `adventure_gone` asset, 3 `files_without_row` (3.7 MB). The apply was **refused** (exit 2, `legacy_speech_recent`: 2 jobs and 5 calls from MiniMax in the last 14 days, the last call on 2026-10-11 15:26). It passes from 2026-10-25 15:27 on the database clock. Nothing was deleted. |
+| T5 rewrite (R5-DATA-01/02) | The check passed (`c1_unmapped` 0, C-5 ok, no leaving targets or missing defaults). The preflight matched. The apply exited 0, run `3415a4df-2dc3-460e-9cae-068da9079411`, and rewrote L1 (1 row) and L5 (1 row). |
+| T6 contract | The check exited 0 with no stop reasons. The preflight matched. The apply exited 0 and took the revision to `2026_10_voice_contract`. It exported 3 audit rows, 0 fallback rows and 6 V1 global presets (sha256 manifest verified), deleted the 6 V1 globals (0 `voice_reference` rows) and ran the 7 DDL statements. |
+| T7 post-checks | 99 tables. `voice_legacy_fallback` and `voice_migration_audit` are gone. The `voice_preset` columns are as listed in the runbook. The defaults are `elevenlabs`, `elevenlabs_streaming`, 2 and `elevenlabs`. The check clause pins version 2, ElevenLabs and `voice_key`. No presets are left. V1 in card bodies, drafts and versions is 0, 0 and 0. A second contract check reports `phase: target`. |
+| T8 | The API's own startup check (`init_db_pool`, then `verify_mysql_schema`) passed on `2026_10_voice_contract`. The API was not started or deployed. |
+
+**Where the evidence is:** `~/.cache/magic-worlds/voice-final-20261014T154850Z/` on the operator machine, private. It holds the check, review and apply reports, the rewrite reports and the contract exports with their manifest.
+
+**Follow-ups for the owner:**
+- **Deploy this build to `.90`.** The instance running there is the old build. It does not start on the new revision, and its V1 preset reads fail against the dropped columns.
+- **Run the T4 sweep apply** after 2026-10-25 15:27. Use the same commands; inspect again, because the review is tied to the counts.
+- **Catalog.** The test catalog voices have placeholder provider ids. After the deploy, sync the real ElevenLabs catalog from the root console. Then set each test voice to `removed`, with a `replacement_voice_key` pointing at a real voice, and update the defaults.
+- **Global presets.** The deleted V1 globals leave a soft `preset_id` (for example `global-child-girl`) in the rewritten card. Seed V2 globals with `seed_global_presets.py` after the real sync: seeding needs `call_eligible` voices with Flash acceptance, and the test voices have neither.
+- **R5-QA-01 (§6)** closes once the deployed build passes the staging smoke.
 
 <!-- Short reference links used in the tables -->
 [README]: README.md

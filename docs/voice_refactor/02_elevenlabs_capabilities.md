@@ -32,7 +32,7 @@ Out of scope, each covered elsewhere:
 |---|---|
 | [README](README.md) | Index of the voice refactor document set |
 | [01 Current state](01_current_state.md) | The MiniMax baseline that §12 compares against |
-| [03 Target architecture and decisions](03_target_architecture_and_decisions.md) | **Source of truth.** Decisions D01–D38, canonical definitions §5, spikes S-1…S-29, legal items L-1…L-16 (there is no L-11) |
+| [03 Target architecture and decisions](03_target_architecture_and_decisions.md) | **Source of truth.** Decisions D01–D39, canonical definitions §5, spikes S-1…S-29, legal items L-1…L-16 (there is no L-11) |
 | [04 Voice catalog and library](04_voice_catalog_and_library.md) | Full treatment of the voice topics summarised in §6 |
 | [05 Voice Studio and admin console](05_voice_studio_and_admin_console.md) | How the per-model controls in §2.5 and the voice-creation APIs in §6 surface in the UI |
 | [06 Chat narration migration](06_chat_narration_migration.md) | Narration on TTS HTTP (§3, §4) |

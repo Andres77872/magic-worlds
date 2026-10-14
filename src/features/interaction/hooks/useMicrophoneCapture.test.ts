@@ -367,6 +367,43 @@ describe('useMicrophoneCapture — restarts, mute, tuning and level', () => {
         expect(onSegment.mock.calls[4][0].seq).toBe(1)
     })
 
+    it('stamps each segment with its end of speech: the closing speech_end minus its hang-over (R0-BE-37)', async () => {
+        const onSegment = vi.fn<(segment: CapturedVoiceSegment) => void>()
+        const onVadState = vi.fn()
+        await startCapture({ onSegment, onVadState })
+        const now = vi.spyOn(performance, 'now').mockReturnValue(8_000)
+        try {
+            // The worklet posts each segment, then the speech_end that closed it.
+            act(() => {
+                lastNode().emit(segmentMessage())
+                lastNode().emit({ type: 'vad', state: 'speech_end', at_ms: 1_200, rms: 0.01, ended_by_silence: true, silence_tail_ms: 552 })
+            })
+            await vi.waitFor(() => expect(onSegment).toHaveBeenCalledTimes(1))
+            expect(onSegment.mock.calls[0][0].speech_end_perf_ms).toBe(7_448)
+            expect(onVadState).toHaveBeenCalledWith('speech_end', expect.objectContaining({ rms: 0.01 }))
+
+            // A max-length cut: the user is still talking, so no end of speech.
+            act(() => {
+                lastNode().emit(segmentMessage([3, 4]))
+                lastNode().emit({ type: 'vad', state: 'speech_end', at_ms: 9_000, rms: 0.2, ended_by_silence: false, silence_tail_ms: 0 })
+            })
+            await vi.waitFor(() => expect(onSegment).toHaveBeenCalledTimes(2))
+            expect(onSegment.mock.calls[1][0].speech_end_perf_ms).toBeUndefined()
+            onSegment.mockClear()
+
+            // A speech_start never stamps anything.
+            now.mockReturnValue(9_000)
+            act(() => {
+                lastNode().emit({ type: 'vad', state: 'speech_start', at_ms: 2_000, rms: 0.2 })
+                lastNode().emit(segmentMessage([7, 8]))
+            })
+            await vi.waitFor(() => expect(onSegment).toHaveBeenCalledTimes(1))
+            expect(onSegment.mock.calls[0][0].speech_end_perf_ms).toBeUndefined()
+        } finally {
+            now.mockRestore()
+        }
+    })
+
     it('throttles onLevel to ~15 Hz and skips changes under 0.02', async () => {
         vi.useFakeTimers()
         const onLevel = vi.fn()

@@ -3,6 +3,7 @@ import { makeRequestId } from '@/utils/uuid'
 import { registerActiveVoiceCall } from '@/features/call/activeVoiceCall'
 import { voiceErrorCode } from '@/infrastructure/api/voiceSocket'
 import type {
+    VoiceAudioFormat,
     VoiceCallLimits,
     VoiceCallState,
     VoiceEndReason,
@@ -12,12 +13,17 @@ import type {
     VoiceSocketClientFrame,
     VoiceSocketServerFrame,
 } from '@/shared/types/voice.types'
+import type { EffectiveVoice, VoiceSubstitutionReason } from '@/shared/types/voiceCatalog.types'
+import { isSubstitutionReason, readEffectiveVoice } from '@/shared/voice/effectiveVoice'
 import { VoicePlaybackBuffer, type VoicePlaybackState } from '../audio/voicePlaybackBuffer'
+import { DEFAULT_CALL_AUDIO_FORMAT, isPlayableCallChunk } from '../audio/audioFormat'
 import type { CapturedVoiceSegment } from '../audio/voiceVadWorklet'
+import { segmentUploadVad } from '../audio/speechEndLag'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { type MicrophoneCaptureApi, type MicrophoneCaptureStatus, type VoiceVadTuning, useMicrophoneCapture } from './useMicrophoneCapture'
 import { type VoiceCallSocketApi, useVoiceCallSocket } from './useVoiceCallSocket'
 import { useSessionWorkspace } from './useSessionWorkspace'
+import { useAttestation } from '@/features/legal/attestation/attestationContext'
 import type { VoiceSocketStatus } from '@/infrastructure/api'
 
 type VoiceStartFrame = Extract<VoiceSocketClientFrame, { type: 'voice_start' }>
@@ -85,6 +91,18 @@ export interface VoiceCallControllerApi {
     autoplayBlocked: boolean
     /** Echo cancellation is off, so auto barge-in is disabled (speakers would trigger it). */
     echoCancellationOff: boolean
+    /** WS-S1: the announced assistant audio (mp3 44.1 kHz when `voice_ready.audio` is missing). */
+    audioFormat: VoiceAudioFormat | null
+    /** WS-S1: the voice the call speaks with. */
+    effectiveVoice: EffectiveVoice | null
+    /** WS-S1: the card voice's name when it was replaced, else null. */
+    originalVoiceName: string | null
+    /** WS-S2: the substitution reason the reply chunks carry, else null. */
+    substitutionReason: VoiceSubstitutionReason | null
+    /** R1-BE-04: the substitute a mid-call swap speaks with (`voice_audio_chunk.voice_name`), else null. */
+    replacedVoiceName: string | null
+    /** The current reply's audio could not be played (unsupported format): it shows as text. */
+    audioUnsupported: boolean
     startCall: () => Promise<boolean>
     endCall: () => Promise<void>
     bargeIn: () => boolean
@@ -117,6 +135,8 @@ const DEFAULT_MIN_SPEECH_MS = 250
 const BARGE_IN_SETTLE_MS = 2_000
 /** Non-fatal notices clear themselves after this long. */
 const NOTICE_TTL_MS = 8_000
+/** WS-C2 playback progress cadence while a reply plays (R-22). */
+const PLAYBACK_PROGRESS_MS = 500
 /** Spacing between queued pre-ready uploads so they reach the server in order. */
 const QUEUED_UPLOAD_SPACING_MS = 120
 /** Pause before the one resend of an upload that failed at the network level. */
@@ -136,6 +156,13 @@ const TERMINAL_ERROR_CATEGORIES = new Set<VoiceErrorCategory>([
     'auth',
     'not_found',
 ])
+
+/**
+ * `voice_error{code:'attestation_required'}` (D26): the call start is the socket
+ * handshake, so no 428 is possible. Terminal by code whatever the category; the
+ * attestation prompt opens and the user starts the call again (09 §2.2, §4.6).
+ */
+const ATTESTATION_REQUIRED_CODE = 'attestation_required'
 
 /** Rejection reasons that just mean "nothing intelligible was said" — never shown. */
 const SILENT_REJECTIONS = new Set(['no_speech', 'too_short'])
@@ -213,6 +240,10 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     const callWorkspace = useSessionWorkspace(options.workspaceId)
     const apiRef = useRef(callWorkspace.api)
     const workspaceIdRef = useRef(callWorkspace.workspaceId)
+    // D26: null outside the attestation provider (isolated renders and tests).
+    const attestation = useAttestation()
+    const attestationRef = useRef(attestation)
+    useEffect(() => { attestationRef.current = attestation }, [attestation])
     useEffect(() => {
         apiRef.current = callWorkspace.api
         workspaceIdRef.current = callWorkspace.workspaceId
@@ -247,6 +278,17 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     const [inputLevel, setInputLevel] = useState(0)
     const lastLevelRef = useRef({ value: 0, at: 0 })
     const [autoplayBlocked, setAutoplayBlocked] = useState(false)
+    // R1 call audio (WS-S1/S2): set from `voice_ready`.
+    const [audioFormat, setAudioFormat] = useState<VoiceAudioFormat | null>(null)
+    const [effectiveVoice, setEffectiveVoice] = useState<EffectiveVoice | null>(null)
+    const [originalVoiceName, setOriginalVoiceName] = useState<string | null>(null)
+    const [substitutionReason, setSubstitutionReason] = useState<VoiceSubstitutionReason | null>(null)
+    const [replacedVoiceName, setReplacedVoiceName] = useState<string | null>(null)
+    const [audioUnsupported, setAudioUnsupported] = useState(false)
+    const unsupportedTurnRef = useRef<string | null>(null)
+    /** The turn whose reply text `assistantText` shows (captions are cut to `kept_chars` on truncation). */
+    const captionTurnIdRef = useRef<string | null>(null)
+    const playbackProgressRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
     const clientCallIdRef = useRef(options.clientCallId ?? createClientCallId())
     const voiceSessionIdRef = useRef<string | null>(null)
@@ -426,7 +468,24 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         updateUploadQueueDepth()
     }, [updateUploadQueueDepth])
 
+    const stopPlaybackProgress = useCallback(() => {
+        if (playbackProgressRef.current) {
+            clearInterval(playbackProgressRef.current)
+            playbackProgressRef.current = null
+        }
+    }, [])
+
+    /** WS-C2: while a reply plays, report how much of it played every 500 ms. */
+    const startPlaybackProgress = useCallback((turnId: string) => {
+        stopPlaybackProgress()
+        playbackProgressRef.current = setInterval(() => {
+            const played = playbackRef.current?.playedMs?.(turnId)
+            if (typeof played === 'number') socketRef.current?.playback?.(turnId, played)
+        }, PLAYBACK_PROGRESS_MS)
+    }, [stopPlaybackProgress])
+
     const stopLocalResources = useCallback((stopOptions?: { closeSocket?: boolean; cancelPlayback?: boolean }) => {
+        stopPlaybackProgress()
         captureRef.current?.stop()
         abortUploads()
         if (stopOptions?.cancelPlayback !== false) playbackRef.current?.cancel({
@@ -443,7 +502,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         userSpeakingRef.current = false
         reconnectingRef.current = false
         turnPhaseRef.current = 'none'
-    }, [abortUploads, clearBargeIn, clearCallTimer, clearReadyTimeout, releaseWakeLock])
+    }, [abortUploads, clearBargeIn, clearCallTimer, clearReadyTimeout, releaseWakeLock, stopPlaybackProgress])
 
     const mapError = useCallback((unknownError: unknown, fallback: VoiceCallControllerError): VoiceCallControllerError => {
         if (typeof unknownError !== 'object' || unknownError === null) return fallback
@@ -510,25 +569,28 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             sample_rate: segment.sample_rate,
             channels: segment.channels,
             audio_sha256: segment.audio_sha256,
-            vad: segment.vad,
+            // Measured at the first send; the one network resend below reuses this body.
+            vad: segmentUploadVad(segment, { sentAtMs: performance.now() }),
             audio: segment.audio,
         }
 
         try {
             const api = apiRef.current
             if (!api) throw new Error('Voice call workspace is unavailable.')
-            let response: VoiceSegmentUploadResponse
-            try {
-                response = await api.uploadVoiceSegment(currentSessionId, body, { signal: controller.signal })
-            } catch (networkError) {
-                // fetch rejects with a TypeError when no response arrived (a dropped or
-                // stale connection). One resend is safe: the Idempotency-Key makes a
-                // segment the server already has a `duplicate`, never a second turn.
-                if (!(networkError instanceof TypeError) || controller.signal.aborted) throw networkError
-                await delay(UPLOAD_RETRY_DELAY_MS)
-                if (controller.signal.aborted || lifecycleRef.current !== 'live') throw networkError
-                response = await api.uploadVoiceSegment(currentSessionId, body, { signal: controller.signal })
+            const send = async (request: VoiceSegmentUploadRequest): Promise<VoiceSegmentUploadResponse> => {
+                try {
+                    return await api.uploadVoiceSegment(currentSessionId, request, { signal: controller.signal })
+                } catch (networkError) {
+                    // fetch rejects with a TypeError when no response arrived (a dropped or
+                    // stale connection). One resend is safe: the Idempotency-Key makes a
+                    // segment the server already has a `duplicate`, never a second turn.
+                    if (!(networkError instanceof TypeError) || controller.signal.aborted) throw networkError
+                    await delay(UPLOAD_RETRY_DELAY_MS)
+                    if (controller.signal.aborted || lifecycleRef.current !== 'live') throw networkError
+                    return api.uploadVoiceSegment(currentSessionId, request, { signal: controller.signal })
+                }
             }
+            const response = await send(body)
             // `cancelled` means a newer utterance superseded this one (its words
             // were merged into that turn); `accepted`/`duplicate` turns are driven
             // by socket frames. Only rejections need handling here.
@@ -565,6 +627,16 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     const sendBargeIn = useCallback((): boolean => {
         const currentVoiceSessionId = voiceSessionIdRef.current
         if (!currentVoiceSessionId) return false
+        // WS-C1: name the interrupted turn and how much of it played, read before the
+        // cancel resets the player. With no turn playing the frame is the bare one.
+        const interruptedTurnId = activeTurnIdRef.current
+        const frame: Extract<VoiceSocketClientFrame, { type: 'voice_barge_in' }> = { type: 'voice_barge_in', reason: 'barge_in' }
+        if (interruptedTurnId) {
+            frame.turn_id = interruptedTurnId
+            const played = playbackRef.current?.playedMs?.(interruptedTurnId)
+            if (typeof played === 'number' && Number.isFinite(played) && played >= 0) frame.played_ms = Math.round(played)
+        }
+        stopPlaybackProgress()
         playbackRef.current?.cancel({ voice_session_id: currentVoiceSessionId, turn_id: activeTurnIdRef.current ?? undefined })
         activeTurnIdRef.current = null
         if (mountedRef.current) setActiveTurnId(null)
@@ -576,8 +648,8 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             bargingInRef.current = false
             recompute()
         }, BARGE_IN_SETTLE_MS)
-        return socketRef.current?.bargeIn({ type: 'voice_barge_in', reason: 'barge_in' }) ?? false
-    }, [recompute])
+        return socketRef.current?.bargeIn(frame) ?? false
+    }, [recompute, stopPlaybackProgress])
 
     /** Interrupt the character when the user talks over audible playback. */
     const maybeAutoBargeIn = useCallback(() => {
@@ -600,6 +672,11 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         if (playbackState.status === 'playing') audibleTurnIdRef.current = playbackState.turnId
         else if (playbackState.status === 'idle') audibleTurnIdRef.current = null
         if (mountedRef.current) setAutoplayBlocked(playbackState.status === 'blocked')
+        if (playbackState.status === 'playing' && playbackState.turnId) {
+            if (previous !== 'playing' || !playbackProgressRef.current) startPlaybackProgress(playbackState.turnId)
+        } else if (playbackState.status !== 'playing') {
+            stopPlaybackProgress()
+        }
         if (playbackState.status === 'playing' && previous !== 'playing') {
             firstPlaybackAtRef.current ??= Date.now()
             captureRef.current?.configure({ minSpeechMs: Math.max(BARGE_IN_MIN_SPEECH_MS, optionsRef.current.vad?.minSpeechMs ?? 0) })
@@ -613,7 +690,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             }
         }
         recompute()
-    }, [maybeAutoBargeIn, recompute])
+    }, [maybeAutoBargeIn, recompute, startPlaybackProgress, stopPlaybackProgress])
 
     useEffect(() => playbackRef.current?.addStateListener(handlePlaybackState), [handlePlaybackState])
 
@@ -623,6 +700,18 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         setVoiceSessionId(frame.voice_session_id)
         setLimits(frame.limits)
         applySegmentLimit(frame.limits)
+        // WS-S1: every call announces its audio; a frame without it (an older BFF build)
+        // plays the default mp3 44.1 kHz format.
+        const announced = frame.audio && typeof frame.audio === 'object' ? frame.audio : DEFAULT_CALL_AUDIO_FORMAT
+        playbackRef.current?.setAudioFormat?.(announced)
+        setAudioFormat(announced)
+        setEffectiveVoice(readEffectiveVoice(frame.effective_voice))
+        setOriginalVoiceName(typeof frame.original_voice_name === 'string' && frame.original_voice_name.trim() ? frame.original_voice_name.trim() : null)
+        // A new call (e.g. "Call again" on the same screen) starts with no chunk reason and no notice.
+        setSubstitutionReason(null)
+        setReplacedVoiceName(null)
+        unsupportedTurnRef.current = null
+        setAudioUnsupported(false)
         handledRejectionsRef.current.clear()
         startCallTimer()
         setLifecycle('live')
@@ -674,11 +763,31 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         activeTurnIdRef.current = frame.turn_id
         setActiveTurnId(frame.turn_id)
         setAssistantText('')
+        captionTurnIdRef.current = frame.turn_id
+        if (unsupportedTurnRef.current !== null) {
+            unsupportedTurnRef.current = null
+            setAudioUnsupported(false)
+        }
         playbackRef.current?.startTurn(frame.voice_session_id, frame.turn_id)
         setTurnPhase('thinking')
     }, [setTurnPhase])
 
     const handleAudioChunk = useCallback((frame: VoiceAudioChunkFrame) => {
+        // Every chunk carries the key (WS-S2): an explicit null (or a missing key) clears an earlier reason.
+        const reason = isSubstitutionReason(frame.substitution_reason) ? frame.substitution_reason : null
+        setSubstitutionReason((current) => (current === reason ? current : reason))
+        // R1-BE-04: only the chunks after a mid-call swap name the substitute; read raw (not in the shared frame type).
+        const rawName = (frame as { voice_name?: unknown }).voice_name
+        const voiceName = typeof rawName === 'string' && rawName.trim() ? rawName.trim() : null
+        setReplacedVoiceName((current) => (current === voiceName ? current : voiceName))
+        // A chunk the player cannot decode is dropped (by the buffer too): the reply stays as text.
+        if (!isPlayableCallChunk(frame)) {
+            if (unsupportedTurnRef.current !== frame.turn_id) {
+                unsupportedTurnRef.current = frame.turn_id
+                setAudioUnsupported(true)
+            }
+            return
+        }
         // Chunks of a turn the user already interrupted are dropped by the buffer;
         // they must not resurrect the "speaking" state (or a second barge-in).
         if (!playbackRef.current?.appendChunk(frame)) return
@@ -693,7 +802,18 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         playbackRef.current?.finalize(frame)
     }, [])
 
+    /** WS-S3/S4: the server cut the reply where playback stopped; the captions follow (code points, as the BFF counts). */
+    const truncateCaption = useCallback((turnId: string | undefined, truncated: boolean | undefined, keptChars: number | undefined) => {
+        if (truncated !== true || !turnId || turnId !== captionTurnIdRef.current) return
+        if (typeof keptChars !== 'number' || !Number.isInteger(keptChars) || keptChars < 0) return
+        setAssistantText((current) => {
+            const points = Array.from(current)
+            return points.length > keptChars ? points.slice(0, keptChars).join('') : current
+        })
+    }, [])
+
     const handleTurnEnd = useCallback((frame: VoiceTurnEndFrame) => {
+        truncateCaption(frame.turn_id, frame.truncated, frame.kept_chars)
         // The end of a turn that was already superseded must not settle the new one.
         if (serverTurnIdRef.current !== null && frame.turn_id !== serverTurnIdRef.current) return
         serverTurnActiveRef.current = false
@@ -703,9 +823,10 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             setNoticeUnlessShowing({ category: 'internal', code: 'VOICE_TURN_FAILED', message: 'Voice turn failed.', fatal: false })
         }
         settleTurnPhase()
-    }, [clearBargeIn, setNoticeUnlessShowing, settleTurnPhase])
+    }, [clearBargeIn, setNoticeUnlessShowing, settleTurnPhase, truncateCaption])
 
     const handleCancelled = useCallback((frame: VoiceCancelledFrame) => {
+        truncateCaption(frame.turn_id, frame.truncated, frame.kept_chars)
         playbackRef.current?.cancel(frame)
         if (!frame.turn_id || frame.turn_id === activeTurnIdRef.current) {
             activeTurnIdRef.current = null
@@ -720,7 +841,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         clearBargeIn()
         settleTurnPhase()
         recompute()
-    }, [clearBargeIn, recompute, settleTurnPhase])
+    }, [clearBargeIn, recompute, settleTurnPhase, truncateCaption])
 
     const handleSocketError = useCallback((frame: VoiceErrorFrame) => {
         const nextError: VoiceCallControllerError = {
@@ -728,9 +849,11 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             code: frame.code || voiceErrorCode(frame.category),
             message: frame.message,
             retryAfterSeconds: frame.retry_after_seconds,
-            fatal: frame.fatal === true || TERMINAL_ERROR_CATEGORIES.has(frame.category),
+            fatal: frame.fatal === true || TERMINAL_ERROR_CATEGORIES.has(frame.category) || frame.code === ATTESTATION_REQUIRED_CODE,
         }
         setControllerError(nextError)
+        // No retry: the call ends, and the user restarts it after attesting.
+        if (frame.code === ATTESTATION_REQUIRED_CODE) void attestationRef.current?.requestAttestation()
         if (nextError.fatal) {
             stopLocalResources({ closeSocket: true })
             setLifecycle('error')
@@ -889,7 +1012,10 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
                 sessionIdRef.current = currentSessionId
                 setCreatedSessionId(currentSessionId)
             }
-            const consent = await api.saveVoiceConsent(currentSessionId)
+            // A 428 (D26) opens the attestation prompt and retries the consent once.
+            const consentSessionId = currentSessionId
+            const saveConsent = () => api.saveVoiceConsent(consentSessionId)
+            const consent = await (attestationRef.current?.withAttestation(saveConsent) ?? saveConsent())
             if (!mountedRef.current || lifecycleRef.current !== 'requesting_permission') { stopLocalResources({ closeSocket: true }); return false }
             setLimits(consent.limits)
             applySegmentLimit(consent.limits)
@@ -1068,6 +1194,12 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         inputLevel,
         autoplayBlocked,
         echoCancellationOff,
+        audioFormat,
+        effectiveVoice,
+        originalVoiceName,
+        substitutionReason,
+        replacedVoiceName,
+        audioUnsupported,
         startCall,
         endCall,
         bargeIn,

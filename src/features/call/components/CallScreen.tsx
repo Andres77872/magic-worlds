@@ -13,20 +13,34 @@
  */
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Headphones, Loader2, MessageSquareText, Mic, MicOff, Phone, PhoneOff, Volume2, Waves, X } from 'lucide-react'
-import { useAuth } from '@/app/hooks'
+import { AlertTriangle, Bot, Headphones, Loader2, MessageSquareText, Mic, MicOff, Phone, PhoneOff, Volume2, Waves, X } from 'lucide-react'
+import { useAuth, useData } from '@/app/hooks'
+import { apiService } from '@/infrastructure/api'
 import type { Character } from '@/shared'
 import type { VoiceCallState, VoiceEndReason } from '@/shared/types/voice.types'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
-import { Avatar, Button, GlowBackdrop, Icon, IconButton, cx } from '@/ui/primitives'
+import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
+import { Avatar, Badge, Button, GlowBackdrop, Icon, IconButton, cx } from '@/ui/primitives'
 import { useVoiceCallController, type VoiceCallControllerError } from '@/features/interaction/hooks/useVoiceCallController'
+import { useVoiceAvailability } from '@/features/interaction/hooks/useVoiceAvailability'
+import { useVoiceCapabilitiesSnapshot } from '@/features/interaction/hooks/useVoiceCapabilitiesSnapshot'
+import { BreakNudge, CrisisResourcesPanel } from '@/features/safety'
+import { readSafeguards } from '@/shared/voice/voiceCapabilities'
+import { stripSpeechMarkupV1 } from '@/shared/voice/speechMarkup'
 import { VoiceConsentModal } from '@/features/interaction/components/VoiceConsentModal'
+import { useSessionWorkspace } from '@/features/interaction/hooks/useSessionWorkspace'
+import { useVoiceRefresh } from '@/features/interaction/hooks/useVoiceRefresh'
+import { callVoiceNote, type CallVoiceNote as CallVoiceNoteValue } from '../callVoiceNote'
+import { CallVoiceNote } from './CallVoiceNote'
 import {
     ACTIVE_CALL_STATES,
+    CALLS_UNAVAILABLE_CODE,
     callStateLabel,
     callErrorCopy,
     endReasonCopy,
     formatElapsed,
+    isTerminalVoiceCallError,
+    isWorkspaceCallError,
 } from '@/features/interaction/voiceCallLabels'
 import { CallWaveform } from './CallWaveform'
 import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
@@ -65,10 +79,52 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
 
     const name = character?.name?.trim() || t('call.screen.fallbackName')
 
+    // 09 §7: the server reports calls switched off for this account (`capabilities.status`,
+    // fail open).
+    const availability = useVoiceAvailability(apiService, voiceEnabled && isAuthenticated)
+
+    // Consent copy (D25): always the voice-v2 copy, the version the BFF records and
+    // requires (I-68), so the consent needs no version read and is never pending.
+    // A `consent_stale` refusal (a stored older consent) reopens the consent in its review state.
+    // Adjusted during render (no effect): each new refusal opens the consent once.
+    const consentStaleError = controller.error?.category === 'consent_stale' ? controller.error : null
+    const [seenConsentStale, setSeenConsentStale] = useState<typeof consentStaleError>(null)
+    if (consentStaleError !== seenConsentStale) {
+        setSeenConsentStale(consentStaleError)
+        if (consentStaleError) setConsentOpen(true)
+    }
+
+    // R1-FE-05 voice note: a call voice or a replaced voice.
+    const voiceNote = callVoiceNote(controller.effectiveVoice, controller.originalVoiceName, controller.substitutionReason, controller.replacedVoiceName)
+    const { api: sessionApi } = useSessionWorkspace(workspaceId)
+    const { refreshCharacterChatVoice } = useData()
+
+    // Workspace R1: a chat in an archived workspace cannot take a call. Say so
+    // before the socket opens instead of waiting for the server's refusal; a
+    // call already running is left alone.
+    const readOnly = useWorkspaceReadOnly(workspaceId)
+    const idle = !ACTIVE_CALL_STATES.has(controller.state) && controller.state !== 'ending'
+    // 09 §7: calls switched off for this account. Say so before the socket opens; a call
+    // already running continues.
+    const callsAvailable = availability.calls_available
+    // Companion safeguards (EP-11): every capabilities read carries them; all off on a failed read.
+    const voiceCapabilities = useVoiceCapabilitiesSnapshot(apiService, voiceEnabled && isAuthenticated)
+    const startBlocked: VoiceCallControllerError | null = readOnly && idle
+        ? { category: 'conflict', code: 'WORKSPACE_ARCHIVED', message: 'This workspace is archived.', fatal: true }
+        : !callsAvailable && idle
+          ? { category: 'disabled', code: CALLS_UNAVAILABLE_CODE, message: 'Voice calls are unavailable.', fatal: true }
+          : null
+    // "Use the card's current voice" on the end panel: a replaced voice, a writable chat.
+    // Goes through the data layer (on the chat's workspace client) so the stored chat
+    // and its effective voice are current when the user goes back to text.
+    const refreshVoice = voiceNote?.kind === 'replaced' && !readOnly && sessionApi && Number.isInteger(sessionId) && sessionId > 0
+        ? () => refreshCharacterChatVoice(String(sessionId), sessionApi)
+        : undefined
+
     // Runs from the click itself: startCall unlocks audio playback synchronously
     // before its first await (iOS only allows that inside a user gesture).
     const acceptConsent = async () => {
-        if (isAccepting) return
+        if (isAccepting || startBlocked) return
         setIsAccepting(true)
         try {
             const started = await controller.startCall()
@@ -88,18 +144,18 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
             profileControl={<LlmFeatureControl feature="callbot" />}
             name={name}
             imageUrl={character?.image_url ?? null}
-            state={controller.state}
+            state={startBlocked ? 'error' : controller.state}
             isMuted={controller.isMuted}
             elapsedSeconds={controller.elapsedSeconds}
             remainingSeconds={controller.remainingSeconds}
             inputLevel={controller.inputLevel}
             transcript={controller.transcript}
             assistantText={controller.assistantText}
-            error={controller.error}
+            error={startBlocked ?? controller.error}
             endReason={controller.endReason}
             autoplayBlocked={controller.autoplayBlocked}
             echoCancellationOff={controller.echoCancellationOff}
-            consentOpen={consentOpen}
+            consentOpen={consentOpen && !startBlocked}
             isAccepting={isAccepting}
             onAcceptConsent={acceptConsent}
             onCallAgain={acceptConsent}
@@ -114,6 +170,10 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
             onBargeIn={() => controller.bargeIn()}
             onEnd={leave}
             onSwitchToText={leave}
+            breakNudgeMinutes={readSafeguards(voiceCapabilities).break_nudge_minutes}
+            voiceNote={voiceNote}
+            onRefreshVoice={refreshVoice}
+            audioUnsupported={controller.audioUnsupported}
         />
     )
 }
@@ -150,6 +210,14 @@ export interface CallScreenViewProps {
     onBargeIn: () => void
     onEnd: () => void
     onSwitchToText: () => void
+    /** Companion break reminder interval (`readSafeguards(capabilities).break_nudge_minutes`); null: never. */
+    breakNudgeMinutes?: number | null
+    /** R1: the call speaks with a call voice or a replaced voice. */
+    voiceNote?: CallVoiceNoteValue | null
+    /** R1: refresh the chat's voice from the card (offered on the end panel for a replaced voice). */
+    onRefreshVoice?: () => Promise<unknown>
+    /** R1: the current reply's audio could not play; it shows as text. */
+    audioUnsupported?: boolean
 }
 
 export function CallScreenView({
@@ -179,6 +247,10 @@ export function CallScreenView({
     onBargeIn,
     onEnd,
     onSwitchToText,
+    breakNudgeMinutes = null,
+    voiceNote = null,
+    onRefreshVoice,
+    audioUnsupported = false,
 }: CallScreenViewProps) {
     const { t } = useTranslation()
     const isActive = ACTIVE_CALL_STATES.has(state)
@@ -190,8 +262,12 @@ export function CallScreenView({
     const isOver = !consentOpen && (state === 'ended' || state === 'error')
     const visibleError = callErrorCopy(t, error, state)
     const endCopy = state === 'ended' ? endReasonCopy(t, endReason) : visibleError
-    // Workspace R1: an archived, removed or stale workspace cannot take a redial.
-    const canRedial = !(state === 'error' && error?.code?.startsWith('WORKSPACE_'))
+    // Workspace R1: an archived, removed or stale workspace (or a chat no longer in it) cannot take a redial;
+    // nor can a call start the server reports switched off (09 §7). A safety pause or region block
+    // (ended or errored) and a voice_restricted end are not lifted by redialing (R1/R2 only, never on R0).
+    const canRedial = !(state === 'error' && (isWorkspaceCallError(error?.code) || error?.code === CALLS_UNAVAILABLE_CODE))
+        && !isTerminalVoiceCallError(error?.code)
+        && endReason !== 'voice_restricted'
     const showTimeLeft = isActive && remainingSeconds !== null && remainingSeconds <= 60
 
     const avatarRing = isAssistant ? 'arcane' : 'ember'
@@ -206,6 +282,8 @@ export function CallScreenView({
 
     const waveTone = isAssistant ? 'arcane' : isUserTurn ? 'ember' : 'idle'
     const statusLabel = consentOpen && !isActive ? t('call.screen.calling', { name }) : callStateLabel(t, state)
+    // R1-FE-05: captions never show speech markup (`<#0.5#>`, `(laughs)`); they may end mid-token while the reply streams.
+    const captionText = assistantText ? stripSpeechMarkupV1(assistantText, { partial: true }) : assistantText
 
     return (
         <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-ink-900 text-parchment-50" data-testid="call-screen">
@@ -240,6 +318,11 @@ export function CallScreenView({
 
                 <div className="flex flex-col items-center gap-1">
                     <h1 className="font-display text-h2 font-semibold leading-tight text-parchment-50">{name}</h1>
+                    {/* D26 item 7: the call header always says the voice is AI-generated. */}
+                    <Badge tone="arcane" icon={<Icon icon={Bot} size={12} />} data-testid="call-ai-voice">
+                        {t('call.screen.aiVoice')}
+                    </Badge>
+                    {voiceNote && <CallVoiceNote note={voiceNote} />}
                     <p className={cx('font-ui text-sm font-semibold tracking-wide', isAssistant ? 'text-arcane-300' : isUserTurn ? 'text-ember-300' : 'text-parchment-300')}>
                         {isConnecting && <Icon icon={Loader2} size={13} className="mr-1 inline animate-spin" />}
                         {isSpeaking && <Icon icon={Volume2} size={13} className="mr-1 inline" />}
@@ -251,9 +334,9 @@ export function CallScreenView({
 
                 {/* Live captions */}
                 <div className="flex min-h-[3.5rem] w-full max-w-[560px] flex-col gap-2 text-[15px] leading-relaxed">
-                    {assistantText && (
+                    {captionText && (
                         <p className="border-l-2 border-arcane-500/40 py-2 pl-4 text-left text-parchment-100">
-                            <span className="font-semibold text-arcane-300">{name}:</span> {assistantText}
+                            <span className="font-semibold text-arcane-300">{name}:</span> {captionText}
                         </p>
                     )}
                     {transcript && (
@@ -262,6 +345,12 @@ export function CallScreenView({
                         </p>
                     )}
                 </div>
+
+                {audioUnsupported && isActive && (
+                    <p role="status" className="max-w-[560px] text-caption text-parchment-300" data-testid="call-audio-unsupported">
+                        {t('voices.call.audioUnsupported')}
+                    </p>
+                )}
 
                 {echoCancellationOff && isActive && (
                     <p className="flex max-w-[560px] items-start gap-2 rounded-lg border border-ember-500/30 bg-ember-500/10 px-3 py-1.5 text-left text-caption text-ember-200">
@@ -297,6 +386,17 @@ export function CallScreenView({
                 </div>
             )}
 
+            {/* R2-BE-01 (ER-H1): a self-harm safety pause ended the call; only approved generic lines show. */}
+            {error?.code === 'voice_safety_pause' && (
+                <div className="relative z-10 flex shrink-0 justify-center px-6 pt-2" data-testid="call-safety-pause">
+                    <CrisisResourcesPanel
+                        retryAfterSeconds={error.retryAfterSeconds ?? null}
+                        className="flex w-full min-w-0 max-w-[560px] flex-col gap-1 rounded-lg border border-parchment-50/10 bg-ink-800/80 px-3 py-2 text-left"
+                    />
+                </div>
+            )}
+            <BreakNudge minutes={breakNudgeMinutes} active={isActive} className="relative z-10 mx-auto mt-2 w-[calc(100%-3rem)] max-w-[560px] shrink-0" />
+
             {/* Bottom: the end-of-call panel replaces the controls, so its actions never scroll away */}
             {isOver ? (
                 <div className="relative z-10 flex shrink-0 justify-center px-6 pb-3 pt-3">
@@ -304,6 +404,10 @@ export function CallScreenView({
                         <p className="font-display text-h3 font-semibold text-parchment-50">{t('call.screen.endedTitle')}</p>
                         {endCopy && <p className="text-sm text-parchment-200">{endCopy}</p>}
                         {state === 'error' && error?.code && <p className="break-all font-mono text-caption text-parchment-400">{error.code}</p>}
+                        {voiceNote?.kind === 'replaced' && onRefreshVoice && <CallVoiceRefresh onRefresh={onRefreshVoice} />}
+                        {voiceNote?.kind === 'call_voice' && (
+                            <p className="text-sm text-parchment-300" data-testid="call-pick-call-ready">{t('voices.call.pickCallReady')}</p>
+                        )}
                         <div className="flex flex-wrap items-center justify-center gap-2">
                             {onCallAgain && canRedial && (
                                 <Button variant="primary" size="sm" iconLeft={<Icon icon={Phone} size={15} />} onClick={onCallAgain} disabled={isAccepting}>
@@ -343,6 +447,28 @@ export function CallScreenView({
                 onAccept={onAcceptConsent}
                 onDecline={onDeclineConsent}
             />
+        </div>
+    )
+}
+
+/** End-panel "Use the card’s current voice": the new voice applies from the next call. */
+function CallVoiceRefresh({ onRefresh }: { onRefresh: () => Promise<unknown> }) {
+    const { t } = useTranslation()
+    const refresh = useVoiceRefresh()
+    const message = refresh.status === 'done' ? t('voices.refresh.appliesNextCall') : refresh.message
+    return (
+        <div className="flex flex-col items-center gap-1.5" data-testid="call-voice-refresh">
+            <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void refresh.run(onRefresh)}
+                disabled={refresh.status === 'busy' || refresh.status === 'done'}
+            >
+                {t('voices.refresh.action')}
+            </Button>
+            <p aria-live="polite" className={cx('text-caption', refresh.status === 'error' ? 'text-blood-300' : 'text-parchment-300')}>
+                {message ?? t('voices.refresh.appliesNextCall')}
+            </p>
         </div>
     )
 }

@@ -1,5 +1,7 @@
-import type { VoiceSocketServerFrame } from '@/shared/types/voice.types'
+import type { VoiceAudioFormat, VoiceSocketServerFrame } from '@/shared/types/voice.types'
+import { clipGainDb, clipVolume } from '@/shared/voice/clipVolume'
 import { claimAudioFocus, releaseAudioFocus } from '@/ui/components/audio'
+import { chooseCallAudioSink, isPlayableCallChunk, type CallAudioSink } from './audioFormat'
 
 type VoiceAudioChunkFrame = Extract<VoiceSocketServerFrame, { type: 'voice_audio_chunk' }>
 type VoiceAudioFinalFrame = Extract<VoiceSocketServerFrame, { type: 'voice_audio_final' }>
@@ -24,6 +26,11 @@ export interface VoicePlaybackBufferOptions {
     audio?: HTMLAudioElement
     autoPlay?: boolean
     onStateChange?: VoicePlaybackStateListener
+    /**
+     * A chunk of this turn is not audio the player can decode (R1-FE-05): it is
+     * dropped and the reply stays as text. Called once per turn.
+     */
+    onUnsupportedFormat?: (turnId: string, voiceSessionId: string) => void
 }
 
 type PlaybackMode = 'media_source' | 'fallback'
@@ -82,6 +89,17 @@ export class VoicePlaybackBuffer {
     private turnFinished = false
     private stallTimer: ReturnType<typeof setTimeout> | null = null
     private readonly cancelledTurns = new Set<string>()
+    /** Turns whose unplayable chunk was already reported. */
+    private readonly unsupportedTurns = new Set<string>()
+    private readonly onUnsupportedFormat?: (turnId: string, voiceSessionId: string) => void
+    /** Where replies play (`voice_ready.audio`, R1): MediaSource, or Blob groups when MSE refuses the type. */
+    private sink: CallAudioSink = 'mse'
+    /** Audio of the active turn already played in earlier Blob groups (or before a mid-turn switch), in ms. */
+    private playedBeforeGroupMs = 0
+    /** The active turn's loudness gain (D16) was read from its first accepted chunk. */
+    private turnGainRead = false
+    /** The element volume carries a turn's gain, so a later turn without one restores it. */
+    private gainApplied = false
 
     private readonly onUpdateEnd = () => this.pump()
     private readonly onStartStreaming = () => this.pump()
@@ -96,6 +114,7 @@ export class VoicePlaybackBuffer {
     constructor(options: VoicePlaybackBufferOptions = {}) {
         this.audio = options.audio ?? new Audio()
         this.autoPlay = options.autoPlay ?? true
+        this.onUnsupportedFormat = options.onUnsupportedFormat
         if (options.onStateChange) this.listeners.add(options.onStateChange)
         this.attachElementListeners()
     }
@@ -112,6 +131,27 @@ export class VoicePlaybackBuffer {
         }
     }
 
+    /**
+     * The call's announced audio (`voice_ready.audio`; absent only from an older
+     * BFF build). A type MediaSource refuses plays as Blob groups from the next turn
+     * on; no announcement keeps the default MediaSource path.
+     */
+    setAudioFormat(audio?: Partial<VoiceAudioFormat> | null): void {
+        this.sink = chooseCallAudioSink(audio)
+    }
+
+    /**
+     * How much of `turnId` (default: the active turn) has played, in ms; null when
+     * that turn is not the active one. Covers every Blob group of the turn.
+     */
+    playedMs(turnId?: string): number | null {
+        if (!this.activeTurnId || (turnId !== undefined && turnId !== this.activeTurnId)) return null
+        // Between Blob groups the element still holds the last group's end time: counted already.
+        const audible = this.mode === 'media_source' || this.groupActive
+        const current = this.elementOwner === 'turn' && this.hasPlayed && audible ? this.elementTimeMs() : 0
+        return Math.max(0, Math.round(this.playedBeforeGroupMs + current))
+    }
+
     startTurn(voiceSessionId: string, turnId: string): void {
         // Idempotent for the active turn: its first chunk may have started it already.
         if (this.isCancelled(voiceSessionId, turnId) || this.isActiveTurn(voiceSessionId, turnId)) return
@@ -126,6 +166,10 @@ export class VoicePlaybackBuffer {
     appendChunk(frame: VoiceAudioChunkFrame): boolean {
         const { voice_session_id: voiceSessionId, turn_id: turnId, seq } = frame
         if (this.isCancelled(voiceSessionId, turnId) || !Number.isInteger(seq) || seq < 1) return false
+        if (!isPlayableCallChunk(frame)) {
+            this.reportUnsupported(voiceSessionId, turnId)
+            return false
+        }
         const active = this.isActiveTurn(voiceSessionId, turnId)
         if (active) {
             if (this.turnFinished || (this.finalSeq !== null && seq > this.finalSeq)) return false
@@ -139,6 +183,7 @@ export class VoicePlaybackBuffer {
         }
 
         if (!active) this.startTurn(voiceSessionId, turnId)
+        this.applyTurnGain(frame)
         this.pendingChunks.set(seq, bytes)
         this.drainInOrder()
         if (this.currentState.status === 'idle' || !this.isStateOfActiveTurn()) this.setState('buffering')
@@ -230,7 +275,49 @@ export class VoicePlaybackBuffer {
         this.detachElementListeners()
     }
 
+    /**
+     * `gain_db` is per voice, so the turn's first non-null `gain_db` sets the
+     * element volume for the rest of the turn (D16); the read resets at each turn
+     * start. A chunk without one (an older BFF build) restores full volume left
+     * over from an earlier turn, so such turns play at full volume.
+     */
+    private applyTurnGain(frame: VoiceAudioChunkFrame): void {
+        if (this.turnGainRead) return
+        if (clipGainDb(frame.gain_db) !== null) {
+            this.turnGainRead = true
+            this.audio.volume = clipVolume(1, frame.gain_db, 'speech')
+            this.gainApplied = true
+        } else if (this.gainApplied) {
+            this.audio.volume = 1
+            this.gainApplied = false
+        }
+    }
+
+    private reportUnsupported(voiceSessionId: string, turnId: string): void {
+        const key = turnKey(voiceSessionId, turnId)
+        if (this.unsupportedTurns.has(key)) return
+        this.unsupportedTurns.add(key)
+        if (this.unsupportedTurns.size > MAX_REMEMBERED_CANCELLED_TURNS) {
+            const oldest = this.unsupportedTurns.values().next().value
+            if (oldest !== undefined) this.unsupportedTurns.delete(oldest)
+        }
+        try {
+            this.onUnsupportedFormat?.(turnId, voiceSessionId)
+        } catch (error) {
+            console.error('[voice-call][PLAYBACK] unsupported-format listener failed', error)
+        }
+    }
+
+    private elementTimeMs(): number {
+        const seconds = this.audio.currentTime
+        return typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 0
+    }
+
     private setupMediaSource(): void {
+        if (this.sink === 'blob') {
+            this.mode = 'fallback'
+            return
+        }
         const resolved = resolveMediaSource()
         if (!resolved) {
             this.mode = 'fallback'
@@ -364,6 +451,8 @@ export class VoicePlaybackBuffer {
         this.managed = false
         if (replayAll) this.queue = this.turnBytes.slice()
         this.turnBytes = []
+        // What the element already played of the turn still counts toward `playedMs`.
+        if (!replayAll && elementStopped) this.playedBeforeGroupMs += this.elementTimeMs()
         if (replayAll || elementStopped) {
             this.releaseElementSource()
             this.groupActive = false
@@ -428,6 +517,7 @@ export class VoicePlaybackBuffer {
         if (this.elementOwner !== 'turn' || !this.activeTurnId || this.turnFinished) return
         releaseAudioFocus(this.audio)
         if (this.mode === 'fallback') {
+            this.playedBeforeGroupMs += this.elementTimeMs()
             this.groupActive = false
             this.startNextGroup()
             return
@@ -500,6 +590,8 @@ export class VoicePlaybackBuffer {
         this.hasPlayed = false
         this.playRequested = false
         this.turnFinished = false
+        this.turnGainRead = false
+        this.playedBeforeGroupMs = 0
         this.mode = 'fallback'
         this.managed = false
         this.releaseElementSource()

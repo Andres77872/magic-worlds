@@ -14,6 +14,8 @@ import { Button, Icon, IconButton, IconTile, Input, PageHeader, Toast } from '@/
 import { ResumeCard } from '@/features/landing/components/ResumeCard'
 import { toResumeSessions, type ResumeSession } from '@/features/landing/components/resumeModel'
 import { buildGalleryModeHash } from '@/features/gallery/galleryLinks'
+import { useVoiceAvailability } from '@/features/interaction/hooks/useVoiceAvailability'
+import { apiService } from '@/infrastructure/api'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { isGroupChatsFeatureEnabled } from '@/shared/featureFlags'
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
@@ -57,6 +59,9 @@ export function ChatroomPage() {
     const groupChatsEnabled = isGroupChatsFeatureEnabled()
     // Workspace R1: an archived workspace's chats stay readable; starting, calling and deleting are new work.
     const readOnly = useWorkspaceReadOnly()
+    // 09 §7: calls switched off for this account (`capabilities.status.calls_available`) hide
+    // the call start; fails open.
+    const callsUnavailable = !useVoiceAvailability(apiService, voiceModeEnabled && isAuthenticated && !readOnly).calls_available
 
     useEffect(() => {
         mountedRef.current = true
@@ -116,6 +121,12 @@ export function ChatroomPage() {
 
     const openVoiceChat = (session: ResumeSession) => {
         requireAuth(() => {
+            // The item is hidden while calls are off; a click that raced the availability read
+            // says why instead of opening a call screen that would refuse to start.
+            if (callsUnavailable) {
+                setActionNotice({ tone: 'error', title: t('call.page.unavailable') })
+                return
+            }
             resumeCharacterChat(session.source as CharacterChatSession, { mode: 'voice' })
             setPage('character-chat')
         })
@@ -258,7 +269,7 @@ export function ChatroomPage() {
                             key={session.id}
                             session={session}
                             onContinue={() => openChat(session)}
-                            onCall={voiceModeEnabled && !session.isGroupChat && !readOnly ? () => openVoiceChat(session) : undefined}
+                            onCall={voiceModeEnabled && !session.isGroupChat && !readOnly && !callsUnavailable ? () => openVoiceChat(session) : undefined}
                             onDelete={readOnly ? undefined : () => requireAuth(() => setPendingDelete(session.source as CharacterChatSession))}
                             deleting={deletingId === session.id}
                         />

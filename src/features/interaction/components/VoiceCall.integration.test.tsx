@@ -32,6 +32,8 @@ const integration = vi.hoisted(() => ({
         unlock: ReturnType<typeof vi.fn>
         resume: ReturnType<typeof vi.fn>
         addStateListener: ReturnType<typeof vi.fn>
+        setAudioFormat: ReturnType<typeof vi.fn>
+        playedMs: ReturnType<typeof vi.fn>
     } | null,
     playbackListener: null as ((state: VoicePlaybackState) => void) | null,
     setPage: vi.fn(),
@@ -141,6 +143,7 @@ function capturedSegment(seq = 1): CapturedVoiceSegment {
     }
 }
 
+/** `voice_ready` as every call sends it (WS-S1): the announced audio and the voice the call speaks with. */
 function readyFrame() {
     return {
         type: 'voice_ready' as const,
@@ -148,6 +151,28 @@ function readyFrame() {
         server_time_ms: 1,
         limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 300 },
         upload_url: '/character-chats/7/voice-segments',
+        audio: { content_type: 'audio/mpeg', codec: 'mp3', sample_rate: 44100 as const, channels: 1 as const },
+        effective_voice: { voice_key: `vk_${'b'.repeat(32)}`, display_name: 'Lyra', provider_route: 'elevenlabs' as const, substitution_reason: null, flags: [], badges: [] },
+        original_voice_name: null,
+        ai_voice: true,
+    }
+}
+
+/** A reply chunk as every call sends it (WS-S2): codec, gain and substitution keys included. */
+function audioChunk(seq: number, data_b64: string) {
+    return {
+        type: 'voice_audio_chunk' as const,
+        voice_session_id: 'voice-session-1',
+        turn_id: 'turn-1',
+        seq,
+        content_type: 'audio/mpeg' as const,
+        codec: 'mp3' as const,
+        sample_rate: 44100 as const,
+        channels: 1 as const,
+        data_b64,
+        is_final: false as const,
+        gain_db: null,
+        substitution_reason: null,
     }
 }
 
@@ -172,7 +197,7 @@ describe('Voice call integration proof', () => {
         integration.microphoneOptions = null
         integration.apiService.saveVoiceConsent.mockResolvedValue({
             status: 'accepted',
-            consent_version: 'voice-v1',
+            consent_version: 'voice-v2',
             limits: { max_call_seconds: 600, idle_timeout_seconds: 30, remaining_daily_seconds: 300 },
         })
         integration.apiService.uploadVoiceSegment.mockResolvedValue({
@@ -222,6 +247,8 @@ describe('Voice call integration proof', () => {
                 integration.playbackListener = listener
                 return () => { integration.playbackListener = null }
             }),
+            setAudioFormat: vi.fn(),
+            playedMs: vi.fn(() => 1200),
         }
         Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
             configurable: true,
@@ -257,7 +284,7 @@ describe('Voice call integration proof', () => {
         act(() => integration.socketHandlers?.onTranscriptFinal?.({ type: 'transcript_final', voice_session_id: 'voice-session-1', seq: 1, turn_id: 'turn-1', text: 'Hello there.' }))
         act(() => integration.socketHandlers?.onTurnStart?.({ type: 'voice_turn_start', voice_session_id: 'voice-session-1', turn_id: 'turn-1', user_message_id: 10, assistant_message_id: 11 }))
         act(() => integration.socketHandlers?.onAssistantDelta?.({ type: 'voice_assistant_delta', voice_session_id: 'voice-session-1', turn_id: 'turn-1', content: 'Welcome back.' }))
-        act(() => integration.socketHandlers?.onAudioChunk?.({ type: 'voice_audio_chunk', voice_session_id: 'voice-session-1', turn_id: 'turn-1', seq: 1, content_type: 'audio/mpeg', sample_rate: 32000, channels: 1, data_b64: 'SUQzBA==', is_final: false }))
+        act(() => integration.socketHandlers?.onAudioChunk?.(audioChunk(1, 'SUQzBA==')))
         // Buffered but not yet audible still reads as thinking.
         expect(screen.getByText('Thinking')).toBeInTheDocument()
         emitPlayback('playing')
@@ -343,28 +370,32 @@ describe('Voice call integration proof', () => {
     it('sends barge-in, drops local playback, and keeps provider/audio sentinels out of visible errors', async () => {
         integration.apiService.uploadVoiceSegment.mockRejectedValue({
             category: 'provider_submission',
-            message: 'MINIMAX_API_KEY=minimax-secret https://api.minimax.io/ws/v1/t2a_v2 data:audio/wav;base64,UFJJVkFURV9SQVdfTUlDX0FVRElP',
+            message: 'TTS_PROVIDER_API_KEY=provider-secret-sentinel https://tts.provider.invalid/v1/stream-input data:audio/wav;base64,UFJJVkFURV9SQVdfTUlDX0FVRElP',
             fatal: false,
         })
         renderVoicePanel()
         await startVoiceCallThroughConsent()
         act(() => integration.socketHandlers?.onReady?.(readyFrame()))
         act(() => integration.socketHandlers?.onTurnStart?.({ type: 'voice_turn_start', voice_session_id: 'voice-session-1', turn_id: 'turn-1', user_message_id: 10, assistant_message_id: 11 }))
-        act(() => integration.socketHandlers?.onAudioChunk?.({ type: 'voice_audio_chunk', voice_session_id: 'voice-session-1', turn_id: 'turn-1', seq: 4, content_type: 'audio/mpeg', sample_rate: 32000, channels: 1, data_b64: 'UFJJVkFURQ==', is_final: false }))
+        act(() => integration.socketHandlers?.onAudioChunk?.(audioChunk(4, 'UFJJVkFURQ==')))
         emitPlayback('playing')
 
         fireEvent.click(screen.getByRole('button', { name: 'Interrupt' }))
 
         expect(integration.playback!.cancel).toHaveBeenCalledWith({ voice_session_id: 'voice-session-1', turn_id: 'turn-1' })
+        // WS-C1: the interrupted turn and how much of it played, read before the cancel.
         expect(integration.socketApi!.bargeIn).toHaveBeenCalledWith({
             type: 'voice_barge_in',
             reason: 'barge_in',
+            turn_id: 'turn-1',
+            played_ms: 1200,
         })
 
         act(() => integration.microphoneOptions?.onSegment?.(capturedSegment(2)))
         await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/voice provider could not complete/i))
-        expect(document.body).not.toHaveTextContent('MINIMAX_API_KEY')
-        expect(document.body).not.toHaveTextContent('api.minimax.io')
+        expect(document.body).not.toHaveTextContent('TTS_PROVIDER_API_KEY')
+        expect(document.body).not.toHaveTextContent('provider-secret-sentinel')
+        expect(document.body).not.toHaveTextContent('tts.provider.invalid')
         expect(document.body).not.toHaveTextContent('data:audio')
     })
 })

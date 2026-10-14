@@ -18,7 +18,14 @@ This plan covers how voice data moves from MiniMax to ElevenLabs and how traffic
 
 It implements D12, D15, D21, D22, D23, D28, D31, D32 and D36, and touches D05, D09, D19, D24–D26, D33–D35, D37 and D38. The decisions themselves are fixed in [03](03_target_architecture_and_decisions.md) and are not re-decided here. Canonical DDL, enums and tables are copied from 03 §5. Where 03 leaves a detail to DATA or ROLL, this plan fills it in and marks it **(plan)**. Those details can change without changing 03. All dates are the D28 targets, and the owner still has to confirm them. Prices and provider facts are as of 2026-10-12.
 
-**Related:** [README](README.md) · [01 current state](01_current_state.md) · [03 decisions (source of truth)](03_target_architecture_and_decisions.md) · [04 catalog](04_voice_catalog_and_library.md) · [05 Studio and console](05_voice_studio_and_admin_console.md) · [06 narration](06_chat_narration_migration.md) · [07 calls](07_realtime_calls_migration.md) · [08 backend plan](08_backend_refactor_plan.md) · [09 frontend plan](09_frontend_refactor_plan.md) · [11 cost and operations](11_cost_plans_and_operations.md) · [13 policy and privacy](13_policy_privacy_and_compliance.md) · [14 spikes and contract tests](14_staging_spike_and_contract_tests.md) · [15 implementation plan](15_implementation_plan_and_acceptance.md) · [16 risks](16_risks_and_open_questions.md) · research [08](research/08_voice_data_model_migration_surface.md), [11](research/11_gap_catalog_api_semantics.md), [13](research/13_gap_codebase_checks.md)
+**Workspace R1 alignment (2026-10-12).** Re-read against backend `f37eefd` (content schema `2026_10_workspace_r1`). Three things change for this plan:
+1. **Prerequisite.** Workspace R1 is committed but not yet deployed to production. R0's first schema step chains after `2026_10_workspace_r1`, so Workspace R1 must be live first (§5.1, Q-33).
+2. **Scope of data.** Cards, sessions and `tts_job` rows now live in app workspaces. The inventory and the R5 rewrite run across every app workspace, archived ones included (§2.3 Q-A7, §4.5). Copies made by "copy to workspace" are ordinary live cards (§4.3).
+3. **Cleanup.** `tb_workspace_media` rows (`media_kind = 'tts'`) have no FK to `tts_asset`, so the orphan sweep deletes them with the assets (§9.2). The account wipe order is in 03 §5.15.
+
+The rules are 03 D39 and §5.15; the evidence is [research 15](research/15_workspace_r1_impact.md).
+
+**Related:** [README](README.md) · [01 current state](01_current_state.md) · [03 decisions (source of truth)](03_target_architecture_and_decisions.md) · [04 catalog](04_voice_catalog_and_library.md) · [05 Studio and console](05_voice_studio_and_admin_console.md) · [06 narration](06_chat_narration_migration.md) · [07 calls](07_realtime_calls_migration.md) · [08 backend plan](08_backend_refactor_plan.md) · [09 frontend plan](09_frontend_refactor_plan.md) · [11 cost and operations](11_cost_plans_and_operations.md) · [13 policy and privacy](13_policy_privacy_and_compliance.md) · [14 spikes and contract tests](14_staging_spike_and_contract_tests.md) · [15 implementation plan](15_implementation_plan_and_acceptance.md) · [16 risks](16_risks_and_open_questions.md) · research [08](research/08_voice_data_model_migration_surface.md), [11](research/11_gap_catalog_api_semantics.md), [13](research/13_gap_codebase_checks.md), [15](research/15_workspace_r1_impact.md)
 
 ---
 
@@ -27,7 +34,7 @@ It implements D12, D15, D21, D22, D23, D28, D31, D32 and D36, and touches D05, D
 | Principle | Rule | Decision |
 |---|---|---|
 | Expand before anything else | Readers for both voice shapes, widened validators (03 §5.14), new tables and the mapping all ship in R0, while every user is still on MiniMax. | D28, D11 |
-| Every DDL step is lockstep with its build | The BFF refuses to start unless the live schema matches its contract exactly: no unexpected or missing table, the same columns in the same order, the expected seeds and the exact `CONTENT_SCHEMA_REVISION` ([bootstrap.py:1662](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py), `:1717`, `:1794`). "Additive" DDL is therefore **not** tolerated by an older build. Each expand or contract script runs immediately before the build that expects it, and each R0 step ships with a reverse script. | D28; [research 13 §4.4](research/13_gap_codebase_checks.md) |
+| Every DDL step is lockstep with its build | The BFF refuses to start unless the live schema matches its contract exactly: no unexpected or missing table, the same columns in the same order, the expected seeds and the exact `CONTENT_SCHEMA_REVISION` ([bootstrap.py:1053](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py), `:1635`, upgrade chain `:1699-1716`; lines at `f37eefd`). "Additive" DDL is therefore **not** tolerated by an older build. Each expand or contract script runs immediately before the build that expects it, and each R0 step ships with a reverse script. The chain starts at `2026_10_workspace_r1`, and the workspace capability's `schema_revision` never changes with it (D39, 08 §4.1). | D28, D39; [research 13 §4.4](research/13_gap_codebase_checks.md) |
 | Snapshots are never rewritten by the system | Frozen `template_snapshot` voices are translated at read time. Only the user changes them, at the paths they touch. | D21, D36 |
 | Live documents are rewritten once, at R5 | Cards, drafts, versions, template casts and presets are rewritten with 100% coverage: mapped, or language default + review flag. | D21, D12 |
 | Routing is per user and DB-backed | `voice_runtime_setting.rollout_mode ∈ {off, internal, canary, all}` is read with a TTL ≤ 60 s. Narration picks the provider per job; calls pick it at `start_call`. | D28 |
@@ -273,6 +280,20 @@ SELECT COUNT(DISTINCT user_id) AS preset_owners FROM voice_preset WHERE is_globa
 SELECT p.plan_code, COUNT(l.operation) AS ops
   FROM membership_plan p LEFT JOIN membership_plan_limit l ON l.plan_code = p.plan_code
  GROUP BY p.plan_code;
+
+-- Q-A7  Voiced character cards per app workspace state (R5 scope across workspaces, D39; counts only)
+SELECT (w.archived_at IS NOT NULL) AS archived, COUNT(*) AS voiced_cards,
+       COUNT(DISTINCT c.workspace_id) AS workspaces, COUNT(DISTINCT c.user_id) AS owners
+  FROM tb_card c
+  JOIN tb_card_body b ON b.card_id = c.card_id
+  JOIN tb_workspace w ON w.workspace_id = c.workspace_id
+ WHERE b.card_type = 'character'
+   AND JSON_TYPE(b.props->'$.voice') = 'OBJECT'
+ GROUP BY archived;
+
+-- Q-A8  Voice objects carried by Workspace R1 copies (live V1 references created by copy to workspace)
+SELECT COUNT(*) AS copy_receipts, SUM(JSON_LENGTH(result->'$.cards')) AS copied_cards
+  FROM tb_card_copy_receipt;
 ```
 
 Inventory that is **not SQL**:
@@ -305,6 +326,8 @@ Inventory that is **not SQL**:
 | Q-A3 | Fallback source for `legacy_language` per mapping row (§3.2 step 1). The D34 light-language list is the union of fr/de/pt/it, every `legacy_language` of a referenced id (Q-A1) and every language with ≥ 1% of narrated segments in R0 telemetry | Languages outside en/es/fr/de/pt/it: add light acceptance for them before R0 exit |
 | Q-A4 | `alternate_voice_keys` needs (D33) | Pairs that co-occur often and map to one target need alternates **before** R0 exit |
 | Q-A5 | Communication volume (§8) and support staffing | — |
+| Q-A7 | R5 rewrite scope across app workspaces; how many voiced cards sit in archived workspaces (rewritten too, D39) | Many archived cards: run them in their own batch; their owners get no badge until they restore the workspace |
+| Q-A8 | Growth of live V1 references through copy to workspace between T0 and R5 | Re-run before R5; C-1 must still be 0 after the copies |
 | #32 | Proves the cleanup scope excludes fal theme songs | Any grep or delete that matches `minimax_music_3` is a bug |
 
 ---
@@ -502,7 +525,7 @@ Here, live documents are migrated **after** the switch. Read-time translation an
 
 | Stage | Phases | What changes in data |
 |---|---|---|
-| **Expand** | R0 | Additive DDL, each step run right before the build that expects it (§1: the startup schema check rejects unexpected tables and columns): new tables (03 §5.2), `voice_preset` v2 columns (03 §5.3), `tts_job` columns, `user_preferences.narration_tier`, `membership_plan_limit.daily_quantity_limit`, widened CHECKs and validators (03 §5.14), lockstep membership rows. Union readers in BE and FE. Mapping and reverse mapping curated. Defaults seeded |
+| **Expand** | R0 | After Workspace R1 is live in production: freeze `2026_10_workspace_r1.sql` as the predecessor (08 §4.1). Additive DDL, each step run right before the build that expects it (§1: the startup schema check rejects unexpected tables and columns): new tables (03 §5.2; `tts_turn_charge` and `voice_review_flag` carry app-workspace columns, D39), `voice_preset` v2 columns (03 §5.3), `tts_job` columns, `user_preferences.narration_tier`, `membership_plan_limit.daily_quantity_limit`, widened CHECKs and validators (03 §5.14), lockstep membership rows. Union readers in BE and FE. Mapping and reverse mapping curated. Defaults seeded |
 | **Migrate (lazy)** | R1–R4 | No system rewrite of user data. Writes happen only where a user changes a voice (V2 at that path), plus `voice_review_flag` rows computed per cohort step |
 | **Switch** | R1 → R3 route flips (DB setting, no deploy); R4 key revocation | Provider per job or call, persisted on `tts_job.provider` and `voice_session.tts_provider` |
 | **Contract** | R4, R4 + 14 d, R5 | Drop `voice_legacy_fallback` (with the R4 build); remove MiniMax code; reviewed orphan sweep; **one-shot rewrite** of live documents; `voice_preset` contract DDL (with the R5 build) |
@@ -518,11 +541,11 @@ The voice scripts copy that pattern:
 
 | Script (names indicative) | Phase | Does |
 |---|---|---|
-| `scripts/migrations/2026MMDD_voice_expand.py` + `voice_expand_cutover.py` | R0 | DDL expand (idempotent: checks `information_schema` before each `ALTER`). Advances `CONTENT_SCHEMA_REVISION` ([bootstrap.py:17](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py)) only after the DDL. New columns must land in the column order the new `db.sql` contract declares (the startup check compares order). Ships with a reverse script (drop the new tables and columns, restore the previous revision), valid only before any V2 value exists (R1) |
-| `…_voice_membership_ops.py` | R0, **before** the new build boots | Inserts the `voice_preview` limit rows and `daily_quantity_limit` values for every plan, custom ones included. A one-way, lockstep change; the reverse migration exists only for a rollback before R1 ([research 13 §4.4](research/13_gap_codebase_checks.md)) |
-| `…_voice_review_flags.py` | R1, each canary step, R3 | Computes D15 flags for the owners in scope. Upserts `voice_review_flag` without resurrecting dismissed flags |
+| `scripts/migrations/2026MMDD_voice_expand.py` + `voice_expand_cutover.py` (**as built:** `20261012_voice_expand.py` + `voice_r0_cutover.py`, revision `2026_10_voice_r0`; `--apply`/`--reverse` take a `--review-file`) | R0 | Follows [workspace_cutover.py](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/workspace_cutover.py): advisory lock, exact revision gate (`2026_10_workspace_r1`), check against the frozen predecessor, data fingerprint before and after, marker compare-and-set (D39). DDL expand (idempotent: checks `information_schema` before each `ALTER`). Advances `CONTENT_SCHEMA_REVISION` ([bootstrap.py:17](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py)) only after the DDL. New columns must land in the column order the new `db.sql` contract declares (the startup check compares order). Ships with a reverse script (drop the new tables and columns, restore the previous revision), valid only before any V2 value exists (R1) |
+| `…_voice_membership_ops.py` (**as built: folded into `20261012_voice_expand.py`**, same transaction; see 08 §4.2) | R0, **before** the new build boots | Inserts the `voice_preview` limit rows and `daily_quantity_limit` values for every plan, custom ones included. A one-way, lockstep change; the reverse migration exists only for a rollback before R1 ([research 13 §4.4](research/13_gap_codebase_checks.md)) |
+| `…_voice_review_flags.py` | R1, each canary step, R3 | Computes D15 flags for the owners in scope. Upserts `voice_review_flag` without resurrecting dismissed flags. Card flags copy the card's `workspace_id` and app scope; preset flags have none (D39) |
 | `…_voice_fallback_drop.py` | R4 | Drops `voice_legacy_fallback` and advances the revision, immediately before the R4 build boots (lockstep) |
-| `…_voice_live_rewrite.py` + `voice_live_rewrite_cutover.py` | R5 | One-shot V1 → V2 rewrite of live documents (§4.4) |
+| `…_voice_live_rewrite.py` + `voice_live_rewrite_cutover.py` | R5 | One-shot V1 → V2 rewrite of live documents (§4.4), in every app workspace, archived ones included. It is a system write: row locks only, never `lock_workspace(require_active=True)`; it never touches `is_default_persona`, organization, collections or copy receipts (D39) |
 | `…_voice_preset_contract.py` | R5, after the rewrite | Applies the 03 §5.3 R5 DDL only when `--check` reports 0 V1 presets, immediately before the R5 build boots (lockstep) |
 | `…_tts_orphan_sweep.py` | R4 + 14 d | Reviewed orphan sweep (§9.2) |
 
@@ -539,7 +562,7 @@ Common rules:
 
 | # | Location (paths) | Copy semantics | R0 (expand) | R1–R4 (window) | R5 (contract) | Audit / flags |
 |---|---|---|---|---|---|---|
-| L1 | `tb_card_body.props.$.voice`, `role = character` | live, editable | Union readers. FE whitelists keep both shapes ([cardTransforms.ts:57-72](/home/andres/WebstormProjects/magic-worlds/src/utils/cardTransforms.ts)). Unchanged voices pass on shape only (D32). MiniMax picker restricted | Read-time translation and `effective_voice`. Cohort user changes a voice → V2 at that path. Non-cohort user → V1 mapped id (until R3) | **Rewrite to V2, 100%** | audit per path; flag `ref_type = card` |
+| L1 | `tb_card_body.props.$.voice`, `role = character` | live, editable | Union readers. FE whitelists keep both shapes ([cardTransforms.ts:57-72](/home/andres/WebstormProjects/magic-worlds/src/utils/cardTransforms.ts)). Unchanged voices pass on shape only (D32). MiniMax picker restricted | Read-time translation and `effective_voice`. Cohort user changes a voice → V2 at that path. Non-cohort user → V1 mapped id (until R3) | **Rewrite to V2, 100%**, in every app workspace (D39) | audit per path; flag `ref_type = card` with the card's `workspace_id` |
 | L2 | same, `role = persona` | live | Picker hidden (D38) | kept and translated silently | rewritten by the same mapping | audit only; no flags or badges; excluded from gates (D38) |
 | L3 | `tb_card_body` `adventure_template`: `$.persona.voice`, `$.characters[*].voice` | display copy; sessions re-resolve the live card | union readers | read-time translation | **rewrite** | audit; flag `ref_type = template_cast` |
 | L4 | `tb_card_draft.props.$.voice` | live, owner-private | union readers; **card-assistant voice-erasure fix** (D30, needed before R5; recommended in R0) | as L1 | **rewrite** | audit; flag `ref_type = card_draft` |
@@ -551,15 +574,16 @@ Common rules:
 | L10 | `template_snapshot` (`character_group`): `$.characters[*].voice`, persona, codex | frozen | same | Never rewritten; resolver only. D36 names routes for character chats and adventures only. Group-chat refresh is an open item for [08](08_backend_refactor_plan.md) | unchanged | — |
 | L11 | `tb_llm_execution_plan.frozen_payload` (`conversation_snapshot`, [conversation_execution.py:118-121](/home/andres/PycharmProjects/magic-worlds-api/src/services/conversation_execution.py)), callbot results | immutable, compared on retry and recovery ([conversation_turn_store.py:124-137](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/conversation_turn_store.py), `:241-252`) | tolerant V1/V2 readers; voice paths excluded from the comparison | never rewritten | never rewritten | — |
 | L12 | `tb_llm_card_generation`, `tb_llm_assistant_turn`, `tb_operation_receipt` snapshots | immutable replay | V1 stays readable (#21 expected ≈ 0) | — | — | — |
-| L13 | `voice_session` (`tts_provider`, `consent_version`) | history | `tts_provider ∈ {minimax_streaming, elevenlabs_streaming}` on insert **and** read ([models.py:5343-5353](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)); required consent depends on the provider (D25) | new rows: provider chosen at `start_call`, consent version persisted | unchanged (CHECK keeps the legacy value) | — |
+| L13 | `voice_session` (`tts_provider`, `consent_version`) | history; workspace inherited through `adventure_session` | `tts_provider ∈ {minimax_streaming, elevenlabs_streaming}` on insert **and** read ([models.py:5509-5520](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py), insert guard `:6027-6033`); required consent depends on the provider (D25) | new rows: provider chosen at `start_call`, consent version persisted | unchanged (CHECK keeps the legacy value) | — |
 | L14 | `voice_transcript_segment` (`tts_summary.voice_id`, `transcript_text` with `<#x#>`) | history | display strips markup v1 ([CallTranscriptView.tsx:63,87](/home/andres/WebstormProjects/magic-worlds/src/features/call/components/CallTranscriptView.tsx)) | never rewritten | never rewritten | — |
 | L15 | `adventure_message.metadata.voice` | frozen execution record | union `tts_provider`; new keys `truncated`, `played_ms` (D06) | never rewritten | never rewritten | — |
 | L16 | `adventure_message.metadata.tts_segments[i]` | derived clip map | new optional keys `tier`, `substitution_reason`, `gain_db`; display-only states `daily_limit_reached`, `not_narrated`. Missing keys on old clips mean "Standard, no substitution, 0 dB". The FE casts without validation ([chatSessionConfig.ts:81-84](/home/andres/WebstormProjects/magic-worlds/src/features/interaction/chatSessionConfig.ts)) | re-narrating a turn overwrites the entry; old clips stay playable | never rewritten | — |
-| L17 | `tts_job` | history | CHECK widened to `('minimax','elevenlabs')` ([db.sql:670](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql)); alias union incl. `speech_2_8_turbo` ([tts_generation/engine.py:980](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py)); new columns `turn_charge_id`, `billed_chars`, `tier`, `substitution_reason` | provider persisted per job; reuse hash v2 includes the provider, so audio is never reused across providers | unchanged; `minimax` stays in the CHECK permanently (D23) | — |
-| L18 | `tts_asset` + MP3 files under `TTS_STORAGE_ROOT` | history | read accepts 32 kHz; serving is provider-agnostic ([tts.py:103-141](/home/andres/PycharmProjects/magic-worlds-api/src/routes/tts.py)) | kept | referenced files kept; **orphan sweep at R4 + 14 d** (§9.2) | sweep review file |
+| L17 | `tts_job` | history; carries `workspace_id` since Workspace R1, plus one operation-context row per job and one `tts` media association per asset | CHECK widened to `('minimax','elevenlabs')` ([db.sql:835](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql)); alias union incl. `speech_2_8_turbo` ([tts_generation/engine.py:980](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py)); new columns `turn_charge_id`, `billed_chars`, `tier`, `substitution_reason` | provider persisted per job; reuse hash v2 includes the provider, so audio is never reused across providers | unchanged; `minimax` stays in the CHECK permanently (D23) | — |
+| L18 | `tts_asset` + MP3 files under `TTS_STORAGE_ROOT` | history; bytes account-owned, discovery through `tb_workspace_media` | read accepts 32 kHz; serving is provider-agnostic and needs no workspace selector ([tts.py:107-121](/home/andres/PycharmProjects/magic-worlds-api/src/routes/tts.py)) | kept | referenced files kept; **orphan sweep at R4 + 14 d** (§9.2) | sweep review file |
 | L19 | Env defaults `TTS_DEFAULT_VOICE_ID`, `VOICE_MINIMAX_TTS_VOICE_ID` | config | ElevenLabs route uses `voice_default` + `VOICE_LAST_RESORT_VOICE_KEY` (D31); MiniMax route keeps the env ids | MiniMax default only for V2 voices without a reverse row (alerted) | removed at R4 (D01, D31) | — |
 | L20 | `voice_consent` | records | `voice-v2` rows start at R1 (cohort) | both versions coexist | after R4 only `voice-v2` is required | — |
-| L21 | `membership_plan_limit`, `tts_turn_charge` | config + ledger | lockstep rows; per-turn reservation live **on MiniMax** (D24, D28) | provider-neutral | — | — |
+| L21 | `membership_plan_limit`, `tts_turn_charge` | config + ledger | lockstep rows; per-turn reservation live **on MiniMax** (D24, D28). `tts_turn_charge` carries the session's app workspace; caps stay per account (D39) | provider-neutral | — | — |
+| L23 | Workspace R1 copies (`workspace_copy.py`, public clone) | a new live card with `props.voice` copied verbatim (V1 `preset_id`/`preset_name` included) | union readers; a copy is a D32 shape-only copy; no change to the copy code | the copy is an ordinary live card (L1) | rewritten like L1 | as L1 |
 | L22 | Migration-only tables | — | `voice_legacy_mapping`, `voice_legacy_fallback`, `voice_migration_audit`, `voice_review_flag` created | — | `voice_legacy_fallback` dropped at R4; audit kept one release cycle after R5; mapping kept permanently (D21) | — |
 
 ### 4.4 R5 rewrite: V1 → V2 translation rules
@@ -633,6 +657,7 @@ Preconditions:
 - **Every approved mapping target is `active`**, or `removed`/`blocked` with a resolvable replacement. `--check` lists targets that are `hidden` or `deprecating`; the curator re-points them, so R5 does not write a leaving voice into live cards.
 - The card-assistant fix is shipped (D30).
 - No R5 write meets a V1 value that a user is changing: the V1 write rules (03 §5.10) already block V1 picks after R3.
+- **Every app workspace is in scope, archived ones included** (D39). The rewrite is a system write and does not need an active workspace; it is not refused by `WORKSPACE_ARCHIVED`. V-1 below counts across all workspaces, and Q-A8 is re-run first so copies made since T0 are included.
 
 ```sql
 -- V-1  V1 values left in live documents (all must be 0 after --apply)
@@ -654,6 +679,8 @@ Only after V-1 reports 0 for `voice_preset` is the 03 §5.3 R5 DDL applied (§9.
 | Retry of a turn frozen before a user's voice refresh | Voice paths are excluded from retry byte-equality (D36). If the R0 test cannot prove that voices are not part of the graph input, accept and explain `CHAT_RETRY_CONFLICT` 409 (#30 sizes it) |
 | `tts_job` in flight when the route flips | Each job keeps its persisted provider and completes there. At R4, terminalize every non-terminal MiniMax job with a **global** stale sweep. Today's sweep is per user ([tts_generation/engine.py:296-316](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py); bug #8) |
 | A live call when the route flips | The provider is fixed at `start_call`. A call lasts at most 600 s by default (`DEFAULT_VOICE_MAX_CALL_DURATION_SECONDS`, [voice_orchestration/config.py:28](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/config.py); check the production env override). With the 60 s TTL, a flip fully applies within about 11 minutes |
+| A user copies a card to another app workspace while R5 runs | The copy reads the published body in its own transaction. If it reads the V1 value before the rewrite, the copy is a new V1 card. **(plan)** The rewrite's last batch re-runs V-1 and rewrites any new rows; `--apply` loops until V-1 is 0 |
+| A user archives a workspace while R5 runs | Archive takes `lock_workspace` exclusively; the rewrite takes only row locks, so archive neither blocks nor fails the rewrite (D39) |
 | Process restarts drop live calls (single process, bug #19) | Route changes are DB settings and need no restart. R0, R4 and R5 deploys are scheduled in low-traffic windows |
 
 ---
@@ -664,7 +691,7 @@ Only after V-1 reports 0 for `voice_preset` is the 03 §5.3 R5 DDL applied (§9.
 
 | Phase | Target | Content (D28) | Entry gate | Exit gate |
 |---|---|---|---|---|
-| **R0 Prepare** (MiniMax only) | 2026-11-06 deployed; soak to 2026-11-13; gate review by 2026-11-17 | Expand-only releases. V1/V2 union readers (BE and FE) and shared FE helpers (D35). 03 §5.14 widening list. Capability registry. `SpeechTextPipeline` with fail-closed moderation. `user_attestation` + 428 / WS error frame. `voice_preview` op (on MiniMax). Per-turn reservation, settlement and refunds, per-plan caps. Catalog tables + Jobs A/B/C, `voice_default`, Acceptance console module. MiniMax picker restricted to mapped ids. `ProviderRouter` with DB-backed settings. Budget guards (D37). Baseline latency and error metrics | owner sign-off of 03 | Deployed 7 days with no regressions, plus the **R0 exit gate** (§5.2) |
+| **R0 Prepare** (MiniMax only) | 2026-11-06 deployed; soak to 2026-11-13; gate review by 2026-11-17 | Expand-only releases. V1/V2 union readers (BE and FE) and shared FE helpers (D35). 03 §5.14 widening list. Capability registry. `SpeechTextPipeline` with fail-closed moderation. `user_attestation` + 428 / WS error frame. `voice_preview` op (on MiniMax). Per-turn reservation, settlement and refunds, per-plan caps. Catalog tables + Jobs A/B/C, `voice_default`, Acceptance console module. MiniMax picker restricted to mapped ids. `ProviderRouter` with DB-backed settings. Budget guards (D37). Baseline latency and error metrics | owner sign-off of 03; **Workspace R1 deployed to production** (its Phase 6), because migration 1 chains after `2026_10_workspace_r1` (D39, Q-33) | Deployed 7 days with no regressions, plus the **R0 exit gate** (§5.2) |
 | **R1 Internal** | 2026-11-18 (7 days) | Cohort = `user_type ∈ {root, admin}` + allow-list. Provider-specific consent (`voice-v2`). Effective-voice projection and first-exposure notice for the cohort. Reverse mapping live | R0 exit gate; C-1, C-2 green | 7 days within thresholds, plus the **R1 exit gate** |
 | **R2 Canary** | 2026-11-25 → 2026-12-04 | `hash(user_hash) % 100 < canary_percent` at 5 → 25 → 50%, each step ≥ 3 days. Coverage re-run before each step | **R2 entry gate** (legal and privacy) | within thresholds at each step |
 | **R3 100%** | 2026-12-04 | All users on ElevenLabs. MiniMax global presets hidden (reversible). Review flags computed for everyone | **R3 entry gate** | 14 days with no rollback |
@@ -784,6 +811,7 @@ From R1 on, the build is **never** rolled back below R0: pre-R0 builds cannot re
 | `voice_review_flag` rows | Kept. `effective_voice` for a MiniMax-routed caller shows the MiniMax voice; FE hides ElevenLabs-specific flag badges for that route **(plan)** |
 | `tts_turn_charge`, `user_attestation`, abuse counters | Provider-neutral, kept |
 | ElevenLabs history items | The deletion sweep keeps running (D25) |
+| Turns that failed or were in flight under the build that strips voices from graph input (TEC-12) | **Build rollback only** (not a route rollback): the older build compares the voice-less frozen snapshot strictly, so their retries return 409 `CHAT_RETRY_CONFLICT` and recovery fails for chats with voices. Users resend the message. Prefer route rollback, which keeps the strip |
 
 ### 6.3 Rollback triggers (copied from D28)
 
@@ -971,6 +999,15 @@ SELECT COUNT(*)
                     WHERE t.tts_summary->>'$.asset_id' = a.asset_id COLLATE utf8mb4_bin);
 ```
 
+**Workspace associations (D39).** `tb_workspace_media` has no FK to `tts_asset` (PK `(workspace_id, media_kind, asset_id)`, `media_kind = 'tts'`). The apply step deletes the association rows of every swept `asset_id` in the same transaction as the asset row, before the file is removed. If a class ever deletes `tts_job` rows, it also deletes their `tb_content_operation_context` rows (`operation_kind = 'tts_job'`). The verification run adds a check: 0 `tts` associations without a live asset.
+
+```sql
+-- V-2  Dangling tts media associations after the sweep (must be 0)
+SELECT COUNT(*) FROM tb_workspace_media m
+ WHERE m.media_kind = 'tts'
+   AND NOT EXISTS (SELECT 1 FROM tts_asset a WHERE a.asset_id = m.asset_id AND a.deleted_at IS NULL);
+```
+
 If LEGAL finds (CN-6, answered before R4) that MiniMax terms forbid keeping generated audio, a **separate** reviewed run purges referenced MiniMax audio (`tts_job.provider = 'minimax'`). Text is kept, and clips show "audio no longer available" (D23). This sweep is one-off. Recurring retention is bug #9, which is outside this program apart from this sweep (D30). The script stays re-runnable in inspect mode for monthly reporting.
 
 ### 9.3 R5 contract (January 2027)
@@ -1002,7 +1039,7 @@ alter table voice_preset
 ### 10.1 T0: inventory (as soon as R0 starts)
 
 - [ ] Replica, read-only user, `MAX_EXECUTION_TIME` set, off-peak.
-- [ ] Run §2.2 (#1–#32 as listed) and §2.3 (Q-A1…Q-A6). Save the JSON/CSV output with timestamp and replica lag in the ROLL log.
+- [ ] Run §2.2 (#1–#32 as listed) and §2.3 (Q-A1…Q-A8). Save the JSON/CSV output with timestamp and replica lag in the ROLL log.
 - [ ] Export the MiniMax inventory (`system`, `voice_cloning`, `voice_generation`).
 - [ ] Record the env default voice ids (names only, no secrets).
 - [ ] Owner runs the S-1 read-only ElevenLabs account checks.
@@ -1010,8 +1047,9 @@ alter table voice_preset
 
 ### 10.2 R0 build and deploy
 
+- [ ] Confirm Workspace R1 is live in production at `2026_10_workspace_r1`, and that `migrations/2026_10_workspace_r1.sql` is frozen (D39).
 - [ ] Apply the membership lockstep migration (Q-A6 plans) **before** the new build boots. Keep the reverse migration ready (valid only before R1).
-- [ ] Run `…_voice_expand.py` (check → apply) immediately before the build that expects it. Advance `CONTENT_SCHEMA_REVISION` only after the DDL. Keep its reverse script ready (valid only before R1).
+- [ ] Run `…_voice_expand.py` (check → apply) immediately before the build that expects it. Advance `CONTENT_SCHEMA_REVISION` only after the DDL. Keep its reverse script ready (valid only before R1). After it, check that `GET /workspaces/capabilities` still reports `schema_revision = 2026_10_workspace_r1` and that the SPA opens private content (D39).
 - [ ] Seed `voice_runtime_setting`: `rollout_mode=off`, `canary_percent=0`, `tts_engine_enabled=true`, `voice_mode_enabled=true`, `daily_budget_chars`, `auto_narration_paused=false`.
 - [ ] Deploy the FE union readers and helpers with or before the BE. The CI grep gate on `.voice_id` is on (D35).
 - [ ] Card-assistant voice-erasure fix (D30) shipped; #27 restore reviewed if > 0.
@@ -1114,3 +1152,5 @@ After R4 the same runbook applies, but the lever is the text-only switch pair, a
 | Metrics sink and paging integration (§7.1) | ops ([11](11_cost_plans_and_operations.md)) | R0 |
 | Spike results that set fallbacks (S-8, S-15, S-23, S-28, S-29 especially) | QA ([14](14_staging_spike_and_contract_tests.md)) | per §5.2 |
 | L-1, L-4, L-8 written answers | LEGAL ([13](13_policy_privacy_and_compliance.md)) | R2 entry |
+| Workspace R1 production deploy date (Q-33 in [16](16_risks_and_open_questions.md)) | owner | R0 start |
+| Account wipe order with the new voice tables (03 §5.15) and `voice_preview_render` rows (Q-35) | BE ([08](08_backend_refactor_plan.md)) + LEGAL | R0 |

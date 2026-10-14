@@ -9,6 +9,13 @@
  * not offered here: the stored value rides along unchanged to keep the limit
  * row valid for the API.
  *
+ * Voice operations also take a daily quantity cap (D24): narration characters
+ * for `tts_generation`, call seconds for `voice_call`. Per 03 §5.16 I-2 it is
+ * required (a whole number of 0 or more) for those two and null for every
+ * other operation, so a plan can never be saved uncapped. The key is sent only
+ * when the server's plans already carry it: older servers reject unknown
+ * limit keys, so the column stays hidden for them.
+ *
  * The parent remounts this component (via `key`) whenever a different plan is
  * opened, so the initial state is derived once and never re-seeded.
  */
@@ -41,13 +48,23 @@ interface PlanEditorDialogProps {
     onClose: () => void
 }
 
-type LimitField = keyof MembershipPlanLimit
+type CountField = 'daily_request_limit' | 'max_in_flight' | 'credit_cost'
+type LimitField = CountField | 'daily_quantity_limit'
 type LimitDraft = Record<LimitField, string>
 type LimitsDraft = Record<string, LimitDraft>
+type QuantityUnit = 'characters' | 'seconds'
 
 const PLAN_CODE_PATTERN = /^[a-z0-9][a-z0-9_-]{1,31}$/
-const LIMIT_FIELDS: LimitField[] = ['daily_request_limit', 'max_in_flight', 'credit_cost']
-const LIMIT_MINIMUMS: Record<LimitField, number> = { daily_request_limit: 0, max_in_flight: 1, credit_cost: 1 }
+const LIMIT_FIELDS: CountField[] = ['daily_request_limit', 'max_in_flight', 'credit_cost']
+const LIMIT_MINIMUMS: Record<CountField, number> = { daily_request_limit: 0, max_in_flight: 1, credit_cost: 1 }
+const EMPTY_DRAFT: LimitDraft = { daily_request_limit: '', max_in_flight: '1', credit_cost: '1', daily_quantity_limit: '' }
+/** Operations whose daily quantity cap is enforced, and its unit (D24). */
+const QUANTITY_UNITS: Record<string, QuantityUnit> = { tts_generation: 'characters', voice_call: 'seconds' }
+
+/** True when the server's plans carry `daily_quantity_limit` (a server that accepts it). */
+function serverHasQuantityLimits(plans: MembershipPlan[]): boolean {
+    return plans.some((candidate) => Object.values(candidate.limits ?? {}).some((limit) => 'daily_quantity_limit' in limit))
+}
 
 function draftFromLimits(operations: string[], limits: Record<string, MembershipPlanLimit> | undefined): LimitsDraft {
     return Object.fromEntries(
@@ -59,13 +76,26 @@ function draftFromLimits(operations: string[], limits: Record<string, Membership
                     daily_request_limit: limit ? String(limit.daily_request_limit) : '',
                     max_in_flight: limit ? String(limit.max_in_flight) : '1',
                     credit_cost: limit ? String(limit.credit_cost) : '1',
+                    daily_quantity_limit: limit?.daily_quantity_limit != null ? String(limit.daily_quantity_limit) : '',
                 },
             ]
         }),
     )
 }
 
-function parseLimit(draft: LimitDraft | undefined): MembershipPlanLimit | null {
+/**
+ * The daily quantity to send (I-2): a whole number of 0 or more for the capped
+ * voice operations, where empty is invalid; null for every other operation.
+ * Undefined when invalid.
+ */
+function parseQuantity(operation: string, raw: string): number | null | undefined {
+    if (!QUANTITY_UNITS[operation]) return null
+    if (raw.trim() === '') return undefined
+    const value = Number(raw)
+    return Number.isInteger(value) && value >= 0 ? value : undefined
+}
+
+function parseLimit(operation: string, draft: LimitDraft | undefined, withQuantity: boolean): MembershipPlanLimit | null {
     if (!draft) return null
     const parsed = {} as MembershipPlanLimit
     for (const field of LIMIT_FIELDS) {
@@ -74,22 +104,28 @@ function parseLimit(draft: LimitDraft | undefined): MembershipPlanLimit | null {
         if (raw.trim() === '' || !Number.isInteger(value) || value < LIMIT_MINIMUMS[field]) return null
         parsed[field] = value
     }
+    if (withQuantity) {
+        const quantity = parseQuantity(operation, draft.daily_quantity_limit ?? '')
+        if (quantity === undefined) return null
+        parsed.daily_quantity_limit = quantity
+    }
     return parsed
 }
 
-function parseLimits(operations: string[], drafts: LimitsDraft): Record<string, MembershipPlanLimit> | null {
+function parseLimits(operations: string[], drafts: LimitsDraft, withQuantity: boolean): Record<string, MembershipPlanLimit> | null {
     const result: Record<string, MembershipPlanLimit> = {}
     for (const operation of operations) {
-        const parsed = parseLimit(drafts[operation])
+        const parsed = parseLimit(operation, drafts[operation], withQuantity)
         if (!parsed) return null
         result[operation] = parsed
     }
     return result
 }
 
-function limitsEqual(a: Record<string, MembershipPlanLimit>, b: Record<string, MembershipPlanLimit>, operations: string[]) {
+function limitsEqual(a: Record<string, MembershipPlanLimit>, b: Record<string, MembershipPlanLimit>, operations: string[], withQuantity: boolean) {
     return operations.every((operation) =>
-        LIMIT_FIELDS.every((field) => a[operation]?.[field] === b[operation]?.[field]),
+        LIMIT_FIELDS.every((field) => a[operation]?.[field] === b[operation]?.[field])
+        && (!withQuantity || (a[operation]?.daily_quantity_limit ?? null) === (b[operation]?.daily_quantity_limit ?? null)),
     )
 }
 
@@ -115,12 +151,13 @@ export function PlanEditorDialog({
     const [active, setActive] = useState(() => (editing ? plan.is_active : true))
     const [preset, setPreset] = useState('')
     const [limits, setLimits] = useState<LimitsDraft>(() => draftFromLimits(operations, editing ? plan.limits : undefined))
+    const [withQuantity] = useState(() => serverHasQuantityLimits(editing ? [plan, ...plans] : plans))
 
     const codeValid = editing || PLAN_CODE_PATTERN.test(code)
     const nameValid = name.trim().length > 0 && name.trim().length <= 64
     const creditsValue = Number(credits)
     const creditsValid = credits.trim() !== '' && Number.isInteger(creditsValue) && creditsValue >= 0
-    const parsedLimits = parseLimits(operations, limits)
+    const parsedLimits = parseLimits(operations, limits, withQuantity)
     const limitsValid = parsedLimits != null
     const canSubmit = codeValid && nameValid && creditsValid && limitsValid && !saving
 
@@ -145,7 +182,7 @@ export function PlanEditorDialog({
         setLimits((current) => ({
             ...current,
             [operation]: {
-                ...(current[operation] ?? { daily_request_limit: '', max_in_flight: '1', credit_cost: '1' }),
+                ...(current[operation] ?? EMPTY_DRAFT),
                 [field]: value,
             },
         }))
@@ -168,7 +205,7 @@ export function PlanEditorDialog({
         if (!billingSynced && name.trim() !== plan.display_name) body.display_name = name.trim()
         if (!billingSynced && creditsValue !== plan.daily_credit_limit) body.daily_credit_limit = creditsValue
         if (!isDefault && active !== plan.is_active) body.is_active = active
-        if (!limitsEqual(parsedLimits, plan.limits, operations)) body.limits = parsedLimits
+        if (!limitsEqual(parsedLimits, plan.limits, operations, withQuantity)) body.limits = parsedLimits
         if (Object.keys(body).length === 0) {
             onClose()
             return
@@ -260,19 +297,23 @@ export function PlanEditorDialog({
                         <p className="font-ui text-[12px] text-parchment-300">{t('admin.membership.editor.limitsDescription')}</p>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full min-w-[520px] border-separate border-spacing-y-1 font-ui text-sm">
+                        <table className={cx('w-full border-separate border-spacing-y-1 font-ui text-sm', withQuantity ? 'min-w-[640px]' : 'min-w-[520px]')}>
                             <thead>
                                 <tr className="text-left font-ui text-[11px] uppercase tracking-[0.08em] text-parchment-400">
                                     <th scope="col" className="pb-1 pr-2 font-semibold">{t('admin.membership.editor.columns.operation')}</th>
                                     <th scope="col" className="pb-1 pr-2 font-semibold">{t('admin.membership.editor.columns.dailyLimit')}</th>
                                     <th scope="col" className="pb-1 pr-2 font-semibold">{t('admin.membership.editor.columns.maxInFlight')}</th>
-                                    <th scope="col" className="pb-1 font-semibold">{t('admin.membership.editor.columns.creditCost')}</th>
+                                    <th scope="col" className={cx('pb-1 font-semibold', withQuantity && 'pr-2')}>{t('admin.membership.editor.columns.creditCost')}</th>
+                                    {withQuantity && (
+                                        <th scope="col" className="pb-1 font-semibold">{t('admin.membership.editor.columns.dailyQuantity')}</th>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody>
                                 {operations.map((operation) => {
-                                    const draft: LimitDraft = limits[operation] ?? { daily_request_limit: '', max_in_flight: '1', credit_cost: '1' }
-                                    const rowValid = parseLimit(draft) != null
+                                    const draft: LimitDraft = limits[operation] ?? EMPTY_DRAFT
+                                    const rowValid = parseLimit(operation, draft, withQuantity) != null
+                                    const quantityUnit = QUANTITY_UNITS[operation]
                                     const label = operationName(operation, t)
                                     return (
                                         <tr key={operation}>
@@ -281,7 +322,7 @@ export function PlanEditorDialog({
                                                 <span className="block font-mono text-[10px] font-normal text-parchment-500">{operation}</span>
                                             </th>
                                             {LIMIT_FIELDS.map((field) => (
-                                                <td key={field} className={cx('pr-2', field === 'credit_cost' && 'pr-0')}>
+                                                <td key={field} className={cx('pr-2', field === 'credit_cost' && !withQuantity && 'pr-0')}>
                                                     {field === 'credit_cost' && isProfilePriced(operation) ? (
                                                         <span className="block min-w-[84px] px-2.5 py-1.5 font-ui text-[12px] text-parchment-400">
                                                             {t('admin.membership.imagePricing.perProfile')}
@@ -302,6 +343,34 @@ export function PlanEditorDialog({
                                                     )}
                                                 </td>
                                             ))}
+                                            {withQuantity && (
+                                                <td>
+                                                    {quantityUnit ? (
+                                                        <div className="flex min-w-[112px] items-center gap-1.5">
+                                                            <input
+                                                                type="number"
+                                                                inputMode="numeric"
+                                                                min={0}
+                                                                step={1}
+                                                                value={draft.daily_quantity_limit}
+                                                                onChange={(event) => updateLimit(operation, 'daily_quantity_limit', event.target.value)}
+                                                                disabled={saving}
+                                                                aria-label={`${label} · ${t('admin.membership.editor.columns.dailyQuantity')} (${t(`admin.membership.editor.quantityUnits.${quantityUnit}`)})`}
+                                                                aria-required="true"
+                                                                aria-invalid={parseQuantity(operation, draft.daily_quantity_limit) === undefined || undefined}
+                                                                className={cx(controlClass, 'w-full min-w-[84px] px-2.5 py-1.5 text-sm')}
+                                                            />
+                                                            <span className="shrink-0 font-ui text-[11px] text-parchment-400">
+                                                                {t(`admin.membership.editor.quantityUnits.${quantityUnit}`)}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="block min-w-[84px] px-2.5 py-1.5 font-ui text-[12px] text-parchment-400">
+                                                            {t('admin.membership.editor.quantityNotApplicable')}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                            )}
                                         </tr>
                                     )
                                 })}
@@ -310,6 +379,9 @@ export function PlanEditorDialog({
                     </div>
                     {operations.some(isProfilePriced) && (
                         <p className="font-ui text-[12px] text-parchment-300">{t('admin.membership.imagePricing.note')}</p>
+                    )}
+                    {withQuantity && (
+                        <p className="font-ui text-[12px] text-parchment-300">{t('admin.membership.editor.quantityHelper')}</p>
                     )}
                     {!limitsValid && (
                         <Callout tone="danger" role="alert" className="py-2">
@@ -337,7 +409,7 @@ export function PlanEditorDialog({
     )
 }
 
-function fieldColumnKey(field: LimitField): 'dailyLimit' | 'maxInFlight' | 'creditCost' {
+function fieldColumnKey(field: CountField): 'dailyLimit' | 'maxInFlight' | 'creditCost' {
     if (field === 'daily_request_limit') return 'dailyLimit'
     if (field === 'max_in_flight') return 'maxInFlight'
     return 'creditCost'

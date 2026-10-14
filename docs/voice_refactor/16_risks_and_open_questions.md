@@ -11,15 +11,17 @@ This is the one register of what can go wrong in the MiniMax → ElevenLabs spee
 - the **assumptions** the plan rests on;
 - the **sign-off checklist**.
 
+**Workspace R1 alignment (2026-10-12).** Workspace R1 (personal app workspaces) is committed in both repositories but not deployed to production. This register adds ROL-08 (the deploy dependency), TEC-13 (handshake coupling and scoping regressions), Q-33…Q-35 and PA-21, from 03 D39 and [research 15](research/15_workspace_r1_impact.md). "Workspace" in VEN-* and LGL-* rows still means the **ElevenLabs** workspace.
+
 It decides nothing new. [03](03_target_architecture_and_decisions.md) is the source of truth, and decisions are cited as (D11), spikes as (S-3), written confirmations as (L-2). Changes that plan documents propose to 03 are collected in §3.8; they take effect only once 03 is edited. Facts that still depend on a spike or a written confirmation are labelled so. Prices and model facts are **as of 2026-10-12**. Dates are the D28 targets, which still need owner sign-off.
 
-**Related:** [README](README.md) · [01 current state](01_current_state.md) · [02 capabilities](02_elevenlabs_capabilities.md) · [03 decisions (source of truth)](03_target_architecture_and_decisions.md) · [04 catalog](04_voice_catalog_and_library.md) · [05 Studio and console](05_voice_studio_and_admin_console.md) · [06 narration](06_chat_narration_migration.md) · [07 calls](07_realtime_calls_migration.md) · [08 backend](08_backend_refactor_plan.md) · [09 frontend](09_frontend_refactor_plan.md) · [10 data and rollout](10_data_migration_and_rollout.md) · [11 cost and operations](11_cost_plans_and_operations.md) · [12 best practices](12_best_practices_and_improvements.md) · [13 policy and privacy](13_policy_privacy_and_compliance.md) · [14 spikes and contract tests](14_staging_spike_and_contract_tests.md) · [15 implementation plan](15_implementation_plan_and_acceptance.md) · research [09](research/09_research_critic_gaps.md), [10](research/10_gap_policy_licensing.md), [11](research/11_gap_catalog_api_semantics.md), [12](research/12_gap_model_protocol_facts.md), [13](research/13_gap_codebase_checks.md), [14](research/14_cost_model.md)
+**Related:** [README](README.md) · [01 current state](01_current_state.md) · [02 capabilities](02_elevenlabs_capabilities.md) · [03 decisions (source of truth)](03_target_architecture_and_decisions.md) · [04 catalog](04_voice_catalog_and_library.md) · [05 Studio and console](05_voice_studio_and_admin_console.md) · [06 narration](06_chat_narration_migration.md) · [07 calls](07_realtime_calls_migration.md) · [08 backend](08_backend_refactor_plan.md) · [09 frontend](09_frontend_refactor_plan.md) · [10 data and rollout](10_data_migration_and_rollout.md) · [11 cost and operations](11_cost_plans_and_operations.md) · [12 best practices](12_best_practices_and_improvements.md) · [13 policy and privacy](13_policy_privacy_and_compliance.md) · [14 spikes and contract tests](14_staging_spike_and_contract_tests.md) · [15 implementation plan](15_implementation_plan_and_acceptance.md) · research [09](research/09_research_critic_gaps.md), [10](research/10_gap_policy_licensing.md), [11](research/11_gap_catalog_api_semantics.md), [12](research/12_gap_model_protocol_facts.md), [13](research/13_gap_codebase_checks.md), [14](research/14_cost_model.md), [15](research/15_workspace_r1_impact.md)
 
 ---
 
 ## 0. At a glance
 
-**51 risks:** 3 Critical, 17 High, 23 Medium, 8 Low impact (heat map in §2.1).
+**53 risks:** 3 Critical, 19 High, 23 Medium, 8 Low impact (heat map in §2.1).
 
 | Rank | Risk | Why it ranks here | Bites at |
 |---|---|---|---|
@@ -39,6 +41,7 @@ It decides nothing new. [03](03_target_architecture_and_decisions.md) is the sou
 2. The written request to ElevenLabs (all L-items, L-1 together with L-9), proposed for 2026-10-19 ([13 §1.4](13_policy_privacy_and_compliance.md)). L-1, L-4 and L-8 must be **answered** before R2 entry (2026-11-25), and ElevenLabs gives no response-time commitment.
 3. The 14 spikes in the R0 exit gate, and the production inventory counts (Q-01), which the mapping coverage gate needs.
 4. Catalog curation: ≥ 40 published voices, owned designs only until L-2.
+5. Workspace R1 in production before R0's first schema step (ROL-08, Q-33): the voice migration chains after `2026_10_workspace_r1`.
 
 ---
 
@@ -49,7 +52,7 @@ It decides nothing new. [03](03_target_architecture_and_decisions.md) is the sou
 | Prefix | Meaning | Defined in |
 |---|---|---|
 | `VEN-`, `TEC-`, `PRD-`, `CST-`, `LGL-`, `ROL-` | Risk, by category: vendor, technical, product, cost, legal and privacy, rollout | This document |
-| `D01`…`D38` | Decisions | [03 §4](03_target_architecture_and_decisions.md#4-decision-records) |
+| `D01`…`D39` | Decisions | [03 §4](03_target_architecture_and_decisions.md#4-decision-records) |
 | `S-1`…`S-29` | Staging spikes | [03 §6.1](03_target_architecture_and_decisions.md#61-staging-spike-paid-staging-workspace-synthetic-policy-safe-text-only); procedures in [14 §2](14_staging_spike_and_contract_tests.md) |
 | `L-1`…`L-16` | Written confirmations from ElevenLabs. **There is no L-11:** research 10 §9 item 11 (preview caching) was folded into L-3 | [03 §6.2](03_target_architecture_and_decisions.md#62-pending-written-confirmations-elevenlabs-sales-or-legal-items-from-research10-9) |
 | `CN-1`…`CN-11` | Tasks for external counsel | [13 §1.5](13_policy_privacy_and_compliance.md) |
@@ -101,7 +104,7 @@ Roles, not people. Each row of the register gets a named person at sign-off (§5
 | Impact ↓ / Likelihood → | Low | Medium | High |
 |---|---|---|---|
 | **Critical** | VEN-07, LGL-01 | VEN-06 | — |
-| **High** | VEN-03, TEC-10, LGL-06, LGL-07, ROL-06 | VEN-01, VEN-08, TEC-01, TEC-09, PRD-02, CST-01, LGL-03, LGL-04, ROL-01, ROL-02, ROL-03 | PRD-01 |
+| **High** | VEN-03, TEC-10, TEC-13, LGL-06, LGL-07, ROL-06 | VEN-01, VEN-08, TEC-01, TEC-09, PRD-02, CST-01, LGL-03, LGL-04, ROL-01, ROL-02, ROL-03, ROL-08 | PRD-01 |
 | **Medium** | VEN-10, TEC-04, TEC-12, LGL-08, LGL-09, LGL-10, LGL-11, ROL-04, ROL-07 | VEN-02, VEN-04, VEN-05, VEN-09, TEC-02, TEC-05, TEC-07, TEC-08, PRD-05, CST-02, CST-04, LGL-05 | PRD-04, ROL-05 |
 | **Low** | — | TEC-06, TEC-11, PRD-06, CST-03, LGL-02 | TEC-03, PRD-03, PRD-07 |
 
@@ -135,7 +138,8 @@ Roles, not people. Each row of the register gets a named person at sign-off (§5
 | **TEC-09** | **Moderation gate availability.** The gate is fail-closed, so a classifier outage or slowdown is a voice outage; false positives block ordinary dark-fantasy narration. | M | H | 300 ms (call sentence) and 2 s (narration batch) timeouts; `moderation_unavailable` is retryable and refunded; > 1% over 1 h is a rollback trigger (D28). Deterministic first layer. Self-hosted classifier for calls if S-29 misses. Thresholds re-tuned after 30 days. Tests use mocks only. | BE | `moderation_unavailable` rate; block rate per 1k segments; S-29 | D06, D26, D28; S-29 |
 | **TEC-10** | **Catalog sync misclassifies a configuration fault as mass voice removal** (listing error, key fault, lost group sharing), and the resolver substitutes voices across the board. | L | H | Mass-miss guard: the run aborts if more than max(3, 5%) of active voices are missing. Only Job B's per-voice confirmation sets `removed`. 403 on ≥ 3 voices in 10 minutes = config breaker, never removal. Every change logged in `voice_catalog_event` (D10, D19). | BE; Curator | Job A abort; spike of `suspect` voices; config breaker open | D04, D10, D19 |
 | **TEC-11** | **Loudness spread.** Voices differ by more than 6 LU, and attenuation-only gain cannot lift quiet voices; multi-voice turns jump in volume. | M | L | Acceptance measures loudness and rejects voices needing more than −6 dB; the player applies `gain_db` (D16). Phase 2: PCM + `lameenc` server gain. | Curator; BE | S-16 spread; complaints about volume jumps | D16; S-16 |
-| **TEC-12** | **Retry comparison change (D36).** Excluding voice paths from the retry byte-equality ([conversation_turn_store.py:124-137](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/conversation_turn_store.py)) assumes voices never enter the LLM graph input. | L | M | An R0 test asserts the graph payload is identical with and without voices. If it cannot pass: accept 409 `CHAT_RETRY_CONFLICT` on retries of pre-refresh failed turns, with a message (D36). | BE | The R0 test fails | D21, D36; Q-16 |
+| **TEC-13** | **Workspace R1 coupling and scoping regressions.** (a) The SPA treats any workspace capability `schema_revision` other than `2026_10_workspace_r1` as a predecessor API and blocks private content ([workspaceContract.ts:91-94](/home/andres/WebstormProjects/magic-worlds/src/infrastructure/api/workspaceContract.ts)); a voice migration that also bumps that value would lock every deployed build out. (b) A new voice route that forgets the selector or the `new_work` intent leaks or writes across app workspaces. (c) A per-turn charge reserved before the active-workspace lock would charge for a narration that is then refused. (d) Caps counted per workspace would let two workspaces double a user's daily cap. | L | H | D39 and 03 §5.15. The capability value is pinned by a test after every voice migration (08 §4.1, §9.4). `resolve_workspace_context` on every new route; the route matrix test (`test_voice_routes_workspace`). Reserve only after `_admit_media_job_origin` (06 §5.4). Caps and in-flight keyed by user only (`test_turn_charge_workspace`). | BE; FE; QA | Capability test fails; the SPA shows the "updating" state after a deploy; a 404/422 rate jump on voice routes; charges with `workspace_archived` refunds | D24, D28, D36, D39 |
+| **TEC-12** | **Retry comparison change (D36).** Excluding voice paths from the retry byte-equality ([conversation_turn_store.py:124-137](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/conversation_turn_store.py)) assumes voices never enter the LLM graph input. **Found false in R0 work:** voices entered through the read-card node's `snapshot_json` (all chat kinds, codex cards included) and through the `template_snapshot` frozen into the upstream graph metadata (`narrator_voice` and cast voices, all four chat graphs). **Rollback hazard:** a build rolled back below the strip compares the new voice-less frozen snapshot strictly, so retries of turns that failed under the new build return 409 and in-flight turns cannot be recovered, for any chat with voices. | L | M | R0 strips voices from graph input with `without_voices()` in `card_context.py` (drops `voice` / `narrator_voice` when the value is an object or null). Retry and recovery compare both sides after `without_voices()`; `CHAT_CONTEXT_STALE` for fresh turns stays strict. `test_voice_graph_payload` asserts the payload is identical with and without voices. Rollback below this build is a documented user-visible cost (users resend the message; [10 §6.2](10_data_migration_and_rollout.md)). | BE | The graph-payload test fails; a 409 `CHAT_RETRY_CONFLICT` rate jump after a rollback | D21, D36; Q-16 |
 
 ### 2.4 Product
 
@@ -184,6 +188,7 @@ Roles, not people. Each row of the register gets a named person at sign-off (§5
 | **ROL-04** | **Mapping coverage and the R5 rewrite.** Gaps in `voice_legacy_mapping` (counts unknown, G6), cast collisions, R5 rewrite errors, or V1 presets left before the R5 DDL. | L | M | MiniMax picker restricted to mapped ids from R0; the coverage query before R1, each canary step, R3 and R5; unmapped → language default plus review flag; reviewed `--check`/`--apply` with an audit row per path; R5 DDL only at 0 V1 presets (D12, D21). | DATA | Coverage below 100%; a non-zero `--check` | D12, D21, D33, D38 |
 | **ROL-05** | **Schedule compression.** R0 is about 265 engineer-days with zero slack on the critical path against D28 ([15 §1.5](15_implementation_plan_and_acceptance.md)); the ElevenLabs answers have no SLA; a slip pushes R2–R4 into the December holidays. | H | M | Gates decide, not dates (03 §6.3). Re-date with the relative-offset rule ([15 §1.5](15_implementation_plan_and_acceptance.md)); keep the 30-day window by moving every phase together, never by shortening R3. Holiday freeze for canary and 100% steps (PA-14). Weekly L-item follow-up (§3.4). | Owner; Architect | R0 burndown; spikes not started by 2026-10-26; no ElevenLabs reply by R1 | D28 |
 | **ROL-06** | **Membership-op lockstep.** Adding `voice_preview` and changing `count_in_flight` is a startup contract: an unknown operation raises ([models.py:2061-2117](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)). A seed or deploy ordering mistake can stop the BFF starting or break narration quota. | L | H | Shipped in R0.2 so any rollback stays inside R0; forward and reverse migrations rehearsed on a copy ([15 §3.3](15_implementation_plan_and_acceptance.md)); reverse migrations exist only before R1 (D28). | BE; BILL | Staging startup failure | D18, D24, D28 |
+| **ROL-08** | **Workspace R1 deploy dependency.** Workspace R1 is committed (backend `f37eefd`, frontend `c7307c6`) but runs only on the owner's dev database. R0's schema steps chain after `2026_10_workspace_r1`, so R0 migration 1 cannot run until Workspace R1 is live in production. Its own deploy (cutover with maintenance window, Phase 6 of the workspace plan) competes for the same low-traffic windows, and its line drift (~3,000 lines in `models.py`) makes older citations in this plan stale. | M | H | Deploy Workspace R1 first, on its own window, and soak it before R0.2 (Q-33). Freeze `2026_10_workspace_r1.sql` as the predecessor; the voice cutover follows `workspace_cutover.py` (08 §4.1). Re-read cited lines before each change ([research 15 §10](research/15_workspace_r1_impact.md)). If Workspace R1 slips, R0 work that needs no schema change (FE readers, pipeline, catalog curation offline) continues; schema steps wait. | Owner; BE | No Workspace R1 production date by R0 start; a failed workspace cutover; R0.2 ready before Workspace R1 is live | D28, D39 |
 | **ROL-07** | **MiniMax fails during the window.** Non-cohort users need MiniMax until R3, and rollback needs it until R4. | L | M | Confirm the MiniMax contract and billing before R2 ([11 §9.6](11_cost_plans_and_operations.md)). If MiniMax degrades, advance the cohort only as far as the gates allow, otherwise text-only. | Operator | MiniMax error rate; an invoice or contract notice | D28 |
 
 ### 2.8 Register upkeep
@@ -200,7 +205,9 @@ Roles, not people. Each row of the register gets a named person at sign-off (§5
 | ROL-03, ROL-04, ROL-06 | R5 contract complete; `--check` reports 0 V1 rows |
 | VEN-03 | 2027-01-01 with zero premade references, and X-9 recorded ([14 §2.30](14_staging_spike_and_contract_tests.md)) |
 | TEC-03, TEC-06 | S-9 and S-25 recorded, and the tail-carry parser in production |
-| TEC-12 | The R0 graph-payload test passes |
+| TEC-12 | The R0 graph-payload test passes (it does since the strip) and no rollback below the strip is planned before R1 |
+| ROL-08 | Workspace R1 live in production and R0 migration 1 applied on top of it |
+| TEC-13 | R5 complete with the capability pin test green; afterwards it is an ordinary regression test |
 | PRD-02 | R0 exit with ≥ 40 published voices |
 | LGL-01, LGL-10 | L-1 or L-14 answered positively |
 | LGL-06 | Opt-out screenshots filed for production and staging |
@@ -384,13 +391,13 @@ Collected from the plan documents' open-item sections ([04 §15](04_voice_catalo
 | Q-10 | Does a service account use one of Scale's 3 seats? | 11 O-6 | Operator | S-1 | Assume yes |
 | Q-11 | Unit of `daily_budget_chars` | 11 O-2 | BE | R0 | Flash-list-equivalent characters ([11 §6.3](11_cost_plans_and_operations.md)) |
 | Q-12 | Does production have public HTTPS ingress? | [research 13 §5](research/13_gap_codebase_checks.md) | Operator | Only for the optional webhook | Polling only |
-| Q-13 | Country signal for the sanctions geo-block | 13 §5.5 | BE | R2 entry | None: without a signal the L-15 safe default cannot be enforced, so the R2 checklist item stays open |
+| Q-13 | Country signal for the sanctions geo-block | 13 §5.5 | BE | R2 entry | None: without a signal the L-15 safe default cannot be enforced, so the R2 checklist item stays open **Out of scope for this execution (owner, 2026-10-14):** no country-signal integration is built; `VOICE_GEO_BLOCK_MODE` stays `off` (I-45). |
 | Q-14 | Envelope encryption for consent documents and IVC samples (keys separate from DB credentials) | 13 §8 | BE | Before the first IVC | No IVC |
 | Q-15 | MiniMax baselines (first audio, `tts_failed`, job p95) measured in R0 | D06, D28 | BE; QA | ≥ 7 days before R1 | The "2× baseline" triggers cannot be used; only absolute thresholds apply |
 | Q-16 | Does the D36 graph-payload test pass (voices never in the LLM input)? | D36 | BE | R0 | Accept 409 on pre-refresh retries, with a message |
-| Q-17 | Does `api.auth` expose a verified-email flag? | D37 | BE | R2 entry | The BFF tracks verification itself |
+| Q-17 | Does `api.auth` expose a verified-email flag? | D37 | BE | R2 entry | The BFF tracks verification itself **Out of scope for this execution (owner, 2026-10-14):** no `api.auth` change and no BFF-side email verification. Account age uses `tb_user.creation_at` (I-17). |
 | Q-18 | Group chats (`character_group`) have no voice-refresh action in D36 | 10 §11 | BE; Architect | R1 | No refresh for group chats; substitution stays visible (PA-13) |
-| Q-19 | Mid-stream barge-in persistence path; truncation of display text and segments; FE `voice_playback_progress` frame | 07 §12 | BE; FE | R0 | The options recommended in [07](07_realtime_calls_migration.md) |
+| Q-19 | Mid-stream barge-in persistence path; truncation of display text and segments; FE `voice_playback_progress` frame | 07 §12 | BE; FE | R0 | The options recommended in [07](07_realtime_calls_migration.md). **Answered (2026-10-13):** option (a), plus the `voice_playback` client frame; see 03 §5.16 I-51 and 08 §5.8. |
 | Q-20 | Will production stay single-process until #19 is fixed? | D30, D37 | Operator; BE | R0 | Yes; any scale-out waits for the MySQL lease (TEC-05) |
 | Q-21 | How often brackets appear in stored segments | research 13 §9 | DATA | R0 | Strip regardless (D14) |
 | Q-22 | Restart-only config (`ELEVENLABS_BASE_URL`, keys): move to a reloadable source? | 11 O-9 | BE | Optional | Drained restart |
@@ -404,6 +411,9 @@ Collected from the plan documents' open-item sections ([04 §15](04_voice_catalo
 | Q-30 | Which graphs carry the turn `language` field (adventure, character and group chat assumed) | 08 §11 #12 | BE | R0 (D34 telemetry needs it) | All three |
 | Q-31 | Loudness measurement for acceptance: server-side library or offline meter import | 08 §11 #13 | BE; Curator | R0 exit (S-16) | Offline meter import |
 | Q-32 | Delivery channel for D26 6a abuse warnings (03 does not fix one) | [09 §4.7, §11](09_frontend_refactor_plan.md) | FE; LEGAL | R1 | The 09 §4.7 proposal: the existing notifications feed; voice-disabled states reuse the `voice_error` / `tts_failed` copy |
+| Q-33 | Production deploy date of Workspace R1 (schema `2026_10_workspace_r1`), which R0's first schema step chains after | 03 D39; [08 §11](08_backend_refactor_plan.md) #14; [10 §5.1](10_data_migration_and_rollout.md) | Owner; BE | R0 start | None: R0 schema steps wait; non-schema R0 work proceeds (ROL-08) |
+| Q-34 | Fix the Workspace R1 gaps on voice surfaces (voice socket close 4404/4422; narration, narrator picker and Call button not read-only gated; narrator save on the wrong client; missing `WORKSPACE_ACTIVE_CALL` label) as independent workspace bugs now, or inside FE-02/FE-03 | [09 §4.11](09_frontend_refactor_plan.md); [07 §9.6](07_realtime_calls_migration.md); research 15 §9 | Owner; FE | R0 exit | Inside FE-02/FE-03 (R0) |
+| Q-35 | On account wipe, delete the user's `voice_preview_render` rows and files, or keep them as shared cache | [08 §11](08_backend_refactor_plan.md) #16; 03 §5.15 | LEGAL; BE | R0 | Delete them (they hold only fixed texts; another user's next miss re-renders) |
 
 ### 3.8 Proposed amendments to 03
 
@@ -431,6 +441,7 @@ Raised by plan documents. None is in force until the Architect edits 03. Until t
 | PA-18 | Narration contract additions: copy keys `voices.notice.not_narrated` and `voices.badge.ai_voice` (§5.12); a `tts_segments_state` frame for capped clips and turn-level public codes `narration_paused`, `auto_narration_paused`, `voice_not_eligible`, `voice_restricted` (§5.8); optional `trigger: "auto" \| "manual"` on the `tts` frame so the 95% spend step can pause auto-narration only (§5.13, §5.14); new `TtsErrorPublic` fields in the §5.14 list | 06 §12 #4–#7, #14; [09 §11](09_frontend_refactor_plan.md) | Architect; BE; FE | As proposed in 06; older builds default to `manual` (fail open), 100% still refuses |
 | PA-19 | Narration details: resolve before `SpeechTextPipeline` (fix the §2.2 diagram order); partial-fit tier rule when neither tier fits the remaining daily cap (D24 item 4); context texts join reuse hash v2 if S-17 enables them (§5.6, later) | 06 §12 #8, #12, #13 | Architect | As proposed in 06 |
 | PA-20 | Store the R1 internal allow-list as a `voice_runtime_setting` key (03 §5.2) rather than a restart-only env value | 08 §11 #2 | Owner; BE | Decide before R1; env value means a drained restart per change |
+| PA-21 | Workspace R1 alignment: D39; §5.15 scope matrix; app-workspace columns on `tts_turn_charge` and `voice_review_flag`; `session_voice_setting.session_id int` with FK; the extra §5.14 MiniMax hard-codes; the public code `workspace_archived` | [research 15](research/15_workspace_r1_impact.md); 06, 08 | Architect | **Applied in 03 on 2026-10-12** |
 
 ---
 
@@ -448,7 +459,7 @@ Things the plan takes as true without proof yet. Each names how and when it is c
 | AS-06 | Flash TTFB of 100–150 ms in NA/EU leaves room for p50 ≤ 250 ms including moderation | Vendor figure [research 05 §9.3](research/05_elevenlabs_platform_pricing_limits_policy.md) | S-8, S-29 | TEC-01 |
 | AS-07 | Enough owned designs pass acceptance in en and es on both models | No evidence yet; Default replacements lack v4 entries | S-14, S-15, R0 exit | PRD-02, TEC-02 |
 | AS-08 | The BFF stays single-process until #19 is fixed separately | `serve.py` runs one process (01 §6.1) | Q-20 | TEC-05 |
-| AS-09 | Voices never enter the LLM graph input | D36 | Q-16 test in R0 | TEC-12 |
+| AS-09 | Voices never enter the LLM graph input | **False before R0:** the read-card node and the frozen `template_snapshot` carried them. Now enforced by `without_voices()` and `test_voice_graph_payload` | Q-16 test in R0 | TEC-12 |
 | AS-10 | The MiniMax key and contract stay usable until R4 (2026-12-18) | Current contract | [11 §9.6](11_cost_plans_and_operations.md) before R2 | ROL-07 |
 | AS-11 | Groq Whisper stays available at $0.111/h with headroom for call STT | research 14 §2.4 | Q-08 | VEN-10 |
 | AS-12 | A `magic_llm` `moderation` profile exists on a provider already named for story generation, within 300 ms / 2 s | D26 | Q-06, S-29 | TEC-09, TEC-01 |
@@ -462,6 +473,7 @@ Things the plan takes as true without proof yet. Each names how and when it is c
 | AS-20 | Theme songs via fal `minimax/music-3` are unaffected (separate `FAL_KEY`) | D01 | D01 sign-off | — |
 | AS-21 | ElevenLabs processes in the nearest region (USA, Netherlands, Singapore) and stores in the US | research 05 §5.1 | CN-10 | LGL-03 |
 | AS-22 | The D28 dates hold | Proposed; capacity analysis says at risk | Owner sign-off; weekly burndown | ROL-05 |
+| AS-23 | Workspace R1 reaches production before R0 migration 1, and its contracts (selectors, intents, capability value) do not change during the program | Committed at `f37eefd`/`c7307c6`; not deployed | Q-33; the capability pin test | ROL-08, TEC-13 |
 
 ---
 
@@ -479,7 +491,7 @@ Things the plan takes as true without proof yet. Each names how and when it is c
 ### 5.2 Before the R0 build starts
 
 - [ ] Owner signs D01, D02, D05, D06, D09, D15, D18, D20, D22, D23, D24, D25, D26, D28, D29, D31, D34 and D37, or records an override (an override edits 03 first).
-- [ ] Architect records no objection to the "Recommended" decisions (D03, D04, D07, D08, D10, D11, D12, D16, D17, D19, D21, D27, D30, D32, D33, D35, D36, D38) and to the designs blocked only on a spike parameter (D13 on S-3, D14 on S-6).
+- [ ] Architect records no objection to the "Recommended" decisions (D03, D04, D07, D08, D10, D11, D12, D16, D17, D19, D21, D27, D30, D32, D33, D35, D36, D38, D39) and to the designs blocked only on a spike parameter (D13 on S-3, D14 on S-6).
 - [ ] Owner confirms the D28 dates, or re-dates with the [15 §1.5](15_implementation_plan_and_acceptance.md) rule; PA-14 and PA-16 decided.
 - [ ] Architect accepts or rejects each PA item (§3.8) and edits 03 accordingly.
 - [ ] Each risk in §2 has a named person; the weekly review slot exists.
@@ -488,6 +500,7 @@ Things the plan takes as true without proof yet. Each names how and when it is c
 - [ ] Counsel briefed with the research 10 §8.3 drafts (CN-1…CN-11).
 - [ ] Q-01 production counts scheduled on a read replica.
 - [ ] Q-27 settled: R0 expand DDL split into deployable steps, each with a tested reverse script.
+- [ ] Q-33 settled: Workspace R1 has a production deploy date before R0 migration 1; `2026_10_workspace_r1.sql` frozen; the capability pin test planned (ROL-08, TEC-13).
 
 ### 5.3 Gate sign-offs
 
@@ -496,7 +509,8 @@ The hard conditions are the [03 §6.3](03_target_architecture_and_decisions.md#6
 **R0 exit** (review by 2026-11-17; before any ElevenLabs request with real user text)
 - [ ] 03 §6.3 R0 row met: 14 spikes passed or fallback recorded; L-1 sent with L-9; L-3 answered or safe default applied; opt-out screenshots (production and staging); seats recorded; ≥ 40 published voices; `voice_default` rows; mapping and reverse mapping at 100%; Acceptance module live; probes green.
 - [ ] Conditional choices in §3.3 for S-14 and S-15 recorded by the owner.
-- [ ] Q-01, Q-02, Q-06, Q-07, Q-15, Q-16, Q-20, Q-24, Q-26 and Q-31 answered (or their defaults recorded).
+- [ ] Q-01, Q-02, Q-06, Q-07, Q-15, Q-16, Q-20, Q-24, Q-26, Q-31, Q-34 and Q-35 answered (or their defaults recorded).
+- [ ] Workspace R1 live in production and the voice migrations applied on top of it; the capability still reports `2026_10_workspace_r1` (ROL-08, TEC-13).
 - [ ] Register reviewed: no Critical or High risk without its mitigation built (VEN-06, TEC-09, ROL-03, ROL-06 in particular).
 
 **R1 exit** (before R2; staff traffic only until here)
@@ -541,7 +555,7 @@ One row per signature, kept with this document (the ROLL log holds the evidence)
 
 ## Sources
 
-**Decision record:** [03](03_target_architecture_and_decisions.md) §1, §3 (index, C1–C18, owner decisions 1–23), §4 (D01–D38), §5.4, §5.8, §5.9, §5.13, §5.14, §6.1–§6.3, Review log.
+**Decision record:** [03](03_target_architecture_and_decisions.md) §1, §3 (index, C1–C18, owner decisions 1–23), §4 (D01–D39), §5.4, §5.8, §5.9, §5.13, §5.14, §5.15, §6.1–§6.3, Review log.
 
 **Plan documents (open-item sections consolidated here):** [04 §15](04_voice_catalog_and_library.md), [05 §12](05_voice_studio_and_admin_console.md), [06 §12](06_chat_narration_migration.md), [07 §12](07_realtime_calls_migration.md), [08 §11](08_backend_refactor_plan.md), [09 §4.7, §11](09_frontend_refactor_plan.md), [10 §4.6, §10–§11](10_data_migration_and_rollout.md), [11 §5.3, §7–§11](11_cost_plans_and_operations.md), [12 §8](12_best_practices_and_improvements.md), [13 §1.4, §1.5, §5.7, §7, §8](13_policy_privacy_and_compliance.md), [14 §1.8, §2.30, §6](14_staging_spike_and_contract_tests.md), [15 §1.5, §3.2, §3.3](15_implementation_plan_and_acceptance.md).
 
@@ -553,6 +567,7 @@ One row per signature, kept with this document (the ROLL log holds the evidence)
 - [13 Codebase checks](research/13_gap_codebase_checks.md) §4, §5, §7, remaining items: membership-op lockstep, ingress, canary routing.
 - [14 Cost model](research/14_cost_model.md) §0, §6, §9, §10.3, §11, §13: totals, plan fit, concurrency, sensitivity, re-pricing levers, open data.
 - [05 Platform, pricing, limits, policy](research/05_elevenlabs_platform_pricing_limits_policy.md) §9.3–§9.4: failover and change management.
+- [15 Workspace R1 impact](research/15_workspace_r1_impact.md): schema scope, admission intents, capability coupling, migration chain, FE gaps, line drift.
 
 **Codebase (read-only, 2026-10-12):**
 - Backend: [main.py:916-942](/home/andres/PycharmProjects/magic-worlds-api/src/main.py) · [route_chat.py:1433](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py) · [voice_presets.py:99-118](/home/andres/PycharmProjects/magic-worlds-api/src/routes/voice_presets.py) · [db.sql:670,923](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql) · [conversation_turn_store.py:124-137](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/conversation_turn_store.py) · [models.py:2061-2117](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py) · [voice_orchestration/engine.py:1579-1599](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/engine.py) · [tts_generation/config.py:34-35](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/config.py) · [voice_orchestration/config.py:26-31](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/config.py)

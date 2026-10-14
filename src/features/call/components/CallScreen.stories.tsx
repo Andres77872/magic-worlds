@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { EFFECTIVE_BY_REASON, effectiveVoice } from '@/features/voices/fixtures'
+import { callVoiceNote } from '../callVoiceNote'
 import { CallScreenView } from './CallScreen'
 
 const noop = () => {}
@@ -12,7 +14,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'The immersive, hands-free voice-call surface. The portrait pulses while listening, glows while the character speaks, and shows a thinking ring between turns. Turn-taking is automatic (VAD) — there is no push-to-talk. When the call ends it explains why and offers to call again. These stories drive the pure `CallScreenView`; the live `CallScreen` container wires it to `useVoiceCallController`.',
+                    'The immersive, hands-free voice-call surface. The portrait pulses while listening, glows while the character speaks, and shows a thinking ring between turns. Turn-taking is automatic (VAD) — there is no push-to-talk. When the call ends it explains why and offers to call again. The header always labels the voice as AI; on the new voice engine it adds a note when the call speaks with a call voice or a replacement. These stories drive the pure `CallScreenView`; the live `CallScreen` container wires it to `useVoiceCallController`.',
             },
         },
     },
@@ -120,3 +122,53 @@ export const FatalError: Story = {
 export const Reconnecting: Story = { args: { state: 'reconnecting', inputLevel: 0 } }
 export const Muted: Story = { args: { state: 'listening', isMuted: true, inputLevel: 0 } }
 export const LongCaptions: Story = { args: { state: 'assistant_speaking', transcript: 'Tell me everything you found in the archive, including the letter and the map.', assistantText: 'The archive holds an account of the city before the flood. Every street and garden has been carefully marked on the old map. Someone circled the bell tower and wrote a warning beside it: return before the last light fades. I think whoever left that letter expected us to follow the route tonight.' } }
+
+/** The card's own voice is "Eldrin"; the notes below come from the same helper the live container uses. */
+const CARD_VOICE = 'Eldrin'
+
+/** Header: the "AI voice" label alone, as on every call that speaks with the card's own voice. */
+export const HeaderAiVoice: Story = {
+    name: 'Header: AI voice',
+    args: { state: 'assistant_speaking', inputLevel: 0, assistantText: 'Come closer. The lantern is the only light left in the archive.', voiceNote: null },
+}
+
+/** Header: the card's voice is not call-ready, so the call speaks with a call voice. */
+export const HeaderCallVoice: Story = {
+    name: 'Header: call voice',
+    args: { state: 'listening', voiceNote: callVoiceNote(EFFECTIVE_BY_REASON.not_call_eligible, CARD_VOICE) },
+}
+
+/** Header: the card's voice was replaced before the call; the tooltip names both voices. */
+export const HeaderVoiceReplaced: Story = {
+    name: 'Header: voice replaced',
+    args: { state: 'listening', voiceNote: callVoiceNote(EFFECTIVE_BY_REASON.voice_removed, CARD_VOICE) },
+}
+
+/** Header: the voice was swapped mid-call; no substitute is named, so the note reads "Voice replaced". */
+export const HeaderVoiceReplacedMidCall: Story = {
+    name: 'Header: voice replaced mid-call',
+    args: {
+        state: 'assistant_speaking',
+        inputLevel: 0,
+        assistantText: 'Forgive the change in my voice. The storm is loud tonight.',
+        voiceNote: callVoiceNote(effectiveVoice({ display_name: CARD_VOICE }), CARD_VOICE, 'voice_unavailable'),
+    },
+}
+
+/** Ended with a replaced voice: the end panel offers the card's current voice for the next call. */
+export const EndedVoiceReplaced: Story = {
+    name: 'Ended (voice replaced)',
+    args: {
+        state: 'ended',
+        endReason: 'user',
+        inputLevel: 0,
+        voiceNote: callVoiceNote(EFFECTIVE_BY_REASON.voice_removed, CARD_VOICE),
+        onRefreshVoice: async () => {},
+    },
+}
+
+/** Ended on a call voice: the end panel suggests picking a call-ready voice. */
+export const EndedCallVoice: Story = {
+    name: 'Ended (call voice)',
+    args: { state: 'ended', endReason: 'user', inputLevel: 0, voiceNote: callVoiceNote(EFFECTIVE_BY_REASON.not_call_eligible, CARD_VOICE) },
+}

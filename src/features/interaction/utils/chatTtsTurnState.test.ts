@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatSocketServerMessage, TurnEntry } from '../../../shared'
-import { hasNonTerminalTtsJob, mergeHydratedTtsTurns, nonTerminalTtsJobIds, upsertChatTtsFrame, upsertTtsJobResult, type ChatTtsFrame } from './chatTtsTurnState'
+import { hasNonTerminalTtsJob, isGeneratingClipStatus, isSettledClipStatus, mergeHydratedTtsTurns, nonTerminalTtsJobIds, upsertChatTtsFrame, upsertTtsJobResult, type ChatTtsFrame } from './chatTtsTurnState'
 
 const baseTurn: TurnEntry = {
   id: 'local-ai-1',
@@ -296,5 +296,192 @@ describe('chatTtsTurnState — per-segment multi-voice', () => {
     const merged = mergeHydratedTtsTurns(live, hydrated)
     expect(merged[0].ttsSegments![0].status).toBe('completed')
     expect(merged[0].ttsSegments![0].url).toBe('/tts/assets/asset-0.mp3')
+  })
+})
+
+describe('chatTtsTurnState — voice v2 fields (R0, expand-only)', () => {
+  const turn: TurnEntry = { ...baseTurn, assistantMessageId: 303, turnId: 'turn-3' }
+
+  const segmentJob = (job_id: string, extra: Record<string, unknown> = {}): ChatTtsFrame => ({
+    type: 'tts_job',
+    adventure_id: 7,
+    assistant_message_id: 303,
+    turn_id: 'turn-3',
+    job_id,
+    status: 'synthesizing',
+    status_url: `/tts/jobs/${job_id}`,
+    result_url: `/tts/jobs/${job_id}/result`,
+    segment_index: 0,
+    segment_count: 1,
+    kind: 'thought',
+    ...extra,
+  } as ChatTtsFrame)
+
+  const segmentFailed = (job_id: string, error: Record<string, unknown>): ChatTtsFrame => ({
+    type: 'tts_failed',
+    adventure_id: 7,
+    assistant_message_id: 303,
+    turn_id: 'turn-3',
+    job_id,
+    status: 'failed',
+    error,
+    segment_index: 0,
+    segment_count: 1,
+  } as unknown as ChatTtsFrame)
+
+  it('carries tier, gain, substitution and voice names through frames and job results', () => {
+    let turns = upsertChatTtsFrame([turn], segmentJob('tts-v-0', {
+      tier: 'expressive',
+      gain_db: -4.5,
+      substitution_reason: 'voice_restricted',
+      voice_name: 'Aria',
+      original_voice_name: 'Lyra (cloned)',
+    }))
+    expect(turns[0].ttsSegments![0]).toMatchObject({
+      tier: 'expressive',
+      gain_db: -4.5,
+      substitution_reason: 'voice_restricted',
+      voice_name: 'Aria',
+      original_voice_name: 'Lyra (cloned)',
+    })
+
+    // A later result without the fields never erases them.
+    turns = upsertTtsJobResult(turns, {
+      job_id: 'tts-v-0',
+      status: 'completed',
+      assets: [{ asset_id: 'asset-v', url: '/tts/assets/asset-v.mp3', content_type: 'audio/mpeg' }],
+    })
+    expect(turns[0].ttsSegments![0]).toMatchObject({ status: 'completed', tier: 'expressive', gain_db: -4.5, voice_name: 'Aria' })
+  })
+
+  it('clamps gain to [-24, 0] and drops invalid values', () => {
+    expect(upsertChatTtsFrame([turn], segmentJob('a', { gain_db: 6 }))[0].ttsSegments![0].gain_db).toBe(0)
+    expect(upsertChatTtsFrame([turn], segmentJob('b', { gain_db: -60 }))[0].ttsSegments![0].gain_db).toBe(-24)
+    expect(upsertChatTtsFrame([turn], segmentJob('c', { gain_db: 'loud' }))[0].ttsSegments![0].gain_db).toBeUndefined()
+    expect(upsertChatTtsFrame([turn], segmentJob('d', { tier: 'ultra' }))[0].ttsSegments![0].tier).toBeUndefined()
+  })
+
+  it('keeps retryable, action and a safe code on errors', () => {
+    let turns = upsertChatTtsFrame([turn], segmentJob('tts-e-0'))
+    turns = upsertChatTtsFrame(turns, segmentFailed('tts-e-0', {
+      category: 'moderation_unavailable',
+      detail: 'Try again shortly.',
+      code: 'moderation_unavailable',
+      retryable: true,
+      action: 'attest',
+    }))
+    expect(turns[0].ttsSegments![0].error).toMatchObject({ code: 'moderation_unavailable', retryable: true, action: 'attest' })
+
+    const unsafe = upsertChatTtsFrame([turn], segmentFailed('tts-e-1', {
+      category: 'failed',
+      detail: 'x',
+      code: 'see https://example.test/trace',
+      retryable: 'yes',
+      action: 'delete',
+    }))[0].ttsSegments![0].error!
+    expect(unsafe.code).toBeUndefined()
+    expect(unsafe).not.toHaveProperty('retryable')
+    expect(unsafe).not.toHaveProperty('action')
+  })
+
+  it('records a turn-level refusal as a turn error, not a clip', () => {
+    const turns = upsertChatTtsFrame([turn], {
+      type: 'tts_failed',
+      adventure_id: 7,
+      assistant_message_id: 303,
+      turn_id: 'turn-3',
+      job_id: null,
+      status: 'invalid',
+      error: { category: 'invalid', detail: 'Workspace archived.', code: 'workspace_archived', retryable: false },
+    })
+    expect(turns[0].ttsSegments).toBeUndefined()
+    expect(turns[0].ttsJobId).toBeUndefined()
+    expect(turns[0].ttsError).toMatchObject({ code: 'workspace_archived', retryable: false })
+
+    // A later admitted request clears the stale gate.
+    const next = upsertChatTtsFrame(turns, segmentJob('tts-after'))
+    expect(next[0].ttsError).toBeUndefined()
+    expect(next[0].ttsSegments).toHaveLength(1)
+  })
+
+  it('settles a turn on a voice_safety_pause refusal, keeping the crisis action and retry (R2-BE-01, PC-1)', () => {
+    const turns = upsertChatTtsFrame([turn], {
+      type: 'tts_failed',
+      adventure_id: 7,
+      assistant_message_id: 303,
+      turn_id: 'turn-3',
+      job_id: null,
+      status: 'unavailable',
+      error: {
+        category: 'unavailable',
+        detail: 'Voice is paused.',
+        code: 'voice_safety_pause',
+        retryable: false,
+        action: 'crisis_resources',
+        retry_after_seconds: 600,
+      },
+    })
+    expect(turns[0].ttsSegments).toBeUndefined()
+    expect(turns[0].ttsJobId).toBeUndefined()
+    expect(turns[0].ttsError).toEqual({
+      category: 'unavailable',
+      detail: 'Voice is paused.',
+      code: 'voice_safety_pause',
+      retryable: false,
+      action: 'crisis_resources',
+      retry_after_seconds: 600,
+    })
+    expect(hasNonTerminalTtsJob(turns[0])).toBe(false)
+    expect(nonTerminalTtsJobIds(turns[0])).toEqual([])
+  })
+
+  it('settles a clip on a voice_region_unavailable refusal (R2-BE-03, PC-2)', () => {
+    let turns = upsertChatTtsFrame([turn], segmentJob('tts-g-0'))
+    turns = upsertChatTtsFrame(turns, segmentFailed('tts-g-0', {
+      category: 'unavailable',
+      detail: 'Voice is not available in your region.',
+      code: 'voice_region_unavailable',
+      retryable: false,
+    }))
+    expect(turns[0].ttsSegments![0]).toMatchObject({ status: 'failed', error: { code: 'voice_region_unavailable', retryable: false } })
+    expect(hasNonTerminalTtsJob(turns[0])).toBe(false)
+    // The crisis action survives a per-clip refusal too.
+    const fresh = upsertChatTtsFrame(upsertChatTtsFrame([turn], segmentJob('tts-p-0')), segmentFailed('tts-p-0', { category: 'unavailable', detail: 'x', code: 'voice_safety_pause', action: 'crisis_resources' }))
+    expect(fresh[0].ttsSegments![0].error).toMatchObject({ code: 'voice_safety_pause', action: 'crisis_resources' })
+  })
+
+  it('lets a newer job replace a failed clip (per-clip retry)', () => {
+    let turns = upsertChatTtsFrame([turn], segmentJob('tts-r-0'))
+    turns = upsertChatTtsFrame(turns, segmentFailed('tts-r-0', { category: 'failed', detail: 'x' }))
+    expect(turns[0].ttsSegments![0].status).toBe('failed')
+
+    // The same job never moves back from terminal.
+    expect(upsertChatTtsFrame(turns, segmentJob('tts-r-0'))[0].ttsSegments![0].status).toBe('failed')
+
+    turns = upsertChatTtsFrame(turns, segmentJob('tts-r-1'))
+    expect(turns[0].ttsSegments![0]).toMatchObject({ job_id: 'tts-r-1', status: 'synthesizing' })
+    expect(turns[0].ttsSegments![0].error).toBeUndefined()
+  })
+
+  it('treats display-only segment states as settled, never generating or polled', () => {
+    expect(isSettledClipStatus('daily_limit_reached')).toBe(true)
+    expect(isSettledClipStatus('not_narrated')).toBe(true)
+    expect(isSettledClipStatus('synthesizing')).toBe(false)
+    expect(isGeneratingClipStatus('daily_limit_reached')).toBe(false)
+    expect(isGeneratingClipStatus('mirroring')).toBe(true)
+
+    const hydrated: TurnEntry[] = [{
+      ...turn,
+      ttsSegments: [
+        { segment_index: 0, status: 'completed', job_id: 'tts-h-0', url: '/tts/assets/asset-h.mp3', gain_db: -100 },
+        { segment_index: 1, status: 'daily_limit_reached' },
+        { segment_index: 2, status: 'not_narrated' },
+      ],
+    }]
+    const merged = mergeHydratedTtsTurns([turn], hydrated)
+    expect(hasNonTerminalTtsJob(merged[0])).toBe(false)
+    expect(nonTerminalTtsJobIds(merged[0])).toEqual([])
+    expect(merged[0].ttsSegments!.map((clip) => clip.status)).toEqual(['completed', 'daily_limit_reached', 'not_narrated'])
+    expect(merged[0].ttsSegments![0].gain_db).toBe(-24)
   })
 })

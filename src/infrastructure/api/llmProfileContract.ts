@@ -81,7 +81,7 @@ export function assertEffectiveLlmProfile(value: unknown): void {
 }
 
 const LLM_FEATURES = new Set(['card_generation', 'card_assistant', 'novel', 'chat_adventure', 'chat_character', 'chat_group',
-    'lorebook_assistant', 'lorebook_extraction', 'image_prompt', 'theme_song_writer', 'callbot', 'app_assistant'])
+    'lorebook_assistant', 'lorebook_extraction', 'image_prompt', 'theme_song_writer', 'callbot', 'app_assistant', 'moderation'])
 const PAYER_COUNT_KEYS = ['platform', 'user_byok', 'unattributed']
 
 function hasExactKeys(value: unknown, keys: string[]): value is Record<string, unknown> {

@@ -7,13 +7,23 @@
  */
 
 import type { FormEvent, KeyboardEvent } from 'react'
-import { useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { AudioLines, Bot, Drama, Plus, UserCircle } from 'lucide-react'
-import type { Character, CharacterVoice } from '@/shared'
+import type { Character, EffectiveVoice, StoredCharacterVoice } from '@/shared'
 import type { CharacterRole } from '@/shared/types/character.types'
 import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
+import { hasAssignedVoice, isElevenLabsProjection, keepStoredVoice, readEffectiveVoice, voiceDisplayName } from '@/shared/voice'
 import { VoicePickerDialog } from '@/features/voices'
+import { CardVoiceOwnerPrompts } from '@/features/voices/components/CardVoiceOwnerPrompts'
+import { EffectiveVoiceLabel } from '@/features/voices/components/EffectiveVoiceLabel'
+import { ReviewNotice } from '@/features/voices/components/ReviewNotice'
+import { VoiceFieldSample } from '@/features/voices/components/VoiceFieldSample'
+import { useLeavingVoice } from '@/features/voices/hooks/useLeavingVoice'
+import { useVoiceReviewFlags } from '@/features/voices/hooks/useVoiceReviewFlags'
+import { storedVoiceLanguage } from '@/shared/voice/storedVoiceLanguage'
+import { voiceFieldErrorKey } from '@/features/voices/voiceFieldError'
+import { voiceWriteErrorMessage } from '@/features/voices/voiceWriteError'
 import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { ApiError } from '@/infrastructure/api'
@@ -61,6 +71,7 @@ import {
     workspaceSaveErrorKey,
     type CardTemplate,
 } from '../../common/engine'
+import { voiceSaveError, type VoiceSaveError } from '../../common/engine/useCreatorWorkspace'
 import { buildCardEditHash, isPersonaCreatorHash } from '@/features/gallery/galleryLinks'
 import { useUnsavedChangesGuard } from '@/shared/hooks'
 import { ConfirmDialog, LoadingSpinner } from '@/ui/components'
@@ -157,14 +168,25 @@ function CharacterCreatorForm() {
     const [triggers, setTriggers] = useState<string[]>(editingCharacter?.triggers ?? [])
     const [imageUrl, setImageUrl] = useState<string | undefined>(editingCharacter?.image_url)
     const [themeSongUrl, setThemeSongUrl] = useState<string | undefined>(editingCharacter?.theme_song_url)
-    const [voice, setVoice] = useState<CharacterVoice | null>(editingCharacter?.voice ?? null)
+    // The stored voice (V1 or V2) as loaded: re-sent untouched on save unless the user picks again (D32).
+    const [voice, setVoice] = useState<StoredCharacterVoice | null>(editingCharacter?.voice ?? null)
+    // What the stored voice plays as (D35, read-only): never sent back; a re-pick drops it.
+    const [effectiveVoice, setEffectiveVoice] = useState<EffectiveVoice | null>(editingCharacter?.effective_voice ?? null)
     const [voicePickerOpen, setVoicePickerOpen] = useState(false)
     const voicesEnabled = isVoicesFeatureEnabled()
+    const reviewFlags = useVoiceReviewFlags(voicesEnabled && isAuthenticated)
     // Card id resolved at save time, so theme persistence never races `editingCharacter` state.
     const savedIdRef = useRef<string | null>(editingCharacter?.id ?? null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [touched, setTouched] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
+    // R5-BE-01 (always on): a 409 voice_reload_required save offers Reload next to the message.
+    const [saveErrorAction, setSaveErrorAction] = useState<VoiceSaveError['action']>(null)
+    const [reloading, setReloading] = useState(false)
+    const reloadHintId = useId()
+    // 05 §7.4: a save refused for the picked voice (422) also shows on the voice field, for that voice only.
+    const [voiceFieldError, setVoiceFieldError] = useState<{ key: string; voice: StoredCharacterVoice | null } | null>(null)
+    const voiceFieldErrorId = useId()
     const [assistantApplied, setAssistantApplied] = useState(false)
     // Requested initial collections deleted while a generated card was saved (normally empty).
     const [organizationWarnings, setOrganizationWarnings] = useState<OrganizationWarning[]>([])
@@ -243,9 +265,20 @@ function CharacterCreatorForm() {
         setTriggers(card.triggers ?? [])
         setImageUrl(card.image_url)
         setThemeSongUrl(card.theme_song_url)
+        // Bodies that carry the voice path (published, draft, version) re-seed it whole, so a
+        // deep-linked or restored card never saves `voice: null` over its stored voice (D32),
+        // not even one this client does not recognise (09 §3.2).
+        if ('voice' in card) {
+            setVoice(keepStoredVoice(card.voice) ?? null)
+            // The projection belongs to the body it came with; a body without one shows the plain name.
+            setEffectiveVoice(readEffectiveVoice((card as { effective_voice?: unknown }).effective_voice))
+        }
         guided.hydrateFrom(card, { preserveActive: true })
         // The hydrated body is the persisted state — re-baseline dirty tracking.
         markClean()
+        // A save error (and its Reload action) described the previous form, not this body.
+        setSaveError(null)
+        setSaveErrorAction(null)
     }
 
     // Deep-link / refresh: when the URL carries `?card=<id>` but no card is in memory, fetch it and
@@ -389,10 +422,36 @@ function CharacterCreatorForm() {
         />
     )
 
+    /**
+     * Reload after a 409 voice_reload_required save (R5-BE-01): the stored voice changed since the
+     * editor loaded it, so refetch the card's draft-or-published body through its own workspace and
+     * re-seed only the voice path from it. Every other unsaved edit stays in the form (still dirty),
+     * so the next Save draft sends it with the stored voice. A failed reload keeps the message.
+     */
+    const reloadEditedCard = async (cardId: string) => {
+        setReloading(true)
+        try {
+            const doc = await creator.cardClient().getCardDraft('character', cardId)
+            if ('voice' in doc) {
+                setVoice(keepStoredVoice(doc.voice) ?? null)
+                setEffectiveVoice(readEffectiveVoice(doc.effective_voice))
+            }
+            await draft.refresh()
+            setSaveError(null)
+            setSaveErrorAction(null)
+        } catch (error) {
+            console.error('Failed to reload character after a voice change:', error)
+            setDraftToast({ tone: 'error', message: t('cardVersions.errors.draftLoad') })
+        } finally {
+            setReloading(false)
+        }
+    }
+
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
         if (creator.readOnly) {
             setSaveError(t('workspaceContent.saveErrors.archived'))
+            setSaveErrorAction(null)
             return
         }
         // Read-only historical view: nothing to save until the version is restored into the draft.
@@ -406,17 +465,31 @@ function CharacterCreatorForm() {
 
         setIsSubmitting(true)
         setSaveError(null)
+        setSaveErrorAction(null)
+        setVoiceFieldError(null)
         try {
             const payload = buildPayload()
             if (editingCharacter) {
                 // Edit mode: save to the private draft and stay in the editor. Publishing (a
                 // separate action) is what makes the changes live and cuts a new version.
-                const ok = await draft.saveDraft(payload)
+                let failure: unknown = null
+                const ok = await draft.saveDraft(payload, { onError: (cause) => { failure = cause } })
                 if (ok) markClean(JSON.stringify(payload))
+                // A refused voice (I-36) says which voice to change; a stale editor (R5) offers Reload.
+                const editingId = editingCharacter.id
+                const voiceSave = ok
+                    ? null
+                    : voiceSaveError(failure, editingId ? () => { void reloadEditedCard(editingId) } : undefined)
+                if (voiceSave) {
+                    setSaveError(t(voiceSave.key))
+                    setSaveErrorAction(voiceSave.action)
+                }
+                const fieldKey = ok ? null : voiceFieldErrorKey(failure)
+                if (fieldKey) setVoiceFieldError({ key: fieldKey, voice })
                 setDraftToast(
                     ok
                         ? { tone: 'success', message: t('cardVersions.draft.saved') }
-                        : { tone: 'error', message: t('cardVersions.errors.draftSave') },
+                        : { tone: 'error', message: voiceSave ? t(voiceSave.key) : t('cardVersions.errors.draftSave') },
                 )
             } else {
                 // Create mode: create the live card at the captured origin. Opened from the Library,
@@ -450,8 +523,15 @@ function CharacterCreatorForm() {
             // user can retry. Transient backend outages get reassuring copy.
             const transient = error instanceof ApiError && error.isTransient
             const workspaceError = workspaceSaveErrorKey(error)
+            // A refused voice (I-36: plan-locked, not eligible, …) says which voice to change.
+            const voiceSave = voiceSaveError(error)
+            const voiceError = voiceSave ? t(voiceSave.key) : voiceWriteErrorMessage(error, t)
+            const fieldKey = voiceFieldErrorKey(error)
+            if (fieldKey) setVoiceFieldError({ key: fieldKey, voice })
             setSaveError(
-                workspaceError
+                voiceError
+                    ? voiceError
+                    : workspaceError
                     ? t(workspaceError)
                     : transient
                     ? t('creation.character.save.transient')
@@ -534,6 +614,22 @@ function CharacterCreatorForm() {
 
     const firstClass = template?.firstClassExamples ?? {}
     const isPersona = role === 'persona'
+    const savedCardId = editingCharacter?.id ?? null
+    // "Recommended for this character" needs a saved, non-persona card and its own workspace client.
+    const voiceRecommendedFor = !isPersona && savedCardId
+        ? { cardId: savedCardId, workspaceId: editingCharacter?.organization?.workspace_id ?? creator.cardWorkspaceId ?? null }
+        : null
+    const voiceReviewFlag = savedCardId ? reviewFlags.flagFor('card', savedCardId) ?? reviewFlags.flagFor('card_draft', savedCardId) : null
+    // 05 §7.8/§9.3: one catalog read for a leaving voice dates its badge and names the "Switch to" replacement.
+    const leavingVoice = useLeavingVoice(voice, effectiveVoice, voicesEnabled && !isPersona && hasAssignedVoice(voice))
+    // A prompt the user acted on can unmount under the focus; it returns to "Change voice" (05 §10).
+    const voiceFieldRef = useRef<HTMLDivElement>(null)
+    const voiceChangeButton = () => voiceFieldRef.current?.querySelector<HTMLButtonElement>(':scope > button') ?? null
+    const focusVoiceChange = () => voiceChangeButton()?.focus()
+    // The refused voice's field error, until the voice changes (a re-pick, Switch, Reload or re-hydrate).
+    const voiceFieldErrorShown = voiceFieldError && voiceFieldError.voice === voice ? voiceFieldError.key : null
+    // The catalog voice the stored voice plays as (an ElevenLabs projection), for the field sample and Listen.
+    const heardVoiceKey = isElevenLabsProjection(effectiveVoice) ? effectiveVoice.voice_key : null
     const greetingVisible = !isPersona || Boolean(greeting.trim()) || greetingRevealed
 
     const chatbot = (
@@ -773,13 +869,18 @@ function CharacterCreatorForm() {
                             />
                         </CreatorField>
                     </StudioSection>
+                </ReadOnlyFieldset>
 
-                    <StudioSection
-                        id={sections.portrayal.id}
-                        icon={sections.portrayal.icon}
-                        title={sections.portrayal.title}
-                        description={sections.portrayal.description}
-                    >
+                {/* The portrayal section stays outside the archived-workspace fieldset so the voice
+                    review notice keeps Listen and Dismiss usable there (05 §7.8-§7.9, AC-C7); its
+                    fields and the voice field's controls get their own read-only fieldsets. */}
+                <StudioSection
+                    id={sections.portrayal.id}
+                    icon={sections.portrayal.icon}
+                    title={sections.portrayal.title}
+                    description={sections.portrayal.description}
+                >
+                    <ReadOnlyFieldset disabled={creator.readOnly} className="flex flex-col gap-5">
                         <CreatorField
                             label={t('creation.character.fieldsForm.descriptionLabel')}
                             htmlFor="character-description"
@@ -864,20 +965,46 @@ function CharacterCreatorForm() {
                                 onUse={setSystemInstructions}
                             />
                         </CreatorField>
+                    </ReadOnlyFieldset>
 
-                        {voicesEnabled && (
-                            <CreatorField
-                                label={t('creation.character.fieldsForm.voiceLabel')}
-                                htmlFor="character-voice"
-                                tooltip={t('creation.character.fieldsForm.voiceTooltip')}
-                            >
-                                <div className="flex items-center justify-between gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3">
+                    {/* D38: no narration path speaks the user's persona, so persona cards get no
+                        voice field or picker; their stored voice is still saved back unchanged. */}
+                    {voicesEnabled && !isPersona && (
+                        <CreatorField
+                            label={t('creation.character.fieldsForm.voiceLabel')}
+                            htmlFor="character-voice"
+                            tooltip={t('creation.character.fieldsForm.voiceTooltip')}
+                            // 05 §7.4: the save refused this voice (the form's save error says it too). The Field
+                            // shows it in place of the helper; "Change" names it (Button does not read FieldContext).
+                            error={voiceFieldErrorShown ? (
+                                <span id={voiceFieldErrorId} data-testid="voice-field-error">{t(voiceFieldErrorShown)}</span>
+                            ) : undefined}
+                        >
+                            <ReadOnlyFieldset disabled={creator.readOnly}>
+                                <div ref={voiceFieldRef} className="flex items-center justify-between gap-3 rounded-lg border border-parchment-50/[.08] bg-ink-800/70 px-4 py-3">
                                     <div className="min-w-0">
-                                        {voice?.voice_id ? (
+                                        {hasAssignedVoice(voice) && isElevenLabsProjection(effectiveVoice) ? (
                                             <>
-                                                <p className="font-ui text-sm font-semibold text-parchment-50">{voice.preset_name || voice.voice_id}</p>
-                                                <code className="font-mono text-xs text-parchment-400">{voice.voice_id}</code>
+                                                <EffectiveVoiceLabel stored={voice} effective={effectiveVoice} badgeContext={{ date: leavingVoice?.disable_at ?? null }} />
+                                                {/* 05 §7.8 owner prompts (AC-K6): "Switch to {replacement}" rewrites the voice in the
+                                                    form; "Choose a voice" / "Pick another" open the picker. */}
+                                                <CardVoiceOwnerPrompts
+                                                    className="mt-2"
+                                                    stored={voice}
+                                                    effective={effectiveVoice}
+                                                    onSwitch={(next) => {
+                                                        setVoice(next)
+                                                        // The projection described the previous voice.
+                                                        setEffectiveVoice(null)
+                                                    }}
+                                                    onChoose={() => setVoicePickerOpen(true)}
+                                                    leavingItem={leavingVoice}
+                                                    returnFocus={focusVoiceChange}
+                                                    disabled={creator.readOnly}
+                                                />
                                             </>
+                                        ) : hasAssignedVoice(voice) ? (
+                                            <p className="font-ui text-sm font-semibold text-parchment-50">{voiceDisplayName(voice) ?? t('voices.display.fallbackName')}</p>
                                         ) : (
                                             <p className="font-ui text-sm text-parchment-300">{t('creation.character.fieldsForm.voiceDefault')}</p>
                                         )}
@@ -886,20 +1013,58 @@ function CharacterCreatorForm() {
                                         variant="secondary"
                                         size="sm"
                                         iconLeft={<Icon icon={AudioLines} size={14} />}
+                                        aria-describedby={voiceFieldErrorShown ? voiceFieldErrorId : undefined}
                                         onClick={() => setVoicePickerOpen(true)}
                                     >
-                                        {voice?.voice_id ? t('creation.character.fieldsForm.voiceChange') : t('creation.character.fieldsForm.voiceChoose')}
+                                        {hasAssignedVoice(voice) ? t('creation.character.fieldsForm.voiceChange') : t('creation.character.fieldsForm.voiceChoose')}
                                     </Button>
                                 </div>
-                            </CreatorField>
-                        )}
-                    </StudioSection>
+                            </ReadOnlyFieldset>
+                            {/* Outside the fieldset: in an archived workspace samples still play (AC-C7, 05 §7.9). */}
+                            {hasAssignedVoice(voice) && heardVoiceKey && (
+                                <VoiceFieldSample
+                                    className="mt-2"
+                                    voiceKey={heardVoiceKey}
+                                    name={effectiveVoice?.display_name || voiceDisplayName(voice) || t('voices.display.fallbackName')}
+                                    language={storedVoiceLanguage(voice)}
+                                />
+                            )}
+                            {/* Outside the fieldset: Listen and Dismiss stay usable in an archived workspace (05 §7.9). */}
+                            {voiceReviewFlag && (
+                                <ReviewNotice
+                                    className="mt-2"
+                                    flag={voiceReviewFlag}
+                                    name={name.trim() || undefined}
+                                    // The voice the card plays now, when known: Listen then skips the effective read.
+                                    voiceKey={heardVoiceKey}
+                                    language={storedVoiceLanguage(voice)}
+                                    readOnly={creator.readOnly}
+                                    onDismiss={(flagId) => void reviewFlags.dismiss(flagId)}
+                                    onAdjust={() => setVoicePickerOpen(true)}
+                                    dismissFocusTarget={voiceChangeButton}
+                                />
+                            )}
+                            {voiceReviewFlag && reviewFlags.dismissError && (
+                                <p role="alert" className="mt-1.5 font-ui text-caption text-blood-300">{t(reviewFlags.dismissError)}</p>
+                            )}
+                        </CreatorField>
+                    )}
+                </StudioSection>
 
-                    {voicesEnabled && (
+                {/* StudioSection drops its top divider as a first child; the next section keeps it here. */}
+                <ReadOnlyFieldset disabled={creator.readOnly} className="flex flex-col gap-6 [&>section:first-child]:border-t [&>section:first-child]:pt-6">
+                    {voicesEnabled && !isPersona && (
                         <VoicePickerDialog
                             open={voicePickerOpen}
                             currentVoice={voice}
-                            onSelect={setVoice}
+                            currentEffectiveVoice={effectiveVoice}
+                            recommendedFor={voiceRecommendedFor}
+                            language={storedVoiceLanguage(voice)}
+                            onSelect={(next) => {
+                                setVoice(next)
+                                // The projection described the previous voice.
+                                setEffectiveVoice(null)
+                            }}
                             onClose={() => setVoicePickerOpen(false)}
                         />
                     )}
@@ -969,6 +1134,22 @@ function CharacterCreatorForm() {
                     disabled={draft.isHistorical || creator.readOnly}
                     error={saveError}
                 />
+                {saveErrorAction && !draft.isHistorical && !creator.readOnly && (
+                    <div className="-mt-3 flex justify-end">
+                        {/* Ties the action to the alert above for screen readers (not read twice: hidden). */}
+                        {saveError && <span id={reloadHintId} hidden>{saveError}</span>}
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={saveErrorAction.run}
+                            disabled={reloading}
+                            aria-describedby={saveError ? reloadHintId : undefined}
+                            className="max-sm:w-full"
+                        >
+                            {t(saveErrorAction.labelKey)}
+                        </Button>
+                    </div>
+                )}
             </form>
         </CreatorStudio>
         {chatbot}

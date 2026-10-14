@@ -45,3 +45,54 @@ describe('UsageSection BYOK panel', () => {
         expect(screen.queryByRole('group', { name: 'Your provider key (BYOK)' })).not.toBeInTheDocument()
     })
 })
+
+describe('UsageSection voice panel (D24)', () => {
+    function voicePanel() {
+        return screen.queryByRole('group', { name: 'Voice' })
+    }
+
+    it('stays hidden on a server without the voice usage fields', () => {
+        render(<UsageSection profile={baseProfile} />)
+        expect(voicePanel()).not.toBeInTheDocument()
+    })
+
+    it('shows characters, call minutes and previews left from the flat membership fields (I-1)', () => {
+        const profile = {
+            ...baseProfile,
+            membership: {
+                ...baseProfile.membership!,
+                narration_chars_used: 500, narration_chars_limit: 2500, call_seconds_used: 90, call_seconds_limit: 180, previews_left: 2,
+            },
+        }
+        render(<UsageSection profile={profile} />)
+        const panel = within(voicePanel()!)
+
+        expect(panel.getByRole('progressbar', { name: 'Narration characters used today' })).toHaveAttribute('aria-valuenow', '500')
+        expect(panel.getByText('2,000 characters left today')).toBeInTheDocument()
+        expect(panel.getByText('1.5 of 3 min')).toBeInTheDocument()
+        expect(panel.getByText('1.5 minutes left today')).toBeInTheDocument()
+        expect(panel.getByText('2 previews left today')).toBeInTheDocument()
+    })
+
+    it('falls back to the nested block of the dropped 09 §1.8 shape', () => {
+        const profile = {
+            ...baseProfile,
+            membership: { ...baseProfile.membership!, voice_usage: { previews_left: 2 } },
+        }
+        render(<UsageSection profile={profile} />)
+        expect(within(voicePanel()!).getByText('2 previews left today')).toBeInTheDocument()
+    })
+
+    it('shows only what is reported and the daily-limit copy at the cap', () => {
+        const profile = {
+            ...baseProfile,
+            membership: { ...baseProfile.membership!, narration_chars_used: 2500, narration_chars_limit: 2500 },
+        }
+        render(<UsageSection profile={profile} />)
+        const panel = within(voicePanel()!)
+
+        expect(panel.getByText('Daily voice limit reached. Narration resumes tomorrow.')).toBeInTheDocument()
+        expect(panel.queryByText(/min/)).not.toBeInTheDocument()
+        expect(panel.queryByText(/previews? left/)).not.toBeInTheDocument()
+    })
+})

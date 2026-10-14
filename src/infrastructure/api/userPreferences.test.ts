@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { UserPreferencesUpdate } from '@/shared'
 import { apiService } from './index'
 
 const fetchMock = vi.fn()
@@ -28,7 +29,8 @@ describe('user preference API helpers', () => {
 
         const response = await apiService.getUserPreferences()
 
-        expect(response).toEqual({ preferred_language: 'es', has_preference: true })
+        // A server before R0 sends no narration_tier: it reads as the D05 default.
+        expect(response).toEqual({ preferred_language: 'es', has_preference: true, narration_tier: 'standard' })
         expect(fetchMock).toHaveBeenCalledTimes(1)
         const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
         expect(String(url)).toContain('/user/preferences')
@@ -41,7 +43,7 @@ describe('user preference API helpers', () => {
 
         const response = await apiService.updateUserPreferences({ preferred_language: 'es' })
 
-        expect(response).toEqual({ preferred_language: 'es', has_preference: true })
+        expect(response).toEqual({ preferred_language: 'es', has_preference: true, narration_tier: 'standard' })
         expect(fetchMock).toHaveBeenCalledTimes(1)
         const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
         const headers = init.headers as Record<string, string>
@@ -50,5 +52,30 @@ describe('user preference API helpers', () => {
         expect(headers.Authorization).toBe('Bearer pref-token')
         expect(headers['Content-Type']).toBe('application/json')
         expect(init.body).toBe(JSON.stringify({ preferred_language: 'es' }))
+    })
+
+    it('reads the stored narration tier', async () => {
+        fetchMock.mockResolvedValueOnce(jsonResponse({ preferred_language: 'en', has_preference: true, narration_tier: 'expressive' }))
+
+        const response = await apiService.getUserPreferences()
+
+        expect(response.narration_tier).toBe('expressive')
+    })
+
+    it('patches only the narration tier when that is all that changes (partial update)', async () => {
+        fetchMock.mockResolvedValueOnce(jsonResponse({ preferred_language: 'en', has_preference: true, narration_tier: 'expressive' }))
+
+        const response = await apiService.updateUserPreferences({ narration_tier: 'expressive' })
+
+        expect(response).toEqual({ preferred_language: 'en', has_preference: true, narration_tier: 'expressive' })
+        const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+        expect(init.method).toBe('PATCH')
+        expect(init.body).toBe(JSON.stringify({ narration_tier: 'expressive' }))
+    })
+
+    it('types an empty update as an error, as the server refuses it (422)', () => {
+        // @ts-expect-error At least one of preferred_language or narration_tier is required.
+        const empty: UserPreferencesUpdate = {}
+        expect(empty).toEqual({})
     })
 })

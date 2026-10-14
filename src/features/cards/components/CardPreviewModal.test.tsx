@@ -143,3 +143,46 @@ describe('CardPreviewModal', () => {
         expect(screen.getByRole('button', { name: 'Importing…' })).toBeDisabled()
     })
 })
+
+describe('CardPreviewModal voice line (R1-FE-03)', () => {
+    const voice = {
+        schema_version: 2 as const,
+        provider: 'elevenlabs' as const,
+        voice_key: 'vk_3f0c2a9e5b7d4c1a8e6f0b2d4a6c8e1f',
+        voice_name: 'Eldrin',
+        settings: null,
+        emotion: null,
+        language_code: null,
+    }
+    const effective = {
+        voice_key: 'vk_0a1b2c3d4e5f60718293a4b5c6d7e8f9',
+        display_name: 'Maren',
+        provider_route: 'elevenlabs' as const,
+        substitution_reason: 'voice_removed' as const,
+        flags: [],
+        badges: ['replaced' as const],
+    }
+    const CHARACTER: CardPreview = { id: 'c1', type: 'character', mediaType: 'character', title: 'Lyra', triggers: [], voice: { stored: voice, effective } }
+
+    function renderCard(card: CardPreview) {
+        return render(
+            <I18nextProvider i18n={i18n}>
+                <CardPreviewModal target={{ type: card.type, id: card.id }} card={card} loading={false} error={null} onClose={vi.fn()} />
+            </I18nextProvider>,
+        )
+    }
+
+    it('shows the voice and what it plays as for a projection', () => {
+        renderCard(CHARACTER)
+        expect(screen.getByTestId('card-preview-voice')).toHaveTextContent('Eldrin')
+        expect(screen.getByText('Plays as Maren')).toBeInTheDocument()
+    })
+
+    it('shows no voice line without a projection or for a persona', () => {
+        const { unmount } = renderCard({ ...CHARACTER, voice: { stored: voice, effective: null } })
+        expect(screen.queryByTestId('card-preview-voice')).not.toBeInTheDocument()
+        unmount()
+        renderCard({ ...CHARACTER, type: 'persona' })
+        expect(screen.queryByTestId('card-preview-voice')).not.toBeInTheDocument()
+    })
+})
