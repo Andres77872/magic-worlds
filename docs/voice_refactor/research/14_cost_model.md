@@ -1,5 +1,7 @@
 # Consolidated voice cost model: MiniMax today vs ElevenLabs options
 
+> **Research scope (reviewed 2026-10-14):** Historical evidence from the dates stated below, including the retired MiniMax baseline. Vendor prices, model/API facts and policy claims were not reverified in this documentation pass. Current application status is **WIP** and is tracked in [00](../00_current_status_and_roadmap.md); later native ElevenLabs code/cutover supersedes migration-era implementation assumptions here.
+
 Date: 2026-10-12.
 
 **Scope.** One monthly cost model for every speech workload in magic-worlds:

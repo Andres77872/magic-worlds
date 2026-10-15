@@ -1,16 +1,20 @@
 # Voice refactor: MiniMax → ElevenLabs
 
-- **Date:** 2026-10-12
-- **Status:** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status). R0 code is built but not deployed; see [15 §9](15_implementation_plan_and_acceptance.md#9-r0-execution-status-2026-10-12). The R1 code and the dark-buildable R2, R3 and R5 rows were also built dark behind `rollout_mode = off` (a setting removed by I-72) and are not deployed; see [15 §10](15_implementation_plan_and_acceptance.md#10-r1r5-dark-build-status-2026-10-13). **On 2026-10-14 the owner ordered the MiniMax voice integration purged (03 I-68, I-69).** ElevenLabs now serves everyone with text-only fallbacks, and stored MiniMax (V1) voices were rewritten to native voices (I-72). The final contract revision (`2026_10_voice_contract`, 03 I-70) was then applied to the owner's test database; see [15 §12](15_implementation_plan_and_acceptance.md#12-final-cutover-on-the-test-database-2026-10-14). The owner then had the MiniMax legacy removed and a native ElevenLabs voice set built (03 I-72). Six designed voices now serve `es` and `en`; V1 voices, review flags, the legacy mapping and the rollout settings are gone; and the test database is at `2026_10_voice_native`. Voice moderation is optional for testing, and its dedicated model is TBD (I-73). See [15 §13](15_implementation_plan_and_acceptance.md#13-native-catalog-and-legacy-removal-2026-10-14). Nothing is committed or deployed; see [15 §11](15_implementation_plan_and_acceptance.md#11-minimax-voice-purge-2026-10-14).
+- **Status review:** 2026-10-14, America/Mexico_City.
+- **Current product status: WIP.** Implemented ElevenLabs-only speech, native V2 voices and schema; Voice Studio/calls default to disabled in `.env.example` and are locally opted in. Source/config evidence does not certify deployment. Local provider smoke is recorded with optional moderation; required moderation and deployment acceptance remain open.
 
-## Scope
+Read [00 — Current status and roadmap](00_current_status_and_roadmap.md) first. It distinguishes implemented code, local opt-in, dated test/provider evidence, release gaps and TBD decisions. [15 §§11–13](15_implementation_plan_and_acceptance.md#11-minimax-voice-purge-2026-10-14) preserve the purge, test-database migration and native-catalog/smoke history. [03 §5.16](03_target_architecture_and_decisions.md#516-r0-implementation-decisions-2026-10-12) records the later owner instructions.
 
-This folder plans how to remove MiniMax from magic-worlds and move every speech surface to ElevenLabs. The surfaces are chat narration, realtime voice calls, the voice catalog, the user Voice Studio and presets, and the root admin voice console. It also covers the billing, privacy, content-policy and rollout rules those surfaces depend on. **The planning documents were written before any code.** Since then, the locally doable R0 work has been built, uncommitted, in the working trees of [magic-worlds](/home/andres/WebstormProjects/magic-worlds) and [magic-worlds-api](/home/andres/PycharmProjects/magic-worlds-api). Nothing is deployed and no migration has been applied to any database. No ElevenLabs API key has been used and no paid API has been called. Build-time decisions are in [03 §5.16](03_target_architecture_and_decisions.md) and the per-row status is in [15 §9](15_implementation_plan_and_acceptance.md#9-r0-execution-status-2026-10-12). The decisions stay *Proposed* until the owner signs the decision record. This README is the entry point: an executive summary, an index, reading paths by role, the decisions at a glance, the timeline, what has been verified and what is still open, and a glossary.
+## Scope and document precedence
+
+This suite covers narration, calls, catalog, Studio/presets, root voice curation, billing and operational/policy dependencies. The 2026-10-12 MiniMax inventories, target design, cost model and R0–R5 schedules remain dated historical planning. The later I-68–I-73/native cutover supersedes cohorts, dual-provider routing, legacy maps/V1 readers, the ≥40-voice target and the original timeline. Current code routes speech to ElevenLabs; when unavailable it degrades to text. Theme songs and MiniMax LLM support are outside this speech refactor.
+
+The owner/test-database migrations and paid provider smoke **have been recorded**, so the old statements that no migration/provider call occurred are no longer applicable. This documentation refresh itself made no runtime change or provider call.
 
 **Workspace R1 alignment (2026-10-12).** After the research, Workspace R1 (personal app workspaces, collections, copy to workspace) was committed in both repositories (backend `f37eefd`, frontend `c7307c6`, content schema `2026_10_workspace_r1`). It is migrated only on the owner's dev database and is **not deployed to production**. The plan was re-read against those commits. The result is decision **D39** and the scope matrix in [03 §5.15](03_target_architecture_and_decisions.md), with the evidence in [research 15](research/15_workspace_r1_impact.md); documents 04–10, 13, 15 and 16 were updated to match. "Workspace" alone in these documents usually means the **ElevenLabs** account workspace. The app's own workspaces are called "app workspaces" or "Workspace R1".
 
 **Related:**
-- [03 Target architecture and decisions](03_target_architecture_and_decisions.md) is the **source of truth**: D01–D39, canonical definitions in §5, spikes, legal items and gates in §6. Where any document disagrees with 03, 03 wins.
+- [03 Target architecture and decisions](03_target_architecture_and_decisions.md) is the decision record: later §5.16 owner instructions take precedence over the original D01–D39 plan. Use 00 for current status and 15 §§11–13 for dated implementation evidence.
 - [15 Implementation plan and acceptance](15_implementation_plan_and_acceptance.md): the work breakdown and the owner sign-off checklist.
 - [16 Risks and open questions](16_risks_and_open_questions.md): the risk register, every open question and the gate sign-offs.
 - [research/](research/): the 16 evidence notes behind the decisions (§6.3).
@@ -19,7 +23,9 @@ This folder plans how to remove MiniMax from magic-worlds and move every speech 
 
 ---
 
-## 1. Executive summary
+## 1. Original executive summary (2026-10-12; superseded where noted)
+
+The following records the original proposal, not current rollout status. Read 00 for the six-voice native catalog, removed cohorts/legacy maps and required-moderation gap. The original dates, staffing estimate, spike counts, vendor prices and sign-off list are retained as historical planning; they are not current commitments.
 
 1. **End state.** ElevenLabs is the only speech provider. The BFF reaches it through provider-neutral seams (`SpeechSynthesisProvider`, `StreamingSpeechProvider`, `VoiceCatalogProvider`, a capability registry and a `VoiceResolver`). No MiniMax key, URL, literal or data shape remains in live code; legacy MiniMax rows stay readable. The SPA never names a provider and never calls ElevenLabs (D01, D03, D23; [03 §2.1](03_target_architecture_and_decisions.md#21-component-view-and-provider-neutral-seams)).
 2. **Out of scope.** The fal-hosted `minimax/music-3` theme-song model shares no key, contract or data with MiniMax speech, so it stays. Eleven Music is a later option that needs legal review first (D01, D29).
@@ -59,6 +65,7 @@ This folder plans how to remove MiniMax from magic-worlds and move every speech 
 
 | Doc | Purpose | Primary audience |
 |---|---|---|
+| [00 Current status and roadmap](00_current_status_and_roadmap.md) | Actual implementation, flags, evidence limits, release gaps and TBD roadmap | Everyone |
 | [README](README.md) | This entry point: summary, index, reading paths, decisions at a glance, timeline, evidence status, glossary | Everyone |
 | [01 Current state](01_current_state.md) | The "before" picture: the three MiniMax speech paths, the integration surface, the voice data model and where it is copied, billing today, 19 known bugs, what must disappear | Everyone new to the program; engineers |
 | [02 ElevenLabs capabilities](02_elevenlabs_capabilities.md) | Capability reference: models, TTS HTTP and WebSocket APIs, expressiveness, voices, Scribe, Agents, other products, platform rules, the fit table and gotchas against MiniMax. It decides nothing | Architect, engineers, product |
@@ -133,25 +140,13 @@ Everyone starts with §1 of this README and [03 §1](03_target_architecture_and_
 - **QA:** [14](14_staging_spike_and_contract_tests.md) → [15 §4–§5](15_implementation_plan_and_acceptance.md) → [03 §6](03_target_architecture_and_decisions.md#6-assumptions-pending-staging-spike-and-written-confirmation).
 - **Voice curator (root):** [04 §3, §8–§11, §14](04_voice_catalog_and_library.md) → [05 §8](05_voice_studio_and_admin_console.md) → [14 §5](14_staging_spike_and_contract_tests.md) (listening tests).
 
-### 3.7 Where the MiniMax code lives today (orientation)
+### 3.7 Current source orientation
 
-| Area | Entry point |
-|---|---|
-| Narration provider protocol and MiniMax adapter | [minimax_adapter.py:114-122](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py) |
-| Provider pinned to MiniMax | [registry.py:24](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/registry.py), [db.sql:670](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql) (`tts_job` CHECK), [main.py:916-942](/home/andres/PycharmProjects/magic-worlds-api/src/main.py) |
-| Narration enqueue (quota on segment 0 only, bug #5) | [route_chat.py:1433](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py) |
-| Call TTS client | [streaming_tts_minimax.py:219](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/streaming_tts_minimax.py) |
-| Root voice admin service and routes | [minimax_voice_admin.py:209](/home/andres/PycharmProjects/magic-worlds-api/src/services/minimax_voice_admin.py), [admin_voices.py:39](/home/andres/PycharmProjects/magic-worlds-api/src/routes/admin_voices.py), [voice_presets.py:17](/home/andres/PycharmProjects/magic-worlds-api/src/routes/voice_presets.py) |
-| Voice object (BE, FE) | [character.py:11](/home/andres/PycharmProjects/magic-worlds-api/src/models/character.py), [voicePreset.types.ts:8](/home/andres/WebstormProjects/magic-worlds/src/shared/types/voicePreset.types.ts) |
-| Studio, picker, narration player | [VoiceStudioPage.tsx:31](/home/andres/WebstormProjects/magic-worlds/src/features/voices/components/VoiceStudioPage.tsx), [VoicePickerDialog.tsx:41](/home/andres/WebstormProjects/magic-worlds/src/features/voices/components/VoicePickerDialog.tsx), [TurnNarration.tsx:45](/home/andres/WebstormProjects/magic-worlds/src/features/interaction/components/TurnNarration.tsx) |
-| Root console UI | [features/admin/voices/](/home/andres/WebstormProjects/magic-worlds/src/features/admin/voices) |
-| Client never sends provider keys or raw audio | [voiceSocket.ts:64-79](/home/andres/WebstormProjects/magic-worlds/src/infrastructure/api/voiceSocket.ts) |
-
-The exhaustive inventories are [research 06](research/06_backend_minimax_inventory.md) (backend) and [research 07](research/07_frontend_minimax_inventory.md) (frontend). Line numbers are as of 2026-10-12 and can drift.
+Use the [current source map](00_current_status_and_roadmap.md#source-and-schema-authority): speech adapters are under `services/speech/providers/elevenlabs/`, call TTS under `call_tts_elevenlabs.py`, and narration under `tts_generation/` plus `speech/narration.py`. Historical MiniMax inventories [research 06](research/06_backend_minimax_inventory.md) and [research 07](research/07_frontend_minimax_inventory.md) identify the retired surface; links to removed adapters there are historical references.
 
 ---
 
-## 4. Key decisions at a glance
+## 4. Original decisions at a glance (2026-10-12)
 
 The status values come from [03 §3](03_target_architecture_and_decisions.md#3-decision-index):
 - **Recommended**: the architect's call, which stands unless someone objects at sign-off.
@@ -206,7 +201,9 @@ Spikes and legal items named next to a status are the open dependencies.
 
 ---
 
-## 5. Phase timeline and gates
+## 5. Original phase timeline and gates (superseded rollout)
+
+Cohort/dual-provider milestones below were waived by the later owner instructions. Current remaining acceptance work is in 00; dates are TBD.
 
 ### 5.1 Timeline
 
@@ -324,7 +321,9 @@ The whole process stayed read-only: no API key was used, no paid API was called,
 | [14 Cost model](research/14_cost_model.md) | One monthly cost model (narration, calls, previews, console) for MiniMax vs ElevenLabs options at 1k, 10k and 50k MAU; plan fit; re-pricing |
 | [15 Workspace R1 impact](research/15_workspace_r1_impact.md) | Workspace R1 against every voice path: what is workspace-scoped, admission intents for narration and calls, account-level surfaces, copies, account wipe, migration chain and capability coupling, frontend gaps, line drift |
 
-### 6.4 Open items
+### 6.4 Original open-item inventory (2026-10-12)
+
+These counts are the original review inventory, not a current open-count claim. Native cutover, local smoke and owner dispositions in 15 §§11–13 supersede some items. Track current remaining work in 00.
 
 | Kind | Count | Defined in | Procedure or tracking |
 |---|---|---|---|

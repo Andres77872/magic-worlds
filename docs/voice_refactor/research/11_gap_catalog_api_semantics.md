@@ -1,5 +1,7 @@
 # Gap closure: voice catalog API semantics, Default-voice expiry, previews and webhooks
 
+> **Research scope (reviewed 2026-10-14):** Historical evidence from the dates stated below, including the retired MiniMax baseline. Vendor prices, model/API facts and policy claims were not reverified in this documentation pass. Current application status is **WIP** and is tracked in [00](../00_current_status_and_roadmap.md); later native ElevenLabs code/cutover supersedes migration-era implementation assumptions here.
+
 Date: **2026-10-12**. Read-only research. No code, configuration or other note was changed. No API key was used and no paid endpoint was called.
 
 **Scope.** This note closes the critic gaps in [09_research_critic_gaps.md](./09_research_critic_gaps.md) that concern the ElevenLabs voice catalog:

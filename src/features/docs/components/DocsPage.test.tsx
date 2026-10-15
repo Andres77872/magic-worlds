@@ -41,6 +41,7 @@ afterEach(() => {
     }
     cleanup()
     vi.clearAllMocks()
+    vi.unstubAllEnvs()
 })
 
 describe('DocsPage', () => {
@@ -84,7 +85,7 @@ describe('DocsPage', () => {
             'Voice studio',
             'New preset',
             'Base voice',
-            'stability, similarity, speed, and emotion',
+            'stability and similarity, plus speed when the selected voice supports it',
             'Preview voice',
             'Narration voice',
             'My presets',
@@ -96,8 +97,8 @@ describe('DocsPage', () => {
     })
 
     it('documents only user voice-call controls', () => {
-        const { container } = render(<DocsPage />)
-        const pageText = container.textContent ?? ''
+        render(<DocsPage />)
+        const pageText = document.getElementById('voice')!.textContent ?? ''
 
         for (const text of [
             'Start voice call',
@@ -121,6 +122,94 @@ describe('DocsPage', () => {
         ]) {
             expect(pageText.toLowerCase()).not.toContain(blocked)
         }
+    })
+
+    it.each(['en', 'es'])('explains unavailable novel workflows as WIP in %s', async (language) => {
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+        await i18n.changeLanguage(language)
+        const t = i18n.getFixedT(language)
+        const note = t('docs.availability.disabled', { features: t('docs.availability.features.novels') })
+        render(<DocsPage />)
+
+        const writing = document.getElementById('writing')!
+        expect(writing.textContent).toContain(note)
+        expect(screen.queryByRole('button', { name: t('docs.map.items.novels.title') })).toBeNull()
+        expect(writing.textContent).not.toMatch(/copy Markdown|copia Markdown|stash|guardar aparte/)
+    })
+
+    it('keeps enabled novel instructions available without a WIP note', () => {
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        const t = i18n.getFixedT('en')
+        render(<DocsPage />)
+
+        expect(screen.getByRole('button', { name: t('docs.map.items.novels.title') })).toBeTruthy()
+        const novelInstructions = screen.getByText(t('docs.guides.writing.novels.body'))
+        expect(novelInstructions.textContent).not.toContain('WIP')
+        expect(novelInstructions.textContent).toContain('copy individual AI outputs')
+    })
+
+    it.each([
+        ['false', 'true'],
+        ['true', 'false'],
+    ])('marks resources WIP when either owning flag is off (%s/%s)', (lorebooks, resources) => {
+        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', lorebooks)
+        vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', resources)
+        const t = i18n.getFixedT('en')
+        const note = t('docs.availability.disabled', { features: t('docs.availability.features.lorebookResources') })
+        render(<DocsPage />)
+
+        expect(document.getElementById('resources')!.textContent).toContain(note)
+        expect(within(document.getElementById('map')!).queryByRole('button', { name: t('docs.map.items.resources.title') })).toBeNull()
+    })
+
+    it('does not label one-on-one chat or calls disabled when only adventures and voice studio are off', () => {
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        const t = i18n.getFixedT('en')
+        render(<DocsPage />)
+
+        expect(document.getElementById('voice-presets')!.textContent).toContain('WIP')
+        expect(document.getElementById('voice')!.textContent).not.toContain('WIP')
+        expect(screen.getByText(t('docs.guides.play.oneOnOne.body')).textContent).not.toContain('WIP')
+    })
+
+    it.each(['en', 'es'])('renders the roadmap with disabled and planned features in %s', async (language) => {
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+        vi.stubEnv('VITE_BILLING_ENABLED', 'false')
+        await i18n.changeLanguage(language)
+        const t = i18n.getFixedT(language)
+        render(<DocsPage />)
+
+        const roadmap = document.getElementById('roadmap')!
+        expect(within(roadmap).getByRole('heading', { name: t('docs.sections.roadmap.title') })).toBeTruthy()
+        expect(roadmap.textContent).toContain(t('docs.roadmap.reviewed'))
+        const novel = roadmap.querySelector('[data-roadmap-item="novels"]')!
+        const chara = roadmap.querySelector('[data-roadmap-item="charaStudio"]')!
+        const billing = roadmap.querySelector('[data-roadmap-item="billing"]')!
+        expect(novel.textContent).toContain(t('docs.roadmap.availability.disabled'))
+        expect(novel.textContent).toContain(t('docs.roadmap.statuses.partial'))
+        expect(novel.textContent).toContain(t('docs.roadmap.items.novels.next'))
+        expect(chara.textContent).toContain(t('docs.roadmap.statuses.planned'))
+        expect(chara.textContent).toContain(t('docs.roadmap.items.charaStudio.decision'))
+        expect(billing.textContent).toContain(t('docs.roadmap.availability.disabled'))
+    })
+
+    it('keeps unfinished scope visible when the novel feature is enabled', () => {
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        const t = i18n.getFixedT('en')
+        render(<DocsPage />)
+        const novel = document.querySelector('[data-roadmap-item="novels"]')!
+        expect(novel.textContent).toContain(t('docs.roadmap.availability.enabled'))
+        expect(novel.textContent).toContain(t('docs.roadmap.statuses.partial'))
+    })
+
+    it('finds planned Chara Studio through docs search', () => {
+        const t = i18n.getFixedT('en')
+        render(<DocsPage />)
+        fireEvent.change(screen.getByRole('searchbox', { name: t('docs.search.label') }), { target: { value: 'Chara Studio' } })
+        expect(screen.getByRole('heading', { name: t('docs.sections.roadmap.title') })).toBeTruthy()
+        expect(screen.queryByRole('heading', { name: t('docs.sections.start.title') })).toBeNull()
     })
 
     it('documents reusable Markdown and text resources', () => {
@@ -194,7 +283,7 @@ describe('DocsPage', () => {
         })
 
         expect(observe).toHaveBeenCalledTimes(DOC_SECTION_IDS.length)
-        expect(nav.getByRole('button', { name: content.sections[4].label })).toHaveAttribute('aria-current', 'location')
+        expect(nav.getByRole('button', { name: content.sections.find((section) => section.id === 'play')!.label })).toHaveAttribute('aria-current', 'location')
         expect(nav.getByRole('button', { name: content.sections[0].label })).not.toHaveAttribute('aria-current')
     })
 
@@ -217,10 +306,11 @@ describe('DocsPage', () => {
         vi.spyOn(appMain!, 'getBoundingClientRect').mockReturnValue(rectAt(10))
         vi.spyOn(playSection!, 'getBoundingClientRect').mockReturnValue(rectAt(610))
 
-        fireEvent.click(screen.getByRole('button', { name: content.sections[4].label }))
+        const playLabel = content.sections.find((section) => section.id === 'play')!.label
+        fireEvent.click(screen.getByRole('button', { name: playLabel }))
 
         expect(scrollTo).toHaveBeenCalledWith({ top: 688, left: 0, behavior: 'smooth' })
-        expect(screen.getByRole('button', { name: content.sections[4].label })).toHaveAttribute('aria-current', 'location')
+        expect(screen.getByRole('button', { name: playLabel })).toHaveAttribute('aria-current', 'location')
     })
 
     it('gates create actions behind login when signed out', () => {
@@ -276,7 +366,7 @@ describe('DocsPage', () => {
 
     it('filters sections to those matching the query', () => {
         const content = getDocsContent(i18n.getFixedT('en'))
-        const voice = content.sections[6] // 'voice'
+        const voice = content.sections.find((section) => section.id === 'voice')!
         const start = content.sections[0]
         render(<DocsPage />)
 

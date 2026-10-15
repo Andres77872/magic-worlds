@@ -1131,6 +1131,18 @@ export const en = {
                 },
             },
             docs: {
+                availability: {
+                    disabled: 'WIP — Disabled in this version: {{features}}. Instructions apply when available.',
+                    features: {
+                        communityCards: 'Community and shared cards',
+                        lorebooks: 'Lorebooks',
+                        lorebookResources: 'Lorebook resources',
+                        voices: 'Voice studio',
+                        calls: 'Voice calls',
+                        novels: 'Novels',
+                        adventures: 'Adventures',
+                    },
+                },
                 page: {
                     eyebrow: 'Product guide',
                     title: 'Magic Worlds Docs',
@@ -1160,6 +1172,12 @@ export const en = {
                     createAdventure: 'Create adventure',
                 },
                 sections: {
+                    roadmap: {
+                        label: 'Status & roadmap',
+                        eyebrow: 'Work in progress',
+                        title: 'Status & roadmap',
+                        intro: 'See what exists today, what is available in this version, and what still needs work. Disabled features remain WIP even when their foundation is implemented.',
+                    },
                     start: {
                         label: 'Start here',
                         eyebrow: 'Where to start',
@@ -1225,6 +1243,112 @@ export const en = {
                         eyebrow: 'Recommendations',
                         title: 'Best practices',
                         intro: 'These habits keep the library searchable, sessions coherent, and generated work easier to reuse.',
+                    },
+                },
+                roadmap: {
+                    reviewed: 'Reviewed October 14, 2026',
+                    note: 'Availability reflects this version. An enabled feature may still have unfinished scope or validation; availability can vary between versions.',
+                    labels: {
+                        current: 'Current status',
+                        next: 'Next work',
+                        decision: 'Open decision',
+                    },
+                    statuses: {
+                        implemented: 'Implemented foundation',
+                        partial: 'WIP — partial',
+                        planned: 'WIP — planned',
+                    },
+                    availability: {
+                        enabled: 'Enabled in this version',
+                        disabled: 'WIP — disabled in this version',
+                        ungated: 'Core feature',
+                        planned: 'Not available yet',
+                    },
+                    items: {
+                        core: {
+                            title: 'Cards and one-on-one chat',
+                            current: 'Character, world and item creators, private libraries and one-on-one chat are implemented.',
+                            next: 'Resolve the recorded conversation-stream regression and verify narration and portraits in exported cards.',
+                            decision: 'TBD: confirmed release checks and completion date.',
+                        },
+                        novels: {
+                            title: 'Novels / Story Studio',
+                            current: 'The chapter editor, card context, staged generation, saving and generation-history copying exist.',
+                            next: 'Fix save and rewrite recovery, then add scenes, durable revisions, a novel assistant and manuscript import/export.',
+                            decision: 'TBD: canonical manuscript format, expanded editor scope and delivery dates.',
+                        },
+                        charaStudio: {
+                            title: 'Chara Studio',
+                            current: 'Portrait generation exists; the image editing studio, reference images, masks and variant workflows are planned.',
+                            next: 'Define supported image edits and owned reference assets before building the editor and variant library.',
+                            decision: 'TBD: supported models, editing capabilities, retention rules and delivery dates.',
+                        },
+                        lorebooks: {
+                            title: 'Lorebooks',
+                            current: 'Entry editing, attachments, activation previews and the lorebook assistant are implemented.',
+                            next: 'Verify context selection, budgets and attachment rules before expanding retrieval and import/export.',
+                            decision: 'TBD: advanced retrieval scope and release acceptance.',
+                        },
+                        resources: {
+                            title: 'Lorebook resources',
+                            current: 'Text and Markdown editing, file and URL import, PDF import and metadata extraction exist.',
+                            next: 'Verify extraction retries, attachment behavior and recovery without duplicate results.',
+                            decision: 'TBD: supported import limits and release acceptance.',
+                        },
+                        workspaces: {
+                            title: 'Workspaces',
+                            current: 'Workspace libraries, switching, collections, management and copying are implemented.',
+                            next: 'Verify safe switching and copying, archived content, existing libraries and larger collections.',
+                            decision: 'TBD: release acceptance and scale targets.',
+                        },
+                        adventures: {
+                            title: 'Adventures',
+                            current: 'Adventure creators, galleries, saved sessions and the play loop are implemented.',
+                            next: 'Verify saved history, session card copies, reconnection and recovery from image or narration failures.',
+                            decision: 'TBD: release acceptance and availability dates.',
+                        },
+                        groupChats: {
+                            title: 'Group conversations',
+                            current: 'Group conversation behavior exists; the chatroom remains available when groups are disabled.',
+                            next: 'Verify cast, persona and saved conversation context with groups enabled and disabled.',
+                            decision: 'TBD: release acceptance for group conversations.',
+                        },
+                        community: {
+                            title: 'Community and shared cards',
+                            current: 'The community gallery, shared cards and shared links are implemented.',
+                            next: 'Verify private content boundaries, shared media, revoked links and importing into a workspace.',
+                            decision: 'TBD: release acceptance and availability dates.',
+                        },
+                        voices: {
+                            title: 'Voice studio',
+                            current: 'Presets, voice design, cloning and a reusable voice library form a partial voice studio.',
+                            next: 'Verify voice permissions, moderation, limits and recovery when voice generation fails.',
+                            decision: 'TBD: approved voice policies and release acceptance.',
+                        },
+                        calls: {
+                            title: 'Voice calls',
+                            current: 'Live calls linked to character conversations are implemented.',
+                            next: 'Verify browser support, interruptions, consent and clean call endings, and measure response delay.',
+                            decision: 'TBD: supported browser matrix and latency targets.',
+                        },
+                        appAssistant: {
+                            title: 'App assistant',
+                            current: 'App, card and lorebook assistant flows exist; a novel assistant is not implemented.',
+                            next: 'Verify unavailable states, relevant knowledge, safe changes and recovery without duplicate edits.',
+                            decision: 'TBD: release acceptance; novel assistance belongs to the Novel roadmap.',
+                        },
+                        billing: {
+                            title: 'Plans and purchasing',
+                            current: 'Plan purchasing, the account portal and credit accounting are implemented; purchasing still needs release validation.',
+                            next: 'Verify checkout, returns, cancellations, refunds and membership reconciliation before enabling purchases.',
+                            decision: 'TBD: purchase availability and expanded plan catalog.',
+                        },
+                        patreon: {
+                            title: 'Patreon',
+                            current: 'Membership entitlement reconciliation exists; a Patreon account linking screen is not available.',
+                            next: 'Decide whether to add account linking and define a supported connection flow.',
+                            decision: 'TBD: account linking scope and delivery date.',
+                        },
                     },
                 },
                 quickStart: {
@@ -1361,7 +1485,7 @@ export const en = {
                         },
                         assistant: {
                             title: 'Ask the card assistant',
-                            body: 'Every creator has a floating assistant. Chat about the card you are building, ask for suggestions, and apply a generated draft straight to the form — nothing changes until you accept it.',
+                            body: 'Every creator has a floating assistant. Chat about the card you are building or request changes. The assistant can save changes during a requested turn and apply the result to the form, so review the updated card when it finishes.',
                             badge: 'AI copilot',
                         },
                         save: {
@@ -1415,7 +1539,7 @@ export const en = {
                         },
                         tune: {
                             title: 'Tune the delivery',
-                            body: 'Use stability, similarity, speed, and emotion to shape the result. Small changes are easier to reuse than extreme settings, especially for long conversations.',
+                            body: 'Use stability and similarity, plus speed when the selected voice supports it. Small changes are easier to reuse than extreme settings, especially for long conversations.',
                         },
                         preview: {
                             title: 'Preview before saving',
@@ -1478,7 +1602,7 @@ export const en = {
                         },
                         novels: {
                             title: 'Novels are chapter projects',
-                            body: 'Start from a blank novel or create from cards. Add chapters, draft prose, save often, copy Markdown, and use focus mode when you only want the writing surface.',
+                            body: 'Start from a blank novel or create from cards. Add chapters, draft prose, save often, and use focus mode when you only want the writing surface. Generation history lets you copy individual AI outputs.',
                         },
                         codex: {
                             title: 'The Card Codex controls story context',
@@ -1486,7 +1610,7 @@ export const en = {
                         },
                         generation: {
                             title: 'Generation is candidate-based',
-                            body: 'Continue, rewrite, expand, condense, or critique. Generated text appears as a candidate that you can accept, stash, or discard.',
+                            body: 'Continue, rewrite, expand, condense, or critique. Accept, discard, or regenerate a prose candidate. Critique appears as separate feedback.',
                         },
                     },
                     resources: {

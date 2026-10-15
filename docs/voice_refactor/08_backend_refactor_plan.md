@@ -1,7 +1,9 @@
 # Backend refactor plan (magic-worlds-api)
 
+> **Scope / status (reviewed 2026-10-14):** Voice design and dated evidence; product rollout is **WIP**. [00 — Current status and roadmap](00_current_status_and_roadmap.md) owns current implementation/flags/gaps. Later [03 §5.16](03_target_architecture_and_decisions.md#516-r0-implementation-decisions-2026-10-12) instructions and [15 §§11–13](15_implementation_plan_and_acceptance.md#11-minimax-voice-purge-2026-10-14) supersede MiniMax routing, cohorts, V1/maps and original rollout dates. Preserve earlier proposals and vendor facts as dated references; they are not proof of availability.
+
 - **Date:** 2026-10-12
-- **Status:** Proposed (see 03 for sign-off status)
+- **Original proposal status (2026-10-12):** Proposed (see 03 for sign-off status)
 - **Scope:** This is the backend implementation plan for replacing MiniMax speech with ElevenLabs in `magic-worlds-api`. It covers:
   - the target package layout and the provider-neutral interfaces;
   - a file-by-file disposition;
@@ -41,7 +43,7 @@ All backend paths are under `/home/andres/PycharmProjects/magic-worlds-api`.
 
 | Area | Today | Target | First release |
 |---|---|---|---|
-| **Provider seams** | MiniMax-shaped Protocols inside MiniMax modules ([minimax_adapter.py:114-119](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py)) | Neutral package `src/services/speech/` with Protocols. Adapters live in `speech/providers/elevenlabs/*`. | R0 |
+| **Provider seams** | MiniMax-shaped Protocols inside MiniMax modules (minimax_adapter.py:114-119 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py`)) | Neutral package `src/services/speech/` with Protocols. Adapters live in `speech/providers/elevenlabs/*`. | R0 |
 | **Narration** | One MiniMax T2A HTTP request per segment; hex; credits charged for segment 0 only | `POST /v1/text-to-speech/{provider_voice_id}`: Flash Standard, v4 Expressive (D05). Bytes; one charge per turn with refunds (D24). | R0 code, R1 traffic |
 | **Calls** | MiniMax WebSocket per turn plus a private socket per sentence; 32 kHz | One ElevenLabs multi-context socket per call; one context per turn; barge-in truncation; `mp3_44100_64` (D06, D08) | R0 code, R1 traffic |
 | **Catalog** | Live MiniMax lists | DB `voice_catalog` plus Jobs A/B/C; own samples; root console API (D09, D10, D19, D20) | R0 |
@@ -129,12 +131,12 @@ Everything else sees neutral types (03 §2.1). A static guard test enforces this
 
 | Module | Responsibility | Replaces | Decisions |
 |---|---|---|---|
-| `interfaces.py`, `types.py` | Neutral seams and value types | `TtsProvider` ([minimax_adapter.py:114-119](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py)); `StreamingTtsClient` and the related Protocols ([streaming_tts_minimax.py:87-122](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/streaming_tts_minimax.py)) | 03 §2.1 |
+| `interfaces.py`, `types.py` | Neutral seams and value types | `TtsProvider` (minimax_adapter.py:114-119 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py`)); `StreamingTtsClient` and the related Protocols (streaming_tts_minimax.py:87-122 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/streaming_tts_minimax.py`)) | 03 §2.1 |
 | `providers/elevenlabs/http_client.py` | Raw `httpx.AsyncClient` per key scope:<br/>- headers;<br/>- capture of `request-id` / `x-request-id` / `x-trace-id` / `character-cost` / concurrency headers;<br/>- no internal retries | `MiniMaxT2AProvider` transport | D03, D04 |
 | `providers/elevenlabs/tts_http.py` | One synthesis per segment. Validates the MP3 body. Returns bytes. | `minimax_adapter.py` | D05 |
 | `providers/elevenlabs/tts_multicontext_ws.py` | One socket per call:<br/>- contexts per turn;<br/>- `flush`;<br/>- `close_context`;<br/>- keepalive;<br/>- reconnect once;<br/>- casing tolerance | `streaming_tts_minimax.py` | D06 |
 | `providers/elevenlabs/catalog.py` | `/v2/voices`, `/v1/voices/{id}`, `/v1/shared-voices`, add, design, save, remix, IVC, delete, subscription, models | `minimax_voice_admin.py` | D10, D19, D20 |
-| `providers/elevenlabs/errors.py` | 03 §5.8 classifier: `ProviderError{category, retry_class, voice_scoped, request_id}` | MiniMax code tables ([minimax_adapter.py:17-22](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py)) | 03 §5.8 |
+| `providers/elevenlabs/errors.py` | 03 §5.8 classifier: `ProviderError{category, retry_class, voice_scoped, request_id}` | MiniMax code tables (minimax_adapter.py:17-22 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py`)) | 03 §5.8 |
 | `capabilities.py` | Maps (surface, tier) to a `ModelProfile`. Per-model allow-lists. Health per surface. Neutral `GET /voices/capabilities`. | Registry literals ([registry.py:21-32](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/registry.py)) | D13, 03 §5.6 |
 | `resolver.py` | Stored voice (V1 or V2) → `ResolvedSpeechVoice`. Substitutes and never raises. Applies the D33 cast map. | `build_resolved_voice` ([registry.py:71-101](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/registry.py)); `_build_segment_voice_resolver` ([route_chat.py:1137](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py)); `_resolve_snapshot_voice` ([route_voice_call.py:404](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_voice_call.py)) | D11, D31–D34 |
 | `voice_write.py` | Change-only eligibility checks (status, visibility, plan rank, acceptance) | Length-only id checks (bug #10) | D32 |
@@ -606,7 +608,7 @@ Phases:
 
 | File | Today | Action | New file | Phase |
 |---|---|---|---|---|
-| [minimax_credentials.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/minimax_credentials.py) | Loads `MINIMAX_AUDIO_API_KEY` | delete | `speech/providers/elevenlabs/config.py` (six scoped keys) | add R0; delete R4 |
+| minimax_credentials.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/minimax_credentials.py`) | Loads `MINIMAX_AUDIO_API_KEY` | delete | `speech/providers/elevenlabs/config.py` (six scoped keys) | add R0; delete R4 |
 | [tts_generation/config.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/config.py) | MiniMax base URL, model, key; http allowed; issue codes (`:25-92`, `:179-282`) | modify | — | R0: neutral fields; R4: drop MiniMax |
 | [voice_orchestration/config.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/config.py) | WS URL, `VOICE_MINIMAX_*`, `minimax_streaming` guard (`:153-156`), consent version, STT language | modify | — | R0: widen guard, per-provider consent map; R4: drop MiniMax |
 | [main.py](/home/andres/PycharmProjects/magic-worlds-api/src/main.py) | Imports `:83`, `:101`; `app.state.minimax_tts_provider` `:920-939`; admin state `:947-953`; readiness `isinstance` `:1483` | modify | factory `speech/providers/__init__.py`; neutral `app.state` names `speech_synthesis_provider`, `speech_streaming_provider`, `voice_catalog_provider` | R0 |
@@ -615,7 +617,7 @@ Phases:
 
 | File | Today | Action | New file | Phase |
 |---|---|---|---|---|
-| [tts_generation/minimax_adapter.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py) | MiniMax T2A, hex, `TtsProvider` Protocol `:114-119` | replace (Protocol moved R0; module deleted R4) | `speech/providers/elevenlabs/tts_http.py`; legacy shim `speech/providers/minimax/synthesis.py` | R0, R4 |
+| tts_generation/minimax_adapter.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py`) | MiniMax T2A, hex, `TtsProvider` Protocol `:114-119` | replace (Protocol moved R0; module deleted R4) | `speech/providers/elevenlabs/tts_http.py`; legacy shim `speech/providers/minimax/synthesis.py` | R0, R4 |
 | [tts_generation/registry.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/registry.py) | `TtsRegistryModel` literals `:21-32`, `ResolvedVoice`, `build_resolved_voice` `:71`, `voice_signature_sha256` `:104`, `to_provider_payload` `:206`, `normalize_tts_text` `:248` | replace | `speech/capabilities.py`, `speech/resolver.py`, `speech/text_pipeline.py` | R0: widen `Literal`; R1: switch; R4: delete |
 | [tts_generation/engine.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py) | Workspace admission `enqueue_chat_tts_request(…, workspace_id)` `:125`, `_create_or_reuse_chat_job_in_workspace` `:247-352` (lock → reuse → `_enforce_quota` `:315` → `create_pending_job`); `WorkspaceError` → `INVALID` with internal code `workspace_archived` `:208-245`; finalize origin check `:687`; storage inside the row lock; `save_provider_audio(hex)`; alias checks (lines at `f37eefd`; pre-R1 citations were `:226-258`, `:318`, `:611-639`, `:980`) | modify | uses `billing/turn_charge.py` after the workspace lock (§1.10), bytes, off-lock storage; public `error.code: "workspace_archived"` | R0 |
 | [tts_generation/storage.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/storage.py) | Hex decode; synchronous `_atomic_write` | modify | bytes; `asyncio.to_thread` | R0 |
@@ -631,7 +633,7 @@ Phases:
 
 | File | Today | Action | New file | Phase |
 |---|---|---|---|---|
-| [streaming_tts_minimax.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/streaming_tts_minimax.py) | MiniMax WS per turn and per sentence; Protocols `:87-122`; hex; 32 kHz | replace | `speech/providers/elevenlabs/tts_multicontext_ws.py`; shim `speech/providers/minimax/streaming.py` | R0, R4 |
+| streaming_tts_minimax.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/streaming_tts_minimax.py`) | MiniMax WS per turn and per sentence; Protocols `:87-122`; hex; 32 kHz | replace | `speech/providers/elevenlabs/tts_multicontext_ws.py`; shim `speech/providers/minimax/streaming.py` | R0, R4 |
 | [voice_orchestration/engine.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/engine.py) | Default voice; `start_call(…, workspace_id)` `:562`; `tts_provider`; billing; `_mp3_duration_ms`; call-audio persistence `_persist_call_audio_asset` `:2361-2466` writes `tts_job` rows with `provider="minimax"`, `model_alias="speech_2_8_turbo"`, `continuation=True` (`:2419-2444`) (lines at `f37eefd`) | modify | contexts per turn, flush-ahead, barge-in truncation; parser moved to `speech/mp3_frames.py`; call-audio rows written from the routed provider (03 §5.14) | R0: parser fix, widen; R1: EL |
 | [delivery.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/delivery.py) | 32 kHz defaults `:159`, `:349`; guard `:352`; `voice_ready` `:212-240` | modify | format and `gain_db` fields (§5.8) | R0 |
 | [voice_orchestration/errors.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/errors.py) | `VoiceErrorCategory`; `_SECRET_PATTERNS` `:58-69`; `code` derived from category | modify | explicit `code` override; EL patterns | R0 |
@@ -657,9 +659,9 @@ Phases:
 
 | File | Today | Action | New file | Phase |
 |---|---|---|---|---|
-| [minimax_voice_admin.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/minimax_voice_admin.py) | MiniMax design, clone, test, list, delete; MiniMax copy in `public_detail` | replace | `speech/providers/elevenlabs/catalog.py`, `speech/catalog/admin.py` | R0: design and clone frozen (a new MiniMax voice would break the D21 coverage gate); list and test kept for curation; R4: delete |
+| minimax_voice_admin.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/minimax_voice_admin.py`) | MiniMax design, clone, test, list, delete; MiniMax copy in `public_detail` | replace | `speech/providers/elevenlabs/catalog.py`, `speech/catalog/admin.py` | R0: design and clone frozen (a new MiniMax voice would break the D21 coverage gate); list and test kept for curation; R4: delete |
 | [routes/admin_voices.py](/home/andres/PycharmProjects/magic-worlds-api/src/routes/admin_voices.py) | `/admin/voices` design `:75`, test `:91`, clone-file `:107`, clone `:150`, list `:166`, delete `:182` | replace | rewritten with the §5.3 routes; MiniMax list and test move under `/admin/voices/legacy/minimax/*` | R0 |
-| [models/admin_voice.py](/home/andres/PycharmProjects/magic-worlds-api/src/models/admin_voice.py) | MiniMax DTOs (hex, sample rates, emotions) | replace | `src/models/voice_catalog.py` (new admin and user DTOs) | R0; delete R4 |
+| models/admin_voice.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/models/admin_voice.py`) | MiniMax DTOs (hex, sample rates, emotions) | replace | `src/models/voice_catalog.py` (new admin and user DTOs) | R0; delete R4 |
 | [routes/voice_presets.py](/home/andres/PycharmProjects/magic-worlds-api/src/routes/voice_presets.py) | CRUD; `/system-voices` `:87`; unmetered `/preview` `:99` returning admin DTOs | modify | §5.2 | R0: metering and mapped-only; R1: V2 |
 | [models/voice_preset.py](/home/andres/PycharmProjects/magic-worlds-api/src/models/voice_preset.py) | V1 payloads | modify (V1/V2 union) | — | R0 |
 | [services/voice_presets/\_\_init\_\_.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_presets/__init__.py) | Empty package | modify | `voice_presets/service.py` (row parse V1/V2, skip and log bad rows, write validation) | R0 |
@@ -1862,19 +1864,19 @@ The baseline inventory is in [research 06 §8](research/06_backend_minimax_inven
 
 | File | Action | Replacement | Phase |
 |---|---|---|---|
-| [voice/test_minimax_streaming_tts.py](/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_minimax_streaming_tts.py) | delete | `voice/test_elevenlabs_multicontext_ws.py` | add R0; delete R4 |
-| [services/test_minimax_voice_admin.py](/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_minimax_voice_admin.py) | delete | `services/test_elevenlabs_catalog_provider.py`, `routes/test_admin_voice_catalog.py` | R0, R4 |
-| [services/test_tts_minimax_adapter.py](/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_minimax_adapter.py) | delete | `services/test_elevenlabs_tts_http.py` | R0, R4 |
-| [voice/test_live_minimax_tts_contract.py](/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_live_minimax_tts_contract.py), [services/test_tts_live_minimax_contract.py](/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_live_minimax_contract.py) | delete | `live/test_elevenlabs_contract.py` (§9.6) | R0, R4 |
-| [services/test_minimax_credentials.py](/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_minimax_credentials.py) | delete | `services/test_elevenlabs_config.py` | R0, R4 |
-| [services/test_tts_adapter_static_guard.py](/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_adapter_static_guard.py) | replace | `services/test_speech_import_boundary.py` (§9.7) | R0 |
+| voice/test_minimax_streaming_tts.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_minimax_streaming_tts.py`) | delete | `voice/test_elevenlabs_multicontext_ws.py` | add R0; delete R4 |
+| services/test_minimax_voice_admin.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_minimax_voice_admin.py`) | delete | `services/test_elevenlabs_catalog_provider.py`, `routes/test_admin_voice_catalog.py` | R0, R4 |
+| services/test_tts_minimax_adapter.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_minimax_adapter.py`) | delete | `services/test_elevenlabs_tts_http.py` | R0, R4 |
+| voice/test_live_minimax_tts_contract.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_live_minimax_tts_contract.py`), services/test_tts_live_minimax_contract.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_live_minimax_contract.py`) | delete | `live/test_elevenlabs_contract.py` (§9.6) | R0, R4 |
+| services/test_minimax_credentials.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_minimax_credentials.py`) | delete | `services/test_elevenlabs_config.py` | R0, R4 |
+| services/test_tts_adapter_static_guard.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_adapter_static_guard.py`) | replace | `services/test_speech_import_boundary.py` (§9.7) | R0 |
 
 ### 9.2 Rewritten
 
 | File | Why |
 |---|---|
 | [test_config_hygiene.py](/home/andres/PycharmProjects/magic-worlds-api/tests/test_config_hygiene.py), [services/test_tts_config.py](/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_config.py), [voice/test_voice_config_readiness.py](/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_voice_config_readiness.py), [test_startup.py](/home/andres/PycharmProjects/magic-worlds-api/tests/test_startup.py) | Env names, issue codes, per-scope probes, degrade-not-abort |
-| [services/test_tts_registry.py](/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_registry.py), [services/test_segment_voice_resolver.py](/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_segment_voice_resolver.py), [services/test_tts_voice_override.py](/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_voice_override.py) | Become capability and resolver tests (03 §5.10 matrix, D33 fixture) |
+| [services/test_tts_registry.py](/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_registry.py), services/test_segment_voice_resolver.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_segment_voice_resolver.py`), services/test_tts_voice_override.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_voice_override.py`) | Become capability and resolver tests (03 §5.10 matrix, D33 fixture) |
 | [voice/test_transcript_sanitizer.py](/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_transcript_sanitizer.py), [voice/test_sentence_buffer.py](/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_sentence_buffer.py) | Shared pipeline. The 03 §5.5.3 fixture list is mandatory. Spans and offsets. |
 | [voice/test_voice_call_billing.py](/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_voice_call_billing.py), [voice/test_voice_barge_in.py](/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_voice_barge_in.py), [voice/test_voice_delivery.py](/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_voice_delivery.py), [voice/test_voice_quota_consent.py](/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_voice_quota_consent.py) | Tail-carry billing, truncation, rates, per-provider consent and attestation |
 | [routes/test_voice_presets.py](/home/andres/PycharmProjects/magic-worlds-api/tests/routes/test_voice_presets.py), [models/test_voice_preset_model.py](/home/andres/PycharmProjects/magic-worlds-api/tests/models/test_voice_preset_model.py), [services/test_voice_presets_data.py](/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_voice_presets_data.py), [routes/test_admin_voices.py](/home/andres/PycharmProjects/magic-worlds-api/tests/routes/test_admin_voices.py) | V1/V2 union, metering, root routes |

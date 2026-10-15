@@ -1,5 +1,7 @@
 # Gap closure 13: codebase checks (age gate, clone audio, presets, membership ops, ingress, loudness, canary, language, brackets)
 
+> **Research scope (reviewed 2026-10-14):** Historical evidence from the dates stated below, including the retired MiniMax baseline. Vendor prices, model/API facts and policy claims were not reverified in this documentation pass. Current application status is **WIP** and is tracked in [00](../00_current_status_and_roadmap.md); later native ElevenLabs code/cutover supersedes migration-era implementation assumptions here.
+
 Date: 2026-10-12
 
 ## Scope
@@ -456,7 +458,7 @@ Notes:
 - The callbot prompt forbids markdown, asterisks and stage directions (`callbot_chat.v2.json:32`). Its MiniMax interjections use parentheses, covered in 06.
 
 **Markdown still appears in practice:**
-- The SPA renders segment content as GFM markdown (`src/features/interaction/components/ChatMessage.tsx:4-5, 134-150`). `[text](url)` becomes a link and `*x*` emphasis.
+- The SPA renders segment content as GFM markdown (`src/features/interaction/components/ChatMessage.tsx:4-5, 134-150`). A Markdown link with label `text` and illustrative target `url` becomes a link; `*x*` becomes emphasis.
 
 **Text from outside the LLM can carry brackets:**
 - user messages (roleplay "[OOC: …]" conventions);

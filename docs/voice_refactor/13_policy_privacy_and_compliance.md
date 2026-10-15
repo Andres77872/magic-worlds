@@ -1,7 +1,9 @@
 # Policy, privacy and compliance
 
+> **Scope / status (reviewed 2026-10-14):** Voice design and dated evidence; product rollout is **WIP**. [00 — Current status and roadmap](00_current_status_and_roadmap.md) owns current implementation/flags/gaps. Later [03 §5.16](03_target_architecture_and_decisions.md#516-r0-implementation-decisions-2026-10-12) instructions and [15 §§11–13](15_implementation_plan_and_acceptance.md#11-minimax-voice-purge-2026-10-14) supersede MiniMax routing, cohorts, V1/maps and original rollout dates. Preserve earlier proposals and vendor facts as dated references; they are not proof of availability.
+
 - **Date:** 2026-10-12
-- **Status:** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status)
+- **Original proposal status (2026-10-12):** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status)
 - **Plan short name in 03:** **LEGAL** (policy, consent, ToS and copy plan)
 
 ## Scope
@@ -526,7 +528,7 @@ None of these is ever created, added or published:
 
 ### 4.9 MiniMax custom voices (D22)
 
-- No clone source audio, design prompt, consent record or `file_id`-to-voice mapping was ever stored. Samples went from memory straight to MiniMax, and nothing was logged [research 13 §2](research/13_gap_codebase_checks.md) (upload route [admin_voices.py:107-147](/home/andres/PycharmProjects/magic-worlds-api/src/routes/admin_voices.py); form [VoiceCloneForm.tsx](/home/andres/WebstormProjects/magic-worlds/src/features/admin/voices/components/VoiceCloneForm.tsx), 294 lines, with no consent or rights field).
+- No clone source audio, design prompt, consent record or `file_id`-to-voice mapping was ever stored. Samples went from memory straight to MiniMax, and nothing was logged [research 13 §2](research/13_gap_codebase_checks.md) (upload route [admin_voices.py:107-147](/home/andres/PycharmProjects/magic-worlds-api/src/routes/admin_voices.py); form VoiceCloneForm.tsx (retired historical source: `/home/andres/WebstormProjects/magic-worlds/src/features/admin/voices/components/VoiceCloneForm.tsx`), 294 lines, with no consent or rights field).
 - **All MiniMax custom voices are retired.** Their references go to `voice_legacy_mapping` targets chosen by audition, or to the unmapped policy (D21).
 - **Exception:** if the operator holds off-platform source audio **and** obtains **fresh consent naming ElevenLabs**, root re-creates the voice as an IVC through §4.4. A MiniMax-era consent, if one ever existed, does not cover a new processor.
 - **Before R1:** ROLL lists the custom voices from the existing root inventory ([admin_voices.py:166-179](/home/andres/PycharmProjects/magic-worlds-api/src/routes/admin_voices.py)), and the operator answers voice by voice whether source audio and consent exist.
@@ -770,7 +772,7 @@ Rules:
 - [ ] No single-use tokens (`sutkn_…`) are ever minted for browsers. They would bypass moderation, metering and barge-in logic [research 05 §4.4](research/05_elevenlabs_platform_pricing_limits_policy.md).
 - [ ] Keep `third_party_disable_allowed=true` (the default), so leak scanning can disable an exposed key.
 - [ ] Per-key `character_limit` values are a last line of defence only. Their unit, reset and error are unknown until S-28, and the app-side guards in D37 come first.
-- [ ] `MINIMAX_AUDIO_API_KEY` ([minimax_credentials.py:8](/home/andres/PycharmProjects/magic-worlds-api/src/services/minimax_credentials.py)) stays only during the dual-provider window and is **revoked at R4** (D28).
+- [ ] `MINIMAX_AUDIO_API_KEY` (minimax_credentials.py:8 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/minimax_credentials.py`)) stays only during the dual-provider window and is **revoked at R4** (D28).
 - [ ] Leak response: disable the key with the self-disable endpoint or the workspace revoke endpoint, rotate it, and review usage (ElevenAPI §2.2 attributes all activity on the key to us).
 
 ### 6.2 Why per-surface scopes

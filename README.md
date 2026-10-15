@@ -4,21 +4,25 @@
 
 # Magic Worlds (Reverie)
 
-A React frontend for an AI-powered roleplay and storytelling platform. Create characters, worlds, items, adventures, and lorebooks as rich "cards", then bring them to life through AI-driven adventure sessions, 1:1 character chats, and a long-form story studio — with generated portraits, theme songs, and voice narration.
+A React frontend for an AI-powered roleplay and storytelling platform. Implemented modules cover card creation, conversations, writing and media. Availability depends on frontend rollout flags and the backend configuration.
+
+**Status reviewed 2026-10-14:** ten product features, including Story Studio, adventures, lorebooks, voices/calls, community, the app assistant and Workspace R1, are **WIP — disabled by default** in the example configuration. This checkout's local configuration opts into those ten; deployed availability is unverified. Chara Studio reference/edit/mask workflows remain **WIP planned**. See the [documentation index](docs/README.md), [actual feature status](docs/FEATURE_STATUS.md) and [roadmap](docs/ROADMAP.md) before treating the list below as available in a release.
 
 The app is a client for a separate FastAPI backend (REST + WebSockets); all creations are persisted server-side behind authentication.
 
 ## Features
 
-- **Card creation** — Form-based creators for characters (including player personas), worlds, items, and adventure templates, with field templates, AI-assisted suggestions, and a shared creation engine (`src/features/creation`)
+This is an implementation inventory. Gated modules are WIP when disabled; a source module is not evidence that a deployment enables it.
+
+- **Card creation** — Form-based creators for characters (including player personas), worlds and items, with field templates, AI-assisted suggestions and a shared creation engine (`src/features/creation`). Adventure-template creation is **WIP — default off**
 - **Galleries** — Image-forward, searchable galleries for every card type plus a mixed media gallery (generated images and theme songs) with debounced search and infinite scroll (`src/features/gallery`)
-- **Adventure play** — The main gameplay loop: an AI game master runs a session built from your persona, cast, world, and adventure template. Sessions keep their own editable snapshot of the cards they use (`src/features/interaction`)
+- **Adventure play — WIP, default off** — An AI game master runs a session built from your persona, cast, world and adventure template. Sessions keep their own editable snapshot of the cards they use (`src/features/interaction`)
 - **Character chat** — 1:1, character.ai-style conversations with a single character, with greetings and per-character system instructions (`src/features/characterChat`)
-- **Story Studio** — Long-form creative writing with AI: draft scenes and chapters using your cards as a codex (`src/features/novel`)
-- **Lorebooks** — World-info style lore entries that can be authored in a dedicated studio and attached to play (`src/features/lorebook`)
+- **Story Studio — WIP, default off** — Chapter-based Markdown drafting, staged AI generation and card codex (`src/features/novel`); persistent scenes/revisions and the expanded novel assistant are roadmap work
+- **Lorebooks — WIP, default off** — World-info style lore entries authored in a dedicated studio and attached to play; resources require the additional resource gate (`src/features/lorebook`)
 - **Media generation** — AI-generated card portraits and theme songs, TTS narration of GM turns (on-demand or auto-narrate), a background tasks drawer for job status, and a media history drawer to re-point a card's default image/theme
 - **Global audio playlist** — One shared audio element behind a floating playlist dock; theme song buttons and wave players are all views of the same queue, persisted to localStorage (`src/app/providers/AudioPlaylistProvider.tsx`, `src/ui/components/audio`)
-- **Profile & account** — Read-only profile page backed by the API, login modal, token refresh, and logout confirmation (`src/features/profile`)
+- **Profile & account** — Profile, account/security settings, display-name editing, verification/password flows, login, token refresh and logout confirmation (`src/features/profile`, `src/features/auth`)
 - **In-app docs** — Documentation viewer built into the app (`src/features/docs`)
 
 ## Architecture
@@ -26,19 +30,29 @@ The app is a client for a separate FastAPI backend (REST + WebSockets); all crea
 ```
 src/
 ├── app/                  # App root: providers, hooks, hand-rolled router
-│   ├── providers/        # Auth, Data, Navigation, AudioPlaylist, ApiStatus, BackgroundTasks
+│   ├── providers/        # Auth, Workspace, LLM session, navigation, data, tasks, audio + UI contexts
 │   └── router/           # AppRouter maps navigation state → page components
 ├── features/             # Feature-based organization
 │   ├── cards/            # Card preview modal + preview state
+│   ├── admin/            # Root membership, credit, agent and voice consoles
+│   ├── auth/             # Reset/verification/provider-callback pages
+│   ├── billing/          # Gated plans/credit checkout surface
+│   ├── appAssistant/     # Gated app-wide assistant and knowledge builder
+│   ├── call/             # Gated call history/page
 │   ├── characterChat/    # 1:1 character chat
 │   ├── creation/         # Card creators (character, world, item, adventure) + shared engine
 │   ├── docs/             # In-app documentation viewer
 │   ├── gallery/          # Card galleries + media gallery
 │   ├── interaction/      # Adventure play (chat, TTS, session snapshot editing)
+│   ├── imageProfiles/    # Image model/profile configuration
 │   ├── landing/          # Landing page
 │   ├── lorebook/         # Lorebook studio and gallery
+│   ├── library/          # Workspace Library and collections
+│   ├── llmProfiles/      # System/personal profiles and transient BYOK
 │   ├── novel/            # Story Studio (long-form writing)
 │   ├── profile/          # Account/profile page
+│   ├── voices/           # Gated native Voice Studio
+│   ├── workspaces/       # Workspace switching/management/navigation
 │   └── tasks/            # Background tasks drawer
 ├── infrastructure/       # API layer: REST client, auth, WebSocket chat client
 ├── shared/               # Shared types (cards, chat, media, auth) and utilities
@@ -49,9 +63,10 @@ src/
 Architectural notes:
 
 - **Routing** is hand-rolled: `NavigationProvider` holds the current page and `AppRouter` renders it. There is no React Router.
-- **State** lives in React context providers (`src/app/providers`) — no Redux/Zustand. `DataProvider` is the global card cache backed by the API.
+- **State** lives in React context providers — no Redux/Zustand. `DataProvider` caches the selected workspace's content; `WorkspaceProvider` owns the handshake and committed scope, and `LlmSessionProvider` coordinates profile intent and transient credentials. The exact nesting is defined in `AppProvider.tsx`.
+- **Workspace transport** is required even when the Workspace R1 product UI is disabled: private requests still carry the protected default workspace, and startup checks backend capabilities. See the [workspace status](docs/workspace_r1/02_current_status_and_findings.md).
 - **Chat is WebSocket-based** (`src/infrastructure/api/chatSocket.ts`): a typed envelope (`delta` / `metadata` / `done` / `error`, plus TTS frames) over a per-session socket, authenticated via a bearer subprotocol. Adventure sessions and character chats share the same transport and chat engine.
-- **Persistence is server-side.** localStorage only holds the access token, the audio playlist queue, and small UI flags. The refresh token lives in an HttpOnly cookie managed by the backend.
+- **Persistence is server-side** for saved content. localStorage also holds the access token, playlist and UI state, including some editor preferences/drafts; this is not a complete local recovery system. BYOK keys are transient client memory. The refresh token lives in an HttpOnly cookie managed by the backend.
 
 ## Getting Started
 

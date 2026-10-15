@@ -36,6 +36,7 @@ import {
     PhoneOff,
     Play,
     Radio,
+    Route,
     Save,
     ScanSearch,
     Search,
@@ -52,6 +53,8 @@ import {
 } from 'lucide-react'
 import { docsArt } from '@/assets/marketing'
 import type { PageType } from '@/shared'
+import { isFeatureEnabled, type FrontendFeatureFlag } from '@/shared/featureFlags'
+import { isBillingFeatureEnabled } from '@/shared/billingFeatureFlag'
 
 export interface NavSection {
     id: string
@@ -99,6 +102,18 @@ export interface UtilityItem {
     tag?: string
 }
 
+export interface DocsRoadmapItem {
+    id: string
+    title: string
+    status: string
+    availability: string
+    current: string
+    next: string
+    decision: string
+    state: 'implemented' | 'partial' | 'planned'
+    enabled: boolean | null
+}
+
 export interface DocsContent {
     page: {
         eyebrow: string
@@ -111,6 +126,12 @@ export interface DocsContent {
         utilityRail: string
     }
     sections: NavSection[]
+    roadmap: {
+        reviewed: string
+        note: string
+        labels: { current: string; next: string; decision: string }
+        items: DocsRoadmapItem[]
+    }
     primaryActions: ActionTarget[]
     quickStart: GuideItem[]
     mapItems: MapItem[]
@@ -139,6 +160,7 @@ export interface DocsContent {
 
 type SectionId =
     | 'start'
+    | 'roadmap'
     | 'map'
     | 'library'
     | 'cards'
@@ -188,6 +210,7 @@ interface UtilityItemSource {
 
 const SECTION_SOURCES: readonly SectionSource[] = [
     { id: 'start', key: 'start', icon: Compass },
+    { id: 'roadmap', key: 'roadmap', icon: Route },
     { id: 'map', key: 'map', icon: Info },
     { id: 'library', key: 'library', icon: Search },
     { id: 'cards', key: 'cards', icon: Users },
@@ -328,12 +351,108 @@ const BEST_PRACTICE_KEYS = [
     'separateWorkflows',
 ] as const
 
+/** Implementation scope is separate from the availability of this build.
+ * Keep this public summary aligned with docs/FEATURE_STATUS.md and ROADMAP.md. */
+const ROADMAP_SOURCES: readonly {
+    key: string
+    state: DocsRoadmapItem['state']
+    feature?: FrontendFeatureFlag | 'billing'
+}[] = [
+    { key: 'core', state: 'implemented' },
+    { key: 'novels', state: 'partial', feature: 'novels' },
+    { key: 'charaStudio', state: 'planned' },
+    { key: 'lorebooks', state: 'implemented', feature: 'lorebooks' },
+    { key: 'resources', state: 'implemented', feature: 'lorebookResources' },
+    { key: 'workspaces', state: 'implemented', feature: 'workspaces' },
+    { key: 'adventures', state: 'implemented', feature: 'adventures' },
+    { key: 'groupChats', state: 'implemented', feature: 'groupChats' },
+    { key: 'community', state: 'implemented', feature: 'communityCards' },
+    { key: 'voices', state: 'partial', feature: 'voices' },
+    { key: 'calls', state: 'partial', feature: 'calls' },
+    { key: 'appAssistant', state: 'implemented', feature: 'appAssistant' },
+    { key: 'billing', state: 'implemented', feature: 'billing' },
+    { key: 'patreon', state: 'planned' },
+]
+
+function roadmapItems(t: TFunction): DocsRoadmapItem[] {
+    return ROADMAP_SOURCES.map(({ key, state, feature }) => {
+        const enabled = feature === 'billing' ? isBillingFeatureEnabled() : feature ? isFeatureEnabled(feature) : null
+        const availability = state === 'planned' ? 'planned' : enabled === null ? 'ungated' : enabled ? 'enabled' : 'disabled'
+        return {
+            id: key,
+            state,
+            enabled,
+            title: t(`docs.roadmap.items.${key}.title`),
+            status: t(`docs.roadmap.statuses.${state}`),
+            availability: t(`docs.roadmap.availability.${availability}`),
+            current: t(`docs.roadmap.items.${key}.current`),
+            next: t(`docs.roadmap.items.${key}.next`),
+            decision: t(`docs.roadmap.items.${key}.decision`),
+        }
+    })
+}
+
+/** Availability wording is shared by the Docs page and assistant guide context.
+ * These notes describe frontend rollout availability, not backend readiness. */
+const SECTION_FEATURES: Partial<Record<string, readonly FrontendFeatureFlag[]>> = {
+    play: ['adventures'],
+    'voice-presets': ['voices'],
+    voice: ['calls'],
+    writing: ['lorebooks', 'novels'],
+    resources: ['lorebookResources'],
+}
+
+const GUIDE_FEATURES: Partial<Record<string, readonly FrontendFeatureFlag[]>> = {
+    'docs.quickStart.beginExplore': ['adventures'],
+    'docs.quickStart.cardsIntoPlay': ['adventures'],
+    'docs.guides.library.actionMenu': ['adventures', 'communityCards'],
+    'docs.guides.library.dashboardSearch': ['adventures', 'novels'],
+    'docs.guides.play.persona': ['adventures'],
+    'docs.guides.play.templates': ['adventures'],
+    'docs.guides.play.sessionCopy': ['adventures'],
+    'docs.guides.play.centerPanel': ['adventures'],
+    'docs.guides.play.narration': ['adventures'],
+    'docs.guides.voicePresets.separate': ['voices', 'calls'],
+    'docs.guides.writing.lorebooks': ['lorebooks'],
+    'docs.guides.writing.novels': ['novels'],
+    'docs.guides.writing.codex': ['novels'],
+    'docs.guides.writing.generation': ['novels'],
+}
+
+const GUIDE_GROUP_FEATURES: Partial<Record<string, readonly FrontendFeatureFlag[]>> = {
+    'docs.guides.voicePresets': ['voices'],
+    'docs.guides.voice': ['calls'],
+    // isFeatureEnabled('lorebookResources') requires both owning flags.
+    'docs.guides.resources': ['lorebookResources'],
+}
+
+const MAP_FEATURES: Partial<Record<string, readonly FrontendFeatureFlag[]>> = {
+    adventures: ['adventures'],
+    lorebooks: ['lorebooks'],
+    resources: ['lorebookResources'],
+    novels: ['novels'],
+    voiceStudio: ['voices'],
+}
+
+const BEST_PRACTICE_FEATURES: Partial<Record<(typeof BEST_PRACTICE_KEYS)[number], readonly FrontendFeatureFlag[]>> = {
+    reusableFacts: ['adventures'],
+    compactLorebooks: ['lorebooks'],
+    separateWorkflows: ['novels', 'adventures'],
+}
+
+function withAvailability(t: TFunction, copy: string, features: readonly FrontendFeatureFlag[] = []): string {
+    const disabled = features.filter((feature) => !isFeatureEnabled(feature))
+    if (!disabled.length) return copy
+    const names = disabled.map((feature) => t(`docs.availability.features.${feature}`)).join(', ')
+    return `${t('docs.availability.disabled', { features: names })} ${copy}`
+}
+
 function guideItems(t: TFunction, prefix: string, sources: readonly GuideItemSource[]): GuideItem[] {
     return sources.map((source) => ({
         icon: source.icon,
         tone: source.tone,
         title: t(`${prefix}.${source.key}.title`),
-        body: t(`${prefix}.${source.key}.body`),
+        body: withAvailability(t, t(`${prefix}.${source.key}.body`), GUIDE_FEATURES[`${prefix}.${source.key}`] ?? GUIDE_GROUP_FEATURES[prefix]),
         badge: source.badge ? t(`${prefix}.${source.key}.badge`) : undefined,
     }))
 }
@@ -357,8 +476,18 @@ export function getDocsContent(t: TFunction): DocsContent {
             label: t(`docs.sections.${section.key}.label`),
             eyebrow: t(`docs.sections.${section.key}.eyebrow`),
             title: t(`docs.sections.${section.key}.title`),
-            intro: t(`docs.sections.${section.key}.intro`),
+            intro: withAvailability(t, t(`docs.sections.${section.key}.intro`), SECTION_FEATURES[section.id]),
         })),
+        roadmap: {
+            reviewed: t('docs.roadmap.reviewed'),
+            note: t('docs.roadmap.note'),
+            labels: {
+                current: t('docs.roadmap.labels.current'),
+                next: t('docs.roadmap.labels.next'),
+                decision: t('docs.roadmap.labels.decision'),
+            },
+            items: roadmapItems(t),
+        },
         primaryActions: PRIMARY_ACTION_SOURCES.map((action) => ({
             icon: action.icon,
             page: action.page,
@@ -372,7 +501,7 @@ export function getDocsContent(t: TFunction): DocsContent {
             page: item.page,
             gated: item.gated,
             title: t(`docs.map.items.${item.key}.title`),
-            body: t(`docs.map.items.${item.key}.body`),
+            body: withAvailability(t, t(`docs.map.items.${item.key}.body`), MAP_FEATURES[item.key]),
             tag: item.tag ? t(`docs.map.items.${item.key}.tag`) : undefined,
         })),
         utilityItems: UTILITY_ITEM_SOURCES.map((item) => ({
@@ -390,7 +519,7 @@ export function getDocsContent(t: TFunction): DocsContent {
         writingGuide: guideItems(t, 'docs.guides.writing', WRITING_GUIDE_SOURCES),
         resourcesGuide: guideItems(t, 'docs.guides.resources', RESOURCES_GUIDE_SOURCES),
         mediaGuide: guideItems(t, 'docs.guides.media', MEDIA_GUIDE_SOURCES),
-        bestPractices: BEST_PRACTICE_KEYS.map((key) => t(`docs.bestPractices.${key}`)),
+        bestPractices: BEST_PRACTICE_KEYS.map((key) => withAvailability(t, t(`docs.bestPractices.${key}`), BEST_PRACTICE_FEATURES[key])),
         search: {
             label: t('docs.search.label'),
             placeholder: t('docs.search.placeholder'),
@@ -418,6 +547,12 @@ export function sectionSearchText(docs: DocsContent, sectionId: string): string 
         for (const item of items) parts.push(item.title, item.body)
     }
     switch (sectionId) {
+        case 'roadmap':
+            parts.push(docs.roadmap.reviewed, docs.roadmap.note, ...Object.values(docs.roadmap.labels))
+            for (const item of docs.roadmap.items) {
+                parts.push(item.title, item.status, item.availability, item.current, item.next, item.decision)
+            }
+            break
         case 'start':
             pushItems(docs.quickStart)
             break

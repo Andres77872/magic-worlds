@@ -1,7 +1,9 @@
 # Implementation plan and acceptance criteria (MiniMax → ElevenLabs)
 
+> **Scope / status (reviewed 2026-10-14):** Voice design and dated evidence; product rollout is **WIP**. [00 — Current status and roadmap](00_current_status_and_roadmap.md) owns current implementation/flags/gaps. Later [03 §5.16](03_target_architecture_and_decisions.md#516-r0-implementation-decisions-2026-10-12) instructions and [15 §§11–13](15_implementation_plan_and_acceptance.md#11-minimax-voice-purge-2026-10-14) supersede MiniMax routing, cohorts, V1/maps and original rollout dates. Preserve earlier proposals and vendor facts as dated references; they are not proof of availability.
+
 - **Date:** 2026-10-12
-- **Status:** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status)
+- **Status:** WIP release acceptance. §§0–10 retain historical planning; §§11–13 record the later purge/native cutover and local smoke. Current remaining gates are in [00](00_current_status_and_roadmap.md).
 
 ## Scope
 
@@ -1131,14 +1133,14 @@ The owner ordered the MiniMax voice integration purged now, with ElevenLabs serv
 | Rows | Status |
 |---|---|
 | R4-BE-01…03, R5-BE-01, R5-FE-01 | Done now in code (I-69), with no time gate |
-| R4-FE-01 | Done, except `CLAUDE.md` and `AGENTS.md`: they are not edited in this program, so their stale TTS lines stay for the owner |
-| R4-QA-01 | The strict grep gate is done. The rest of the row is the staging smoke after deploy. |
+| R4-FE-01 | Done. With the owner's OK, `AGENTS.md` (`CLAUDE.md`) now names ElevenLabs for TTS and the grep-gate allow row Q7 is gone (§13) |
+| R4-QA-01 | The strict grep gate is done. The smoke passed locally and on the deployed test build (§13) |
 | R1-OPS-01, R2-OPS-02, R2-DATA-01, R3-OPS-01, R3-OPS-02 | Waived: there is no cohort rollout |
 | R5-DATA-01, R5-DATA-02 | Done on the test database (§12) |
 | R4-OPS-01 | The retired names were removed from the operator's BFF `.env` (03 I-71). Revoking the MiniMax key in MiniMax's console is account hygiene for the owner |
 | R4-DATA-01, R5-DATA-03…05 | Built as revision `2026_10_voice_contract` (03 I-70) and done on the test database (§12) |
 | R4-DATA-02 | Done on the test database on the native revision, with no grace period (03 I-72, §13) |
-| R5-QA-01 | Open: the §6 definition of done needs the deploy and the staging smoke (the rewrite is done, §12–§13) |
+| R5-QA-01 | Done on 2026-10-14: the owner deployed the BFF and the SPA on `.90`, and the staging smoke passed on that deployment (§13). Two §6 items are still the owner's: revoking the MiniMax key, and the dedicated moderation model before real users (03 I-73) |
 | R1-QA-01, R2-QA-01 | Still external: the staging spikes now come before the deploy, not before a rollout step |
 | R1-LEG-01, R2-LEG-01, R2-LEG-02, R4-LEG-01 | Closed by the owner without counsel (03 I-71). The Privacy page wires the ElevenLabs variant and the `voice-v2` consent copy is final |
 
@@ -1150,14 +1152,14 @@ The owner ordered the MiniMax voice integration purged now, with ElevenLabs serv
    - `VOICE_LAST_RESORT_VOICE_KEY`;
    - a published call profile;
    - a synced catalog with published voices;
-   - the moderation classifier on, with its `moderation` LLM profile published (moderation fails closed).
+   - moderation: for testing, `VOICE_MODERATION_REQUIRED=false` lets unclassified text speak (03 I-73). Before real users, a dedicated moderation model (TBD) and `VOICE_MODERATION_REQUIRED=true`; required moderation without a classifier fails closed.
 4. **Deploy order.** BFF, then SPA, in the same window.
 
-**After the deploy (ops):** R4-OPS-01: once production is verified, revoke the MiniMax key. The retired env names are already removed, and `rewrite_voices` no longer exists (03 I-72). Run the staging smoke.
+**After the deploy (ops):** R4-OPS-01: once production is verified, revoke the MiniMax key. The retired env names are already removed, and `rewrite_voices` no longer exists (03 I-72). Run the staging smoke: BFF `scripts/voice_smoke/voice_smoke.py` (runbook `docs/voice_native_cutover.md` N4). This smoke passed on the deployed test build on 2026-10-14 (§13).
 
 **Open owner choices:**
 - **Q2.** A call start refused with `surface_not_configured`, `surface_unverified` or `lane_unavailable` answers `provider_unavailable` (retryable), while narration answers `voice_unavailable`. Decide whether calls should match.
-- **Preview with moderation off.** It answers 503 `moderation_unavailable`, retryable.
+- **Preview with moderation off.** With `VOICE_MODERATION_REQUIRED=true` and no classifier it answers 503 `moderation_unavailable`, retryable; in the optional mode (03 I-73) it renders.
 - **D04.** The wording of the preview-probe step.
 - **Outside voice.** An assistant replace drops the cast `source_card_id`. This bug existed before this work.
 
@@ -1224,21 +1226,58 @@ The owner ordered everything left of the MiniMax voices removed, including the r
 - **Moderation (03 I-73).** The owner had published the `moderation` system profile. Narration then failed in the UI with `moderation_unavailable`. A reproduction with a local test session measured about 2.3 s per classifier batch against the 2 s budget. One batch in about six also failed in transport. Moderation is now optional for testing: `VOICE_MODERATION_REQUIRED=false`, the LLM classifier is off, and a dedicated moderation model is TBD. After a reload, the health node shows `moderation` `ok` (`voice_moderation_optional`), and a narration check passes in under 1 ms.
 - **Local smoke.** This ran on a diagnostic instance of this build (`127.0.0.1:8011`, same `.env`, test database, moderation optional), with a local test account that has its age and ToS attestations recorded.
   - **Catalog.** `/voices/capabilities`, `/voices/catalog` (the 6 native voices) and `/voices/preview-texts` answer 200, and a sample preview serves.
-  - **Eligibility.** A rendered preview first answered 403 `voice_not_eligible` (`account_too_new`: Free accounts wait 24 h). The account's `tb_user.creation_at` was moved back 2 days on the test database.
+  - **Eligibility.** A rendered preview first answered 403 `voice_not_eligible` (`account_too_new`: Free accounts wait 24 h); see the test-data edits below.
   - **Rendered preview.** F1, `dialogue`, `es`, with settings that differ from the default: 200, `source=render`, a 58 KB MP3. Moderation `allow`.
   - **Narration, end to end.** This is the I-73 check; the UI had failed it before. A new character with M1, a persona and a chat. A chat turn over the WebSocket, then a manual `tts` frame. That made 3 jobs: the narrator line on F1 (the default) and 2 lines on M1 (the card's voice). All 3 are `completed` on `el_flash_v2_5` with distinct MP3 assets (6.1 s, 6.8 s, 6.8 s). Moderation `allow` for all 3 units.
   - **Call.** Consent `voice-v2`, then `voice_ready` with M1, then one 7.7 s WAV segment (16 kHz PCM). Groq Whisper transcribed it word for word. The in-character reply streamed as 4 MP3 chunks from ElevenLabs: TTFB 149 ms, first audio 4.9 s after the upload. The turn ended `completed`, the transcript was saved, and the call billed 19 s (2 credits). Moderation `allow` for each unit.
   - **Defaults probe with provider confirmation.** The API's own `probe_voice_defaults`, run with the real catalog provider, reports no issue. The last resort F1 is `ok`, its provider voice id is confirmed, and 0 defaults fail. The 10 `en`/`es` rows are as designed.
-  - **Test data left on the test database:** the test account, its 2 cards, chat 47 with its 3 narration jobs, and 3 call sessions (2 ended without a turn while the smoke script was fixed). The account's credentials are not in this repository.
+  - **Repeatable smoke script.** BFF `scripts/voice_smoke/voice_smoke.py` runs the same steps. An adversarial review found 9 issues; all were fixed. Two examples: a WAV header the server refused, and a refused upload the script did not notice. A test now runs the script's WAV through the server's own segment validation. Its last two local runs (2026-10-14 14:37 and 14:50) passed every step, exit 0. At 14:37:
+    - login and catalog (6 voices);
+    - a rendered preview (`source=render`);
+    - a narrated chat turn: 3 segments on 2 voices, 235 KB of audio;
+    - a call turn: 3 MP3 chunks, first audio 2.7 s after the upload, turn `completed`.
+  - **Chat bug found and fixed (not voice).** From about 14:15, new character-chat turns failed with `LLM_EXECUTION_STREAM_INVALID`. The chat graphs' read-card planner (`mw_read_card_llm`) sometimes calls its `mw_read_card` tool. The graph consumes that call itself, but api.magic_llm still previews every schema-tool call to the caller, and the BFF accepted only `mw_emit_turn_metadata`. The 14:04 turn above passed because the planner did not call the tool that time.
+    - **Fix:** BFF `src/services/llm_execution_tools.py` drops the planner's call previews, in both the streamed and the complete form, for chat turns (the `narrative` contract) only. The rules:
+      - the name must be exactly `mw_read_card`;
+      - several calls may share one delta;
+      - each call keeps its first fragment's identity;
+      - at most 12 calls are dropped, and they must come before the action;
+      - the action's index must follow them.
+      Any other tool, index or extra call is still refused.
+    - **Review and tests:** an adversarial review found no way to pass a second action, a disallowed tool or a secret through this path. Its 5 hardening findings were applied, including several card reads in one delta. `tests/services/test_chat_narrative_transport.py` has 30 regression tests for this. The full BFF suite passes: 13,817 tests.
+    - **Live check:** stream traces of the 14:37 and 14:50 runs show `mw_read_card` and then `mw_emit_turn_metadata`, and both turns passed.
+    - **Upstream:** api.magic_llm has an uncommitted change (`src/util/agt_flow.py`) that stops sending preflight tool calls. Once it is deployed, this BFF rule is only a compatibility guard.
+  - **Test-data edits for the smoke.** Both were made on the test database only, to the test account only. Its creation date was moved back 2 days (the Free 24 h rule). Its 3 preview renders of the day were moved to the day before (the Free 3-a-day limit).
+  - **Test data left on the test database:** the test account, its cards, chats 47–59 with their narration jobs, and the call sessions. The account's credentials are not in this repository.
 - **Moderation observability.** In optional mode, each `speech_moderation event=moderation_verdict` line now counts in `unmoderated=` the units that passed with no verdict; they are counted in `allow=` too (BFF `docs/operations.md`). With the classifier off, every unit the deterministic list does not block is unmoderated.
 - **Agent instructions.** With the owner's OK, `AGENTS.md` (`CLAUDE.md`) names ElevenLabs for TTS. The grep-gate row Q7 that allowed the stale lines is removed.
 - **Auth tests.** The 6 `TestAuthProxyChain` failures were stale tests: signup no longer takes an email (it is added later through `POST /user/me/emails`), and the auth client drops a `session_token` alias. The tests now match the contract.
+- **Deploy and staging smoke (R5-QA-01).** On 2026-10-14 the owner deployed the BFF at `https://api-magic-worlds.arz.ai`, then the SPA at `https://magic-worlds.novus.chat`. Both run on the test database `.90`. The deployed commit was not checked from here; the latest BFF commit was `2c2973d`.
+  - **Startup and wiring.** The API started, so the startup check accepted `2026_10_voice_native`. `/health` answers 200. The SPA bundle carries this API base URL. A CORS preflight from the SPA origin is allowed with credentials and the `x-workspace-id` header.
+  - **Smoke.** `voice_smoke.py --base-url https://api-magic-worlds.arz.ai`, with the same test account, ran at about 20:58 UTC and exited 0 with every step passing:
+    - login, and the catalog with 6 voices;
+    - a rendered preview (`source=render`, 88 KB);
+    - a narrated chat turn: 4 segments on 2 voices, 308 KB of audio;
+    - a call turn: 3 MP3 chunks, first audio 5.7 s after the upload, turn 5.9 s.
+  - **Database side** (read-only checks on `.90`). The run wrote chat 59, so the deployment uses this database. The 4 narration jobs are `completed`, with 4 turn-charge ledger rows. The call session `ended` (`user`) with 20 s consumed, and no quota reservation is left open.
+  - **Not run on the deployment:** narration replay (re-requesting a narrated turn should reuse its jobs at 0 credits). Auto mode refused that extra write against the deployed API, so it was left out.
+- **Database close-out** (2026-10-14 ~21:15 UTC, by Claude at the owner's request: "anything left to migrate, clean or close"). Three read-only auditors checked `.90`, each with a different focus: migration completeness, open state, and residue. An adversarial verifier then checked each finding.
+  - **Already in its final state:** 60 checks. Examples: the exact revision and its 97 tables; no MiniMax provider values; no V1 voice JSON in card bodies, drafts or versions; 10 defaults; 6 accepted native voices (24 `pass` verdicts); every TTS job `completed`; every call session `ended`; no open quota reservation; every operation reservation `released`.
+  - **Migrated: V2 global presets.** The contract deleted the 6 V1 globals (§12 T6), and `voice_preset` was empty. `seed_global_presets.py` (dry run, then `--apply`) created 12 globals. Each language (`es`, `en`) has F1 as the narrator and M1, F2, M2, F3 and M3 as archetypes 1–5. The names and descriptions come from the native set spec, translated for `en`. Settings are null. All 12 are on active, public, call-eligible voices, and a rerun reports `unchanged`. The verifiers called this curator content: root can edit or delete each preset in the console. The step is now in BFF `docs/voice_native_catalog.md` (operator follow-up).
+  - **Closed: 2 smoke scene-image jobs.** They were left `in_progress` (fal, adventures 57 and 58). Platform fal jobs close when they are read, and there is no sweep for them. Reading each one through `GET /images/jobs/{id}` on the deployment completed both.
+  - **Kept on purpose:**
+    - 9 callbot execution plans from 2026-10-11 that still say `minimax_streaming`, and 23 `voice_call` credit-ledger rows. They are billing provenance, and the purge keeps the ledgers (BFF `docs/voice_native_purge.md`).
+    - One test card body and one card version with the soft `preset_id` `global-child-girl`. The id is display-only, the voice is F2, and re-picking the voice clears it.
+    - `voice_consent_record`: empty and kept for legal retention.
+    - Today's smoke data.
+  - **Not touched (outside `magic_worlds`):** the same MySQL host also has the schema `magic_worlds_old_20260803`, a July snapshot of the whole application. It still holds MiniMax-era voice rows: 8 `tts_job`, 33 `voice_session` and 6 V1 presets. No code or runbook uses it. Dropping it is the owner's decision.
 
 **Follow-ups for the owner:**
-- **Deploy.** Deploy this build (BFF, then SPA) to `.90`. The old build does not start on `2026_10_voice_native`.
+- **Deploy.** Done on 2026-10-14: BFF, then SPA, on `.90` (above).
 - **Moderation model (TBD, I-73).** Choose a dedicated moderation model, then set `VOICE_MODERATION_REQUIRED=true` again before real users.
-- **Global presets.** Seeding V2 globals with `seed_global_presets.py` is now possible, because the native voices are `call_eligible` and Flash-accepted.
-- **R5-QA-01** closes with the staging smoke on the deployed build: narration, a rendered preview and a call with an eligible account. The same flows passed locally on this build (above). BFF `scripts/voice_smoke/voice_smoke.py` runs them against any URL with a test account; its use is in BFF `docs/voice_native_cutover.md` N4.
+- **Global presets.** Done: 12 V2 globals were seeded (above). Review the names and descriptions in the root console.
+- **Old snapshot schema.** Decide whether to drop `magic_worlds_old_20260803` on the same host (above).
+- **R5-QA-01.** Done: the staging smoke passed on the deployed build (above). BFF `scripts/voice_smoke/voice_smoke.py` runs it against any URL with a test account; its use is in BFF `docs/voice_native_cutover.md` N4.
 - **MiniMax key.** Revoke the MiniMax key in MiniMax's console; only the owner can do that.
 
 <!-- Short reference links used in the tables -->

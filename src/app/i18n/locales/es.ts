@@ -1141,6 +1141,18 @@ export const es = {
                 },
             },
             docs: {
+                availability: {
+                    disabled: 'WIP — Funciones desactivadas en esta versión: {{features}}. Las instrucciones se aplican cuando estén disponibles.',
+                    features: {
+                        communityCards: 'Comunidad y cartas compartidas',
+                        lorebooks: 'Lorebooks',
+                        lorebookResources: 'Recursos de lorebooks',
+                        voices: 'Estudio de voz',
+                        calls: 'Llamadas de voz',
+                        novels: 'Novelas',
+                        adventures: 'Aventuras',
+                    },
+                },
                 page: {
                     eyebrow: 'Guía del producto',
                     title: 'Documentación de Magic Worlds',
@@ -1170,6 +1182,12 @@ export const es = {
                     createAdventure: 'Crear aventura',
                 },
                 sections: {
+                    roadmap: {
+                        label: 'Estado y hoja de ruta',
+                        eyebrow: 'Trabajo en curso',
+                        title: 'Estado y hoja de ruta',
+                        intro: 'Consulta qué existe hoy, qué está disponible en esta versión y qué falta por hacer. Las funciones desactivadas siguen siendo WIP aunque su base esté implementada.',
+                    },
                     start: {
                         label: 'Primeros pasos',
                         eyebrow: 'Por dónde empezar',
@@ -1235,6 +1253,112 @@ export const es = {
                         eyebrow: 'Recomendaciones',
                         title: 'Buenas prácticas',
                         intro: 'Estos hábitos mantienen la biblioteca fácil de buscar, las sesiones coherentes y el trabajo generado más fácil de reutilizar.',
+                    },
+                },
+                roadmap: {
+                    reviewed: 'Revisado el 14 de octubre de 2026',
+                    note: 'La disponibilidad corresponde a esta versión. Una función activada puede tener alcance o validación pendientes; su disponibilidad puede variar entre versiones.',
+                    labels: {
+                        current: 'Estado actual',
+                        next: 'Próximo trabajo',
+                        decision: 'Decisión pendiente',
+                    },
+                    statuses: {
+                        implemented: 'Base implementada',
+                        partial: 'WIP — parcial',
+                        planned: 'WIP — previsto',
+                    },
+                    availability: {
+                        enabled: 'Activado en esta versión',
+                        disabled: 'WIP — desactivado en esta versión',
+                        ungated: 'Función principal',
+                        planned: 'Aún no disponible',
+                    },
+                    items: {
+                        core: {
+                            title: 'Cartas y chat uno a uno',
+                            current: 'Están implementados los creadores de personajes, mundos y objetos, las bibliotecas privadas y el chat uno a uno.',
+                            next: 'Resolver el fallo registrado en la transmisión de conversaciones y verificar la narración y los retratos en cartas exportadas.',
+                            decision: 'TBD: verificaciones de lanzamiento confirmadas y fecha de cierre.',
+                        },
+                        novels: {
+                            title: 'Novelas / Story Studio',
+                            current: 'Existen el editor de capítulos, el contexto de cartas, la generación por candidatos, el guardado y la copia desde el historial de generación.',
+                            next: 'Corregir la recuperación del guardado y las reescrituras; después añadir escenas, revisiones duraderas, un asistente de novelas e importación/exportación de manuscritos.',
+                            decision: 'TBD: formato canónico del manuscrito, alcance ampliado del editor y fechas de entrega.',
+                        },
+                        charaStudio: {
+                            title: 'Chara Studio',
+                            current: 'Existe la generación de retratos; están previstos el estudio de edición, las imágenes de referencia, las máscaras y los flujos de variantes.',
+                            next: 'Definir las ediciones de imagen compatibles y las referencias propias antes de construir el editor y la biblioteca de variantes.',
+                            decision: 'TBD: modelos compatibles, capacidades de edición, reglas de conservación y fechas de entrega.',
+                        },
+                        lorebooks: {
+                            title: 'Lorebooks',
+                            current: 'Están implementados la edición de entradas, los adjuntos, las vistas previas de activación y el asistente de lorebooks.',
+                            next: 'Verificar la selección de contexto, los presupuestos y las reglas de adjuntos antes de ampliar la recuperación y la importación/exportación.',
+                            decision: 'TBD: alcance de recuperación avanzada y aceptación para el lanzamiento.',
+                        },
+                        resources: {
+                            title: 'Recursos de lorebooks',
+                            current: 'Existen la edición de texto y Markdown, la importación de archivos y URL, la importación de PDF y la extracción de metadatos.',
+                            next: 'Verificar los reintentos de extracción, el comportamiento de adjuntos y la recuperación sin resultados duplicados.',
+                            decision: 'TBD: límites de importación admitidos y aceptación para el lanzamiento.',
+                        },
+                        workspaces: {
+                            title: 'Espacios de trabajo',
+                            current: 'Están implementados las bibliotecas por espacio, el cambio de espacio, las colecciones, la gestión y la copia.',
+                            next: 'Verificar cambios y copias seguros, el contenido archivado, las bibliotecas existentes y las colecciones grandes.',
+                            decision: 'TBD: aceptación para el lanzamiento y objetivos de escala.',
+                        },
+                        adventures: {
+                            title: 'Aventuras',
+                            current: 'Están implementados los creadores de aventuras, las galerías, las sesiones guardadas y el ciclo de juego.',
+                            next: 'Verificar el historial guardado, las copias de cartas por sesión, la reconexión y la recuperación ante fallos de imagen o narración.',
+                            decision: 'TBD: aceptación para el lanzamiento y fechas de disponibilidad.',
+                        },
+                        groupChats: {
+                            title: 'Conversaciones en grupo',
+                            current: 'Existe el comportamiento de conversaciones en grupo; la sala de chat sigue disponible cuando los grupos están desactivados.',
+                            next: 'Verificar el elenco, la persona y el contexto guardado con los grupos activados y desactivados.',
+                            decision: 'TBD: aceptación para el lanzamiento de conversaciones en grupo.',
+                        },
+                        community: {
+                            title: 'Comunidad y cartas compartidas',
+                            current: 'Están implementados la galería de comunidad, las cartas compartidas y los enlaces compartidos.',
+                            next: 'Verificar los límites del contenido privado, los medios compartidos, los enlaces revocados y la importación a un espacio de trabajo.',
+                            decision: 'TBD: aceptación para el lanzamiento y fechas de disponibilidad.',
+                        },
+                        voices: {
+                            title: 'Estudio de voz',
+                            current: 'Los presets, el diseño de voz, la clonación y una biblioteca reutilizable forman un estudio de voz parcial.',
+                            next: 'Verificar los permisos de voz, la moderación, los límites y la recuperación cuando falla la generación de voz.',
+                            decision: 'TBD: políticas de voz aprobadas y aceptación para el lanzamiento.',
+                        },
+                        calls: {
+                            title: 'Llamadas de voz',
+                            current: 'Están implementadas las llamadas en vivo vinculadas a conversaciones de personajes.',
+                            next: 'Verificar navegadores, interrupciones, consentimiento y cierre de llamadas, y medir el tiempo de respuesta.',
+                            decision: 'TBD: navegadores compatibles y objetivos de latencia.',
+                        },
+                        appAssistant: {
+                            title: 'Asistente de la app',
+                            current: 'Existen asistentes de app, cartas y lorebooks; no está implementado un asistente de novelas.',
+                            next: 'Verificar los estados no disponibles, el conocimiento pertinente, los cambios seguros y la recuperación sin ediciones duplicadas.',
+                            decision: 'TBD: aceptación para el lanzamiento; la asistencia de novelas pertenece a la hoja de ruta de Novelas.',
+                        },
+                        billing: {
+                            title: 'Planes y compras',
+                            current: 'Están implementados la compra de planes, el portal de cuenta y la contabilidad de créditos; las compras requieren validación para el lanzamiento.',
+                            next: 'Verificar pagos, retornos, cancelaciones, reembolsos y conciliación de membresías antes de activar las compras.',
+                            decision: 'TBD: disponibilidad de compras y ampliación del catálogo de planes.',
+                        },
+                        patreon: {
+                            title: 'Patreon',
+                            current: 'Existe la conciliación de beneficios de membresía; no hay una pantalla para vincular una cuenta de Patreon.',
+                            next: 'Decidir si se añadirá la vinculación de cuentas y definir un flujo de conexión compatible.',
+                            decision: 'TBD: alcance de vinculación de cuentas y fecha de entrega.',
+                        },
                     },
                 },
                 quickStart: {
@@ -1371,7 +1495,7 @@ export const es = {
                         },
                         assistant: {
                             title: 'Pide ayuda al asistente de cartas',
-                            body: 'Cada creador tiene un asistente flotante. Conversa sobre la carta que estás creando, pide sugerencias y aplica un borrador generado directamente al formulario; nada cambia hasta que lo aceptas.',
+                            body: 'Cada creador tiene un asistente flotante. Conversa sobre la carta que estás creando o solicita cambios. El asistente puede guardar cambios durante un turno solicitado y aplicar el resultado al formulario; revisa la carta actualizada cuando termine.',
                             badge: 'Copiloto IA',
                         },
                         save: {
@@ -1425,7 +1549,7 @@ export const es = {
                         },
                         tune: {
                             title: 'Ajusta la interpretación',
-                            body: 'Usa estabilidad, similitud, velocidad y emoción para moldear el resultado. Los cambios pequeños son más fáciles de reutilizar que ajustes extremos, sobre todo en conversaciones largas.',
+                            body: 'Usa estabilidad y similitud, más velocidad cuando la voz seleccionada la admita. Los cambios pequeños son más fáciles de reutilizar que ajustes extremos, sobre todo en conversaciones largas.',
                         },
                         preview: {
                             title: 'Previsualiza antes de guardar',
@@ -1488,7 +1612,7 @@ export const es = {
                         },
                         novels: {
                             title: 'Las novelas son proyectos por capítulos',
-                            body: 'Empieza con una novela en blanco o crea desde cartas. Agrega capítulos, redacta prosa, guarda con frecuencia, copia Markdown y usa modo foco cuando solo quieres la superficie de escritura.',
+                            body: 'Empieza con una novela en blanco o crea desde cartas. Agrega capítulos, redacta prosa, guarda con frecuencia y usa modo foco cuando solo quieres la superficie de escritura. El historial de generación permite copiar resultados individuales de la IA.',
                         },
                         codex: {
                             title: 'El Codex de cartas controla el contexto de historia',
@@ -1496,7 +1620,7 @@ export const es = {
                         },
                         generation: {
                             title: 'La generación se basa en candidatos',
-                            body: 'Continúa, reescribe, expande, condensa o critica. El texto generado aparece como candidato que puedes aceptar, guardar aparte o descartar.',
+                            body: 'Continúa, reescribe, expande, condensa o critica. Acepta, descarta o regenera un candidato de prosa. La crítica se muestra como comentarios aparte.',
                         },
                     },
                     resources: {

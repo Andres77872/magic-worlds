@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/app/i18n'
 import type { Adventure, Character, Item, Lorebook, LorebookResource, Story, World } from '@/shared'
+import { isPageFeatureEnabled } from '@/shared/featureFlags'
+import { getDocsContent } from '@/features/docs/components/docsContent'
 import {
     KNOWLEDGE_LIMITS,
     buildGuideSection,
@@ -48,6 +50,10 @@ const library = (overrides: Partial<KnowledgeLibrary> = {}): KnowledgeLibrary =>
 
 const ALL: ReadonlySet<KnowledgeSourceKey> = new Set(['guide', 'library', 'lorebooks', 'resources', 'novels'])
 
+afterEach(() => {
+    vi.unstubAllEnvs()
+})
+
 describe('appKnowledge text helpers', () => {
     it('clips on a word boundary and collapses whitespace', () => {
         expect(clip('  one   two\nthree  ', 50)).toBe('one two three')
@@ -85,6 +91,55 @@ describe('buildGuideSection', () => {
     it('follows the active language', () => {
         const guide = buildGuideSection(i18n.getFixedT('es'))
         expect(guide.markdown).toContain(i18n.getFixedT('es')('docs.page.title'))
+    })
+
+    it.each(['en', 'es'])('shares localized WIP explanations with Docs while dropping disabled novel routes in %s', (language) => {
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+        const translate = i18n.getFixedT(language)
+        const docs = getDocsContent(translate)
+        const novelBody = docs.writingGuide.find((item) => item.title === translate('docs.guides.writing.novels.title'))!.body
+        const guide = buildGuideSection(translate, isPageFeatureEnabled)
+
+        expect(novelBody).toContain('WIP')
+        expect(guide.markdown).toContain(novelBody)
+        expect(guide.markdown).not.toContain('(#/gallery/stories)')
+        expect(guide.markdown).not.toMatch(/copy Markdown|copia Markdown|stash|guardar aparte/)
+    })
+
+    it.each(['en', 'es'])('keeps disabled and planned roadmap work in assistant knowledge in %s', (language) => {
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+        const translate = i18n.getFixedT(language)
+        const { roadmap } = getDocsContent(translate)
+        const novels = roadmap.items.find((item) => item.id === 'novels')!
+        const charaStudio = roadmap.items.find((item) => item.id === 'charaStudio')!
+        const guide = buildGuideSection(translate, isPageFeatureEnabled)
+
+        expect(guide.markdown).toContain(`## ${translate('docs.sections.roadmap.title')}`)
+        expect(guide.markdown).toContain(roadmap.reviewed)
+        expect(guide.markdown).toContain(roadmap.note)
+        expect(novels.status).toContain('WIP')
+        expect(novels.availability).toContain('WIP')
+        expect(charaStudio.status).toContain('WIP')
+        for (const item of [novels, charaStudio]) {
+            expect(guide.markdown).toContain(`### ${item.title} — ${item.status}`)
+            expect(guide.markdown).toContain(item.availability)
+            expect(guide.markdown).toContain(`**${roadmap.labels.current}** — ${item.current}`)
+            expect(guide.markdown).toContain(`**${roadmap.labels.next}** — ${item.next}`)
+            expect(guide.markdown).toContain(`**${roadmap.labels.decision}** — ${item.decision}`)
+        }
+        expect(guide.markdown).not.toContain('(#/gallery/stories)')
+        expect(guide.markdown).not.toContain('(#/story)')
+        expect(guide.markdown).not.toContain('docs.roadmap.')
+    })
+
+    it('uses available novel instructions and routes when the owning flag is on', () => {
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        const guide = buildGuideSection(t, isPageFeatureEnabled)
+        const note = t('docs.availability.disabled', { features: t('docs.availability.features.novels') })
+
+        expect(guide.markdown).toContain('(#/gallery/stories)')
+        expect(guide.markdown).toContain(t('docs.guides.writing.novels.body'))
+        expect(guide.markdown).not.toContain(note)
     })
 })
 

@@ -1,7 +1,9 @@
 # Cost, plans and operations
 
+> **Scope / status (reviewed 2026-10-14):** Voice design and dated evidence; product rollout is **WIP**. [00 — Current status and roadmap](00_current_status_and_roadmap.md) owns current implementation/flags/gaps. Later [03 §5.16](03_target_architecture_and_decisions.md#516-r0-implementation-decisions-2026-10-12) instructions and [15 §§11–13](15_implementation_plan_and_acceptance.md#11-minimax-voice-purge-2026-10-14) supersede MiniMax routing, cohorts, V1/maps and original rollout dates. Preserve earlier proposals and vendor facts as dated references; they are not proof of availability.
+
 - **Date:** 2026-10-12
-- **Status:** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status)
+- **Original proposal status (2026-10-12):** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status)
 
 ## Scope
 
@@ -412,7 +414,7 @@ Rules (D04; [research 05 §4.2, §11.2](research/05_elevenlabs_platform_pricing_
 | Single-use tokens | Not used. Browser-direct calls would bypass metering, moderation and barge-in logic ([research 05 §4.4](research/05_elevenlabs_platform_pricing_limits_policy.md)). |
 | Redaction | Extend both redactors with `xi-api-key:`, `sk_…`, `sutkn_…` and `ELEVENLABS_KEY_*=` ([image_generation/errors.py:24-32](/home/andres/PycharmProjects/magic-worlds-api/src/services/image_generation/errors.py); [voice_orchestration/errors.py:58-69](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/errors.py)). Add `api.elevenlabs.io` and `api.us.elevenlabs.io` to the provider-URL pattern next to Groq and MiniMax. |
 | Logging | Log `request-id`, `x-request-id`, `detail.request_id`, `x-trace-id`, `character-cost` (or `x-character-count`), `x-region` and the concurrency headers. **Never log text.** |
-| MiniMax | `MINIMAX_AUDIO_API_KEY` ([minimax_credentials.py:8](/home/andres/PycharmProjects/magic-worlds-api/src/services/minimax_credentials.py)) stays only during the dual-provider window and is **revoked at R4** (2026-12-18, D28). Remove the `.env.example` MiniMax block ([.env.example:385-425](/home/andres/PycharmProjects/magic-worlds-api/.env.example)) at R4. |
+| MiniMax | `MINIMAX_AUDIO_API_KEY` (minimax_credentials.py:8 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/minimax_credentials.py`)) stays only during the dual-provider window and is **revoked at R4** (2026-12-18, D28). Remove the `.env.example` MiniMax block ([.env.example:385-425](/home/andres/PycharmProjects/magic-worlds-api/.env.example)) at R4. |
 | Other env names | `VOICE_LAST_RESORT_VOICE_KEY` (D31). `ELEVENLABS_ENABLE_LOGGING` stays **unset** until ZRM is granted (D25). A webhook secret is needed only if the webhook is enabled after S-12 ([research 13 §5.2](research/13_gap_codebase_checks.md)). The full config list is in [08](08_backend_refactor_plan.md). |
 
 ### 4.3 Per-key `character_limit` sizing

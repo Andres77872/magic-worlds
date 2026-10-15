@@ -1,7 +1,9 @@
 # Realtime voice calls on ElevenLabs
 
+> **Scope / status (reviewed 2026-10-14):** Voice design and dated evidence; product rollout is **WIP**. [00 — Current status and roadmap](00_current_status_and_roadmap.md) owns current implementation/flags/gaps. Later [03 §5.16](03_target_architecture_and_decisions.md#516-r0-implementation-decisions-2026-10-12) instructions and [15 §§11–13](15_implementation_plan_and_acceptance.md#11-minimax-voice-purge-2026-10-14) supersede MiniMax routing, cohorts, V1/maps and original rollout dates. Preserve earlier proposals and vendor facts as dated references; they are not proof of availability.
+
 Date: 2026-10-12
-Status: Proposed (see 03 for sign-off status)
+Original proposal status (2026-10-12): Proposed (see 03 for sign-off status)
 
 ## Scope
 
@@ -93,7 +95,7 @@ The call sequence at the provider boundary is in 03 §2.3. This document does no
 | Sentence splitting | `SentenceBuffer`: `.!?` + whitespace, 160 soft cap ([sentence_buffer.py:17](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/sentence_buffer.py)); 120 ms idle flush and a 4-sentence TTS queue ([engine.py:63,66](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/engine.py)) | `SentenceBuffer` and the idle flush kept; it also records a sentence ledger (span, audio offset). The flush-ahead gate (§2.5) takes over the role of the 4-sentence queue | D06 |
 | Sanitizer | `validate_spoken_text` + `normalize_text_for_tts`; digits kept for MiniMax ([transcript_sanitizer.py:126,170](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/transcript_sanitizer.py)) | shared `SpeechTextPipeline` (§5.5.3 steps), en/es digit expansion, markup translated per model | D27 |
 | Moderation | async per-turn classifier only | synchronous, fail-closed, per sentence, before any flush; the async layer stays | D26 |
-| TTS transport | one prewarmed MiniMax socket per turn, plus a private socket for overlapping sentences ([streaming_tts_minimax.py:244,268](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/streaming_tts_minimax.py)) | one ElevenLabs multi-context socket per call; one context per turn | D06 |
+| TTS transport | one prewarmed MiniMax socket per turn, plus a private socket for overlapping sentences (streaming_tts_minimax.py:244,268 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/streaming_tts_minimax.py`)) | one ElevenLabs multi-context socket per call; one context per turn | D06 |
 | Model | `speech-2.8-turbo` | `eleven_flash_v2_5` (`el_flash_v2_5`); `el_v4_turbo` only behind S-18 | D06 |
 | Audio | MP3 32 kHz mono, hex → base64 | `mp3_44100_64`; `sample_rate`, `codec`, `channels` sent as data | D08 |
 | Barge-in | the turn's MiniMax socket is closed; the full text is persisted with truncated audio (bug #17) | context marked dead, its frames dropped, `close_context` sent once; the stored text is cut at `played_ms` | D06, D30 |
@@ -125,7 +127,7 @@ class StreamingSpeechProvider(Protocol):
     def chunks(self) -> AsyncIterator[AudioChunk]: ...
 ```
 
-It replaces `StreamingTtsClient` ([streaming_tts_minimax.py:87-105](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/streaming_tts_minimax.py)). Its `prepare_turn`/`synthesize`/`cancel`/`close_turn` calls in the engine map onto `begin_turn`/`push_text`/`cancel_turn`/`end_turn`. The mapping is not one to one for audio: `synthesize` returns a per-sentence iterator today, while the new seam has one `chunks()` stream per call, demultiplexed by `context_id`. The provider is chosen at `start_call` by `ProviderRouter` and stored on `voice_session.tts_provider` (D28).
+It replaces `StreamingTtsClient` (streaming_tts_minimax.py:87-105 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/streaming_tts_minimax.py`)). Its `prepare_turn`/`synthesize`/`cancel`/`close_turn` calls in the engine map onto `begin_turn`/`push_text`/`cancel_turn`/`end_turn`. The mapping is not one to one for audio: `synthesize` returns a per-sentence iterator today, while the new seam has one `chunks()` stream per call, demultiplexed by `context_id`. The provider is chosen at `start_call` by `ProviderRouter` and stored on `voice_session.tts_provider` (D28).
 
 ---
 

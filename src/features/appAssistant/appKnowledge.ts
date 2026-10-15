@@ -219,6 +219,14 @@ export function buildGuideSection(t: TFunction, isPageVisible: (page: PageType) 
             }
             lines.push(`### ${docs.mapHeadings.utilityRail}`)
             for (const item of docs.utilityItems) lines.push(`- ${item.title} — ${clip(item.body, 400)}`)
+        } else if (entry.id === 'roadmap') {
+            lines.push(docs.roadmap.reviewed, docs.roadmap.note)
+            for (const item of docs.roadmap.items) {
+                lines.push(`### ${item.title} — ${item.status}`, item.availability)
+                lines.push(`- **${docs.roadmap.labels.current}** — ${item.current}`)
+                lines.push(`- **${docs.roadmap.labels.next}** — ${item.next}`)
+                lines.push(`- **${docs.roadmap.labels.decision}** — ${item.decision}`)
+            }
         } else if (entry.id === 'best-practices') {
             for (const practice of docs.bestPractices) lines.push(`- ${clip(practice, 400)}`)
         } else {

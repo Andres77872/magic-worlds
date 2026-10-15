@@ -21,6 +21,7 @@ import {
     Images,
     Info,
     Mic,
+    Route,
     Search,
     Server,
     ShieldCheck,
@@ -328,6 +329,43 @@ export function DocsPage() {
                                     <FeatureCard key={item.title} icon={item.icon} title={`${index + 1}. ${item.title}`}>
                                         {item.body}
                                     </FeatureCard>
+                                ))}
+                            </div>
+                        </GuideSection>
+
+                        <GuideSection
+                            id="roadmap"
+                            icon={Route}
+                            eyebrow={getSection('roadmap').eyebrow}
+                            title={getSection('roadmap').title}
+                            intro={getSection('roadmap').intro}
+                            hidden={isHidden('roadmap')}
+                        >
+                            <p className="m-0 font-mono text-caption text-fg-muted">{docs.roadmap.reviewed}</p>
+                            <LabeledCallout label={getSection('roadmap').label} icon={Route}>
+                                <p className="m-0 font-ui text-body text-fg-muted">{docs.roadmap.note}</p>
+                            </LabeledCallout>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {docs.roadmap.items.map((item) => (
+                                    <Card key={item.id} className="min-w-0 p-4" data-roadmap-item={item.id}>
+                                        <div className="mb-3 flex flex-wrap gap-2">
+                                            <Badge tone={item.state === 'implemented' ? 'neutral' : 'warning'} className="max-w-full whitespace-normal">
+                                                {item.status}
+                                            </Badge>
+                                            <Badge tone={item.state === 'planned' || item.enabled === false ? 'warning' : 'ember'} className="max-w-full whitespace-normal">
+                                                {item.availability}
+                                            </Badge>
+                                        </div>
+                                        <h3 className="m-0 font-display text-h3 font-semibold text-fg">{item.title}</h3>
+                                        <dl className="mb-0 mt-3 flex flex-col gap-3 font-ui text-body">
+                                            {(['current', 'next', 'decision'] as const).map((field) => (
+                                                <div key={field}>
+                                                    <dt className="font-semibold text-fg">{docs.roadmap.labels[field]}</dt>
+                                                    <dd className="m-0 text-fg-muted">{item[field]}</dd>
+                                                </div>
+                                            ))}
+                                        </dl>
+                                    </Card>
                                 ))}
                             </div>
                         </GuideSection>

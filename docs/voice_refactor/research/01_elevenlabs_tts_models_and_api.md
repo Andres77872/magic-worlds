@@ -1,5 +1,7 @@
 # ElevenLabs TTS models and core API
 
+> **Research scope (reviewed 2026-10-14):** Historical evidence from the dates stated below, including the retired MiniMax baseline. Vendor prices, model/API facts and policy claims were not reverified in this documentation pass. Current application status is **WIP** and is tracked in [00](../00_current_status_and_roadmap.md); later native ElevenLabs code/cutover supersedes migration-era implementation assumptions here.
+
 Research date: **2026-10-12**. Research only. No code was changed.
 
 **Scope.** This note covers ElevenLabs text-to-speech **models** and the **core TTS API** as of October 2026:

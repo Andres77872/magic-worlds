@@ -1,7 +1,9 @@
 # Voice refactor: target architecture and decision record (MiniMax → ElevenLabs)
 
+> **Scope / status (reviewed 2026-10-14):** Voice design and dated evidence; product rollout is **WIP**. [00 — Current status and roadmap](00_current_status_and_roadmap.md) owns current implementation/flags/gaps. Later [03 §5.16](03_target_architecture_and_decisions.md#516-r0-implementation-decisions-2026-10-12) instructions and [15 §§11–13](15_implementation_plan_and_acceptance.md#11-minimax-voice-purge-2026-10-14) supersede MiniMax routing, cohorts, V1/maps and original rollout dates. Preserve earlier proposals and vendor facts as dated references; they are not proof of availability.
+
 - **Date:** 2026-10-12
-- **Status:** Proposed — awaiting owner sign-off (revised the same day after three adversarial reviews; see the Review log at the end)
+- **Original proposal status (2026-10-12):** Proposed — awaiting owner sign-off (revised the same day after three adversarial reviews; see the Review log at the end)
 - **Workspace R1 alignment (2026-10-12):** re-read against backend `f37eefd` and frontend `c7307c6` (content schema `2026_10_workspace_r1`). Adds D39 and §5.15, updates D28, D32, D36, §5.2 and §5.14. Evidence: [research/15](research/15_workspace_r1_impact.md).
 - **Owner of this document:** lead architect (voice refactor)
 - **Supersedes:** the conflicting target designs in research notes 01–08 wherever they disagree with this record.

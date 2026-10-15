@@ -1,7 +1,9 @@
 # Chat narration on ElevenLabs
 
+> **Scope / status (reviewed 2026-10-14):** Voice design and dated evidence; product rollout is **WIP**. [00 — Current status and roadmap](00_current_status_and_roadmap.md) owns current implementation/flags/gaps. Later [03 §5.16](03_target_architecture_and_decisions.md#516-r0-implementation-decisions-2026-10-12) instructions and [15 §§11–13](15_implementation_plan_and_acceptance.md#11-minimax-voice-purge-2026-10-14) supersede MiniMax routing, cohorts, V1/maps and original rollout dates. Preserve earlier proposals and vendor facts as dated references; they are not proof of availability.
+
 - **Date:** 2026-10-12
-- **Status:** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status)
+- **Original proposal status (2026-10-12):** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status)
 
 ## Scope
 
@@ -174,7 +176,7 @@ flowchart TD
 | 5 | Moderation | None | Fail-closed gate (§2.7) | D26 |
 | 6 | Reuse | `find_reusable_chat_job` ([models.py:8650](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py)) before quota ([engine.py:226](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py)) | Same order; hash v2 (§4) | §5.6 |
 | 7 | Reservation | `_enforce_quota` for segment 0 only ([route_chat.py:1433](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py), [engine.py:318](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py)); ledger ids discarded | One reservation per turn, settled (§5) | D24 |
-| 8 | Provider call | MiniMax T2A with nested retries ([minimax_adapter.py:130](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py), [engine.py:525](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py)) | ElevenLabs TTS HTTP, one retry layer (§3, §6) | D05, §5.6, §5.8 |
+| 8 | Provider call | MiniMax T2A with nested retries (minimax_adapter.py:130 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py`), [engine.py:525](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py)) | ElevenLabs TTS HTTP, one retry layer (§3, §6) | D05, §5.6, §5.8 |
 | 9 | Storage | Hex decode and fsync on the loop, inside the row lock ([engine.py:611](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py), [storage.py:117](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/storage.py)) | Raw bytes, `to_thread`, outside the lock (§7.5) | D30 #11 |
 | 10 | Metadata | `_metadata_patch_for_job` ([chat_tts_delivery.py:503](/home/andres/PycharmProjects/magic-worlds-api/src/services/chat_tts_delivery.py)) | Adds `tier`, `gain_db`, `substitution_reason`; capped clips get entries (§2.8) | D16, D36 |
 | 11 | Delivery | `build_tts_failed_frame`, `_broadcast` ([chat_tts_delivery.py:471](/home/andres/PycharmProjects/magic-worlds-api/src/services/chat_tts_delivery.py)) | §5.8 frames, code allow-list (§6) | §5.8 |
@@ -1019,7 +1021,7 @@ Until L-6 is answered, the "terms, verification, moderation or ban" row is match
 ### 6.3 Retry policy (one layer)
 
 **Who retries.** The engine owns every retry; the adapter performs exactly one HTTP request per call. Today there are two layers:
-- `MiniMaxTtsAdapter.synthesize` retries internally, including on `httpx.TimeoutException` ([minimax_adapter.py:130](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py));
+- `MiniMaxTtsAdapter.synthesize` retries internally, including on `httpx.TimeoutException` (minimax_adapter.py:130 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py`));
 - `_synthesize_with_attempts` retries `TimeoutError` and four categories after `asyncio.sleep(0.01)` ([engine.py:525](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py), [engine.py:46](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/engine.py)).
 
 Together they allow up to 4 paid provider calls for one clip. R0 removes the adapter loop on the MiniMax path as well.

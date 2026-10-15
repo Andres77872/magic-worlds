@@ -1,7 +1,9 @@
 # 14. Staging spike and contract tests
 
+> **Scope / status (reviewed 2026-10-14):** Voice design and dated evidence; product rollout is **WIP**. [00 — Current status and roadmap](00_current_status_and_roadmap.md) owns current implementation/flags/gaps. Later [03 §5.16](03_target_architecture_and_decisions.md#516-r0-implementation-decisions-2026-10-12) instructions and [15 §§11–13](15_implementation_plan_and_acceptance.md#11-minimax-voice-purge-2026-10-14) supersede MiniMax routing, cohorts, V1/maps and original rollout dates. Preserve earlier proposals and vendor facts as dated references; they are not proof of availability.
+
 - **Date:** 2026-10-12
-- **Status:** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status)
+- **Original proposal status (2026-10-12):** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status)
 
 ## Scope
 
@@ -1403,7 +1405,7 @@ The spike runs once. The contract suite runs for as long as ElevenLabs is the pr
 The suite follows the repository's existing opt-in pattern for live provider tests:
 
 - a marker excluded by default in [pytest.ini:5](/home/andres/PycharmProjects/magic-worlds-api/pytest.ini);
-- an explicit env flag, as in [test_live_minimax_tts_contract.py:19-29](/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_live_minimax_tts_contract.py) and [test_fal_provider_contract_live.py:8-16](/home/andres/PycharmProjects/magic-worlds-api/tests/test_fal_provider_contract_live.py).
+- an explicit env flag, as in test_live_minimax_tts_contract.py:19-29 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_live_minimax_tts_contract.py`) and [test_fal_provider_contract_live.py:8-16](/home/andres/PycharmProjects/magic-worlds-api/tests/test_fal_provider_contract_live.py).
 
 ### 4.1 Layers
 
@@ -1646,9 +1648,9 @@ These are gaps or inconsistencies in [03](03_target_architecture_and_decisions.m
 - Backend:
   - [pytest.ini:5](/home/andres/PycharmProjects/magic-worlds-api/pytest.ini)
   - [requirements-dev.txt:39](/home/andres/PycharmProjects/magic-worlds-api/requirements-dev.txt)
-  - [tests/voice/test_live_minimax_tts_contract.py:19-29](/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_live_minimax_tts_contract.py)
+  - tests/voice/test_live_minimax_tts_contract.py:19-29 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_live_minimax_tts_contract.py`)
   - [tests/test_fal_provider_contract_live.py:8-16](/home/andres/PycharmProjects/magic-worlds-api/tests/test_fal_provider_contract_live.py)
-  - [tests/services/test_tts_live_minimax_contract.py](/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_live_minimax_contract.py)
+  - tests/services/test_tts_live_minimax_contract.py (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/tests/services/test_tts_live_minimax_contract.py`)
   - [tests/fakes/voice.py:194](/home/andres/PycharmProjects/magic-worlds-api/tests/fakes/voice.py)
   - [tests/voice/test_voice_turn_latency.py:94](/home/andres/PycharmProjects/magic-worlds-api/tests/voice/test_voice_turn_latency.py)
   - [src/services/voice_orchestration/engine.py:1579-1599, 2286-2306](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/engine.py)

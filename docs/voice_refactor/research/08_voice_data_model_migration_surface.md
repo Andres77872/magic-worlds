@@ -1,5 +1,7 @@
 # 08 — Voice data model and migration surface (MiniMax → ElevenLabs)
 
+> **Research scope (reviewed 2026-10-14):** Historical evidence from the dates stated below, including the retired MiniMax baseline. Vendor prices, model/API facts and policy claims were not reverified in this documentation pass. Current application status is **WIP** and is tracked in [00](../00_current_status_and_roadmap.md); later native ElevenLabs code/cutover supersedes migration-era implementation assumptions here.
+
 Research date: **2026-10-12**. Read-only review of both repositories plus the live ElevenLabs documentation. No code, schema, or data was changed. No SQL in this file was executed.
 
 **Scope.** This file maps **every place where voice data is persisted, copied, hashed, or validated** across the backend (`/home/andres/PycharmProjects/magic-worlds-api`) and the frontend (`/home/andres/WebstormProjects/magic-worlds`), so the team can plan the data migration from MiniMax voice ids and recipes (`voice_id`, `speed`, `vol`, `pitch`, `emotion`, `language_boost`) to ElevenLabs voices and settings. For each storage location it gives the copy semantics (live vs frozen), a row-count query to run before the cutover, the migration action, the runtime failure if an unmapped MiniMax id reaches ElevenLabs, and whether old MiniMax MP3s can stay playable. It ends with a single **MIGRATION SURFACE** table. Provider integration, the Voice Studio UX, and realtime streaming are covered in other files in this folder; they are mentioned here only where they touch stored data.

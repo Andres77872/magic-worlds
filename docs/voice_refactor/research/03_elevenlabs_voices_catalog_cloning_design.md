@@ -1,5 +1,7 @@
 # ElevenLabs voices: catalog, Voice Library, cloning, design
 
+> **Research scope (reviewed 2026-10-14):** Historical evidence from the dates stated below, including the retired MiniMax baseline. Vendor prices, model/API facts and policy claims were not reverified in this documentation pass. Current application status is **WIP** and is tracked in [00](../00_current_status_and_roadmap.md); later native ElevenLabs code/cutover supersedes migration-era implementation assumptions here.
+
 Research date: **2026-10-12**. Read-only research. No code was changed.
 
 **Scope.** This note covers the ElevenLabs *voice* ecosystem for the MiniMax → ElevenLabs migration of magic-worlds: the kinds of voice, the listing and search APIs, the Voice Library (shared voices), Instant and Professional Voice Cloning, Voice Design and Voice Remix, voice management, preview audio, and the safety and policy rules. It ends with a target **voice catalog** design for magic-worlds. That design covers what users see, a DB schema, a sync job, free previews, filters, slot budgeting, how the root admin console maps to ElevenLabs, and how user presets ("recipes") change. Text-to-speech synthesis, streaming and realtime calls are covered only where they affect the catalog. Other files in this folder cover them in full.

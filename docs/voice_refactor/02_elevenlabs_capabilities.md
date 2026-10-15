@@ -1,7 +1,9 @@
 # ElevenLabs capabilities and fit for magic-worlds
 
+> **Scope / status (reviewed 2026-10-14):** Voice design and dated evidence; product rollout is **WIP**. [00 — Current status and roadmap](00_current_status_and_roadmap.md) owns current implementation/flags/gaps. Later [03 §5.16](03_target_architecture_and_decisions.md#516-r0-implementation-decisions-2026-10-12) instructions and [15 §§11–13](15_implementation_plan_and_acceptance.md#11-minimax-voice-purge-2026-10-14) supersede MiniMax routing, cohorts, V1/maps and original rollout dates. Preserve earlier proposals and vendor facts as dated references; they are not proof of availability.
+
 - **Date:** 2026-10-12
-- **Status:** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status)
+- **Original proposal status (2026-10-12):** Proposed (see [03](03_target_architecture_and_decisions.md) for sign-off status)
 
 ## Scope
 
@@ -1513,7 +1515,7 @@ Each item is: what the code assumes today (MiniMax) → what ElevenLabs does →
    - Region suffixes (`es-ES`) and 639-3 codes are not request codes.
    - Use the per-model allow-list (D17). **(S-4)**
 9. **Digits are no longer normalized for us.**
-   - The sanitizer keeps digits because MiniMax normalized them ([transcript_sanitizer.py:170-180](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/transcript_sanitizer.py#L170-L180); MiniMax `text_normalization_mode` at [streaming_tts_minimax.py:753](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/streaming_tts_minimax.py#L753)).
+   - The sanitizer keeps digits because MiniMax normalized them ([transcript_sanitizer.py:170-180](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/transcript_sanitizer.py#L170-L180); MiniMax `text_normalization_mode` at streaming_tts_minimax.py:753 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/streaming_tts_minimax.py#L753`)).
    - Flash normalization is not dependable.
    - Prompts spell numbers out and the sanitizer expands the rest (D27). **(S-5)**
 10. **The pause marker and the markup validator are MiniMax-shaped.**
@@ -1544,7 +1546,7 @@ Each item is: what the code assumes today (MiniMax) → what ElevenLabs does →
     - The BFF billing parser loses about one frame per sentence and can falsely resync ([engine.py:1579-1599](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/engine.py#L1579-L1599), [engine.py:2286-2306](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/engine.py#L2286-L2306)).
     - The tail-carry fix ships regardless (D08, D30). **(S-9)**
 18. **The error model is different.**
-    - MiniMax `base_resp` numeric codes ([minimax_adapter.py:17-22](/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py#L17-L22)) give way to `detail.code` plus legacy `detail.status`.
+    - MiniMax `base_resp` numeric codes (minimax_adapter.py:17-22 (retired historical source: `/home/andres/PycharmProjects/magic-worlds-api/src/services/tts_generation/minimax_adapter.py#L17-L22`)) give way to `detail.code` plus legacy `detail.status`.
     - `quota_exceeded` arrives as 401.
     - Three different 429s need three behaviours.
     - There is **no moderation error code**: enforcement is asynchronous and account-wide.
